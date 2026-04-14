@@ -170,7 +170,7 @@ void eval_sin(T& result, const T& x)
 
    using si_type = typename boost::multiprecision::detail::canonical<std::int32_t, T>::type ;
    using ui_type = typename boost::multiprecision::detail::canonical<std::uint32_t, T>::type;
-   using fp_type = typename std::tuple_element<0, typename T::float_types>::type                         ;
+   using fp_type = typename std::tuple_element<0, typename T::float_types>::type;
 
    switch (eval_fpclassify(x))
    {

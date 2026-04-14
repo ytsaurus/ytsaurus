@@ -11,6 +11,8 @@
 #include <Common/NamePrompter.h>
 #include <Common/SettingsChanges.h>
 
+#include <Parsers/IAST.h>
+
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -57,6 +59,13 @@ struct GetColumnsOptions
     GetColumnsOptions & withSubcolumns(bool value = true)
     {
         with_subcolumns = value;
+        with_dynamic_subcolumns = value;
+        return *this;
+    }
+
+    GetColumnsOptions & withRegularSubcolumns(bool value = true)
+    {
+        with_subcolumns = value;
         return *this;
     }
 
@@ -76,6 +85,7 @@ struct GetColumnsOptions
     VirtualsKind virtuals_kind = VirtualsKind::None;
 
     bool with_subcolumns = false;
+    bool with_dynamic_subcolumns = false;
     bool with_extended_objects = false;
 };
 
@@ -164,7 +174,7 @@ public:
 
     bool has(const String & column_name) const;
     bool hasNested(const String & column_name) const;
-    bool hasSubcolumn(const String & column_name) const;
+    bool hasSubcolumn(GetColumnsOptions::Kind kind, const String & column_name) const;
     const ColumnDescription & get(const String & column_name) const;
     const ColumnDescription * tryGet(const String & column_name) const;
 
@@ -266,6 +276,8 @@ private:
 
     void addSubcolumns(const String & name_in_storage, const DataTypePtr & type_in_storage);
     void removeSubcolumns(const String & name_in_storage);
+
+    std::optional<NameAndTypePair> tryGetDynamicSubcolumn(const String & column_name, const GetColumnsOptions & options) const;
 };
 
 class ASTColumnDeclaration;

@@ -1,22 +1,31 @@
 #pragma once
 
+#include "artifact.h"
 #include "public.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ArtifactMetaSuffix(".artifact");
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TString MountSuffix = "mount";
+inline const TString VolumesName = "volumes";
+inline const TString LayersName = "porto_layers";
+inline const TString LayersMetaName = "layers_meta";
+inline const TString VolumesMetaName = "volumes_meta";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +43,8 @@ DECLARE_REFCOUNTED_STRUCT(TAgentHeartbeatContext)
 DECLARE_REFCOUNTED_CLASS(TArtifact)
 
 DECLARE_REFCOUNTED_CLASS(TCacheLocation)
+
+DECLARE_REFCOUNTED_CLASS(TJobFSSecretary)
 
 struct TControllerAgentDescriptor;
 

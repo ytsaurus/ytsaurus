@@ -45,9 +45,6 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("prohibit_prerequisite_revisions_differ_from_execution_paths", &TThis::ProhibitPrerequisiteRevisionsDifferFromExecutionPaths)
         .Default(true);
-    registrar.Parameter("fix_resolve_prerequisite_path_to_local_object_for_symlinks", &TThis::FixResolvePrerequisitePathToLocalObjectForSymlinks)
-        .Default(true)
-        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,13 +6,15 @@
 #include <util/generic/size_literals.h>
 
 #include <contrib/ydb/library/yql/dq/actors/protos/dq_status_codes.pb.h>
+#include <contrib/ydb/core/util/exceptions.h>
 
-#include <yql/essentials/utils/exceptions.h>
 #include <yql/essentials/utils/yql_panic.h>
 
 #include <contrib/ydb/library/yql/udfs/common/clickhouse/client/src/IO/ReadBuffer.h>
 
 namespace NYql::NXz {
+
+using namespace NKikimr;
 
 namespace {
 

@@ -1,6 +1,6 @@
 ## How to run integration tests
 
-**Important:** we suppose that you use virtualenv for python playground: see instruction [how to install it](https://docs.python.org/3/library/venv.html).
+**Important:** Integration tests require **Python 3.13**. We suppose that you use virtualenv for python playground: see instruction [how to install it](https://docs.python.org/3/library/venv.html).
 
 1. Prepare [python modules](https://github.com/ytsaurus/ytsaurus/blob/main/yt/python/README.md) of the project. As a result following environment variables should be defined:
   * `$BUILD_ROOT` pointing to the build directory,

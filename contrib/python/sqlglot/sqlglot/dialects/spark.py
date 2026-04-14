@@ -4,6 +4,7 @@ import typing as t
 
 from sqlglot import exp
 from sqlglot.dialects.dialect import (
+    array_append_sql,
     rename_func,
     build_like,
     unit_to_var,
@@ -14,6 +15,7 @@ from sqlglot.dialects.dialect import (
 )
 from sqlglot.dialects.hive import _build_with_ignore_nulls
 from sqlglot.dialects.spark2 import Spark2, temporary_storage_provider, _build_as_cast
+from sqlglot.typing.spark import EXPRESSION_METADATA
 from sqlglot.helper import ensure_list, seq_get
 from sqlglot.tokens import TokenType
 from sqlglot.transforms import (
@@ -112,6 +114,8 @@ def _groupconcat_sql(self: Spark.Generator, expression: exp.GroupConcat) -> str:
 class Spark(Spark2):
     SUPPORTS_ORDER_BY_ALL = True
     SUPPORTS_NULL_TYPE = True
+    ARRAY_FUNCS_PROPAGATES_NULLS = True
+    EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
     class Tokenizer(Spark2.Tokenizer):
         STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS = False
@@ -122,16 +126,30 @@ class Spark(Spark2):
             for prefix in ("r", "R")
         ]
 
+        KEYWORDS = {
+            **Spark2.Tokenizer.KEYWORDS,
+            "DECLARE": TokenType.DECLARE,
+        }
+
     class Parser(Spark2.Parser):
         FUNCTIONS = {
             **Spark2.Parser.FUNCTIONS,
             "ANY_VALUE": _build_with_ignore_nulls(exp.AnyValue),
+            "ARRAY_INSERT": lambda args: exp.ArrayInsert(
+                this=seq_get(args, 0),
+                position=seq_get(args, 1),
+                expression=seq_get(args, 2),
+                offset=1,
+            ),
             "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
+            "BIT_GET": exp.Getbit.from_arg_list,
             "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
             "BIT_XOR": exp.BitwiseXorAgg.from_arg_list,
             "BIT_COUNT": exp.BitwiseCount.from_arg_list,
+            "CURDATE": exp.CurrentDate.from_arg_list,
             "DATE_ADD": _build_dateadd,
             "DATEADD": _build_dateadd,
+            "MAKE_TIMESTAMP": exp.TimestampFromParts.from_arg_list,
             "TIMESTAMPADD": _build_dateadd,
             "TIMESTAMPDIFF": build_date_delta(exp.TimestampDiff),
             "TRY_ADD": exp.SafeAdd.from_arg_list,
@@ -139,6 +157,7 @@ class Spark(Spark2):
             "TRY_SUBTRACT": exp.SafeSubtract.from_arg_list,
             "DATEDIFF": _build_datediff,
             "DATE_DIFF": _build_datediff,
+            "JSON_OBJECT_KEYS": exp.JSONKeys.from_arg_list,
             "LISTAGG": exp.GroupConcat.from_arg_list,
             "TIMESTAMP_LTZ": _build_as_cast("TIMESTAMP_LTZ"),
             "TIMESTAMP_NTZ": _build_as_cast("TIMESTAMP_NTZ"),
@@ -162,6 +181,16 @@ class Spark(Spark2):
             self._match(TokenType.R_BRACE)
             return self.expression(exp.Placeholder, this=this, widget=True)
 
+        FUNCTION_PARSERS = {
+            **Spark2.Parser.FUNCTION_PARSERS,
+            "SUBSTR": lambda self: self._parse_substring(),
+        }
+
+        STATEMENT_PARSERS = {
+            **Spark2.Parser.STATEMENT_PARSERS,
+            TokenType.DECLARE: lambda self: self._parse_declare(),
+        }
+
         def _parse_generated_as_identity(
             self,
         ) -> (
@@ -173,6 +202,12 @@ class Spark(Spark2):
             if this.expression:
                 return self.expression(exp.ComputedColumnConstraint, this=this.expression)
             return this
+
+        def _parse_pivot_aggregation(self) -> t.Optional[exp.Expression]:
+            # Spark 3+ and Databricks support non aggregate functions in PIVOT too, e.g
+            # PIVOT (..., 'foo' AS bar FOR col_to_pivot IN (...))
+            aggregate_expr = self._parse_function() or self._parse_disjunction()
+            return self._parse_alias(aggregate_expr)
 
     class Generator(Spark2.Generator):
         SUPPORTS_TO_NUMBER = True
@@ -196,6 +231,11 @@ class Spark(Spark2):
             exp.ArrayConstructCompact: lambda self, e: self.func(
                 "ARRAY_COMPACT", self.func("ARRAY", *e.expressions)
             ),
+            exp.ArrayInsert: lambda self, e: self.func(
+                "ARRAY_INSERT", e.this, e.args.get("position"), e.expression
+            ),
+            exp.ArrayAppend: array_append_sql("ARRAY_APPEND"),
+            exp.ArrayPrepend: array_append_sql("ARRAY_PREPEND"),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
             exp.BitwiseOrAgg: rename_func("BIT_OR"),
             exp.BitwiseXorAgg: rename_func("BIT_XOR"),
@@ -209,11 +249,13 @@ class Spark(Spark2):
                     move_partitioned_by_to_schema_columns,
                 ]
             ),
+            exp.CurrentVersion: rename_func("VERSION"),
             exp.DateFromUnixDate: rename_func("DATE_FROM_UNIX_DATE"),
             exp.DatetimeAdd: date_delta_to_binary_interval_op(cast=False),
             exp.DatetimeSub: date_delta_to_binary_interval_op(cast=False),
             exp.GroupConcat: _groupconcat_sql,
             exp.EndsWith: rename_func("ENDSWITH"),
+            exp.JSONKeys: rename_func("JSON_OBJECT_KEYS"),
             exp.PartitionedByProperty: lambda self,
             e: f"PARTITIONED BY {self.wrap(self.expressions(sqls=[_normalize_partition(e) for e in e.this.expressions], skip_first=True))}",
             exp.SafeAdd: rename_func("TRY_ADD"),
@@ -224,6 +266,7 @@ class Spark(Spark2):
             exp.TimeSub: date_delta_to_binary_interval_op(cast=False),
             exp.TsOrDsAdd: _dateadd_sql,
             exp.TimestampAdd: _dateadd_sql,
+            exp.TimestampFromParts: rename_func("MAKE_TIMESTAMP"),
             exp.TimestampSub: date_delta_to_binary_interval_op(cast=False),
             exp.DatetimeDiff: timestampdiff_sql,
             exp.TimestampDiff: timestampdiff_sql,
@@ -269,3 +312,25 @@ class Spark(Spark2):
 
             parquet_file = expression.expressions[0]
             return f"parquet.`{parquet_file.name}`"
+
+        def ifblock_sql(self, expression: exp.IfBlock) -> str:
+            condition = expression.this
+            true_block = expression.args.get("true")
+
+            condition_expr = None
+            if isinstance(condition, exp.Not):
+                inner = condition.this
+                if isinstance(inner, exp.Is) and isinstance(inner.expression, exp.Null):
+                    condition_expr = inner.this
+
+            if isinstance(condition_expr, exp.ObjectId):
+                object_type = condition_expr.expression
+                if (
+                    (object_type is None or object_type.name.upper() == "U")
+                    and isinstance(true_block, exp.Block)
+                    and isinstance(drop := true_block.expressions[0], exp.Drop)
+                ):
+                    drop.set("exists", True)
+                    return self.sql(drop)
+
+            return super().ifblock_sql(expression)

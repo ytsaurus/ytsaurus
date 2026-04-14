@@ -21,12 +21,31 @@ struct TCellDirectoryConfig
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
+    // COMPAT(cherepashka)
+    bool EnableHiveCellDirectoryReconfigurationOnNewMasterCells;
+    // COMPAT(cherepashka)
+    bool EnableHiveCellDirectoryReconfigurationOnChangedMasterCells;
+
     REGISTER_YSON_STRUCT(TCellDirectoryConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTestConfig
+    : public NYTree::TYsonStruct
+{
+    bool DuplicateDirectoryUpdate;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +62,9 @@ struct TCellDirectorySynchronizerConfig
 
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
+
+    // NB: Section for testing purposes.
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
 

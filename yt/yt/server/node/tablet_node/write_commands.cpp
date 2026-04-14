@@ -96,7 +96,7 @@ const TWireWriteCommand& TWireWriteCommandsReaderAdapter::NextCommand(bool /*isV
 
 bool TWireWriteCommandsReaderAdapter::IsFinished() const
 {
-    return CurrentIndex_ == Commands_.size();
+    return CurrentIndex_ == std::ssize(Commands_);
 }
 
 void TWireWriteCommandsReaderAdapter::RollbackLastCommand()

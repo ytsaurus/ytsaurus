@@ -71,6 +71,15 @@ struct IBootstrap
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
     virtual const NCellarNode::IMasterConnectorPtr& GetCellarNodeMasterConnector() const = 0;
 
+    // Config stuff.
+    virtual const TTabletNodeConfigPtr& GetTabletNodeConfig() const = 0;
+    virtual TTabletNodeDynamicConfigPtr GetTabletNodeDynamicConfig() const = 0;
+    DECLARE_INTERFACE_SIGNAL(
+        void(
+            const TTabletNodeDynamicConfigPtr& oldConfig,
+            const TTabletNodeDynamicConfigPtr& newConfig),
+        TabletNodeConfigChanged);
+
     // Data Node stuff for local chunk readers.
     // NB: Might be null if node is not a Data Node.
     // TODO(gritukan): Remove it after node split.

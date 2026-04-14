@@ -167,7 +167,7 @@ private:
     int FailedControlJobCount_ = 0;
     int FailedTreatmentJobCount_ = 0;
     int SucceededTreatmentJobCount_ = 0;
-    EJobExperimentStatus ExperimentStatus_ = EJobExperimentStatus::NoTreatmentSuccessesYet;
+    std::atomic<EJobExperimentStatus> ExperimentStatus_ = EJobExperimentStatus::NoTreatmentSuccessesYet;
 
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,

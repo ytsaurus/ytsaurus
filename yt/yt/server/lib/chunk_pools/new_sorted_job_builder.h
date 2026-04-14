@@ -1,8 +1,8 @@
 #pragma once
 
-#include "private.h"
-
 #include "new_job_manager.h"
+#include "private.h"
+#include "sorted_chunk_pool.h"
 #include "sorted_job_builder.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -32,6 +32,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
+    TSortedChunkPoolStatisticsPtr chunkPoolStatistics,
     NLogging::TLogger logger,
     NLogging::TLogger structuredLogger);
 

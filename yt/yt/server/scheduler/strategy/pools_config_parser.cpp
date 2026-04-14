@@ -1,7 +1,5 @@
 #include "pools_config_parser.h"
 
-#include "private.h"
-
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -22,7 +20,11 @@ TPoolsConfigParser::TPoolsConfigParser(
     : OldPoolToParentMap_(std::move(poolToParentMap))
     , EphemeralPools_(std::move(ephemeralPools))
     , PoolConfigPresets_(std::move(poolConfigPresets))
-{ }
+{
+    for (const auto& ephemeralPool : EphemeralPools_) {
+        EphemeralPoolParents_.insert(GetOrCrash(OldPoolToParentMap_, ephemeralPool));
+    }
+}
 
 TError TPoolsConfigParser::TryParse(const INodePtr& rootNode)
 {
@@ -34,10 +36,10 @@ TError TPoolsConfigParser::TryParse(const INodePtr& rootNode)
 
 const std::vector<TPoolsConfigParser::TUpdatePoolAction>& TPoolsConfigParser::GetOrderedUpdatePoolActions()
 {
-    return UpdatePoolActions;
+    return UpdatePoolActions_;
 }
 
-bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& parentName, bool isFifo)
+bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& poolName, bool isFifo)
 {
     auto nodeType = configNode->GetType();
     if (nodeType != ENodeType::Map) {
@@ -47,9 +49,16 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
 
     auto children = configNode->AsMap()->GetChildren();
 
-    if (isFifo && !children.empty()) {
-        Error_ = TError("Pool %Qv cannot have subpools since it is in FIFO mode", parentName);
-        return false;
+    if (isFifo) {
+        if (!children.empty()) {
+            Error_ = TError("Pool %Qv cannot have subpools since it is in FIFO mode", poolName);
+            return false;
+        }
+
+        if (EphemeralPoolParents_.contains(poolName)) {
+            Error_ = TError("Pool %Qv is in FIFO mode but has ephemeral subpools; ignoring update until they are removed", poolName);
+            return false;
+        }
     }
 
     for (const auto& [childName_, childNode] : children) {
@@ -63,7 +72,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
 
         TUpdatePoolAction updatePoolAction;
         updatePoolAction.Name = childName;
-        updatePoolAction.ParentName = parentName;
+        updatePoolAction.ParentName = poolName;
         try {
             auto poolConfigNode = ConvertToNode(childNode->Attributes());
             auto poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
@@ -98,7 +107,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
 
         auto oldParentIt = OldPoolToParentMap_.find(childName);
         if (oldParentIt != OldPoolToParentMap_.end()) {
-            if (parentName == oldParentIt->second) {
+            if (poolName == oldParentIt->second) {
                 updatePoolAction.Type = EUpdatePoolActionType::Keep;
             } else {
                 updatePoolAction.Type = EUpdatePoolActionType::Move;
@@ -109,7 +118,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
 
 
         bool childIsFifo = updatePoolAction.PoolConfig->Mode == NVectorHdrf::ESchedulingMode::Fifo;
-        UpdatePoolActions.push_back(std::move(updatePoolAction));
+        UpdatePoolActions_.push_back(std::move(updatePoolAction));
         YT_VERIFY(ParsedPoolNames_.insert(childName).second);
 
         if (!TryParse(childNode, childName, childIsFifo)) {
@@ -148,7 +157,7 @@ void TPoolsConfigParser::ProcessErasedPools()
             .Name = poolName,
             .Type = EUpdatePoolActionType::Erase
         };
-        UpdatePoolActions.push_back(eraseAction);
+        UpdatePoolActions_.push_back(eraseAction);
         ++eraseActionCount;
 
         const auto& parent = GetOrCrash(OldPoolToParentMap_, poolName);

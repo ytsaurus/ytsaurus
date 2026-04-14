@@ -58,7 +58,7 @@ DEFINE_REFCOUNTED_TYPE(TCriExecutorConfig)
 struct TCriAuthConfig
     : public NYTree::TYsonStruct
 {
-    TString Username;
+    std::string Username;
 
     TString Password;
 

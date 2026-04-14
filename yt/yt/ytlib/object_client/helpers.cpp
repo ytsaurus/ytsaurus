@@ -43,6 +43,12 @@ bool GetSuppressTransactionCoordinatorSync(const NRpc::NProto::TRequestHeader& r
     return ext.suppress_transaction_coordinator_sync();
 }
 
+bool GetSuppressStronglyOrderedTransactionBarrier(const NRpc::NProto::TRequestHeader& requestHeader)
+{
+    const auto& ext = requestHeader.GetExtension(NProto::TMulticellSyncExt::multicell_sync_ext);
+    return ext.suppress_strongly_ordered_transaction_barrier();
+}
+
 void SetSuppressUpstreamSync(NRpc::NProto::TRequestHeader* requestHeader, bool value)
 {
     auto* ext = requestHeader->MutableExtension(NProto::TMulticellSyncExt::multicell_sync_ext);
@@ -53,6 +59,12 @@ void SetSuppressTransactionCoordinatorSync(NRpc::NProto::TRequestHeader* request
 {
     auto* ext = requestHeader->MutableExtension(NProto::TMulticellSyncExt::multicell_sync_ext);
     ext->set_suppress_transaction_coordinator_sync(value);
+}
+
+void SetSuppressStronglyOrderedTransactionBarrier(NRpc::NProto::TRequestHeader* requestHeader, bool value)
+{
+    auto* ext = requestHeader->MutableExtension(NProto::TMulticellSyncExt::multicell_sync_ext);
+    ext->set_suppress_strongly_ordered_transaction_barrier(value);
 }
 
 bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error)

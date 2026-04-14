@@ -7,9 +7,7 @@
 #include "serialize.h"
 #include "tablet.h"
 
-#include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -35,6 +33,10 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
@@ -72,12 +74,14 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         TTimestamp timestamp,
-        const std::optional<TColumnFilter>& optionalColumnFilter)
+        const std::optional<TColumnFilter>& optionalColumnFilter,
+        EInitialQueryKind initialQueryKind)
         : Store_(std::move(store))
         , TabletIndex_(tabletIndex)
         , LowerRowIndex_(lowerRowIndex)
         , UpperRowIndex_(upperRowIndex)
         , Timestamp_(timestamp)
+        , InitialQueryKind_(initialQueryKind)
         , Logger(Store_->Logger)
         , OptionalColumnFilter_(optionalColumnFilter)
         , CurrentRowIndex_(std::max(lowerRowIndex, Store_->GetStartingRowIndex()))
@@ -114,8 +118,7 @@ public:
                 break;
 
             case EState::WaitingForBarrier:
-                YT_VERIFY(BarrierFuture_.IsSet());
-                YT_VERIFY(BarrierFuture_.Get().IsOK());
+                YT_VERIFY(BarrierFuture_.GetOrCrash().IsOK());
                 AdjustUpperRowIndex();
                 YT_LOG_DEBUG("Finished waiting for prepared transactions to commit (UpperRowIndex: %v)",
                     UpperRowIndex_);
@@ -135,8 +138,8 @@ public:
 
         i64 dataWeight = 0;
         while (CurrentRowIndex_ < UpperRowIndex_ &&
-               std::ssize(rows) < options.MaxRowsPerRead &&
-               dataWeight < options.MaxDataWeightPerRead)
+           std::ssize(rows) < options.MaxRowsPerRead &&
+           dataWeight < options.MaxDataWeightPerRead)
         {
             auto row = CaptureRow(Store_->GetRow(CurrentRowIndex_));
             rows.push_back(row);
@@ -187,6 +190,7 @@ private:
     const i64 LowerRowIndex_;
     i64 UpperRowIndex_;
     const TTimestamp Timestamp_;
+    const EInitialQueryKind InitialQueryKind_;
 
     const NLogging::TLogger& Logger;
 
@@ -244,9 +248,14 @@ private:
             UpperRowIndex_,
             maxUpperRowIndex);
 
+        auto tableProfiler = Store_->GetTablet()->GetTableProfiler();
+        auto start = GetCpuInstant();
+
+        auto waitOnBlockedRowTimer = GetWaitOnBlockedRowTimer(tableProfiler, InitialQueryKind_);
+
         BarrierFuture_ = barrierFuture
             .WithTimeout(Store_->Context_->GetTabletManagerConfig()->MaxBlockedRowWaitTime)
-            .Apply(BIND([] (const TError& error) {
+            .Apply(BIND([waitOnBlockedRowTimer, start] (const TError& error) {
                 if (error.GetCode() == NYT::EErrorCode::Timeout) {
                     THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
                 }
@@ -254,7 +263,10 @@ private:
                 if (!error.IsOK()) {
                     THROW_ERROR error;
                 }
+
+                waitOnBlockedRowTimer.Record(CpuDurationToDuration(GetCpuInstant() - start));
             }));
+
     }
 
     TUnversionedRow CaptureRow(TOrderedDynamicRow dynamicRow)
@@ -327,7 +339,8 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateFlushReader()
         StartingRowIndex_,
         StartingRowIndex_ + FlushRowCount_,
         AsyncLastCommittedTimestamp,
-        std::nullopt);
+        std::nullopt,
+        EInitialQueryKind::TabletBackground);
 }
 
 ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
@@ -337,7 +350,8 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
         StartingRowIndex_,
         StartingRowIndex_ + GetRowCount(),
         AsyncLastCommittedTimestamp,
-        std::nullopt);
+        std::nullopt,
+        EInitialQueryKind::TabletBackground);
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
@@ -484,11 +498,20 @@ void TOrderedDynamicStore::Load(TLoadContext& context)
     Load(context, HunkStoreRefs_);
 }
 
+void TOrderedDynamicStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
+{
+    TDynamicStoreBase::PopulateAddStoreDescriptor(descriptor);
+
+    descriptor->set_starting_row_index(GetStartingRowIndex());
+}
+
 TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 {
     using NYT::Save;
 
     auto tableReader = CreateSnapshotReader();
+
+    auto nodeMemoryUsageTracker = Tablet_->TryGetNodeMemoryUsageTracker();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
@@ -504,6 +527,10 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
         // Ensure deterministic snapshots.
         tableWriterOptions->SetChunkCreationTime = false;
+        if (nodeMemoryUsageTracker) {
+            tableWriterOptions->MemoryUsageTracker = nodeMemoryUsageTracker
+                ->WithCategory(EMemoryCategory::TabletBackground);
+        }
         tableWriterOptions->Postprocess();
 
         auto tableWriter = CreateSchemalessChunkWriter(
@@ -637,7 +664,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     i64 upperRowIndex,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return CreateSchemafulPerformanceCountingReader(
@@ -646,10 +673,11 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
             lowerRowIndex,
             upperRowIndex,
             timestamp,
-            columnFilter),
+            columnFilter,
+            chunkReadOptions.InitialQueryKind),
         PerformanceCounters_,
         NTableClient::EDataSource::DynamicStore,
-        EPerformanceCountedRequestType::Read);
+        chunkReadOptions.InitialQueryKind);
 }
 
 void TOrderedDynamicStore::OnSetPassive()
@@ -664,10 +692,14 @@ void TOrderedDynamicStore::OnSetRemoved()
 
     const auto& hunkLockManager = Tablet_->GetHunkLockManager();
     for (const auto& [hunkStoreId, hunkStoreRef] : HunkStoreRefs_) {
-        YT_LOG_DEBUG(
-            "Unreferencing hunk store before death (HunkStoreId: %v)",
-            hunkStoreId);
         hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+
+        YT_LOG_DEBUG(
+            "Unreferencing hunk store before death "
+            "(HunkStoreId: %v, PersistentLockCount: %v, TotalLockCount: %v)",
+            hunkStoreId,
+            hunkLockManager->GetPersistentLockCount(hunkStoreId),
+            hunkLockManager->GetTotalLockCount(hunkStoreId));
     }
 
     HunkStoreRefs_.clear();
@@ -707,7 +739,8 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::DoCreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     TTimestamp timestamp,
-    const std::optional<TColumnFilter>& optionalColumnFilter)
+    const std::optional<TColumnFilter>& optionalColumnFilter,
+    EInitialQueryKind initialQueryKind)
 {
     return New<TReader>(
         this,
@@ -715,7 +748,8 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::DoCreateReader(
         lowerRowIndex,
         upperRowIndex,
         timestamp,
-        optionalColumnFilter);
+        optionalColumnFilter,
+        initialQueryKind);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

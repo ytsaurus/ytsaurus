@@ -20,13 +20,12 @@ class EmailRow:
     email: str
 
 
-# Любой класс джоба (в том числе Mapper) -- это наследник TypedJob.
+# Any job class (including Mapper) is inherited from TypedJob.
 class ComputeEmailsMapper(yt.wrapper.TypedJob):
-    # На вход __call__ получает одну строку входной таблицы (типа StaffRow),
-    # а вернуть (yield-ом) она должна те строки,
-    # которые мы хотим записать в выходную табицу (типа EmailRow).
-    # Тайпинги нужны API для выведения типов входных и выходных строк.
-    # По-другому эти типы можно указать переопределив метод prepare_operation
+    # The `__call__` method receives one row of the input table (of type StaffRow) to the input.
+    # and it should return (using yield) the rows that we want to write to the output table (of type EmailRow).
+    # Type hints are needed for the API to infer the types of input and output rows.
+    # These types can also be specified by overriding the `prepare_operation` method.
     def __call__(self, input_row: StaffRow) -> typing.Iterable[EmailRow]:
         yield EmailRow(
             name=input_row.name,
@@ -41,7 +40,7 @@ def main():
         raise RuntimeError("Environment variable YT_PROXY is empty")
     client = yt.wrapper.YtClient(cluster)
 
-    # Выходная таблица у нас будет лежать в tmp и содержать имя текущего пользователя.
+    # Our output table will be located in tmp and will contain the name of the current user.
     output_table = "//tmp/{}-pytutorial-typed-map-emails".format(getpass.getuser())
 
     client.run_map(
@@ -54,7 +53,7 @@ def main():
     print(f"Output table: {ui_url}/#page=navigation&offsetMode=row&path={output_table}")
 
 
-# Очень важно использовать конструкцию `if __name__ == "__main__"'
-# в скриптах запускающих операции, без неё операции будут падать со странными ошибками.
+# It is very important to use the `if __name__ == "__main__"` construct
+# in scripts that launch operations; otherwise operations will fail with unusual errors.
 if __name__ == "__main__":
     main()

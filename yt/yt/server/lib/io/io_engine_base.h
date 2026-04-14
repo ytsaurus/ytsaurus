@@ -230,6 +230,9 @@ protected:
     void DoResize(const TResizeRequest& request);
     void AddWriteWaitTimeSample(TDuration duration);
     void AddReadWaitTimeSample(TDuration duration);
+    TSharedMutableRef AllocateWriteBlob(
+        i64 size,
+        i64 directIoBlockSize);
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 
@@ -276,11 +279,11 @@ public:
     TRequestCounterGuard();
     TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType);
     TRequestCounterGuard(const TRequestCounterGuard& other) = delete;
-    TRequestCounterGuard(TRequestCounterGuard&& other);
+    TRequestCounterGuard(TRequestCounterGuard&& other) noexcept;
     ~TRequestCounterGuard();
 
     TRequestCounterGuard& operator=(const TRequestCounterGuard& other) = delete;
-    TRequestCounterGuard& operator=(TRequestCounterGuard&& other);
+    TRequestCounterGuard& operator=(TRequestCounterGuard&& other) noexcept;
 
     void Release();
 

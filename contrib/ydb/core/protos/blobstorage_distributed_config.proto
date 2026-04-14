@@ -250,6 +250,8 @@ message TEvNodeConfigInvokeOnRoot {
         bool StorageConfig = 3;
         bool AddSectionsForMigrationToV1 = 5; // add sections so this config becomes suitable for migration to v1
         bool AddExplicitConfigs = 4; // add explicit settings for all managed entities
+        repeated string RequestorHost = 6;
+        uint32 RequestorPort = 7;
     }
 
     message TReplaceStorageConfig {
@@ -260,6 +262,7 @@ message TEvNodeConfigInvokeOnRoot {
         bool SkipConsoleValidation = 2;
         optional bytes UserToken = 6;
         optional string PeerName = 7;
+        bool DryRun = 8;
     }
 
     message TBootstrapCluster {
@@ -339,6 +342,7 @@ message TEvNodeConfigInvokeOnRootResult {
     message TFetchStorageConfig {
         optional string YAML = 1;
         optional string StorageYAML = 2;
+        bool Transient = 3;
     }
 
     message TReplaceStorageConfig {

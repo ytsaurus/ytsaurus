@@ -18,16 +18,8 @@ std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const std::st
         return std::nullopt;
     }
 
-    std::vector<NQueryClient::TTypeSet> typeConstraints;
-    std::vector<int> formalArguments;
-    std::optional<std::pair<int, bool>> repeatedType;
-
-    int index = functionIterator->second->GetNormalizedConstraints(
-        &typeConstraints,
-        &formalArguments,
-        &repeatedType,
-        functionName);
-    auto returnTypes = typeConstraints[index];
+    auto normalizedConstraints = functionIterator->second->GetNormalizedConstraints(functionName);
+    auto returnTypes = normalizedConstraints.TypeConstraints[normalizedConstraints.ReturnType];
 
     if (returnTypes.GetSize() != 1) {
         return std::nullopt;

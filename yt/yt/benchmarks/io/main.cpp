@@ -348,10 +348,10 @@ private:
 class TTest
 {
 public:
-    TTest(const TTestConfigPtr config, TString info, const TTestOptions& options)
+    TTest(const TTestConfigPtr config, std::string info, const TTestOptions& options)
         : Config_(std::move(config))
         , Options_(options)
-        , Info_(info)
+        , Info_(std::move(info))
     { }
 
     void Run()
@@ -373,13 +373,13 @@ public:
 private:
     const TTestConfigPtr Config_;
     const TTestOptions Options_;
-    const TString Info_;
+    const std::string Info_;
     TFormattedOutputPtr FormattedOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunTest(TTestConfigPtr config, TString info, const TTestOptions& options) {
+void RunTest(TTestConfigPtr config, std::string info, const TTestOptions& options) {
     TTest test(std::move(config), info, options);
     test.Run();
 }
@@ -387,7 +387,7 @@ void RunTest(TTestConfigPtr config, TString info, const TTestOptions& options) {
 void GuardedMain(int argc, char** argv) {
     TOpts opts;
     TString configFileName;
-    TString info;
+    std::string info;
     TTestOptions options;
     auto config = New<TTestConfig>();
 

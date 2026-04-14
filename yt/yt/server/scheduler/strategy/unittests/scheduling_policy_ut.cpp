@@ -21,6 +21,7 @@
 #include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/yson/null_consumer.h>
 
@@ -32,6 +33,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 namespace {
 
 using namespace NControllerAgent;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,10 +57,10 @@ public:
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* item = protoDirectory.add_items();
-        item->set_name(NChunkClient::DefaultSlotsMediumName);
-        item->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        item->set_priority(0);
+        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
+        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
+        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
+        protoMediumDescriptor->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
 
         for (const auto& node : ExecNodes_) {
@@ -193,7 +195,7 @@ public:
         const TError& /*alert*/,
         std::optional<TDuration> /*timeout*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     NYson::IYsonConsumer* GetEventLogConsumer() override
@@ -246,7 +248,7 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
@@ -999,6 +1001,79 @@ TEST_F(TSchedulingPolicyTest, TestUpdatePreemptibleAllocationsList)
     for (int i = 100; i < 150; ++i) {
         EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
     }
+
+    // Both allocations on border (49 and 99) have fs ~= us, so we should not move them with new policy.
+    TreeConfig_->ConsiderAllocationOnFairShareBoundPreemptible = true;
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    for (int i = 0; i < 50; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 50; i < 100; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::AggressivelyPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 100; i < 150; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+}
+
+TEST_F(TSchedulingPolicyTest, ConsiderAllocationOnFairShareBoundPreemptible)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    TJobResourcesWithQuota allocationResources;
+    allocationResources.SetUserSlots(1);
+    allocationResources.SetCpu(2);
+    allocationResources.SetMemory(20);
+
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(10, nodeResources));
+    InitializeTestSchedulingPolicy(strategyHost);
+
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX, rootElement.Get(), operationOptions);
+
+    std::vector<TAllocationId> allocationIds;
+    for (int i = 0; i < 75; ++i) {
+        auto allocationId = TAllocationId(TGuid::Create());
+        allocationIds.push_back(allocationId);
+        SchedulingPolicy_->OnAllocationStartedInTest(operationElementX.Get(), allocationId, allocationResources);
+    }
+
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    EXPECT_EQ(1.0, MaxComponent(operationElementX->Attributes().FairShare.Total));
+    EXPECT_EQ(1.7, MaxComponent(operationElementX->Attributes().DemandShare));
+
+    for (int i = 0; i < 25; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 25; i < 50; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::AggressivelyPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 50; i < 75; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+
+    TreeConfig_->ConsiderAllocationOnFairShareBoundPreemptible = true;
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    for (int i = 0; i < 24; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::NonPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 24; i < 49; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::AggressivelyPreemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
+    for (int i = 49; i < 75; ++i) {
+        EXPECT_EQ(EAllocationPreemptionStatus::Preemptible, SchedulingPolicy_->GetAllocationPreemptionStatusInTest(operationElementX.Get(), allocationIds[i]));
+    }
 }
 
 TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
@@ -1067,7 +1142,7 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     DoTestSchedule(strategyHost.Get(), treeSnapshot, execNodes[2], operationElement);
     readyToGo.Set();
 
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
+    EXPECT_TRUE(WaitForFast(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2))).IsOK());
 }
 
 TEST_F(TSchedulingPolicyTest, DoNotPreemptAllocationsIfFairShareEqualsDemandShare)

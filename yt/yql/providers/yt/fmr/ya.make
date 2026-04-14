@@ -6,12 +6,14 @@ RECURSE(
     job
     job_factory
     job_launcher
+    job_preparer
     process
     proto
     request_options
     table_data_service
     tests
     test_tools
+    tvm
     utils
     worker
     yt_job_service

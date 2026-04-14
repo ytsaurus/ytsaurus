@@ -20,7 +20,7 @@ std::string TDataCenter::GetCapitalizedObjectName() const
 
 TYPath TDataCenter::GetObjectPath() const
 {
-    return Format("//sys/data_centers/%v", GetName());
+    return Format("//sys/data_centers/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TDataCenter::Save(NCellMaster::TSaveContext& context) const

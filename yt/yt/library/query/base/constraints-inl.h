@@ -8,17 +8,17 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool operator < (const TValueBound& lhs, const TValueBound& rhs)
+inline bool operator<(const TValueBound& lhs, const TValueBound& rhs)
 {
     return std::tie(lhs.Value, lhs.Flag) < std::tie(rhs.Value, rhs.Flag);
 }
 
-inline bool operator <= (const TValueBound& lhs, const TValueBound& rhs)
+inline bool operator<=(const TValueBound& lhs, const TValueBound& rhs)
 {
     return std::tie(lhs.Value, lhs.Flag) <= std::tie(rhs.Value, rhs.Flag);
 }
 
-inline bool operator == (const TValueBound& lhs, const TValueBound& rhs)
+inline bool operator==(const TValueBound& lhs, const TValueBound& rhs)
 {
     return std::tie(lhs.Value, lhs.Flag) == std::tie(rhs.Value, rhs.Flag);
 }
@@ -105,7 +105,7 @@ void TReadRangesGenerator::GenerateReadRanges(TConstraintRef constraintRef, cons
         return;
     }
 
-    auto intervals = Constraints_[columnId].Slice(constraintRef.StartIndex, constraintRef.EndIndex);
+    auto intervals = TRange(Constraints_[columnId]).Slice(constraintRef.StartIndex, constraintRef.EndIndex);
 
     if (columnId >= keyWidthLimit) {
         Row_[columnId] = TColumnConstraint{intervals.Front().GetLowerBound(), intervals.Back().GetUpperBound()};

@@ -570,13 +570,13 @@ private:
                     .BlockIndex = request.BlockIndex,
                     .BlockOffset = projection.BlockOffset,
                     .Open = true,
-                    .PartDescriptor = partDescriptor
+                    .PartDescriptor = partDescriptor,
                 });
                 endpoints.push_back(TEndpoint{
                     .BlockIndex = request.BlockIndex,
                     .BlockOffset = projection.BlockOffset + projection.Length - 1,
                     .Open = false,
-                    .PartDescriptor = partDescriptor
+                    .PartDescriptor = partDescriptor,
                 });
             }
         }
@@ -592,7 +592,7 @@ private:
                     RepairFragments_.push_back(TChunkFragment{
                         .BlockIndex = endpoint.BlockIndex,
                         .BlockOffset = endpoint.BlockOffset,
-                        .Length = -1
+                        .Length = -1,
                     });
                     RepairRequestIndexToRequestParts_.emplace_back();
                 }

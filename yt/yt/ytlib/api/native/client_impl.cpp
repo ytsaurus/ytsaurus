@@ -18,6 +18,8 @@
 #include "table_collocation_type_handler.h"
 #include "tablet_action_type_handler.h"
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
@@ -157,7 +159,7 @@ TClient::TClient(
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))
-    , FunctionRegistry_ (BIND(CreateFunctionRegistryCache,
+    , FunctionRegistry_(BIND(CreateFunctionRegistryCache,
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
@@ -640,6 +642,7 @@ void TClient::ValidateSuperuserPermissions()
     TGetNodeOptions options;
     options.SuppressTransactionCoordinatorSync = true;
     options.SuppressUpstreamSync = true;
+    options.SuppressStronglyOrderedTransactionBarrier = true;
     auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 
@@ -899,6 +902,14 @@ void TClient::DoCheckClusterLiveness(
                 << TErrorAttribute("bundle_health", health);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NYson::TYsonString> TClient::GetConnectionOrchidValue(
+    const NApi::TGetConnectionOrchidValueOptions& options)
+{
+    return AsyncYPathGet(Connection_->GetOrchidService(), options.Path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

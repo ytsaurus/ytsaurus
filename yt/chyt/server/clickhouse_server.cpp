@@ -316,13 +316,19 @@ private:
 
         YT_LOG_DEBUG("Adding external dictionaries from config");
 
-        DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries));
+        DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries, Config_->DefaultDatabase));
 
-        if (Host_->GetConfig()->DictionaryRepository->Enabled) {
-            YT_LOG_DEBUG("Adding repository for loading dictionaries from cypress");
+        if (Host_->GetConfig()->DictionaryRepository) {
+            YT_LOG_DEBUG("Adding repository for loading dictionaries from Cypress");
 
             CypressDictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(
                 CreateExternalLoaderFromCypressConfigRepository(Host_->GetCypressDictionaryConfigRepository()));
+        }
+
+        if (Host_->GetConfig()->DictionaryAccessControl) {
+            // By default, CH lazily creates dictionaries in memory on the first access.
+            // For the DictionaryAccessControl to work correctly, the dictionaries with YtSource must have already been created before query start.
+            ServerContext_->getExternalDictionariesLoader().enableAlwaysLoadEverything(/*enable*/ true);
         }
 
         YT_LOG_DEBUG("Setting chyt custom setting prefix");
@@ -371,7 +377,7 @@ private:
     {
         YT_LOG_INFO("Warming up dictionaries");
         ServerContext_->getEmbeddedDictionaries();
-        if (Host_->GetConfig()->DictionaryRepository->Enabled) {
+        if (Host_->GetConfig()->DictionaryRepository) {
             ServerContext_->getExternalDictionariesLoader().reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName);
         }
         YT_LOG_INFO("Finished warming up");

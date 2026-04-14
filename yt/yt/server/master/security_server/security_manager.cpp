@@ -42,6 +42,7 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 #include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -106,6 +107,7 @@ using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NSequoiaServer;
 using namespace NSequoiaClient;
+using namespace NServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYPath;
@@ -225,6 +227,14 @@ protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
     {
         return TNonversionedMapObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
+    }
+
+    void ValidateObjectName(const std::string& name) override
+    {
+        TNonversionedMapObjectTypeHandlerBase<TAccount>::ValidateObjectName(name);
+
+        CheckObjectName(name)
+            .ThrowOnError();
     }
 
 private:
@@ -466,6 +476,7 @@ public:
             EIncumbentType::SecurityManager)
         , UserActivityTracker_(CreateUserActivityTracker(bootstrap))
         , RequestTracker_(New<TRequestTracker>(Bootstrap_->GetConfig()->SecurityManager->UserThrottler, bootstrap))
+        , BufferedProducer_(New<TBufferedProducer>())
     {
         RegisterLoader(
             "SecurityManager.Keys",
@@ -500,6 +511,7 @@ public:
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
         incumbentManager->RegisterIncumbent(this);
 
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSendAccountStatisticsGossip, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
@@ -555,6 +567,11 @@ public:
             .TimeCounter("/check_permission_cumulative_time");
         AclIterationTimeCounter_ = perCellPermissionValidationProfiler
             .TimeCounter("/acl_iteration_cumulative_time");
+
+        SecurityProfiler()
+            .WithGlobal()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+            .AddProducer("", BufferedProducer_);
     }
 
     void OnAccountsProfiling()
@@ -673,7 +690,7 @@ public:
                 for (const auto& [cellTag, cellStatistics] : multicellStatistics) {
                     TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
                     auto usage = cellStatistics.ResourceUsage;
-                    auto committedUsage = cellStatistics.ResourceUsage;
+                    auto committedUsage = cellStatistics.CommittedResourceUsage;
 
                     buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
 
@@ -724,7 +741,7 @@ public:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -745,27 +762,35 @@ public:
         return account;
     }
 
-    TAccount* DoFindAccountByName(const std::string& name)
+    TAccount* DoFindAccountByName(const std::string& name, bool throwOnInvalidId)
     {
-        // Access buggy parentless accounts by id.
-        if (name.starts_with(NObjectClient::ObjectIdPathPrefix)) {
-            TStringBuf idString(name, NObjectClient::ObjectIdPathPrefix.size());
-            auto id = TObjectId::FromString(idString);
-            auto* account = AccountMap_.Find(id);
-            if (!IsObjectAlive(account) || account->GetName() != name) {
+        auto* account = Visit(ParseObjectNameOrId(name),
+            [&] (TStringBuf accountName) {
+                return GetOrDefault(AccountNameMap_, accountName, nullptr);
+            },
+            [&] (TObjectId id) -> TAccount* {
+                if (TypeFromId(id) != EObjectType::Account) {
+                    if (throwOnInvalidId) {
+                        THROW_ERROR_EXCEPTION("Invalid account id")
+                            << TErrorAttribute("account_id", id);
+                    }
+                    return nullptr;
+                }
+                return AccountMap_.Find(id);
+            },
+            [&] (TError error) -> TAccount* {
+                if (throwOnInvalidId) {
+                    THROW_ERROR error;
+                }
                 return nullptr;
-            }
-            return account;
-        }
+            });
 
-        auto it = AccountNameMap_.find(name);
-        auto* account = it == AccountNameMap_.end() ? nullptr : it->second;
         return IsObjectAlive(account) ? account : nullptr;
     }
 
     TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId*/ false);
         if (!account) {
             return account;
         }
@@ -779,7 +804,7 @@ public:
 
     TAccount* GetAccountByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId*/ true);
         if (!account) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::NoSuchAccount,
@@ -797,12 +822,12 @@ public:
     void RegisterAccountName(const std::string& name, TAccount* account) noexcept
     {
         YT_VERIFY(account);
-        YT_VERIFY(AccountNameMap_.emplace(name, account).second);
+        EmplaceOrCrash(AccountNameMap_, name, account);
     }
 
     void UnregisterAccountName(const std::string& name) noexcept
     {
-        YT_VERIFY(AccountNameMap_.erase(name) == 1);
+        EraseOrCrash(AccountNameMap_, name);
     }
 
     TAccount* GetRootAccount() override
@@ -1157,7 +1182,7 @@ public:
                     statisticsDelta.CommittedResourceUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 }
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -1210,7 +1235,7 @@ public:
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
-            if (Y_UNLIKELY(account == ChunkWiseAccountingMigrationAccount_)) {
+            if (account == ChunkWiseAccountingMigrationAccount_) [[unlikely]] {
                 account = stagingAccount;
             }
 
@@ -1490,7 +1515,7 @@ public:
             [&] (TAccount* account) {
                 auto statisticsDelta = TAccountStatistics(resources, TClusterResources());
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         if (transaction) {
@@ -1502,7 +1527,7 @@ public:
                 [&] (TAccount* account) {
                     auto statisticsDelta = TAccountStatistics(TClusterResources(), resources);
 
-                    UpdateLocalAndClusterAccountStatistics(account, std::move(statisticsDelta));
+                    IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
                 });
         }
     }
@@ -1544,7 +1569,7 @@ public:
                     resourceUsageDelta,
                     committed ? resourceUsageDelta : TClusterResources());
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -2133,6 +2158,13 @@ public:
             .Item("new_name").Value(newName);
 
         subject->SetName(newName);
+
+        // Update the Sequoia ACL table entries.
+        for (auto [object, _] : subject->LinkedObjects()) {
+            for (auto acd : ListAcds(object)) {
+                OnObjectAcdUpdated(acd.Underlying());
+            }
+        }
     }
 
     TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) override
@@ -2156,7 +2188,7 @@ public:
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) override
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object, bool skipFirstObject) override
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2165,18 +2197,20 @@ public:
             const auto& handler = objectManager->GetHandler(object);
             auto acd = handler->FindAcd(object);
             if (acd) {
-                for (auto entry : acd->Acl().Entries) {
-                    auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
-                    if (inheritedMode) {
-                        entry.InheritanceMode = *inheritedMode;
-                        result.Entries.push_back(entry);
+                if (!skipFirstObject) {
+                    for (auto entry : acd->Acl().Entries) {
+                        auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
+                        if (inheritedMode) {
+                            entry.InheritanceMode = *inheritedMode;
+                            result.Entries.push_back(entry);
+                        }
                     }
                 }
                 if (!acd->Inherit()) {
                     break;
                 }
             }
-
+            skipFirstObject = false;
             object = handler->GetParent(object);
             ++depth;
         }
@@ -2210,17 +2244,14 @@ public:
         return Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode;
     }
 
-    bool HasColumnarAce(TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride) const override
+    bool HasColumnarAce(TObject* object) const override
     {
-        const auto& dynamicConfig = GetDynamicConfig();
-        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
-
-        TTagFilteringAceIterator aceIter(
+        TAceIterator aceIter(
             Bootstrap_->GetObjectManager().Get(),
             object,
-            userTags,
-            std::move(firstObjectAcdOverride));
-        auto aceEndIter = TTagFilteringAceIterator();
+            /*firstObjectAcdOverride*/ {});
+
+        auto aceEndIter = TAceIterator();
 
         for (; aceIter != aceEndIter; ++aceIter) {
             auto value = *aceIter;
@@ -2294,21 +2325,19 @@ public:
 
         auto* owner = GetObjectOwner(object, options.FirstObjectAcdOverride.Owner());
 
-        const auto& dynamicConfig = GetDynamicConfig();
-        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
-
         TWallTimer aclIterationTimer;
-        TTagFilteringAceIterator aceIter(
-            Bootstrap_->GetObjectManager().Get(),
-            object,
-            userTags,
-            std::move(options.FirstObjectAcdOverride));
-        auto aceEndIter = TTagFilteringAceIterator();
 
         auto* currentObject = object;
         int currentDepth = 0;
 
         // Slow lane: check ACLs through the object hierarchy.
+        TAceIterator aceIter(
+            Bootstrap_->GetObjectManager().Get(),
+            object,
+            std::move(options.FirstObjectAcdOverride));
+
+        auto aceEndIter = TAceIterator();
+
         for (; aceIter != aceEndIter; ++aceIter) {
             auto value = *aceIter;
             currentObject = value.Object;
@@ -2320,6 +2349,7 @@ public:
                 break;
             }
         }
+
         AclIterationTimeCounter_.Add(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -2391,33 +2421,6 @@ public:
         return std::move(checker).GetResponse();
     }
 
-    TPermissionCheckResponse CheckPermission(
-        TUser* user,
-        EPermission permission,
-        TFunctionRef<TAccessControlList()> aclProducer,
-        TPermissionCheckOptions options = {}) override
-    {
-        TPermissionChecker checker(
-            this,
-            user,
-            permission,
-            &options);
-
-        if (!checker.ShouldProceed()) {
-            return std::move(checker).GetResponse();
-        }
-
-        auto acl = aclProducer();
-        for (const auto& ace : acl.Entries) {
-            checker.ProcessAce(ace, nullptr, nullptr, 0);
-            if (!checker.ShouldProceed()) {
-                break;
-            }
-        }
-
-        return std::move(checker).GetResponse();
-    }
-
     bool IsSuperuser(const TUser* user) const override
     {
         // NB: This is also useful for migration when "superusers" is initially created.
@@ -2432,7 +2435,7 @@ public:
         return false;
     }
 
-    void ValidatePermission(
+    TSuccessfulPermissionValidationResult ValidatePermission(
         TObject* object,
         TUser* user,
         EPermission permission,
@@ -2445,14 +2448,16 @@ public:
             object->GetId());
 
         if (IsPermissionValidationSuppressed()) {
-            return;
+            return {};
         }
 
         YT_VERIFY(!options.Columns);
 
         auto response = CheckPermission(object, user, permission, std::move(options));
         if (response.Action == ESecurityAction::Allow) {
-            return;
+            return {
+                .HasRowLevelAce = response.HasRowLevelAce,
+            };
         }
 
         TPermissionCheckTarget target;
@@ -2462,14 +2467,16 @@ public:
             user,
             permission,
             response);
+
+        YT_UNREACHABLE();
     }
 
-    void ValidatePermission(
+    TSuccessfulPermissionValidationResult ValidatePermission(
         TObject* object,
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
-        ValidatePermission(
+        return ValidatePermission(
             object,
             GetAuthenticatedUser(),
             permission,
@@ -2626,7 +2633,7 @@ public:
             const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
             const auto& limits = account->ClusterResourceLimits();
 
-            for (auto [index, deltaSpace] : delta.DiskSpace()) {
+            for (auto [index, deltaSpace] : SortHashMapByKeys(delta.DiskSpace())) {
                 auto usageSpace = GetOrDefault(usage.DiskSpace(), index);
                 auto limitsSpace = limits.DiskSpace().GetOrDefault(index);
 
@@ -2909,12 +2916,26 @@ public:
                 .NodeId = object->GetId(),
             });
         }
+        auto lastRecordSequenceNumber = queueManager->GetLastRecordSequenceNumber(EGroundUpdateQueue::Sequoia);
+        auto* node = object->As<TCypressNode>();
+        // No need to update parent here as ACLs don't affect parents in any way.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->UpdateGroundUpdateQueueManagerSequenceNumber(node, lastRecordSequenceNumber);
 
         YT_LOG_DEBUG("Scheduled ACLs table update (ObjectId: %v)",
             object->GetId());
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TUser*, const TUserWorkload&), UserCharged);
+
+    void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) override
+    {
+        if (delta == TAccountStatistics()) {
+            return;
+        }
+        account->IncreaseStatistics(delta);
+        AddStatisticsUpdateToGossipQueue(account);
+    }
 
 private:
     friend class TAccountTypeHandler;
@@ -2938,11 +2959,17 @@ private:
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
     TPeriodicExecutorPtr AccountMasterMemoryUsageUpdateExecutor_;
+    TPeriodicExecutorPtr AccountStatisticsGossipProfilingExecutor_;
+
+    TBufferedProducerPtr BufferedProducer_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<std::string, TAccount*> AccountNameMap_;
 
     NHydra::TEntityMap<TAccountResourceUsageLease> AccountResourceUsageLeaseMap_;
+
+    std::list<TAccountId> AccountStatisticsUpdatesGossipQueue_;
+    THashSet<TAccountId> AccountsAwaitingGossipDispatch_;
 
     TAccountId RootAccountId_;
     TAccount* RootAccount_ = nullptr;
@@ -2999,6 +3026,7 @@ private:
         {0xffffffffffffffe5, ReplicatedTableTrackerUserName, false, &SuperusersGroup_                  },
         {0xffffffffffffffe4, ChunkReplicaCacheUserName,      false, &SuperusersGroup_                  },
         {0xffffffffffffffe3, SignatureKeysmithUserName,      false, &SuperusersGroup_                  },
+        {0xffffffffffffffe2, BundleControllerUserName,       false, &SuperusersGroup_                  },
     };
 
     NHydra::TEntityMap<TGroup> GroupMap_;
@@ -3254,6 +3282,15 @@ private:
             ->CommitAndLog(Logger()));
     }
 
+    void OnProfiling()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TSensorBuffer buffer;
+        buffer.AddGauge("/account_statistics_gossip_queue_size", AccountStatisticsUpdatesGossipQueue_.size());
+        BufferedProducer_->Update(std::move(buffer));
+    }
+
 
     void DoAddMember(TGroup* group, TSubject* member)
     {
@@ -3298,6 +3335,7 @@ private:
         ProxyRoleMap_.SaveValues(context);
         AccountResourceUsageLeaseMap_.SaveValues(context);
         Save(context, IsChunkHostCell_);
+        Save(context, AccountStatisticsUpdatesGossipQueue_);
     }
 
 
@@ -3325,6 +3363,13 @@ private:
         AccountResourceUsageLeaseMap_.LoadValues(context);
 
         Load(context, IsChunkHostCell_);
+        // COMPAT(theevilbird)
+        if (context.GetVersion() >= EMasterReign::AccountStatisticsUpdatesInGossip) {
+            Load(context, AccountStatisticsUpdatesGossipQueue_);
+            for (auto accountId : AccountStatisticsUpdatesGossipQueue_) {
+                EmplaceOrCrash(AccountsAwaitingGossipDispatch_, accountId);
+            }
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -3348,8 +3393,14 @@ private:
                 YT_LOG_ALERT("Unattended account found in snapshot (Id: %v)",
                     account->GetId());
             } else {
+                auto name = account->GetName();
+                if (auto error = CheckObjectName(name); !error.IsOK()) {
+                    YT_LOG_ALERT(error, "Account with invalid name encountered (Id: %v, Name: %v)",
+                        account->GetId(),
+                        name);
+                }
                 // Reconstruct account name map.
-                RegisterAccountName(account->GetName(), account);
+                RegisterAccountName(name, account);
             }
         }
 
@@ -4077,6 +4128,13 @@ private:
         return true;
     }
 
+    void OnRecoveryStarted() override
+    {
+        TMasterAutomatonPart::OnRecoveryStarted();
+
+        BufferedProducer_->SetEnabled(false);
+    }
+
 
     void OnRecoveryComplete() override
     {
@@ -4115,6 +4173,14 @@ private:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
             BIND(&TSecurityManager::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
+
+        AccountStatisticsGossipProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TSecurityManager::OnProfiling, MakeWeak(this)),
+            TDynamicSecurityManagerConfig::DefaultProfilingPeriod);
+        AccountStatisticsGossipProfilingExecutor_->Start();
+
+        BufferedProducer_->SetEnabled(true);
     }
 
     bool NeedsAccountProfiling() const
@@ -4169,6 +4235,13 @@ private:
             YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
             AccountsProfilingExecutor_.Reset();
         }
+
+        if (AccountStatisticsGossipProfilingExecutor_) {
+            YT_UNUSED_FUTURE(AccountStatisticsGossipProfilingExecutor_->Stop());
+            AccountStatisticsGossipProfilingExecutor_.Reset();
+        }
+
+        BufferedProducer_->SetEnabled(false);
     }
 
     void OnStopFollowing() override
@@ -4240,12 +4313,23 @@ private:
         account->DetailedMasterMemoryUsage() = multicellStatistics[selfCellTag].ResourceUsage.DetailedMasterMemory();
     }
 
-    void UpdateLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta)
+    void AddStatisticsUpdateToGossipQueue(TAccount* account)
     {
-        account->IncreaseStatistics(delta);
+        if (AccountsAwaitingGossipDispatch_.emplace(account->GetId()).second) {
+            AccountStatisticsUpdatesGossipQueue_.emplace_back(account->GetId());
+        }
     }
 
     void OnAccountStatisticsGossip()
+    {
+        NProto::TReqSendAccountStatisticsGossip request;
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger()));
+    }
+
+
+    void HydraSendAccountStatisticsGossip(NProto::TReqSendAccountStatisticsGossip* /*request*/)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
@@ -4253,13 +4337,59 @@ private:
         }
 
         if (multicellManager->IsPrimaryMaster()) {
+            SendAccountStatisticsGossipFromPrimaryCell();
+        } else {
+            SendAccountStatisticsGossipFromSecondaryCells();
+        }
+    }
+
+    void SendAccountStatisticsGossipFromPrimaryCell()
+    {
+        // For each secondary cell, account statistics are being combined and sent.
+        // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
+        // This is done because cell statistics on the primary master might be outdated for any particular cell.
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (GetDynamicConfig()->SendOnlyUpdatesInAccountGossip) {
+            auto batchSize = Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->PrimaryCellAccountGossipBatchSize;
+            YT_LOG_INFO("Sending statistics gossip message with updated accounts to secondary cells (BatchSize: %v, AccountStatisticsUpdatesGossipQueueSize: %v)",
+                batchSize,
+                AccountStatisticsUpdatesGossipQueue_.size());
+            THashMap<TCellTag, NProto::TReqSetAccountStatistics> cellTagToRequest;
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                cellTagToRequest.emplace(cellTag, NProto::TReqSetAccountStatistics());
+            }
+
+            for (int batchMessageIndex = 0; batchMessageIndex < batchSize && !AccountStatisticsUpdatesGossipQueue_.empty(); ++batchMessageIndex) {
+                auto accountId = AccountStatisticsUpdatesGossipQueue_.front();
+                AccountsAwaitingGossipDispatch_.erase(accountId);
+                AccountStatisticsUpdatesGossipQueue_.pop_front();
+
+                auto* account = FindAccount(accountId);
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                const auto& clusterStatistics = account->ClusterStatistics();
+                for (auto& [cellTag, request] : cellTagToRequest) {
+                    const auto& cellStatistics = GetOrCrash(account->MulticellStatistics(), cellTag);
+                    auto* entry = request.add_entries();
+                    ToProto(entry->mutable_account_id(), account->GetId());
+                    ToProto(entry->mutable_statistics(), clusterStatistics - cellStatistics);
+                }
+            }
+
+            for (const auto& [cellTag, request] : cellTagToRequest) {
+                if (request.entries_size() != 0) {
+                    multicellManager->PostToMaster(request, cellTag, true);
+                }
+            }
+        } else {
             YT_LOG_INFO("Sending account statistics gossip message to secondary cells");
-            // For each secondary cell, account statistics are being combined and sent.
-            // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
-            // This is done because cell statistics on the primary master might be outdated for any particular cell.
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 NProto::TReqSetAccountStatistics request;
-                for (auto [accountId, account] : AccountMap_) {
+                for (auto account : GetValuesSortedByKey(AccountMap_)) {
                     if (!IsObjectAlive(account)) {
                         continue;
                     }
@@ -4270,13 +4400,46 @@ private:
                     ToProto(entry->mutable_account_id(), account->GetId());
                     ToProto(entry->mutable_statistics(), clusterStatistics - cellStatistics);
                 }
-                multicellManager->PostToMaster(request, cellTag, false);
+                multicellManager->PostToMaster(request, cellTag, true);
+            }
+            AccountStatisticsUpdatesGossipQueue_.clear();
+            AccountsAwaitingGossipDispatch_.clear();
+        }
+    }
+
+    void SendAccountStatisticsGossipFromSecondaryCells()
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (GetDynamicConfig()->SendOnlyUpdatesInAccountGossip) {
+            auto batchSize = Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->SecondaryCellAccountGossipBatchSize;
+            YT_LOG_INFO("Sending statistics gossip message with updated accounts to primary cell (BatchSize: %v, AccountStatisticsUpdatesGossipQueueSize: %v)",
+                batchSize,
+                AccountStatisticsUpdatesGossipQueue_.size());
+            NProto::TReqSetAccountStatistics request;
+            request.set_cell_tag(multicellManager->GetCellTag().Underlying());
+            for (int batchMessageIndex = 0; batchMessageIndex < batchSize && !AccountStatisticsUpdatesGossipQueue_.empty(); ++batchMessageIndex) {
+                auto accountId = AccountStatisticsUpdatesGossipQueue_.front();
+                AccountsAwaitingGossipDispatch_.erase(accountId);
+                AccountStatisticsUpdatesGossipQueue_.pop_front();
+
+                auto* account = FindAccount(accountId);
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto* entry = request.add_entries();
+                ToProto(entry->mutable_account_id(), accountId);
+                ToProto(entry->mutable_statistics(), account->LocalStatistics());
+            }
+            if (request.entries_size() != 0) {
+                multicellManager->PostToPrimaryMaster(request, true);
             }
         } else {
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
             request.set_cell_tag(multicellManager->GetCellTag().Underlying());
-            for (auto [accountId, account] : AccountMap_) {
+            for (auto account : GetValuesSortedByKey(AccountMap_)) {
                 if (!IsObjectAlive(account)) {
                     continue;
                 }
@@ -4285,7 +4448,10 @@ private:
                 ToProto(entry->mutable_account_id(), account->GetId());
                 ToProto(entry->mutable_statistics(), account->LocalStatistics());
             }
-            multicellManager->PostToPrimaryMaster(request, false);
+            multicellManager->PostToPrimaryMaster(request, true);
+
+            AccountStatisticsUpdatesGossipQueue_.clear();
+            AccountsAwaitingGossipDispatch_.clear();
         }
     }
 
@@ -4312,8 +4478,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Received account statistics gossip message (CellTag: %v)",
-            cellTag);
+        YT_LOG_INFO("Received account statistics gossip message (CellTag: %v)", cellTag);
 
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -4323,8 +4488,19 @@ private:
             }
 
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
-            *account->GetCellStatistics(cellTag) = newStatistics;
-            account->RecomputeClusterStatistics();
+
+            if (GetDynamicConfig()->SendOnlyUpdatesInAccountGossip) {
+                account->IncreaseClusterStatistics(-(*account->GetCellStatistics(cellTag)));
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->IncreaseClusterStatistics(newStatistics);
+
+                AddStatisticsUpdateToGossipQueue(account);
+            } else {
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->RecomputeClusterStatistics();
+
+                AddStatisticsUpdateToGossipQueue(account);
+            }
         }
     }
 
@@ -4398,7 +4574,7 @@ private:
                 statisticsDelta.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
                 statisticsDelta.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
             }
-            UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+            IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
         }
     }
 
@@ -4416,7 +4592,7 @@ private:
             [&] (TAccount* account) {
                 auto statisticsDelta = TAccountStatistics(resourcesDelta, TClusterResources());
 
-                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         auto* transactionResources = GetTransactionAccountUsage(transaction, account);
@@ -4576,7 +4752,9 @@ private:
             TUser* user,
             EPermission permission,
             const TPermissionCheckOptions* options)
-            : MatchAceSubjectCallback_(user, impl->GetOwnerUser())
+            : MatchAceSubjectCallback_(
+                user,
+                impl->GetOwnerUser())
             , Underlying_(permission, MatchAceSubjectCallback_, options)
         {
             YT_LOG_ALERT_IF(
@@ -4629,13 +4807,21 @@ private:
             DEFINE_BYVAL_RW_PROPERTY(TSubject*, OwnerSubjectOverride);
 
         public:
-            TAdjustAndMatchAceSubjectCallback(TUser* user, TSubject* builtinOwnerSubject)
+            TAdjustAndMatchAceSubjectCallback(
+                TUser* user,
+                TSubject* builtinOwnerSubject)
                 : User_(user)
                 , BuiltinOwnerSubject_(builtinOwnerSubject)
             { }
 
             TSubjectId operator()(const TAccessControlEntry& ace) const
             {
+                if (ace.SubjectTagFilter &&
+                    !ace.SubjectTagFilter->IsSatisfiedBy(User_->Tags()))
+                {
+                    return NullObjectId;
+                }
+
                 for (auto subject : ace.Subjects) {
                     auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
                         ? OwnerSubjectOverride_
@@ -4723,6 +4909,10 @@ private:
     {
         const auto& newConfig = GetDynamicConfig();
 
+        if (AccountStatisticsGossipProfilingExecutor_) {
+            AccountStatisticsGossipProfilingExecutor_->SetPeriod(newConfig->AccountStatisticsGossipProfilingPeriod);
+        }
+
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->SetPeriod(newConfig->AccountStatisticsGossipPeriod);
         }
@@ -4769,7 +4959,7 @@ private:
                         TClusterResources().SetChunkHostCellMasterMemory(-localCommittedUsage.GetChunkHostCellMasterMemory())
                     );
 
-                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                    IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
 
                     if (account->ClusterStatistics().ResourceUsage.GetChunkHostCellMasterMemory() < 0) {
                         YT_LOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
@@ -4784,7 +4974,7 @@ private:
                         TClusterResources().SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal())
                     );
 
-                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+                    IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
                 }
             }
         }
@@ -4808,7 +4998,10 @@ TObject* TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+    CheckObjectName(name)
+        .ThrowOnError();
+
     auto parentName = attributes->GetAndRemove<std::string>("parent_name", NSecurityClient::RootAccountName);
     auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
     attributes->Set("hint_id", hintId);
@@ -4872,6 +5065,7 @@ TObject* TAccountResourceUsageLeaseTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto transactionId = attributes->GetAndRemove<TTransactionId>("transaction_id");
+
     auto accountName = attributes->GetAndRemove<std::string>("account");
 
     return Owner_->CreateAccountResourceUsageLease(accountName, transactionId, hintId);
@@ -4931,7 +5125,7 @@ TObject* TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->CreateGroup(name, hintId);
 }
@@ -4952,7 +5146,7 @@ void TGroupTypeHandler::DoZombifyObject(TGroup* group)
 std::optional<TObject*> TGroupTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<std::string>("name");
+    auto name = attributes->Get<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->FindGroupByNameOrAlias(name);
 }
@@ -4968,7 +5162,7 @@ TObject* TNetworkProjectTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
 
     return Owner_->CreateNetworkProject(name, hintId);
 }
@@ -4997,8 +5191,8 @@ TObject* TProxyRoleTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<std::string>("name");
-    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>("proxy_kind");
+    auto name = attributes->GetAndRemove<std::string>(EInternedAttributeKey::Name.Unintern());
+    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>(EInternedAttributeKey::ProxyKind.Unintern());
 
     return Owner_->CreateProxyRole(name, proxyKind, hintId);
 }

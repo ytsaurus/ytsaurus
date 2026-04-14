@@ -6,7 +6,7 @@ import (
 )
 
 // Join joins slice of any types
-func Join(s interface{}, glue string) string {
+func Join(s any, glue string) string {
 	if t, ok := s.([]string); ok {
 		return strings.Join(t, glue)
 	}

@@ -211,7 +211,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");
     }
-    return Py::Boolean(ResponseFuture_.Get().IsOK());
+    return Py::Boolean(ResponseFuture_.BlockingGet().IsOK());
 }
 
 Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
@@ -221,9 +221,9 @@ Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     }
     Py::Object object;
 #if PY_MAJOR_VERSION < 3
-    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::nullopt);
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.BlockingGet()), std::nullopt);
 #else
-    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::make_optional<TString>("utf-8"));
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.BlockingGet()), std::make_optional<TString>("utf-8"));
 #endif
     return object;
 }

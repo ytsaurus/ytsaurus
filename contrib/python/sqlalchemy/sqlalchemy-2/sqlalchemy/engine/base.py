@@ -1,5 +1,5 @@
 # engine/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -2022,6 +2022,13 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         else:
             do_execute_dispatch = ()
 
+        if engine_events:
+            _WORKAROUND_ISSUE_13018 = getattr(
+                self, "_WORKAROUND_ISSUE_13018", False
+            )
+        else:
+            _WORKAROUND_ISSUE_13018 = False
+
         if self._echo:
             stats = context._get_cache_stats() + " (insertmanyvalues)"
 
@@ -2136,8 +2143,9 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
                 self.dispatch.after_cursor_execute(
                     self,
                     cursor,
-                    str_statement,
-                    effective_parameters,
+                    # TODO: this will be fixed by #13018
+                    sub_stmt if _WORKAROUND_ISSUE_13018 else str_statement,
+                    sub_params if _WORKAROUND_ISSUE_13018 else parameters,
                     context,
                     context.executemany,
                 )
@@ -3172,6 +3180,12 @@ class Engine(
         connections. The latter strategy is more appropriate for an initializer
         in a forked Python process.
 
+        Event listeners associated with the old pool via :class:`.PoolEvents`
+        are **transferred to the new pool**; this is to support the pattern
+        by which :class:`.PoolEvents` are set up in terms of the owning
+        :class:`.Engine` without the need to refer to the :class:`.Pool`
+        directly.
+
         :param close: if left at its default of ``True``, has the
          effect of fully closing all **currently checked in**
          database connections.  Connections that are still checked out
@@ -3196,6 +3210,8 @@ class Engine(
             :ref:`engine_disposal`
 
             :ref:`pooling_multiprocessing`
+
+            :meth:`.ConnectionEvents.engine_disposed`
 
         """
         if close:

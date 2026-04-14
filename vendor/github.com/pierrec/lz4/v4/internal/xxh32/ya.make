@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v4.1.22)
+VERSION(v4.1.25)
 
 SRCS(
     xxh32zero.go
@@ -24,6 +24,12 @@ IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         xxh32zero_arm.go
         xxh32zero_arm.s
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        xxh32zero_other.go
     )
 ENDIF()
 

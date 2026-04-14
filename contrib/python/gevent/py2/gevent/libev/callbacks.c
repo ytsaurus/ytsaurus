@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include "Python.h"
 #include "ev.h"
-#include "corecext.h"
+#include "corecext.py2.h"
 #include "callbacks.h"
 
 #ifdef __clang__

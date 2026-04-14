@@ -84,6 +84,13 @@ TError EnsureUserExists(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TryAddUserInGroups(
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& groups);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth
 
 #define HELPERS_INL_H_

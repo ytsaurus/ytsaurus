@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include "transaction_finish_request.h"
 
 #include <yt/yt/ytlib/cypress_transaction_client/public.h>
@@ -99,21 +101,27 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: The common case is the lazy replication from transaction coordinator
-// which is initiated on foreign cell. In this case destination cell is the only
-// destination, thus typical count is 1.
-constexpr int TypicalTransactionReplicationDestinationCellCount = 1;
-using TTransactionReplicationDestinationCellTagList =
-    TCompactVector<NObjectClient::TCellTag, TypicalTransactionReplicationDestinationCellCount>;
-
-//! Checks that given Cypress transactions are replicated to the cell and
-//! registers Sequoia tx actions if needed. Returns future which is set when all
-//! necessary checks are performed and Sequoia transaction is committed.
-TFuture<void> ReplicateCypressTransactions(
+//! Starts replication of active Cypress transactions to the cell and returns
+//! the future which is set when replication is done at leader of destination
+//! master cell. If #boomerang is not null it's executed on the destination cell
+//! in the same mutation as Cypress transaction materialization.
+TFuture<void> ReplicateCypressTransactionsToCell(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     std::vector<NTransactionClient::TTransactionId> transactionIds,
-    TTransactionReplicationDestinationCellTagList destinationCellTags,
-    NObjectClient::TCellId hintCoordinatorCellId,
+    NObjectClient::TCellId destinationCellId,
+    std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
+    IInvokerPtr invoker,
+    NLogging::TLogger logger);
+
+//! Starts replication of active Cypress transaction and returns the future
+//! which is set when Sequoia transaction is prepared on all of destination
+//! master cells. Since transaction may still be uncommitted it's necessary to
+//! wait for Sequoia transaction barrier to observe the result.
+TFuture<void> ReplicateCypressTransactionToCells(
+    NSequoiaClient::ISequoiaClientPtr sequoiaClient,
+    NTransactionClient::TTransactionId transactionId,
+    NObjectClient::TCellTagList destinationCellTags,
+    NObjectClient::TCellId transactionCoordinatorCellId,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 

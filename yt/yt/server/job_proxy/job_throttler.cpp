@@ -3,9 +3,9 @@
 #include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/yt/client/rpc/helpers.h>
-
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
+
+#include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 

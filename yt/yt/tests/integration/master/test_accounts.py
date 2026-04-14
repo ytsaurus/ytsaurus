@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (YTEnvSetup, with_additional_threads)
 
 from yt_commands import (
     authors, get_active_primary_master_follower_address, is_active_primary_master_follower,
@@ -10,7 +10,7 @@ from yt_commands import (
     create_dynamic_table, get_chunk_owner_disk_space, cluster_resources_equal, master_memory_sleep,
     assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver, raises_yt_error,
     get_active_primary_master_leader_address, start_transaction, abort_transaction, commit_transaction,
-    get_currently_active_pirmary_master_follower_addresses)
+    get_currently_active_pirmary_master_follower_addresses, get_recursive_disk_space)
 
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
@@ -113,6 +113,9 @@ class AccountsTestSuiteBase(YTEnvSetup):
 
     def _get_disk_space_for_medium(self, disk_space_map, medium_name="default"):
         return disk_space_map.get(medium_name, 0)
+
+    def _get_account_resource_usage(self, account):
+        return get("//sys/accounts/{0}/@resource_usage".format(account))
 
     def _get_account_node_count(self, account):
         return get("//sys/accounts/{0}/@resource_usage/node_count".format(account))
@@ -483,6 +486,25 @@ class TestAccounts(AccountsTestSuiteBase):
 
         remove("//tmp/a")
         wait(lambda: not exists("//sys/accounts/max"))
+
+    @authors("kvk1920")
+    def test_account_attr6(self):
+        create_account("acc1")
+        create_account("acc2")
+        acc1_id = get("//sys/accounts/acc1/@id")
+        acc2_id = get("//sys/accounts/acc2/@id")
+
+        create("map_node", "//tmp/dir", attributes={
+            "account": "#" + acc1_id,
+        })
+
+        assert get("//tmp/dir/@account") == "acc1"
+        assert get("//tmp/dir/@account_id") == acc1_id
+
+        set("//tmp/dir/@account", "#" + acc2_id)
+
+        assert get("//tmp/dir/@account") == "acc2"
+        assert get("//tmp/dir/@account_id") == acc2_id
 
     @authors("babenko")
     def test_file1(self):
@@ -4652,6 +4674,78 @@ class TestAccountsMulticell(TestAccounts):
 
 
 @pytest.mark.enabled_multidaemon
+class TestAccountsStatisticsUpdatesGossip(TestAccountsMulticell):
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "security_manager": {
+            "send_only_updates_in_account_gossip": True
+        }
+    }
+
+    @authors("theevilbird")
+    def test_accounts_tree_topology_race(self):
+        set("//sys/@config/security_manager/account_statistics_gossip_period", 300)
+
+        create_account("max")
+        create("table", "//tmp/t", attributes={"account": "max"})
+        write_table("//tmp/t", {"a": "b"})
+        sleep(1)  # wait for gossip
+
+        remove("//tmp/t")
+        remove_account("max")
+        sleep(1)  # wait for gossip
+
+        assert get_recursive_disk_space("//sys/accounts/root") == 0
+
+    @authors("theevilbird")
+    def test_change_gossip_type(self):
+        create_account("max")
+        create("table", "//tmp/table11", attributes={
+            "account": "max",
+            "external_cell_tag": 11})
+        write_table("//tmp/table11", {"a": "a" * 1000})
+        wait(lambda: self._get_account_chunk_count("max") == 1)
+
+        set("//sys/@config/security_manager/account_statistics_gossip_period", 2000)
+        create("table", "//tmp/table12", attributes={
+            "account": "max",
+            "external_cell_tag": 12})
+        write_table("//tmp/table12", {"a": "b" * 1000})
+
+        set("//sys/@config/security_manager/send_only_updates_in_account_gossip", False)
+        wait(lambda: self._get_account_chunk_count("max") == 2)
+
+        write_table("<append=true>//tmp/table11", {"a": "c" * 1000})
+        write_table("<append=true>//tmp/table12", {"a": "d" * 1000})
+        wait(lambda: self._get_account_chunk_count("max") == 4)
+
+        set("//sys/@config/security_manager/send_only_updates_in_account_gossip", True)
+
+        write_table("<append=true>//tmp/table11", {"a": "e" * 1000})
+        write_table("<append=true>//tmp/table12", {"a": "f" * 1000})
+        wait(lambda: self._get_account_chunk_count("max") == 6)
+
+    @authors("theevilbird")
+    def test_gossip_small_batch_size(self):
+        set("//sys/@config/security_manager/account_statistics_gossip_period", 5000)
+        set("//sys/@config/security_manager/secondary_cell_account_gossip_batch_size", 1)
+
+        create_account("max_1")
+        create_account("max_2")
+
+        create("table", "//tmp/table1", attributes={
+            "account": "max_1",
+            "external_cell_tag": 11})
+        create("table", "//tmp/table2", attributes={
+            "account": "max_2",
+            "external_cell_tag": 11})
+
+        write_table("//tmp/table1", {"a": "a" * 1000})
+        write_table("//tmp/table2", {"a": "a" * 1000})
+        wait(lambda: {self._get_account_chunk_count("max_1"), self._get_account_chunk_count("max_2")} == {0, 1})
+        wait(lambda: self._get_account_chunk_count("max_1") == 1 and self._get_account_chunk_count("max_2") == 1)
+
+
+@pytest.mark.enabled_multidaemon
 class TestAccountTreeMulticell(TestAccountTree):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4965,3 +5059,52 @@ class TestAccountsProfiling(YTEnvSetup):
 
         wait(lambda: self._check_account_is_profiled(follower_profilers_with_reported_account_metrics, gauge_name, account_name))
         wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_account_metrics, gauge_name, account_name) is False)
+
+
+class TestAccountsStatisticsUpdatesGossipProfiling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "security_manager": {
+            "send_only_updates_in_account_gossip": True
+        }
+    }
+
+    @authors("theevilbird")
+    @with_additional_threads
+    def test_gossip_queue_profiling(self):
+        set("//sys/@config/security_manager/account_statistics_gossip_period", 5000)
+        set("//sys/@config/security_manager/primary_cell_account_gossip_batch_size", 5)
+        set("//sys/@config/security_manager/secondary_cell_account_gossip_batch_size", 5)
+
+        for i in range(5):
+            create_account(f"caracara_{i}")
+
+        secondary_cell_tags = get("//sys/secondary_masters")
+        secondary_profilers = []
+        for tag in secondary_cell_tags:
+            addrs = [address for address in secondary_cell_tags[tag]]
+            secondary_profilers += [profiler_factory().at_secondary_master(tag, master_address) for master_address in addrs]
+
+        secondary_profilers_treads = []
+        for profiler in secondary_profilers:
+            gauge = profiler.gauge("security/account_statistics_gossip_queue_size")
+            thread = self.spawn_additional_thread(name="wait for profiling counter to change",
+                                                  target=lambda: wait(lambda: gauge.get() > 5))
+            secondary_profilers_treads.append(thread)
+
+        for i in range(20):
+            create(
+                "table", f"//tmp/table{i}",
+                attributes={"account": f"caracara_{i % 5}", "external_cell_tag": 11 + i % 2})
+            write_table(f"//tmp/table{i}", {"a": "b"})
+
+        for thread in secondary_profilers_treads:
+            thread.join()

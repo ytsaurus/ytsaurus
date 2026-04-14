@@ -32,6 +32,7 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::AllOf;
 
+using namespace NCodegen;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NYPath;
@@ -75,7 +76,10 @@ public:
 
     MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (const TYPath&), (override));
 
-    void FetchFunctions(TRange<std::string>, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(
+        TRange<std::string>,
+        const TTypeInferrerMapPtr& typeInferrers,
+        EExecutionBackend /*executionBackend*/) override
     {
         MergeFrom(typeInferrers.Get(), *TypeInferrers_);
     }
@@ -97,7 +101,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers);
+    TJoinProfilerRegistry joinProfilerRegistry = {});
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,
@@ -121,7 +125,7 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     NYson::TYsonStringBuf placeholderValues = {},
-    int syntaxVersion = 1,
+    const TPreparePlanFragmentOptions& options = {.BuilderVersion = DefaultExpressionBuilderVersion},
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 TConstExpressionPtr ParseAndPrepareExpression(
@@ -129,7 +133,7 @@ TConstExpressionPtr ParseAndPrepareExpression(
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr,
-    int exprBuilderVersion = DefaultExpressionBuilderVersion);
+    TPreparePlanFragmentOptions options = {.BuilderVersion = DefaultExpressionBuilderVersion});
 
 ////////////////////////////////////////////////////////////////////////////////
 

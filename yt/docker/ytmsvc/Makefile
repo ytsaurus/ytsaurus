@@ -17,18 +17,24 @@ TEMP_DIR := $(shell mktemp -d)
 prepare-binaries:
 	mkdir -p ../../microservices/binaries/
 	rm -rf ../../microservices/binaries/*
-	../../../ya make $(BUILD_FLAGS) ../../microservices/bulk_acl_checker_roren/ \
+	../../../ya make $(BUILD_FLAGS) ../../microservices/access_log_viewer/http_service/ \
+									../../microservices/access_log_viewer/preprocessing/bin/ \
+									../../microservices/access_log_viewer/raw_access_log_preprocessing/cmd/raw_access_log_preprocessing/ \
+									../../microservices/bulk_acl_checker_roren/ \
 									../../microservices/bulk_acl_checker/http_service_go/ \
+									../../microservices/id_to_path_mapping/id_to_path_updater/yt/ \
 									../../microservices/resource_usage_roren/ \
 									../../microservices/resource_usage/json_api_go/cmd/resource_usage_api/ \
-									../../microservices/id_to_path_mapping/id_to_path_updater/yt/ \
 									../../microservices/ytmsvc_initializer/id_to_path_updater/ \
 									-o $(TEMP_DIR)
+	mv $(TEMP_DIR)/yt/microservices/access_log_viewer/http_service/access_log_viewer ../../microservices/binaries/
+	mv $(TEMP_DIR)/yt/microservices/access_log_viewer/preprocessing/bin/access-log-viewer-preprocessor ../../microservices/binaries/
+	mv $(TEMP_DIR)/yt/microservices/access_log_viewer/raw_access_log_preprocessing/cmd/raw_access_log_preprocessing/raw_access_log_preprocessing ../../microservices/binaries/
 	mv $(TEMP_DIR)/yt/microservices/bulk_acl_checker_roren/bulk_acl_checker_roren ../../microservices/binaries/
 	mv $(TEMP_DIR)/yt/microservices/bulk_acl_checker/http_service_go/bulk_acl_checker ../../microservices/binaries/
+	mv $(TEMP_DIR)/yt/microservices/id_to_path_mapping/id_to_path_updater/yt/id_to_path_updater ../../microservices/binaries/
 	mv $(TEMP_DIR)/yt/microservices/resource_usage_roren/resource_usage_roren ../../microservices/binaries/
 	mv $(TEMP_DIR)/yt/microservices/resource_usage/json_api_go/cmd/resource_usage_api/resource_usage_api ../../microservices/binaries/
-	mv $(TEMP_DIR)/yt/microservices/id_to_path_mapping/id_to_path_updater/yt/id_to_path_updater ../../microservices/binaries/
 	mv $(TEMP_DIR)/yt/microservices/ytmsvc_initializer/id_to_path_updater/init_id_to_path_updater ../../microservices/binaries/
 	rm -rf $(TEMP_DIR)
 

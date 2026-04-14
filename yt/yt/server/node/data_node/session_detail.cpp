@@ -129,8 +129,10 @@ TSessionBase::TSessionBase(
     , Lease_(std::move(lease))
     , MasterEpoch_(Bootstrap_->GetMasterEpoch())
     , SessionInvoker_(CreateSerializedInvoker(Location_->GetAuxPoolInvoker()))
-    , Logger(DataNodeLogger().WithTag("LocationId: %v, ChunkId: %v",
+    , Logger(DataNodeLogger().WithTag("LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v",
         Location_->GetId(),
+        Location_->GetUuid(),
+        Location_->GetIndex(),
         SessionId_))
     , StartTime_(TInstant::Now())
     , LockedChunkGuard_(std::move(lockedChunkGuard))
@@ -260,12 +262,12 @@ void TSessionBase::Cancel(const TError& error)
             }
 
             if (!Active_) {
-                YT_LOG_DEBUG(error, "Session will be canceled after becoming active");
+                YT_LOG_DEBUG(error, "Session will be canceled after becoming active (SessionId: %v)", SessionId_);
                 PendingCancelationError_ = error;
                 return;
             }
 
-            YT_LOG_DEBUG(error, "Canceling session");
+            YT_LOG_DEBUG(error, "Canceling session (SessionId: %v)", SessionId_);
 
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
@@ -300,8 +302,7 @@ TFuture<void> TSessionBase::GetUnregisteredEvent()
 
 TFuture<ISession::TFinishResult> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount,
-    bool truncateExtraBlocks)
+    std::optional<int> blockCount)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -316,7 +317,7 @@ TFuture<ISession::TFinishResult> TSessionBase::Finish(
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
 
-            return DoFinish(chunkMeta, blockCount, truncateExtraBlocks);
+            return DoFinish(chunkMeta, blockCount);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

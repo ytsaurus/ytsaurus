@@ -146,7 +146,7 @@ private:
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
                 .SuppressAccessTracking = Options_.SuppressAccessTracking,
-                .SuppressExpirationTimeoutRenewal = Options_.SuppressExpirationTimeoutRenewal
+                .SuppressExpirationTimeoutRenewal = Options_.SuppressExpirationTimeoutRenewal,
             });
 
         if (userObject.Type != EObjectType::File) {
@@ -249,7 +249,7 @@ private:
         Reader_ = CreateFileMultiChunkReader(
             Config_,
             New<TMultiChunkReaderOptions>(),
-            TChunkReaderHost::FromClient(Client_),
+            New<TChunkReaderHost>(Client_),
             ChunkReadOptions_,
             std::move(chunkSpecs),
             dataSource);

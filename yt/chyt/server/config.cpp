@@ -12,11 +12,12 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison)
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison, ELowCardinalityMode lowCardinalityMode)
 {
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
     settings->EnableComplexNullConverison = enableComplexNullConverison;
+    settings->LowCardinalityMode = lowCardinalityMode;
     return settings;
 }
 
@@ -30,6 +31,15 @@ void TCompositeSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
+
+    registrar.Parameter("low_cardinality_mode", &TThis::LowCardinalityMode)
+        .Default(ELowCardinalityMode::None);
+
+    registrar.Parameter("low_cardinality_threshold", &TThis::LowCardinalityThreshold)
+        .Default(100);
+
+    registrar.Parameter("low_cardinality_regexp", &TThis::LowCardinalityRegExp)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,11 +69,6 @@ void TDynamicTableSettings::Register(TRegistrar registrar)
 
 void TTestingSettings::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
-        .Default(true);
-    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
-        .Default(true);
-
     registrar.Parameter("throw_exception_in_distributor", &TThis::ThrowExceptionInDistributor)
         .Default(false);
     registrar.Parameter("throw_exception_in_subquery", &TThis::ThrowExceptionInSubquery)
@@ -77,9 +82,6 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("local_clique_size", &TThis::LocalCliqueSize)
         .Default(0);
 
-    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
-        .Default(true);
-
     registrar.Parameter("chunk_spec_fetcher_breakpoint", &TThis::ChunkSpecFetcherBreakpoint)
         .Default();
     registrar.Parameter("input_stream_factory_breakpoint", &TThis::InputStreamFactoryBreakpoint)
@@ -89,6 +91,8 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("list_dirs_breakpoint", &TThis::ListDirsBreakpoint)
         .Default();
     registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
+        .Default();
+    registrar.Parameter("drop_table_breakpoint", &TThis::DropTableBreakpoint)
         .Default();
 }
 
@@ -174,7 +178,7 @@ void TExecutionSettings::Register(TRegistrar registrar)
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
         .Default(false);
 
-    registrar.Parameter("disable_reading_time_estimation", &TThis::DisableReadingTimeEstimation)
+    registrar.Parameter("disable_read_time_estimation", &TThis::DisableReadTimeEstimation)
         .Default(true);
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +204,8 @@ void TConcatTablesSettings::Register(TRegistrar registrar)
     registrar.Parameter("max_tables", &TThis::MaxTables)
         .LessThanOrEqual(2500)
         .Default(250);
+    registrar.Parameter("ignore_fetch_errors", &TThis::IgnoreFetchErrors)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,6 +230,11 @@ void TPrewhereSettings::Register(TRegistrar registrar)
 
 void TQuerySettings::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
+        .Default(true);
+    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
+        .Default(true);
+
     registrar.Parameter("enable_columnar_read", &TThis::EnableColumnarRead)
         .Default(true);
 
@@ -281,6 +292,9 @@ void TQuerySettings::Register(TRegistrar registrar)
 
     registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
+
+    registrar.Parameter("storage_conflict_resolve_mode", &TThis::StorageConflictResolveMode)
+        .Default(EStorageConflictResolveMode::Throw);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
@@ -471,14 +485,20 @@ void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
 
 void TDictionaryRepositoryConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
-    registrar.Parameter("path", &TThis::Path)
-        .Default();
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->Enabled && config->Path.empty()) {
-            THROW_ERROR_EXCEPTION("Path to Cypress dictionary repository is not set");
-        }
+    registrar.Parameter("root_path", &TThis::RootPath)
+        .NonEmpty();
+}
+
+void TDictionaryAccessControlConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cache_config", &TThis::CacheConfig)
+        .DefaultNew();
+
+    registrar.Parameter("collect_loaded_dictionaries_period", &TThis::CollectLoadedDictionariesPeriod)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->CacheConfig->BatchUpdate = true;
     });
 }
 
@@ -548,6 +568,9 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
+    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
+        .Default(true);
 
     registrar.Parameter("user_agent_blacklist", &TThis::UserAgentBlacklist)
         .Default();
@@ -624,6 +647,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("table_attribute_cache", &TThis::TableAttributeCache)
         .DefaultNew();
 
+    registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
+        .DefaultNew();
+
     registrar.Parameter("table_columnar_statistics_cache", &TThis::TableColumnarStatisticsCache)
         .DefaultNew();
 
@@ -637,10 +663,16 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("dictionary_repository", &TThis::DictionaryRepository)
-        .DefaultNew();
+        .Default();
+
+    registrar.Parameter("dictionary_access_control", &TThis::DictionaryAccessControl)
+        .Default();
 
     registrar.Parameter("system_log_table_exporters", &TThis::SystemLogTableExporters)
         .DefaultNew();
+
+    registrar.Parameter("enable_schema_id_fetching", &TThis::EnableSchemaIdFetching)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
@@ -676,6 +708,8 @@ void TLauncherConfig::Register(TRegistrar registrar)
 void TMemoryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reader", &TThis::Reader)
+        .Default();
+    registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .Default();
     registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Default();
@@ -773,6 +807,17 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
             if (config->Memory->ChunkMetaCache) {
                 initDefault(config->ClusterConnection->Dynamic->ChunkMetaCache);
                 config->ClusterConnection->Dynamic->ChunkMetaCache->Capacity = *config->Memory->ChunkMetaCache;
+            }
+            if (config->Memory->TableSchemaCache) {
+                initDefault(config->Yt->TableSchemaCache);
+
+                auto& currentCapacity = config->Yt->TableSchemaCache->Capacity;
+                const auto& limit = *config->Memory->TableSchemaCache;
+                if (currentCapacity == 0) {
+                    currentCapacity = limit;
+                } else if (limit != 0) {
+                    currentCapacity = std::min(currentCapacity, limit);
+                }
             }
 
             if (config->Memory->MaxServerMemoryUsage) {

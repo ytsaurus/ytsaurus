@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 #include <util/folder/path.h>
@@ -51,7 +53,6 @@ using namespace NSecurityClient;
 using namespace NLogging;
 using namespace NRpc;
 using namespace NTracing;
-using namespace NSecurityClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -408,13 +409,18 @@ NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
+TSerializableAccessControlList GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
 {
     TGetNodeOptions getNodeOptions;
     getNodeOptions.ReadFrom = EMasterChannelKind::ClientSideCache;
-    return NConcurrency::WaitFor(
-        client->GetNode(
-            GetOperationsAcoPrincipalPath(acoName) + "/@acl"))
+
+    return WaitFor(client->GetNode(
+            GetOperationsAcoPrincipalPath(acoName) + "/@acl",
+            getNodeOptions)
+        .AsUnique()
+        .Apply(BIND([] (TYsonString&& aclYson) {
+            return ConvertTo<TSerializableAccessControlList>(aclYson);
+        })))
         .ValueOrThrow();
 }
 
@@ -463,8 +469,7 @@ TSerializableAccessControlList TAccessControlRule::GetOrLookupAcl(const NApi::NN
     if (IsAcl()) {
         return GetAcl();
     } else {
-        auto aclYson = GetAclFromAcoName(client, GetAcoName());
-        return ConvertTo<TSerializableAccessControlList>(aclYson);
+        return GetAclFromAcoName(client, GetAcoName());
     }
 }
 
@@ -477,6 +482,12 @@ TString TAccessControlRule::GetAclString() const
             .Value(GetAcl())
             .ToString();
     }
+}
+
+void TAccessControlRule::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, AccessControlRule_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -545,7 +556,7 @@ std::optional<TAccessControlRule> TryGetAccessControlRuleFromOperation(const TOp
     auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
 
     if (aclYson) {
-        auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
+        auto acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
         return TAccessControlRule(acl);
     }
 
@@ -568,24 +579,15 @@ TError CheckOperationAccessByAco(
     const TLogger& logger)
 {
     auto authenticatedUser = user.value_or(GetCurrentAuthenticationIdentity().User);
+    auto acl = GetAclFromAcoName(client, acoName);
 
-    std::vector<TFuture<TCheckPermissionResponse>> futures;
-    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
-        if (Any(permission & permissionSet)) {
-            futures.push_back(client->CheckPermission(authenticatedUser, GetOperationsAcoPrincipalPath(acoName), permission));
-        }
-    }
-
-    auto results = WaitFor(AllSucceeded(futures))
-        .ValueOrThrow();
-
-    return ValidateCheckPermissionsResults(
+    return CheckOperationAccessByAcl(
         authenticatedUser,
         operationId,
         jobId,
         permissionSet,
-        results,
-        TAccessControlRule(acoName),
+        acl,
+        client,
         logger);
 }
 
@@ -595,9 +597,11 @@ TError CheckOperationAccessByAcl(
     TJobId jobId,
     EPermissionSet permissionSet,
     const TSerializableAccessControlList& acl,
-    const IClientPtr& client,
+    const NNative::IClientPtr& client,
     const TLogger& logger)
 {
+    const auto checkBaseAco = client->GetNativeConnection()->GetConfig()->CheckOperationBaseAco;
+
     auto Logger = logger;
 
     if (operationId) {
@@ -607,9 +611,22 @@ TError CheckOperationAccessByAcl(
         Logger.AddTag("JobId: %v", jobId);
     }
 
+    INodePtr aclNode;
+
+    if (checkBaseAco) {
+        const auto& baseAcoPrincipalAcl = GetAclFromAcoName(client, client->GetNativeConnection()->GetConfig()->OperationBaseAcoName);
+        auto finalAcl = acl;
+        finalAcl.Entries.insert(
+            finalAcl.Entries.end(),
+            baseAcoPrincipalAcl.Entries.begin(),
+            baseAcoPrincipalAcl.Entries.end());
+        aclNode = ConvertToNode(std::move(finalAcl));
+    } else {
+        aclNode = ConvertToNode(acl);
+    }
+
     TCheckPermissionByAclOptions options;
     options.IgnoreMissingSubjects = true;
-    auto aclNode = ConvertToNode(acl);
 
     std::vector<TFuture<TCheckPermissionByAclResult>> futures;
     for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
@@ -993,8 +1010,8 @@ void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeP
                 &(*volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()),
                 volumeProto.tmpfs_storage_request());
             break;
-        default:
-            break;
+        case TProtoMessage::DISK_REQUEST_NOT_SET:
+            YT_ABORT();
     }
 }
 
@@ -1004,7 +1021,7 @@ void FromProto(
 {
     volumeMount->VolumeId = volumeMountProto.volume_id();
     volumeMount->MountPath = volumeMountProto.mount_path();
-    volumeMount->IsReadOnly = volumeMountProto.is_read_only();
+    volumeMount->ReadOnly = volumeMountProto.read_only();
 }
 
 void ToProto(
@@ -1013,7 +1030,7 @@ void ToProto(
 {
     volumeMountProto->set_volume_id(volumeMount.VolumeId);
     volumeMountProto->set_mount_path(volumeMount.MountPath);
-    volumeMountProto->set_is_read_only(volumeMount.IsReadOnly);
+    volumeMountProto->set_read_only(volumeMount.ReadOnly);
 }
 
 void FromProto(
@@ -1030,7 +1047,7 @@ void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTm
     protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
 }
 
-void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TOldDiskRequest& protoDiskRequestConfig)
+void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig)
 {
     switch (static_cast<NExecNode::EVolumeType>(protoDiskRequestConfig.type())) {
         case NExecNode::EVolumeType::Nbd:
@@ -1043,12 +1060,10 @@ void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TOldDiskR
             break;
         case NExecNode::EVolumeType::Tmpfs:
             break;
-        default:
-            YT_ABORT();
     }
 }
 
-void ToProto(NProto::TOldDiskRequest* protoDiskRequest, const TStorageRequestConfig& diskRequestConfig)
+void ToProto(NProto::TDeprecatedDiskRequest* protoDiskRequest, const TStorageRequestConfig& diskRequestConfig)
 {
     if (auto nbdDiskRequest = diskRequestConfig.TryGetConcrete<TNbdDiskRequest>()) {
         protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Nbd));
@@ -1114,40 +1129,9 @@ void ToProto(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Check that no volume path is a prefix of another volume path. Throw if check has failed.
-void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths)
+bool IsDiskRequestTmpfs(const std::optional<TStorageRequestConfig>& diskRequest)
 {
-    for (int i = 0; i < std::ssize(tmpfsPaths); ++i) {
-        for (int j = 0; j < std::ssize(tmpfsPaths); ++j) {
-            if (i == j) {
-                continue;
-            }
-
-            auto lhsFsPath = TFsPath(tmpfsPaths[i]);
-            auto rhsFsPath = TFsPath(tmpfsPaths[j]);
-
-            if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is a prefix of another tmpfs volume %Qv",
-                    tmpfsPaths[i],
-                    tmpfsPaths[j]);
-            }
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int CountOfNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes)
-{
-    int countOfNotTmpfsPaths = 0;
-
-    for (const auto& [_, volume] : volumes) {
-        if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
-            ++countOfNotTmpfsPaths;
-        }
-    }
-
-    return countOfNotTmpfsPaths;
+    return diskRequest && diskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

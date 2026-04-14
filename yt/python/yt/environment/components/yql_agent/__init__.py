@@ -22,8 +22,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.artifacts_path = None
         self.subprocesses_count = None
         self.env = None
+        self.remote_envs = []
 
-    def prepare(self, env, config):
+    def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
 
         if "path" in config:
@@ -32,6 +33,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.libraries = config.get("libraries", {})
         self.config = config
         self.env = env
+        self.remote_envs = remote_envs
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
@@ -43,7 +45,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if "subprocesses_count" in config and config["subprocesses_count"] != 0:
             self.subprocesses_count = config["subprocesses_count"]
 
-        self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
+        self.max_supported_yql_version = config.get("max_supported_yql_version")
+        self.default_yql_ui_version = config.get("default_yql_ui_version")
+        self.allow_not_released_yql_versions = config.get("allow_not_released_yql_versions")
 
         super(YqlAgent, self).prepare(env, config)
 
@@ -143,19 +147,29 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "slots_root_path": yql_agent_plugin_slots_path
             }
 
+        cluster_mapping = [
+            {
+                "name": self.env.id,
+                "cluster": self.env.get_http_proxy_address(),
+                "default": True,
+                "settings": [{"name": "_AllowRemoteClusterInput", "value": "true" if len(self.remote_envs) > 0 else "false"}]
+            }
+        ]
+
+        for env in self.remote_envs:
+            cluster_mapping.append({
+                "name": env.id,
+                "cluster": env.get_http_proxy_address(),
+                "default": False
+            })
+
         config = {
             "user": self.USER_NAME,
             "yql_agent": {
                 "gateway_config": {
                     "mr_job_bin": mr_job_bin,
                     "mr_job_udfs_dir": mr_job_udfs_dir,
-                    "cluster_mapping": [
-                        {
-                            "name": self.env.id,
-                            "cluster": self.env.get_http_proxy_address(),
-                            "default": True,
-                        }
-                    ],
+                    "cluster_mapping": cluster_mapping,
                     "default_settings": [{"name": "DefaultCalcMemoryLimit", "value": "2G"}]
                 },
                 # Slightly change the defaults to check if they can be overwritten.
@@ -172,6 +186,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         if self.max_supported_yql_version:
             config["yql_agent"]["max_supported_yql_version"] = self.max_supported_yql_version
+
+        if self.default_yql_ui_version:
+            config["yql_agent"]["default_yql_ui_version"] = self.default_yql_ui_version
+
+        if self.allow_not_released_yql_versions is not None:
+            config["yql_agent"]["allow_not_released_yql_versions"] = self.allow_not_released_yql_versions
 
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config

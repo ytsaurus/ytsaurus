@@ -172,7 +172,7 @@ TChaosResidencyCacheBase::TChaosResidencyCacheBase(
     TChaosResidencyCacheConfigPtr config,
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    : TAsyncExpiringCache(std::move(config), NRpc::TDispatcher::Get()->GetHeavyInvoker())
     , Connection_(connection)
     , Logger(logger)
 { }
@@ -350,7 +350,7 @@ public:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.AsUnique().Get()
+                std::move(channelFuture.AsUnique().GetOrCrash()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidency,
@@ -460,7 +460,7 @@ private:
                         continue;
                     }
 
-                    if (const auto& result = future.Get(); result.IsOK()) {
+                    if (const auto& result = future.GetOrCrash(); result.IsOK()) {
                         return futureCellTags[index];
                     }
                 }
@@ -480,7 +480,7 @@ private:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.AsUnique().Get()
+                std::move(channelFuture.AsUnique().GetOrCrash()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,

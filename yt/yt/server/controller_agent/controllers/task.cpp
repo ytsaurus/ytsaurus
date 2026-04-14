@@ -1,12 +1,12 @@
 #include "task.h"
 
+#include "data_flow_graph.h"
+#include "helpers.h"
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "task_host.h"
-#include "helpers.h"
-#include "data_flow_graph.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/config.h>
@@ -16,9 +16,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
@@ -102,7 +101,7 @@ TTask::TTask(
         this,
         taskHost->GetSpec(),
         Logger)
-    , DistributedJobManager_(this, Logger)
+    , JobCollectiveManager_(this, Logger)
 {
     if (TaskHost_->GetSpec()->UseClusterThrottlers) {
         ClusterToNetworkBandwidthAvailabilityUpdatedCallback_ = BIND_NO_PROPAGATE(
@@ -131,7 +130,7 @@ void TTask::Initialize()
     if (IsSimpleTask()) {
         if (auto userJobSpec = GetUserJobSpec()) {
             for (const auto& [name, volume] : userJobSpec->Volumes) {
-                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                if (IsDiskRequestTmpfs(volume->DiskRequest)) {
                     MaximumUsedTmpfsSizes_[name];
                 }
             }
@@ -204,10 +203,10 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
     }
 
     TCompositePendingJobCount result;
-    result.DefaultCount = DistributedJobManager_.GetDistributedJobFactor() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
+    result.DefaultCount = JobCollectiveManager_.GetCollectiveSize() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
         SpeculativeJobManager_.GetPendingJobCount() +
         ExperimentJobManager_.GetPendingJobCount() +
-        DistributedJobManager_.GetPendingJobCount();
+        JobCollectiveManager_.GetPendingJobCount();
 
     ProbingJobManager_.UpdatePendingJobCount(&result);
 
@@ -402,7 +401,7 @@ void TTask::AdjustOutputKeyBounds(const TLegacyDataSlicePtr& dataSlice) const
 
 void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
-    for (auto stripe : stripes) {
+    for (const auto& stripe : stripes) {
         if (stripe) {
             AddInput(stripe);
         }
@@ -447,7 +446,7 @@ void TTask::DoRegisterInGraph()
 
 void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
 {
-    SetInputVertex(inputVertex);
+    SetInputVertex(std::move(inputVertex));
 
     RegisterInGraph();
 }
@@ -576,11 +575,11 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
     TOutputCookieInfo result;
 
     // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
-    if (DistributedJobManager_.GetPendingJobCount() != 0) {
-        auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
+    if (JobCollectiveManager_.GetPendingJobCount() != 0) {
+        auto [cookie, rank] = JobCollectiveManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Distributed;
         result.OutputCookie = cookie;
-        result.DistributedGroupJobIndex = index;
+        result.CollectiveMemberRank = rank;
     } else if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
         result.CompetitionType = EJobCompetitionType::Probing;
         result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
@@ -615,11 +614,11 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
 
     YT_VERIFY(allocation.LastJobInfo);
     // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
-    if (DistributedJobManager_.GetPendingJobCount() != 0) {
-        auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
+    if (JobCollectiveManager_.GetPendingJobCount() != 0) {
+        auto [cookie, rank] = JobCollectiveManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Distributed;
         result.OutputCookie = cookie;
-        result.DistributedGroupJobIndex = index;
+        result.CollectiveMemberRank = rank;
     } else if (auto previousJobCompetitionType = allocation.LastJobInfo->CompetitionType;
         previousJobCompetitionType == EJobCompetitionType::Probing)
     {
@@ -664,7 +663,7 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
 {
     auto Logger = this->Logger.WithTag("AllocationId: %v", context.GetAllocationId());
     if (auto failReason = GetScheduleFailReason(context)) {
-        return *failReason;
+        return failReason;
     }
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
@@ -742,7 +741,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         treeIsTentative);
 
     joblet->OutputCookie = outputCookieInfo.OutputCookie;
-    joblet->DistributedGroupInfo.Index = outputCookieInfo.DistributedGroupJobIndex;
+    joblet->CollectiveInfo.Rank = outputCookieInfo.CollectiveMemberRank;
     joblet->CompetitionType = outputCookieInfo.CompetitionType;
 
     auto chunkPoolOutput = GetChunkPoolOutput();
@@ -782,13 +781,13 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
             if (state.UserJobStatus != EResourceOverdraftStatus::None) {
                 joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
             } else {
-                joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
+                joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
             }
         }
     } else {
         joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
         if (HasUserJob()) {
-            joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
+            joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
         }
     }
 
@@ -831,7 +830,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     if (userJobSpec) {
         i64 totalTmpfsSize = 0;
         for (const auto& [_, volume] : userJobSpec->Volumes) {
-            if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+            if (IsDiskRequestTmpfs(volume->DiskRequest)) {
                 totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
             }
         }
@@ -887,7 +886,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     AddJobTypeToJoblet(joblet);
 
-    joblet->JobInterruptible = IsJobInterruptible() && joblet->DistributedGroupInfo.Index == 0;
+    joblet->JobInterruptible = IsJobInterruptible() && joblet->CollectiveInfo.Rank == 0;
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
@@ -913,7 +912,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
         "Approximate: %v, FilteringPartitionTags: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
         "JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, "
-        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, DistributedGroupInfo: %v)",
+        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CollectiveInfo: %v)",
         joblet->JobId,
         joblet->JobType,
         GetDefaultAddress(context.GetNodeDescriptor().Addresses),
@@ -933,7 +932,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         media,
         lostIntermediateChunkIsKnown ? lostIntermediateChunk->second : NullChunkId,
         joblet->JobInterruptible,
-        joblet->DistributedGroupInfo
+        joblet->CollectiveInfo
     );
 
     SetStreamDescriptors(joblet);
@@ -1016,15 +1015,15 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "experiment", "distributed"};
-    YT_VERIFY(jobManagerNames.size() == JobManagers_.size());
+    static const std::vector<TString> JobManagerNames = {"speculative", "probing", "experiment", "distributed"};
+    YT_VERIFY(JobManagerNames.size() == JobManagers_.size());
 
     fluent
         .Item("task_name").Value(GetVertexDescriptor())
         .Item("job_type").Value(GetJobType())
         .Item("has_user_job").Value(HasUserJob())
         .Item("job_counter").Value(GetJobCounter())
-        .DoFor(Zip(JobManagers_, jobManagerNames), [] (auto fluent, auto jobManager) {
+        .DoFor(Zip(JobManagers_, JobManagerNames), [] (auto fluent, auto jobManager) {
             fluent.Item(std::get<1>(jobManager) + "_job_counter").Value(std::get<0>(jobManager)->GetProgressCounter());
         })
         .Item("input_finished").Value(GetChunkPoolInput() && GetChunkPoolInput()->IsFinished())
@@ -1070,7 +1069,7 @@ void TTask::SetChunkPoolIndexForOutputStripes(
     }
 }
 
-NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(
+NChunkPools::IChunkPoolOutput::TCookie TTask::ExtractCookieForAllocation(
     const TAllocation& allocation)
 {
     auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
@@ -1218,10 +1217,10 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(37, CurrentMaxRunnableJobCount_,
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
 
-    PHOENIX_REGISTER_FIELD(38, DistributedJobManager_,
+    PHOENIX_REGISTER_FIELD(38, JobCollectiveManager_,
         .SinceVersion(ESnapshotVersion::DistributedJobManagers)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->DistributedJobManager_.InitializeCounter();
+            this_->JobCollectiveManager_.InitializeCounter();
         }));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
@@ -1426,7 +1425,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 }
 
 void TTask::OnOperationRevived() {
-    for (auto jobManager : JobManagers_) {
+    for (auto* jobManager : JobManagers_) {
         jobManager->OnOperationRevived();
     }
 }
@@ -1665,7 +1664,7 @@ void TTask::AddSequentialInputSpec(
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    if (joblet->DistributedGroupInfo.Index > 0) {
+    if (joblet->CollectiveInfo.Rank > 0) {
         return;
     }
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
@@ -1693,7 +1692,7 @@ void TTask::AddParallelInputSpec(
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->DistributedGroupInfo.Index > 0) {
+    if (joblet->CollectiveInfo.Rank > 0) {
         return;
     }
     auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
@@ -1816,7 +1815,7 @@ void TTask::AddOutputTableSpecs(
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->DistributedGroupInfo.Index > 0) {
+    if (joblet->CollectiveInfo.Rank > 0) {
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             New<TDataSourceDirectory>());
@@ -1911,7 +1910,7 @@ std::optional<TDuration> TTask::InferWaitingForResourcesTimeout(
         return std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout()));
     }
     if (TaskHost_->GetSpec()->WaitingJobTimeout) {
-        return *TaskHost_->GetSpec()->WaitingJobTimeout;
+        return TaskHost_->GetSpec()->WaitingJobTimeout;
     }
     if (allocationSpec.waiting_for_resources_on_node_timeout()) {
         return FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout());
@@ -2044,14 +2043,14 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
 
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
-            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); //COMPAT
+            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); // COMPAT
         if (!maxUsedTmpfsSize) {
             continue;
         }
 
         auto& maxTmpfsSize = MaximumUsedTmpfsSizes_[name];
         if (!maxTmpfsSize || *maxTmpfsSize < *maxUsedTmpfsSize) {
-            maxTmpfsSize = *maxUsedTmpfsSize;
+            maxTmpfsSize = maxUsedTmpfsSize;
         }
     }
 }
@@ -2064,7 +2063,7 @@ void TTask::FinishTaskInput(const TTaskPtr& task) const
 
 void TTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    if (joblet->DistributedGroupInfo.Index == 0) {
+    if (joblet->CollectiveInfo.Rank == 0) {
         joblet->OutputStreamDescriptors = OutputStreamDescriptors_;
         joblet->InputStreamDescriptors = InputStreamDescriptors_;
     }
@@ -2152,7 +2151,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_ignore_yt_variables_in_shell_environment(TaskHost_->GetSpec()->IgnoreYTVariablesInShellEnvironment);
 
-    if (joblet->DistributedGroupInfo.Index > 0) {
+    if (joblet->CollectiveInfo.Rank > 0) {
         jobSpecExt->mutable_user_job_spec()->set_is_secondary_distributed(true);
     }
 
@@ -2475,7 +2474,7 @@ std::vector<std::string> TTask::FindAndBanSlowTentativeTrees()
 
 void TTask::LogTentativeTreeStatistics() const
 {
-    return TentativeTreeEligibility_.LogTentativeTreeStatistics();
+    TentativeTreeEligibility_.LogTentativeTreeStatistics();
 }
 
 void TTask::AsyncAbortJob(TJobId jobId, EAbortReason reason)

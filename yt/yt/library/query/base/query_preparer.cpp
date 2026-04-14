@@ -18,6 +18,7 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NCodegen;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NYson;
@@ -179,7 +180,7 @@ std::vector<std::string> ExtractFunctionNames(
 
 TConstExpressionPtr BuildPredicate(
     const NAst::TExpressionList& expressionAst,
-    TExprBuilder* builder,
+    TExpressionBuilder* builder,
     TStringBuf name)
 {
     if (expressionAst.size() != 1) {
@@ -205,7 +206,7 @@ TConstExpressionPtr BuildPredicate(
 TGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
     ETotalsMode totalsMode,
-    TExprBuilder* builder)
+    TExpressionBuilder* builder)
 {
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
@@ -238,7 +239,7 @@ void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
-    TExprBuilder* builder)
+    TExpressionBuilder* builder)
 {
     if (ast.WherePredicate) {
         auto wherePredicate = BuildPredicate(*ast.WherePredicate, builder, "WHERE-clause");
@@ -598,7 +599,10 @@ TTableSchemaPtr MakeColumnTypesOptional(const TTableSchemaPtr& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(TRange<std::string> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(
+    TRange<std::string> /*names*/,
+    const TTypeInferrerMapPtr& typeInferrers,
+    EExecutionBackend /*executionBackend*/)
 {
     MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 }
@@ -672,15 +676,16 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
     return expressionsAndColumnIndices;
 }
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilder(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context,
     int expressionBuilderVersion)
 {
     return (expressionBuilderVersion == 1
         ? &CreateExpressionBuilderV1
-        : &CreateExpressionBuilderV2)(source, functions, aliasMap);
+        : &CreateExpressionBuilderV2)(source, functions, aliasMap, context);
 }
 
 TJoinClausePtr BuildJoinClause(
@@ -692,10 +697,12 @@ TJoinClausePtr BuildJoinClause(
     size_t* globalCommonKeyPrefix,
     const TTableSchemaPtr& tableSchema,
     const std::optional<std::string>& tableAlias,
-    TExprBuilder* builder,
-    int builderVersion,
-    const NLogging::TLogger& Logger)
+    TExpressionBuilder* builder,
+    const TPreparePlanFragmentContext& context)
 {
+    const auto& Logger = context.Logger;
+    const auto& options = context.Options;
+
     auto foreignTableSchema = foreignDataSplit.TableSchema;
 
     auto joinClause = New<TJoinClause>();
@@ -703,8 +710,12 @@ TJoinClausePtr BuildJoinClause(
     joinClause->ForeignObjectId = foreignDataSplit.ObjectId;
     joinClause->IsLeft = tableJoin.IsLeft;
 
+    if (!tableJoin.Table.Hint->RequireSyncReplica && options.AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse) {
+        joinClause->RequireSyncReplica = false;
+    }
+
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
-    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, builderVersion);
+    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, context, options.BuilderVersion);
 
     foreignBuilder->AddTable({
         .Schema = *foreignTableSchema,
@@ -712,7 +723,7 @@ TJoinClausePtr BuildJoinClause(
         .Mapping = &joinClause->Schema.Mapping,
     });
 
-    std::vector<TSelfEquation> selfEquations;
+    std::vector<TConstExpressionPtr> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
     std::vector<TConstExpressionPtr> foreignEquations;
     foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
@@ -746,18 +757,12 @@ TJoinClausePtr BuildJoinClause(
                 << TErrorAttribute("foreign_type", foreignColumnType);
         }
 
-        selfEquations.push_back({
-            .Expression = New<TReferenceExpression>(selfColumnType, columnName),
-            .Evaluated = false,
-        });
+        selfEquations.push_back(New<TReferenceExpression>(selfColumnType, columnName));
         foreignEquations.push_back(New<TReferenceExpression>(foreignColumnType, columnName));
     }
 
     for (const auto& argument : tableJoin.Lhs) {
-        selfEquations.push_back({
-            .Expression = ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)),
-            .Evaluated = false,
-        });
+        selfEquations.push_back(ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)));
     }
     for (const auto& argument : tableJoin.Rhs) {
         foreignEquations.push_back(ApplyRewriters(foreignBuilder->BuildTypedExpression(argument, ComparableTypes)));
@@ -772,11 +777,11 @@ TJoinClausePtr BuildJoinClause(
     }
 
     for (int index = 0; index < std::ssize(selfEquations); ++index) {
-        if (selfEquations[index].Expression->GetWireType() != foreignEquations[index]->GetWireType()) {
+        if (selfEquations[index]->GetWireType() != foreignEquations[index]->GetWireType()) {
             THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
-                InferName(selfEquations[index].Expression),
+                InferName(selfEquations[index]),
                 InferName(foreignEquations[index]))
-                << TErrorAttribute("self_type", selfEquations[index].Expression->LogicalType)
+                << TErrorAttribute("self_type", selfEquations[index]->LogicalType)
                 << TErrorAttribute("foreign_type", foreignEquations[index]->LogicalType);
         }
     }
@@ -784,7 +789,7 @@ TJoinClausePtr BuildJoinClause(
     // If possible, use ranges, rearrange equations according to foreign key columns, enriching with evaluated columns
     size_t commonKeyPrefix = 0;
     size_t foreignKeyPrefix = 0;
-    std::vector<TSelfEquation> keySelfEquations;
+    std::vector<TConstExpressionPtr> keySelfEquations;
     std::vector<TConstExpressionPtr> keyForeignEquations;
     THashSet<int> usedForKeyPrefixEquations;
 
@@ -846,10 +851,7 @@ TJoinClausePtr BuildJoinClause(
             // Register foreign evaluated column in the effective schema.
             foreignBuilder->ResolveColumn(foreignKeyColumnReference);
 
-            keySelfEquations.push_back({
-                .Expression = std::move(matchingSelfExpression),
-                .Evaluated = false,
-            });
+            keySelfEquations.push_back(std::move(matchingSelfExpression));
             keyForeignEquations.push_back(New<TReferenceExpression>(
                 foreignKeyColumn.LogicalType(),
                 aliasedForeignKeyColumnName));
@@ -860,7 +862,7 @@ TJoinClausePtr BuildJoinClause(
         if (commonKeyPrefix == foreignKeyPrefix &&
             static_cast<int>(commonKeyPrefix) < tableSchema->GetKeyColumnCount())
         {
-            if (auto* reference = keySelfEquations.back().Expression->As<TReferenceExpression>()) {
+            if (auto* reference = keySelfEquations.back()->As<TReferenceExpression>()) {
                 auto aliasedName = NAst::InferColumnName(NAst::TReference(
                     tableSchema->Columns()[commonKeyPrefix].Name(),
                     tableAlias));
@@ -916,7 +918,7 @@ TJoinClausePtr BuildArrayJoinClause(
     TStringBuf source,
     const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
-    TExprBuilder* builder,
+    TExpressionBuilder* builder,
     int builderVersion)
 {
     auto arrayJoinClause = New<TJoinClause>();
@@ -963,6 +965,7 @@ TJoinClausePtr BuildArrayJoinClause(
         source,
         functions,
         aliasMap,
+        builder->GetContext(),
         builderVersion);
 
     arrayBuilder->AddTable({
@@ -1233,12 +1236,119 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     return;
 }
 
+namespace {
+
+// NB: This visitor does NOT traverse into subqueries in the FROM clause (e.g., `SELECT FROM (SELECT ...)`).
+// Such subqueries are handled separately via recursive calls to PreparePlanFragmentImpl.
+class TPathCollector
+    : public NAst::TAstVisitor<TPathCollector>
+{
+public:
+    explicit TPathCollector(std::function<void(const NYPath::TYPath&)> onPath)
+        : OnPath_(std::move(onPath))
+    { }
+
+    void OnQuery(const NAst::TQueryExpressionPtr queryExpr)
+    {
+        if (const auto* table = std::get_if<NAst::TTableDescriptor>(&queryExpr->Query.FromClause)) {
+            OnPath_(table->Path);
+        }
+
+        for (const auto& join : queryExpr->Query.Joins) {
+            NYT::Visit(join,
+                [&] (const NAst::TJoin& tableJoin) {
+                    OnPath_(tableJoin.Table.Path);
+                },
+                [&] (const NAst::TArrayJoin& /*arrayJoin*/) { });
+        }
+
+        for (const auto& [_, alias] : queryExpr->AliasMap) {
+            Visit(alias);
+        }
+
+        Visit(queryExpr->Query.SelectExprs);
+        Visit(queryExpr->Query.WherePredicate);
+        Visit(queryExpr->Query.GroupExprs);
+        Visit(queryExpr->Query.HavingPredicate);
+        for (const auto& [expr, _] : queryExpr->Query.OrderExpressions) {
+            Visit(expr);
+        }
+    }
+
+private:
+    std::function<void(const NYPath::TYPath&)> OnPath_;
+};
+
+const TDataSplit& GetDataSplitOrThrow(
+    const THashMap<NYPath::TYPath, TDataSplit>& dataSplits,
+    const NYPath::TYPath& path)
+{
+    auto it = dataSplits.find(path);
+    if (it == dataSplits.end()) {
+        THROW_ERROR_EXCEPTION("Data split not found for table path %Qv", path);
+    }
+    return it->second;
+}
+
+THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
+    IPrepareCallbacks* callbacks,
+    const NAst::TQuery& queryAst,
+    const NAst::TAliasMap& aliasMap,
+    int depth,
+    const NLogging::TLogger& Logger)
+{
+    {
+        const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
+
+        YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
+            table ? table->Path : "unapplicable",
+            MakeFormattableView(
+                queryAst.Joins,
+                [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
+                    if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
+                        FormatValue(builder, tableJoin->Table.Path, TStringBuf());
+                    }
+            }),
+            depth);
+    }
+
+    auto asyncDataSplits = THashMap<NYPath::TYPath, TFuture<TDataSplit>>();
+
+    auto pathCollector = TPathCollector([&] (const NYPath::TYPath& path) -> void {
+        asyncDataSplits.try_emplace(path, callbacks->GetInitialSplit(path));
+    });
+    auto query = NAst::TQueryExpression({}, queryAst, aliasMap);
+    pathCollector.Visit(&query);
+
+    std::vector<TFuture<std::pair<NYPath::TYPath, TDataSplit>>> futures;
+    futures.reserve(asyncDataSplits.size());
+    for (const auto& [path, future] : asyncDataSplits) {
+        futures.push_back(future.Apply(BIND([path] (const TDataSplit& dataSplit) {
+            return std::pair{path, dataSplit};
+        })));
+    }
+
+    auto dataSplitPairs = WaitForFast(AllSucceeded(futures))
+        .ValueOrThrow();
+
+    auto result = THashMap<NYPath::TYPath, TDataSplit>();
+    result.reserve(dataSplitPairs.size());
+    for (auto& pair : dataSplitPairs) {
+        result.emplace(std::move(pair));
+    }
+
+    YT_LOG_DEBUG("Initial data splits received");
+    return result;
+}
+
+} // namespace
+
 TPlanFragmentPtr PreparePlanFragmentImpl(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     const NAst::TQuery& queryAst,
     const NAst::TAliasMap& aliasMap,
-    int builderVersion,
+    const TPreparePlanFragmentOptions& options,
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
@@ -1255,7 +1365,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                 source,
                 subquery->Ast,
                 subquery->AliasMap,
-                builderVersion,
+                options,
                 memoryTracker,
                 depth + 1);
         },
@@ -1265,42 +1375,16 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         });
 
     auto functions = New<TTypeInferrerMap>();
-    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
+    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions, options.ExecutionBackend);
+
+    auto dataSplits = GetDataSplits(callbacks, queryAst, aliasMap, depth, Logger);
 
     const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
-    YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
-        table ? table->Path : "unapplicable",
-        MakeFormattableView(
-            queryAst.Joins,
-            [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
-                if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
-                    FormatValue(builder, tableJoin->Table.Path, TStringBuf());
-                }
-        }),
-        depth);
-
-    std::vector<TFuture<TDataSplit>> asyncDataSplits;
-    asyncDataSplits.reserve(queryAst.Joins.size() + 1);
     if (table) {
-        asyncDataSplits.push_back(callbacks->GetInitialSplit(table->Path));
-    }
-    for (const auto& join : queryAst.Joins) {
-        Visit(join,
-            [&] (const NAst::TJoin& tableJoin) {
-                asyncDataSplits.push_back(callbacks->GetInitialSplit(tableJoin.Table.Path));
-            },
-            [&] (const NAst::TArrayJoin& /*arrayJoin*/) { });
-    }
-
-    auto dataSplits = WaitForFast(AllSucceeded(asyncDataSplits))
-        .ValueOrThrow();
-
-    YT_LOG_DEBUG("Initial data splits received");
-
-    if (table) {
-        fragment->DataSource.ObjectId = dataSplits[0].ObjectId;
-        query->Schema.Original = dataSplits[0].TableSchema;
+        const auto& dataSplit = GetDataSplitOrThrow(dataSplits, table->Path);
+        fragment->DataSource.ObjectId = dataSplit.ObjectId;
+        query->Schema.Original = dataSplit.TableSchema;
     } else {
         query->Schema.Original = fragment->SubqueryFragment->Query->GetTableSchema();
     }
@@ -1316,11 +1400,14 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             return std::nullopt;
         });
 
+    TPreparePlanFragmentContext context{Logger, dataSplits, options};
+
     auto builder = CreateExpressionBuilder(
         source,
         functions,
         aliasMap,
-        builderVersion);
+        context,
+        options.BuilderVersion);
 
     builder->AddTable({
         .Schema = *query->Schema.Original,
@@ -1330,12 +1417,11 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
-    int splitIndex = table ? 1 : 0;
     for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
                 joinClauses.push_back(BuildJoinClause(
-                    dataSplits[splitIndex++],
+                    GetDataSplitOrThrow(dataSplits, tableJoin.Table.Path),
                     tableJoin,
                     source,
                     aliasMap,
@@ -1344,8 +1430,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     query->Schema.Original,
                     table->Alias,
                     builder.get(),
-                    builderVersion,
-                    Logger));
+                    context));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
                 joinClauses.push_back(BuildArrayJoinClause(
@@ -1354,7 +1439,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                     aliasMap,
                     functions,
                     builder.get(),
-                    builderVersion));
+                    options.BuilderVersion));
             });
     }
 
@@ -1431,20 +1516,34 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
+    const TPreparePlanFragmentOptions& options,
     NYson::TYsonStringBuf placeholderValues,
-    int syntaxVersion,
     IMemoryUsageTrackerPtr memoryTracker)
 {
-    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, options.SyntaxVersion);
 
     return PreparePlanFragment(
         callbacks,
         source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
-        /*builderVersion*/ 1,
-        std::move(memoryTracker),
-        syntaxVersion);
+        options,
+        std::move(memoryTracker));
+}
+
+void ApplyAstRewriters(
+    NAst::TQuery& queryAst,
+    NAst::TAliasMap& aliasMap,
+    NAst::TAstHead& astHead,
+    const TPreparePlanFragmentOptions& options)
+{
+    if (options.SyntaxVersion >= 3) {
+        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
+    }
+
+    if (options.ShouldRewriteCardinalityIntoHyperLogLog) {
+        RewriteCardinalityIntoHyperLogLogWithPrecision(&queryAst, &aliasMap, &astHead, options.HyperLogLogPrecision);
+    }
 }
 
 TPlanFragmentPtr PreparePlanFragment(
@@ -1452,31 +1551,21 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     NAst::TQuery& queryAst,
     NAst::TAstHead& astHead,
-    int builderVersion,
-    IMemoryUsageTrackerPtr memoryTracker,
-    int syntaxVersion,
-    bool shouldRewriteCardinalityIntoHyperLogLog,
-    int hyperLogLogPrecision,
-    int depth)
+    const TPreparePlanFragmentOptions& options,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     auto aliasMap = astHead.AliasMap;
 
-    if (syntaxVersion >= 3) {
-        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
-    }
-
-    if (shouldRewriteCardinalityIntoHyperLogLog) {
-        RewriteCardinalityIntoHyperLogLogWithPrecision(&queryAst, &aliasMap, &astHead, hyperLogLogPrecision);
-    }
+    ApplyAstRewriters(queryAst, aliasMap, astHead, options);
 
     return PreparePlanFragmentImpl(
         callbacks,
         source,
         queryAst,
         aliasMap,
-        builderVersion,
+        options,
         std::move(memoryTracker),
-        depth);
+        /*depth*/ 0);
 }
 
 TQueryPtr PrepareJobQuery(
@@ -1506,9 +1595,13 @@ TQueryPtr PrepareJobQuery(
     auto functionNames = ExtractFunctionNames(ast, aliasMap);
 
     auto functions = New<TTypeInferrerMap>();
-    functionsFetcher(functionNames, functions);
+    functionsFetcher(functionNames, functions, EExecutionBackend::Native);
 
-    auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
+    auto Logger = MakeQueryLogger(query);
+    THashMap<NYPath::TYPath, TDataSplit> emptyDataSplits;
+    TPreparePlanFragmentOptions defaultOptions;
+    TPreparePlanFragmentContext context{Logger, emptyDataSplits, defaultOptions};
+    auto builder = CreateExpressionBuilder(source, functions, aliasMap, context, 1);
 
     builder->AddTable({
         .Schema = *tableSchema,
@@ -1558,7 +1651,11 @@ TConstExpressionPtr PrepareExpression(
 
     std::vector<TColumnDescriptor> mapping;
 
-    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, builderVersion);
+    auto Logger = MakeQueryLogger(TGuid::Create());
+    THashMap<NYPath::TYPath, TDataSplit> emptyDataSplits;
+    TPreparePlanFragmentOptions defaultOptions;
+    TPreparePlanFragmentContext context{Logger, emptyDataSplits, defaultOptions};
+    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, context, builderVersion);
 
     builder->AddTable({
         .Schema = tableSchema,

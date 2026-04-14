@@ -23,6 +23,8 @@ target_compile_options(lib-hydra-mock PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(lib-hydra-mock PUBLIC

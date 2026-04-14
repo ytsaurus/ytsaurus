@@ -1,8 +1,8 @@
 #pragma once
 
-#include "private.h"
 #include "chunk_pool.h"
 #include "input_stream.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/table_client/public.h>
 
@@ -31,15 +31,12 @@ struct TOrderedChunkPoolOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 struct IOrderedChunkPool
     : public IPersistentChunkPool
+    , public IChunkPoolOutputWithOrderedCookies
 {
     virtual std::vector<NChunkClient::TChunkTreeId> ArrangeOutputChunkTrees(
         const std::vector<std::pair<TOutputCookie, NChunkClient::TChunkTreeId>>& chunkTrees) const = 0;
-
-    // For tests only.
-    virtual std::vector<TOutputCookie> GetOutputCookiesInOrder() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOrderedChunkPool)

@@ -47,8 +47,7 @@ public:
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) override;
+        std::optional<int> blockCount) override;
 
     bool ShouldUseProbePutBlocks() const override;
     void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
@@ -115,8 +114,7 @@ protected:
     virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) = 0;
+        std::optional<int> blockCount) = 0;
     virtual TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,

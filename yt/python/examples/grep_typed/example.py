@@ -11,17 +11,16 @@ import re
 
 @yt.wrapper.yt_dataclass
 class GrepRow:
-    # В этом поле приезжает строка, по которой мы фильтруем.
+    # In this field we get string for filtering.
     target: bytes
-    # В этом поле будут приезжать все остальные колонки.
+    # In this field we get all other columns.
     other: schema.OtherColumns
 
 
 @yt.wrapper.yt_dataclass
 class StaffRow:
-    # Мы хотим фильтровать по полю name типа str.
-    # Это возможно, несмотря на то, что в GrepRow поле target имеет тип bytes.
-    # В джобу приедет строка, закодированная в UTF-8.
+    # We can filter by the field `name` of type `str` in spite of the field `target` of type `bytes` in GrepRow.
+    # UTF-8 coded string will come into the job.
     name: str
     login: str
     uid: int
@@ -33,7 +32,7 @@ class GrepMapper(yt.wrapper.TypedJob):
         self._column = column
 
     def prepare_operation(self, context, preparer):
-        # Нужно заменить колонку self._column на "target" в выходной схеме.
+        # You should replace the column `self._column` with "target" in the output system.
         schema = copy.deepcopy(context.get_input_schemas()[0])
         for column in schema.columns:
             if column.name == self._column:
@@ -42,8 +41,7 @@ class GrepMapper(yt.wrapper.TypedJob):
         else:
             assert False, "Column {} not found in input schema".format(self._column)
 
-        # С помощью column_renaming мы переименовываем входную колонку так, чтобы
-        # её название сматчилось с именем поля в GrepRow.
+        # Use the column_renaming for renaming input column in order to match its name with field name in GrepRow.
         preparer.inputs(
             range(context.get_input_count()), type=GrepRow, column_renaming={self._column: "target"}
         ).output(0, type=GrepRow, schema=schema)

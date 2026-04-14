@@ -26,6 +26,8 @@ struct TNodeMemoryTrackerConfig
     // COMPAT(pogorelov): Should be enabled by default.
     bool CheckPerCategoryLimitOvercommit;
 
+    TDuration SystemCategoriesUpdatePeriod;
+
     REGISTER_YSON_STRUCT(TNodeMemoryTrackerConfig);
 
     static void Register(TRegistrar registrar);
@@ -88,6 +90,8 @@ struct INodeMemoryTracker
     virtual void ClearTrackers() = 0;
 
     virtual void Reconfigure(const TNodeMemoryTrackerConfigPtr& config) = 0;
+
+    virtual void Start() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
@@ -111,7 +115,8 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     const TNodeMemoryTrackerConfigPtr& config,
     const std::vector<std::pair<EMemoryCategory, i64>>& limits = {},
     const NLogging::TLogger& logger = {},
-    const NProfiling::TProfiler& profiler = {});
+    const NProfiling::TProfiler& profiler = {},
+    const IInvokerPtr& invoker = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

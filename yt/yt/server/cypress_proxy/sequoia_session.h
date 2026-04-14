@@ -85,6 +85,28 @@ public:
         std::vector<TCypressNodeDescriptor> Nodes;
     };
 
+    //! Same as #TSubtree, but fetched sequentially in batches due to
+    //! potentially unlimited size.
+    class TPagedSubtreeFetcher
+    {
+    public:
+        TPagedSubtreeFetcher(
+            NSequoiaClient::TAbsolutePathBuf rootPath,
+            int pageSize,
+            TSequoiaSession* owner);
+
+        TSubtree FetchNextPage();
+
+        DEFINE_BYREF_RO_PROPERTY(bool, ShouldContinue, true);
+
+    private:
+        const NSequoiaClient::TAbsolutePathBuf RootPath_;
+        const int PageSize_;
+        TSequoiaSession* const Owner_;
+
+        std::optional<NSequoiaClient::TAbsolutePath> CursorPath_;
+    };
+
     // Start and finish.
 
     //! Initializes Sequoia session and starts Sequoia tx.
@@ -106,6 +128,10 @@ public:
 
     //! Selects subtree from "path_to_node_id" Sequoia table.
     TSubtree FetchSubtree(NSequoiaClient::TAbsolutePathBuf path);
+
+    //! Same as #FetchSubtree, but the resulting subtree size is unlimited.
+    //! See #TPagedSubtreeFetcher.
+    TPagedSubtreeFetcher FetchPagedSubtree(NSequoiaClient::TAbsolutePathBuf path);
 
     //! Removes the whole subtree (including its root) from all resolve tables.
     //! If subtree root is not a scion then it is detached from its parent and
@@ -206,7 +232,7 @@ public:
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Generates ID, registers tx action and modifies "path_to_node_id",
-    //! "node_id_to_path" and "child_node" Sequoia tables. Attaches created node
+    //! "node_id_to_path" and "child_nodes" Sequoia tables. Attaches created node
     //! to its parent. Does _not_ S-lock parent.
     /*!
      *  NB: parent is usually locked by CreateMapNodeChain().
@@ -229,14 +255,15 @@ public:
     void AssembleTreeCopy(
         NCypressClient::TNodeId nodeId,
         NCypressClient::TNodeId parentId,
-        NSequoiaClient::TAbsolutePath path,
+        NSequoiaClient::TAbsolutePathBuf path,
         bool preserveAcl,
         bool preserveModificationTime,
-        THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildInfo);
+        const TNodeIdToChildDescriptors& nodeIdToChildInfo,
+        const TNodeIdToConstAttributes& linkNodeIdToAttributes);
 
     // Map-node's children accessors.
 
-    //! Selects children from "child_node" Sequoia table.
+    //! Selects children from "child_nodes" Sequoia table.
     TFuture<std::vector<TCypressChildDescriptor>> FetchChildren(NCypressClient::TNodeId nodeId);
 
     //! Used to check map-node's emptiness during non-recursive removal.
@@ -327,6 +354,10 @@ public:
         std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
         bool duringCopy);
 
+    TFuture<TNodeIdToConstAttributes> FetchNodeAttributesFromMaster(
+        TRange<NCypressClient::TNodeId> nodeIds,
+        const NYTree::TAttributeFilter& attributeFilter) const;
+
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
 
 private:
@@ -345,7 +376,7 @@ private:
     // This cache is filled on every read of Sequoia resolve tables.
     TProgenitorTransactionCache ProgenitorTransactionCache_;
 
-    // Locking of rows in "node_id_to_path" and "child_node" table heavily
+    // Locking of rows in "node_id_to_path" and "child_nodes" table heavily
     // depends on Sequoia transaction commit mode on node's native cell. Since
     // we already have |RequiredCoordinatorCellTag_| we can just check it before
     // transaction commit and acquire corresponding dynamic table locks.

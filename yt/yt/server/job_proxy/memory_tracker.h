@@ -1,13 +1,13 @@
 #pragma once
 
-#include "public.h"
 #include "environment.h"
-
-#include <library/cpp/yt/threading/spin_lock.h>
+#include "public.h"
 
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NJobProxy {
 
@@ -17,7 +17,7 @@ struct TProcessMemoryStatistics
     : public NYTree::TYsonStruct
 {
     int Pid;
-    std::vector<TString> Cmdline;
+    std::vector<std::string> Cmdline;
     i64 Rss;
     i64 Shared;
 

@@ -432,6 +432,9 @@ struct TStrategyTreeConfig
     bool EnableOperationsVectorProfiling;
     bool SparsifyFairShareProfiling;
 
+    std::vector<TDuration> PerPoolStarvationIntervalBounds;
+    bool EnableDetailedStarvationLogs;
+
     bool EnableLimitingAncestorCheck;
 
     THashSet<EJobResourceType> ProfiledPoolResources;
@@ -519,7 +522,13 @@ struct TStrategyTreeConfig
 
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
 
+    bool UsePrecommitForPreemption;
+
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
+    EPolicyKind PolicyKind;
+
+    bool EnableAbsoluteFairShareStarvationTolerance;
+    bool ConsiderAllocationOnFairShareBoundPreemptible;
 
     // Testing options.
     bool EnablePreliminaryResourceLimitsCheck;
@@ -1090,6 +1099,9 @@ struct TSchedulerConfig
     TDuration TemporaryOperationTokenExpirationTimeout;
 
     THashSet<EOperationManagementAction> OperationActionsAllowedForPoolManagers;
+
+    //! Period of updating unutilized resources sensors.
+    TDuration UnutilizedResourcesSensorsUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

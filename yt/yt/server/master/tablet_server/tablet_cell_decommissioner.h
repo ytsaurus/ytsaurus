@@ -11,7 +11,6 @@ namespace NYT::NTabletServer {
 struct ITabletCellDecommissioner
     : public TRefCounted
 {
-public:
     virtual void Start() const = 0;
     virtual void Stop() const = 0;
 

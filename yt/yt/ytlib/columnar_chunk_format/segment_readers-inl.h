@@ -272,7 +272,7 @@ ui32 TScanKeyIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 {
     YT_ASSERT(position < GetCount() && rowIndex >= LowerRowBound(position));
 
-    if (Y_LIKELY(rowIndex < UpperRowBound(position))) {
+    if (rowIndex < UpperRowBound(position)) [[likely]] {
         return position;
     }
 
@@ -334,7 +334,7 @@ ui32 TScanMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
     // Position can point to end of segment.
     YT_ASSERT(position <= IndexCount_ && (position == 0 || RowToValue_[position - 1].RowIndex <= rowIndex));
 
-    if (Y_LIKELY(rowIndex <= RowToValue_[position].RowIndex)) {
+    if (rowIndex <= RowToValue_[position].RowIndex) [[likely]] {
         return position;
     }
 

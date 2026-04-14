@@ -38,13 +38,15 @@ void TIndexBuildInfo::SerializeToProto(TSchemeShard* ss, NKikimrSchemeOp::TIndex
         case NKikimrSchemeOp::EIndexTypeGlobal:
         case NKikimrSchemeOp::EIndexTypeGlobalAsync:
         case NKikimrSchemeOp::EIndexTypeGlobalUnique:
+        case NKikimrSchemeOp::EIndexTypeGlobalJson:
             // no specialized index description
             Y_ASSERT(std::holds_alternative<std::monostate>(SpecializedIndexDescription));
             break;
         case NKikimrSchemeOp::EIndexTypeGlobalVectorKmeansTree:
             *index.MutableVectorIndexKmeansTreeDescription() = std::get<NKikimrSchemeOp::TVectorIndexKmeansTreeDescription>(SpecializedIndexDescription);
             break;
-        case NKikimrSchemeOp::EIndexTypeGlobalFulltext:
+        case NKikimrSchemeOp::EIndexTypeGlobalFulltextPlain:
+        case NKikimrSchemeOp::EIndexTypeGlobalFulltextRelevance:
             *index.MutableFulltextIndexDescription() = std::get<NKikimrSchemeOp::TFulltextIndexDescription>(SpecializedIndexDescription);
             break;
         default:

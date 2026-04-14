@@ -56,6 +56,10 @@ public:
         return !Level && !InternalLevelWeight;
     }
 
+    bool IsCritical() const {
+        return Level >= 10;
+    }
+
     TString DebugString() const {
         return TStringBuilder() << "(" << Level << "," << InternalLevelWeight << ")";
     }
@@ -66,6 +70,10 @@ public:
 
     static TOptimizationPriority Optimization(const i64 weight) {
         return TOptimizationPriority(0, weight);
+    }
+
+    static TOptimizationPriority LevelOptimization(const i64 weight) {
+        return TOptimizationPriority(1, weight);
     }
 
     static TOptimizationPriority Zero() {
@@ -150,6 +158,7 @@ public:
         : PathId(pathId)
         , NodePortionsCountLimit(nodePortionsCountLimit) {
         Counters->NodePortionsCountLimit->Set(NodePortionsCountLimit ? *NodePortionsCountLimit : DynamicPortionsCountLimit.load());
+        Counters->BadPortionsCountLimit->Set(GetBadPortionsLimit());
     }
 
     bool IsOverloaded(const NMonitoring::TDynamicCounters::TCounterPtr& badPortions) const {
@@ -307,7 +316,11 @@ public:
     }
 
     static std::shared_ptr<IOptimizerPlannerConstructor> BuildDefault() {
-        auto result = TFactory::MakeHolder("tiling");
+        return BuildDefault(NKikimrConfig::TColumnShardConfig::default_instance().GetDefaultCompactionPreset());
+    }
+
+    static std::shared_ptr<IOptimizerPlannerConstructor> BuildDefault(const TString& defaultCompactionName) {
+        auto result = TFactory::MakeHolder(defaultCompactionName);
         AFL_VERIFY(!!result);
         return std::shared_ptr<IOptimizerPlannerConstructor>(result.Release());
     }

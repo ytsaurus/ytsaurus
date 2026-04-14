@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
+#include <yt/yt/server/lib/cross_cluster_replicated_state/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -98,9 +100,6 @@ struct TObjectServiceDynamicConfig
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
 
-    // COMPAT(danilalexeev)
-    bool AlertOnMixedReadWriteBatch;
-
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
 
     bool EnablePerUserRequestWeightThrottling;
@@ -112,6 +111,9 @@ struct TObjectServiceDynamicConfig
 
     // For testing purposes.
     bool EnableFastPathPrerequisiteTransactionCheck;
+
+    // COMPAT(h0pless): remove once cypress proxy throttlers are stable.
+    int RequestRateLimitFactor;
 
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
@@ -137,6 +139,23 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaResponseKeeperDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBanServiceDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    bool UseInObjectService;
+    TDuration CacheRefreshPeriod;
+    NCrossClusterReplicatedState::TCrossClusterReplicatedStateConfigPtr CrossClusterReplicatedState;
+
+    REGISTER_YSON_STRUCT(TBanServiceDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBanServiceDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
@@ -144,9 +163,13 @@ struct TCypressProxyDynamicConfig
 
     TSequoiaResponseKeeperDynamicConfigPtr ResponseKeeper;
 
+    TBanServiceDynamicConfigPtr BanService;
+
     int ThreadPoolSize;
 
     int DefaultGetResponseSizeLimit;
+
+    int SelectSubtreeRowsLimit;
 
     constexpr static int DefaultThreadPoolSize = 2;
 

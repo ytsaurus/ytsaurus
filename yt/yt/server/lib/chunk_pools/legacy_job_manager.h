@@ -1,8 +1,8 @@
 #pragma once
 
 #include "chunk_pool.h"
-#include "private.h"
 #include "job_manager.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -133,7 +133,7 @@ private:
     public:
         explicit TStripeListComparator(TLegacyJobManager* owner);
 
-        bool operator ()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
+        bool operator()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
     private:
         TLegacyJobManager* Owner_;
     };

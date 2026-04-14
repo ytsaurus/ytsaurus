@@ -21,6 +21,8 @@ target_compile_options(library-ytprof-api PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(library-ytprof-api PUBLIC

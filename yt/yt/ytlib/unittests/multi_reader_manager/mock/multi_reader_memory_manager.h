@@ -64,7 +64,7 @@ public:
 
     TFuture<void> Finalize() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const NProfiling::TTagList& GetProfilingTagList() const override

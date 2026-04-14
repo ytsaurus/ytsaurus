@@ -33,6 +33,8 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.read.transactional` | `true` | Use shapshot lock for reading if transaction is not specified. It is recommended to turn this option off when reading immutable data to improve reading perfomance | 2.6.0 |
 | `spark.yt.read.ytDistributedReading.enabled` | `false` | Use distributed API for reading data from {{product-name}}. This method reduces the number of requests to the {{product-name}} master when reading data, but is not yet compatible with the `spark.yt.read.planOptimization.enabled` option | 2.8.0 |
 | `spark.yt.write.distributed.enabled` | `false` | Use distributed API for writing data to {{product-name}}. This method reduces the number of requests to the {{product-name}} master when writing data, but is only applicable to working with static tables | 2.8.0 |
+| `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Skip inaccessible rows instead of throwing an error | 2.9.0 |
+| `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Skip inaccessible columns instead of throwing an error | 2.9.0 |
 
 ## Options for launching tasks directly { #direct-submit }
 
@@ -58,6 +60,10 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.annotations` | - | Annotations for driver and executor operations. | 2.2.0 |
 | `spark.ytsaurus.driver.annotations` | - | Annotations for a driver operation. | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Annotations for an executor operation. | 2.2.0 |
+| `spark.ytsaurus.driver.operation.parameters` | - | Additional parameters of the driver operation with YSON format | 2.6.0 |
+| `spark.ytsaurus.driver.task.parameters` | - | Additional parameters of the task within the driver operation with YSON format | 2.6.0 |
+| `spark.ytsaurus.executor.operation.parameters` | - | Additional parameters of the executor operation with YSON format | 2.6.0 |
+| `spark.ytsaurus.executor.task.parameters` | - | Additional parameters of the YTsaurus executor task with YSON format | 2.6.0 |
 | `spark.ytsaurus.driver.watch` | true | Flag for monitoring a driver operation executed in cluster mode. | 2.4.2 |
 | `spark.ytsaurus.network.project` | - | Name of the network project where a Spark application is launched. | 2.4.3 |
 | `spark.hadoop.yt.mtn.enabled` | false | Flag for enabling MTN support | 2.4.3 |

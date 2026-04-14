@@ -273,6 +273,64 @@ func TestHighLevelTableWriter(t *testing.T) {
 		require.Truef(t, expectedSchema.Equal(realSchema), "%v != %v", expectedSchema, realSchema)
 	}
 
+	testRollbackWithCreateTransactionFalse := func(t *testing.T, scope yt.CypressClient) {
+		t.Helper()
+
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, scope, tmpTableName, yt.WithCreateTransaction(false))
+		require.NoError(t, err)
+
+		require.NoError(t, w.Write(exampleRow{"lazy_create_table", 1}))
+		require.NoError(t, w.Rollback())
+
+		exists, err := scope.NodeExists(env.Ctx, tmpTableName, nil)
+		require.NoError(t, err)
+		require.True(t, exists, "Table should exist because it created without tx")
+	}
+
+	testRollbackWithCreateTransactionTrue := func(t *testing.T, scope yt.CypressClient) {
+		t.Helper()
+
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, scope, tmpTableName, yt.WithCreateTransaction(true))
+		require.NoError(t, err)
+
+		require.NoError(t, w.Write(exampleRow{"lazy_create_table", 1}))
+		require.NoError(t, w.Rollback())
+
+		exists, err := scope.NodeExists(env.Ctx, tmpTableName, nil)
+		require.NoError(t, err)
+		require.False(t, exists, "Table should not exist because it created inside tx")
+	}
+
+	testCommitWithCreateTransactionTrue := func(t *testing.T, scope yt.CypressClient) ypath.Path {
+		t.Helper()
+
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, scope, tmpTableName, yt.WithCreateTransaction(true))
+		require.NoError(t, err)
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		exists, err := scope.NodeExists(env.Ctx, tmpTableName, nil)
+		require.NoError(t, err)
+		require.False(t, exists, "Table should not be visible because it created inside tx")
+
+		require.NoError(t, w.Commit())
+
+		exists, err = scope.NodeExists(env.Ctx, tmpTableName, nil)
+		require.NoError(t, err)
+		require.True(t, exists, "Table should exists after commit")
+
+		return tmpTableName
+	}
+
 	t.Run("BigWrite", func(t *testing.T) {
 		tmpTableName := tmpPath()
 
@@ -294,7 +352,9 @@ func TestHighLevelTableWriter(t *testing.T) {
 		tmpTableName := tmpPath()
 
 		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName,
-			yt.WithCreateOptions(yt.WithInferredSchema(&exampleRow{})))
+			yt.WithCreateOptions(yt.WithInferredSchema(&exampleRow{})),
+			yt.WithCreateTransaction(false),
+		)
 		require.NoError(t, err)
 		defer func() { _ = w.Rollback() }()
 
@@ -310,30 +370,44 @@ func TestHighLevelTableWriter(t *testing.T) {
 		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
 	})
 
-	t.Run("UnderTransaction", func(t *testing.T) {
-		tmpTableName := tmpPath()
-
-		txClient, err := env.YT.BeginTx(env.Ctx, nil)
+	t.Run("NestedClientRollbackCreateTransactionFalse", func(t *testing.T) {
+		testRollbackWithCreateTransactionFalse(t, env.YT)
+	})
+	t.Run("NestedTxRollbackCreateTransactionFalse", func(t *testing.T) {
+		parentTx, err := env.YT.BeginTx(env.Ctx, nil)
 		require.NoError(t, err)
+		defer func() { _ = parentTx.Abort() }()
 
-		w, err := yt.WriteTable(env.Ctx, txClient, tmpTableName)
+		testRollbackWithCreateTransactionFalse(t, parentTx)
+
+		require.NoError(t, parentTx.Commit())
+	})
+	t.Run("NestedClientRollbackCreateTransactionTrue", func(t *testing.T) {
+		testRollbackWithCreateTransactionTrue(t, env.YT)
+	})
+	t.Run("NestedTxRollbackCreateTransactionTrue", func(t *testing.T) {
+		parentTx, err := env.YT.BeginTx(env.Ctx, nil)
 		require.NoError(t, err)
-		defer func() { _ = w.Rollback() }()
+		defer func() { _ = parentTx.Abort() }()
 
-		const testSize = 1024
-		for i := 0; i < testSize; i++ {
-			require.NoError(t, w.Write(exampleRow{"foo", 1}))
-		}
+		testRollbackWithCreateTransactionTrue(t, parentTx)
 
-		require.NoError(t, w.Commit())
-
-		tableExists, err := env.YT.NodeExists(env.Ctx, tmpTableName, nil)
+		require.NoError(t, parentTx.Commit())
+	})
+	t.Run("NestedClientCommitCreateTransactionTrue", func(t *testing.T) {
+		path := testCommitWithCreateTransactionTrue(t, env.YT)
+		checkTable(t, path, 1024, schema.MustInfer(&exampleRow{}))
+	})
+	t.Run("NestedTxCommitCreateTransactionTrue", func(t *testing.T) {
+		parentTx, err := env.YT.BeginTx(env.Ctx, nil)
 		require.NoError(t, err)
-		require.False(t, tableExists)
+		defer func() { _ = parentTx.Abort() }()
 
-		require.NoError(t, txClient.Commit())
+		path := testCommitWithCreateTransactionTrue(t, parentTx)
 
-		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
+		require.NoError(t, parentTx.Commit())
+
+		checkTable(t, path, 1024, schema.MustInfer(&exampleRow{}))
 	})
 
 	t.Run("ExistingTable", func(t *testing.T) {
@@ -390,10 +464,10 @@ func TestHighLevelTableWriter(t *testing.T) {
 		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
 	})
 
-	t.Run("RetryableWrite", func(t *testing.T) {
+	t.Run("WriteWithNoRetries", func(t *testing.T) {
 		tmpTableName := tmpPath()
 
-		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithRetries(3))
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithRetries(0))
 		require.NoError(t, err)
 		defer func() { _ = w.Rollback() }()
 

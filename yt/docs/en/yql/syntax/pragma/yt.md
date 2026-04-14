@@ -4,6 +4,16 @@ YT pragmas may be defined as static or dynamic based on their lifetimes. Static 
 
 All pragmas that affect query optimizers are static because dynamic pragma values are not yet calculated at this step.
 
+## Settings {#settings}
+
+All dynamic and some static pragmas allow per-cluster configurations using the syntax `PRAGMA <cluster_name>.<pragma_name>`. This is useful if you need to apply a pragma only to a specific cluster. For example, with `PRAGMA foo.TmpFolder`, you can set the path to the temporary directory individually for the `foo` YT cluster.
+
+{% note info %}
+
+Per-cluster settings use pragma names without the `yt` prefix. Example: `PRAGMA foo.TmpFolder`, not `PRAGMA foo.yt.TmpFolder`.
+
+{% endnote %}
+
 ## yt.InferSchema / yt.ForceInferSchema {#inferschema}
 
 | Value type | Default value | Static/<br/>dynamic |
@@ -52,21 +62,61 @@ Ignore `_format=yamred_dsv` if it is specified in the input table's metadata.
 
  When reading tables with type_v3 schema, all fields containing complex types will be displayed as Yson fields in the query. Complex types include all non-data types and data types with more than one level of optionality.
 
-## yt.StaticPool
+## yt.StaticPool {#static-pool}
 
-| Value type | Default value | Static/<br/>dynamic |
+Overrides the computational pool that by default corresponds to the login of the current user.
+
+Only one value can be assigned to `yt.StaticPool` at a time. If you set this static pragma multiple times, the last value is applied. To override the value for the next query, use the `yt.Pool` dynamic pragma.
+
+| Value type | Default value | Binding time |
 | --- | --- | --- |
-| String | Current user login | Static |
+| String | Login of the current user | Static, [per-cluster](#settings) |
 
-Selecting a computing pool in the scheduler for operations performed at the optimization step.
 
-## yt.Pool
+**Signature**
 
-| Value type | Default value | Static/<br/>dynamic |
+```yql
+PRAGMA yt.StaticPool = '<pool_1>';
+```
+
+**Result**
+
+Queries specified after this pragma are executed in `<pool_1>`.
+
+**Features and limitations**
+
+- Specifying a non-existent pool will result in a query execution error.
+
+- Setting `yt.StaticPool` multiple times results in the last pragma value being used for all queries. For example, in this case, `pool_2` will be used to execute queries specified after both the pragma with the value `pool_1` and the one with `pool_2`:
+
+   ```yql
+   PRAGMA yt.StaticPool = '<pool_1>';
+   PRAGMA yt.StaticPool = '<pool_2>';
+   ```
+
+
+## yt.Pool {#pool}
+
+Overrides the computational pool that corresponds to the login of the current user (default) or was set using the `yt.StaticPool` pragma.
+
+| Value type | Default value | Binding time |
 | --- | --- | --- |
-| String | `yt.StaticPool` if set, or the current user login | Dynamic |
+| String | Value of the `yt.StaticPool` pragma if it was set earlier, or the login of the current user if `yt.StaticPool` isn't set | Dynamic |
 
-Selecting a computing pool in the scheduler for regular query operations.
+**Signature**
+
+```yql
+PRAGMA yt.StaticPool = '<pool_1>';
+PRAGMA yt.Pool = '<pool_2>';
+```
+
+**Result**
+
+Queries specified after the `yt.StaticPool` pragma are executed in `<pool_1>`, while those after the `yt.Pool` pragma are executed in `<pool_2>`.
+
+**Features and limitations**
+
+Specifying a non-existent pool will result in a query execution error.
 
 ## yt.Owners
 
@@ -143,6 +193,14 @@ You can use K, M, and G suffixes to specify values in kilobytes, megabytes, and 
 Controls the size of partitions in MapReduce operations.
 
 You can use K, M, and G suffixes to specify values in kilobytes, megabytes, and gigabytes, respectively.
+
+## yt.DockerImage
+
+| Value type | Default | Static /<br/>dynamic |
+| --- | --- | --- |
+| Path to the Docker image | — | Dynamic |
+
+The ability to specify a Docker image to create an environment in which user jobs will be executed.
 
 ## yt.MaxJobCount
 
@@ -1106,3 +1164,5 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
 
+
+[*eph-pool]: A pool that is present in the specification but doesn't have an explicit node in Cypress.

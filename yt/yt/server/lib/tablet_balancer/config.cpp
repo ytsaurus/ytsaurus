@@ -6,6 +6,16 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFeatureFlagConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
+        .Default();
+    registrar.Parameter("enable_inplace_reshard", &TThis::EnableInplaceReshard)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TComponentFactorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_factor", &TThis::Cell)
@@ -121,8 +131,6 @@ void TTabletBalancingGroupConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +185,7 @@ void TMasterBundleTabletBalancerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tablet_to_cell_ratio", &TThis::TabletToCellRatio)
         .GreaterThan(0)
-        .Default(5.0);
+        .Default(10'000.0);
 
     registrar.Parameter("tablet_balancer_schedule", &TThis::TabletBalancerSchedule)
         .Default();
@@ -220,8 +228,6 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("safe_used_tablet_static_ratio", &TThis::SafeUsedTabletStaticRatio)
         .Default(1.)
         .InRange(0., 1.);
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
-        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         auto [it, inserted] = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
@@ -332,9 +338,10 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("group", &TThis::Group)
         .Default();
+    registrar.Parameter("desired_tablet_metric", &TThis::DesiredTabletMetric)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("replica_path_overrides", &TThis::ReplicaPathOverrides)
-        .Default();
-    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
@@ -347,6 +354,21 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
             }
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TEffectiveTableConfig& config, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("min_tablet_size").Value(config.MinTabletSize)
+            .Item("max_tablet_size").Value(config.MaxTabletSize)
+            .Item("desired_tablet_size").Value(config.DesiredTabletSize)
+            .Item("schedule").Value(config.Schedule)
+            .Item("group_name").Value(config.GroupName)
+            .Item("group_config").Value(config.GroupConfig)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

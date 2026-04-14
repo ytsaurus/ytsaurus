@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
+
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -17,6 +19,12 @@
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 
 namespace NYT::NTransactionServer {
+
+namespace NProto {
+
+class TReqReturnBoomerang;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +72,7 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     NCellMaster::TBootstrap* const Bootstrap_;
+    const NCellMaster::TMultiPhaseCellSyncSessionPtr CellSyncSession_;
     const std::optional<TTransactionReplicationInitiatorRequestInfo> RequestInfo_;
 
     const NLogging::TLogger Logger;
@@ -72,6 +81,7 @@ protected:
     TMutableRange<TTransactionId> LocalTransactionIds_;
     TRange<TTransactionId> RemoteTransactionIds_;
     TRange<TTransactionId> MirroredTransactionIds_;
+    std::unique_ptr<NProto::TReqReturnBoomerang> MirroredBoomerang_;
 
     // The former contains the keys of the latter, but its calculated earlier
     // and provides deterministic order.
@@ -90,6 +100,7 @@ protected:
 
     TTransactionReplicationSessionBase(
         NCellMaster::TBootstrap* bootstrap,
+        NCellMaster::TMultiPhaseCellSyncSessionPtr cellSyncSession,
         std::vector<TTransactionId> transactionIds,
         std::optional<TTransactionReplicationInitiatorRequestInfo> requestInfo,
         bool enableMirroringToSequoia);
@@ -146,7 +157,7 @@ public:
      *  NB: This is an all-in-one method. Alternatively, one might consider
      *  going step-by-step using the individual methods below.
      */
-    TFuture<void> Run(bool syncWithUpstream);
+    TFuture<void> Run();
 
     //! Returns a set of cells the caller must sync with either before or in
     //! parallel with replication requests.
@@ -227,7 +238,7 @@ public:
      *
      *  May throw if called in between epochs.
      */
-    TFuture<void> Run(bool syncWithUpstream, const NRpc::IServiceContextPtr& context);
+    TFuture<void> Run(const NRpc::IServiceContextPtr& context);
 
     //! Returns a set of cells the caller must sync with before replication requests.
     /*!

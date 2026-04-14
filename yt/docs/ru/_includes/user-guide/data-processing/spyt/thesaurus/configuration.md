@@ -33,6 +33,8 @@
 | `spark.yt.read.transactional` | `true` | Использовать snapshot lock для чтения в случае отсутствия транзакции. Рекомендуется отключать эту опцию в случае чтения неизменяемых данных для повышения производительности чтения. | 2.6.0 |
 | `spark.yt.read.ytDistributedReading.enabled` | `false` | Использовать распределенное API для чтения данных из {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при чтении, но пока не совместим с опцией `spark.yt.read.planOptimization.enabled` | 2.8.0 |
 | `spark.yt.write.distributed.enabled` | `false` | Использовать распределенное API для записи данных в {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при записи, но применим только к работе со статическими таблицами | 2.8.0 |
+| `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Пропускать строки, к которым нет доступа, вместо ошибки | 2.9.0 |
+| `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Пропускать колонки, к которым нет доступа, вместо ошибки | 2.9.0 |
 
 ## Опции для запуска задач напрямую { #direct-submit }
 
@@ -58,6 +60,10 @@
 | `spark.ytsaurus.annotations` | - | Аннотации для операций с драйвером и экзекьюторами | 2.2.0 |
 | `spark.ytsaurus.driver.annotations` | - | Аннотации для операции с драйвером | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Аннотации для операции с экзекьюторами | 2.2.0 |
+| `spark.ytsaurus.driver.operation.parameters` | - | Дополнительные параметры операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.driver.task.parameters` | - | Дополнительные параметры таски в операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.executor.operation.parameters` | - | Дополнительные параметры операции экзекьюторов в формате YSON | 2.6.0 |
+| `spark.ytsaurus.executor.task.parameters` | - | Дополнительные параметры YTsaurus-таска экзекьюторов в формате YSON | 2.6.0 |
 | `spark.ytsaurus.driver.watch` | true | Флаг для выполнения мониторинга операции с драйвером при выполнении в кластерном режиме | 2.4.2 |
 | `spark.ytsaurus.network.project` | - | Название сетевого проекта, в котором запускается Spark приложения | 2.4.3 |
 | `spark.hadoop.yt.mtn.enabled` | false | Флаг включения поддержки MTN | 2.4.3 |

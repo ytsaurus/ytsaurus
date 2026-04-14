@@ -244,6 +244,18 @@ static const auto EmptyListYsonString = BuildYsonStringFluently()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+auto GetSchedulingPolicyBuilder(const TStrategyTreeConfigPtr& config)
+{
+    switch (config->PolicyKind) {
+        case EPolicyKind::Classic:
+            return CreateSchedulingPolicy;
+        case EPolicyKind::Gpu:
+            return NPolicy::NGpu::CreateAllocatingSchedulingPolicy;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class represents a pool tree.
 //!
 //! We maintain following entities:
@@ -290,7 +302,7 @@ public:
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))
-        , SchedulingPolicy_(CreateSchedulingPolicy(
+        , SchedulingPolicy_(GetSchedulingPolicyBuilder(Config_)(
             TreeId_,
             Logger,
             MakeWeak(this),
@@ -298,16 +310,20 @@ public:
             StrategyHost_,
             Config_,
             Profiler_))
-        , GpuSchedulingPolicy_(NPolicy::NGpu::CreateSchedulingPolicy(
-            MakeWeak(this),
-            StrategyHost_,
+        , DryRunGpuSchedulingPolicy_(NPolicy::NGpu::CreateDryRunOrNoopSchedulingPolicy(
             TreeId_,
-            Config_))
+            Logger,
+            MakeWeak(this),
+            Host_,
+            StrategyHost_,
+            Config_,
+            Profiler_))
         , ProfileManager_(New<TPoolTreeProfileManager>(
             Profiler_,
             Config_->SparsifyFairShareProfiling,
             strategyHost->GetFairShareProfilingInvoker(),
-            SchedulingPolicy_))
+            SchedulingPolicy_,
+            Config_->PerPoolStarvationIntervalBounds))
         , FeasibleInvokers_(feasibleInvokers)
         , FairSharePreUpdateTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_update_time"))
@@ -328,7 +344,7 @@ public:
         ProfileManager_->RegisterPool(RootElement_);
 
         SchedulingPolicy_->Initialize();
-        GpuSchedulingPolicy_->Initialize();
+        DryRunGpuSchedulingPolicy_->Initialize();
 
         YT_LOG_INFO("Pool tree created");
     }
@@ -387,11 +403,17 @@ public:
         ResourceTree_->UpdateConfig(Config_);
 
         SchedulingPolicy_->UpdateConfig(Config_);
-        GpuSchedulingPolicy_->UpdateConfig(Config_);
+        DryRunGpuSchedulingPolicy_->UpdateConfig(Config_);
 
-        if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
+        auto pool = FindPool(Config_->DefaultParentPool);
+        if (!pool && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
-            StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+            Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::InvalidDefaultParentPool, error);
+        } else if (pool && pool->GetMode() == ESchedulingMode::Fifo) {
+            auto error = TError("Failed to use pool %Qv in tree %Qv as default parent pool because it has FIFO mode", Config_->DefaultParentPool, TreeId_);
+            Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::InvalidDefaultParentPool, error);
+        } else {
+            Host_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::InvalidDefaultParentPool, TError());
         }
 
         YT_LOG_INFO("Tree has updated with new config");
@@ -490,7 +512,7 @@ public:
             Logger);
 
         SchedulingPolicy_->RegisterOperation(operationElement.Get());
-        GpuSchedulingPolicy_->RegisterOperation(operationElement.Get());
+        DryRunGpuSchedulingPolicy_->RegisterOperation(operationElement.Get());
 
         YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);
 
@@ -530,14 +552,14 @@ public:
         ProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
-        GpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
+        DryRunGpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
         operationElement->DetachParent();
 
         ReleaseOperationSlotIndex(state, pool->GetId());
         OnOperationRemovedFromPool(state, operationElement, pool);
 
         SchedulingPolicy_->UnregisterOperation(operationElement.Get());
-        GpuSchedulingPolicy_->UnregisterOperation(operationElement.Get());
+        DryRunGpuSchedulingPolicy_->UnregisterOperation(operationElement.Get());
 
         EraseOrCrash(OperationIdToElement_, operationId);
 
@@ -556,7 +578,7 @@ public:
         operationElement->GetMutableParent()->EnableChild(operationElement);
 
         SchedulingPolicy_->EnableOperation(operationElement.Get());
-        GpuSchedulingPolicy_->EnableOperation(operationElement.Get());
+        DryRunGpuSchedulingPolicy_->EnableOperation(operationElement.Get());
     }
 
     void DisableOperation(const TStrategyOperationStatePtr& state) override
@@ -565,7 +587,7 @@ public:
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
-        GpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
+        DryRunGpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
 
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
@@ -643,7 +665,7 @@ public:
         NodeIdToAddress_.emplace(nodeId, nodeAddress);
 
         SchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
-        GpuSchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
+        DryRunGpuSchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
     }
 
     void UnregisterNode(TNodeId nodeId) override
@@ -654,7 +676,7 @@ public:
         NodeIdToAddress_.erase(nodeId);
 
         SchedulingPolicy_->UnregisterNode(nodeId);
-        GpuSchedulingPolicy_->UnregisterNode(nodeId);
+        DryRunGpuSchedulingPolicy_->UnregisterNode(nodeId);
     }
 
     const std::string& GetId() const override
@@ -740,7 +762,7 @@ public:
             }
         }
 
-        auto schedulingPolicyError = NPolicy::TSchedulingPolicy::CheckOperationIsStuck(
+        auto schedulingPolicyError = NPolicy::TSchedulingPolicyStaticCaller::CheckOperationIsStuck(
             GetTreeSnapshot(),
             element,
             now,
@@ -1060,7 +1082,7 @@ public:
         }
 
         result->SchedulingPolicyState = SchedulingPolicy_->BuildPersistentState();
-        result->GpuSchedulingPolicyState = GpuSchedulingPolicy_->BuildPersistentState();
+        result->GpuSchedulingPolicyState = DryRunGpuSchedulingPolicy_->BuildPersistentState();
 
         return result;
     }
@@ -1087,7 +1109,7 @@ public:
         }
 
         SchedulingPolicy_->InitPersistentState(persistentState->SchedulingPolicyState);
-        GpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
+        DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
     }
 
     TError OnOperationMaterialized(TOperationId operationId) override
@@ -1097,10 +1119,10 @@ public:
         auto element = GetOperationElement(operationId);
         auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get());
 
-        auto gpuPolicyError = GpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
+        auto gpuPolicyError = DryRunGpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
         YT_LOG_DEBUG_UNLESS(gpuPolicyError.IsOK(),
             gpuPolicyError,
-            "Error occurred while processing materialized operation in GPU scheduling policy (OperationId: %v)",
+            "Error occurred while processing materialized operation in DryRun GPU scheduling policy (OperationId: %v)",
             operationId);
 
         return error;
@@ -1317,7 +1339,7 @@ public:
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         SchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
-        GpuSchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
+        DryRunGpuSchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }
@@ -1377,7 +1399,7 @@ private:
 
     const NProfiling::TProfiler Profiler_;
     const NPolicy::ISchedulingPolicyPtr SchedulingPolicy_;
-    const NPolicy::NGpu::ISchedulingPolicyPtr GpuSchedulingPolicy_;
+    const NPolicy::ISchedulingPolicyPtr DryRunGpuSchedulingPolicy_;
     const TPoolTreeProfileManagerPtr ProfileManager_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
@@ -1798,7 +1820,6 @@ private:
             TEventTimerGuard timer(FairSharePreUpdateTimer_);
             rootElement->InitializeFairShareUpdate(now);
         }
-
         auto schedulingPolicyPostUpdateContext = SchedulingPolicy_->CreatePostUpdateContext(rootElement.Get());
 
         auto asyncUpdate =
@@ -1925,6 +1946,11 @@ private:
 
         TreeSnapshotPrecommit_ = std::move(treeSnapshot);
         LastFairShareUpdateTime_ = now;
+
+        StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
+            &TPoolTreeProfileManager::ProfileStarvationIntervals,
+            ProfileManager_,
+            TreeSnapshotPrecommit_));
 
         return std::pair(MakeStrong(this), error);
     }
@@ -2340,27 +2366,34 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        auto tryGetValidPool = [&] (const TString& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
+            auto pool = FindPool(poolName);
+            if (pool) {
+                if (pool->GetMode() != ESchedulingMode::Fifo) {
+                    return pool;
+                } else {
+                    YT_LOG_INFO("%v has FIFO mode and won't be used %v", poolCaption, loggedAttributes);
+                }
+            } else {
+                YT_LOG_INFO("%v is not registered in tree %v", poolCaption, loggedAttributes);
+            }
+            return nullptr;
+        };
+
         if (Config_->UseUserDefaultParentPoolMap) {
             const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
             auto it = userToDefaultPoolMap.find(userName);
             if (it != userToDefaultPoolMap.end()) {
-                const auto& userDefaultParentPoolName = it->second;
-                if (auto pool = FindPool(userDefaultParentPoolName)) {
+                auto loggedAttributes = Format("(PoolName: %v, UserName: %v)", it->second, userName);
+                if (auto pool = tryGetValidPool(it->second, "User default parent pool", loggedAttributes)) {
                     return pool;
-                } else {
-                    YT_LOG_INFO("User default parent pool is not registered in tree (PoolName: %v, UserName: %v)",
-                        userDefaultParentPoolName,
-                        userName);
                 }
             }
         }
 
-        auto defaultParentPoolName = Config_->DefaultParentPool;
-        if (auto pool = FindPool(defaultParentPoolName)) {
+        auto loggedAttributes = Format("(PoolName: %v)", Config_->DefaultParentPool);
+        if (auto pool = tryGetValidPool(Config_->DefaultParentPool, "Default parent pool", loggedAttributes)) {
             return pool;
-        } else {
-            YT_LOG_INFO("Default parent pool is not registered in tree (PoolName: %v)",
-                defaultParentPoolName);
         }
 
         YT_LOG_INFO("Using %v as default parent pool", RootPoolName);
@@ -2674,12 +2707,6 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        StrategyHost_->GetControlInvoker(EControlQueue::Strategy)->Invoke(BIND(
-            &NGpu::ISchedulingPolicy::UpdateNodeDescriptor,
-            GpuSchedulingPolicy_,
-            schedulingHeartbeatContext->GetNodeDescriptor()->Id,
-            schedulingHeartbeatContext->GetNodeDescriptor()));
-
         if (auto traceContext = NTracing::TryGetCurrentTraceContext()) {
             traceContext->AddTag("tree", TreeId_);
         }
@@ -2687,6 +2714,13 @@ private:
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
+
+        GetCurrentInvoker()->Invoke(BIND(
+            &NPolicy::ISchedulingPolicy::ProcessSchedulingHeartbeat,
+            DryRunGpuSchedulingPolicy_,
+            schedulingHeartbeatContext,
+            treeSnapshot,
+            skipScheduleAllocations));
 
         auto processSchedulingHeartbeatFuture = BIND(
             &NPolicy::ISchedulingPolicy::ProcessSchedulingHeartbeat,
@@ -2728,68 +2762,58 @@ private:
         YT_VERIFY(treeSnapshot);
 
         for (const auto& allocationUpdate : allocationUpdates) {
-            std::optional<EAbortReason> maybeAbortReason;
-            bool updateSuccessful = ProcessAllocationUpdate(treeSnapshot, allocationUpdate, &maybeAbortReason);
+            auto updateResult = ProcessAllocationUpdate(treeSnapshot, allocationUpdate);
 
-            if (!updateSuccessful) {
+            if (updateResult.NeedToAbort) {
                 YT_LOG_DEBUG(
-                    "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
+                    "Abort allocation update since operation is disabled or missing in snapshot "
+                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
                     allocationUpdate.OperationId,
-                    allocationUpdate.AllocationId);
+                    allocationUpdate.AllocationId,
+                    updateResult.Status,
+                    updateResult.NeedToAbort);
+                YT_VERIFY(updateResult.AbortReason.has_value());
+                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
+            }
 
-                allocationsToPostpone->insert(allocationUpdate.AllocationId);
-            } else if (maybeAbortReason) {
-                EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
-                // NB(eshcherbin): We want the node shard to send us an allocation finished update,
-                // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
-                // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
+            if (updateResult.NeedToPostpone) {
+                YT_LOG_DEBUG(
+                    "Postpone allocation update since operation is disabled or missing in snapshot "
+                    "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
+                    allocationUpdate.OperationId,
+                    allocationUpdate.AllocationId,
+                    updateResult.Status,
+                    updateResult.NeedToAbort);
                 allocationsToPostpone->insert(allocationUpdate.AllocationId);
             }
         }
     }
 
-    bool ProcessAllocationUpdate(
+    TProcessAllocationUpdateResult ProcessAllocationUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TAllocationUpdate& allocationUpdate,
-        std::optional<EAbortReason>* maybeAbortReason)
+        const TAllocationUpdate& allocationUpdate)
     {
         auto* operationElement = treeSnapshot->FindEnabledOperationElement(allocationUpdate.OperationId);
+
         if (!operationElement) {
-            return false;
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Disabled,
+                .NeedToPostpone = true,
+            };
         }
-
-        if (allocationUpdate.Finished) {
-            // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG(
-                "Processing allocation finish (OperationId: %v, AllocationId: %v)",
-                allocationUpdate.OperationId,
-                allocationUpdate.AllocationId);
-
-            return SchedulingPolicy_->ProcessFinishedAllocation(
-                treeSnapshot,
-                operationElement,
-                allocationUpdate.AllocationId);
-        }
-
-        YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.ResetPreemptibleProgress);
 
         // NB: Should be filtered out on large clusters.
         YT_LOG_DEBUG(
-            "Processing allocation update (OperationId: %v, AllocationId: %v, ResetPreemptibleProgress: %v, Resources: %v)",
+            "Processing allocation update (OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v, Resources: %v)",
             allocationUpdate.OperationId,
             allocationUpdate.AllocationId,
-            allocationUpdate.ResetPreemptibleProgress,
+            allocationUpdate.PreemptibleProgressStartTime,
             allocationUpdate.AllocationResources);
 
         return SchedulingPolicy_->ProcessAllocationUpdate(
             treeSnapshot,
             operationElement,
-            allocationUpdate.AllocationId,
-            allocationUpdate.AllocationResources,
-            allocationUpdate.ResetPreemptibleProgress,
-            allocationUpdate.AllocationDataCenter,
-            allocationUpdate.AllocationInfinibandCluster,
-            maybeAbortReason);
+            allocationUpdate);
     }
 
     bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const override
@@ -3423,9 +3447,7 @@ private:
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("probing").Value(element->GetRuntimeParameters()->Probing)
             .Item("offloading").Value(element->GetRuntimeParameters()->Offloading)
-            .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
-                ? std::optional(element->GetLastNonStarvingTime())
-                : std::nullopt)
+            .Item("starving_since").Value(element->GetStarvingSince())
             .Item("lightweight").Value(element->IsLightweight())
             .Item("is_gang").Value(element->IsGang())
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
@@ -3437,7 +3459,7 @@ private:
             .Item("user").Value(element->GetUserName())
             .Item("type").Value(element->GetOperationType())
             .Item("title").Value(element->GetTitle())
-            .Do(BIND(&NPolicy::TSchedulingPolicy::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&NPolicy::TSchedulingPolicyStaticCaller::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TPoolTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldFilter{}));
     }
 
@@ -3559,7 +3581,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&NPolicy::TSchedulingPolicy::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&NPolicy::TSchedulingPolicyStaticCaller::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

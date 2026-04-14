@@ -21,6 +21,30 @@ from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from textwrap import dedent
 
 
+def build_pipeline_state():
+    pipeline_state_description = dedent("""\
+        Color change on this graph means changing of current pipeline state.
+
+        Documentation: https://yt.yandex-team.ru/docs/flow/concepts/glossary#start-stop-pause-pipeline
+    """)
+
+    return (Rowset()
+        .stack(True)
+        .row()
+            .cell(
+                "Current pipeline state",
+                MonitoringExpr(FlowController("yt.flow.controller.pipeline_state"))
+                    .all("state")
+                    .alias("{{state}}")
+                    .min(0)
+                    .max(1.0),
+                description=pipeline_state_description)
+            .cell("", EmptyCell())
+            .cell("", EmptyCell())
+            .cell("", EmptyCell())
+    ).owner
+
+
 def build_flow_layout():
     return (Rowset()
         .stack(False)
@@ -227,14 +251,38 @@ def build_watermark_heuristics():
     )
 
 
+def build_alignment_timestamp():
+    description = dedent("""\
+        Average bias between alignment timestamp and event timestamp.
+        It may be considered as "write lag" - difference between persist instant and event instant.
+    """)
+
+    return (Rowset()
+        .stack(False)
+        .row()
+            .cell(
+                "Alignment timestamp bias (\"write lag\")",
+                FlowController("yt.flow.controller.alignment_timestamp_bias")
+                    .all("computation_id")
+                    .all("stream_id")
+                    .unit("UNIT_SECONDS"),
+                description=description)
+            .cell("", EmptyCell())
+            .cell("", EmptyCell())
+            .cell("", EmptyCell())
+    )
+
+
 def build_flow_controller():
     def fill(d):
+        d.add(build_pipeline_state())
         d.add(build_resource_usage("controller", add_component_to_title=False))
         d.add(build_flow_layout())
         d.add(build_flow_layout_mutations())
         d.add(build_controller_iterations())
         d.add(build_heartbeats())
         d.add(build_watermark_heuristics())
+        d.add(build_alignment_timestamp())
         d.add(build_extra_cpu("controller"))
         d.add(build_yt_rpc("controller"))
 

@@ -179,6 +179,16 @@ public:
         return Transaction_->GetId();
     }
 
+    const TSequoiaTransactionOptions& GetOptions() const override
+    {
+        return SequoiaTransactionOptions_;
+    }
+
+    const TSequoiaTransactionFeatures& GetFeatures() const override
+    {
+        return SequoiaTransactionOptions_.Features;
+    }
+
     TTimestamp GetStartTimestamp() const override
     {
         return Transaction_->GetStartTimestamp();
@@ -240,7 +250,7 @@ public:
                 .AsyncVia(SerializedInvoker_))
             .Apply(BIND(&TSequoiaTransaction::DoCommitTransaction, MakeStrong(this), options)
                 .AsyncVia(SerializedInvoker_))
-            .Apply(BIND(MaybeWrapSequoiaRetriableError<void>))
+            .Apply(BIND(TransformSequoiaTransactionCommitError<void>))
             .Apply(BIND([type = Type_] (const TError& error) {
                 auto* counters = GetPerTransactionTypeCounters(type);
                 (error.IsOK() ? counters->TransactionCommitsSucceeded : counters->TransactionCommitsFailed).Increment();
@@ -485,7 +495,6 @@ private:
 
     THashMap<TCellTag, TMasterCellCommitSessionPtr> MasterCellCommitSessions_;
 
-    // TODO(h0pless): Add TRequestGeneration to a macro above.
     using TRequest = std::variant<
         TDatalessLockRowRequest,
         TLockRowRequest,
@@ -793,7 +802,8 @@ private:
                             }
                         }
                     } else {
-                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet();
+                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet()
+                            .ValueOrThrow();
                         tabletInfo = GetOrderedTabletForRow(
                             tableMountInfo,
                             randomTabletInfo,
@@ -828,7 +838,8 @@ private:
                             preparedKey,
                             /*validateWrite*/ true);
                     } else {
-                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet();
+                        auto randomTabletInfo = tableMountInfo->GetRandomMountedTablet()
+                            .ValueOrThrow();
                         tabletInfo = GetOrderedTabletForRow(
                             tableMountInfo,
                             randomTabletInfo,
@@ -895,6 +906,7 @@ private:
                 AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity());
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
             ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
+            req->set_suppress_strongly_ordered_transaction_barrier(SequoiaTransactionOptions_.SuppressStronglyOrderedTransactionBarrier);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -910,7 +922,7 @@ private:
         futures.reserve(TabletCommitSessions_.size());
         if (SequoiaTransactionOptions_.SequenceTabletCommitSessions) {
             for (const auto& [tabletId, tabletCommitSession] : SortHashMapByKeys(TabletCommitSessions_)) {
-                auto previousFuture = futures.empty() ? VoidFuture : futures.back();
+                auto previousFuture = futures.empty() ? OKFuture : futures.back();
                 futures.push_back(previousFuture.Apply(
                     BIND([session = tabletCommitSession] (const TError& /*error*/) {
                         return session->Invoke();

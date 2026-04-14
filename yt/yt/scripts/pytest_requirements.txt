@@ -1,26 +1,26 @@
-pytest==7.3.1
-pytest-timeout==2.1.0
-flaky==3.7.0
-mock==5.1.0
+pytest==8.0.2
+pytest-timeout==2.4.0
+flaky==3.8.1
+mock==4.0.3
 
-pytz==2023.3
-kazoo==2.9.0
-python-dateutil==2.8.2
-requests==2.30.0
-requests_mock==1.10.0
+pytz==2025.2
+kazoo==2.10.0
+python-dateutil==2.9.0.post0
+requests==2.32.5
+requests_mock==1.12.1
 httpx==0.27.2
-urllib3==2.0.2
-pydantic==1.10.7
-psutil==5.9.5
+urllib3==1.26.20
+pydantic==1.10.26
+psutil==7.2.2
 
-protobuf==4.23.1
-grpcio==1.54.2
+protobuf==4.22.5
+grpcio==1.78.0
 
-dacite==1.8.1
-pyaml==23.9.7
-Jinja2==3.1.4
+dacite==1.9.2
+pyaml==24.9.0
+Jinja2==3.1.6
 
-zstandard==0.22.0
+zstandard==0.25.0
 
 # TODO: Enable when portopy will be available in public pypi.
 # portopy==5.2.8

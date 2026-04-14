@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.73.0)
+VERSION(v1.79.1)
 
 SRCS(
     credentials.go
@@ -23,6 +23,7 @@ RECURSE(
     google
     # gotest
     insecure
+    jwt
     local
     oauth
     sts

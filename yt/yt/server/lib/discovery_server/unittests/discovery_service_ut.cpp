@@ -3,6 +3,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/string/builder.h>
 
@@ -177,7 +178,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
     auto discoveryClient = CreateDiscoveryClient();
     auto checkGroupSize = [&] {
         auto metaFuture = discoveryClient->GetGroupMeta(groupId);
-        const auto& metaOrError = metaFuture.Get();
+        const auto& metaOrError = WaitForFast(metaFuture);
         if (!metaOrError.IsOK()) {
             return false;
         }
@@ -188,7 +189,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        auto members = WaitForFast(membersFuture).ValueOrThrow();
         ASSERT_EQ(2u, members.size());
         ASSERT_EQ(memberId1, members[0].Id);
         ASSERT_EQ(memberId2, members[1].Id);
@@ -198,7 +199,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
     auto checkMember = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        auto members = WaitForFast(membersFuture).ValueOrThrow();
         return members.size() == 1 && members[0].Id == memberId2;
     };
     WaitForPredicate(checkMember);
@@ -227,11 +228,11 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
     auto discoveryClient = CreateDiscoveryClient();
     auto checkGroups = [&] (TGroupId groupId, std::vector<TGroupId> expectedGroups) {
         auto groupsFuture = discoveryClient->ListGroups(groupId, {1000});
-        if (!groupsFuture.Wait()) {
+        if (!groupsFuture.BlockingWait()) {
             return false;
         }
 
-        auto [groups, incomplete] = groupsFuture.Get().ValueOrThrow();
+        auto [groups, incomplete] = WaitForFast(groupsFuture).ValueOrThrow();
 
         std::sort(groups.begin(), groups.end());
         std::sort(expectedGroups.begin(), expectedGroups.end());
@@ -248,11 +249,11 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
 
     auto checkResponseSize = [&] (int expectedSize, bool expectIncomplete) {
         auto groupsFuture = discoveryClient->ListGroups(groupId, {.Limit = expectedSize});
-        if (!groupsFuture.Wait()) {
+        if (!groupsFuture.BlockingWait()) {
             return false;
         }
 
-        auto [groups, incomplete] = groupsFuture.Get().ValueOrThrow();
+        auto [groups, incomplete] = WaitForFast(groupsFuture).ValueOrThrow();
         return ssize(groups) == expectedSize && (incomplete == expectIncomplete);
     };
 
@@ -261,11 +262,11 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
 
     auto checkNonExistent = [&] {
         auto groupsFuture = discoveryClient->ListGroups(subgroupId4, {});
-        if (!groupsFuture.Wait()) {
+        if (!groupsFuture.BlockingWait()) {
             return false;
         }
 
-        return !groupsFuture.Get().IsOK();
+        return !WaitForFast(groupsFuture).IsOK();
     };
 
     WaitForPredicate(BIND(checkNonExistent));
@@ -289,7 +290,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 
     auto checkMember = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = WaitForFast(membersFuture);
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -324,7 +325,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     options.AttributeKeys.push_back(key);
 
     auto checkAttributes1 = [&] {
-        auto membersOrError = discoveryClient->ListMembers(groupId, options).Get();
+        auto membersOrError = WaitForFast(discoveryClient->ListMembers(groupId, options));
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -342,7 +343,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 
     auto checkAttributes2 = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        auto members = WaitForFast(membersFuture).ValueOrThrow();
         if (members.size() != 1 || members[0].Id != memberId) {
             return false;
         }
@@ -374,7 +375,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     auto checkListMembers = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = WaitForFast(membersFuture);
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -386,7 +387,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        auto members = WaitForFast(membersFuture).ValueOrThrow();
         ASSERT_EQ(membersNum, std::ssize(members));
         for (int i = 0; i < membersNum; ++i) {
             ASSERT_EQ(i, members[i].Priority);
@@ -398,7 +399,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     auto checkListMembersSize = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = WaitForFast(membersFuture);
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -409,7 +410,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
-        const auto& members = membersFuture.Get().ValueOrThrow();
+        auto members = WaitForFast(membersFuture).ValueOrThrow();
         ASSERT_EQ(options.Limit, std::ssize(members));
         for (int i = 0; i < options.Limit; ++i) {
             ASSERT_EQ(i, members[i].Priority);
@@ -446,7 +447,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
 
     auto checkListMembers = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
-        const auto& membersOrError = membersFuture.Get();
+        const auto& membersOrError = WaitForFast(membersFuture);
         if (!membersOrError.IsOK()) {
             return false;
         }
@@ -499,7 +500,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     auto checkGroups = [&] {
         for (const auto& [groupId, memberId] : testMembers) {
             auto membersFuture = discoveryClient->ListMembers(groupId, {});
-            auto membersOrError = membersFuture.Get();
+            auto membersOrError = WaitForFast(membersFuture);
             if (!membersOrError.IsOK()) {
                 return false;
             }
@@ -519,7 +520,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     auto checkGroupDeleted = [&] {
         const auto& [groupId, memberId] = testMembers[1];
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
-        return !groupMetaFuture.Get().IsOK();
+        return !WaitForFast(groupMetaFuture).IsOK();
     };
     WaitForPredicate(checkGroupDeleted);
 
@@ -528,13 +529,13 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         if (index == 1) {
-            EXPECT_THROW_WITH_SUBSTRING(groupMetaFuture.Get().ThrowOnError(), "does not exist");
-            EXPECT_THROW_WITH_SUBSTRING(membersFuture.Get().ThrowOnError(), "does not exist");
+            EXPECT_THROW_WITH_SUBSTRING(WaitForFast(groupMetaFuture).ThrowOnError(), "does not exist");
+            EXPECT_THROW_WITH_SUBSTRING(WaitForFast(membersFuture).ThrowOnError(), "does not exist");
         } else {
-            auto groupMeta = groupMetaFuture.Get().ValueOrThrow();
+            auto groupMeta = WaitForFast(groupMetaFuture).ValueOrThrow();
             ASSERT_EQ(1, groupMeta.MemberCount);
 
-            auto members = membersFuture.Get().ValueOrThrow();
+            auto members = WaitForFast(membersFuture).ValueOrThrow();
             ASSERT_EQ(1u, members.size());
             ASSERT_EQ(memberId, members[0].Id);
         }
@@ -587,25 +588,25 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
     {
         auto result = SyncYPathList(ypathService, "/");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"sample_group1", "test"}), result);
+        ASSERT_EQ((std::vector<std::string>{"sample_group1", "test"}), result);
     }
 
     {
         auto result = SyncYPathList(ypathService, "/@");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"child_count", "type"}), result);
+        ASSERT_EQ((std::vector<std::string>{"child_count", "type"}), result);
     }
 
     {
         auto result = SyncYPathList(ypathService, "/sample_group1/@");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"child_count", "member_count", "members", "type"}), result);
+        ASSERT_EQ((std::vector<std::string>{"child_count", "member_count", "members", "type"}), result);
     }
 
-    ASSERT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1/@members"));
+    ASSERT_EQ((std::vector<std::string>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1/@members"));
     {
         auto result = SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@");
-        std::vector<TString> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
+        std::vector<std::string> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
         ASSERT_EQ(expected, result);
     }
 
@@ -651,9 +652,9 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
     ASSERT_EQ(ConvertToYsonString("e", EYsonFormat::Binary),
         SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@q2/q/w"));
 
-    ASSERT_EQ(std::vector<TString>{"q"},
+    ASSERT_EQ(std::vector<std::string>{"q"},
         SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2"));
-    ASSERT_EQ(std::vector<TString>{"w"},
+    ASSERT_EQ(std::vector<std::string>{"w"},
         SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2/q"));
 
     ASSERT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@child_count"));
@@ -812,7 +813,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
     {
         auto result = SyncYPathList(ypathService, "/");
         std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"sample_group1", "sample_group2"}), result);
+        ASSERT_EQ((std::vector<std::string>{"sample_group1", "sample_group2"}), result);
     }
 
     YT_UNUSED_FUTURE(memberClient1->Stop());
@@ -821,7 +822,8 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
     });
 
     auto checkMembers = [&] {
-        return SyncYPathList(ypathService, "/") == std::vector<TString>{"sample_group2"};
+        auto result = SyncYPathList(ypathService, "/");
+        return result.size() == 1 && result[0] == "sample_group2";
     };
     WaitForPredicate(checkMembers);
 }

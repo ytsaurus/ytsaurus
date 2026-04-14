@@ -36,7 +36,7 @@ public:
     {
         return CurrentReader_
             ? CurrentReader_->GetReadyEvent()
-            : VoidFuture;
+            : OKFuture;
     }
 
     TDataStatistics GetDataStatistics() const override

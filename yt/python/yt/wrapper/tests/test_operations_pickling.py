@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from .conftest import authors
 from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, get_test_file_path, get_test_files_dir_path,
                       build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path,
@@ -155,8 +153,6 @@ class TestOperationsPickling(object):
     @add_failed_operation_stderrs_to_error_message
     def test_eggs_file_usage_from_operation(self, yt_env_with_increased_memory):
         script = """\
-from __future__ import print_function
-
 import yt.wrapper as yt
 from module_in_egg import hello_provider
 
@@ -225,8 +221,6 @@ if __name__ == "__main__":
             pytest.skip()
 
         first_script = """\
-from __future__ import print_function
-
 import sys
 
 import yt.wrapper as yt
@@ -242,8 +236,6 @@ yt.config["pickling"]["python_binary"] = sys.executable
 print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         second_script = """\
-from __future__ import print_function
-
 import sys
 
 import yt.wrapper as yt
@@ -287,7 +279,6 @@ if __name__ == "__main__":
     @authors("ignat")
     def test_python_operations_pickling(self, yt_env_with_increased_memory):
         test_script = """\
-from __future__ import print_function
 import yt.wrapper as yt
 
 import yt.yson as yson

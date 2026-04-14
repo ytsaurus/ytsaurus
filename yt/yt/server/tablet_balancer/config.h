@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/public.h>
 
 #include <yt/yt/server/lib/cypress_election/config.h>
@@ -44,6 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 
 struct TTabletBalancerDynamicConfig
     : public TSingletonsDynamicConfig
+    , public TFeatureFlagConfig
 {
     // Enable standalone tablet balancer. The balancer will not work at all if set to false.
     bool Enable;
@@ -74,8 +76,8 @@ struct TTabletBalancerDynamicConfig
     bool PickReshardPivotKeys;
     bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;
+    bool IgnoreTabletToCellRatio;
     std::optional<double> ReshardSlicingAccuracy;
-    std::optional<bool> EnableSmoothMovement;
 
     THashSet<std::string> AllowedReplicaClusters;
 
@@ -90,6 +92,8 @@ struct TTabletBalancerDynamicConfig
 
     std::vector<std::string> ClustersForBundleHealthCheck;
     int MaxUnhealthyBundlesOnReplicaCluster;
+
+    NConcurrency::TThroughputThrottlerConfigPtr MasterRequestThrottler;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
@@ -122,18 +126,22 @@ struct TClusterStateProviderConfig
     : public NYTree::TYsonStruct
 {
     std::vector<std::string> ClustersForBundleHealthCheck;
-    int MaxUnhealthyBundlesOnReplicaCluster;
+    std::string MetaClusterForBannedReplicas;
 
     TDuration FetchPlannerPeriod;
     int WorkerThreadPoolSize;
 
+    bool FetchTabletActionsBundleAttribute;
+
     TDuration BundlesFreshnessTime;
     TDuration NodesFreshnessTime;
     TDuration UnhealthyBundlesFreshnessTime;
+    TDuration BannedReplicasFreshnessTime;
 
     TDuration BundlesFetchPeriod;
     TDuration NodesFetchPeriod;
     TDuration UnhealthyBundlesFetchPeriod;
+    TDuration BannedReplicasFetchPeriod;
 
     REGISTER_YSON_STRUCT(TClusterStateProviderConfig);
 
@@ -156,10 +164,11 @@ struct TBundleStateProviderConfig
     TDuration StateFreshnessTime;
     TDuration StatisticsFreshnessTime;
     TDuration PerformanceCountersFreshnessTime;
+    TDuration ConfigFreshnessTime;
 
-    TDuration StateFetchPeriod;
-    TDuration StatisticsFetchPeriod;
-    TDuration PerformanceCountersFetchPeriod;
+    std::optional<TDuration> StateFetchPeriod;
+    std::optional<TDuration> StatisticsFetchPeriod;
+    std::optional<TDuration> PerformanceCountersFetchPeriod;
 
     bool CheckInvariants;
 

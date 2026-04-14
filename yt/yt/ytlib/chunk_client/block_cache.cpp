@@ -12,7 +12,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TBlockInfo::operator < (const TBlockInfo& other) const
+bool TBlockInfo::operator<(const TBlockInfo& other) const
 {
     return std::tie(BlockIndex, BlockSize) < std::tie(other.BlockIndex, BlockSize);
 }
@@ -22,7 +22,7 @@ TBlockInfo::operator size_t() const
     return MultiHash(BlockIndex, BlockSize);
 }
 
-bool TBlockInfo::operator == (const TBlockInfo& other) const
+bool TBlockInfo::operator==(const TBlockInfo& other) const
 {
     return BlockIndex == other.BlockIndex && BlockSize == other.BlockSize;
 }
@@ -69,7 +69,7 @@ public:
 
     TFuture<void> GetBlockFuture() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TCachedBlock GetBlock() const override

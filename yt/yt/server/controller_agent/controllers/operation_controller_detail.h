@@ -1,7 +1,5 @@
 #pragma once
 
-#include "private.h"
-
 #include "aggregated_job_statistics.h"
 #include "alert_manager.h"
 #include "auto_merge_director.h"
@@ -10,6 +8,7 @@
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "private.h"
 #include "spec_manager.h"
 #include "task.h"
 #include "task_host.h"
@@ -242,7 +241,7 @@ public:
 
     // NB(max42): Don't make Revive safe! It may lead to either destroying all
     // operations on a cluster, or to a scheduler crash.
-    TOperationControllerReviveResult Revive() override;
+    TOperationControllerReviveResult Revive(bool suspended) override;
 
     TOperationControllerInitializeResult InitializeClean() override;
     TOperationControllerInitializeResult InitializeReviving(
@@ -361,7 +360,7 @@ public:
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     void ReleaseChunkTrees(
-        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
         bool unstageRecursively,
         bool waitForSnapshot) override;
     void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;
@@ -439,7 +438,7 @@ public:
 
     void LoadSnapshot(const TOperationSnapshot& snapshot) override;
 
-    void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
+    void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths);
 
     void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) override;
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
@@ -518,9 +517,7 @@ protected:
     const NLogging::TLogger Logger;
     const std::vector<TString> CoreNotes_;
 
-    NSecurityClient::TSerializableAccessControlList Acl_;
-
-    std::optional<std::string> AcoName_;
+    NThreading::TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
 
     // Intentionally transient.
     const NScheduler::TControllerEpoch ControllerEpoch_;
@@ -563,11 +560,20 @@ protected:
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
     TInputTransactionManagerPtr InputTransactions_;
     NApi::ITransactionPtr AsyncTransaction_;
+    // NB: OutputTransaction_ may be read from the ControlThread (GetIntermediateMediumTransaction)
+    // while being written from the controller invoker (StartTransactions/InitializeReviving).
+    // NB: SwitchedToSlowIntermediateMedium_ and SwitchIntermediateMediumScheduled_ (sort
+    // controller) are also protected by this lock since they are read from the ControlThread
+    // and written from the controller invoker.
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OutputTransactionLock_);
     NApi::ITransactionPtr OutputTransaction_;
     NApi::ITransactionPtr DebugTransaction_;
     NApi::NNative::ITransactionPtr OutputCompletionTransaction_;
     NApi::ITransactionPtr DebugCompletionTransaction_;
     NApi::ITransactionPtr UserTransaction_;
+
+    // Ephemeral.
+    TClusterResolverPtr ClusterResolver_;
 
     bool CommitFinished_ = false;
 
@@ -702,6 +708,7 @@ protected:
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
+    void InitializeClusterResolver();
     void InitializeInputTransactions();
     NYTree::IAttributeDictionaryPtr CreateTransactionAttributes(ETransactionType transactionType) const;
     void StartTransactions();
@@ -716,8 +723,9 @@ protected:
     void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
-    void ValidateDistributedJobOptions();
-    void ValidateSecureVault();
+    void ValidateCollectiveOptions() const;
+    void ValidateSecureVault() const;
+    void ValidateOutputTablePaths() const;
 
     // Preparation.
     void ValidateInputTablesTypes() const override;
@@ -823,6 +831,10 @@ protected:
     const TScheduleAllocationStatisticsPtr& GetScheduleAllocationStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const override;
+
+    int GetHighJobThreadCountAlertFingerprint() const override;
+
+    TError BuildHighJobThreadCountAlert() const override;
 
     std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const override;
 
@@ -1014,8 +1026,8 @@ protected:
 
     void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const TString& operation);
 
-    const TExecNodeDescriptorMap& GetExecNodeDescriptors();
-    const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
+    const TExecNodeDescriptorMap& GetOnlineSuitableExecNodeDescriptors() const;
+    const TExecNodeDescriptorMap& GetSuitableExecNodeDescriptors() const;
 
     void UpdateExecNodes();
 
@@ -1170,12 +1182,16 @@ private:
 
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
+    //! Per task: first job that exceeded the thread count limit (for operation alerts).
+    THashMap<TString, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
+
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    std::atomic<TDuration> CachedJobMetricsReportPeriodCpuDuration_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
     // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
     // are not accumulated, and (2) job statistics don't provide per tree granularity.
@@ -1212,8 +1228,8 @@ private:
     //! Exec node count do not consider schedufling tag.
     //! But descriptors do.
     int AvailableExecNodeCount_ = 0;
-    TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
-    TRefCountedExecNodeDescriptorMapPtr OnlineExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr SuitableExecNodeDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
+    TRefCountedExecNodeDescriptorMapPtr OnlineSuitableExecNodeDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     std::optional<TJobResources> CachedMaxAvailableExecNodeResources_;
 
@@ -1374,6 +1390,11 @@ private:
     TError OperationFailError_;
     NConcurrency::TDelayedExecutorCookie GracefulAbortTimeoutFailureCookie_;
 
+    // Monitoring doesn't work well with objects that suddenly run out of life time.
+    NProfiling::TCounter UsedMonitoringDescriptorCount_;
+
+    NScheduler::TSchedulingTagFilter FinalSchedulingTagFilter_;
+
     void AccountExternalScheduleAllocationFailures() const;
 
     void InitializeOrchid();
@@ -1392,6 +1413,8 @@ private:
     int GetAvailableExecNodeCount() const;
 
     void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateHighThreadCountJob(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);
 
     void LogProgress(bool force = false);
@@ -1496,7 +1519,7 @@ private:
     void UpdatePreemptibleProgressStartTime(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
-    void ReportJobDistributedGroupInfo(const TJobletPtr& joblet) const;
+    void ReportJobCollectiveInfo(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
@@ -1515,7 +1538,7 @@ private:
 
     void RemoveRemainingJobsOnOperationFinished();
 
-    void OnOperationReady();
+    void OnOperationReady(bool suspended);
 
     bool ShouldProcessJobEvents() const;
 
@@ -1541,9 +1564,6 @@ private:
     void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     void BuildJobsYson(NYTree::TFluentMap fluent) const;
     void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
-
-    // Monitoring doesn't work well with objects that suddenly run out of life time.
-    NProfiling::TCounter UsedMonitoringDescriptorCount_;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);

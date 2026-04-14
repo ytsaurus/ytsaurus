@@ -55,7 +55,7 @@ bool AreTypedValuesEqual(const TUnversionedValue& lhs, const TUnversionedValue& 
 template <EValueType Type>
 bool AreValuesEqual(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
-    if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
+    if (lhs.Type != rhs.Type) [[unlikely]] {
         return false;
     }
 
@@ -424,7 +424,7 @@ struct TVersionedValueExtractor
     using TBase::Type_;
 
     // Returns data weight.
-    Y_FORCE_INLINE ui64 operator() (
+    Y_FORCE_INLINE ui64 operator()(
         ui32 valueIdx,
         ui32 valueIdxEnd,
         TValueOutput* valueOutput,
@@ -506,7 +506,7 @@ struct TSkipperTo
 {
     using TBase::SkipTo;
 
-    Y_FORCE_INLINE ui32 operator() (ui32 rowIndex, ui32 position) const
+    Y_FORCE_INLINE ui32 operator()(ui32 rowIndex, ui32 position) const
     {
         return SkipTo(rowIndex, position);
     }
@@ -518,7 +518,7 @@ struct TCountsCollector
 {
     using TBase::SkipTo;
 
-    Y_FORCE_INLINE ui32 operator() (ui32* counts, TRange<ui32> readIndexes, ui32 position) const
+    Y_FORCE_INLINE ui32 operator()(ui32* counts, TRange<ui32> readIndexes, ui32 position) const
     {
         YT_ASSERT(!readIndexes.Empty());
         position = SkipTo(readIndexes.Front(), position);
@@ -1220,7 +1220,7 @@ T* ConstructObjectInplace(char** memory, TArgs&&... args)
 struct TDestructorCaller
 {
     template <class T>
-    void operator() (T* ptr)
+    void operator()(T* ptr)
     {
         ptr->~T();
     }
@@ -1967,7 +1967,7 @@ private:
         controlSpan.Lower *= 2;
         controlSpan.Upper *= 2;
 
-        TRangeSliceAdapter keys;
+        TBoundsIterator<TRowRange> keys;
         keys.Ranges = KeyRanges_;
 
         // All values must be accessible in column refiner.
@@ -2337,7 +2337,7 @@ public:
                 continue;
             }
 
-            if (Y_UNLIKELY(rowIndexHint == SentinelRowIndex)) {
+            if (rowIndexHint == SentinelRowIndex) [[unlikely]] {
                 while (NextKeyIndex_ < keyIndex && rows != rowsEnd) {
                     *rows++ = TMutableVersionedRow();
                     ++NextKeyIndex_;

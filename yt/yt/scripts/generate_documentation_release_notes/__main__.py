@@ -43,16 +43,21 @@ SPYT_DESCRIPTION = """
 Is released as a docker image.
 """
 
+UI_DESCRIPTION = """
+Is released as a docker image.
+"""
+
 repo_name_to_releases = {}
 
 
 class Component:
-    def __init__(self, repo_name, component_name, tag_name, description, filename):
+    def __init__(self, repo_name, component_name, tag_name, description, filename, release_tag_splitter="/"):
         self.repo_name = repo_name
         self.component_name = component_name
         self.tag_name = tag_name
         self.description = description
         self.filename = filename
+        self.release_tag_splitter = release_tag_splitter
 
     def _get_releases_page(self, per_page=30, page=1):
         url = f"https://api.github.com/repos/{REPO_OWNER}/{self.repo_name}/releases"
@@ -102,7 +107,7 @@ class Component:
         releases = self._get_releases()
 
         for release in releases:
-            version = release["tag_name"].split("/")[-1]
+            version = release["tag_name"].split(self.release_tag_splitter)[-1]
             lines.append(f"{{% cut \"**{version}**\" %}}\n")
 
             parsed_date = datetime.strptime(release["created_at"], "%Y-%m-%dT%H:%M:%SZ")
@@ -131,11 +136,12 @@ COMPONENTS = [
     Component(repo_name="ytsaurus", component_name="Query tracker", tag_name="docker/query-tracker", description=QUERY_TRACKER_DESCRIPTION, filename="query-tracker.md"),
     Component(repo_name="ytsaurus", component_name="Java SDK", tag_name="java-sdk", description=JAVA_SDK_DESCRIPTION, filename="java-sdk.md"),
     Component(repo_name="ytsaurus", component_name="CHYT", tag_name="chyt", description=CHYT_DESCRIPTION, filename="chyt.md"),
-    Component(repo_name="ytsaurus-k8s-operator", component_name="Kubernetes operator", tag_name="release", description=K8S_DESCRIPTION, filename="k8s.md"),
+    Component(repo_name="ytsaurus-k8s-operator", component_name="Kubernetes operator", tag_name="", description=K8S_DESCRIPTION, filename="k8s.md"),
     Component(repo_name="ytsaurus", component_name="Python YSON bindings", tag_name="python/ytsaurus-yson", description=PYTHON_YSON_DESCRIPTION, filename="python-yson.md"),
     Component(repo_name="ytsaurus", component_name="Python SDK", tag_name="python/ytsaurus-client", description=PYTHON_SDK_DESCRIPTION, filename="python-sdk.md"),
     Component(repo_name="ytsaurus-spyt", component_name="SPYT", tag_name="spyt", description=SPYT_DESCRIPTION, filename="spyt.md"),
     Component(repo_name="ytsaurus", component_name="Strawberry", tag_name="yt/chyt/controller", description=STRAWBERRY_DESCRIPTION, filename="strawberry.md"),
+    Component(repo_name="ytsaurus-ui", component_name="UI", tag_name="ui", description=UI_DESCRIPTION, filename="ui.md", release_tag_splitter="ui-v"),
 ]
 
 

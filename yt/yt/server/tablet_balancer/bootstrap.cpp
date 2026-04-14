@@ -3,6 +3,7 @@
 #include "dynamic_config_manager.h"
 #include "private.h"
 #include "tablet_balancer.h"
+#include "tablet_balancer_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -103,6 +104,13 @@ public:
         return Client_;
     }
 
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return NativeAuthenticator_;
+    }
+
     const TClientDirectoryPtr& GetClientDirectory() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -131,6 +139,13 @@ public:
         return DynamicConfigManager_;
     }
 
+    const ITabletBalancerPtr& GetTabletBalancer() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return TabletBalancer_;
+    }
+
     std::string GetClusterName() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -144,6 +159,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Connection_->GetClusterDirectory();
+    }
+
+    virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}};
     }
 
 private:
@@ -266,6 +288,7 @@ private:
             orchidRoot,
             ControlInvoker_,
             NativeAuthenticator_));
+        RpcServer_->RegisterService(CreateTabletBalancerService(this));
     }
 
     void DoStart()
@@ -303,7 +326,7 @@ private:
     {
         TCypressRegistrarOptions options{
             .RootPath = Format("%v/instances/%v", Config_->RootPath, ToYPathLiteral(LocalAddress_)),
-            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}},
+            .OrchidRemoteAddresses = GetLocalAddresses(),
         };
 
         auto registrar = CreateCypressRegistrar(

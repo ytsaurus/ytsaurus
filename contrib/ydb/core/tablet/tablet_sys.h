@@ -127,9 +127,14 @@ class TTablet : public TActor<TTablet> {
         ui64 BytesInFlight;
 
         std::pair<ui32, ui32> Snapshot;
+        TActorId SnapshotSource;
+        ui64 SnapshotCookie = 0;
 
         struct {
             ui32 SyncStep = 0;
+            ui32 Snapshot = 0;
+            TActorId SnapshotSource;
+            ui64 SnapshotCookie = 0;
         } SyncCommit;
 
         TGraph()
@@ -295,6 +300,8 @@ class TTablet : public TActor<TTablet> {
     THashMap<ui32, TInterconnectPending> InterconnectPending;
     ui64 LastInterconnectSubscribeCookie = 0;
 
+    TMessageRelevanceOwner Relevance = std::make_shared<TMessageRelevanceTracker>();
+
     ui64 TabletID() const;
 
     void ReportTabletStateChange(ETabletState state);
@@ -381,6 +388,7 @@ class TTablet : public TActor<TTablet> {
 
     bool ProgressCommitQueue();
     void ProgressFollowerQueue();
+    void ProgressSendSyncCommit();
     void SpreadFollowerAuxUpdate(const TString& auxUpdate);
     void SendFollowerAuxUpdate(TLeaderInfo& info, const TActorId& follower, const TString& auxUpdate);
 
@@ -742,7 +750,7 @@ public:
             );
 
     TAutoPtr<IEventHandle> AfterRegister(const TActorId &self, const TActorId &parentId) override;
-    static void ExternalWriteZeroEntry(TTabletStorageInfo *info, ui32 gen, TActorIdentity owner);
+    static void ExternalWriteZeroEntry(TTabletStorageInfo *info, ui32 gen, TActorIdentity owner, TMessageRelevanceWatcher relevance);
 };
 
 }

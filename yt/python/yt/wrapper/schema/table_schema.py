@@ -36,6 +36,8 @@ class ColumnSchema:
         type of the column, could be either a type_info type or a class object annotated with @yt.wrapper.yt_dataclass
     :param sort_order:
         column sort order, if argument is missing column is not sorted.
+    :param lock:
+        lock in column
     :param group:
         column group name, columns with same group name are stored in the same block,
         used for tuning read write performance
@@ -52,6 +54,7 @@ class ColumnSchema:
         name: str,
         type: typing.Union[ti.type_base.Type, typing.Type],
         sort_order: typing.Optional[typing.Literal["ascending", "descending"]] = None,
+        lock: typing.Optional[str] = None,
         group: typing.Optional[str] = None,
         aggregate: typing.Optional[str] = None,
         expression: typing.Optional[str] = None,
@@ -70,6 +73,7 @@ class ColumnSchema:
         self.group = group
         self.expression = expression
         self.aggregate = aggregate
+        self.lock = lock
 
     def to_yson_type(self):
         result = {
@@ -80,6 +84,7 @@ class ColumnSchema:
         for k, v in [
             ("sort_order", self.sort_order),
             ("group", self.group),
+            ("lock", self.lock),
             ("aggregate", self.aggregate),
             ("expression", self.expression),
         ]:
@@ -102,6 +107,7 @@ class ColumnSchema:
             obj["name"],
             type,
             sort_order=obj.get("sort_order"),
+            lock=obj.get("lock"),
             group=obj.get("group"),
             aggregate=obj.get("aggregate"),
             expression=obj.get("expression"),
@@ -116,6 +122,7 @@ class ColumnSchema:
                 schema.name,
                 schema.type,
                 schema.sort_order,
+                schema.lock,
                 schema.group,
                 schema.expression,
                 schema.aggregate,

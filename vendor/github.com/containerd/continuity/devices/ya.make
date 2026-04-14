@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.4.4)
+VERSION(v0.4.5)
 
 SRCS(
     devices.go
@@ -29,6 +29,13 @@ IF (OS_WINDOWS)
 ENDIF()
 
 IF (OS_ANDROID)
+    SRCS(
+        devices_unix.go
+        mknod_unix.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         devices_unix.go
         mknod_unix.go

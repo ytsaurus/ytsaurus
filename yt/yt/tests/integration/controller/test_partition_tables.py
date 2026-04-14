@@ -8,6 +8,8 @@ from yt.yson import dumps, to_yson_type
 
 from collections import defaultdict
 
+import yt.wrapper
+
 import pytest
 
 
@@ -70,17 +72,27 @@ class TestPartitionTablesBase(YTEnvSetup):
 
         return get(f"{table}/@data_weight")
 
-
-@pytest.mark.enabled_multidaemon
-class TestPartitionTablesCommand(TestPartitionTablesBase):
-    ENABLE_MULTIDAEMON = True
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
-
+    # NB(achains): Checks the ascending order of row ranges of partitions of a SINGLE table.
     @staticmethod
-    def check_partitions(tables, partitions, check_cookies=False):
+    def check_partitions_row_order(partitions):
+        lower_limits = []
+        for p in partitions:
+            table_ranges = p["table_ranges"]
+            assert len(table_ranges) == 1
+
+            ranges = table_ranges[0].attributes["ranges"]
+            for r in ranges:
+                lower_limits.append(r["lower_limit"]["row_index"])
+
+        assert sorted(lower_limits) == lower_limits
+
+    # NB(achains): Checks the ascending order of row ranges of partitions of a SINGLE table.
+    @staticmethod
+    def check_partitions(tables, partitions, check_cookies=False, check_row_order=False):
+        if check_row_order:
+            assert len(tables) == 1, "check_row_order supported only for a single table partitions"
+            TestPartitionTablesBase.check_partitions_row_order(partitions)
+
         rows = []
         for t in tables:
             rows += read_table(t)
@@ -100,6 +112,15 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         if check_cookies:
             assert sorted_dicts(rows) == sorted_dicts(partitioned_rows_by_cookie)
+
+
+@pytest.mark.enabled_multidaemon
+class TestPartitionTablesCommand(TestPartitionTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
 
     @staticmethod
     def check_aggregate_statistics(
@@ -124,6 +145,8 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             compressed_data_size = aggregate_statistics["compressed_data_size"]
         if value_count is None:
             value_count = aggregate_statistics["value_count"]
+        if chunk_count is None:
+            chunk_count = aggregate_statistics["chunk_count"]
         expected_aggregate_statistics = {
             "chunk_count": chunk_count,
             "data_weight": data_weight,
@@ -146,19 +169,27 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         partitions = partition_tables([], data_weight_per_partition=1)
         assert partitions == []
 
-    @authors("galtsev")
+    @authors("galtsev,pavook")
     def test_invalid_options(self):
         table = "//tmp/sorted-static"
         self._create_table(table, chunk_count=1, rows_per_chunk=1, row_weight=1)
 
-        with raises_yt_error("Missing required parameter /data_weight_per_partition"):
-            partition_tables([table])
-
         with raises_yt_error("Validation failed at /data_weight_per_partition"):
             partition_tables([table], data_weight_per_partition=-1)
 
+        with raises_yt_error("Validation failed at /compressed_data_size_per_partition"):
+            partition_tables([table], compressed_data_size_per_partition=-1)
+
         with raises_yt_error("Validation failed at /max_partition_count"):
             partition_tables([table], data_weight_per_partition=1, max_partition_count=-1)
+
+        with raises_yt_error("Must specify either \"data_weight_per_partition\" or \"compressed_data_size_per_partition\""):
+            partition_tables([table])
+
+        dynamic_table = "//tmp/sorted-dynamic"
+        self._create_table(dynamic_table, chunk_count=1, rows_per_chunk=1, row_weight=1, dynamic=True)
+        with raises_yt_error("Partitioning versioned table by compressed data size is unimplemented"):
+            partition_tables([dynamic_table], compressed_data_size_per_partition=1)
 
     @authors("galtsev")
     @pytest.mark.parametrize("dynamic,sorted", [(False, False), (False, True), (True, False)])
@@ -188,6 +219,23 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             expected_partitions.append(partition)
 
         assert self.strip_cookies(partitions) == expected_partitions
+
+    @authors("pavook")
+    @pytest.mark.parametrize("sorted", [False, True])
+    @pytest.mark.parametrize("partition_mode", ["unordered", "ordered"])
+    def test_partition_by_compressed_data_size(self, sorted: bool, partition_mode: str):
+        table = "//tmp/{}-table".format("ordered" if not sorted else "sorted")
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 2000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, sorted=sorted)
+        compressed_data_size = get(f"{table}/@compressed_data_size")
+        assert compressed_data_size < data_weight // 4
+
+        partitions = partition_tables([table], partition_mode=partition_mode, compressed_data_size_per_partition=compressed_data_size // 3, enable_cookies=True)
+        self.check_partitions([table], partitions, check_cookies=True)
+        self.check_aggregate_statistics(partitions, chunk_count if partition_mode == "unordered" else None, chunk_count * rows_per_chunk, data_weight)
+        assert len(partitions) == 3
 
     @authors("galtsev")
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
@@ -695,7 +743,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         partitions = partition_tables([table], data_weight_per_partition=data_weight * 2, partition_mode="ordered")
 
-        self.check_partitions([table], partitions)
+        self.check_partitions([table], partitions, check_row_order=True)
 
     @authors("psushin")
     def test_read_ordered_dynamic_table_partition(self):
@@ -735,6 +783,51 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         assert len(actual_rows) == len(expected_rows)
         assert actual_rows == expected_rows
+
+
+class OrderedPartitionLargeTableBase(TestPartitionTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 3
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    @authors("achains")
+    def test_ordered_partition_small_chunks(self):
+        table = "//tmp/static-table"
+        data = [{"a": i, "b": str(i) * 1024 * 100} for i in range(1_000)]
+
+        # Client default chunk options allow to reproduce YT-27013.
+        client = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
+        client.write_table(table, data, force_create=True)
+        partitions = client.partition_tables([table], data_weight_per_partition=50 * 1024**2, partition_mode="ordered")
+
+        self.check_partitions([table], partitions, check_row_order=True)
+
+
+class TestOrderedPartitionLargeTableNative(OrderedPartitionLargeTableBase):
+    DRIVER_BACKEND = "native"
+
+
+class TestOrderedPartitionLargeTableRpc(OrderedPartitionLargeTableBase):
+    DRIVER_BACKEND = "rpc"
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
+            },
+            "generation": {
+                "cypress_key_writer": dict(),
+                "key_rotator": dict(),
+                "generator": dict(),
+            },
+        },
+    }
+
+    # NB(pavook): to avoid key owner collision.
+    NUM_RPC_PROXIES = 1
+
+    OWNERS_PATH = "//sys/public_keys/by_owner"
 
 
 class PartitionTablesRlsBase(TestPartitionTablesBase):
@@ -795,9 +888,3 @@ class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
     NUM_RPC_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
-
-    @authors("coteeq")
-    def test_read_partition_rls(self):
-        # This is actually an xfail, because RPC driver does not know how to output partitions yet.
-        with raises_yt_error("Table schemas are unknown"):
-            super().test_read_partition_rls()

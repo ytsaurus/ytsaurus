@@ -6,11 +6,7 @@
         "11" = {roles = ["sequoia_node_host"; "cypress_node_host"; "chunk_host"]};
         "12" = {roles = ["transaction_coordinator"; "cypress_node_host"]};
         "13" = {roles = ["chunk_host"; "cypress_node_host"]};
-    };
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        transaction_manager = {
-            enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases = %true;
-        };
+        "14" = {roles = ["sequoia_node_host"]};
     };
 
     NUM_NODES = 3;
@@ -26,10 +22,27 @@
 
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
         object_service = {
-            allow_bypass_master_resolve = %true;
+            allow_bypass_master_resolve = %false;
         };
         response_keeper = {
             enable = %true;
+        };
+    };
+
+    DELTA_MASTER_CONFIG = {
+        hydra_manager = {
+            minimize_commit_latency = %false;
+            changelogs = {
+                flush_period = 5;
+                flush_qunatum = 5;
+            };
+            mutation_serialization_period = 3;
+            mutation_flush_period = 3;
+        };
+        transaction_supervisor = {
+            testing = {
+                prepared_transactions_barrier_delay = 150;
+            };
         };
     };
 }

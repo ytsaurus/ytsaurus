@@ -10,10 +10,10 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        abcdapter
         error_manager
         excel
         firehose
-        gang_tools
         grant_permissions
         hermes
         id_to_path_mapping

@@ -322,7 +322,7 @@ private:
                 if (currentAddress == selfAddress) {
                     OnIncumbencyFinished(TIncumbencyDescriptor{
                         .Type = incumbentType,
-                        .ShardIndex = shardIndex
+                        .ShardIndex = shardIndex,
                     });
                 }
                 currentAddress = {};
@@ -331,7 +331,7 @@ private:
                 if (currentAddress == selfAddress) {
                     OnIncumbencyStarted(TIncumbencyDescriptor{
                         .Type = incumbentType,
-                        .ShardIndex = shardIndex
+                        .ShardIndex = shardIndex,
                     });
                 }
             }

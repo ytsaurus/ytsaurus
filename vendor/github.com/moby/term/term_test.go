@@ -86,33 +86,33 @@ func TestSetWinsize(t *testing.T) {
 
 func TestGetFdInfo(t *testing.T) {
 	tty := newTTYForTest(t)
-	inFd, isTerminal := GetFdInfo(tty)
+	inFd, isTerm := GetFdInfo(tty)
 	if inFd != tty.Fd() {
 		t.Errorf("expected: %d, got: %d", tty.Fd(), inFd)
 	}
-	if !isTerminal {
-		t.Error("expected isTerminal to be true")
+	if !isTerm {
+		t.Error("expected file-descriptor to be a terminal")
 	}
 	tmpFile := newTempFile(t)
-	inFd, isTerminal = GetFdInfo(tmpFile)
+	inFd, isTerm = GetFdInfo(tmpFile)
 	if inFd != tmpFile.Fd() {
 		t.Errorf("expected: %d, got: %d", tty.Fd(), inFd)
 	}
-	if isTerminal {
-		t.Error("expected isTerminal to be false")
+	if isTerm {
+		t.Error("expected file-descriptor to not be a terminal")
 	}
 }
 
 func TestIsTerminal(t *testing.T) {
 	tty := newTTYForTest(t)
-	isTerminal := IsTerminal(tty.Fd())
-	if !isTerminal {
-		t.Fatalf("expected isTerminal to be true")
+	isTerm := IsTerminal(tty.Fd())
+	if !isTerm {
+		t.Error("expected file-descriptor to be a terminal")
 	}
 	tmpFile := newTempFile(t)
-	isTerminal = IsTerminal(tmpFile.Fd())
-	if isTerminal {
-		t.Fatalf("expected isTerminal to be false")
+	isTerm = IsTerminal(tmpFile.Fd())
+	if isTerm {
+		t.Error("expected file-descriptor to not be a terminal")
 	}
 }
 
@@ -135,7 +135,11 @@ func TestSaveState(t *testing.T) {
 func TestDisableEcho(t *testing.T) {
 	tty := newTTYForTest(t)
 	state, err := SetRawTerminal(tty.Fd())
-	defer RestoreTerminal(tty.Fd(), state)
+	defer func() {
+		if err := RestoreTerminal(tty.Fd(), state); err != nil {
+			t.Error(err)
+		}
+	}()
 	if err != nil {
 		t.Error(err)
 	}

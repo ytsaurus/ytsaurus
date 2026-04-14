@@ -71,6 +71,7 @@ PEERDIR(
     contrib/ydb/core/blobstorage/vdisk/common
     contrib/ydb/core/blobstorage/vdisk/ingress
     contrib/ydb/core/control/lib
+    contrib/ydb/core/retro_tracing_impl
     contrib/ydb/core/util
 )
 

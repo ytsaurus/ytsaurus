@@ -2127,7 +2127,6 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
 class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
     ENABLE_MULTIDAEMON = False  # Check structured logs.
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
@@ -2333,7 +2332,6 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
                     "max_failed_job_count": 1,
                     "delay_in_copy_chunk": 5000,
                     "erasure_chunk_repair_delay": 2000,
-                    "repair_erasure_chunks": True,
                     "chunk_availability_policy": "repairable",
                 },
                 track=False,

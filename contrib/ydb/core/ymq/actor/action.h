@@ -31,8 +31,6 @@
 #include <util/string/ascii.h>
 #include <util/string/join.h>
 
-#include <contrib/ydb/library/security/util.h>
-
 namespace NKikimr::NSQS {
 
 template <typename TDerived>
@@ -575,7 +573,7 @@ private:
         UserName_ = request.GetAuth().GetUserName();
         FolderId_ = request.GetAuth().GetFolderId();
         UserSID_ = request.GetAuth().GetUserSID();
-        MaskedToken_ = NKikimr::MaskIAMTicket(SecurityToken_);
+        MaskedToken_ = request.GetAuth().GetMaskedToken();
         AuthType_ = request.GetAuth().GetAuthType();
 
         if (IsCloud() && !FolderId_) {
@@ -738,7 +736,7 @@ private:
 
     void HandleTicketParserResponse(TEvTicketParser::TEvAuthorizeTicketResult::TPtr& ev) {
         const TEvTicketParser::TEvAuthorizeTicketResult& result(*ev->Get());
-        if (!result.Error.empty()) {
+        if (result.HasError()) {
             RLOG_SQS_ERROR("Got ticket parser error: " << result.Error << ". " << Action_ << " was rejected");
             MakeError(MutableErrorDesc(), NErrors::ACCESS_DENIED);
             SendReplyAndDie();

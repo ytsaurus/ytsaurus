@@ -119,15 +119,26 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
     , SuppressTransactionCoordinatorSync_(other.SuppressTransactionCoordinatorSync_)
+    , SuppressStronglyOrderedTransactionBarrier_(other.SuppressStronglyOrderedTransactionBarrier_)
 {
     // Undo some work done by the base class's copy ctor and make some tweaks.
     // XXX(babenko): refactor this, maybe avoid TClientRequest copying.
     Attachments().clear();
 }
 
+TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
+    const TReqExecuteSubbatch& other)
+    : TReqExecuteSubbatch(other, std::vector(other.InnerRequestDescriptors_))
+{ }
+
 int TObjectServiceProxy::TReqExecuteSubbatch::GetSize() const
 {
     return std::ssize(InnerRequestDescriptors_);
+}
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteSubbatch::Clone() const
+{
+    return New<TReqExecuteSubbatch>(*this);
 }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
@@ -203,6 +214,7 @@ size_t TObjectServiceProxy::TReqExecuteSubbatch::ComputeHash() const
     size_t hash = 0;
     HashCombine(hash, SuppressUpstreamSync_);
     HashCombine(hash, SuppressTransactionCoordinatorSync_);
+    HashCombine(hash, SuppressStronglyOrderedTransactionBarrier_);
     for (const auto& descriptor : InnerRequestDescriptors_) {
         if (descriptor.Hash) {
             HashCombine(hash, descriptor.Hash);
@@ -233,6 +245,11 @@ TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
     : TReqExecuteSubbatch(other, std::move(innerRequestDescriptors))
 { }
 
+TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
+    const TReqExecuteBatchBase& other)
+    : TReqExecuteSubbatch(other)
+{ }
+
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatchBase::Invoke()
 {
     PushDownPrerequisites();
@@ -252,6 +269,11 @@ void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressUpstreamSync(bool val
 void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressTransactionCoordinatorSync(bool value)
 {
     SuppressTransactionCoordinatorSync_ = value;
+}
+
+void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressStronglyOrderedTransactionBarrier(bool value)
+{
+    SuppressStronglyOrderedTransactionBarrier_ = value;
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
@@ -288,6 +310,11 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
         hash,
         ypathExt.mutating()
     });
+}
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatchBase::Clone() const
+{
+    return New<TReqExecuteBatchBase>(*this);
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
@@ -344,6 +371,11 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetEnableClientStick
     EnableClientStickiness_ = value;
 }
 
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::Clone() const
+{
+    return New<TReqExecuteBatchNoSequoiaRetries>(*this);
+}
+
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
     : TProxyBase(std::move(channel), GetDescriptor())
     , SequoiaRetriesConfig_(New<TReqExecuteBatchRetriesConfig>())
@@ -355,6 +387,11 @@ TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoia
     const TReqExecuteBatchBase& other,
     std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors)
     : TReqExecuteBatchBase(other, std::move(innerRequestDescriptors))
+{ }
+
+TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoiaRetries(
+    const TReqExecuteBatchNoSequoiaRetries& other)
+    : TReqExecuteBatchBase(other)
 { }
 
 TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoiaRetries(
@@ -543,6 +580,7 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetMulticellSyncHead
 {
     NObjectClient::SetSuppressUpstreamSync(&Header(), SuppressUpstreamSync_);
     NObjectClient::SetSuppressTransactionCoordinatorSync(&Header(), SuppressTransactionCoordinatorSync_);
+    NObjectClient::SetSuppressStronglyOrderedTransactionBarrier(&Header(), SuppressStronglyOrderedTransactionBarrier_);
 }
 
 std::optional<int> TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::GetAdvisedStickyGroupSize() const
@@ -587,6 +625,18 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     YT_VERIFY(NeedRetry_);
 }
 
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
+    const TReqExecuteBatch& other)
+    : TReqExecuteBatchBase(other)
+    , PendingIndexes_(other.PendingIndexes_)
+    , CurrentRetry_(other.CurrentRetry_)
+    , Config_(other.Config_)
+    , NeedRetry_(other.NeedRetry_)
+    , RegenerateMutationIdForRetries_(other.RegenerateMutationIdForRetries_)
+    , StickyGroupSize_(other.StickyGroupSize_)
+    , EnableClientStickiness_(other.EnableClientStickiness_)
+{ }
+
 void TObjectServiceProxy::TReqExecuteBatch::SetStickyGroupSize(int value)
 {
     StickyGroupSize_ = value;
@@ -602,6 +652,11 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     Initialize();
     InvokeNextBatch();
     return FullResponsePromise_;
+}
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatch::Clone() const
+{
+    return New<TReqExecuteBatch>(*this);
 }
 
 void TObjectServiceProxy::TReqExecuteBatch::Initialize()
@@ -1086,6 +1141,17 @@ TObjectServiceProxy::TReqExecuteBatchInParallel::TReqExecuteBatchInParallel(
         std::move(stickyGroupSizeCache))
     , ParallelReqs_(std::move(parallelReqs))
 { }
+
+TObjectServiceProxy::TReqExecuteBatchInParallel::TReqExecuteBatchInParallel(
+    const TReqExecuteBatchInParallel& other)
+    : TReqExecuteBatchBase(other)
+    , ParallelReqs_(other.ParallelReqs_)
+{ }
+
+IClientRequestPtr TObjectServiceProxy::TReqExecuteBatchInParallel::Clone() const
+{
+    return New<TReqExecuteBatchInParallel>(*this);
+}
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatchInParallel::Invoke()

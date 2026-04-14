@@ -142,7 +142,7 @@ public:
                     .ThrowOnError();
             }
         }
-        writer->Close().Get().ThrowOnError();
+        WaitFor(writer->Close()).ThrowOnError();
     }
 
     void SweepRows()
@@ -196,8 +196,7 @@ TUnversionedUniversalReader CreateUnversionedUniversalReader(
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
     auto chunkReader = CreateChunkReader(ioEngine, chunkFileName);
-    auto chunkMeta = chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = blockReadOptions })
-        .Get()
+    auto chunkMeta = WaitFor(chunkReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = blockReadOptions }))
         .ValueOrThrow();
 
     TChunkSpec chunkSpec;

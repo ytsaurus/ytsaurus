@@ -11,8 +11,9 @@ RECURSE(
     suspicious_jobs
     tablet_cell_helpers
     tablet_cells
+    virtual_chunk_map_helpers
 )
-    
+
 
 IF (NOT OPENSOURCE)
     INCLUDE(ya_non_opensource.inc)

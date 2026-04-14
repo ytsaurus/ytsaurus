@@ -762,7 +762,7 @@ public:
         if (validatePools) {
             return ValidateOperationPoolsCanBeUsed(operation, runtimeParameters);
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -1679,7 +1679,7 @@ private:
                 if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
                     result.push_back(TPoolTreeDescription{
                         .Id = treeId,
-                        .Tentative = true
+                        .Tentative = true,
                     });
                 }
             } else {
@@ -1701,7 +1701,7 @@ private:
             if (auto tree = FindTree(spec->ProbingPoolTree.value())) {
                 result.push_back(TPoolTreeDescription{
                     .Id = *spec->ProbingPoolTree,
-                    .Probing = true
+                    .Probing = true,
                 });
             } else {
                 THROW_ERROR_EXCEPTION("Probing pool tree %Qv not found", spec->ProbingPoolTree.value());
@@ -2512,7 +2512,7 @@ private:
             if (Tree_) {
                 return Tree_->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, skipScheduleAllocations);
             }
-            return VoidFuture;
+            return OKFuture;
         }
 
         int GetSchedulingHeartbeatComplexity() const override
@@ -2560,7 +2560,10 @@ private:
         TJobResources GetMinSpareResourcesForScheduling() const override
         {
             if (Tree_) {
-                if (const auto& minSpareResourcesConfig = Tree_->GetSnapshottedConfig()->MinSpareAllocationResourcesOnNode) {
+                // NB: Store the config in a local variable to keep it alive while
+                // |minSpareResourcesConfig| (which references its field) is used.
+                auto treeConfig = Tree_->GetSnapshottedConfig();
+                if (const auto& minSpareResourcesConfig = treeConfig->MinSpareAllocationResourcesOnNode) {
                     return ToJobResources(minSpareResourcesConfig, TJobResources());
                 }
             }

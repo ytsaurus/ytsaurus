@@ -37,6 +37,8 @@ target_compile_options(server-lib-exec_node PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-lib-exec_node PUBLIC

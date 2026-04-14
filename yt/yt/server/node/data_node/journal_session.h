@@ -27,7 +27,7 @@ private:
     TJournalChunkPtr Chunk_;
     NHydra::IFileChangelogPtr Changelog_;
     TChunkUpdateGuard ChunkUpdateGuard_;
-    TFuture<void> LastAppendResult_ = VoidFuture;
+    TFuture<void> LastAppendResult_ = OKFuture;
     i64 LastDataSize_ = 0;
 
     TFuture<void> DoStart() override;
@@ -47,8 +47,7 @@ private:
     void DoCancel(const TError& error) override;
     TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) override;
+        std::optional<int> blockCount) override;
 
     void OnFinished();
 };

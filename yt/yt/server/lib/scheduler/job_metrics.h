@@ -49,6 +49,10 @@ DEFINE_ENUM(EJobMetricName,
     (MainResourceConsumptionOperationCompleted)
     (MainResourceConsumptionOperationFailed)
     (MainResourceConsumptionOperationAborted)
+
+    (ValidateRootFSTime)
+    (PrepareNonRootVolumesTime)
+    (LinkVolumesTime)
 );
 
 DEFINE_ENUM(ESummaryValueType,

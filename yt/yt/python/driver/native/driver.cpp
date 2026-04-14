@@ -90,10 +90,12 @@ public:
                     if (driverConfig->TvmService) {
                         tvmService = NAuth::CreateDynamicTvmService(driverConfig->TvmService);
                     }
+                    NNative::TConnectionOptions options;
+                    options.TvmService = std::move(tvmService);
+                    options.CreateQueueConsumerRegistrationManager = driverConfig->StartQueueConsumerRegistrationManager;
                     connection = CreateConnection(
                         configNode,
-                        /*options*/ {},
-                        std::move(tvmService));
+                        std::move(options));
                     Connection_ = connection;
 
                     if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
@@ -111,7 +113,7 @@ public:
 
                         nativeConnection->GetClusterDirectorySynchronizer()->Start();
                         if (driverConfig->StartQueueConsumerRegistrationManager) {
-                            nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                            nativeConnection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
                         }
                     }
 
@@ -151,6 +153,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_master_consistent_state, GetMasterConsistentState, "Records a consistent global state");
         PYCXX_ADD_KEYWORDS_METHOD(exit_read_only, ExitReadOnly, "Exits read-only mode at given cell");
         PYCXX_ADD_KEYWORDS_METHOD(master_exit_read_only, MasterExitReadOnly, "Exits read-only mode at all master cells");
+        PYCXX_ADD_KEYWORDS_METHOD(make_masters_repliable, ResetDynamicallyPropagatedMasterCells, "Makes dynamically propagated masters statically known");
         PYCXX_ADD_KEYWORDS_METHOD(discombobulate_nonvoting_peers, DiscombobulateNonvotingPeers, "Do not restart nonvoting peers in leader`s absence");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
@@ -376,6 +379,21 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to exit read-only mode at all master cells");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, MasterExitReadOnly)
+
+    Py::Object ResetDynamicallyPropagatedMasterCells(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TResetDynamicallyPropagatedMasterCellsOptions();
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->ResetDynamicallyPropagatedMasterCells(options))
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to make masters reliable");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, ResetDynamicallyPropagatedMasterCells)
+
 
     Py::Object DiscombobulateNonvotingPeers(Py::Tuple& args, Py::Dict& kwargs)
     {

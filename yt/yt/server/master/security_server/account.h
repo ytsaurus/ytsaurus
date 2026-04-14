@@ -39,9 +39,9 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TBootstrap* bootstrap);
 
-TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
-TAccountStatistics& operator -= (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator-=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator -  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator -  (const TAccountStatistics& accountStatistics);
 
@@ -209,13 +209,12 @@ public:
     void IncrementChunkMergerNodeTraversals();
     void DecrementChunkMergerNodeTraversals();
 
+    void IncreaseClusterStatistics(const TAccountStatistics& statistics);
+
 private:
     TAccountStatistics* LocalStatisticsPtr_{};
 
     int MergeJobRateLimit_ = 1;
-
-    void IncreaseLocalStatistics(const TAccountStatistics& delta);
-    void IncreaseClusterStatistics(const TAccountStatistics& statistics);
 
     //! Indicates the number of nodes currently being processed by the chunk
     //! merger that belong to this account.

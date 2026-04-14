@@ -14,6 +14,7 @@
 #include <contrib/ydb/core/protos/blobstorage.pb.h>
 #include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/protos/datashard_config.pb.h>
+#include <contrib/ydb/core/protos/schemeshard_config.pb.h>
 #include <contrib/ydb/core/protos/kqp.pb.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 #include <contrib/ydb/core/protos/resource_broker.pb.h>

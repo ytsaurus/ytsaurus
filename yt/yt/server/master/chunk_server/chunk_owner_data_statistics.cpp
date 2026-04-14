@@ -18,7 +18,7 @@ bool TChunkOwnerDataStatistics::IsDataWeightValid() const
     return DataWeight != -1;
 }
 
-TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+= (const TChunkOwnerDataStatistics& other)
+TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+=(const TChunkOwnerDataStatistics& other)
 {
     UncompressedDataSize += other.UncompressedDataSize;
     CompressedDataSize += other.CompressedDataSize;
@@ -36,67 +36,14 @@ TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+= (const TChunkOw
     return *this;
 }
 
-TChunkOwnerDataStatistics TChunkOwnerDataStatistics::operator+ (const TChunkOwnerDataStatistics& other) const
+TChunkOwnerDataStatistics TChunkOwnerDataStatistics::operator+(const TChunkOwnerDataStatistics& other) const
 {
     auto result = *this;
     result += other;
     return result;
 }
 
-void TChunkOwnerDataStatistics::Save(TSaveContext& context) const
-{
-    using NYT::Save;
-
-    Save(context, UncompressedDataSize);
-    Save(context, CompressedDataSize);
-    Save(context, RowCount);
-    Save(context, ChunkCount);
-    Save(context, RegularDiskSpace);
-    Save(context, ErasureDiskSpace);
-    Save(context, DataWeight);
-}
-
-void TChunkOwnerDataStatistics::Load(TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, UncompressedDataSize);
-    Load(context, CompressedDataSize);
-    Load(context, RowCount);
-    Load(context, ChunkCount);
-    Load(context, RegularDiskSpace);
-    Load(context, ErasureDiskSpace);
-    Load(context, DataWeight);
-}
-
-void TChunkOwnerDataStatistics::Save(TSerializeNodeContext& context) const
-{
-    using NYT::Save;
-
-    Save(context, UncompressedDataSize);
-    Save(context, CompressedDataSize);
-    Save(context, RowCount);
-    Save(context, ChunkCount);
-    Save(context, RegularDiskSpace);
-    Save(context, ErasureDiskSpace);
-    Save(context, DataWeight);
-}
-
-void TChunkOwnerDataStatistics::Load(TMaterializeNodeContext& context)
-{
-    using NYT::Load;
-
-    Load(context, UncompressedDataSize);
-    Load(context, CompressedDataSize);
-    Load(context, RowCount);
-    Load(context, ChunkCount);
-    Load(context, RegularDiskSpace);
-    Load(context, ErasureDiskSpace);
-    Load(context, DataWeight);
-}
-
-
-bool TChunkOwnerDataStatistics::operator== (const TChunkOwnerDataStatistics& other) const
+bool TChunkOwnerDataStatistics::operator==(const TChunkOwnerDataStatistics& other) const
 {
     return
         UncompressedDataSize == other.UncompressedDataSize &&

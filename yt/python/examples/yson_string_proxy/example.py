@@ -8,7 +8,7 @@ import yt.yson
 
 
 def mapper(rec):
-    # В операциях всё работает так же, как и при чтении таблиц (см. ниже)
+    # Operations process works the same way as reading from tables.
     assert not yt.yson.is_unicode(rec["y"])
     assert yt.yson.get_bytes(rec["y"]) == b"\xFF"
     yield {"x": int(rec["x"]) + 1000}
@@ -24,25 +24,25 @@ def main():
     path = "//tmp/{}-yson-string-proxy".format(getpass.getuser())
     client.create("map_node", path, ignore_existing=True)
 
-    # Записываем в raw режиме, на вход - список бинарных строк.
+    # Writing in a raw mode. A list of binary strings goes to input.
     client.write_table(path + "/table", [br'{x=1;y="\xFF"};'], raw=True, format=yt.wrapper.YsonFormat())
 
-    # Читаем в YSON формате по умолчанию, записи раскодируются автоматически.
-    # Строки, которые не получилось раскодировать, превращаются в YsonStringProxy, их можно сравнивать
-    # и хэшировать как bytes.
+    # Reading in YSON format by default. Records are decoded automatically.
+    # Strings that could not be decoded are converted to `YsonStringProxy`.
+    # You compare and hash them as bytes.
     rows = list(client.read_table(path + "/table"))
     assert rows == [{"x": 1, "y": b"\xFF"}]
 
-    # Также можно проверять, смогла ли строка распарситься из указанной кодировки (по умолчанию UTF-8).
+    # You can also check if a string was parsed from the specified encoding (UTF-8 by default).
     value = rows[0]["y"]
     assert yt.yson.get_bytes(value) == b"\xFF"
     assert not yt.yson.is_unicode(value)
 
-    # Записываем в YSON формате, юникодные строки будут закодированы в utf-8
+    # Writing in YSON format. Unicode strings will be encoded using utf-8
     client.write_table(path + "/other", [{"y": 1}], format=yt.wrapper.YsonFormat())
     assert list(client.read_table(path + "/other")) == [{"y": 1}]
 
-    # Хотим использовать байтовый ключ в записи с обычными ключами.
+    # We want to use a byte key in a record with regular keys.
     client.write_table(
         path + "/mixed",
         [
@@ -55,12 +55,12 @@ def main():
     )
     assert list(client.read_table(path + "/mixed")) == [{"a": "a", "b": "b", b"\xFF": b"aaa\xFF"}]
 
-    # Хотим работать с чисто бинарными строками в записях, устанавливаем encoding=None.
+    # We want to work with pure binary strings in records. Than setting encoding=None.
     client.write_table(path + "/binary", [{b"x": b"aaa\xFF"}], format=yt.wrapper.YsonFormat(encoding=None))
     rows = list(client.read_table(path + "/binary", format=yt.wrapper.YsonFormat(encoding=None)))
     assert rows == [{b"x": b"aaa\xFF"}]
 
-    # В операциях всё работает так же.
+    # It works the same way in operations.
     client.run_map(mapper, path + "/table", path + "/output", format=yt.wrapper.YsonFormat())
     assert list(client.read_table(path + "/output")) == [{"x": 1001}]
 

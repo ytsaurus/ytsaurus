@@ -39,6 +39,12 @@ DEFINE_ENUM(EResourceTreeIncreaseResult,
     (AdditionalResourceLimitExceeded)
 );
 
+DEFINE_ENUM(EResourceTreeIncreasePreemptedResult,
+    (Success)
+    (NoResourceLimitsViolation)
+    (ElementIsNotAlive)
+);
+
 DEFINE_ENUM(EResourceTreeElementKind,
     (Operation)
     (Pool)

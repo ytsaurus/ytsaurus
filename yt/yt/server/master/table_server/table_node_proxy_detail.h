@@ -58,6 +58,13 @@ protected:
     const NYTree::IAttributeDictionary& CustomAttributes() const override;
     NYTree::IAttributeDictionary* MutableCustomAttributesOrNull() override;
 
+    using TObjectProxyBase::ValidatePermission;
+    void ValidatePermission(
+        NObjectServer::TObject* object,
+        NYTree::EPermission permission) override;
+
+    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
+
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
@@ -74,11 +81,15 @@ private:
     mutable TImmutableMountConfigAttributeDictionaryPtr ImmutableMountConfigAttributes_;
     TMutableMountConfigAttributeDictionaryPtr MutableMountConfigAttributes_;
 
+    std::optional<bool> CachedHasRowLevelAce_;
+
     template <class TMountConfigAttributeDictionary>
     static auto GetMountConfigAttributes(
         auto this_,
         auto& mountConfigAttributesHolder,
         auto baseAttributeProvider);
+
+    bool ShouldHideRowCount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,5 +109,3 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer
-
-

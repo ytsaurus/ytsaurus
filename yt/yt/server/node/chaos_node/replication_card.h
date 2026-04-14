@@ -51,7 +51,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocation*, Collocation);
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocationId, AwaitingCollocationId);
 
-    bool IsNormal() const override;
+    bool IsNormalState() const override;
 
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);

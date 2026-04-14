@@ -362,9 +362,9 @@ public:
         const IThroughputThrottlerPtr& mediumThrottler)
         : UnderlyingReader_(std::move(underlyingReader))
     {
-        ReaderAdapters_.reserve(UnderlyingReader_->Readers_.size());
+        UnderlyingReaders_.reserve(UnderlyingReader_->Readers_.size());
         for (int i = 0; i < std::ssize(UnderlyingReader_->Readers_); ++i) {
-            ReaderAdapters_.push_back(CreateReplicationReaderThrottlingAdapter(
+            UnderlyingReaders_.push_back(CreateReplicationReaderThrottlingAdapter(
                 UnderlyingReader_->Readers_[i],
                 bandwidthThrottler,
                 rpsThrottler,
@@ -379,7 +379,7 @@ public:
         return UnderlyingReader_->DoReadBlocks(
             options,
             blockIndexes,
-            ReaderAdapters_);
+            UnderlyingReaders_);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -413,7 +413,7 @@ public:
 private:
     const TIntrusivePtr<TAdaptiveRepairingErasureReader> UnderlyingReader_;
 
-    std::vector<IChunkReaderAllowingRepairPtr> ReaderAdapters_;
+    std::vector<IChunkReaderAllowingRepairPtr> UnderlyingReaders_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureReaderWithOverriddenThrottlers)

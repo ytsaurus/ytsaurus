@@ -1255,7 +1255,7 @@ inline void eval_divide(cpp_bin_float<Digits, DigitBase, Allocator, Exponent, Mi
    //
    // q * v + r = u
    //
-   // and hense:
+   // and hence:
    //
    // q + r/v = u/v
    //
@@ -1408,7 +1408,7 @@ inline typename std::enable_if<boost::multiprecision::detail::is_unsigned<U>::va
    //
    // q * v + r = u
    //
-   // and hense:
+   // and hence:
    //
    // q + r/v = u/v
    //

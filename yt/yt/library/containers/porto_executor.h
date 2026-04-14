@@ -21,6 +21,7 @@ struct TVolumeSpec
 {
     TString Path;
     TString Backend;
+    TString State;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +59,7 @@ struct TRunnableContainerSpec
     std::vector<TString> CGroupControllers;
     std::vector<TDevice> Devices;
     std::optional<TRootFS> RootFS;
+    std::vector<TBind> Binds;
 
     //! Allowed places for creation of volumes and layers. "***" means any place.
     std::vector<TString> Places;
@@ -108,10 +110,6 @@ struct IPortoExecutor
     // Starts polling a given container, returns future with exit code of finished process.
     virtual TFuture<int> PollContainer(const TString& container) = 0;
 
-    // Returns future with exit code of finished process.
-    // NB: Temporarily broken, see https://st.yandex-team.ru/PORTO-846 for details.
-    virtual TFuture<int> WaitContainer(const TString& container) = 0;
-
     virtual TFuture<TString> CreateVolume(
         const TString& path,
         const THashMap<TString, TString>& properties) = 0;
@@ -122,7 +120,7 @@ struct IPortoExecutor
     virtual TFuture<void> UnlinkVolume(
         const TString& path,
         const TString& name,
-        const TString& target = All) = 0;
+        const TString& target = AnyTarget) = 0;
     virtual TFuture<std::vector<TString>> ListVolumePaths() = 0;
     virtual TFuture<std::vector<TVolumeSpec>> GetVolumes() = 0;
 

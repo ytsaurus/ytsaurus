@@ -6,8 +6,8 @@ import os
 import yt.wrapper
 
 
-# Маппер это обычная функция-генератор. На вход она получает одну строку входной таблицы,
-# вернуть она должна те строки, которые мы хотим записать в выходную табицу.
+# A mapper is a regular generator function. It gets one row from the input table as input
+# and should return the rows which we want to write to the output table.
 def compute_emails_mapper(input_row):
     output_row = {}
 
@@ -18,13 +18,13 @@ def compute_emails_mapper(input_row):
 
 
 def main():
-    # You need to set up cluster address in YT_PROXY environment variable.
+    # You should set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
         raise RuntimeError("Environment variable YT_PROXY is empty")
     client = yt.wrapper.YtClient(cluster)
 
-    # Выходная таблица у нас будет лежать в tmp и содержать имя текущего пользователя.
+    # Our output table will be located in tmp and will contain a name of the current user.
     output_table = "//tmp/{}-pytutorial-map-emails".format(getpass.getuser())
 
     client.run_map(
@@ -35,7 +35,7 @@ def main():
     print(f"Output table: {ui_url}/#page=navigation&offsetMode=row&path={output_table}")
 
 
-# Очень важно использовать конструкцию `if __name__ == "__main__"'
-# в скриптах запускающих операции, без неё операции будут падать со странными ошибками.
+# It is very important to use the `if __name__ == "__main__"` construct
+# in scripts launching operations; operations will fail with unexpected errors without it.
 if __name__ == "__main__":
     main()

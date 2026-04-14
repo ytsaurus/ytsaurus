@@ -96,17 +96,12 @@ struct TSlotManagerConfig
     //! Root path for slot directories.
     std::vector<TSlotLocationConfigPtr> Locations;
 
-    //! Enable using tmpfs on the node.
-    bool EnableTmpfs;
-
     //! Use MNT_DETACH when tmpfs umount called. When option enabled the "Device is busy" error is impossible,
     //! because actual umount will be performed by Linux core asynchronously.
     bool DetachedTmpfsUmount;
 
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
-
-    bool EnableReadWriteCopy;
 
     bool EnableArtifactCopyTracking;
 
@@ -171,6 +166,12 @@ struct TSlotManagerDynamicConfig
 
     TDuration VolumeReleaseTimeout;
 
+    //! Timeout for removing volumes from porto place during slot cleanup.
+    TDuration RemoveVolumesFromPortoPlaceTimeout;
+
+    //! Timeout for removing layers from porto place during slot cleanup.
+    TDuration RemoveLayersFromPortoPlaceTimeout;
+
     bool AbortOnFreeVolumeSynchronizationFailed;
 
     bool AbortOnJobsDisabled;
@@ -180,6 +181,9 @@ struct TSlotManagerDynamicConfig
     bool RestartContainerAfterFailedDeviceCheck;
 
     NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
+    //! Copy artifacts without blocking any of the slot location IO invokers.
+    bool EnableAsyncArtifactCopy;
 
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
@@ -537,6 +541,8 @@ struct TTestingConfig
 {
     bool FailAddressResolve;
 
+    std::optional<TDuration> DelayInArtifactsCaching;
+
     REGISTER_YSON_STRUCT(TTestingConfig);
 
     static void Register(TRegistrar registrar);
@@ -583,8 +589,14 @@ struct TJobCommonConfig
 
     bool TreatJobProxyFailureAsAbort;
 
+    // These are panic buttons.
+    // They should not live for too long (we eventually should turn on
+    // TreatJobProxyFailureAsAbort).
+    bool TreatJobProxyPreparationFailureAsAbort;
+    bool TreatJobProxyIOErrorAsAbort;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
-    TString SetupCommandUser;
+    std::string SetupCommandUser;
 
     std::optional<int> StatisticsOutputTableCountLimit;
 
@@ -600,6 +612,9 @@ struct TJobCommonConfig
     TDuration JobCleanupTimeout;
 
     TDuration JobFinishTimeoutAfterInterruptionCallFailed;
+
+    //! Period between statistics reports to operations archive for running jobs.
+    std::optional<TDuration> StatisticsReportingPeriod;
 
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 

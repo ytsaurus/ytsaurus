@@ -19,7 +19,7 @@ from yt.common import YtError
 from yt_helpers import profiler_factory
 from yt_type_helpers import make_schema
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytest
 import builtins
 
@@ -143,6 +143,8 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             whole_table_reincarnation=True,
             interesting_chunks=None,
             inject_leader_switch=False):
+        assert not (interesting_chunks and whole_table_reincarnation)
+
         chunk_ids = get(f"{table}/@chunk_ids")
         if interesting_chunks:
             chunk_ids = list(filter(lambda chunk: chunk in interesting_chunks, chunk_ids))
@@ -154,9 +156,10 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 
         def chunks_reincarnated():
             new_chunk_ids = get(f"{table}/@chunk_ids")
+            if interesting_chunks and (builtins.set(chunk_ids) & builtins.set(new_chunk_ids)):
+                return False
+
             if not whole_table_reincarnation:
-                print_debug(f"Old chunks: {chunk_ids}")
-                print_debug(f"New chunks: {new_chunk_ids}")
                 return (builtins.set(chunk_ids) & builtins.set(new_chunk_ids)) != builtins.set(chunk_ids)
 
             if builtins.set(new_chunk_ids) & builtins.set(chunk_ids):
@@ -1050,9 +1053,11 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         self._wait_for_chunk_obsolescence(static_chunk)
 
+        min_allowed_creation_time = datetime.now(timezone.utc)
+
         self._wait_for_reincarnation(
             "//tmp/native",
-            datetime.utcnow(),
+            min_allowed_creation_time,
             whole_table_reincarnation=False)
 
         wait(lambda: reincarnations.get_delta() == 1, timeout=10)
@@ -1063,17 +1068,16 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
         sync_unmount_table("//tmp/foreign_dynamic")
 
-        self._wait_for_chunk_obsolescence(exported_dynamic_chunk)
-
         self._wait_for_reincarnation(
             "//tmp/native",
-            datetime.utcnow(),
+            # NB: different time is required to restart chunk scan.
+            min_allowed_creation_time - timedelta(seconds=0.5),
             whole_table_reincarnation=False,
             interesting_chunks=[exported_dynamic_chunk])
 
         assert get("//tmp/native/@chunk_ids")[0] != exported_dynamic_chunk
 
-        wait(lambda: reincarnations.get_delta() == 3, timeout=10)
+        wait(lambda: reincarnations.get_delta() == 2, timeout=10)
         wait(lambda: teleportations.get_delta() == 1, timeout=10)
         wait(lambda: dynamic_tables.get_delta() == 1, timeout=10)
 

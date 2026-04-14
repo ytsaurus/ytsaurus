@@ -2,6 +2,7 @@
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <library/cpp/getopt/last_getopt.h>
 
 using namespace NYT;
@@ -45,7 +46,7 @@ int main(int argc, const char *argv[])
             .Run();
         futures.emplace_back(asyncResult);
     }
-    AllSucceeded(futures).Get();
+    WaitFor(AllSucceeded(futures)).ThrowOnError();
 
     Cout << "Enqueue time: " << (TInstant::Now() - startTime).MilliSeconds() << " ms" << Endl;
 

@@ -284,17 +284,13 @@ void HTTPHandler::processQuery(
     /// compressed using internal algorithm. This is not reflected in HTTP headers.
     bool internal_compression = params.getParsed<bool>("compress", false);
 
-    /// At least, we should postpone sending of first buffer_size result bytes
-    size_t buffer_size_total = std::max(
-        params.getParsed<size_t>("buffer_size", context->getSettingsRef()[Setting::http_response_buffer_size]),
-        static_cast<size_t>(DBMS_DEFAULT_BUFFER_SIZE));
+    size_t buffer_size_memory = params.getParsed<size_t>("http_response_buffer_size", context->getSettingsRef()[Setting::http_response_buffer_size]);
+    buffer_size_memory = params.getParsed<size_t>("buffer_size", buffer_size_memory);
 
     /// If it is specified, the whole result will be buffered.
     ///  First ~buffer_size bytes will be buffered in memory, the remaining bytes will be stored in temporary file.
     bool buffer_until_eof = params.getParsed<bool>("wait_end_of_query", context->getSettingsRef()[Setting::http_wait_end_of_query]);
 
-    size_t buffer_size_http = DBMS_DEFAULT_BUFFER_SIZE;
-    size_t buffer_size_memory = (buffer_size_total > buffer_size_http) ? buffer_size_total : 0;
 
     bool enable_http_compression = params.getParsed<bool>("enable_http_compression", context->getSettingsRef()[Setting::enable_http_compression]);
     Int64 http_zlib_compression_level
@@ -344,7 +340,7 @@ void HTTPHandler::processQuery(
             auto tmp_data = server.context()->getTempDataOnDisk();
             cascade_buffers_lazy.emplace_back([tmp_data](const WriteBufferPtr &) -> WriteBufferPtr
             {
-                return std::make_unique<TemporaryDataBuffer>(tmp_data.get());
+                return std::make_unique<TemporaryDataBuffer>(tmp_data);
             });
         }
         else

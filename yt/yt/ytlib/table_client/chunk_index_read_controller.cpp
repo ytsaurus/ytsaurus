@@ -272,13 +272,13 @@ private:
         int BlockIndex;
         int SectorIndex;
 
-        bool operator == (const TSectorAddress& other) const
+        bool operator==(const TSectorAddress& other) const
         {
             return BlockIndex == other.BlockIndex &&
                 SectorIndex == other.SectorIndex;
         }
 
-        bool operator < (const TSectorAddress& other) const
+        bool operator<(const TSectorAddress& other) const
         {
             return BlockIndex < other.BlockIndex ||
                 (BlockIndex == other.BlockIndex && SectorIndex < other.SectorIndex);

@@ -39,6 +39,8 @@ ui_container_name=yt.frontend
 yt_container_name=yt.backend
 prometheus_container_name=yt.prometheus
 
+ui_auth_cookie_domain=''
+ui_external_proxy=''
 ui_proxy_internal=${yt_container_name}:80
 
 port_range_start=24400
@@ -57,6 +59,8 @@ Usage: $script_name [-h|--help]
                     [--yt-version version]
                     [--ui-version version]
                     [--ui-internal-proxy proxy]
+                    [--ui-external-proxy proxy]
+                    [--ui-auth-cookie-domain .my.domain]
                     [--ui-network docker_network_name]
                     [--yt-skip-pull true|false]
                     [--ui-skip-pull true|false]
@@ -141,6 +145,14 @@ while [[ $# -gt 0 ]]; do
         ;;
     --ui-proxy-internal)
         ui_proxy_internal="$2"
+        shift 2
+        ;;
+    --ui-external-proxy)
+        ui_external_proxy="$2"
+        shift 2
+        ;;
+    --ui-auth-cookie-domain)
+        ui_auth_cookie_domain="$2"
         shift 2
         ;;
     --yt-skip-pull)
@@ -459,6 +471,8 @@ interface_container=$(
         -e PROXY_INTERNAL=$ui_proxy_internal \
         -e APP_ENV=local \
         -e APP_INSTALLATION=${app_installation} \
+        -e LOCALMODE_EXTERNAL_PROXY=${ui_external_proxy} \
+        -e AUTH_COOKIE_DOMAIN=${ui_auth_cookie_domain} \
         ${ui_run_params} \
         --rm \
         $ui_image

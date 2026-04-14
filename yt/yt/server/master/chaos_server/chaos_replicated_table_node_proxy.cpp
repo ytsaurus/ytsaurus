@@ -187,6 +187,8 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundleId)
+            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
@@ -250,6 +252,15 @@ private:
                 if (const auto& bundle = trunkNode->ChaosCellBundle()) {
                     BuildYsonFluently(consumer)
                         .Value(bundle->GetName());
+                    return true;
+                } else {
+                    return false;
+                }
+
+            case EInternedAttributeKey::ChaosCellBundleId:
+                if (const auto& bundle = trunkNode->ChaosCellBundle()) {
+                    BuildYsonFluently(consumer)
+                        .Value(bundle->GetId());
                     return true;
                 } else {
                     return false;
@@ -324,7 +335,7 @@ private:
                 auto name = ConvertTo<std::string>(value);
 
                 const auto& chaosManager = Bootstrap_->GetChaosManager();
-                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
+                auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(name, /*activeLifeStageOnly*/ true);
 
                 auto* lockedImpl = LockThisImpl();
                 chaosManager->SetChaosCellBundle(lockedImpl, cellBundle);
@@ -594,17 +605,10 @@ private:
 
     TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardFetchOptions& options = {})
     {
-        const auto& connection = Bootstrap_->GetClusterConnection();
-        auto clientOptions = TClientOptions::FromAuthenticationIdentity(NRpc::GetCurrentAuthenticationIdentity());
-        auto client = connection->CreateClient(clientOptions);
-        const auto* impl = GetThisImpl();
-        TGetReplicationCardOptions getCardOptions;
-        static_cast<TReplicationCardFetchOptions&>(getCardOptions) = options;
-        getCardOptions.BypassCache = true;
-        return client->GetReplicationCard(impl->GetReplicationCardId(), getCardOptions)
-            .Apply(BIND([client] (const TReplicationCardPtr& card) {
-                return card;
-            }));
+        return ::NYT::NChaosServer::GetReplicationCard(
+            Bootstrap_->GetClusterConnection(),
+            GetThisImpl()->GetReplicationCardId(),
+            options);
     }
 
     static TFuture<std::vector<TReplicationCardId>> GetCollocatedReplicationCards(
@@ -612,7 +616,7 @@ private:
         TReplicationCardId replicationCardId,
         NNative::IConnectionPtr connection)
     {
-        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardIdOrThrow(replicationCardId));
+        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByObjectIdOrThrow(replicationCardId));
         proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
@@ -679,8 +683,20 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
             [context, response] (int&& result) {
                 response->set_tablet_count(result);
+
+                context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+                    response->tablets_size(),
+                    response->tablet_cells_size(),
+                    response->replicas_size(),
+                    response->indices_size());
             })));
     } else {
+        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+            response->tablets_size(),
+            response->tablet_cells_size(),
+            response->replicas_size(),
+            response->indices_size());
+
         context->Reply();
     }
 }
@@ -691,7 +707,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     if (request->has_constraints()) {
         auto constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
-        THROW_ERROR_EXCEPTION("Alteration with constraints is not supported for chaos replicated tables")
+        THROW_ERROR_EXCEPTION("Table schema alter with constraints is not supported for chaos replicated tables")
             << TErrorAttribute("constraints", constraints);
     }
 
@@ -776,7 +792,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     bool isQueueObjectBefore = table->IsTrackedQueueObject();
 
-    tableManager->GetOrCreateNativeMasterTableSchema(effectiveSchema, table);
+    tableManager->GetOrCreateNativeMasterTableSchema(std::move(effectiveSchema), table);
 
     bool isQueueObjectAfter = table->IsTrackedQueueObject();
     const auto& chaosManager = Bootstrap_->GetChaosManager();

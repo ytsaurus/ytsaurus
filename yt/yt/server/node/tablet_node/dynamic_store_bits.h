@@ -182,7 +182,7 @@ public:
         return Header_ != nullptr;
     }
 
-    bool operator == (TEditList<T> other) const
+    bool operator==(TEditList<T> other) const
     {
         return Header_ == other.Header_;
     }
@@ -261,12 +261,12 @@ public:
     }
 
 
-    const T& operator[] (int index) const
+    const T& operator[](int index) const
     {
         return Begin()[index];
     }
 
-    T& operator[] (int index)
+    T& operator[](int index)
     {
         return Begin()[index];
     }
@@ -346,9 +346,9 @@ public:
         {
             auto* lock = row.BeginLocks(keyColumnCount);
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
-                lock->PrepareTimestamp = NTableClient::NotPreparedTimestamp;
+                lock->PrepareTimestamp.store(NTableClient::NotPreparedTimestamp);
                 lock->WriteTransactionPrepareTimestamp = NTableClient::NotPreparedTimestamp;
-                lock->WriteRevisionList = nullptr;
+                lock->WriteRevisionList.store(nullptr);
 
                 YT_VERIFY(uintptr_t(&lock->SharedWriteTransactions) %
                     alignof(TLockDescriptor::TSharedWriteTransactions) == 0);
@@ -429,72 +429,72 @@ public:
     TValueList GetFixedValueList(int columnIndex, int keyColumnCount, int columnLockCount) const
     {
         YT_ASSERT(columnIndex >= keyColumnCount);
-        return TValueList(GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1]);
+        return TValueList(GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1].load());
     }
 
     void SetFixedValueList(int columnIndex, TValueList list, int keyColumnCount, int columnLockCount)
     {
         YT_ASSERT(columnIndex >= keyColumnCount);
-        GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1] = list.Header_;
+        GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1].store(list.Header_);
     }
 
 
     TRevisionList GetDeleteRevisionList(int keyColumnCount, int columnLockCount) const
     {
-        return TRevisionList(GetLists(keyColumnCount, columnLockCount)[0]);
+        return TRevisionList(GetLists(keyColumnCount, columnLockCount)[0].load());
     }
 
     void SetDeleteRevisionList(TRevisionList list, int keyColumnCount, int columnLockCount)
     {
-        GetLists(keyColumnCount, columnLockCount)[0] = list.Header_;
+        GetLists(keyColumnCount, columnLockCount)[0].store(list.Header_);
     }
 
 
     static TRevisionList GetWriteRevisionList(const TLockDescriptor& lock)
     {
-        return TRevisionList(lock.WriteRevisionList);
+        return TRevisionList(lock.WriteRevisionList.load());
     }
 
     static void SetWriteRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
-        lock.WriteRevisionList = list.Header_;
+        lock.WriteRevisionList.store(list.Header_);
     }
 
 
     static TRevisionList GetExclusiveLockRevisionList(const TLockDescriptor& lock)
     {
-        return TRevisionList(lock.ExclusiveLockRevisionList);
+        return TRevisionList(lock.ExclusiveLockRevisionList.load());
     }
 
     static void SetExclusiveLockRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
-        lock.ExclusiveLockRevisionList = list.Header_;
+        lock.ExclusiveLockRevisionList.store(list.Header_);
     }
 
 
     static TRevisionList GetSharedWriteLockRevisionList(const TLockDescriptor& lock)
     {
-        return TRevisionList(lock.SharedWriteLockRevisionList);
+        return TRevisionList(lock.SharedWriteLockRevisionList.load());
     }
 
     static void SetSharedWriteLockRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
-        lock.SharedWriteLockRevisionList = list.Header_;
+        lock.SharedWriteLockRevisionList.store(list.Header_);
     }
 
 
     static TRevisionList GetReadLockRevisionList(const TLockDescriptor& lock)
     {
-        return TRevisionList(lock.ReadLockRevisionList);
+        return TRevisionList(lock.ReadLockRevisionList.load());
     }
 
     static void SetReadLockRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
-        lock.ReadLockRevisionList = list.Header_;
+        lock.ReadLockRevisionList.store(list.Header_);
     }
 
 
-    bool operator == (TSortedDynamicRow other) const
+    bool operator==(TSortedDynamicRow other) const
     {
         return Header_ == other.Header_;
     }
@@ -503,9 +503,14 @@ private:
     TSortedDynamicRowHeader* Header_;
 
 
-    TEditListHeader** GetLists(int keyColumnCount, int columnLockCount) const
+    std::atomic<TEditListHeader*>* GetLists(int keyColumnCount, int columnLockCount)
     {
-        return reinterpret_cast<TEditListHeader**>(const_cast<TLockDescriptor*>(BeginLocks(keyColumnCount)) + columnLockCount);
+        return reinterpret_cast<std::atomic<TEditListHeader*>*>(BeginLocks(keyColumnCount) + columnLockCount);
+    }
+
+    const std::atomic<TEditListHeader*>* GetLists(int keyColumnCount, int columnLockCount) const
+    {
+        return const_cast<TSortedDynamicRow*>(this)->GetLists(keyColumnCount, columnLockCount);
     }
 };
 
@@ -548,7 +553,7 @@ struct TDynamicRowRef
     }
 
 
-    bool operator == (const TDynamicRowRef& other) const
+    bool operator==(const TDynamicRowRef& other) const
     {
         return
             Store == other.Store &&

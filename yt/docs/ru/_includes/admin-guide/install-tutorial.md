@@ -28,6 +28,7 @@ yt create map_node //home/tutorial
 Назначьте минимально необходимые права (ACL) для пользователя (команды предполагают, что пользователь имеет права на создание таблиц и выполнение запросов):
 
 ```bash
+yt add-member robot-tutorial superusers
 yt set //home/tutorial/@acl/end '{action=allow; subjects=[robot-tutorial]; permissions=[read; write; create; remove; mount]}'
 yt set //sys/tablet_cell_bundles/sys/@acl/end '{subjects=[robot-tutorial];permissions=[use];action=allow}'
 yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-tutorial]; permissions=[use]}'
@@ -50,12 +51,10 @@ kubectl create secret generic yt-tutorial-secret \
 ## Установка Helm‑чарта
 
 Типично, установку можно осуществить так:
-
 ```bash
-helm install oci://ghcr.io/ytsaurus/tutorial-chart \
+helm install ytsaurus-tutorial oci://ghcr.io/ytsaurus/tutorial-chart \
      --version {{tutorial-version}} \
-     ytsaurus-tutorial \
-     --set tutorial.args.proxy="http://http-proxies.default.svc.cluster.local" \
+     --set tutorial.args.proxy="http://http-proxies.<namespace>.svc.cluster.local" \
      -n <namespace>
 ```
 

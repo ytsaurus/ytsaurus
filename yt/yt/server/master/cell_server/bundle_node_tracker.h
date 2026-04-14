@@ -15,7 +15,6 @@ namespace NYT::NCellServer {
 struct IBundleNodeTracker
     : public TRefCounted
 {
-public:
     using TNodeSet = THashSet<const NNodeTrackerServer::TNode*>;
 
     virtual void Initialize() = 0;

@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
+#include <yt/yt/ytlib/shell/public.h>
+
 #include <yt/yt/client/api/transaction.h>
 
 namespace NYT::NApi::NNative {
@@ -24,6 +26,80 @@ using namespace NJobTrackerClient;
 using namespace NConcurrency;
 
 using NScheduler::AllocationIdFromJobId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobShellCommandOutputReader
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TJobShellCommandOutputReader(
+        IClientPtr client,
+        TJobId jobId,
+        std::string shellId,
+        std::optional<TString> shellName,
+        const NLogging::TLogger& logger)
+        : Client_(std::move(client))
+        , JobId_(jobId)
+        , ShellName_(std::move(shellName))
+        , ShellId_(std::move(shellId))
+        , Logger(logger)
+    { }
+
+    TFuture<TSharedRef> Read() override
+    {
+        auto parameters = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("operation").Value("poll")
+                .Item("shell_id").Value(ShellId_)
+            .EndMap();
+
+        return Client_->PollJobShell(JobId_, ShellName_, parameters, {}).Apply(BIND(
+            [this, this_ = MakeStrong(this)] (const TErrorOr<TPollJobShellResponse>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    auto error = TError(rspOrError);
+
+                    if (error.FindMatching(NShell::EErrorCode::ShellExited) ||
+                        error.FindMatching(NShell::EErrorCode::ShellManagerShutDown))
+                    {
+                        YT_LOG_DEBUG(error, "Job shell exited (JobId: %v, ShellId: %v)", JobId_, ShellId_);
+                        return TSharedRef();
+                    }
+
+                    THROW_ERROR_EXCEPTION("Error polling job shell")
+                        << TErrorAttribute("job_id", JobId_)
+                        << TErrorAttribute("shell_name", ShellName_)
+                        << TErrorAttribute("shell_id", ShellId_)
+                        << error;
+                }
+
+                const auto& rsp = rspOrError.Value();
+                auto result = ConvertToNode(rsp.Result);
+                auto resultMap = result->AsMap();
+
+                auto output = resultMap->FindChildValue<std::string>("output");
+
+                if (!output) {
+                    THROW_ERROR_EXCEPTION("No output from job shell")
+                        << TErrorAttribute("job_id", JobId_)
+                        << TErrorAttribute("shell_name", ShellName_)
+                        << TErrorAttribute("shell_id", ShellId_);
+                }
+
+                return TSharedRef::FromString(*output);
+            }));
+    }
+
+private:
+    const IClientPtr Client_;
+    const TJobId JobId_;
+    const std::optional<TString> ShellName_;
+    const std::string ShellId_;
+
+    const NLogging::TLogger Logger;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobShellCommandOutputReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +215,7 @@ TPollJobShellResponse TClient::DoPollJobShell(
     TJobShellDescriptorKey jobShellDescriptorKey{
         .User = Options_.GetAuthenticatedUser(),
         .JobId = jobId,
-        .ShellName = shellName
+        .ShellName = shellName,
     };
 
     auto jobShellDescriptor = WaitFor(jobShellDescriptorCache->Get(jobShellDescriptorKey))
@@ -174,6 +250,39 @@ TPollJobShellResponse TClient::DoPollJobShell(
             ? TYsonString(rsp->logging_context(), NYson::EYsonType::MapFragment)
             : TYsonString(),
     };
+}
+
+IAsyncZeroCopyInputStreamPtr TClient::DoRunJobShellCommand(
+    TJobId jobId,
+    const std::optional<std::string>& shellName,
+    const std::string& command,
+    const TRunJobShellCommandOptions& /*options*/)
+{
+    // TODO(bystrovserg): Just remove it after TJobShellDescriptorKey migrates to std::string.
+    auto shellNameConverted = shellName ? std::optional<TString>(*shellName) : std::nullopt;
+
+    auto spawnParameters = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("operation").Value("spawn")
+            .Item("command").Value(command)
+        .EndMap();
+
+    auto rsp = WaitFor(PollJobShell(jobId, shellNameConverted, spawnParameters, {}))
+        .ValueOrThrow();
+
+    auto result = ConvertToNode(rsp.Result);
+    auto shellId = result->AsMap()->GetChildValueOrThrow<std::string>("shell_id");
+
+    YT_LOG_DEBUG("Job shell spawned (JobId: %v, ShellId: %v)",
+        jobId,
+        shellId);
+
+    return New<TJobShellCommandOutputReader>(
+        StaticPointerCast<IClient>(MakeStrong(this)),
+        jobId,
+        shellId,
+        std::move(shellNameConverted),
+        Logger);
 }
 
 void TClient::DoAbortJob(

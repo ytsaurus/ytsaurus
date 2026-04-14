@@ -75,7 +75,7 @@ public:
         , Description_(std::move(description))
     { }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser)
     {
         auto string = parser->ParseString32();
         auto bytes = PyObjectPtr(PyBytes_FromStringAndSize(string.begin(), string.size()));
@@ -113,7 +113,7 @@ public:
         : Description_(std::move(description))
     { }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser)
     {
         PyObjectPtr result;
         try {
@@ -326,7 +326,7 @@ public:
         }
     }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser)
     {
         //auto type = reinterpret_cast<PyTypeObject*>(PyType_.ptr());
         Py::Tuple t(1);
@@ -399,7 +399,7 @@ public:
             validateOptionalOnRuntime))
     { }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser)
     {
         auto list = PyObjectPtr(PyList_New(0));
         if (!list) {
@@ -447,7 +447,7 @@ public:
         }
     }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser)
     {
         auto tuple = PyObjectPtr(PyTuple_New(std::ssize(ElementConverters_)));
         if (!tuple) {
@@ -490,7 +490,7 @@ public:
             validateOptionalOnRuntime))
     { }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser)
     {
         auto dict = PyObjectPtr(PyDict_New());
         if (!dict) {
@@ -565,7 +565,7 @@ public:
         }
     }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser, TSkiffRowContext* context)
+    PyObjectPtr operator()(TCheckedInDebugSkiffParser* parser, TSkiffRowContext* context)
     {
         auto obj = StructConverter_(parser);
         try {

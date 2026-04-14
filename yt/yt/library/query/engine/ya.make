@@ -26,6 +26,7 @@ SRCS(
     web_assembly_data_transfer.cpp
     web_assembly_type_builder.cpp
     GLOBAL query_engine_config.cpp  # TODO(dtorilov): Fix static initializer and remove this GLOBAL.
+    GLOBAL query_evaluator.cpp
 )
 
 IF (OPENSOURCE)
@@ -210,6 +211,29 @@ LLVM_BC(
         hll_14_merge_state_merge
         hll_14_merge_state_finalize
 )
+
+LLVM_BC(
+    udf/uniq.cpp
+    NAME uniq
+    SYMBOLS
+        uniq_init
+        uniq_update
+        uniq_merge
+        uniq_finalize
+        uniq_state_init
+        uniq_state_update
+        uniq_state_merge
+        uniq_state_finalize
+        uniq_merge_init
+        uniq_merge_update
+        uniq_merge_merge
+        uniq_merge_finalize
+        uniq_merge_state_init
+        uniq_merge_state_update
+        uniq_merge_state_merge
+        uniq_merge_state_finalize
+)
+
 
 LLVM_BC(
     udf/array_agg.cpp

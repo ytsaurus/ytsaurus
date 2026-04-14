@@ -1,13 +1,14 @@
 #include "queue_controller.h"
 
-#include "snapshot.h"
-#include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
+#include "pass_profiler.h"
 #include "profile_manager.h"
 #include "queue_exporter.h"
 #include "queue_exporter_old.h"
-#include "queue_export_manager.h"
+#include "queue_exporter_profile_manager.h"
+#include "snapshot.h"
+#include "snapshot_representation.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -18,6 +19,8 @@
 
 #include <yt/yt/client/api/internal_client.h>
 #include "yt/yt/client/api/table_client.h"
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -87,20 +90,19 @@ public:
         TLogger logger,
         TQueueAgentClientDirectoryPtr clientDirectory,
         bool enableVerboseLogging)
-        : Row_(std::move(row))
-        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
+        : ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
         , Registrations_(std::move(registrations))
         , ClientDirectory_(std::move(clientDirectory))
         , Logger(logger)
         , EnableVerboseLogging_(enableVerboseLogging)
+        , QueueSnapshot_(New<TQueueSnapshot>(std::move(row)))
     { }
 
     TQueueSnapshotPtr Build()
     {
         QueueSnapshot_->PassIndex = PreviousQueueSnapshot_->PassIndex + 1;
         QueueSnapshot_->PassInstant = TInstant::Now();
-        QueueSnapshot_->Row = Row_;
         QueueSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
         if (QueueSnapshot_->Row.QueueAgentBanned.value_or(false)) {
@@ -132,7 +134,6 @@ public:
     }
 
 private:
-    const TQueueTableRow Row_;
     const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
     const TQueueSnapshotPtr PreviousQueueSnapshot_;
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
@@ -140,7 +141,7 @@ private:
     const TLogger Logger;
     const bool EnableVerboseLogging_;
 
-    TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
+    TQueueSnapshotPtr QueueSnapshot_;
 
     void GuardedBuild()
     {
@@ -150,7 +151,7 @@ private:
             ReplicatedTableMappingRow_->Validate();
         }
 
-        auto queueRef = QueueSnapshot_->Row.Ref;
+        auto queuePath = QueueSnapshot_->Row.Path;
 
         // TODO(achulkov2): Check partition count of control queue for replicated tables.
         // TODO(achulkov2): Check schema for chaos_replicated_table object (we only check for a sync replica below)?
@@ -266,7 +267,7 @@ private:
     {
         YT_LOG_DEBUG("Collecting queue cumulative data weights");
 
-        auto queueRef = QueueSnapshot_->Row.Ref;
+        auto queuePath = QueueSnapshot_->Row.Path;
 
         std::vector<std::pair<int, i64>> tabletAndRowIndices;
 
@@ -317,7 +318,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TConsumerSnapshotMap = THashMap<TCrossClusterReference, TConsumerSnapshotPtr>;
+using TConsumerSnapshotMap = THashMap<TConsumerPath, TConsumerSnapshotPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -332,17 +333,20 @@ public:
         const IObjectStore* store,
         const IQueueExportManagerPtr& queueExportManager,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
+        const TProfiler& profiler,
+        const TLogger& logger,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
         : Leading_(leading)
         , QueueRow_(queueRow)
         , ReplicatedTableMappingRow_(replicatedTableMappingRow)
-        , QueueRef_(queueRow.Ref)
+        , QueuePath_(queueRow.Path)
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueControllerLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
+        , QueueSnapshot_(New<TQueueSnapshot>(queueRow))
+        , Logger(logger)
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
@@ -350,35 +354,28 @@ public:
                 .Period = dynamicConfig->PassPeriod,
                 .Splay = dynamicConfig->PassPeriod,
             }))
-        , ProfileManager_(CreateQueueProfileManager(
-            QueueAgentProfilerGlobal()
-                .WithRequiredTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithRequiredTag("queue_cluster", QueueRef_.Cluster)
-                .WithTag("queue_tag", queueRow.QueueProfilingTag.value_or(NoneProfilingTag)),
-            Logger))
+        , BaseProfiler_(profiler)
+        , ProfileManager_(CreateQueueProfileManager(profiler, Logger, queueRow, leading))
+        , PassProfiler_(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)))
         , AlertManager_(CreateAlertManager(
             Logger,
-            QueueAgentProfilerGlobal()
-                .WithTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithTag("queue_cluster", QueueRef_.Cluster)
-                .WithPrefix("/queue"),
+            ProfileManager_.Acquire()->GetProfiler(EProfilerScope::AlertManager),
             Invoker_))
-        , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
-        , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
+        , TrimAlertCollector_(CreateAlertCollector(AlertManager_.Acquire()))
+        , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_.Acquire()))
         , QueueExportManager_(queueExportManager)
     {
         // Prepare initial erroneous snapshot.
-        auto queueSnapshot = New<TQueueSnapshot>();
-        queueSnapshot->Row = std::move(queueRow);
+        auto queueSnapshot = New<TQueueSnapshot>(std::move(queueRow));
         queueSnapshot->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
         queueSnapshot->Error = TError("Queue is not processed yet");
-        QueueSnapshot_.Exchange(std::move(queueSnapshot));
+        QueueSnapshot_.Store(std::move(queueSnapshot));
     }
 
     void Initialize() const
     {
         PassExecutor_->Start();
-        AlertManager_->Start();
+        AlertManager_.Acquire()->Start();
 
         YT_LOG_INFO("Queue controller started");
     }
@@ -398,7 +395,7 @@ public:
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, queueExportsProgressOrError, _1))
+            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
             .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
         .EndMap();
@@ -410,7 +407,10 @@ public:
 
         const auto& queueRow = std::any_cast<const TQueueTableRow&>(row);
 
-        QueueRow_.Store(queueRow);
+        auto oldRow = QueueRow_.Exchange(queueRow);
+        if (oldRow.QueueProfilingTag != queueRow.QueueProfilingTag) {
+            UpdateProfilers();
+        }
     }
 
     void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
@@ -430,7 +430,7 @@ public:
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-        AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
+        AlertManager_.Acquire()->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
         {
             auto guard = ReaderGuard(QueueExportsLock_);
@@ -449,8 +449,8 @@ public:
 
     void Stop() override
     {
-        TrimAlertCollector_->Stop();
-        QueueExportsAlertCollector_->Stop();
+        TrimAlertCollector_.Acquire()->Stop();
+        QueueExportsAlertCollector_.Acquire()->Stop();
 
         {
             auto guard = ReaderGuard(QueueExportsLock_);
@@ -484,7 +484,7 @@ private:
     bool Leading_;
     NThreading::TAtomicObject<TQueueTableRow> QueueRow_;
     NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
-    const TCrossClusterReference QueueRef_;
+    const TQueuePath QueuePath_;
     const IObjectStore* ObjectStore_;
 
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
@@ -498,11 +498,15 @@ private:
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
-    const IQueueProfileManagerPtr ProfileManager_;
-    const IAlertManagerPtr AlertManager_;
+
+    const TProfiler BaseProfiler_;
+
+    TAtomicIntrusivePtr<IQueueProfileManager> ProfileManager_;
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_;
+    TAtomicIntrusivePtr<IAlertManager> AlertManager_;
     // TODO(achulkov2, nadya73): Separate trim into separate periodic executor.
-    const IAlertCollectorPtr TrimAlertCollector_;
-    const IAlertCollectorPtr QueueExportsAlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> TrimAlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> QueueExportsAlertCollector_;
 
     const IQueueExportManagerPtr QueueExportManager_;
 
@@ -510,21 +514,56 @@ private:
     TQueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
+    void UpdateProfilers()
+    {
+        ProfileManager_.Store(CreateQueueProfileManager(BaseProfiler_, Logger, QueueRow_.Load(), Leading_));
+        PassProfiler_.Store(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)));
+
+        auto alertManager = CreateAlertManager(
+            Logger,
+            ProfileManager_.Acquire()->GetProfiler(EProfilerScope::AlertManager),
+            Invoker_);
+
+        TrimAlertCollector_.Acquire()->Stop();
+        QueueExportsAlertCollector_.Acquire()->Stop();
+
+        TrimAlertCollector_.Store(CreateAlertCollector(alertManager));
+        QueueExportsAlertCollector_.Store(CreateAlertCollector(alertManager));
+        alertManager->Start();
+        AlertManager_.Store(alertManager);
+
+        auto guard = WriterGuard(QueueExportsLock_);
+        if (!QueueExports_.IsOK()) {
+            return;
+        }
+        for (const auto& [_, exporter] : QueueExports_.Value()) {
+            exporter->Stop();
+        }
+        QueueExports_ = TError("Updating exports due to profiling tag update");
+    }
+
     void Pass()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        auto startTime = TInstant::Now();
+        auto previousQueueSnapshot = QueueSnapshot_.Acquire();
+        auto passProfiler = PassProfiler_.Acquire();
+        if (previousQueueSnapshot) {
+            passProfiler->OnStart(previousQueueSnapshot->PassIndex + 1, startTime);
+        }
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
         YT_LOG_INFO("Queue controller pass started");
 
         bool enableVerboseLogging = false;
+        TRichYPath queuePath(QueuePath_);
         {
             auto config = DynamicConfig_.Acquire();
 
             enableVerboseLogging = config->EnableVerboseLogging;
 
-            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
+            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), queuePath);
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
                 YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (Delay: %v)", config->ControllerDelay);
@@ -535,12 +574,12 @@ private:
         if (enableVerboseLogging) {
             auto config = DynamicConfig_.Acquire();
 
-            auto it = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), static_cast<TRichYPath>(QueueRef_));
+            auto it = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), queuePath);
             auto isVerboseLoggingObject = it != config->VerboseLoggingObjects.end();
             enableVerboseLogging = enableVerboseLogging && isVerboseLoggingObject;
         }
 
-        auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
+        auto registrations = ObjectStore_->GetRegistrations(TGenericObjectPath(QueuePath_), EObjectKind::Queue);
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {
             YT_LOG_DEBUG(
@@ -553,13 +592,13 @@ private:
         auto nextQueueSnapshot = New<TQueueSnapshotBuildSession>(
             QueueRow_.Load(),
             ReplicatedTableMappingRow_.Load(),
-            QueueSnapshot_.Acquire(),
+            previousQueueSnapshot,
             std::move(registrations),
             Logger,
             ClientDirectory_,
             enableVerboseLogging)
             ->Build();
-        auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
+        QueueSnapshot_.Store(nextQueueSnapshot);
 
         // XXX(apachee): Is it ok that we do not check snapshot error here?
 
@@ -567,6 +606,7 @@ private:
 
         auto finalizePass = Finally([&] {
             YT_LOG_INFO("Queue controller pass finished");
+            passProfiler->OnFinish(TInstant::Now() - startTime);
         });
 
         if (nextQueueSnapshot->Banned) {
@@ -584,7 +624,7 @@ private:
         if (Leading_) {
             YT_LOG_DEBUG("Queue controller is leading, performing mutating operations");
 
-            ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
+            ProfileManager_.Acquire()->Profile(previousQueueSnapshot, nextQueueSnapshot);
 
             UpdateExports(nextQueueSnapshot);
 
@@ -604,7 +644,7 @@ private:
         // to allow trimming exported rows, but prevent trimming past them.
 
         auto finalizeUpdate = Finally([&] {
-            QueueExportsAlertCollector_->PublishAlerts();
+            QueueExportsAlertCollector_.Acquire()->PublishAlerts();
         });
 
         auto queueExporterConfig = DynamicConfig_.Acquire()->QueueExporter;
@@ -613,29 +653,30 @@ private:
         // COMPAT(apachee): Create queue exporter depending on implementation set in config.
         // NB(apachee): We re-create exporters here and not in OnDynamicConfigChanged for simplicity.
         auto createQueueExporter = [&] (TString name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
+            auto exporterProfileManager = CreateQueueExporterProfileManager(BaseProfiler_, name, Logger, QueueRow_.Load(), Leading_);
             switch (queueExporterConfig.Implementation) {
                 case EQueueExporterImplementation::New:
                     return CreateQueueExporter(
                         std::move(name),
-                        QueueRef_,
+                        QueuePath_,
                         std::move(exportConfig),
                         queueExporterConfig,
                         ClientDirectory_->GetUnderlyingClientDirectory(),
                         Invoker_,
                         QueueExportManager_,
-                        CreateAlertCollector(AlertManager_),
-                        ProfileManager_->GetQueueProfiler(),
+                        CreateAlertCollector(AlertManager_.Acquire()),
+                        std::move(exporterProfileManager),
                         Logger);
                 case EQueueExporterImplementation::Old:
                     return New<TQueueExporterOld>(
                         std::move(name),
-                        QueueRef_,
+                        QueuePath_,
                         std::move(exportConfig),
                         queueExporterConfig,
                         ClientDirectory_->GetUnderlyingClientDirectory(),
                         Invoker_,
-                        CreateAlertCollector(AlertManager_),
-                        ProfileManager_->GetQueueProfiler(),
+                        CreateAlertCollector(AlertManager_.Acquire()),
+                        std::move(exporterProfileManager),
                         Logger);
             }
 
@@ -655,7 +696,7 @@ private:
             queueExporterConfig.Implementation);
         if (!staticExportConfigError.IsOK()) {
             QueueExports_ = staticExportConfigError;
-            QueueExportsAlertCollector_->StageAlert(CreateAlert(
+            QueueExportsAlertCollector_.Acquire()->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
                 "Failed to update exports due to misconfiguration",
                 /*tags*/ {},
@@ -767,15 +808,15 @@ private:
         try {
             GuardedTrim();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while trimming queue");
-            TrimAlertCollector_->StageAlert(CreateAlert(
+            YT_LOG_WARNING(ex, "Error while trimming queue");
+            TrimAlertCollector_.Acquire()->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerTrimFailed,
                 "Error while trimming queue",
                 /*tags*/ {},
                 ex));
         }
 
-        TrimAlertCollector_->PublishAlerts();
+        TrimAlertCollector_.Acquire()->PublishAlerts();
     }
 
     struct TPartitionTrimContext
@@ -843,19 +884,19 @@ private:
 
     struct TQueueTrimContext
     {
-        TCrossClusterReference Ref;
+        TQueuePath Path;
         TQueueSnapshotConstPtr ReplicaSnapshot;
         TYPath ObjectPath;
         std::vector<TPartitionTrimContext> Partitions;
         // TODO(achulkov2): Add upstream replica id field + server-side check in Trim.
 
-        TQueueTrimContext(TCrossClusterReference ref, TQueueSnapshotConstPtr replicaSnapshot)
-            : Ref(std::move(ref))
+        TQueueTrimContext(TQueuePath ref, TQueueSnapshotConstPtr replicaSnapshot)
+            : Path(std::move(ref))
             , ReplicaSnapshot(std::move(replicaSnapshot))
         {
             auto replicaQueueObjectId = ReplicaSnapshot->Row.ObjectId;
             if (!replicaQueueObjectId) {
-                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %Qv, trimming iteration skipped", Ref);
+                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %Qv, trimming iteration skipped", Path);
             }
             ObjectPath = FromObjectId(*replicaQueueObjectId);
 
@@ -874,7 +915,7 @@ private:
         auto objectType = *queueSnapshot->Row.ObjectType;
         switch (objectType) {
             case EObjectType::Table:
-                return {{QueueRef_, queueSnapshot}};
+                return {{QueuePath_, queueSnapshot}};
             case EObjectType::ReplicatedTable:
                 return GetReplicatedTableReplicasToTrim(queueSnapshot);
             case EObjectType::ChaosReplicatedTable:
@@ -889,13 +930,13 @@ private:
         std::vector<TQueueTrimContext> replicaContexts;
 
         for (const auto& replica : queueSnapshot->ReplicatedTableMappingRow->GetReplicas()) {
-            auto replicaRef = TCrossClusterReference::FromRichYPath(replica);
-            auto replicaSnapshot = DynamicPointerCast<const TQueueSnapshot>(ObjectStore_->FindSnapshot(replicaRef));
+            TQueuePath replicaPath{replica};
+            auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaRef);
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaPath);
             }
 
-            auto& replicaContext = replicaContexts.emplace_back(replicaRef, replicaSnapshot);
+            auto& replicaContext = replicaContexts.emplace_back(replicaPath, replicaSnapshot);
             for (const auto& [partitionContext, partitionSnapshot] : Zip(replicaContext.Partitions, replicaSnapshot->PartitionSnapshots)) {
                 partitionContext.Update({.MaxTrimmedRowCount = partitionSnapshot->UpperRowIndex});
             }
@@ -917,15 +958,14 @@ private:
 
         std::vector<TQueueTrimContext> replicaContexts;
         for (const auto& replicaInfo : GetValues(replicationCard->Replicas)) {
-            TCrossClusterReference replicaRef{
-                .Cluster = replicaInfo.ClusterName,
-                .Path = replicaInfo.ReplicaPath,
-            };
-            auto replicaSnapshot = DynamicPointerCast<const TQueueSnapshot>(ObjectStore_->FindSnapshot(replicaRef));
+            auto path = TRichYPath(replicaInfo.ReplicaPath);
+            path.SetCluster(replicaInfo.ClusterName);
+            TQueuePath replicaPath(std::move(path));
+            auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
-                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaRef);
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaPath);
             }
-            replicaContexts.emplace_back(replicaRef, replicaSnapshot);
+            replicaContexts.emplace_back(replicaPath, replicaSnapshot);
         }
 
         std::vector<std::optional<TTimestamp>> minReplicationTimestamps(queueSnapshot->PartitionCount);
@@ -943,7 +983,7 @@ private:
         std::vector<TFuture<std::vector<TErrorOr<i64>>>> asyncSafeTrimRowCounts;
         std::vector<IInternalClientPtr> internalClients;
         for (const auto& replicaContext : replicaContexts) {
-            auto internalClient = DynamicPointerCast<IInternalClient>(ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster));
+            auto internalClient = DynamicPointerCast<IInternalClient>(ClientDirectory_->GetClientOrThrow(replicaContext.Path.GetCluster().value()));
             std::vector<TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
             for (int partitionIndex = 0; partitionIndex < replicaContext.ReplicaSnapshot->PartitionCount; ++partitionIndex) {
                 YT_VERIFY(minReplicationTimestamps[partitionIndex]);
@@ -964,7 +1004,7 @@ private:
             if (!safeTrimRowCountsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(
                     "Unable to get safe trim row counts for replica %Qv, trimming iteration skipped",
-                    replicaContext.Ref)
+                    replicaContext.Path)
                     << safeTrimRowCountsOrError;
             }
 
@@ -1002,12 +1042,12 @@ private:
             return;
         }
 
-        auto timestampProvider = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster)->GetTimestampProvider();
+        auto timestampProvider = ClientDirectory_->GetClientOrThrow(QueuePath_.GetCluster().value())->GetTimestampProvider();
         YT_VERIFY(timestampProvider);
 
         auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
         if (!currentTimestampOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", QueueRef_.Cluster)
+            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", QueuePath_.GetCluster().value())
                 << currentTimestampOrError;
         }
         auto currentTimestamp = currentTimestampOrError.Value();
@@ -1026,11 +1066,11 @@ private:
         std::vector<TIntrusivePtr<TQueueTrimSession>> trimSessions;
         for (const auto& replicaContext : replicaContexts) {
             trimSessions.push_back(New<TQueueTrimSession>(
-                QueueRef_,
+                QueuePath_,
                 queueSnapshot,
                 replicaContext,
                 currentTimestamp,
-                ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster),
+                ClientDirectory_->GetClientOrThrow(replicaContext.Path.GetCluster().value()),
                 aggregatedQueueExportsProgress,
                 ObjectStore_,
                 Logger));
@@ -1047,7 +1087,7 @@ private:
         std::vector<TError> trimSessionErrors;
         for (const auto& [replicaContext, trimSessionPotentialError] : Zip(replicaContexts, trimSessionPotentialErrors)) {
             if (!trimSessionPotentialError.IsOK()) {
-                trimSessionErrors.push_back(trimSessionPotentialError << TErrorAttribute("replica", replicaContext.Ref));
+                trimSessionErrors.push_back(trimSessionPotentialError << TErrorAttribute("replica", replicaContext.Path));
             }
         }
 
@@ -1158,7 +1198,7 @@ private:
 
     struct TQueueTrimSession final
     {
-        const TCrossClusterReference QueueRef;
+        const TQueuePath QueuePath;
         const TQueueSnapshotPtr QueueSnapshot;
         //! NB: Modified in process of the session.
         TQueueTrimContext Context;
@@ -1169,10 +1209,10 @@ private:
         const IObjectStore* ObjectStore;
         NLogging::TLogger Logger;
 
-        THashMap<TCrossClusterReference, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
+        THashMap<TConsumerPath, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
 
         TQueueTrimSession(
-            TCrossClusterReference queueRef,
+            TQueuePath queuePath,
             TQueueSnapshotPtr queueSnapshot,
             TQueueTrimContext context,
             TTimestamp currentTimestamp,
@@ -1180,14 +1220,14 @@ private:
             TAggregatedQueueExportsProgress aggregatedQueueExportsProgress,
             const IObjectStore* objectStore,
             const NLogging::TLogger& logger)
-            : QueueRef(std::move(queueRef))
+            : QueuePath(std::move(queuePath))
             , QueueSnapshot(std::move(queueSnapshot))
             , Context(std::move(context))
             , CurrentTimestamp(currentTimestamp)
             , Client(std::move(client))
             , AggregatedQueueExportsProgress(std::move(aggregatedQueueExportsProgress))
             , ObjectStore(objectStore)
-            , Logger(logger.WithTag("Replica: %v, ObjectPath: %v", Context.Ref, Context.ObjectPath))
+            , Logger(logger.WithTag("Replica: %v, ObjectPath: %v", Context.Path, Context.ObjectPath))
         { }
 
         TFuture<void> Run()
@@ -1209,8 +1249,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Cannot perform trimming iteration, control queue %Qv and replica queue %Qv do not "
                     "have the same number of partitions: %v vs %v, respectively; this is probably a misconfiguration",
-                    QueueRef,
-                    Context.Ref,
+                    QueuePath,
+                    Context.Path,
                     QueueSnapshot->PartitionCount,
                     Context.ReplicaSnapshot->PartitionCount);
             }
@@ -1238,14 +1278,14 @@ private:
         //! Collects vital consumer snapshots from queue consumer registrations and validates error-correctness.
         void CollectVitalConsumerSubSnapshots()
         {
-            auto registrations = ObjectStore->GetRegistrations(QueueRef, EObjectKind::Queue);
+            auto registrations = ObjectStore->GetRegistrations(TGenericObjectPath(QueuePath), EObjectKind::Queue);
 
             VitalConsumerSubSnapshots.reserve(registrations.size());
             for (const auto& registration : registrations) {
                 if (!registration.Vital) {
                     continue;
                 }
-                auto consumerSnapshot = DynamicPointerCast<const TConsumerSnapshot>(ObjectStore->FindSnapshot(registration.Consumer));
+                auto consumerSnapshot = ObjectStore->FindConsumerSnapshot(registration.Consumer);
                 if (!consumerSnapshot) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to missing registered vital consumer %Qv",
@@ -1253,29 +1293,29 @@ private:
                 } else if (!consumerSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
-                        consumerSnapshot->Row.Ref)
+                        consumerSnapshot->Row.Path)
                         << consumerSnapshot->Error;
                 }
-                auto it = consumerSnapshot->SubSnapshots.find(QueueRef);
+                auto it = consumerSnapshot->SubSnapshots.find(QueuePath);
                 if (it == consumerSnapshot->SubSnapshots.end()) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
-                        consumerSnapshot->Row.Ref);
+                        consumerSnapshot->Row.Path);
                 }
                 const auto& consumerSubSnapshot = it->second;
                 if (!consumerSubSnapshot->Error.IsOK()) {
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %Qv",
-                        consumerSnapshot->Row.Ref)
+                        consumerSnapshot->Row.Path)
                         << consumerSubSnapshot->Error;
                 }
-                VitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = consumerSubSnapshot;
+                VitalConsumerSubSnapshots[consumerSnapshot->Row.Path] = consumerSubSnapshot;
             }
 
             if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {
                 THROW_ERROR_EXCEPTION(
                     "Attempted trimming iteration on queue %Qv with no vital consumers and no configured static table exports",
-                    QueueRef);
+                    QueuePath);
             }
         }
 
@@ -1327,7 +1367,7 @@ private:
                 } else if (!replicaPartitionSnapshot->Error.IsOK()) {
                     partitionContext.Update({.PartitionError = replicaPartitionSnapshot->Error});
                 } else {
-                    for (const auto& [consumerRef, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
+                    for (const auto& [consumerPath, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
                         // NB: There is no guarantee that consumer snapshot consists of the same number of partitions.
                         if (partitionIndex < std::ssize(consumerSubSnapshot->PartitionSnapshots)) {
                             const auto& consumerPartitionSubSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
@@ -1338,7 +1378,7 @@ private:
                         } else {
                             partitionContext.Update({.PartitionError = TError(
                                 "Queue sub-snapshot for consumer %Qv does not contain a snapshot for partition %v",
-                                consumerRef,
+                                consumerPath,
                                 partitionIndex)});
                             break;
                         }
@@ -1373,7 +1413,7 @@ private:
                     TGetOrderedTabletSafeTrimRowCountRequest{
                         Context.ObjectPath,
                         partitionContext.PartitionIndex,
-                        maxTimestampToTrim
+                        maxTimestampToTrim,
                     });
             }
 
@@ -1383,7 +1423,7 @@ private:
             if (!safeTrimRowCountsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(
                     "Unable to get safe trim row counts for replica %Qv to satisfy configured trimming parameters, trimming iteration skipped",
-                    Context.Ref)
+                    Context.Path)
                     << safeTrimRowCountsOrError;
             }
             const auto& safeTrimRowCountsOrErrors = safeTrimRowCountsOrError.Value();
@@ -1434,7 +1474,7 @@ private:
                 std::optional<i64> minTrimmedRowCount;
 
                 // Handle vital consumers.
-                for (const auto& [consumerRef, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
+                for (const auto& [consumerPath, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
                     minTrimmedRowCount = MinOrValue<i64>(
                         minTrimmedRowCount,
                         // NextRowIndex should always be present in the snapshot.
@@ -1537,75 +1577,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TErrorQueueController
-    : public IQueueController
-{
-public:
-    TErrorQueueController(
-        TQueueTableRow row,
-        std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
-        TError error)
-        : Row_(std::move(row))
-        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
-        , Error_(std::move(error))
-        , Snapshot_(New<TQueueSnapshot>())
-    {
-        Snapshot_->Error = Error_;
-    }
-
-    void OnDynamicConfigChanged(
-        const TQueueControllerDynamicConfigPtr& /*oldConfig*/,
-        const TQueueControllerDynamicConfigPtr& /*newConfig*/) override
-    { }
-
-    void OnRowUpdated(std::any /*row*/) override
-    {
-        // Row update is handled in UpdateQueueController.
-    }
-
-    void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& /*row*/) override
-    {
-        // Row update is handled in UpdateQueueController.
-    }
-
-    void Stop() override
-    { }
-
-    TRefCountedPtr GetLatestSnapshot() const override
-    {
-        return Snapshot_;
-    }
-
-    void BuildOrchid(NYson::IYsonConsumer* consumer) const override
-    {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("row").Value(Row_)
-                .Item("replicated_table_mapping_row").Value(ReplicatedTableMappingRow_)
-                .Item("status").BeginMap()
-                    .Item("error").Value(Error_)
-                .EndMap()
-                .Item("partitions").BeginList().EndList()
-            .EndMap();
-    }
-
-    EQueueFamily GetFamily() const override
-    {
-        return EQueueFamily::Null;
-    }
-
-    bool IsLeading() const override
-    {
-        return false;
-    }
-
-private:
-    const TQueueTableRow Row_;
-    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
-    const TError Error_;
-    const TQueueSnapshotPtr Snapshot_;
-};
-
+using TErrorQueueController = TErrorController<TQueueTableRow, TQueueSnapshot>;
 DEFINE_REFCOUNTED_TYPE(TErrorQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1624,14 +1596,17 @@ bool UpdateQueueController(
     // Recreating an error controller on each iteration seems ok as it does
     // not have any state. By doing so we make sure that the error of a queue controller
     // is not stale.
+    const auto Logger = QueueControllerLogger().WithTag("Queue: %v, Leading: %v", row.Path, leading);
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
         controller = New<TErrorQueueController>(row, replicatedTableMappingRow, TError("Queue synchronization error") << *row.SynchronizationError);
+        YT_LOG_WARNING(row.SynchronizationError.value(), "Queue synchronization error");
         return true;
     }
 
     auto queueFamily = DeduceQueueFamily(row, replicatedTableMappingRow);
     if (!queueFamily.IsOK()) {
+        YT_LOG_WARNING(queueFamily, "Error while deducing queue family");
         controller = New<TErrorQueueController>(row, replicatedTableMappingRow, queueFamily);
         return true;
     }
@@ -1651,6 +1626,8 @@ bool UpdateQueueController(
                 store,
                 queueExportManager,
                 dynamicConfig,
+                QueueAgentProfiler(),
+                Logger,
                 std::move(clientDirectory),
                 std::move(invoker));
             newController->Initialize();

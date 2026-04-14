@@ -89,6 +89,7 @@ struct IStore
 
     virtual TStoreId GetId() const = 0;
     virtual TTablet* GetTablet() const = 0;
+    virtual TTabletId GetTabletId() const = 0;
 
     virtual i64 GetDataWeight() const = 0;
     virtual i64 GetCompressedDataSize() const = 0;
@@ -136,6 +137,10 @@ struct IStore
 
     //! Fills store descriptor to replicate to another tablet servant.
     virtual void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) = 0;
+
+    virtual void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStore)
@@ -188,7 +193,7 @@ struct IChunkStore
 
     virtual TBackendReaders GetBackendReaders(
         std::optional<EWorkloadCategory> workloadCategory) = 0;
-    virtual void InvalidateCachedReaders(const TTableSettings& settings) = 0;
+    virtual void InvalidateCachedReaders(const TTabletStoreReaderConfigPtr& storeReaderConfig) = 0;
     virtual NChunkClient::TChunkReplicaWithMediumSlimList GetReplicas(
         NNodeTrackerClient::TNodeId localNodeId) = 0;
 

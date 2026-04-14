@@ -35,3 +35,17 @@ func TestAgentIsHealthy(t *testing.T) {
 	defer agent.Stop()
 	waitHealthCheck(t, env, client)
 }
+
+func TestAgentCoreMonitor(t *testing.T) {
+	_, agent, client := helpers.PrepareMonitoring(t)
+	t.Cleanup(agent.Stop)
+
+	handler := "core_monitor/"
+	rsp := client.MakeGetRequest(handler+client.Proxy, api.RequestParams{})
+	require.Equal(t, http.StatusServiceUnavailable, rsp.StatusCode)
+
+	agent.Start()
+	defer agent.Stop()
+	rsp = client.MakeGetRequest(handler+client.Proxy, api.RequestParams{})
+	require.Equal(t, http.StatusOK, rsp.StatusCode)
+}

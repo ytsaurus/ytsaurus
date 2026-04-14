@@ -28,6 +28,7 @@ struct TYqlPluginOptions
     NYson::TYsonString DqGatewayConfig;
     NYson::TYsonString YtflowGatewayConfig;
     NYson::TYsonString PqGatewayConfig;
+    NYson::TYsonString SolomonGatewayConfig;
     NYson::TYsonString DqManagerConfig;
     NYson::TYsonString FileStorageConfig;
     NYson::TYsonString OperationAttributes;
@@ -47,6 +48,7 @@ struct TYqlPluginOptions
 struct TYqlPluginDynamicConfig
 {
     NYson::TYsonString GatewaysConfig;
+    NYson::TYsonString MaxSupportedYqlVersion;
 };
 
 struct TQueryResult

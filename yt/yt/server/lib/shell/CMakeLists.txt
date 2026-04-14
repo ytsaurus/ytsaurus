@@ -23,6 +23,8 @@ target_compile_options(server-lib-shell PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-lib-shell PUBLIC

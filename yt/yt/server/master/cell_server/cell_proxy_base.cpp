@@ -2,7 +2,6 @@
 
 #include "area.h"
 #include "cell_base.h"
-#include "private.h"
 #include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
@@ -107,6 +106,7 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetReplicated(true)
         .SetMandatory(true));
+    descriptors->push_back(EInternedAttributeKey::TabletCellBundleId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellBundleId));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Area)
         .SetWritable(true)
@@ -219,6 +219,7 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::CellBundleId:
+        case EInternedAttributeKey::TabletCellBundleId:
             if (!cell->CellBundle()) {
                 break;
             }

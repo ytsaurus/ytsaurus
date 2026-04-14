@@ -69,7 +69,7 @@ void CollectAndDumpMemoryProfile(const TString& memoryProfilePath, tcmalloc::Pro
 {
     auto profile = NYTProf::CaptureHeapProfile(profileType);
     SymbolizeByExternalPProf(&profile, NYTProf::TSymbolizationOptions{
-        .RunTool = [] (const std::vector<TString>& args) {
+        .RunTool = [] (const std::vector<std::string>& args) {
             TShellCommand command{args[0], TList<TString>{args.begin() + 1, args.end()}};
             command.Run();
         },

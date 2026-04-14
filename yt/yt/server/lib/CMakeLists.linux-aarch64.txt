@@ -43,25 +43,26 @@ add_subdirectory(lsm)
 add_subdirectory(tablet_node)
 add_subdirectory(node)
 add_subdirectory(rpc)
+add_subdirectory(tablet_balancer)
 add_subdirectory(tablet_server)
 add_subdirectory(cell_server)
 add_subdirectory(discovery_server)
 add_subdirectory(incumbent_client)
 add_subdirectory(object_server)
 add_subdirectory(table_server)
-add_subdirectory(tablet_balancer)
 add_subdirectory(timestamp_server)
 add_subdirectory(sequoia)
 add_subdirectory(cypress_election)
 add_subdirectory(cypress_registrar)
 add_subdirectory(chaos_cache)
+add_subdirectory(cross_cluster_replicated_state)
 add_subdirectory(user_job)
 add_subdirectory(logging)
 add_subdirectory(shell)
 add_subdirectory(shuffle_server)
 add_subdirectory(alert_manager)
 add_subdirectory(component_state_checker)
-add_subdirectory(cross_cluster_replicated_state)
+add_subdirectory(s3)
 
 add_library(ytserver INTERFACE)
 
@@ -72,6 +73,8 @@ target_compile_options(ytserver INTERFACE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(ytserver INTERFACE

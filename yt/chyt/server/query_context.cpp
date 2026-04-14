@@ -214,6 +214,14 @@ TQueryContext::TQueryContext(
     InitialAddress = (clientInfo.initial_address != nullptr) ? clientInfo.initial_address->toString() : "";
     InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
 
+    if (QueryKind == EQueryKind::InitialQuery) {
+        const auto& queryParams = context->getQueryParameters();
+        if (auto it = queryParams.find(ParamTransactionId); it != queryParams.end()) {
+            ParentTransactionId = TTransactionId::FromString(it->second);
+            YT_LOG_INFO("Query has parent transaction (ParentTransactionId: %v)", ParentTransactionId);
+        }
+    }
+
     if (QueryKind == EQueryKind::SecondaryQuery) {
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
@@ -237,7 +245,11 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
+    SessionSettings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
+
+    if (ParentTransactionId) {
+        SessionSettings->Execution->TableReadLockMode = ETableReadLockMode::Sync;
+    }
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -250,7 +262,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent,
         QueryKind);
 
-    if (Settings->Testing->HangControlInvoker) {
+    if (SessionSettings->Testing->HangControlInvoker) {
         auto longAction = BIND([] {
             std::this_thread::sleep_for(std::chrono::hours(1));
         });
@@ -262,7 +274,7 @@ TQueryContext::TQueryContext(
 TQueryContext::TQueryContext(THost* host, NNative::IClientPtr client)
     : QueryKind(EQueryKind::NoQuery)
     , Host(host)
-    , Settings(New<TQuerySettings>())
+    , SessionSettings(New<TQuerySettings>())
     , Client_(std::move(client))
 { }
 
@@ -313,6 +325,11 @@ const NNative::IClientPtr& TQueryContext::Client() const
     }
 
     return Client_;
+}
+
+TQuerySettingsPtr TQueryContext::GetContextSettings(DB::ContextPtr context) const
+{
+    return ParseCustomSettings(SessionSettings, context->getSettingsRef().changes(), Logger);
 }
 
 void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
@@ -445,7 +462,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             std::move(attributes),
             {TErrorOr(EPreliminaryCheckPermissionResult::RowLevelAceNotPresent)});
     } else if (QueryKind == EQueryKind::InitialQuery) {
-        switch (Settings->Execution->TableReadLockMode) {
+        switch (SessionSettings->Execution->TableReadLockMode) {
             case ETableReadLockMode::Sync: {
                 LockAndFetchAttributesSync(pathsToFetch);
                 break;
@@ -516,14 +533,14 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             .ThrowOnError();
 
         auto attributesUnderTx = attributesUnderTxFuture
-            .AsUnique().Get()
+            .AsUnique().GetOrCrash()
             .ValueOrThrow();
 
         auto preliminaryCheckPermissionResultsFromCache = preliminaryCheckPermissionResultsFromCacheFuture
-            .AsUnique().Get()
+            .AsUnique().GetOrCrash()
             .ValueOrThrow();
         auto preliminaryCheckPermissionResultsUnderTx = preliminaryCheckPermissionResultsUnderTxFuture
-            .AsUnique().Get()
+            .AsUnique().GetOrCrash()
             .ValueOrThrow();
 
         AddAttributesToSnapshot(
@@ -546,7 +563,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         if (attributesOrError.IsOK()) {
             const auto& attributes = attributesOrError.Value();
 
-            if (Settings->Testing->CheckChytBanned) {
+            if (Host->GetConfig()->CheckChytBanned) {
                 if (attributes->Get<bool>("chyt_banned", false)) {
                     THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
                 }
@@ -577,11 +594,13 @@ void TQueryContext::InitializeQueryWriteTransaction()
             << TErrorAttribute("transaction_id", WriteTransactionId)
             << TErrorAttribute("query_kind", QueryKind);
     }
-    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(
+        ETransactionType::Master,
+        {.ParentId = ParentTransactionId}))
         .ValueOrThrow();
     WriteTransactionId = InitialQueryWriteTransaction_->GetId();
 
-    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v)", WriteTransactionId);
+    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v, ParentTransactionId: %v)", WriteTransactionId, ParentTransactionId);
 }
 
 void TQueryContext::CommitWriteTransaction()
@@ -600,12 +619,14 @@ void TQueryContext::InitializeQueryReadTransactionFuture()
 
     YT_VERIFY(QueryKind == EQueryKind::InitialQuery);
 
-    auto transactionFuture = Client()->StartNativeTransaction(ETransactionType::Master);
+    auto transactionFuture = Client()->StartNativeTransaction(
+        ETransactionType::Master,
+        {.ParentId = ParentTransactionId});
     auto timestampFuture = Client()->GetTimestampProvider()->GenerateTimestamps();
 
     ReadTransactionFuture_ = AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()})
         .Apply(BIND([transactionFuture, timestampFuture] {
-            return TTransactionWithTimestamp{transactionFuture.Get().Value(), timestampFuture.Get().Value()};
+            return TTransactionWithTimestamp{transactionFuture.GetOrCrash().Value(), timestampFuture.GetOrCrash().Value()};
         }));
 
     YT_LOG_INFO("Query read transaction future initialized");
@@ -699,9 +720,9 @@ void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
 
     SaveQueryReadTransaction();
 
-    auto locks = locksFuture.Get().Value();
-    auto attributes = attributesFuture.Get().Value();
-    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.Get().Value();
+    auto locks = locksFuture.GetOrCrash().Value();
+    auto attributes = attributesFuture.GetOrCrash().Value();
+    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.GetOrCrash().Value();
 
     std::vector<TYPath> pathsToRefetch;
     std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> preliminaryResultsForRefetchedPaths;
@@ -845,7 +866,7 @@ void TQueryContext::AddAttributesToSnapshot(
 TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
 {
     // NB: Reading by node id makes sense only for Sync mode.
-    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::Sync) {
+    if (SessionSettings->Execution->TableReadLockMode != ETableReadLockMode::Sync) {
         return path;
     }
 
@@ -961,7 +982,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
 
     auto client = Client();
     auto connection = client->GetNativeConnection();
-    TMasterReadOptions masterReadOptions = *Settings->CypressReadOptions;
+    TMasterReadOptions masterReadOptions = *SessionSettings->CypressReadOptions;
 
     auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
@@ -972,7 +993,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         auto nodeIdOrPath = GetNodeIdOrPath(path);
         auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
         req->Tag() = index;
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), Host->GetObjectAttributeNamesToFetch());
         SetTransactionId(req, transactionId);
         SetCachingHeader(req, connection, masterReadOptions);
 
@@ -1175,9 +1196,9 @@ void InvalidateCache(
     std::optional<EInvalidateCacheMode> invalidateMode)
 {
     if (!invalidateMode) {
-        invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+        invalidateMode = queryContext->SessionSettings->Caching->TableAttributesInvalidateMode;
     }
-    auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
+    auto timeout = queryContext->SessionSettings->Caching->InvalidateRequestTimeout;
     queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, *invalidateMode, timeout);
 }
 

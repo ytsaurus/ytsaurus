@@ -29,6 +29,7 @@ import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetCurrentUser;
 import tech.ytsaurus.client.request.GetFlowView;
 import tech.ytsaurus.client.request.GetFlowViewResult;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
@@ -680,4 +681,12 @@ public interface ApiServiceClient extends TransactionalClient {
      */
     CompletableFuture<FlowExecuteResult> flowExecute(FlowExecute req);
 
+    /**
+     * Retrieves the current client authorized user.
+     * <p>
+     *
+     * @param req The request object containing no parameters.
+     * @return A {@link CompletableFuture} that completes with the current user name.
+     */
+    CompletableFuture<String> getCurrentUser(GetCurrentUser req);
 }

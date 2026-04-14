@@ -8,6 +8,10 @@
 
 #include <yt/yt/library/codegen/module.h>
 
+#include <yt/yt/library/query/base/private.h>
+
+#include <yt/yt/core/crypto/crypto.h>
+
 #include <llvm/IR/Module.h>
 
 // TODO(sandello):
@@ -25,6 +29,7 @@ namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NWebAssembly;
 
 using NCodegen::TCGModule;
 using NCodegen::EExecutionBackend;
@@ -1772,7 +1777,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                             {
                                 lhsData,
                                 lhsLength,
-                                rhsData
+                                rhsData,
                             });
                         break;
                     }
@@ -1782,7 +1787,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                             {
                                 lhsData,
                                 lhsLength,
-                                rhsData
+                                rhsData,
                             });
                         break;
                     }
@@ -1792,7 +1797,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                             {
                                 lhsData,
                                 lhsLength,
-                                rhsData
+                                rhsData,
                             });
                         break;
                     }
@@ -1903,7 +1908,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                         lhsData,
                         lhsLength,
                         rhsData,
-                        rhsLength
+                        rhsLength,
                     });
 
                 evalData = cmpResultToResult(builder, cmpResult, opcode);
@@ -2482,7 +2487,8 @@ TCodegenExpression MakeCodegenLikeExpr(
     EStringMatchOp opcode,
     size_t patternId,
     std::optional<size_t> escapeCharacterId,
-    int contextIndex)
+    int contextIndex,
+    bool nullable)
 {
     return [
         =
@@ -2535,7 +2541,7 @@ TCodegenExpression MakeCodegenLikeExpr(
                 builder.GetOpaqueValue(contextIndex),
             });
 
-        return TCGValue::LoadFromRowValue(builder, result, EValueType::Boolean);
+        return TCGValue::LoadFromRowValue(builder, result, nullable, EValueType::Boolean);
     };
 }
 
@@ -2722,7 +2728,7 @@ size_t MakeCodegenNestedGroupOp(
                     builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(rowSize),
-                    newValuesPtr
+                    newValuesPtr,
                 });
 
             Type* closureType = TClosureTypeBuilder::Get(
@@ -2778,7 +2784,7 @@ size_t MakeCodegenNestedGroupOp(
                             builder.GetExecutionContext(),
                             bufferRef,
                             builder->getInt32(rowSize),
-                            newValuesPtrRef
+                            newValuesPtrRef,
                         });
                 });
 
@@ -2856,7 +2862,7 @@ void MakeCodegenSubqueryWriteOp(
                 builder.GetExecutionContext(),
                 builder->getInt32(rowSize),
                 collect.ClosurePtr,
-                collect.Function
+                collect.Function,
             });
     };
 }
@@ -3024,26 +3030,8 @@ size_t MakeCodegenMultiJoinOp(
 
                     const auto& equations = parameters[index].Equations;
                     for (size_t column = 0; column < equations.size(); ++column) {
-                        if (!equations[column].second) {
-                            auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
-                            joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
-                        }
-                    }
-
-                    TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
-                        *fragmentInfos,
-                        rowBuilder.Buffer,
-                        keyValues,
-                        rowBuilder.ExpressionClosurePtr,
-                    });
-
-                    for (size_t column = 0; column < equations.size(); ++column) {
-                        if (equations[column].second) {
-                            auto evaluatedColumn = CodegenFragment(
-                                evaluatedColumnsBuilder,
-                                equations[column].first);
-                            evaluatedColumn.StoreToValues(evaluatedColumnsBuilder, keyValues, column);
-                        }
+                        auto joinKeyValue = CodegenFragment(rowBuilder, equations[column]);
+                        joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
                     }
                 }
 
@@ -3066,7 +3054,7 @@ size_t MakeCodegenMultiJoinOp(
                         builder.GetExecutionContext(),
                         joinClosureRef,
                         primaryValuesPtrRef,
-                        keyPtrsRef
+                        keyPtrsRef,
                     });
 
                 return builder->CreateIsNotNull(finished);
@@ -3134,7 +3122,7 @@ size_t MakeCodegenMultiJoinOp(
                 collectRows.Function,
 
                 consumeJoinedRows.ClosurePtr,
-                consumeJoinedRows.Function
+                consumeJoinedRows.Function,
             });
     };
 
@@ -3550,7 +3538,7 @@ size_t MakeCodegenOnceOp(
                 {
                     builder->ViaClosure(onceWrapper.ClosurePtr),
                     builder.Buffer,
-                    values
+                    values,
                 });
         };
 
@@ -3613,7 +3601,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                     builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(rowSize),
-                    newValuesPtr
+                    newValuesPtr,
                 });
 
             if (combineGroupOpWithOrderOp) {
@@ -3766,7 +3754,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                                 builder.GetExecutionContext(),
                                 bufferRef,
                                 builder->getInt32(rowSize),
-                                newValuesPtrRef
+                                newValuesPtrRef,
                             });
                     });
                 }
@@ -3916,7 +3904,7 @@ size_t MakeCodegenGroupTotalsOp(
                     builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(groupRowSize),
-                    newValuesPtr
+                    newValuesPtr,
                 });
 
             Value* groupValues = builder->CreateLoad(TTypeBuilder<TValue*>::Get(builder->getContext()), newValuesPtr);
@@ -3980,7 +3968,7 @@ size_t MakeCodegenGroupTotalsOp(
             {
                 builder.GetExecutionContext(),
                 collect.ClosurePtr,
-                collect.Function
+                collect.Function,
             });
     };
 
@@ -4096,7 +4084,7 @@ size_t MakeCodegenOrderOp(
                     builder.Module->GetRoutine("AddRowToCollector"),
                     {
                         topCollectorRef,
-                        newValuesRef
+                        newValuesRef,
                     });
 
                 return builder->getFalse();
@@ -4235,7 +4223,7 @@ void MakeCodegenWriteOp(
                 builder.GetExecutionContext(),
                 builder->getInt64(rowSize),
                 collect.ClosurePtr,
-                collect.Function
+                collect.Function,
             });
     };
 }
@@ -4271,14 +4259,18 @@ TCallback<TSignature> BuildCGEntrypoint(
     return TCallback<TSignature>(caller, staticInvoke);
 }
 
-std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& cgModule, EExecutionBackend executionBackend, const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
+std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(
+    const TCGModulePtr& cgModule,
+    EExecutionBackend executionBackend,
+    const TModuleBytecode& sdk,
+    const TModuleBytecodeHashSet& usedWebAssemblyFiles)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         cgModule->BuildWebAssembly();
         auto bytecode = cgModule->GetWebAssemblyBytecode();
-        auto compartment = NWebAssembly::CreateStandardRuntimeImage();
+        auto compartment = NWebAssembly::CreateImageFromSdk(sdk);
         for (auto& file : usedWebAssemblyFiles) {
-            compartment->AddModule(file);
+            compartment->AddModule(file.Data);
         }
         compartment->AddModule(bytecode);
         compartment->Strip();
@@ -4293,7 +4285,8 @@ TCGQueryImage CodegenQuery(
     size_t slotCount,
     EExecutionBackend executionBackend,
     NCodegen::EOptimizationLevel optimizationLevel,
-    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
+    const TModuleBytecode& sdk,
+    const TModuleBytecodeHashSet& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend, optimizationLevel);
     const auto entryFunctionName = std::string("EvaluateQuery");
@@ -4323,7 +4316,7 @@ TCGQueryImage CodegenQuery(
 
     return {
         BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
+        BuildImage(cgModule, executionBackend, sdk, usedWebAssemblyFiles),
     };
 }
 
@@ -4331,7 +4324,8 @@ TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
     EExecutionBackend executionBackend,
-    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
+    const TModuleBytecode& sdk,
+    const TModuleBytecodeHashSet& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
     const auto entryFunctionName = std::string("EvaluateExpression");
@@ -4364,7 +4358,7 @@ TCGExpressionImage CodegenStandaloneExpression(
 
     return {
         BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
+        BuildImage(cgModule, executionBackend, sdk, usedWebAssemblyFiles),
     };
 }
 
@@ -4373,7 +4367,8 @@ TCGAggregateImage CodegenAggregate(
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
     EExecutionBackend executionBackend,
-    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
+    const TModuleBytecode& sdk,
+    const TModuleBytecodeHashSet& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
 
@@ -4474,20 +4469,8 @@ TCGAggregateImage CodegenAggregate(
             BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(cgModule, mergeName, executionBackend),
             BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(cgModule, finalizeName, executionBackend),
         },
-        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
+        BuildImage(cgModule, executionBackend, sdk, usedWebAssemblyFiles),
     };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-ui64 TUsedWebAssemblyFilesHasher::operator()(const TSharedRef& ref) const
-{
-    return std::bit_cast<ui64>(ref.begin());
-}
-
-bool TUsedWebAssemblyFilesEqComparer::operator()(const TSharedRef& lhs, const TSharedRef& rhs) const
-{
-    return lhs.begin() == rhs.begin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

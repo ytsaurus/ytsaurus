@@ -72,12 +72,15 @@ private:
             .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::LastCommitTimestamp);
         descriptors->push_back(EInternedAttributeKey::LastWriteTimestamp);
+        descriptors->push_back(EInternedAttributeKey::OriginatorTablets);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PerformanceCounters)
             .SetOpaque(!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->AddPerfCountersToTabletsAttribute)
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConflictHorizonTimestamp)
+            .SetPresent(table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnconfirmedDynamicTableLocks)
             .SetOpaque(true));
@@ -116,6 +119,11 @@ private:
                     .Value(tablet->NodeStatistics().last_write_timestamp());
                 return true;
 
+            case EInternedAttributeKey::OriginatorTablets:
+                BuildYsonFluently(consumer)
+                    .List(tablet->OriginatorTablets());
+                return true;
+
             case EInternedAttributeKey::PerformanceCounters:
                 if (!tablet->GetCell()) {
                     break;
@@ -135,6 +143,11 @@ private:
             case EInternedAttributeKey::RetainedTimestamp:
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetRetainedTimestamp());
+                return true;
+
+            case EInternedAttributeKey::ConflictHorizonTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetConflictHorizonTimestamp());
                 return true;
 
             case EInternedAttributeKey::UnflushedTimestamp:

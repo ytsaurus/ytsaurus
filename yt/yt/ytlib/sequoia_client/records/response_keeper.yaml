@@ -2,7 +2,7 @@ namespace: NYT::NSequoiaClient::NRecords
 
 types:
   - table_name: response_keeper
-    table_group: undefined
+    table_group: response_keeper_table
     type_name: TSequoiaResponseKeeper
     fields:
       - cpp_name: MutationId

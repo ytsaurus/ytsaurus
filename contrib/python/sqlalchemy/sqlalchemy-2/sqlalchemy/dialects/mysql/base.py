@@ -1,5 +1,5 @@
 # dialects/mysql/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1182,6 +1182,7 @@ if TYPE_CHECKING:
     from ...sql.functions import random
     from ...sql.functions import rollup
     from ...sql.functions import sysdate
+    from ...sql.schema import IdentityOptions
     from ...sql.schema import Sequence as Sequence_SchemaItem
     from ...sql.type_api import TypeEngine
     from ...sql.visitors import ExternallyTraversible
@@ -1358,10 +1359,10 @@ class MySQLCompiler(compiler.SQLCompiler):
     def visit_aggregate_strings_func(
         self, fn: aggregate_strings, **kw: Any
     ) -> str:
-        expr, delimeter = (
+        expr, delimiter = (
             elem._compiler_dispatch(self, **kw) for elem in fn.clauses
         )
-        return f"group_concat({expr} SEPARATOR {delimeter})"
+        return f"group_concat({expr} SEPARATOR {delimiter})"
 
     def visit_sequence(self, sequence: sa_schema.Sequence, **kw: Any) -> str:
         return "nextval(%s)" % self.preparer.format_sequence(sequence)
@@ -1769,7 +1770,10 @@ class MySQLCompiler(compiler.SQLCompiler):
     ) -> str:
         assert select._for_update_arg is not None
         if select._for_update_arg.read:
-            tmp = " LOCK IN SHARE MODE"
+            if self.dialect.use_mysql_for_share:
+                tmp = " FOR SHARE"
+            else:
+                tmp = " LOCK IN SHARE MODE"
         else:
             tmp = " FOR UPDATE"
 
@@ -2196,7 +2200,7 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
         if index.unique:
             text += "UNIQUE "
 
-        index_prefix = index.kwargs.get("%s_prefix" % self.dialect.name, None)
+        index_prefix = index.get_dialect_option(self.dialect, "prefix")
         if index_prefix:
             text += index_prefix + " "
 
@@ -2205,7 +2209,7 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
             text += "IF NOT EXISTS "
         text += "%s ON %s " % (name, table)
 
-        length = index.dialect_options[self.dialect.name]["length"]
+        length = index.get_dialect_option(self.dialect, "length")
         if length is not None:
             if isinstance(length, dict):
                 # length value can be a (column_name --> integer value)
@@ -2233,11 +2237,15 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
             columns_str = ", ".join(columns)
         text += "(%s)" % columns_str
 
-        parser = index.dialect_options["mysql"]["with_parser"]
+        parser = index.get_dialect_option(
+            self.dialect, "with_parser", deprecated_fallback="mysql"
+        )
         if parser is not None:
             text += " WITH PARSER %s" % (parser,)
 
-        using = index.dialect_options["mysql"]["using"]
+        using = index.get_dialect_option(
+            self.dialect, "using", deprecated_fallback="mysql"
+        )
         if using is not None:
             text += " USING %s" % (preparer.quote(using))
 
@@ -2247,7 +2255,9 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
         self, constraint: sa_schema.PrimaryKeyConstraint, **kw: Any
     ) -> str:
         text = super().visit_primary_key_constraint(constraint)
-        using = constraint.dialect_options["mysql"]["using"]
+        using = constraint.get_dialect_option(
+            self.dialect, "using", deprecated_fallback="mysql"
+        )
         if using:
             text += " USING %s" % (self.preparer.quote(using))
         return text
@@ -2326,6 +2336,15 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
             self.preparer.format_column(create.element),
             self.get_column_specification(create.element),
         )
+
+    def get_identity_options(self, identity_options: IdentityOptions) -> str:
+        """mariadb-specific sequence option; this will move to a
+        mariadb-specific module in 2.1
+
+        """
+        text = super().get_identity_options(identity_options)
+        text = text.replace("NO CYCLE", "NOCYCLE")
+        return text
 
 
 class MySQLTypeCompiler(compiler.GenericTypeCompiler):
@@ -2695,16 +2714,19 @@ class MySQLDialect(default.DefaultDialect):
 
     returns_native_bytes = True
 
-    supports_sequences = False  # default for MySQL ...
     # ... may be updated to True for MariaDB 10.3+ in initialize()
+    supports_sequences = False
 
     sequences_optional = False
 
-    supports_for_update_of = False  # default for MySQL ...
     # ... may be updated to True for MySQL 8+ in initialize()
+    supports_for_update_of = False
 
-    _requires_alias_for_on_duplicate_key = False  # Only available ...
-    # ... in MySQL 8+
+    # mysql 8.0.1 uses this syntax
+    use_mysql_for_share = False
+
+    # Only available ... ... in MySQL 8+
+    _requires_alias_for_on_duplicate_key = False
 
     # MySQL doesn't support "DEFAULT VALUES" but *does* support
     # "VALUES (DEFAULT)"
@@ -3158,6 +3180,10 @@ class MySQLDialect(default.DefaultDialect):
 
         self.supports_for_update_of = (
             self._is_mysql and self.server_version_info >= (8,)
+        )
+
+        self.use_mysql_for_share = (
+            self._is_mysql and self.server_version_info >= (8, 0, 1)
         )
 
         self._needs_correct_for_88718_96365 = (

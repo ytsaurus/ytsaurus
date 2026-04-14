@@ -13,7 +13,7 @@ import yt.yson
 def mapper_with_iterator(rows, context):
     sum = 0
     for row in rows:
-        # Такой способ узнавать индекс входной таблицы соответствует control_attributes_mode="iterator".
+        # This method determining the input table index corresponds to control_attributes_mode="iterator".
         input_table_index = context.table_index
         if input_table_index == 0:
             sum += int(row["value"])
@@ -22,7 +22,7 @@ def mapper_with_iterator(rows, context):
 
         output_table_index = sum % 2
 
-        # Такой способ переключать таблицы соответствует control_attributes_mode="iterator".
+        # This method of tables switching corresponds to control_attributes_mode="iterator".
         yield yt.wrapper.create_table_switch(output_table_index)
         yield {"sum": sum}
 
@@ -31,7 +31,7 @@ def mapper_with_iterator(rows, context):
 def mapper_with_row_fields(rows):
     sum = 0
     for row in rows:
-        # Такой способ узнавать индекс входной таблицы соответствует control_attributes_mode="row_fields".
+        # This method of determining the input table index corresponds to control_attributes_mode="row_fields".
         input_table_index = row["@table_index"]
         if input_table_index == 0:
             sum += int(row["value"])
@@ -39,11 +39,11 @@ def mapper_with_row_fields(rows):
             sum -= int(row["value"])
 
         output_table_index = sum % 2
-        # Такой способ переключать таблицы соответствует control_attributes_mode="row_fields".
+        # This method of tables switching corresponds to control_attributes_mode="row_fields".
         yield {"sum": sum, "@table_index": output_table_index}
 
 
-# Пример получения row_index в reducer с помощью context.
+# Example of getting row_index into reducer using context.
 @yt.wrapper.with_context
 def reducer(key, rows, context):
     for row in rows:
@@ -67,8 +67,8 @@ def main():
 
     output1, output2 = outputs = ["{}/output{}".format(path, i) for i in range(1, 3)]
 
-    # Пример запуска маппера, который будет использовать функцию yt.wrapper.create_table_switch
-    # для переключения выходных таблиц.
+    # Example of a mapper running will use the `yt.wrapper.create_table_switch` function
+    # in order to switch output tables.
     client.run_map(
         mapper_with_iterator,
         inputs,
@@ -79,27 +79,27 @@ def main():
             "job_count": 1,
         },
     )
-    # В первую таблицу попадают чётные суммы.
+    # Even sums come to the first table.
     assert list(client.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
-    # Во вторую таблицу попадают нечётные суммы.
+    # Odd sums come to the second table.
     assert list(client.read_table(output2)) == [{"sum": 7}]
 
-    # Пример запуска маппера, который будет использовать поле @table_index для переключения выходных таблиц.
+    # Example of a mapper running will use the `@table_index` field to switch output tables.
     client.run_map(
         mapper_with_row_fields,
         inputs,
         outputs,
         format=yt.wrapper.YsonFormat(control_attributes_mode="row_fields"),
     )
-    # В первую таблицу попадают чётные суммы.
+    # Even sums come to the first table.
     assert list(client.read_table(output1)) == [{"sum": 4}, {"sum": 0}]
-    # Во вторую таблицу попадают нечётные суммы.
+    # Odd sums come to the second table.
     assert list(client.read_table(output2)) == [{"sum": 7}]
 
     client.remove(input1)
     client.write_table("<sorted_by=[x]>" + input1, [{"x": 1}, {"x": 3}, {"x": 4}])
 
-    # Пример запуска редьюсера, который получает индексы строк из контекста.
+    # Example of a reducer running gets row indexes from the context.
     client.run_reduce(
         reducer,
         input1,

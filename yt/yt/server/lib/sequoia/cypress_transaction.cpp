@@ -1,5 +1,6 @@
 #include "cypress_transaction.h"
 
+#include "helpers.h"
 #include "protobuf_helpers.h"
 #include "response_keeper.h"
 
@@ -19,7 +20,7 @@
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
@@ -372,7 +373,7 @@ private:
  *  On transaction finish the following tables are modified:
  *    - node_forks
  *    - node_snapshots
- *    - child_node
+ *    - child_nodes
  *    - path_to_node_id
  *    - node_id_to_path
  *
@@ -549,8 +550,6 @@ public:
         ToProto(subrequest->mutable_parent_id(), cypressTransaction.AncestorIds.empty()
             ? NullTransactionId
             : cypressTransaction.AncestorIds.back());
-        subrequest->set_upload(false);
-        subrequest->set_enable_native_tx_externalization(true);
 
         auto attributes = ConvertTo<IMapNodePtr>(cypressTransaction.Attributes);
 
@@ -604,7 +603,7 @@ public:
 private:
     ISequoiaTransaction* const SequoiaTransaction_;
     TCompactVector<TTransactionId, 1> TransactionIds_;
-    TTransactionReplicationDestinationCellTagList CellTags_;
+    TCellTagList CellTags_;
     NTransactionServer::NProto::TReqMaterializeCypressTransactionReplicas Action_;
 };
 
@@ -625,7 +624,7 @@ public:
     TTransactionReplicator(
         ISequoiaTransactionPtr sequoiaTransaction,
         std::vector<std::optional<NRecords::TTransaction>> transactions,
-        TTransactionReplicationDestinationCellTagList cellTags,
+        TCellTagList cellTags,
         IInvokerPtr invoker)
         : SequoiaTransaction_(std::move(sequoiaTransaction))
         , CellTags_(std::move(cellTags))
@@ -639,7 +638,9 @@ public:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(!InnermostTransactions_.empty());
+        if (InnermostTransactions_.empty()) {
+            return;
+        }
 
         int currentGroupStart = 0;
         for (int i = 1; i < std::ssize(InnermostTransactions_); ++i) {
@@ -668,7 +669,7 @@ public:
 
 private:
     const ISequoiaTransactionPtr SequoiaTransaction_;
-    const TTransactionReplicationDestinationCellTagList CellTags_;
+    const TCellTagList CellTags_;
     const IInvokerPtr Invoker_;
     std::vector<std::optional<NRecords::TTransaction>> InnermostTransactions_;
     std::vector<TTransactionId> AncestorIds_;
@@ -892,6 +893,19 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Modifies both master's persistent state and Sequoia tables.
+/*!
+ *  Shared write locks for "transactions" Sequoia table.
+ *
+ * In order to prolong transaction lifetime during request execution (e.g.,
+ * Sequoia requests using transaction as a prerequisite) shared write lock in
+ * "transactions" Sequoia table must be acquired. Of course, read lock would be
+ * enough here but due to dynamic tables implementations shared read locks
+ * cannot be waited by later mutating requests which lead to unnecessary
+ * conflicts. This situation happens often when transaction is marked as doomed
+ * and going to be committed: the first Sequoia transaction acquires read lock
+ * before marking Cypress transaction as doomed and the second Sequoia
+ * transaction acquires exclusive lock to remove corresponding record.
+ */
 template <class TResult, ESequoiaTransactionType TransactionType>
 class TSequoiaMutation
     : public TRefCounted
@@ -981,6 +995,13 @@ private:
                 {
                     .SequenceTabletCommitSessions = true,
                     .EnableVerboseLogging = true,
+                    // This disables waiting for barrier on Sequoia tx start.
+                    // It's correct because all transaction-related actions are
+                    // executed either in late prepare or commit phase so
+                    // effects of previously prepared Sequoia transactions
+                    // should be already visible thanks to transaction
+                    // sequencer.
+                    .SuppressStronglyOrderedTransactionBarrier = true,
                 })
             .AsUnique().Apply(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
@@ -1022,7 +1043,7 @@ private:
                 Description_);
         }
 
-        THROW_ERROR MaybeWrapSequoiaRetriableError<void>(result);
+        THROW_ERROR result;
     }
 };
 
@@ -1213,7 +1234,7 @@ private:
 
         // Fast path.
         if (ReplicateToCellTags_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Another fast path.
@@ -1224,7 +1245,7 @@ private:
                 .AddTransaction(std::move(createdTransaction))
                 .AddCells(ReplicateToCellTags_)
                 .Run();
-            return VoidFuture;
+            return OKFuture;
         }
 
         return New<TTransactionReplicator>(
@@ -1264,9 +1285,10 @@ private:
         // Shared read lock prevents concurrent parent transaction commit or
         // abort but still allows to start another nested transaction
         // concurrently.
+        // NB: it's actually a shared read lock but
         SequoiaTransaction_->LockRow(
             NRecords::TTransactionKey{.TransactionId = ParentId_},
-            ELockType::SharedStrong);
+            ELockType::SharedWrite);
 
         const auto& idMapping = NRecords::TTransactionDescriptor::Get()->GetIdMapping();
         return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
@@ -1308,7 +1330,7 @@ private:
         ValidateTransactionAncestors(records);
 
         for (const auto& record : records) {
-            SequoiaTransaction_->LockRow(record->Key, ELockType::SharedStrong);
+            SequoiaTransaction_->LockRow(record->Key, ELockType::SharedWrite);
         }
     }
 
@@ -1317,7 +1339,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (PrerequisiteTransactionIds_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TDoomedTransactionKey>(PrerequisiteTransactionIds_))
@@ -1456,7 +1478,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (CurrentTransactions_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return FetchNextTransaction()
@@ -1506,12 +1528,10 @@ private:
                     dependentTransactionFuture = dependentTransaction
                 ] {
                     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-                    YT_VERIFY(descendentTransactionFuture.IsSet());
-                    YT_VERIFY(dependentTransactionFuture.IsSet());
 
-                    // NB: AllSucceeded() guarantees that all futures contain values.
-                    const auto& descendentTransaction = descendentTransactionFuture.Get().Value();
-                    const auto& dependentTransaction = dependentTransactionFuture.Get().Value();
+                    // NB: AllSucceeded() guarantees that all futures are set.
+                    const auto& descendentTransaction = descendentTransactionFuture.GetOrCrash().Value();
+                    const auto& dependentTransaction = dependentTransactionFuture.GetOrCrash().Value();
 
                     if (descendentTransaction.empty() && dependentTransaction.empty()) {
                         return MakeFuture(std::vector<std::optional<NRecords::TTransaction>>{});
@@ -1625,7 +1645,7 @@ private:
 
         // Fast path; transaction is missing.
         if (!target) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto transaction = *target;
@@ -1644,7 +1664,7 @@ private:
 
         // Fast path; transaction is already doomed, no need to mark it as doomed again.
         if (target) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return New<TDependentTransactionCollector>(
@@ -1671,7 +1691,7 @@ private:
             // Lock row in the main transaction table to detect concurrent tx commits / aborts.
             SequoiaTransaction_->LockRow(
                 NRecords::TTransactionKey{.TransactionId = transactionId},
-                ELockType::SharedStrong);
+                ELockType::SharedWrite);
         }
     }
 
@@ -1717,7 +1737,7 @@ private:
  *     5.7. Merge/remove branches in resolve tables:
  *           - node_id_to_path
  *           - path_to_node_id
- *           - child_node
+ *           - child_nodes
  *   6. Keep response in "response_keeper" Sequoia table if needed.
  */
 class TFinishCypressTransaction
@@ -1759,7 +1779,7 @@ protected:
                 if (keptResponse.has_value()) {
                     // NB: Sequoia transaction is no-op here.
                     Response_ = *keptResponse;
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 return FetchTransaction<NRecords::TTransaction>(TransactionId_)
@@ -1912,7 +1932,7 @@ private:
 
         // Fast path.
         if (TransactionFinishIsNoop(target)) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Case of absence target transaction is handled in
@@ -2168,8 +2188,9 @@ protected:
     TReplicateCypressTransactions(
         ISequoiaClientPtr sequoiaClient,
         TCellId hintCoordinatorCellId,
-        TTransactionReplicationDestinationCellTagList destinationCellTags,
+        TCellTagList destinationCellTags,
         std::vector<TTransactionId> transactionIds,
+        std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
         IInvokerPtr invoker,
         TLogger logger)
         : TSequoiaMutation(
@@ -2183,8 +2204,11 @@ protected:
             std::move(logger))
         , TransactionIds_(std::move(transactionIds))
         , DestinationCellTags_(std::move(destinationCellTags))
+        , Boomerang_(std::move(boomerang))
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_VERIFY(DestinationCellTags_.size() == 1 || !Boomerang_);
     }
 
     TFuture<void> ApplySequoiaTransaction() override
@@ -2201,7 +2225,8 @@ protected:
 
 private:
     const std::vector<TTransactionId> TransactionIds_;
-    const TTransactionReplicationDestinationCellTagList DestinationCellTags_;
+    const TCellTagList DestinationCellTags_;
+    const std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> Boomerang_;
 
     TFuture<void> ReplicateTransactions(
         std::vector<std::optional<NRecords::TTransaction>>&& transactions)
@@ -2215,8 +2240,8 @@ private:
 
         ValidateTransactionAncestors(transactions);
 
-        if (transactions.empty()) {
-            return VoidFuture;
+        if (transactions.empty() && !Boomerang_) {
+            return OKFuture;
         }
 
         // |TTransactionReplicator| handles transactions hierarchy to allow us
@@ -2248,7 +2273,7 @@ private:
 
                 for (const auto& transaction : group) {
                     // To prevent concurrent commit/abort.
-                    SequoiaTransaction_->LockRow(transaction->Key, ELockType::SharedStrong);
+                    SequoiaTransaction_->LockRow(transaction->Key, ELockType::SharedWrite);
 
                     ToProto(action.add_transaction_ids(), transaction->Key.TransactionId);
                 }
@@ -2258,7 +2283,18 @@ private:
                     MakeTransactionActionData(action));
             });
 
-        return replicator->Run();
+        auto future = replicator->Run();
+
+        if (Boomerang_) {
+            YT_VERIFY(DestinationCellTags_.size() == 1);
+            future = future.Apply(BIND([this, this_ = MakeStrong(this)] {
+                SequoiaTransaction_->AddTransactionAction(
+                    DestinationCellTags_.front(),
+                    MakeTransactionActionData(*Boomerang_));
+            }));
+        }
+
+        return future;
     }
 };
 
@@ -2392,24 +2428,51 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ReplicateCypressTransactions(
+TFuture<void> ReplicateCypressTransactionsToCell(
     ISequoiaClientPtr sequoiaClient,
     std::vector<TTransactionId> transactionIds,
-    TTransactionReplicationDestinationCellTagList destinationCellTags,
-    TCellId hintCoordinatorCellId,
+    TCellId destinationCellId,
+    std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
     IInvokerPtr invoker,
-    TLogger logger)
+    NLogging::TLogger logger)
 {
     // Fast path.
-    if (transactionIds.empty()) {
-        return VoidFuture;
+    if (transactionIds.empty() && !boomerang) {
+        return OKFuture;
     }
 
     return New<TReplicateCypressTransactions>(
         std::move(sequoiaClient),
-        hintCoordinatorCellId,
-        std::move(destinationCellTags),
+        destinationCellId,
+        TCellTagList{CellTagFromId(destinationCellId)},
         std::move(transactionIds),
+        std::move(boomerang),
+        std::move(invoker),
+        std::move(logger))
+        ->Apply();
+}
+
+TFuture<void> ReplicateCypressTransactionToCells(
+    ISequoiaClientPtr sequoiaClient,
+    TTransactionId transactionId,
+    TCellTagList destinationCellTags,
+    TCellId transactionCoordinatorCellId,
+    IInvokerPtr invoker,
+    NLogging::TLogger logger)
+{
+    YT_VERIFY(CellTagFromId(transactionCoordinatorCellId) == CellTagFromId(transactionId));
+
+    // Fast path.
+    if (destinationCellTags.empty()) {
+        return OKFuture;
+    }
+
+    return New<TReplicateCypressTransactions>(
+        std::move(sequoiaClient),
+        transactionCoordinatorCellId,
+        std::move(destinationCellTags),
+        std::vector{transactionId},
+        /*boomerang*/ nullptr,
         std::move(invoker),
         std::move(logger))
         ->Apply();

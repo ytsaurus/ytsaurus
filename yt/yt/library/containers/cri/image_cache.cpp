@@ -373,7 +373,7 @@ private:
             if (cookie.IsActive()) {
                 cookie.EndInsert(std::move(entry));
             }
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Removing docker image (Image: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
@@ -403,7 +403,7 @@ private:
             images.swap(DeathRow_);
         }
         if (images.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
         YT_LOG_DEBUG("Prune docker image cache (CacheSize: %v)", CacheSize_.load());
         std::vector<TCallback<TFuture<void>()>> callbacks;

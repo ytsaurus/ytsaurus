@@ -177,7 +177,7 @@ protected:
         int chunkCountLimit = Context_->IsSynchronous()
             ? std::numeric_limits<int>::max()
             : ChunkCount_ + maxChunksPerIteration;
-        auto rescheduleAfterFuture = VoidFuture;
+        auto rescheduleAfterFuture = OKFuture;
 
         while (ChunkCount_ < chunkCountLimit) {
             if (IsStackEmpty()) {
@@ -386,9 +386,8 @@ protected:
         YT_VERIFY(EnforceBounds_);
 
         auto unsealedChunkStatisticsFuture = GetOrCrash(UnsealedChunkIdToStatisticsFuture_, chunk->GetId());
-        YT_VERIFY(unsealedChunkStatisticsFuture.IsSet());
         return unsealedChunkStatisticsFuture
-            .Get()
+            .GetOrCrash()
             .ValueOrThrow();
     }
 
@@ -430,8 +429,8 @@ protected:
             if (auto future = RequestUnsealedChunksStatistics(*entry)) {
                 if (!future.IsSet()) {
                     return future;
-                } else if (!future.Get().IsOK()) {
-                    OnFinish(future.Get());
+                } else if (!future.GetOrCrash().IsOK()) {
+                    OnFinish(future.GetOrCrash());
                 }
             }
 

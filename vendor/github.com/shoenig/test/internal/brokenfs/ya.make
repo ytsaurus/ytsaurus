@@ -28,4 +28,10 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        fs_default.go
+    )
+ENDIF()
+
 END()

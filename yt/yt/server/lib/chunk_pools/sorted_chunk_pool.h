@@ -5,13 +5,24 @@
 #include "private.h"
 #include "sorted_job_builder.h"
 
-#include <yt/yt/client/job_tracker_client/public.h>
-
 #include <yt/yt/ytlib/table_client/public.h>
+
+#include <yt/yt/client/job_tracker_client/public.h>
 
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TSortedChunkPoolStatistics final
+{
+    i64 ForeignSlicesCheckCountInDecideRowSliceability = 0;
+
+    PHOENIX_DECLARE_TYPE(TSortedChunkPoolStatistics, 0x71181524);
+};
+
+using TSortedChunkPoolStatisticsPtr = TIntrusivePtr<TSortedChunkPoolStatistics>;
+
+void FormatValue(TStringBuilderBase* builder, const TSortedChunkPoolStatisticsPtr& statistics, TStringBuf spec);
 
 struct TSortedChunkPoolOptions
 {
@@ -31,6 +42,7 @@ struct TSortedChunkPoolOptions
     // Only for new pool.
     std::optional<i64> MinManiacDataWeight;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
+    TSortedChunkPoolStatisticsPtr ChunkPoolStatistics;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

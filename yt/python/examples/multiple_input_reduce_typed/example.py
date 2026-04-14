@@ -23,27 +23,27 @@ class IsRobotRow:
 
 
 class FilterRobotsReducer(yt.wrapper.TypedJob):
-    # Для указания типов нескольких строк используется специальный тип yt.wrapper.schema.Variant,
-    # параметризуемый списком типов строк таблиц.
-    # Порядок типов внутри варианта должен совпадать с порядком соответсвующих входных (или выходных) таблиц.
-    # Если все таблицы имеют один и тот же тип строк, можно обойтись без варианта.
+    # Use the special type `yt.wrapper.schema.Variant` to specify types of the several rows.
+    # This type is parameterized by the list of tables rows types.
+    # The types order inside the variant should match an order of corresponding input or output tables.
+    # You should not use the variant if all the tables have the same string type.
     def __call__(self, input_row_iterator: RowIterator[Variant[StaffRow, IsRobotRow]]) -> typing.Iterable[StaffRow]:
         login_row = None
         is_robot = False
-        # Для того чтобы обращаться к свойствам строк таблиц (например, из какой таблицы пришла строка),
-        # нужно воспользоваться методом .with_context() у итератора.
-        # Новый итератор возвращает пары (строка, контекст).
-        # Из контекста можно доставать интересующие атрибуты.
+        # Use the method `.with_context()` of iterator in order to access tables rows properties.
+        # E.G. you can know the table which the row came from.
+        # The new iterator returnes pairs of row and context.
+        # You can get attributes from the context.
         for input_row, context in input_row_iterator.with_context():
-            # Метод `get_table_index' вернёт нам индекс таблицы, откуда была прочитана текущая строка.
+            # The `get_table_index` method will return the index of the table which the current row was read from.
             if context.get_table_index() == 0:
-                # Таблица с логинами.
+                # Table with logins.
                 login_row = input_row
             elif context.get_table_index() == 1:
-                # Таблица про роботов.
+                # Table about robots.
                 is_robot = input_row.is_robot
             else:
-                # Какая-то фигня, такого индекса быть не может.
+                # An unexpected error, such an index could not exist.
                 raise RuntimeError("Unknown table index")
 
         assert login_row is not None
@@ -83,9 +83,9 @@ def main():
 
     client.run_reduce(
         FilterRobotsReducer(),
-        # В source_table мы указываем список из двух таблиц.
-        # Внутри редьюсера table_index для записи будет равен индексу соответсвующей таблицы внутри этого списка:
-        # 0 -- для записей из sorted_staff_table, 1 -- для записей из sorted_is_robot_table.
+        # We specify the list with two tables into source_table.
+        # `Table_index` for writing will be equal to index of the corresponding table inside this list in the reducer.
+        # 0 for the records from `sorted_staff_table`, 1 for the records from `sorted_is_robot_table`.
         source_table=[sorted_staff_table, sorted_is_robot_table],
         destination_table=output_table,
         reduce_by=["uid"],

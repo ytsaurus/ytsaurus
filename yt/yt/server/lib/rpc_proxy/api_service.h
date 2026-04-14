@@ -35,13 +35,16 @@ DEFINE_REFCOUNTED_TYPE(IApiService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TPooledInvokerProvider = std::function<IInvokerPtr(
+    const std::string& pool,
+    const std::string& executionTag)>;
+
 //! Custom #stickyTransactionPool is useful for sharing transactions
 //! between services (e.g.: ORM and RPC proxy).
 IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
-    IInvokerPtr controlInvoker,
-    IInvokerPtr workerInvoker,
-    IInvokerPtr generateTimestampsInvoker,
+    IInvokerPtr defaultInvoker,
+    TPooledInvokerProvider workerInvokerProvider,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,

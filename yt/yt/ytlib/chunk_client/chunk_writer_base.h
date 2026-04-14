@@ -12,6 +12,9 @@ namespace NYT::NChunkClient {
 struct IChunkWriterBase
     : public virtual IWriterBase
 {
+    // NB(apollo1321): Currently, some methods are thread-safe (some statistics getters), others are not.
+    // Check the implementation before using across threads.
+    // Ideally, each implementation should set it's statistics to some shared structure. See YT-23184 for details.
     virtual i64 GetMetaSize() const = 0;
     virtual i64 GetCompressedDataSize() const = 0;
     virtual i64 GetDataWeight() const = 0;

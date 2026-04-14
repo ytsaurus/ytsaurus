@@ -258,7 +258,7 @@ private:
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashSet<TTransaction::TImpl*> AliveTransactions_;
+    THashSet<TWeakPtr<TTransaction::TImpl>, TTransparentWeakPtrHasher, TEqualTo<>> AliveTransactions_;
 
     NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
@@ -277,7 +277,7 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
-                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
 
@@ -397,7 +397,7 @@ public:
                     auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
 
                     if (syncFuture.IsSet()) {
-                        if (!syncFuture.Get().IsOK()) {
+                        if (!syncFuture.GetOrCrash().IsOK()) {
                             return syncFuture;
                         }
                     } else {
@@ -499,7 +499,7 @@ public:
         SetAborted(TError("Transaction aborted by user request"));
 
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendAbort(options);
@@ -510,7 +510,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendPing(options);
@@ -634,7 +634,7 @@ public:
     TFuture<void> ValidateNoDownedParticipants()
     {
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto participantIds = Owner_->DownedCellTracker_->RetainDowned(GetRegisteredParticipantIds());
@@ -841,7 +841,7 @@ private:
     {
         if (AutoAbort_) {
             auto guard = Guard(Owner_->SpinLock_);
-            YT_VERIFY(Owner_->AliveTransactions_.insert(this).second);
+            InsertOrCrash(Owner_->AliveTransactions_, MakeWeak(this));
         }
     }
 
@@ -851,7 +851,10 @@ private:
             {
                 auto guard = Guard(Owner_->SpinLock_);
                 // NB: Instance is not necessarily registered.
-                Owner_->AliveTransactions_.erase(this);
+                auto it = Owner_->AliveTransactions_.find(this);
+                if (it != Owner_->AliveTransactions_.end()) {
+                    Owner_->AliveTransactions_.erase(it);
+                }
             }
 
             if (State_ == ETransactionState::Active) {
@@ -1067,7 +1070,7 @@ private:
         YT_VERIFY(Ping_);
         RunPeriodicPings();
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> StartNonAtomicTabletTransaction()
@@ -1088,7 +1091,7 @@ private:
             Id_,
             Durability_);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     void FireCommitted()
@@ -1197,8 +1200,17 @@ private:
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
         // NB: The server side only supports these for simple (non-distributed) commits, but set them anyway.
-        // COMPAT(h0pless): It should be safe to remove prerequisites here when CTxS will be used on masters.
+        // COMPAT(h0pless, tea-mur): It should be safe to remove prerequisites here when CTxS will be used on masters.
         SetPrerequisites(req, options);
+
+        // NB: Cypress transactions are now committed via CypressTransactionService which
+        // handles prerequisites on its own.
+        // Tablet transactions do not use prerequisite transaction ids in commit phase:
+        // 1. Master prerequisite transactions are handled at data sending stage (TReqWrite)
+        // 2. Chaos leases are passed to tx coordinator in transaction action data
+        // Remaining transactions do not use prerequisite transaction ids.
+        YT_VERIFY(options.PrerequisiteTransactionIds.empty());
+
         ToProto(req->mutable_transaction_id(), Id_);
         ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
         ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
@@ -1280,7 +1292,7 @@ private:
     TFuture<void> CheckDownedParticipants(std::vector<TCellId> participantIds)
     {
         if (participantIds.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_VERIFY(CoordinatorCellId_);
@@ -1331,7 +1343,9 @@ private:
         TError error)
     {
         UpdateDownedParticipants();
-        auto wrappedError = TError("Error committing transaction %v at cell %v",
+        auto wrappedError = TError(
+            NTransactionClient::EErrorCode::AtomicTransactionCommitFailure,
+            "Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
             << std::move(error);
@@ -1479,7 +1493,7 @@ private:
 
         auto connection = Owner_->ClusterDirectory_->FindConnection(CellTagFromId(cellId));
         if (!connection) {
-            THROW_ERROR_EXCEPTION("No cell with id %v is known", cellId);
+            THROW_ERROR_EXCEPTION("No cluster connection for cell with id %v is known", cellId);
         }
 
         return connection->GetCellDirectory()->GetChannelByCellIdOrThrow(cellId);
@@ -1609,18 +1623,19 @@ private:
             return;
         }
 
-        SendPing().Subscribe(BIND([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
-            if (!IsPingableState()) {
-                YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
-                    Id_,
-                    GetState());
-                return;
-            }
+        SendPing()
+            .Subscribe(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
+                if (!IsPingableState()) {
+                    YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
+                        Id_,
+                        GetState());
+                    return;
+                }
 
-            auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
-            auto pingDeadline = startTime + pingPeriod;
-            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
-        }));
+                auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
+                auto pingDeadline = startTime + pingPeriod;
+                TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
+            }));
     }
 
     bool IsPingableState()
@@ -1718,7 +1733,7 @@ private:
     {
         auto channel = FindParticipantChannel(cellId);
         if (!channel) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",
@@ -1906,10 +1921,9 @@ void TTransactionManager::TImpl::AbortAll()
     std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {
         auto guard = Guard(SpinLock_);
-        for (auto* rawTransaction : AliveTransactions_) {
-            auto transaction = DangerousGetPtr(rawTransaction);
-            if (transaction) {
-                transactions.push_back(transaction);
+        for (const auto& weakTransaction : AliveTransactions_) {
+            if (auto transaction = weakTransaction.Lock()) {
+                transactions.push_back(std::move(transaction));
             }
         }
     }

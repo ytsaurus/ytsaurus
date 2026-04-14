@@ -20,6 +20,21 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializedBlocksRequest
+{
+    i64 StartOffset = 0;
+    i64 EndOffset = 0;
+    std::vector<TSharedRef> Buffers;
+};
+
+TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
+
+NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+TSharedMutableRef SerializeChunkMeta(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
+////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EFileWriterState,
     (Created)
     (Opening)
@@ -40,7 +55,8 @@ public:
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
         TString fileName,
-        bool syncOnClose = true);
+        bool syncOnClose = true,
+        bool useDirectIO = false);
 
     // IChunkWriter implementation.
     TFuture<void> Open() override;
@@ -76,15 +92,13 @@ public:
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlocks) override;
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlocks);
+        TFairShareSlotId fairShareSlotId);
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
@@ -119,12 +133,13 @@ private:
     const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
+    const bool UseDirectIO_;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
     NThreading::TAtomicObject<TError> Error_;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     i64 DataSize_ = 0;
     i64 MetaDataSize_ = 0;
@@ -140,6 +155,7 @@ private:
 
     void SetFailed(const TError& error);
     TError TryChangeState(EState oldState, EState newState);
+    TFlags<EOpenModeFlag> GetFileMode() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFileWriter)

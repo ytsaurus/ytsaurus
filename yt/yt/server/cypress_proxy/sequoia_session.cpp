@@ -10,8 +10,11 @@
 #include "user_directory.h"
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
+#include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -22,7 +25,7 @@
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
@@ -49,6 +52,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -350,12 +354,11 @@ void TraverseSelectedSubtree(
     auto it = records.begin();
     while (it != records.end()) {
         // Find records related to the next path.
-        auto [_, currentEnd] = std::equal_range(
+        auto currentEnd = std::find_if(
             it,
             records.end(),
-            *it,
-            [] (const NRecords::TPathToNodeId& lhs, const NRecords::TPathToNodeId& rhs) {
-                return lhs.Key.Path < rhs.Key.Path;
+            [&] (const NRecords::TPathToNodeId& record) {
+                return it->Key.Path != record.Key.Path;
             });
 
         TRange<NRecords::TPathToNodeId> currentRecords(
@@ -395,6 +398,47 @@ TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
 {
     return CypressTransactionAncestry_.back();
 }
+
+TSequoiaSession::TSubtree TSequoiaSession::TPagedSubtreeFetcher::FetchNextPage()
+{
+    auto records = WaitFor(SelectSubtree(
+        Owner_->SequoiaTransaction_,
+        RootPath_,
+        Owner_->CypressTransactionAncestry_,
+        PageSize_,
+        CursorPath_))
+        .ValueOrThrow();
+
+    if (std::ssize(records) == PageSize_) {
+        // Fork resolve requires full rows scope per node, yet the last node's
+        // records may be trimmed. Process them at next iteration.
+        auto cursorPath = records.back().Key.Path;
+        while (records.back().Key.Path == cursorPath) {
+            records.pop_back();
+        }
+        CursorPath_ = TAbsolutePath(cursorPath);
+    } else {
+        ShouldContinue_ = false;
+    }
+
+    TPathForkResolver forkResolver;
+
+    TraverseSelectedSubtree(
+        std::move(records),
+        Owner_->CypressTransactionDepths_,
+        &forkResolver);
+
+    return {.Nodes = std::move(forkResolver).GetResult()};
+}
+
+TSequoiaSession::TPagedSubtreeFetcher::TPagedSubtreeFetcher(
+    TAbsolutePathBuf rootPath,
+    int pageSize,
+    TSequoiaSession* owner)
+    : RootPath_(rootPath)
+    , PageSize_(pageSize)
+    , Owner_(owner)
+{ }
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
@@ -480,9 +524,12 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     }
 
     // To prevent concurrent finishing of this Cypress tx.
+    // NB: to figure out the reason of usage shared write lock instead of shared
+    // read see comment above TSequoiaMutation in
+    // lib/sequoia/cypress_transaction.cpp.
     SequoiaTransaction_->LockRow(
         NRecords::TTransactionKey{.TransactionId = cypressTransactionId},
-        ELockType::SharedStrong);
+        ELockType::SharedWrite);
 
     auto affectedCellTags = SequoiaTransaction_->GetAffectedMasterCellTags();
     Erase(affectedCellTags, CellTagFromId(cypressTransactionId));
@@ -498,7 +545,7 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     auto replicas = WaitFor(SequoiaTransaction_->LookupRows(replicaKeys))
         .ValueOrThrow();
 
-    TTransactionReplicationDestinationCellTagList dstCellTags;
+    TCellTagList dstCellTags;
     for (int i = 0; i < std::ssize(affectedCellTags); ++i) {
         if (!replicas[i].has_value()) {
             dstCellTags.push_back(affectedCellTags[i]);
@@ -528,7 +575,7 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     // with Cypress transaction replication may be 1 + 1/3 Sequoia transactions
     // instead of 2.
 
-    WaitFor(ReplicateCypressTransactions(
+    WaitFor(ReplicateCypressTransactionToCells(
         SequoiaTransaction_->GetClient(),
         {cypressTransactionId},
         dstCellTags,
@@ -556,7 +603,11 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
             .StronglyOrdered = true,
         })
         .Apply(BIND([] (const TError& error) -> TError {
-            if (!error.IsOK() && error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
+            if (error.IsOK()) {
+                return error;
+            }
+
+            if (error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
                 YT_LOG_ALERT(error, "Failed to commit Sequoia transaction");
 
                 return WrapCypressProxyRegistrationError(std::move(error));
@@ -748,9 +799,6 @@ TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
         ? masterConnector->GetSupportedInheritableDuringCopyAttributeKeys()
         : masterConnector->GetSupportedInheritableAttributeKeys();
 
-    auto requestTemplate = TYPathProxy::Get("/@");
-    ToProto(requestTemplate->mutable_attributes(), TAttributeFilter(*inheritableAttributeList));
-
     std::vector<TNodeId> nodeIds(std::accumulate(
         nodeRanges.begin(),
         nodeRanges.end(),
@@ -764,23 +812,33 @@ TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
         }
     }
 
+    return WaitFor(FetchNodeAttributesFromMaster(nodeIds, TAttributeFilter(*inheritableAttributeList)))
+        .ValueOrThrow();
+}
+
+TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster(
+    TRange<TNodeId> nodeIds,
+    const TAttributeFilter& attributeFilter) const
+{
+    auto requestTemplate = TYPathProxy::Get("&/@");
+    ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+
     auto batcher = TMasterYPathProxy::CreateGetBatcher(
         GetNativeAuthenticatedClient(),
         requestTemplate,
         nodeIds,
         GetCurrentCypressTransactionId());
-    auto nodeIdToRspOrError = WaitFor(batcher.Invoke())
-        .ValueOrThrow();
-
-    THashMap<TNodeId, IConstAttributeDictionaryPtr> inheritableAttributes;
-    inheritableAttributes.reserve(nodeIds.size());
-    for (const auto& [nodeId, rspOrError] : nodeIdToRspOrError) {
-        inheritableAttributes.emplace(
-            nodeId,
-            ConvertToAttributes(TYsonString(rspOrError.ValueOrThrow()->value())));
-    }
-
-    return inheritableAttributes;
+    return batcher.Invoke()
+        .Apply(BIND([] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& nodeIdToRspOrError) {
+            TNodeIdToConstAttributes result;
+            result.reserve(std::ssize(nodeIdToRspOrError));
+            for (const auto& [nodeId, rspOrError] : nodeIdToRspOrError) {
+                result.emplace(
+                    nodeId,
+                    ConvertToAttributes(TYsonString(rspOrError.ValueOrThrow()->value())));
+            }
+            return result;
+        }));
 }
 
 const NApi::NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
@@ -995,6 +1053,12 @@ TSequoiaSession::TSubtree TSequoiaSession::FetchSubtree(TAbsolutePathBuf path)
         &forkResolver);
 
     return TSubtree{.Nodes = std::move(forkResolver).GetResult()};
+}
+
+TSequoiaSession::TPagedSubtreeFetcher TSequoiaSession::FetchPagedSubtree(NSequoiaClient::TAbsolutePathBuf path)
+{
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+    return TPagedSubtreeFetcher(path, /*pageSize*/ dynamicConfig->SelectSubtreeRowsLimit, this);
 }
 
 void TSequoiaSession::DetachAndRemoveSubtree(
@@ -1340,7 +1404,7 @@ TNodeId TSequoiaSession::MaterializeNodeOnMaster(
     EObjectType type,
     TNodeId /*existingNodeId*/)
 {
-    // TODO(h0pless): externalize.
+    // TODO(h0pless): externalize. YT-26855.
 
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type, cellTagHint);
 
@@ -1355,10 +1419,11 @@ TNodeId TSequoiaSession::MaterializeNodeOnMaster(
 void TSequoiaSession::AssembleTreeCopy(
     TNodeId rootNodeId,
     TNodeId rootParentId,
-    TAbsolutePath rootPath,
+    TAbsolutePathBuf rootPath,
     bool preserveAcl,
     bool preserveModificationTime,
-    THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildrenInfo)
+    const TNodeIdToChildDescriptors& nodeIdToChildrenInfo,
+    const TNodeIdToConstAttributes& linkNodeIdToAttributes)
 {
     auto cypressTransactionId = GetCurrentCypressTransactionId();
     TCypressChildDescriptor rootNodeInfo = {
@@ -1391,7 +1456,7 @@ void TSequoiaSession::AssembleTreeCopy(
 
         currentPath.Append(nodeInfo.ChildKey);
 
-        for (const auto& childInfo : nodeIdToChildrenInfo[nodeInfo.ChildId]) {
+        for (const auto& childInfo : GetOrCrash(nodeIdToChildrenInfo, nodeInfo.ChildId)) {
             traverseQueue.emplace_back(childInfo, currentDepth + 1);
 
             // NB: Sequoia transaction has automated action sorting,
@@ -1405,10 +1470,17 @@ void TSequoiaSession::AssembleTreeCopy(
                 SequoiaTransaction_);
         }
 
+        std::optional<TYPath> linkNodeTargetPath;
+        if (IsLinkType(TypeFromId(nodeInfo.ChildId))) {
+            const auto& attributes = GetOrCrash(linkNodeIdToAttributes, nodeInfo.ChildId);
+            linkNodeTargetPath = attributes->Get<TYPath>(EInternedAttributeKey::TargetPath.Unintern());
+        }
+
         NCypressProxy::MaterializeNodeInSequoia(
             {nodeInfo.ChildId, cypressTransactionId},
             nodeInfo.ParentId,
             currentPath,
+            linkNodeTargetPath,
             preserveAcl,
             preserveModificationTime,
             ProgenitorTransactionCache_,

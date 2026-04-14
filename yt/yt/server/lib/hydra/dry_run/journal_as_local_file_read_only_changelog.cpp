@@ -17,7 +17,7 @@ TJournalAsLocalFileReadOnlyChangelog::TJournalAsLocalFileReadOnlyChangelog(int c
     : ChangelogId_(changelogId)
 { }
 
-void TJournalAsLocalFileReadOnlyChangelog::Open(const TString& path)
+void TJournalAsLocalFileReadOnlyChangelog::Open(const std::string& path)
 {
     TFileInput input(path);
     TYsonPullParser parser(&input, EYsonType::ListFragment);
@@ -95,7 +95,7 @@ TFuture<std::vector<TSharedRef>> TJournalAsLocalFileReadOnlyChangelog::Read(
 
 TFuture<void> TJournalAsLocalFileReadOnlyChangelog::Close()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TJournalAsLocalFileReadOnlyChangelog::Append(TRange<TSharedRef> /*records*/)
@@ -115,7 +115,7 @@ TFuture<void> TJournalAsLocalFileReadOnlyChangelog::Truncate(int /*recordCount*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChangelogPtr CreateJournalAsLocalFileReadOnlyChangelog(const TString& path, int changelogId)
+IChangelogPtr CreateJournalAsLocalFileReadOnlyChangelog(const std::string& path, int changelogId)
 {
     auto changelog = New<TJournalAsLocalFileReadOnlyChangelog>(changelogId);
     changelog->Open(path);

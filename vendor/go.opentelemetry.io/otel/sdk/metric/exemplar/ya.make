@@ -1,8 +1,11 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
 
-VERSION(v1.36.0)
+VERSION(v1.39.0)
 
 SRCS(
     doc.go
@@ -16,6 +19,7 @@ SRCS(
 )
 
 GO_TEST_SRCS(
+    benchmark_test.go
     filter_test.go
     fixed_size_reservoir_test.go
     histogram_reservoir_test.go

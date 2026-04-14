@@ -1,16 +1,14 @@
 #pragma once
 
-#include "public.h"
-#include "private.h"
-#include "job.h"
 #include "environment.h"
+#include "job.h"
+#include "private.h"
+#include "public.h"
 
-#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 #include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
+#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
-
-#include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -21,6 +19,8 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
+
+#include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -85,7 +85,9 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
 
-    NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const override;
+    NApi::NNative::IConnectionPtr CreateNativeConnection(
+        NApi::NNative::TConnectionCompoundConfigPtr config,
+        NApi::NNative::TConnectionOptions options = {}) const override;
 
     TDuration GetSpentCpuTime() const;
 
@@ -193,6 +195,8 @@ private:
 
     NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
 
+    std::optional<int> OomScoreAdj_;
+
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
 
@@ -275,6 +279,10 @@ private:
     void Abort(EJobProxyExitCode exitCode);
 
     void LogSystemStats() const;
+
+    void SetOomScoreAdj(int score);
+
+    void OnMemoryReserveExceeded(i64 usage);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

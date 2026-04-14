@@ -208,7 +208,7 @@ TEST(TDiscoveryTest, Leave)
     EXPECT_CALL(*MockTransaction, Abort(_))
         .WillOnce(InvokeWithoutArgs([&] {
                 locked = false;
-                return VoidFuture;
+                return OKFuture;
             }));
 
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))

@@ -150,7 +150,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     auto processName = GetProcessName(pid);
                     auto commandLine = GetProcessCommandLine(pid);
 
-                    if (!commandLine.empty() && commandLine[0].EndsWith("/portod")) {
+                    if (!commandLine.empty() && commandLine[0].ends_with("/portod")) {
                         YT_LOG_DEBUG("Memory tracker found portod, ignoring (Pid: %v, CommandLine: %v, Rss: %v, Shared: %v)",
                             pid,
                             commandLine,

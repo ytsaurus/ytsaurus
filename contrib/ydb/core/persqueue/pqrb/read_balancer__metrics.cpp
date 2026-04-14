@@ -14,9 +14,10 @@ namespace NKikimr::NPQ {
 
 namespace {
 
-template<const NProtoBuf::EnumDescriptor* SimpleDesc()>
 struct TMetricCollector {
-    using TConfig = TProtobufTabletLabeledCounters<SimpleDesc>;
+    TMetricCollector(TTabletLabeledCountersBase&& counters)
+        : Counters(std::move(counters))
+    {}
 
     void Collect(const auto& values) {
         Collect(values.begin(), values.end());
@@ -36,14 +37,57 @@ struct TMetricCollector {
         Aggregator.AggregateWith(Counters);
     }
 
-    TConfig Counters;
+    TTabletLabeledCountersBase Counters;
     TTabletLabeledCountersBase Aggregator;
 };
 
+struct THistogramMetricCollector {
+    THistogramMetricCollector(const NMonitoring::TBucketBounds& bounds)
+    {
+        Values.resize(bounds.size() + 1);
+    }
+
+    void Collect(const auto& values) {
+        Collect(values.begin(), values.end());
+    }
+
+    void Collect(auto begin, auto end) {
+        ssize_t in_size = std::distance(begin, end);
+        AFL_ENSURE(in_size >= 0)("in_size", in_size);
+
+        if (size_t(in_size) != Values.size()) {
+            return;
+        }
+
+        for (size_t i = 0; i < Values.size(); ++i) {
+            Values[i] += *begin;
+            ++begin;
+        }
+    }
+    std::vector<ui64> Values;
+};
+
 struct TConsumerMetricCollector {
-    TMetricCollector<EClientLabeledCounters_descriptor> ClientLabeledCounters;
-    //TMetricCollector<EMLPConsumerLabeledCounters_descriptor> MLPConsumerLabeledCounters;
-    //TMetricCollector MLPMessageLockAttemptsCounter;
+    TMetricCollector ClientLabeledCounters = TMetricCollector(CreateProtobufTabletLabeledCounters<EClientLabeledCounters_descriptor>());
+    TMetricCollector MLPConsumerLabeledCounters = TMetricCollector(CreateProtobufTabletLabeledCounters<EMLPConsumerLabeledCounters_descriptor>());
+    THistogramMetricCollector MLPMessageLockAttemptsCounter{MLP_LOCKS_BOUNDS};
+    THistogramMetricCollector MLPMessageLockingDurationCounter{SLOW_LATENCY_BOUNDS};
+    THistogramMetricCollector MLPWaitingLockingDurationCounter{SLOW_LATENCY_BOUNDS};
+
+    size_t DeletedByRetentionPolicy = 0;
+    size_t DeletedByDeadlinePolicy = 0;
+    size_t DeletedByMovedToDLQ = 0;
+
+    void Collect(const NKikimrPQ::TAggregatedCounters::TMLPConsumerCounters& metrics) {
+        MLPConsumerLabeledCounters.Collect(metrics.GetCountersValues());
+        MLPMessageLockAttemptsCounter.Collect(metrics.GetMessageLocksValues());
+        MLPMessageLockingDurationCounter.Collect(metrics.GetMessageLockingDurationValues());
+        MLPWaitingLockingDurationCounter.Collect(metrics.GetWaitingLockingDurationValues());
+
+        DeletedByRetentionPolicy += metrics.GetDeletedByRetentionPolicy();
+        DeletedByDeadlinePolicy += metrics.GetDeletedByDeadlinePolicy();
+        DeletedByMovedToDLQ += metrics.GetDeletedByMovedToDLQ();
+    }
 };
 
 struct TTopicMetricCollector {
@@ -56,9 +100,9 @@ struct TTopicMetricCollector {
 
     TTopicMetrics TopicMetrics;
 
-    TMetricCollector<EPartitionLabeledCounters_descriptor> PartitionLabeledCounters;
-    TMetricCollector<EPartitionExtendedLabeledCounters_descriptor> PartitionExtendedLabeledCounters;
-    TMetricCollector<EPartitionKeyCompactionLabeledCounters_descriptor> PartitionKeyCompactionLabeledCounters;
+    TMetricCollector PartitionLabeledCounters = TMetricCollector(CreateProtobufTabletLabeledCounters<EPartitionLabeledCounters_descriptor>());
+    TMetricCollector PartitionExtendedLabeledCounters = TMetricCollector(CreateProtobufTabletLabeledCounters<EPartitionExtendedLabeledCounters_descriptor>());
+    TMetricCollector PartitionKeyCompactionLabeledCounters = TMetricCollector(CreateProtobufTabletLabeledCounters<EPartitionKeyCompactionLabeledCounters_descriptor>());
 
     absl::flat_hash_map<TString, TConsumerMetricCollector> Consumers;
 
@@ -88,12 +132,10 @@ struct TTopicMetricCollector {
             Consumers[consumer.GetConsumer()].ClientLabeledCounters.Collect(consumer.GetValues());
         }
 
-        // TODO MLP
-        // for (const auto& consumer : counters.GetMLPConsumerCounters()) {
-        //     auto& collector = Consumers[consumer.GetConsumer()];
-        //     collector.MLPConsumerLabeledCounters.Collect(consumer.GetCountersValues());
-        //     collector.MLPMessageLockAttemptsCounter.Collect(consumer.GetMessageLocksValues());
-        // }
+        for (const auto& consumer : counters.GetMLPConsumerCounters()) {
+            auto& collector = Consumers[consumer.GetConsumer()];
+            collector.Collect(consumer);
+        }
     }
 
     void Finish() {
@@ -126,13 +168,18 @@ TCounters InitializeCounters(
             nameBuf.SkipPrefix("PQ/");
             name = nameBuf;
         }
-        result.push_back(name.empty() ? nullptr : group->GetExpiringNamedCounter("name", name, false));
+        bool derivative = name == "topic.committed_messages" || name == "topic.purged_messages";
+        result.push_back(name.empty() ? nullptr : group->GetExpiringNamedCounter("name", name, derivative));
     }
 
     return {
-        .Types = config->GetTypes(),
+        .Types = config->GetCounterTypes(),
         .Counters = std::move(result)
     };
+}
+
+NMonitoring::TDynamicCounters::TCounterPtr InitializeDeleteCounter(NMonitoring::TDynamicCounterPtr root, const auto& reason) {
+    return root->GetSubgroup("name", "topic.deleted_messages")->GetExpiringNamedCounter("reason", reason, true);
 }
 
 void SetCounters(TCounters& counters, const auto& metrics) {
@@ -155,6 +202,14 @@ void SetCounters(TCounters& counters, const auto& metrics) {
 
         counters.Counters[i]->Set(value);
     }
+}
+
+void SetCounters(NMonitoring::THistogramPtr& counter, const THistogramMetricCollector& metrics, const auto& bounds) {
+    counter->Reset();
+    for (size_t i = 0; i < bounds.size(); ++i) {
+        counter->Collect(bounds[i], metrics.Values[i]);
+    }
+    counter->Collect(Max<double>(), metrics.Values[metrics.Values.size() - 1]);
 }
 
 }
@@ -205,8 +260,19 @@ void TTopicMetricsHandler::InitializeConsumerCounters(const NKikimrPQ::TPQTablet
         counters.ClientLabeledCounters = InitializeCounters<EClientLabeledCounters_descriptor>(DynamicCounters, {{"consumer", metricsConsumerName}});
 
         if (consumer.GetType() == NKikimrPQ::TPQTabletConfig::CONSUMER_TYPE_MLP) {
-            //metrics.MLPClientLabeledCounters = InitializeCounters<EMLPConsumerLabeledCounters_descriptor>(DynamicCounters, {{"consumer", metricsConsumerName}});
-            //metrics.MLPMessageLockAttemptsCounter = InitializeCounters<EMLPMessageLockAttemptsLabeledCounters_descriptor>(DynamicCounters,  {{"consumer", metricsConsumerName}});
+            counters.MLPClientLabeledCounters = InitializeCounters<EMLPConsumerLabeledCounters_descriptor>(DynamicCounters, {{"consumer", metricsConsumerName}});
+
+            auto consumerGroup = DynamicCounters->GetSubgroup("consumer", metricsConsumerName);
+            counters.MLPMessageLockAttemptsCounter = consumerGroup->GetExpiringNamedHistogram(
+                "name", "topic.message_lock_attempts", NMonitoring::ExplicitHistogram(MLP_LOCKS_BOUNDS), true);
+            counters.MLPMessageLockingDurationCounter = consumerGroup->GetExpiringNamedHistogram(
+                "name", "topic.message_locking_duration_milliseconds", NMonitoring::ExplicitHistogram(SLOW_LATENCY_BOUNDS), true);
+            counters.MLPWaitingLockingDurationCounter = consumerGroup->GetExpiringNamedHistogram(
+                "name", "topic.waiting_locking_duration_milliseconds", NMonitoring::ExplicitHistogram(SLOW_LATENCY_BOUNDS), true);
+
+            counters.DeletedByRetentionPolicyCounter = InitializeDeleteCounter(consumerGroup, "retention");
+            counters.DeletedByDeadlinePolicyCounter = InitializeDeleteCounter(consumerGroup, "delete_policy");
+            counters.DeletedByMovedToDLQCounter = InitializeDeleteCounter(consumerGroup, "move_policy");
         }
     }
 
@@ -274,6 +340,7 @@ void TTopicMetricsHandler::UpdateMetrics() {
         collector.Collect(partitionStatus);
     }
     collector.Finish();
+
     PartitionStatuses.erase(PartitionStatuses.begin(), PartitionStatuses.end());
 
     TopicMetrics = collector.TopicMetrics;
@@ -291,10 +358,16 @@ void TTopicMetricsHandler::UpdateMetrics() {
         auto& consumerMetrics = it->second;
 
         SetCounters(consumerCounters.ClientLabeledCounters, consumerMetrics.ClientLabeledCounters);
-        //if (!consumerCounters.MLPClientLabeledCounters.Counters.empty()) {
-            // SetCounters(consumerCounters.MLPClientLabeledCounters, consumerMetrics.MLPConsumerLabeledCounters);
-            // TODO MLPMessageLockAttemptsCounter
-        //}
+        if (!consumerCounters.MLPClientLabeledCounters.Counters.empty()) {
+            SetCounters(consumerCounters.MLPClientLabeledCounters, consumerMetrics.MLPConsumerLabeledCounters);
+            SetCounters(consumerCounters.MLPMessageLockAttemptsCounter, consumerMetrics.MLPMessageLockAttemptsCounter, MLP_LOCKS_BOUNDS);
+            SetCounters(consumerCounters.MLPMessageLockingDurationCounter, consumerMetrics.MLPMessageLockingDurationCounter, SLOW_LATENCY_BOUNDS);
+            SetCounters(consumerCounters.MLPWaitingLockingDurationCounter, consumerMetrics.MLPWaitingLockingDurationCounter, SLOW_LATENCY_BOUNDS);
+
+            consumerCounters.DeletedByRetentionPolicyCounter->Set(consumerMetrics.DeletedByRetentionPolicy);
+            consumerCounters.DeletedByDeadlinePolicyCounter->Set(consumerMetrics.DeletedByDeadlinePolicy);
+            consumerCounters.DeletedByMovedToDLQCounter->Set(consumerMetrics.DeletedByMovedToDLQ);
+        }
     }
 }
 

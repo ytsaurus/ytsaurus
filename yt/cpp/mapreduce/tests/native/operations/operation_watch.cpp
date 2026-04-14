@@ -10,8 +10,6 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-namespace {
-
 TEST(OperationWatch, SimpleOperationWatch)
 {
     TTestFixture fixture;
@@ -257,5 +255,3 @@ TEST(OperationWatch, TestHugeFailWithHugeStderr)
     //expect no exception
     operation->Watch().Wait();
 }
-
-} // namespace

@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "config.h"
+#include "queue_exporter_profile_manager.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
@@ -122,14 +123,14 @@ DEFINE_REFCOUNTED_TYPE(IQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
     TString exportName,
-    NQueueClient::TCrossClusterReference queue,
+    NQueueClient::TQueuePath queue,
     NQueueClient::TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     NHiveClient::TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     NAlertManager::IAlertCollectorPtr alertCollector,
-    const NProfiling::TProfiler& queueProfiler,
+    IQueueExporterProfileManagerPtr profileManager,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,12 +10,15 @@
 #include <yt/yql/providers/yt/common/yql_names.h>
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
 #include <yt/yql/providers/yt/gateway/native/yql_yt_native.h>
+#include <yt/yql/providers/yt/lib/access_provider/full/yt_access_provider.h>
 #include <yt/yql/providers/yt/lib/log/yt_logger.h>
 #include <yt/yql/providers/yt/lib/res_pull/res_or_pull.h>
 #include <yt/yql/providers/yt/lib/row_spec/yql_row_spec.h>
 #include <yt/yql/providers/yt/lib/schema/schema.h>
 #include <yt/yql/providers/yt/lib/skiff/yql_skiff_schema.h>
+#include <yt/yql/providers/yt/lib/tvm_client/full/tvm_client.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
+#include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 
 #include <yql/essentials/parser/pg_wrapper/interface/comp_factory.h>
@@ -44,6 +47,7 @@
 #include <yql/essentials/core/url_preprocessing/url_preprocessing.h>
 #include <yql/essentials/core/yql_library_compiler.h>
 #include <yql/essentials/core/yql_type_helpers.h>
+#include <yql/essentials/core/url_lister/url_lister_manager.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yql/essentials/minikql/mkql_function_registry.h>
@@ -86,6 +90,7 @@
 #include <util/string/builder.h>
 
 #include <util/generic/ptr.h>
+#include <util/system/env.h>
 #include <util/system/fs.h>
 #include <util/thread/pool.h>
 
@@ -106,6 +111,15 @@ std::optional<TString> MaybeToOptional(const TMaybe<TString>& maybeStr)
     }
     return *maybeStr;
 };
+
+TString CalculateMD5Checksum(const TString& filename)
+{
+    if (GetEnv("YT_LOCAL") == "1") {
+        return MD5::Calc(filename);
+    }
+
+    return MD5::File(filename);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -382,6 +396,12 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TPqGatewayConfig>(),
                 protobufWriterOptions));
 
+            auto* gatewaySolomonConfig = GatewaysConfigInitial_.MutableSolomon();
+            gatewaySolomonConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.SolomonGatewayConfig,
+                NYson::ReflectProtobufMessageType<NYql::TSolomonGatewayConfig>(),
+                protobufWriterOptions));
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,
@@ -408,7 +428,7 @@ public:
                 }
                 FuncRegistry_->LoadUdfs(path, emptyRemappings, flags);
                 if (DqManagerConfig_) {
-                    DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
+                    DqManagerConfig_->UdfsWithMd5.emplace(path, CalculateMD5Checksum(path));
                 }
             }
             gatewayYtConfig->ClearMrJobUdfsDir();
@@ -462,7 +482,8 @@ public:
             TLangVersionBuffer buf;
             TStringBuf versionStringBuf;
 
-            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersion_);
+            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersionInitial_);
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
             YQL_LOG(INFO) << Format("Maximum supported YQL version is set (Version: %v)", options.MaxYqlLangVersion);
 
             DefaultYqlApiLangVersion_ = MinLangVersion;
@@ -580,6 +601,7 @@ public:
 
         auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
+        factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
         auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settings, credentialsStr, dynamicConfig, factory);
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
@@ -624,6 +646,7 @@ public:
 
         program->SetOperationId(ToString(queryId));
         program->SetOperationUrl(sqlSettings.DefaultCluster);
+        program->SetAuthenticatedUser(user);
 
         auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
@@ -864,6 +887,20 @@ public:
         YQL_LOG(DEBUG) << __FUNCTION__ << ": newGatewaysConfig = " << newGatewaysConfig.ShortDebugString();
 
         DynamicConfig_.Store(CreateDynamicConfig(std::move(newGatewaysConfig)));
+
+        if (!config.MaxSupportedYqlVersion) {
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+        } else {
+            const auto maxVersionStr = config.MaxSupportedYqlVersion.ToString();
+            YQL_LOG(DEBUG) << __FUNCTION__ << ": config.MaxSupportedYqlVersion = " << maxVersionStr;
+            TLangVersion maxVersion;
+            if (ParseLangVersion(maxVersionStr, maxVersion)) {
+                MaxYqlLangVersion_ = maxVersion;
+            } else {
+                YQL_LOG(DEBUG) << __FUNCTION__ << ": cannot parse config.MaxSupportedYqlVersion";
+                MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+            }
+        }
         YQL_LOG(INFO) << "Dynamic config update finished";
     }
 
@@ -880,7 +917,8 @@ private:
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
 
-    TLangVersion MaxYqlLangVersion_;
+    std::atomic<TLangVersion> MaxYqlLangVersion_;
+    TLangVersion MaxYqlLangVersionInitial_;
     TLangVersion DefaultYqlApiLangVersion_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
@@ -948,12 +986,13 @@ private:
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
         auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
         auto* gatewayPqConfig = dynamicConfig->GatewaysConfig.MutablePq();
+        auto* gatewaySolomonConfig = dynamicConfig->GatewaysConfig.MutableSolomon();
 
         // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
         gatewayYtConfig->ClearMrJobUdfsDir();
         YQL_LOG(DEBUG) << __FUNCTION__ << ": TDynamicConfig ready";
 
-        gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
+        gatewayYtConfig->SetMrJobBinMd5(CalculateMD5Checksum(gatewayYtConfig->GetMrJobBin()));
         YQL_LOG(DEBUG) << __FUNCTION__ << ": SetMrJobBinMd5 ready";
 
         for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
@@ -966,6 +1005,10 @@ private:
         for (const auto& mapping : gatewayPqConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::PqProviderName)});
             dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.endpoint()});
+        }
+        for (const auto& mapping : gatewaySolomonConfig->GetClusterMapping()) {
+            dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::SolomonProviderName)});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), (mapping.usessl() ? "https://" : "http://") + mapping.cluster()});
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 
@@ -1008,6 +1051,8 @@ private:
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
+        ytServices.TvmClient = CreateTvmClient(dynamicConfig.GatewaysConfig.GetYt());
+        ytServices.YtAccessProvider = CreateYtAccessProvider(ytServices.TvmClient, dynamicConfig.GatewaysConfig.GetYt());
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {

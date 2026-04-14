@@ -1,6 +1,7 @@
 UNITTEST_FOR(contrib/ydb/library/actors/util)
 
-IF (SANITIZER_TYPE OR WITH_VALGRIND)
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(cpu:2)
     SIZE(MEDIUM)
 ENDIF()
 

@@ -26,6 +26,8 @@ DEPENDS(
 )
 
 PEERDIR(
+    library/python/port_manager
+    yql/library/langver/python
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
 )
@@ -42,9 +44,15 @@ IF (SANITIZER_TYPE)
     REQUIREMENTS(
         ram:60
     )
+ELSE()
+    REQUIREMENTS(
+        ram:32
+    )
 ENDIF()
 
 FORK_SUBTESTS()
-SPLIT_FACTOR(16)
+SPLIT_FACTOR(32)
+
+ENV(YT_LOCAL=1)
 
 END()

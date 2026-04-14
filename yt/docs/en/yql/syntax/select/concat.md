@@ -1,22 +1,43 @@
 # Accessing multiple tables in one query
 
-In standard SQL, [UNION ALL](union.md#union-all) is used to execute a query across tables that bundle outputs of two or more `SELECT`s. This is not very convenient for the use case of running the same query on multiple tables (for example, if they contain data for different dates). To make this more convenient, in YQL `SELECT` statements, after `FROM`, you can specify not only a table or a subquery, but also call built-in functions letting you combine data from multiple tables.
+In standard SQL, [UNION ALL](../select/operators.md#union-all) is used to execute a query across tables that bundle outputs of two or more `SELECT`s. This is not very convenient for the use case of running the same query on multiple tables (for example, if they contain data for different dates). To make this more convenient, in YQL `SELECT` statements, after `FROM`, you can specify not only a table or a subquery, but also call built-in functions letting you combine data from multiple tables.
 
 The following functions are defined for these purposes:
 
-- ```CONCAT(`table1`, `table2`, `table3` VIEW view_name, ...)``` combines all the tables listed in the arguments.
+```CONCAT(`table1`, `table2`, `table3` VIEW view_name, ...)``` combines all the tables listed in the arguments.
 
-- ```EACH($list_of_strings) or EACH($list_of_strings VIEW view_name)``` combines all tables whose names are listed in the list of strings. Optionally, you can pass multiple lists in separate arguments similar to `CONCAT`.
+```EACH($list_of_strings) or EACH($list_of_strings VIEW view_name)``` combines all tables whose names are listed in the list of strings. Optionally, you can pass multiple lists in separate arguments similar to `CONCAT`.
 
-- ```RANGE(`prefix`, `min`, `max`, `suffix`, `view`)``` combines a range of tables. Arguments:
+```RANGE(`prefix`, `min`, `max`, `suffix`, `view`)``` combines a range of tables. Arguments:
 
-   * The prefix is the folder to search tables in. It's specified without a trailing slash. This is the only required argument. If it's the only one specified, all tables in the folder are used.
-   * min, max: These two arguments specify a range of table names included. The range is inclusive on both ends. If no range is specified, all tables in the prefix folder are used. The names of tables or folders located in the folder specified in prefix are lexicographically matched with the `[min, max]` range rather than concatenated, so make sure to specify the range without leading slashes.
-   * suffix is the name of the table. It's expected without a leading slash. If no suffix is specified, then the `[min, max]` arguments specify a range of table names. If the suffix is specified, then the `[min, max]` arguments specify a range of folders hosting a table with the name specified in the suffix argument.
+* The prefix is the folder to search tables in. It's specified without a trailing slash. This is the only required argument. If it's the only one specified, all tables in the folder are used.
 
-- ```LIKE(`prefix`, `pattern`, `suffix`, `view`)``` and ```REGEXP(`prefix`, `pattern`, `suffix`, `view`)``` — the pattern argument is set in a format similar to the same-name binary operator: [LIKE](../expressions.md#like) and [REGEXP](../expressions.md#regexp).
+* min, max: These two arguments specify a range of table names included. The range is inclusive on both ends. If no range is specified, all tables in the prefix folder are used. The names of tables or folders located in the folder specified in prefix are lexicographically matched with the `[min, max]` range rather than concatenated, so make sure to specify the range without leading slashes.
 
-- ```FILTER(`prefix`, `callable`, `suffix`, `view`)```: The `callable` argument must be a callable expression with the `(String)->Bool` signature that will be called for each table/subdirectory in the prefix folder. The query will only include those tables for which the callable value returned `true`. [Lambda functions](../expressions.md#lambda){% if yql == true %} or [Python](../../udf/python.md)/[JavaScript](../../udf/javascript.md) UDFs{% endif %} are most convenient to use as callable values.
+* suffix is the name of the table. It's expected without a leading slash. If no suffix is specified, then the `[min, max]` arguments specify a range of table names. If the suffix is specified, then the `[min, max]` arguments specify a range of folders hosting a table with the name specified in the suffix argument.
+
+```LIKE(`prefix`, `pattern`, `suffix`, `view`)``` and ```REGEXP(`prefix`, `pattern`, `suffix`, `view`)``` &mdash; the pattern argument is set in a format similar to the same-name binary operator: [LIKE](../expressions.md#like) and [REGEXP](../expressions.md#regexp).
+
+```FILTER(`prefix`, `callable`, `suffix`, `view`)```: The `callable` argument must be a callable expression with the `(String)->Bool` signature that will be called for each table/subdirectory in the prefix folder. The query will only include those tables for which the callable value returned `true`. [Lambda functions](../expressions.md#lambda){% if yql == true %} or [Python](../../udf/python.md)/[JavaScript](../../udf/javascript.md) UDFs{% endif %} are most convenient to use as callable values.
+
+```PARTITION_LIST($list_of_structs)``` &mdash; merges all tables listed in the list of structures and adds new columns to these tables. The structure must have a `TablePath` field (table path). The `TablePath` field must be of type `String` or `Utf8`. An optional `TableView` field with the type `Optional<String>` or `Optional<Utf8>` is also supported. If the `TableView` field is not null, the corresponding [VIEW](../select/view.md) is applied to the table.
+
+All other fields of the structure are added as additional columns to the corresponding table. First, `VIEW`/automatic unpacking of protobuf <!--[VIEW](../../misc/schema.md#_yql_view)/[automatic unpacking of protobuf](../../misc/schema.md#_yql_proto_field)/[read_udf](../../misc/schema.md#yqlreadudf)--> is applied, and then columns from `PARTITION_LIST` are added. The added columns replace columns with the same name from the table.
+
+The `PARTITION_LIST` function is available starting from version [2025.04](../../changelog/2025.04.md).
+
+```PARTITIONS(`prefix`, `pattern`, `view`)``` &mdash; merges tables that match the `pattern` template and adds parts of the paths corresponding to the template components to the table as columns. Arguments:
+
+* `prefix` &mdash; directory for searching tables, specified without a trailing slash;
+* `pattern` &mdash; template that will be applied to table paths without the initial `prefix`. The template can contain the following components:
+  * `*` &mdash; matches 0 or more path characters not including `/`. The behaviour is similar to the behaviour of `*` in the Unix shell;
+  * `${name:type}` &mdash; matches the part of the path component corresponding to the specified type and creates an additional column in the table with the type `type` and the name `name`. If the type is not specified, `String` is implied;
+  * all other characters match themselves;
+* `view` &mdash; optional argument. Specifies the VIEW for all tables that match the pattern.
+
+The `PARTITIONS` function is available starting from version [2025.04](../../changelog/2025.04.md).
+
+Examples of using these functions are provided below.
 
 {% note warning %}
 
@@ -24,11 +45,17 @@ All of the above functions don't guarantee the order of the table union.
 
 The list of tables is calculated **before** executing the query. Therefore, the tables created during the query execution won't be included in the function results.
 
+For the `CONCAT`/`RANGE`/`LIKE`/`REGEXP`/`FILTER`/`PARTITIONS` functions, the [TablePathPrefix](../pragma/global.md#table-path-prefix) is automatically added to the `prefix` argument if `prefix` is not an absolute path.
+
+For the `EACH` and `PARTITION_LIST` functions, this does not happen. In order for the [TablePathPrefix](../pragma/global.md#table-path-prefix) to apply to them as well, you need to enable the PRAGMA [UseTablePrefixForEach](../pragma/global.md#use-table-prefix-for-each).
+
+Columns added via `PARTITIONS`/`PARTITION_LIST` replace columns with the same names from the original table. It is recommended to use unique names to avoid conflicts.
+
 {% endnote %}
 
-By default, the schemas of all participating tables are aligned based on [UNION ALL](union.md#union-all) rules. If you don't want to align schemas, then you can use functions with the `_STRICT` suffix, for example `CONCAT_STRICT` or `RANGE_STRICT` that are totally similar to the original functions, but treat any difference in table schemas as an error.
+By default, the schemas of all participating tables are merged based on [UNION ALL](operators.md#union-all) rules. If you don't want to merge schemas, use functions with the `_STRICT` suffix (for example, `CONCAT_STRICT`) — they will work the same but treat any difference in table schemas as an error.
 
-To specify a cluster of unioned tables, add it before the function name.
+To specify a cluster for the joined tables, add it before the function name.
 
 All arguments of the functions described above can be declared separately using [named expressions](../expressions.md#named-nodes). In this case, you can also use  simple expressions in them by implicitly calling [EvaluateExpr](../../builtins/basic.md#evaluate_expr_atom).
 
@@ -110,4 +137,32 @@ SELECT * FROM FILTER(
   `my_folder`,
   $callable
 );
+```
+
+```yql
+$part_list = AsList(
+  AsStruct("path/to/table1" as TablePath, "view1" as TableView, 1 as idx, "1" as idx_str),
+  AsStruct("path/to/table2" as TablePath,                       2 as idx, "2" as idx_str),
+);
+
+SELECT * FROM some_cluster.PARTITION_LIST($part_list);
+
+-- The query above is equivalent to
+-- SELECT 1 as idx, "1" as idx_str, t1.* WITHOUT idx, idx_str FROM some_cluster.`path/to/table1` AS t1
+-- UNION ALL
+-- SELECT 2 as idx, "2" as idx_str, t2.* WITHOUT idx, idx_str FROM some_cluster.`path/to/table2` AS t2
+```
+
+```yql
+-- Let's assume that the //home/daily_log directory has the following structure: //home/daily_logs/<date in YYYY-MM-DD format>/<company name>/event_log
+use some_cluster;
+
+pragma yt.EarlyPartitionPruning;
+
+SELECT company, event_id, count(*) as events_count
+FROM PARTITIONS(`//home/daily_logs`, "${event_date:Date}/${company}/event_log")
+-- With yt.EarlyPartitionPruning, YQL will analyze the predicate in WHERE and exclude all tables older than 2025-01-01.
+-- Metadata will not be loaded for excluded tables.
+WHERE event_date >= Date("2025-10-01") OR event_id = 123 AND event_date >= Date("2025-01-01")
+GROUP BY company, event_id;
 ```

@@ -51,6 +51,7 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/skiff/skiff_schema.h>
 
@@ -125,8 +126,7 @@ public:
             ChunkId_,
             compressorOptions.ChunkPath,
             /*validateBlocksChecksums*/ true));
-        ChunkMeta_ = BackendReader_->GetMeta(/*options*/ {})
-            .Get()
+        ChunkMeta_ = WaitFor(BackendReader_->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         CachedVersionedChunkMeta_ = TCachedVersionedChunkMeta::Create(
             /*preparedColumnarMeta*/ false,

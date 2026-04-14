@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/library/dynamic_config/config.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,8 +35,11 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster", &TThis::Cluster)
         .NonEmpty();
 
+    registrar.Parameter("use_dedicated_user_name", &TThis::UseDedicatedUserName)
+        .Default();
+
     registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Seconds(10));
 
     registrar.Parameter("bundle_scan_transaction_timeout", &TThis::BundleScanTransactionTimeout)
         .Default(TDuration::Minutes(5));
@@ -51,6 +56,7 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(10));
 
     registrar.Parameter("root_path", &TThis::RootPath)
+        .Default("//sys/bundle_controller/controller")
         .NonEmpty();
 
     registrar.Parameter("has_instance_allocator_service", &TThis::HasInstanceAllocatorService)
@@ -113,12 +119,46 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNodeTrackerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
+        .Default();
+
+    registrar.Parameter("node_tracker", &TThis::NodeTracker)
+        .DefaultNew();
+
+    registrar.Parameter("remove_tags_from_offline_nodes", &TThis::RemoveTagsFromOfflineNodes)
+        .Default(false);
+
+    registrar.Parameter("remove_instance_cypress_node_after", &TThis::RemoveInstanceCypressNodeAfter)
+        .Default();
+    registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto electionManager = New<NCypressElection::TCypressElectionManagerConfig>();
+            electionManager->LockPath = "//sys/bundle_controller/coordinator/lock";
+            return electionManager;
+        });
     registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
 
@@ -131,6 +171,11 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("bundle_controller", &TThis::BundleController)
         .Optional();
+
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default(DefaultBundleControllerConfigPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

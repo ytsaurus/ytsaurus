@@ -21,7 +21,7 @@ constinit const auto Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNamedPipe::TNamedPipe(const TString& path, std::optional<int> capacity, bool owning)
+TNamedPipe::TNamedPipe(const std::string& path, std::optional<int> capacity, bool owning)
     : Path_(path)
     , Capacity_(capacity)
     , Owning_(owning)
@@ -39,7 +39,7 @@ TNamedPipe::~TNamedPipe()
     }
 }
 
-TNamedPipePtr TNamedPipe::Create(const TString& path, int permissions, std::optional<int> capacity)
+TNamedPipePtr TNamedPipe::Create(const std::string& path, int permissions, std::optional<int> capacity)
 {
     auto pipe = New<TNamedPipe>(path, capacity, /*owning*/ true);
     pipe->Open(permissions);
@@ -47,7 +47,7 @@ TNamedPipePtr TNamedPipe::Create(const TString& path, int permissions, std::opti
     return pipe;
 }
 
-TNamedPipePtr TNamedPipe::FromPath(const TString& path)
+TNamedPipePtr TNamedPipe::FromPath(const std::string& path)
 {
     return New<TNamedPipe>(path, /*capacity*/ std::nullopt, /*owning*/ false);
 }
@@ -77,14 +77,14 @@ IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(EDeliveryFencedMode deliveryF
         deliveryFencedMode);
 }
 
-TString TNamedPipe::GetPath() const
+std::string TNamedPipe::GetPath() const
 {
     return Path_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNamedPipeConfigPtr TNamedPipeConfig::Create(TString path, int fd, bool write)
+TNamedPipeConfigPtr TNamedPipeConfig::Create(std::string path, int fd, bool write)
 {
     auto result = New<TNamedPipeConfig>();
     result->Path = std::move(path);
@@ -110,20 +110,20 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPipe::TPipe()
+TPipe::TPipe() noexcept
 { }
 
-TPipe::TPipe(TPipe&& pipe)
+TPipe::TPipe(TPipe&& pipe) noexcept
 {
     Init(std::move(pipe));
 }
 
-TPipe::TPipe(int fd[2])
+TPipe::TPipe(int fd[2]) noexcept
     : ReadFD_(fd[0])
     , WriteFD_(fd[1])
 { }
 
-void TPipe::Init(TPipe&& other)
+void TPipe::Init(TPipe&& other) noexcept
 {
     ReadFD_ = other.ReadFD_;
     WriteFD_ = other.WriteFD_;
@@ -142,7 +142,7 @@ TPipe::~TPipe()
     }
 }
 
-void TPipe::operator=(TPipe&& other)
+void TPipe::operator=(TPipe&& other) noexcept
 {
     if (this == &other) {
         return;

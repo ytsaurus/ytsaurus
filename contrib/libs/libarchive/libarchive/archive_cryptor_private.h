@@ -56,10 +56,10 @@ int __libarchive_cryptor_build_hack(void);
 typedef struct {
 	CCCryptorRef	ctx;
 	uint8_t		key[AES_MAX_KEY_SIZE];
-	unsigned	key_len;
+	size_t		key_len;
 	uint8_t		nonce[AES_BLOCK_SIZE];
 	uint8_t		encr_buf[AES_BLOCK_SIZE];
-	unsigned	encr_pos;
+	size_t		encr_pos;
 } archive_crypto_ctx;
 
 #elif defined(_WIN32) && !defined(__CYGWIN__) && defined(HAVE_BCRYPT_H) && _WIN32_WINNT >= _WIN32_WINNT_VISTA
@@ -108,6 +108,10 @@ typedef struct {
 #error #include <nettle/aes.h>
 #error #include <nettle/version.h>
 #define	ARCHIVE_CRYPTOR_USE_NETTLE 1
+
+#ifndef AES_MAX_KEY_SIZE
+#define AES_MAX_KEY_SIZE AES256_KEY_SIZE
+#endif
 
 typedef struct {
 #if NETTLE_VERSION_MAJOR < 3

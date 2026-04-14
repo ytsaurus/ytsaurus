@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
+#include <yt/yt/server/lib/tablet_server/originator_tablet.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
@@ -86,6 +88,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, AuxiliaryNodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(NTabletNode::TTabletPerformanceCounters, PerformanceCounters);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOriginatorTablet>, OriginatorTablets);
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
@@ -95,6 +98,15 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
+
+    // Timestamp used on tablet node to check conflicts with versions from removed stores.
+    // More in NTabletNode::TTablet.
+    // It is updated only on unmount/freeze, so for example it is not updated on tablet's chunks update when tablet is unmounted.
+    // As this timestamp stored on master only to persist value for unmounted tablets, the lack of updates does not cause any problems.
+    DEFINE_BYVAL_RW_PROPERTY(
+        NTransactionClient::TTimestamp,
+        ConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
 
     using TUnconfirmedDynamicTableLocksSet = THashSet<NTransactionClient::TTransactionId>;
     DEFINE_BYREF_RW_PROPERTY(TUnconfirmedDynamicTableLocksSet, UnconfirmedDynamicTableLocks);

@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.4.4)
+VERSION(v0.4.5)
 
 GO_SKIP_TESTS(TestUsage)
 
@@ -101,6 +101,24 @@ IF (OS_ANDROID)
         copy_linux_test.go
         copy_unix_test.go
         dtype_linux_test.go
+        du_cmd_unix_test.go
+        du_unix_test.go
+        path_test.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        copy_irregular_unix.go
+        copy_nondarwin.go
+        diff_nonlinux.go
+        diff_unix.go
+        du_unix.go
+        hardlink_unix.go
+        utimesnanoat.go
+    )
+
+    GO_TEST_SRCS(
         du_cmd_unix_test.go
         du_unix_test.go
         path_test.go

@@ -192,6 +192,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRemoveChaosCellMailbox
+    : public TTypedCommand<NApi::TRemoveChaosCellMailboxOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TRemoveChaosCellMailbox);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    NHydra::TCellId ChaosCellId_;
+    NHydra::TCellId DestinationCellId_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetOrderedTabletSafeTrimRowCount
     : public TTypedCommand<NApi::TGetOrderedTabletSafeTrimRowCountOptions>
 {
@@ -203,6 +220,20 @@ public:
 private:
     std::vector<NApi::TSerializableGetOrderedTabletSafeTrimRowCountRequestPtr> Requests_;
 
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGetConnectionOrchidValue
+    : public TTypedCommand<NApi::TGetConnectionOrchidValueOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TGetConnectionOrchidValue);
+
+    static void Register(TRegistrar registrar);
+
+private:
     void DoExecute(ICommandContextPtr context) override;
 };
 

@@ -1,11 +1,12 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_env_setup import skip_if_rpc_driver_backend
 
 from yt_commands import (
     authors, print_debug, wait, sync_mount_table, sync_unmount_table,
     ls, remove, insert_rows, select_rows, lookup_rows, alter_table,
-    wait_for_tablet_state, sync_create_cells,
+    wait_for_tablet_state, sync_create_cells, pull_queue,
     clear_metadata_caches, execute_command)
 
 from yt_helpers import profiler_factory
@@ -258,3 +259,46 @@ class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBa
 
         assert lookup_rows("//tmp/t", [{"key": 1}], driver=rpc_driver) == rows
         wait(lambda: proxy_lookup_retry_count.get_delta() > 0)
+
+
+@pytest.mark.enabled_multidaemon
+class TestOrderedDynamicTablesMetadataCachingOnRpcProxy(TestOrderedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 5000,
+                "expire_after_access_time": 5000,
+            },
+        }
+    }
+
+    @authors("nadya73")
+    def test_profile_pull_queue_mount_cache_retries(self):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t", enable_detailed_profiling=True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", rows)
+
+        rpc_proxy = ls("//sys/rpc_proxies")[0]
+
+        proxy_pull_queue_retry_count = profiler_factory().at_rpc_proxy(rpc_proxy).counter(
+            name="rpc_proxy/detailed_table_statistics/retry_count",
+            tags={"table_path": "//tmp/t"})
+
+        def _remove_system_columns(rows):
+            return [{"key": row["key"], "value": row["value"]} for row in rows]
+
+        assert _remove_system_columns(pull_queue("//tmp/t", offset=0, partition_index=0)) == rows
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert _remove_system_columns(pull_queue("//tmp/t", offset=0, partition_index=0)) == rows
+        wait(lambda: proxy_pull_queue_retry_count.get_delta() > 0)

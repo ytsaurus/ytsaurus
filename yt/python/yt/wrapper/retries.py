@@ -108,7 +108,7 @@ class Retrier(object):
 
                 backoff = self.get_backoff(attempt, attempt_start_time)
                 if deadline is not None and datetime.now() + timedelta(seconds=backoff) > deadline:
-                    if attempt == 1 and retry_count > 1:
+                    if attempt == 1 and retry_count is not None and retry_count > 1:
                         self._logger.warning("Will not retry cos total_timeout + backoff (%s + %s) reached", total_timeout, backoff)
                     raise
 

@@ -25,13 +25,15 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/library/program/config.h>
-
 #include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -73,6 +75,8 @@ struct TTestingOptions
     std::optional<TDuration> DelayInHandshake;
 
     bool AbortOutputTransactionAfterCompletionTransactionCommit;
+
+    bool EnableEventsOnFs;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 
@@ -533,6 +537,7 @@ struct TSortOperationOptionsBase
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
+    i64 DefaultPartitionDataWeightForMerging;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
@@ -597,7 +602,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-
     TDuration JobReincarnationTimeout;
 
     REGISTER_YSON_STRUCT(TGangManagerConfig);
@@ -1067,6 +1071,7 @@ struct TControllerAgentConfig
     bool EnableSortedMergeInSortJobSizeAdjustment;
 
     bool EnableMapJobSizeAdjustment;
+    bool EnableOrderedMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
     // TODO(gritukan): Remove it.
@@ -1150,6 +1155,10 @@ struct TControllerAgentConfig
     i64 MaxTotalSliceCount;
 
     TAlertManagerConfigPtr AlertManager;
+
+    //! User job thread count to add operation alert as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
+    //! Empty formula disables the corresponding operation alert.
+    TArithmeticFormula MaxJobThreadCountFormula;
 
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
@@ -1325,7 +1334,16 @@ struct TControllerAgentConfig
     // and all masters will be 25.2.
     bool AllowBulkInsertUnderUserTransaction;
 
+    // Only for sorted dynamic tables.
+    i64 MaxUnversionedDynamicTableOutputChunkSize;
+    i64 MaxUnversionedDynamicTableOutputBlockSize;
+
+    //! If set, the sizes of unversioned blocks and chunks will be checked for sorted dynamic tables.
+    bool EnableDynamicTableOutputChunkConstraintValidation;
+
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
+
+    bool FailOperationsInEmptyTrees;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

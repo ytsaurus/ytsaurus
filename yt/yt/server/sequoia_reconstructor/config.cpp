@@ -28,7 +28,7 @@ void TSequoiaReconstructorConfig::Register(TRegistrar registrar)
     registrar.Parameter("node_snapshots_output", &TThis::NodeSnapshotsOutput)
         .Default();
 
-    registrar.Parameter("child_node_output", &TThis::ChildNodeOutput)
+    registrar.Parameter("child_nodes_output", &TThis::ChildNodesOutput)
         .Default();
 
     registrar.Parameter("child_forks_output", &TThis::ChildForksOutput)

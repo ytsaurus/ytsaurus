@@ -6,7 +6,7 @@ from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import DuplicateTag
 from yt_dashboards.jobs_monitor import BYTES_LABEL
 
-from .resources import memory_guarantee, anon_memory_limit, anon_memory_usage, oom_tracker_threshold
+from .resources import memory_guarantee, anon_memory_limit, anon_memory_usage
 
 from ..common.sensors import *
 
@@ -33,7 +33,6 @@ dynamic memory almost always means that write throughput is too large.
             .cell("Memory usage per category (not shown per-host)", MultiSensor(
                     memory_guarantee.alias("Container Memory Guarantee"),
                     anon_memory_limit.alias("Anon Memory Limit"),
-                    oom_tracker_threshold.alias("OOM tracker threshold"),
                     anon_memory_usage.alias("Anon Memory Usage"),
                     MonitoringExpr(TabNode("yt.cluster_node.memory_usage.used")
                         .sensor_stack()
@@ -62,13 +61,16 @@ dynamic memory almost always means that write throughput is too large.
                 skip_cell=not has_cgroup)
         .row()
             .cell("Row cache size", memory_usage("lookup_rows_cache"), yaxis_label=BYTES_LABEL)
-            .cell("", EmptyCell(), yaxis_label=BYTES_LABEL, skip_cell=not has_cgroup)
+            .cell(
+                "Tablet background memory",
+                TabNode("yt.cluster_node.memory_usage.used").value("category", "tablet_background").host_container_legend_format(),
+                yaxis_label=BYTES_LABEL)
         ).owner.unit("UNIT_BYTES_SI")
 
 
 def build_reserved_memory():
     TabNodeMemory = TabNode("yt.cluster_node.memory_usage.{}")
-    user_categories = "block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static"
+    user_categories = "block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static|query"
 
     reserved_limit = (
         MonitoringExpr(TabNodeMemory("total_limit"))

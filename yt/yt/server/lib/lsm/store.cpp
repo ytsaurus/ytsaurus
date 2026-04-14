@@ -1,26 +1,6 @@
 #include "store.h"
 
-#include <yt/yt/core/misc/serialize.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-
 namespace NYT::NLsm {
-
-using namespace NYTree;
-using namespace NYson;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(
-    const TRowDigestUpcomingCompactionInfo& info,
-    IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("reason").Value(info.Reason)
-            .Item("timestamp").Value(info.Timestamp)
-        .EndMap();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

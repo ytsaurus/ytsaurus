@@ -317,7 +317,7 @@ public:
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
     {
         // Just do nothing.
-        return VoidFuture;
+        return OKFuture;
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);

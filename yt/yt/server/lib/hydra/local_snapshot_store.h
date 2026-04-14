@@ -11,11 +11,11 @@ TFuture<ISnapshotStorePtr> CreateLocalSnapshotStore(
     IInvokerPtr ioInvoker);
 
 ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(
-    TString fileName,
+    std::string fileName,
     NProto::TSnapshotMeta meta,
     IInvokerPtr ioInvoker);
 ISnapshotReaderPtr CreateLocalSnapshotReader(
-    TString fileName,
+    std::string fileName,
     int snapshotId,
     IInvokerPtr ioInvoker);
 

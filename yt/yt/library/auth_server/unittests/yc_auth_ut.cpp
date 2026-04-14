@@ -1,4 +1,5 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/http/config.h>
 #include <yt/yt/core/http/connection_pool.h>
@@ -54,40 +55,48 @@ public:
 
         if (token == GoodToken_ || cookie == GoodCookie_ ) {
             rsp->SetStatus(EStatusCode::OK);
-            TStringStream out;
-            TJsonWriter json(&out, false);
-            json.OpenMap();
-            json.Write("subject", Login_);
-            json.CloseMap();
-
-            json.Flush();
-
-            WaitFor(rsp->Write(TSharedRef::FromString(out.Str()))).ThrowOnError();
+            ReplyJson(rsp, [&] (IYsonConsumer* json) {
+                BuildYsonFluently(json)
+                    .DoMap([&] (auto map) {
+                        map.Item("subject").Value(Login_);
+                    });
+            });
         } else if (token == BadToken_ || cookie == BadCookie_) {
             rsp->SetStatus(EStatusCode::Forbidden);
-
-            TStringStream out;
-            TJsonWriter json(&out, false);
-            json.OpenMap();
-            json.Write("error", "permission denied");
-            json.CloseMap();
-
-            json.Flush();
-
-            WaitFor(rsp->Write(TSharedRef::FromString(out.Str()))).ThrowOnError();
-
+            ReplyJson(rsp, [] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .DoMap([] (auto map) {
+                        map.Item("error").Value("permission denied");
+                    });
+            });
         } else if (token == IssueToken_ || cookie == IssueCookie_) {
             rsp->SetStatus(EStatusCode::InternalServerError);
-
-            TStringStream out;
-            TJsonWriter json(&out, false);
-            json.OpenMap();
-            json.Write("error", "some server error");
-            json.CloseMap();
-
-            json.Flush();
-
-            WaitFor(rsp->Write(TSharedRef::FromString(out.Str()))).ThrowOnError();
+            ReplyJson(rsp, [] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .DoMap([] (auto map) {
+                        map.Item("error").Value("some server error");
+                    });
+            });
+        } else if (token == CreateUserToken_ || cookie == CreateUserCookie_) {
+            rsp->SetStatus(EStatusCode::OK);
+            ReplyJson(rsp, [&] (IYsonConsumer* json) {
+                BuildYsonFluently(json)
+                    .DoMap([&] (auto map) {
+                        map.Item("subject").Value(Login_);
+                    });
+            });
+        } else if (token == AddUserInGroupToken_ || cookie == AddUserInGroupCookie_) {
+            rsp->SetStatus(EStatusCode::OK);
+            ReplyJson(rsp, [&] (IYsonConsumer* json) {
+                BuildYsonFluently(json)
+                    .DoMap([&] (auto map) {
+                        map.Item("subject").Value(Login_);
+                        map.Item("groups")
+                            .DoListFor(Groups_, [] (auto list, const std::string& group) {
+                                list.Item().Value(group);
+                            });
+                    });
+            });
         }
 
         WaitFor(rsp->Close()).ThrowOnError();
@@ -100,7 +109,12 @@ private:
     std::string GoodCookie_ = "good_cookie";
     std::string BadCookie_ = "bad_cookie";
     std::string IssueCookie_ = "issue_cookie";
+    std::string CreateUserToken_ = "create_user_token";
+    std::string CreateUserCookie_ = "create_user_cookie";
+    std::string AddUserInGroupToken_ = "add_user_token";
+    std::string AddUserInGroupCookie_ = "add_user_cookie";
     std::string Login_ = "user";
+    std::vector<std::string> Groups_ = {"managers", "random-group"};
 };
 
 class TYCServerTest
@@ -176,8 +190,8 @@ TEST_F(TYCServerTest, SuccessToken)
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
     auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     auto result = WaitFor(authenticator->Authenticate(TTokenCredentials{
-        "good_token",
-        TNetworkAddress::Parse("127.0.0.1")
+        .Token = "good_token",
+        .UserIP = TNetworkAddress::Parse("127.0.0.1"),
     })).ValueOrThrow();
     EXPECT_EQ(result.Login, "user");
 }
@@ -191,18 +205,39 @@ TEST_F(TYCServerTest, SuccessCookie)
     EXPECT_EQ(result.Login, "user");
 }
 
-TEST_F(TYCServerTest, FirbiddenToken)
+TEST_F(TYCServerTest, ForbiddenToken)
 {
     auto config = CreateYCAuthenticatorConfig(TestPort);
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
     auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         WaitFor(authenticator->Authenticate(TTokenCredentials{
-            "bad_token",
-            TNetworkAddress::Parse("127.0.0.1")
+            .Token = "bad_token",
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
         })).ValueOrThrow(),
         std::exception,
         "Access is prohibited for this user");
+}
+
+TEST_F(TYCServerTest, NoToken)
+{
+    auto config = CreateYCAuthenticatorConfig(TestPort);
+    auto poller = CreateThreadPoolPoller(1, "HttpPoller");
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        WaitFor(authenticator->Authenticate(TTokenCredentials{
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
+        })).ValueOrThrow(),
+        std::exception,
+        "Token should be provided");
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        WaitFor(authenticator->Authenticate(TTokenCredentials{
+            .TokenSha256 = "some_sha256",
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
+        })).ValueOrThrow(),
+        std::exception,
+        "Token should be provided");
 }
 
 TEST_F(TYCServerTest, ForbiddenCookie)
@@ -224,8 +259,8 @@ TEST_F(TYCServerTest, InternalErrorToken)
     auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         WaitFor(authenticator->Authenticate(TTokenCredentials{
-            "issue_token",
-            TNetworkAddress::Parse("127.0.0.1")
+            .Token = "issue_token",
+            .UserIP = TNetworkAddress::Parse("127.0.0.1"),
         })).ValueOrThrow(),
         std::exception,
         "YC authentication service response has non-ok status code");
@@ -240,6 +275,60 @@ TEST_F(TYCServerTest, InternalErrorCookie)
         WaitFor(authenticator->Authenticate(NewCookieCredentials("issue_cookie"))).ValueOrThrow(),
         std::exception,
         "YC authentication service response has non-ok status code");
+}
+
+TEST_F(TYCServerTest, SuccessCreateUserToken)
+{
+    auto config = CreateYCAuthenticatorConfig(TestPort);
+    auto poller = CreateThreadPoolPoller(1, "HttpPoller");
+    auto userManager = CreateInMemoryCypressUserManager();
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, userManager);
+    auto result = WaitFor(authenticator->Authenticate(TTokenCredentials{
+        .Token = "create_user_token",
+        .UserIP = TNetworkAddress::Parse("127.0.0.1")
+    })).ValueOrThrow();
+    EXPECT_EQ(result.Login, "user");
+    EXPECT_TRUE(userManager->CheckUserExists("user"));
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>());
+}
+
+TEST_F(TYCServerTest, SuccessCreateUserCookie)
+{
+    auto config = CreateYCAuthenticatorConfig(TestPort);
+    auto poller = CreateThreadPoolPoller(1, "HttpPoller");
+    auto userManager = CreateInMemoryCypressUserManager();
+    auto authenticator = CreateYCSessionCookieAuthenticator(config, poller, userManager);
+    auto result = WaitFor(authenticator->Authenticate(NewCookieCredentials("create_user_cookie"))).ValueOrThrow();
+    EXPECT_EQ(result.Login, "user");
+    EXPECT_TRUE(userManager->CheckUserExists("user"));
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>());
+}
+
+TEST_F(TYCServerTest, SuccessAddUserInGroupsToken)
+{
+    auto config = CreateYCAuthenticatorConfig(TestPort);
+    auto poller = CreateThreadPoolPoller(1, "HttpPoller");
+    auto userManager = CreateInMemoryCypressUserManager();
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, userManager);
+    auto result = WaitFor(authenticator->Authenticate(TTokenCredentials{
+        .Token = "add_user_token",
+        .UserIP = TNetworkAddress::Parse("127.0.0.1")
+    })).ValueOrThrow();
+    EXPECT_EQ(result.Login, "user");
+    EXPECT_TRUE(userManager->CheckUserExists("user"));
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>({"managers", "random-group"}));
+}
+
+TEST_F(TYCServerTest, SuccessAddUserInGroupsCookie)
+{
+    auto config = CreateYCAuthenticatorConfig(TestPort);
+    auto poller = CreateThreadPoolPoller(1, "HttpPoller");
+    auto userManager = CreateInMemoryCypressUserManager();
+    auto authenticator = CreateYCSessionCookieAuthenticator(config, poller, userManager);
+    auto result = WaitFor(authenticator->Authenticate(NewCookieCredentials("add_user_cookie"))).ValueOrThrow();
+    EXPECT_EQ(result.Login, "user");
+    EXPECT_TRUE(userManager->CheckUserExists("user"));
+    EXPECT_EQ(WaitForFast(userManager->GetUserGroups("user")).Value(), std::vector<std::string>({"managers", "random-group"}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.73.0)
+VERSION(v1.79.1)
 
 SRCS(
     channel.go
@@ -33,6 +33,12 @@ ENDIF()
 IF (OS_ANDROID)
     SRCS(
         sockopt_linux.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sockopt_nonlinux.go
     )
 ENDIF()
 

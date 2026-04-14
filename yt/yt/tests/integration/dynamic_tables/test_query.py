@@ -9,7 +9,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     alter_table, authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
-    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_uuid,
+    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_timestamp, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
 
@@ -157,8 +157,7 @@ class TestQuery(DynamicTablesBase):
         select_rows(
             "sum(1) from [//tmp/t] join [//tmp/t] J on (b / 10) % 3 * 3 = J.a group by 1",
             response_parameters=response_parameters,
-            enable_statistics=True,
-            statistics_aggregation="depth")
+            enable_statistics=True)
 
         while "inner_statistics" in response_parameters:
             assert len(response_parameters["inner_statistics"]) == 1
@@ -2074,80 +2073,79 @@ class TestQuery(DynamicTablesBase):
             select_rows("a from [//tmp/t] where b != 0 limit 3", use_canonical_null_relations=True),
             [{"a": 1}])
 
-    @authors("sabdenovch")
-    def test_read_without_merge_sorted(self):
+    @authors("lukyan")
+    def test_read_without_merge_agg(self):
         sync_create_cells(1)
+
+        int64_list = {"type_name": "list", "item": "int64"}
+        optional_int64_list = {"type_name": "optional", "item": int64_list}
+
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "int64", "aggregate": "sum"},
+            {"name": "v2", "type": "int64", "aggregate": "sum"},
+            {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+            {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+        ]
+
         create(
             "table",
             "//tmp/t",
             attributes={
                 "dynamic": True,
                 "optimize_for": "scan",
-                "schema": [
-                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
-                    {"name": "key2", "type": "string", "sort_order": "ascending"},
-                    {"name": "value1", "type": "int64"},
-                    {"name": "value2", "type": "string"},
-                    {"name": "aggr", "type": "int64", "aggregate": "sum"},
-                ],
+                "schema": schema,
                 "single_column_group_by_default": False,
             })
 
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [
-            {"key1": 1, "key2": "2", "value1": 0, "value2": "value", "aggr": 0},
-            {"key1": 2, "value1": 2},
-        ], update=True, aggregate=True)
 
-        ts2 = "$timestamp:value2"
-
-        def find(rows, key1, value2):
-            return list(filter(lambda x: x["key1"] == key1 and x["value2"] == value2, rows))[0]
-
-        assert_items_equal(
-            select_rows("key1, value2 from [//tmp/t]", merge_versioned_rows=False),
-            [{"key1": 1, "value2": "value"}, {"key1": 2, "value2": None}],
-        )
-
-        timestamped_rows = select_rows(
-            f"key1, value2, [{ts2}] from [//tmp/t]",
-            merge_versioned_rows=False,
-            with_timestamps=True,
-        )
-        ts_value1 = find(timestamped_rows, 1, "value")[ts2]
-        ts_value2 = find(timestamped_rows, 2, None)[ts2]
-        assert not isinstance(ts_value1, yson.YsonEntity)
-        assert isinstance(ts_value2, yson.YsonEntity)
-
-        sync_flush_table("//tmp/t")
         insert_rows(
             "//tmp/t",
             [
-                {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 1},
-                {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 2},
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 1], "nk2": [20, 10], "nv1": [200, 100]},
             ],
+            update=True,
+        )
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 3], "nk2": [20, 30], "nv1": [200, 300], "nv2": [2000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 0, "v2": 0, "nk1": [1, 2], "nk2": [10, 20], "nv2": [1000, 2000]},
+            ],
+            update=True,
             aggregate=True,
         )
 
-        assert_items_equal(
-            select_rows("key1, value2, aggr from [//tmp/t]", merge_versioned_rows=False),
-            [
-                {"key1": 1, "value2": "value", "aggr": 0},
-                {"key1": 1, "value2": "new_value", "aggr": 3},
-                {"key1": 2, "value2": None, "aggr": None}
-            ],
-        )
+        def test_query(query):
+            res1 = select_rows(query, merge_versioned_rows=False)
+            res2 = select_rows(query, merge_versioned_rows=True)
+            assert_items_equal(res1, res2)
 
-        timestamped_rows = select_rows(
-            f"key1, value2, aggr, [{ts2}] from [//tmp/t]",
-            merge_versioned_rows=False,
-            with_timestamps=True,
-        )
-        ts_value1 = find(timestamped_rows, 1, "value")[ts2]
-        ts_value2 = find(timestamped_rows, 1, "new_value")[ts2]
-        ts_value3 = find(timestamped_rows, 2, None)[ts2]
-        assert ts_value1 < ts_value2
-        assert isinstance(ts_value3, yson.YsonEntity)
+        test_query(
+            "k1, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k1, nk1_")
+
+        test_query(
+            "k2, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k2, nk1_")
+
+        test_query(
+            "k1, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k1, nk2_")
+
+        test_query(
+            "k2, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k2, nk2_")
 
     @authors("sabdenovch")
     def test_array_join(self):
@@ -2660,11 +2658,11 @@ class TestQuery(DynamicTablesBase):
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
 
         assert select_rows("""
-            cardinality_merge(Subquery_2.x) AS c
+            uniq_merge(Subquery_2.x) AS c
             FROM (
-                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                SELECT uniq_merge_state(Subquery_1.y) AS x
                 FROM (
-                    SELECT cardinality_state(k_2) as y, g
+                    SELECT uniq_state(k_2) as y, g
                     FROM `//tmp/t`
                     GROUP BY k_1 as g
                 ) AS Subquery_1
@@ -2946,12 +2944,14 @@ class TestQueryRpcProxy(TestQuery):
             name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
-        def check():
-            def _check(select_duration_histogram):
+        def check(select_duration_histogram):
+            prev_bin_counters_sum = sum(bin["count"] for bin in select_duration_histogram.get_bins(verbose=True))
+
+            def _check():
                 try:
                     bins = select_duration_histogram.get_bins(verbose=True)
                     bin_counters = [bin["count"] for bin in bins]
-                    if sum(bin_counters) != 1:
+                    if sum(bin_counters) == prev_bin_counters_sum:
                         return False
                     if len(bin_counters) < 20:
                         return False
@@ -2964,13 +2964,14 @@ class TestQueryRpcProxy(TestQuery):
             assert select_rows("""* from [//tmp/t]""", driver=rpc_driver) == rows
 
             try:
-                wait(lambda: _check(node_select_duration_histogram), iter=5, sleep_backoff=0.5)
-                wait(lambda: _check(proxy_select_duration_histogram), iter=5, sleep_backoff=0.5)
+                wait(lambda: _check(), iter=5, sleep_backoff=0.5)
                 return True
             except WaitFailed:
                 return False
 
-        wait(lambda: check())
+        wait(lambda: check(node_select_duration_histogram))
+        wait(lambda: check(proxy_select_duration_histogram))
+
         assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/select_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
@@ -3058,6 +3059,32 @@ class TestQueryRpcProxy(TestQuery):
         assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
 
     @authors("dtorilov")
+    def test_yt_27169(self):
+        sync_create_cells(1)
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", True)
+        self._create_table("//tmp/l", [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}], [], "scan")
+        self._create_table("//tmp/r", [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}], [], "scan")
+        insert_rows("//tmp/l", [{"k": 1, "v": "old"}])
+        insert_rows("//tmp/r", [{"k": 1, "v": "old"}])
+        old_timestamp = generate_timestamp()
+        insert_rows("//tmp/l", [{"k": 1, "v": "new"}], update=True)
+        insert_rows("//tmp/r", [{"k": 1, "v": "new"}], update=True)
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k""", timestamp=old_timestamp)
+        expected = [{"l.v": "old", "r.v": "new"}]
+        assert result == expected
+        new_timestamp = generate_timestamp()
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k """, timestamp=new_timestamp)
+        expected = [{"l.v": "new", "r.v": "new"}]
+        assert result == expected
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", False)
+        time.sleep(1)
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k """, timestamp=old_timestamp)
+        expected = [{"l.v": "old", "r.v": "old"}]
+        assert result == expected
+
+    @authors("dtorilov")
     def test_select_with_limit_read_data_weight(self):
         length = 100
         sync_create_cells(3)
@@ -3123,6 +3150,7 @@ class TestQuerySequoia(TestQuery):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,

@@ -26,7 +26,8 @@ namespace NSchemeShard {
 ui64 gVectorIndexSeed = 0;
 
 // return count, parts, step
-static std::tuple<NTableIndex::NKMeans::TClusterId, NTableIndex::NKMeans::TClusterId, NTableIndex::NKMeans::TClusterId> ComputeKMeansBoundaries(const NSchemeShard::TTableInfo& tableInfo, const TIndexBuildInfo& buildInfo) {
+static std::tuple<NTableIndex::NKMeans::TClusterId, NTableIndex::NKMeans::TClusterId, NTableIndex::NKMeans::TClusterId>
+    ComputeKMeansBoundaries(const NSchemeShard::TTableInfo& tableInfo, const TIndexBuildInfo& buildInfo, ui64 maxShardsInPath) {
     const auto& kmeans = buildInfo.KMeans;
     Y_ENSURE(kmeans.K != 0);
     const auto count = kmeans.ChildCount();
@@ -36,7 +37,7 @@ static std::tuple<NTableIndex::NKMeans::TClusterId, NTableIndex::NKMeans::TClust
     if (!buildInfo.KMeans.NeedsAnotherLevel() || count <= 1 || shards <= 1) {
         return {1, 1, 1};
     }
-    for (; 2 * shards <= parts || parts > 32768; parts = (parts + 1) / 2) {
+    for (; 2 * shards <= parts || parts > maxShardsInPath; parts = (parts + 1) / 2) {
         step *= 2;
     }
     return {count, parts, step};
@@ -284,6 +285,8 @@ THolder<TEvSchemeShard::TEvModifySchemeTransaction> CreateBuildPropose(
     modifyScheme.SetInternal(true);
 
     auto path = TPath::Init(buildInfo.TablePathId, ss);
+    auto maxShardsInPath = path.DomainInfo()->GetSchemeLimits().MaxShardsInPath;
+
     const auto& tableInfo = ss->Tables.at(path->PathId);
     NTableIndex::TTableColumns implTableColumns;
     THashSet<TString> indexDataColumns;
@@ -326,7 +329,7 @@ THolder<TEvSchemeShard::TEvModifySchemeTransaction> CreateBuildPropose(
         NTableIndex::FillIndexTableColumns(tableInfo->Columns, implTableColumns.Keys, implTableColumns.Columns, op);
         auto& policy = *resetPartitionsSettings();
         // Prevent merging partitions
-        policy.SetMinPartitionsCount(32768);
+        policy.SetMinPartitionsCount(maxShardsInPath);
         policy.SetMaxPartitionsCount(0);
 
         LOG_NOTICE_S((TlsActivationContext->AsActorContext()), NKikimrServices::BUILD_INDEX,
@@ -344,6 +347,18 @@ THolder<TEvSchemeShard::TEvModifySchemeTransaction> CreateBuildPropose(
             indexDataColumns = THashSet<TString>(buildInfo.DataColumns.begin(), buildInfo.DataColumns.end());
         }
         op = NTableIndex::CalcVectorKmeansTreeBuildOverlapTableDesc(tableInfo, tableInfo->PartitionConfig(), indexDataColumns, {}, suffix);
+        // Prevent merging partitions
+        auto& policy = *resetPartitionsSettings();
+        policy.SetMinPartitionsCount(maxShardsInPath);
+        policy.SetMaxPartitionsCount(0);
+        // This also means that we can directly copy split boundaries from the main table!
+        const auto& tableInfo = ss->Tables.at(buildInfo.TablePathId);
+        size_t parts = tableInfo->GetPartitions().size();
+        for (const auto& x: tableInfo->GetPartitions()) {
+            if (--parts > 0) {
+                op.AddSplitBoundary()->SetSerializedKeyPrefix(x.EndOfRange);
+            }
+        }
         LOG_NOTICE_S((TlsActivationContext->AsActorContext()), NKikimrServices::BUILD_INDEX,
             "CreateBuildPropose " << buildInfo.Id << " " << buildInfo.State << " " << propose->Record.ShortDebugString());
         return propose;
@@ -351,7 +366,7 @@ THolder<TEvSchemeShard::TEvModifySchemeTransaction> CreateBuildPropose(
 
     op = NTableIndex::CalcVectorKmeansTreePostingImplTableDesc(tableInfo, tableInfo->PartitionConfig(), indexDataColumns, {}, suffix,
         buildInfo.KMeans.OverlapClusters > 1 && buildInfo.KMeans.Levels > 1);
-    const auto [count, parts, step] = ComputeKMeansBoundaries(*tableInfo, buildInfo);
+    const auto [count, parts, step] = ComputeKMeansBoundaries(*tableInfo, buildInfo, maxShardsInPath);
 
     auto& policy = *resetPartitionsSettings();
     static constexpr std::string_view LogPrefix = "Create build table boundaries for ";
@@ -366,7 +381,7 @@ THolder<TEvSchemeShard::TEvModifySchemeTransaction> CreateBuildPropose(
             op.AddSplitBoundary()->SetSerializedKeyPrefix(TSerializedCellVec::Serialize({&cell, 1}));
         }
         // Prevent merging partitions
-        policy.SetMinPartitionsCount(32768);
+        policy.SetMinPartitionsCount(maxShardsInPath);
         policy.SetMaxPartitionsCount(0);
     }
 
@@ -473,7 +488,9 @@ THolder<TEvSchemeShard::TEvModifySchemeTransaction> UnlockPropose(
 
     addUnlock(TPath::Init(buildInfo.TablePathId, ss));
 
-    if (buildInfo.IsValidatingUniqueIndex()) {
+    if (buildInfo.IsValidatingUniqueIndex()
+        || buildInfo.IsFlatRelevanceFulltext())
+    {
         // Unlock also indexImplTable
         TPath indexImplTablePath = GetBuildPath(ss, buildInfo, NTableIndex::ImplTable);
         if (indexImplTablePath.IsResolved() && indexImplTablePath.IsLocked()) {
@@ -638,6 +655,8 @@ private:
             path->PathId.ToProto(ev->Record.MutablePathId());
         }
 
+        *ev->Record.MutableSettings() = std::get<NKikimrSchemeOp::TVectorIndexKmeansTreeDescription>(
+            buildInfo.SpecializedIndexDescription).GetSettings().settings();
         ev->Record.SetK(buildInfo.KMeans.K);
         ev->Record.SetMaxProbability(buildInfo.Sample.MaxProbability);
         if (buildInfo.KMeans.Parent != 0) {
@@ -1095,13 +1114,33 @@ private:
         ev->Record.SetDatabaseName(CanonizePath(Self->RootPathElements));
         ev->Record.SetIndexName(buildInfo.TargetName);
         ev->Record.SetDocsTableName(GetBuildPath(Self, buildInfo, NTableIndex::NFulltext::DocsTable).PathString());
-        *ev->Record.MutableSettings() = std::get<NKikimrSchemeOp::TFulltextIndexDescription>(
-            buildInfo.SpecializedIndexDescription).GetSettings();
+        if (buildInfo.IndexType == NKikimrSchemeOp::EIndexType::EIndexTypeGlobalJson) {
+            auto *settings = ev->Record.MutableSettings();
+            for (auto& column: buildInfo.IndexColumns) {
+                settings->add_columns()->set_column(column);
+            }
+        } else {
+            *ev->Record.MutableSettings() = std::get<NKikimrSchemeOp::TFulltextIndexDescription>(
+                buildInfo.SpecializedIndexDescription).GetSettings();
+        }
         *ev->Record.MutableDataColumns() = {
             buildInfo.DataColumns.begin(), buildInfo.DataColumns.end()
         };
+        if (buildInfo.IndexType == NKikimrSchemeOp::EIndexType::EIndexTypeGlobalFulltextRelevance) {
+            ev->Record.SetIndexType(NKikimrTxDataShard::EFulltextIndexType::FulltextRelevance);
+        } else if (buildInfo.IndexType == NKikimrSchemeOp::EIndexType::EIndexTypeGlobalJson) {
+            ev->Record.SetIndexType(NKikimrTxDataShard::EFulltextIndexType::Json);
+        }
 
         auto shardId = FillScanRequestCommon(ev->Record, shardIdx, buildInfo);
+
+        const auto& shardStatus = buildInfo.Shards.at(shardIdx);
+        if (shardStatus.LastKeyAck) {
+            TSerializedTableRange range = TSerializedTableRange(shardStatus.LastKeyAck, "", false, false);
+            range.Serialize(*ev->Record.MutableKeyRange());
+        } else {
+            shardStatus.Range.Serialize(*ev->Record.MutableKeyRange());
+        }
 
         LOG_N("TTxBuildProgress: TEvBuildFulltextIndexRequest: " << ev->Record.ShortDebugString());
 
@@ -1431,6 +1470,7 @@ private:
                 db.Table<Schema::KMeansTreeSample>().Key(buildInfo.Id, row).Delete();
             }
             buildInfo.KMeans.FilterBorderRows.clear();
+            buildInfo.Sample.Clear();
             return true;
         }
         // Wait for upload
@@ -1754,7 +1794,7 @@ private:
 
         switch (buildInfo.SubState) {
         case TIndexBuildInfo::ESubState::None:
-            // Stage 1 for FLAT_RELEVANCE - build "posting" table (token-documents)
+            // Stage 1 for FulltextRelevance - build "posting" table (token-documents)
             LOG_D("FillFulltextIndex Posting");
             if (NoShardsAdded(buildInfo)) {
                 AddAllShards(buildInfo);
@@ -1763,8 +1803,7 @@ private:
                 buildInfo.DoneShards.size() == buildInfo.Shards.size();
             if (done) {
                 LOG_D("FillFulltextIndex Posting Done");
-                auto settings = std::get<NKikimrSchemeOp::TFulltextIndexDescription>(buildInfo.SpecializedIndexDescription).GetSettings();
-                if (settings.layout() == Ydb::Table::FulltextIndexSettings::FLAT_RELEVANCE) {
+                if (buildInfo.IndexType == NKikimrSchemeOp::EIndexTypeGlobalFulltextRelevance) {
                     NIceDb::TNiceDb db{txc.DB};
                     buildInfo.SubState = TIndexBuildInfo::ESubState::FulltextIndexStats;
                     buildInfo.Sample.State = TIndexBuildInfo::TSample::EState::Collect;
@@ -1775,7 +1814,7 @@ private:
             }
             break;
         case TIndexBuildInfo::ESubState::FulltextIndexStats:
-            // Stage 2 for FLAT_RELEVANCE - build statistics table (DocCount & TotalDocLength)
+            // Stage 2 for FulltextRelevance - build statistics table (DocCount & TotalDocLength)
             if (buildInfo.Sample.State == TIndexBuildInfo::TSample::EState::Collect) {
                 LOG_D("FillFulltextIndex SendUploadStats " << buildInfo.DebugString());
                 buildInfo.Sample.State = TIndexBuildInfo::TSample::EState::Upload;
@@ -1793,7 +1832,7 @@ private:
             }
             break;
         case TIndexBuildInfo::ESubState::FulltextIndexDictionary:
-            // Stage 3 for FLAT_RELEVANCE - build dictionary table
+            // Stage 3 for FulltextRelevance - build dictionary table
             LOG_D("FillFulltextIndex Dictionary");
             if (NoShardsAdded(buildInfo)) {
                 AddAllShards(buildInfo);
@@ -1811,7 +1850,7 @@ private:
             }
             break;
         case TIndexBuildInfo::ESubState::FulltextIndexBorders:
-            // Stage 4 for FLAT_RELEVANCE - fill border values for dictionary
+            // Stage 4 for FulltextRelevance - fill border values for dictionary
             if (buildInfo.Sample.State == TIndexBuildInfo::TSample::EState::Collect) {
                 LOG_D("FillFulltextIndex SendUploadBorders " << buildInfo.DebugString());
                 buildInfo.Sample.State = TIndexBuildInfo::TSample::EState::Upload;
@@ -2642,6 +2681,32 @@ public:
             << ", shardStatus: " << shardStatus.ToString());
     }
 
+    virtual void UpdateLastKeyAck(TIndexBuildShardStatus& shardStatus, TIndexBuildInfo& buildInfo, const TString& lastKeyAck) {
+        if (!lastKeyAck.empty()) {
+            if (shardStatus.LastKeyAck) {
+                //check that all LastKeyAcks are monotonously increase
+                const auto& tableInfo = *Self->Tables.at(buildInfo.TablePathId);
+                std::vector<NScheme::TTypeInfo> keyTypes;
+                keyTypes.reserve(tableInfo.KeyColumnIds.size());
+                for (ui32 keyPos: tableInfo.KeyColumnIds) {
+                    keyTypes.emplace_back(tableInfo.Columns.at(keyPos).PType);
+                }
+
+                TSerializedCellVec next{shardStatus.LastKeyAck};
+                TSerializedCellVec prev{lastKeyAck};
+
+                int cmp = CompareBorders<true, true>(next.GetCells(), prev.GetCells(), true, true, keyTypes);
+                if (cmp < 0) {
+                    LOG_W("Check that all LastKeyAcks are monotonously increase"
+                        << ", next: " << DebugPrintPoint(keyTypes, next.GetCells(), *AppData()->TypeRegistry)
+                        << ", prev: " << DebugPrintPoint(keyTypes, prev.GetCells(), *AppData()->TypeRegistry));
+                } else {
+                    shardStatus.LastKeyAck = lastKeyAck;
+                }
+            }
+        }
+    }
+
     virtual void HandleDone(NIceDb::TNiceDb& db, TIndexBuildInfo& buildInfo) {
         // no action is needed by default
         Y_UNUSED(db, buildInfo);
@@ -2769,7 +2834,11 @@ struct TSchemeShard::TIndexBuilder::TTxReplyLocalKMeans: public TTxShardReply<TE
     }
 
     void HandleDone(NIceDb::TNiceDb& db, TIndexBuildInfo& buildInfo) {
-        if (Response->Get()->Record.GetIsEmpty()) {
+        if (Response->Get()->Record.GetIsEmpty() &&
+            buildInfo.KMeans.Parent == 0)
+        {
+            // We only handle the root level through MultiLocal if the table has exactly 1 shard.
+            // If that shard is empty then it means the whole index is empty.
             buildInfo.KMeans.IsEmpty = true;
             Self->PersistBuildIndexKMeansState(db, buildInfo);
         }
@@ -2886,11 +2955,19 @@ struct TSchemeShard::TIndexBuilder::TTxReplyFulltextIndex: public TTxShardReply<
     {
     }
 
+    void HandleProgress(TIndexBuildShardStatus& shardStatus, TIndexBuildInfo& buildInfo) override {
+        UpdateLastKeyAck(shardStatus, buildInfo, Response->Get()->Record.GetLastKeyAck());
+    }
+
     void HandleDone(NIceDb::TNiceDb& db, TIndexBuildInfo& buildInfo) override {
         const auto& record = Response->Get()->Record;
         TTabletId shardId = TTabletId(record.GetTabletId());
         TShardIdx shardIdx = Self->GetShardIdx(shardId);
         TIndexBuildShardStatus& shardStatus = buildInfo.Shards.at(shardIdx);
+
+        if (record.HasLastKeyAck()) {
+            shardStatus.LastKeyAck = max(shardStatus.LastKeyAck, record.GetLastKeyAck());
+        }
 
         shardStatus.DocCount = record.GetDocCount();
         shardStatus.TotalDocLength = record.GetTotalDocLength();
@@ -2930,34 +3007,7 @@ struct TSchemeShard::TIndexBuilder::TTxReplyProgress: public TTxShardReply<TEvDa
     }
 
     void HandleProgress(TIndexBuildShardStatus& shardStatus, TIndexBuildInfo& buildInfo) override {
-        auto& record = Response->Get()->Record;
-
-        if (record.HasLastKeyAck()) {
-            if (shardStatus.LastKeyAck) {
-                //check that all LastKeyAcks are monotonously increase
-                const auto& tableInfo = *Self->Tables.at(buildInfo.TablePathId);
-                std::vector<NScheme::TTypeInfo> keyTypes;
-                keyTypes.reserve(tableInfo.KeyColumnIds.size());
-                for (ui32 keyPos: tableInfo.KeyColumnIds) {
-                    keyTypes.emplace_back(tableInfo.Columns.at(keyPos).PType);
-                }
-
-                TSerializedCellVec next{shardStatus.LastKeyAck};
-                TSerializedCellVec prev{record.GetLastKeyAck()};
-
-                int cmp = CompareBorders<true, true>(next.GetCells(),
-                                                        prev.GetCells(),
-                                                        true,
-                                                        true,
-                                                        keyTypes);
-                Y_ENSURE(cmp < 0,
-                            "check that all LastKeyAcks are monotonously increase"
-                                << ", next: " << DebugPrintPoint(keyTypes, next.GetCells(), *AppData()->TypeRegistry)
-                                << ", prev: " << DebugPrintPoint(keyTypes, prev.GetCells(), *AppData()->TypeRegistry));
-            }
-
-            shardStatus.LastKeyAck = record.GetLastKeyAck();
-        }
+        UpdateLastKeyAck(shardStatus, buildInfo, Response->Get()->Record.GetLastKeyAck());
     }
 
     TMeteringStats GetMeteringStats() const override {
@@ -3147,11 +3197,14 @@ public:
                     << "At " << state << " state got unsuccess propose result"
                     << ", status: " << NKikimrScheme::EStatus_Name(record.GetStatus())
                     << ", reason: " << record.GetReason());
-                Self->PersistBuildIndexForget(db, buildInfo);
+                if (!Self->PersistBuildIndexForget(db, buildInfo)) {
+                    return false;
+                }
                 EraseBuildInfo(buildInfo);
             }
 
             ReplyOnCreation(buildInfo, statusCode);
+            return true;
         };
 
         auto ifErrorMoveTo = [&] (TIndexBuildInfo::EState to) {
@@ -3177,7 +3230,9 @@ public:
             buildInfo.LockTxStatus = record.GetStatus();
             Self->PersistBuildIndexLockTxStatus(db, buildInfo);
 
-            replyOnCreation();
+            if (!replyOnCreation()) {
+                return false;
+            }
             break;
         }
         case TIndexBuildInfo::EState::AlterMainTable:

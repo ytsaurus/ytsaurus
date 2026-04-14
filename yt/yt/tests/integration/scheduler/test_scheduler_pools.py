@@ -414,7 +414,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
@@ -435,7 +435,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             except YtError:
                 break
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
@@ -444,7 +444,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
@@ -457,7 +457,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
@@ -934,7 +934,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
         set("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute", "xxx")
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 

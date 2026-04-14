@@ -13,7 +13,6 @@
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/proc.h>
-#include <yt/yt/core/misc/fs.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
@@ -67,6 +66,12 @@ private:
         RunMixinCallbacks();
 
         auto config = GetConfig();
+
+        // Truncate the config file immediately after reading it, as it can contain secrets.
+        if (!TFile(GetConfigPath(), EOpenModeFlag::CreateAlways | EOpenModeFlag::WrOnly).IsOpen()) {
+            LogToStderr(Format("Failed to overwrite executor config file: %v", TError::FromSystem()));
+            Exit(ToUnderlying(EProgramExitCode::ExecutorError));
+        }
 
         JobId_ = config->JobId;
 

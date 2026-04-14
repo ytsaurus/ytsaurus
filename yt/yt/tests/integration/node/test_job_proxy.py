@@ -14,7 +14,7 @@ from yt.wrapper import YtClient
 
 import yt.yson
 
-from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqProgressSaved, TRspProgressSaved
+from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqOnProgressSaved, TRspOnProgressSaved
 
 import grpc
 
@@ -754,11 +754,11 @@ class TestJobProxyJobApi(YTEnvSetup):
 
         channel = grpc.insecure_channel(f"unix:{socket_file}")
         endpoint = channel.unary_unary(
-            "/JobApiService/ProgressSaved",
-            TReqProgressSaved.SerializeToString,
-            TRspProgressSaved.FromString,
+            "/JobApiService/OnProgressSaved",
+            TReqOnProgressSaved.SerializeToString,
+            TRspOnProgressSaved.FromString,
         )
-        endpoint(TReqProgressSaved())
+        endpoint(TReqOnProgressSaved())
 
         t2 = datetime.datetime.now(tz=datetime.timezone.utc)
 
@@ -795,7 +795,7 @@ class TestJobProxyJobApi(YTEnvSetup):
 
         client = httpx.Client(transport=httpx.HTTPTransport(uds=socket_file))
         client.headers.clear()
-        response = client.post(f"http://{hostname}/JobApiService/ProgressSaved")
+        response = client.post(f"http://{hostname}/JobApiService/OnProgressSaved")
         assert response.is_success, (response.headers, response.text)
 
         t2 = datetime.datetime.now(tz=datetime.timezone.utc)

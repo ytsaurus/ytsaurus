@@ -24,16 +24,16 @@ struct TListContainsTransformer
 {
     using TBase = TRewriter<TListContainsTransformer>;
 
-    const TReference& RepeatedIndexedColumn;
-    const TReference& UnfoldedIndexerColumn;
+    const TReference& TableUnfoldedColumn;
+    const TReference& IndexUnfoldedColumn;
 
     TListContainsTransformer(
         TObjectsHolder* head,
-        const TReference& repeatedIndexedColumn,
-        const TReference& unfoldedIndexerColumn)
+        const TReference& tableUnfoledColumn,
+        const TReference& indexUnfoldedColumn)
         : TBase(head)
-        , RepeatedIndexedColumn(repeatedIndexedColumn)
-        , UnfoldedIndexerColumn(unfoldedIndexerColumn)
+        , TableUnfoldedColumn(tableUnfoledColumn)
+        , IndexUnfoldedColumn(indexUnfoldedColumn)
     { }
 
     NAst::TExpressionPtr OnFunction(NAst::TFunctionExpressionPtr function)
@@ -43,13 +43,13 @@ struct TListContainsTransformer
         }
 
         auto* reference = function->Arguments[0]->As<NAst::TReferenceExpression>();
-        if (!reference || reference->Reference != RepeatedIndexedColumn) {
+        if (!reference || reference->Reference != TableUnfoldedColumn) {
             return TBase::OnFunction(function);
         }
 
         auto* newReference = Head->New<NAst::TReferenceExpression>(
             NullSourceLocation,
-            UnfoldedIndexerColumn);
+            IndexUnfoldedColumn);
 
         return Head->New<NAst::TBinaryOpExpression>(
             NullSourceLocation,
@@ -138,14 +138,13 @@ struct TTableReferenceReplacer
 void TransformWithIndexStatement(
     NAst::TQuery* query,
     const ITableMountCachePtr& cache,
-    TObjectsHolder* holder,
-    bool allowUnaliasedSecondaryIndex)
+    TObjectsHolder* holder)
 {
     if (auto* fromSubquery = std::get_if<NAst::TQueryAstHeadPtr>(&query->FromClause)) {
         THROW_ERROR_EXCEPTION_IF(query->WithIndex,
             "WITH INDEX clause is not supported with subqueries at the moment");
 
-        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder, allowUnaliasedSecondaryIndex);
+        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder);
         return;
     }
 
@@ -176,7 +175,6 @@ void TransformWithIndexStatement(
     const auto& tableSchema = tableInfo->Schemas[ETableSchemaKind::Write];
     const auto& indices = tableInfo->Indices;
 
-    const TColumnSchema* unfoldedColumn{};
     auto indexIt = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
         return index.TableId == indexTableInfo->TableId;
     });
@@ -199,42 +197,34 @@ void TransformWithIndexStatement(
                 << TErrorAttribute("index_table_path", indexTableInfo->Path);
         }
 
-        if (indexIt->UnfoldedColumn) {
-            unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
-        }
-
         ValidateIndexSchema(
             indexIt->Kind,
             *tableSchema,
             indexTableSchema,
             indexIt->Predicate,
             indexIt->EvaluatedColumnsSchema,
-            indexIt->UnfoldedColumn);
+            indexIt->UnfoldedColumns);
     }
 
     if (!index.Alias) {
-        if (allowUnaliasedSecondaryIndex) {
-            index.Alias = SecondaryIndexAlias;
-        } else {
-            THROW_ERROR_EXCEPTION("Misuse of operator WITH INDEX: index table %v has no alias",
-                index.Path);
-        }
+        THROW_ERROR_EXCEPTION("Misuse of operator WITH INDEX: index table %v has no alias",
+            index.Path);
     }
 
-    if (unfoldedColumn) {
-        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), table.Alias);
-        NAst::TReference unfoldedIndexerColumn(unfoldedColumn->Name(), index.Alias);
+    if (indexIt != indices.end() && indexIt->Kind == ESecondaryIndexKind::Unfolding) {
+        NAst::TReference tableUnfoldedColumn(indexIt->UnfoldedColumns->TableColumn, table.Alias);
+        NAst::TReference indexUnfoldedColumn(indexIt->UnfoldedColumns->IndexColumn, index.Alias);
 
         query->WherePredicate = TListContainsTransformer(
             holder,
-            repeatedIndexedColumn,
-            unfoldedIndexerColumn)
+            tableUnfoldedColumn,
+            indexUnfoldedColumn)
             .Visit(query->WherePredicate);
 
         query->WherePredicate = TInTransformer(
             holder,
-            repeatedIndexedColumn,
-            unfoldedIndexerColumn)
+            tableUnfoldedColumn,
+            indexUnfoldedColumn)
             .Visit(query->WherePredicate);
     }
 
@@ -276,7 +266,7 @@ void TransformWithIndexStatement(
 
     query->WherePredicate = TTableReferenceReplacer(
         holder,
-        std::move(replacedColumns),
+        replacedColumns,
         table.Alias,
         index.Alias)
         .Visit(query->WherePredicate);

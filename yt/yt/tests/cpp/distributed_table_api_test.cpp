@@ -72,7 +72,7 @@ TDistributedWriteSessionWithCookies TDistributedTableApiTest::StartDistributedWr
 {
     TDistributedWriteSessionStartOptions options = {};
     options.CookieCount = cookieCount;
-    options.Timeout = timeout;
+    options.SessionTimeout = timeout;
     if (txId) {
         options.TransactionId = *txId;
     }
@@ -147,7 +147,7 @@ void TDistributedTableApiTest::DoWriteTable(
     for (int i = 0; const auto& name : columnNames) {
         EXPECT_EQ(i++, nameTable->GetIdOrRegisterName(name));
     }
-    auto readyEvent = VoidFuture;
+    auto readyEvent = OKFuture;
     if (!writer->Write(rows)) {
         readyEvent = writer->GetReadyEvent();
     }
@@ -195,7 +195,7 @@ TSignedWriteFragmentResultPtr TDistributedTableApiTest::DoDistributedWriteTable(
     for (int i = 0; const auto& name : columnNames) {
         EXPECT_EQ(i++, nameTable->GetIdOrRegisterName(name));
     }
-    auto readyEvent = VoidFuture;
+    auto readyEvent = OKFuture;
 
     if (!writer->Write(rows)) {
         readyEvent = writer->GetReadyEvent();

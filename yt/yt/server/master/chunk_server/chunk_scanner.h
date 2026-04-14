@@ -251,8 +251,11 @@ public:
      *  If the global scan is not finished yet, returns the next chunk in the global list.
      *
      *  Otherwise checks the queue and dequeues the next chunk.
+     *
+     *  Deadline specifies tha maximum time at which the chunk was added (by #EnqueueChunk or #ScheduleGlobalScan).
      */
-    TQueuedChunk DequeueChunk();
+    TQueuedChunk DequeueChunk(NProfiling::TCpuInstant deadline =
+        std::numeric_limits<NProfiling::TCpuInstant>::max());
 
     //! Returns |true| if there are some unscanned chunks, either scheduled for the global scan
     //! or added manually at #deadline or earlier.

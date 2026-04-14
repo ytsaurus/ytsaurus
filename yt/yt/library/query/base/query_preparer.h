@@ -9,9 +9,15 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TFunctionsFetcher = std::function<void(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers)>;
+using TFunctionsFetcher = std::function<void(
+    TRange<std::string> names,
+    const TTypeInferrerMapPtr& typeInferrers,
+    NCodegen::EExecutionBackend executionBackend)>;
 
-void DefaultFetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(
+    TRange<std::string> names,
+    const TTypeInferrerMapPtr& typeInferrers,
+    NCodegen::EExecutionBackend executionBackend);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,8 +48,8 @@ std::unique_ptr<TParsedSource> ParseSource(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
+    const TPreparePlanFragmentOptions& options = {},
     NYson::TYsonStringBuf placeholderValues = {},
-    int syntaxVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 TPlanFragmentPtr PreparePlanFragment(
@@ -51,12 +57,8 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     NAst::TQuery& query,
     NAst::TAstHead& astHead,
-    int builderVersion = 1,
-    IMemoryUsageTrackerPtr memoryTracker = nullptr,
-    int syntaxVersion = 1,
-    bool shouldRewriteCardinalityIntoHyperLogLog = false, // COMPAT(dtorilov): Remove after 25.4.
-    int hyperLogLogPrecision = 14,
-    int depth = 0);
+    const TPreparePlanFragmentOptions& options = {},
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,6 +84,22 @@ TConstExpressionPtr PrepareExpression(
     int builderVersion = 1,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExpressionBuilder;
+
+TJoinClausePtr BuildJoinClause(
+    const TDataSplit& foreignDataSplit,
+    const NAst::TJoin& tableJoin,
+    TStringBuf source,
+    const NAst::TAliasMap& aliasMap,
+    const TConstTypeInferrerMapPtr& functions,
+    size_t* globalCommonKeyPrefix,
+    const TTableSchemaPtr& tableSchema,
+    const std::optional<std::string>& tableAlias,
+    TExpressionBuilder* builder,
+    const TPreparePlanFragmentContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

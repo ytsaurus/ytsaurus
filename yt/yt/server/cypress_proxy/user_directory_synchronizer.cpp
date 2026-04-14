@@ -77,7 +77,7 @@ public:
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
-    DEFINE_SIGNAL_OVERRIDE(void(const std::string&), UserDescriptorUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(const std::vector<std::string>&), UserDescriptorUpdated);
 
 private:
     const TUserDirectorySynchronizerConfigPtr Config_;
@@ -140,10 +140,7 @@ private:
                 std::move(users),
                 std::move(groups));
 
-            for (const auto& userName : updatedUsers) {
-                UserDescriptorUpdated_.Fire(userName);
-            }
-
+            UserDescriptorUpdated_.Fire(updatedUsers);
             YT_LOG_DEBUG("Finished synchronizing user directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing user directory")

@@ -49,7 +49,7 @@ size_t TBufferedStream::WaitDataToRead(size_t size)
         if (!result) { // Some error occurred.
             return 0;
         }
-        if (!future.Get().IsOK()) { // Finalization is in progress.
+        if (!future.GetOrCrash().IsOK()) { // Finalization is in progress.
             return 0;
         }
         UnregisterFuture(AllowReadCookie_);
@@ -99,7 +99,7 @@ void TBufferedStream::Finish()
 TFuture<void> TBufferedStream::Close()
 {
     Finish();
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TBufferedStream::Write(const TSharedRef& data)
@@ -134,13 +134,13 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
             .ToFuture()
             .ToImmediatelyCancelable();
     } else {
-        return VoidFuture;
+        return OKFuture;
     }
 }
 
 TFuture<void> TBufferedStream::Flush()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TBufferedStream::Reallocate(size_t len)

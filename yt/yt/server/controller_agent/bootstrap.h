@@ -14,11 +14,11 @@
 
 #include <yt/yt/library/fusion/public.h>
 
+#include <yt/yt/core/http/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 

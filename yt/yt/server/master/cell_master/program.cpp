@@ -94,9 +94,9 @@ public:
             .RequiredArgument("DIRECTORY");
         Opts_
             .AddLongOption(
-                "dont-abort-on-alert",
-                "Do not set AbortOnAlert flag in logger config")
-            .StoreFalse(&AbortOnAlert_)
+                "abort-on-alert",
+                "Set AbortOnAlert flag in logger config")
+            .StoreTrue(&AbortOnAlert_)
             .NoArgument();
         Opts_
             .AddLongOption(
@@ -109,12 +109,6 @@ public:
                 "skip-tvm-service-env-validation",
                 "Do not validate TVM service files")
             .SetFlag(&SkipTvmServiceEnvValidationFlag_)
-            .NoArgument();
-        Opts_
-            .AddLongOption(
-                "compatibility-info",
-                "Prints master binary compatibility info")
-            .SetFlag(&PrintCompatibilityInfoFlag_)
             .NoArgument();
 
         SetMainThreadName("MasterProg");
@@ -134,10 +128,9 @@ private:
     std::vector<TString> ReplayChangelogsPaths_;
     bool BuildSnapshotFlag_ = false;
     TString BuildSnapshotPath_;
-    bool AbortOnAlert_ = true;
+    bool AbortOnAlert_ = false;
     bool CheckInvariants_ = true;
     bool SkipTvmServiceEnvValidationFlag_ = false;
-    bool PrintCompatibilityInfoFlag_ = false;
 
     bool IsDumpSnapshotMode() const
     {
@@ -177,19 +170,13 @@ private:
             IsBuildSnapshotMode();
     }
 
-    bool IsPrintCompatibilityInfoMode() const
-    {
-        return PrintCompatibilityInfoFlag_;
-    }
-
     void ValidateOpts() final
     {
         if (static_cast<int>(IsDumpSnapshotMode()) +
             static_cast<int>(IsValidateSnapshotMode()) +
-            static_cast<int>(IsExportSnapshotMode()) +
-            static_cast<int>(IsPrintCompatibilityInfoMode()) > 1)
+            static_cast<int>(IsExportSnapshotMode()) > 1)
         {
-            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot', 'compatibility-info' are mutually exclusive");
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot' are mutually exclusive");
         }
 
         if ((IsDumpSnapshotMode() || IsExportSnapshotMode()) && IsReplayChangelogsMode()) {
@@ -242,11 +229,6 @@ private:
 
     void DoStart() final
     {
-        if (IsPrintCompatibilityInfoMode()) {
-            DoPrintCompatibilityInfo();
-            return;
-        }
-
         auto bootstrap = CreateMasterBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
 
@@ -291,20 +273,24 @@ private:
         }
 
         bootstrap->Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         SleepForever();
     }
 
-    void DoPrintCompatibilityInfo()
+    void DoPrintCompatibilityInfo() override
     {
-        NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
-        auto info = NYTree::BuildYsonStringFluently()
-            .BeginMap()
-                .Item("current_reign").Value(NCellMaster::GetCurrentReign())
-            .EndMap();
-        NYson::Serialize(info, &writer);
-        Cout << Endl;
+        if (UseYson_) {
+            NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
+            auto info = NYTree::BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("current_reign").Value(NCellMaster::GetCurrentReign())
+                .EndMap();
+            NYson::Serialize(info, &writer);
+            Cout << Endl;
+        } else {
+            Cout << "Current Reign: " << NCellMaster::GetCurrentReign() << Endl;
+        }
     }
 };
 

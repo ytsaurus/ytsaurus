@@ -21,6 +21,7 @@ class TestQueriesYqlBase(YTEnvSetup):
     NUM_NODES = 3
     NUM_YQL_AGENTS = 1
     NUM_MASTERS = 1
+    NUM_DISCOVERY_SERVERS = 1
     NUM_QUERY_TRACKER = 1
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
@@ -33,6 +34,8 @@ class TestQueriesYqlBase(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+
+    COPY_YTSERVER = False
 
     if get_sanitizer_type():
         # llvm-symbolizer is required in *san builds to symbolize stack,

@@ -8,6 +8,7 @@
 #include "domestic_medium.h"
 #include "dynamic_store.h"
 #include "job.h"
+#include "s3_medium.h"
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -16,6 +17,8 @@
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+
+#include <yt/yt/server/master/object_server/helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -1229,7 +1232,7 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* ch
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
-    for (auto replica : chunk->StoredReplicas()) {
+    for (auto replica : chunk->GetStoredReplicaList(/*includeOffline*/ false)) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
@@ -1248,11 +1251,19 @@ void SerializeMediumDirectory(
     const IChunkManagerPtr& chunkManager)
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
-        auto* protoItem = protoMediumDirectory->add_items();
+        auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
 
-        protoItem->set_index(medium->GetIndex());
-        protoItem->set_name(medium->GetName());
-        protoItem->set_priority(medium->GetPriority());
+        protoMediumDescriptor->set_index(medium->GetIndex());
+        protoMediumDescriptor->set_name(medium->GetName());
+        protoMediumDescriptor->set_priority(medium->GetPriority());
+
+        if (medium->IsDomestic()) {
+            protoMediumDescriptor->mutable_domestic_medium_descriptor();
+        } else {
+            auto* s3Medium = medium->As<TS3Medium>();
+            auto* s3MediumDescriptor = protoMediumDescriptor->mutable_s3_medium_descriptor();
+            s3MediumDescriptor->set_config(ConvertToYsonString(s3Medium->Config()).AsStringBuf());
+        }
     }
 }
 
@@ -1349,6 +1360,9 @@ void ValidateMediumName(const std::string& name)
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Medium name cannot be empty");
     }
+
+    CheckObjectName(name)
+        .ThrowOnError();
 }
 
 void ValidateMediumPriority(int priority)
@@ -1383,5 +1397,48 @@ void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chu
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(
+    TChunkId chunk,
+    const TDynamicSequoiaChunkReplicasConfigPtr& config)
+{
+    if (IsJournalChunkId(chunk)) {
+        return config->JournalReplicasStoreConfig;
+    } else {
+        return config->BlobReplicasStoreConfig;
+    }
+}
+
+TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config)
+{
+    TChunkSequoiaConfig result;
+    if (!config->Enable) {
+        return result;
+    }
+
+    const auto& storeConfig = GetChunkSequoiaStoreConfig(chunkId, config);
+    if (!storeConfig->StoreInSequoia) {
+        return result;
+    }
+
+    auto chunkPercentage = static_cast<int>(EntropyFromId(chunkId) % 100);
+    if (chunkPercentage >= storeConfig->ReplicasPercentage) {
+        return result;
+    }
+
+    result.StoreInSequoia = true;
+    result.FetchReplicasFromSequoia |= storeConfig->FetchReplicasFromSequoia;
+
+    if (storeConfig->StoreSequoiaReplicasOnMaster && chunkPercentage < storeConfig->StoreSequoiaReplicasOnMasterPercentage) {
+        result.StoreSequoiaReplicasOnMaster = true;
+        result.ProcessRemovedSequoiaReplicasOnMaster = true;
+        result.ValidateSequoiaReplicasFetch = storeConfig->ValidateSequoiaReplicasFetch;
+        result.AllowExtraMasterReplicasDuringValidation = storeConfig->AllowExtraMasterReplicasDuringValidation;
+    } else {
+        result.ProcessRemovedSequoiaReplicasOnMaster = storeConfig->ProcessRemovedSequoiaReplicasOnMaster;
+    }
+
+    return result;
+}
 
 } // namespace NYT::NChunkServer

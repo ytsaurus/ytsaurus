@@ -1,5 +1,5 @@
 # engine/result.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -52,10 +52,22 @@ else:
     from sqlalchemy.cyextension.resultproxy import tuplegetter as tuplegetter
 
 if typing.TYPE_CHECKING:
+    from typing import Type
+
+    from .. import inspection
+    from ..sql import roles
+    from ..sql._typing import _HasClauseElement
     from ..sql.elements import SQLCoreOperations
     from ..sql.type_api import _ResultProcessorType
 
-_KeyType = Union[str, "SQLCoreOperations[Any]"]
+_KeyType = Union[
+    str,
+    "SQLCoreOperations[Any]",
+    "roles.TypedColumnsClauseRole[Any]",
+    "roles.ColumnsClauseRole",
+    "Type[Any]",
+    "inspection.Inspectable[_HasClauseElement[Any]]",
+]
 _KeyIndexType = Union[_KeyType, int]
 
 # is overridden in cursor using _CursorKeyMapRecType

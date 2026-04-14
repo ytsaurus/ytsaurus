@@ -8,6 +8,7 @@ SRCS(
     cell_master/alert_manager.cpp
     cell_master/automaton.cpp
     cell_master/bootstrap.cpp
+    cell_master/cell_master_service.cpp
     cell_master/cell_statistics.cpp
     cell_master/config_manager.cpp
     cell_master/config.cpp
@@ -128,6 +129,7 @@ SRCS(
     chunk_server/dynamic_store_proxy.cpp
     chunk_server/dynamic_store_type_handler.cpp
     chunk_server/dynamic_store.cpp
+    chunk_server/global_sequoia_chunk_refresher.cpp
     chunk_server/helpers.cpp
     chunk_server/job_controller.cpp
     chunk_server/job_registry.cpp
@@ -427,6 +429,7 @@ SRCS(
     transaction_server/config.cpp
     transaction_server/cypress_integration.cpp
     transaction_server/cypress_transaction_service.cpp
+    transaction_server/helpers.cpp
     transaction_server/sequoia_integration.cpp
     transaction_server/transaction_finisher.cpp
     transaction_server/transaction_manager.cpp

@@ -26,6 +26,7 @@ struct TUnorderedChunkPoolOptions
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TSerializableLogger Logger;
     NScheduler::ESingleChunkTeleportStrategy SingleChunkTeleportStrategy = NScheduler::ESingleChunkTeleportStrategy::Disabled;
+    bool BuildFirstJobOnFinishedInput = false;
 };
 
 IPersistentChunkPoolPtr CreateUnorderedChunkPool(

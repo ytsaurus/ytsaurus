@@ -1291,8 +1291,74 @@ Keep in mind that the decorator is implemented by setting an attribute on a fun
 
 You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators).
 
-
 ### Pickling functions and environments { #pickling }
+
+#### Running Python workloads in open-source environments { #python_open_source_environment }
+
+In open-source {{product-name}} setups, if you want to ensure that your local Python operation and environment are pickled correctly and run successfully on the cluster, you need to keep the local environment and the remote job environment as similar as possible.
+
+We strongly recommend the following setup for Python operations:
+
+1. Always specify a Docker image for the user job.
+2. Always enable `ignore_system_modules` in the Python wrapper config:
+
+```python
+yt.config["pickling"]["ignore_system_modules"] = True
+```
+
+The `ignore_system_modules` option prevents the wrapper from packing Python modules that are treated as system modules on the client host. In open-source environments, relying on host system modules often causes hard-to-diagnose discrepancies between the local machine and the job environment.
+
+Example:
+
+```python
+spec_builder = yt.spec_builders.MapSpecBuilder() \
+    .begin_mapper() \
+        .command(MyMapper()) \
+        .docker_image("docker.io/library/python:3.11") \
+    .end_mapper() \
+    .input_table_paths(["//tmp/in"]) \
+    .output_table_paths(["//tmp/out"])
+
+yt.config["pickling"]["ignore_system_modules"] = True
+yt.run_operation(spec_builder)
+```
+
+The Python version in the Docker image and the local Python version must be the same. This is especially important for serialized Python code, imported modules, and native extensions.
+
+It is also strictly recommended to use the same operating system environment locally and in the Docker image. For example, if the Docker image is built on Ubuntu 24.04, using Ubuntu 24.04 locally is recommended as well. A different local environment may still work, but the probability of packaging or runtime discrepancies is higher.
+
+#### Running the local script inside Docker with `respawn_in_docker` { #respawn_in_docker }
+
+The wrapper provides the `respawn_in_docker` decorator that restarts the local entry script inside a Docker container before the operation is submitted.
+
+```python
+import yt.wrapper as yt
+
+@yt.respawn_in_docker("docker.io/library/python:3.11")
+def main():
+    yt.config["pickling"]["ignore_system_modules"] = True
+    yt.run_map(MyMapper(), "//tmp/in", "//tmp/out")
+
+if __name__ == "__main__":
+    main()
+```
+
+This approach helps eliminate discrepancies between the local launch environment and the remote job environment because:
+
+1. The script is re-executed inside the specified Docker image.
+2. Wrapper operations automatically inherit the same image through `YT_BASE_LAYER`.
+3. The script directory, current working directory, home directory, and Python library paths are mounted into the container.
+
+This approach still has important limitations:
+
+1. Docker is required on the local machine.
+2. By default, only environment variables with the `YT_` prefix are forwarded to the container. If your script depends on other environment variables, pass them explicitly via the `env` argument.
+3. The image must contain a compatible Python interpreter. By default, `respawn_in_docker` runs `python3` inside the container, but you can override this via the `python` argument.
+4. The mounted local paths must be accessible to Docker.
+5. The decorator aligns the local startup environment with the job image, but it does not remove every possible host-specific difference.
+
+Use `respawn_in_docker` when you want the strongest guarantee that the script used to submit the operation runs in the same Docker environment as the jobs themselves. This is the preferred approach when Docker is available locally.
+
 #### General structure { #pickling_description }
 
 Here is a sequence of actions that occur when you run an operation that is a Python function:

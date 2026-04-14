@@ -2,13 +2,12 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/data_node/public.h>
+
+#include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
@@ -92,7 +91,7 @@ public:
         const TSlotManagerDynamicConfigPtr& newConfig);
 
     //! Acquires a free slot, throws on error.
-    IUserSlotPtr AcquireSlot(NScheduler::NProto::TOldDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allow_idle_cpu_policy);
+    IUserSlotPtr AcquireSlot(NScheduler::NProto::TDeprecatedDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allow_idle_cpu_policy);
 
     class TSlotGuard
     {
@@ -237,7 +236,10 @@ private:
 
     std::vector<TNumaNodeState> NumaNodeStates_;
 
+    // NB: Whenever we want to do something with the job environment,
+    // we should first cache it so that it doesn't expire upon resurrection.
     IJobEnvironmentPtr JobEnvironment_;
+
     std::optional<NJobProxy::EJobEnvironmentType> JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
@@ -376,6 +378,7 @@ private:
         int slotIndex,
         NClusterNode::TCpu requestedCpu,
         const std::optional<i64>& numaNodeIdAffinity);
+    std::vector<int> GetSortedFreeSlots();
 
     /*!
      *  \note

@@ -53,13 +53,15 @@ For this operation to be effective, consider the following:
 Any static table has the attributes represented in the table:
 
 | **Name** | **Type** | **Description** | **Mandatory** |
-| ------------- | --------------- | ------------------------------------ |-----------------------|
+|----------------|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|
 | `sorted` | `bool` | Whether the table is sorted. | No |
 | `key_columns` | `array<string>` | Key column names. | Yes |
 | `dynamic` | `bool` | Whether the table is dynamic. | No |
 | `schema` | `TableSchema` | Table schema. | No |
 | `row_count` | `integer` | Number of rows in the table. | Yes |
 | `data_weight` | `integer` | A "logical" amount of uncompressed data written to a table. Depends only on the values in the table cells and the number of rows. Calculated as `row_count + sum(data_weight(value))` for all values in the table cells. `data_weight` for a value depends on the physical type of the value: for `int64`, `uint64`, and `double` — 8 bytes; for `bool` and `null` — 1 byte; for `string` —  string length; for `any` — length of the value serialized in binary YSON. | Yes |
+| `optimize_for` | `string`        | The format for the physical storage of the table in chunks: `lookup` (row-based) and `scan` (columnar). If this attribute is not specified when creating a table, the `lookup` format will be used. It is recommended to explicitly specify `scan` to get additional optimizations for data storage and reading. [Read more](../../../user-guide/storage/chunks.md#optimize_for) | No               |
+
 
 Besides that, a table is an object that owns chunks, meaning it has the associated attributes featured in the [table](../../../user-guide/storage/chunks.md#attributes).
 

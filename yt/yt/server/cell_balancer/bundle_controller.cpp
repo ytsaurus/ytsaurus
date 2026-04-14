@@ -6,7 +6,11 @@
 #include "cell_downtime_tracker.h"
 #include "chaos_scheduler.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 #include "cypress_bindings.h"
+#include "input_state.h"
+#include "mutations.h"
+#include "node_tracker.h"
 #include "orchid_bindings.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
@@ -102,8 +106,7 @@ public:
 
         auto localConnection = Bootstrap_->GetClient()->GetNativeConnection();
         auto foreignConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-        // TODO(capone212): Use separate user name NSecurityClient::BundleControllerUserName
-        auto client = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+        auto client = foreignConnection->CreateClient(Bootstrap_->GetClient()->GetOptions());
         Clients_[clusterName] = client;
 
         return client;
@@ -145,7 +148,10 @@ public:
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
         , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
         , OrchidScanBundleCounter_(New<NOrchid::TScanBundleCounter>())
-    { }
+    {
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
+            BIND(&TBundleController::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
     void Start() override
     {
@@ -166,6 +172,20 @@ public:
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         ScanBundles(dryRun, /*ignoreGlobalDisabledSwitch*/ true);
+    }
+
+    void OnDynamicConfigChanged(
+        const TBundleControllerDynamicConfigPtr& oldConfig,
+        const TBundleControllerDynamicConfigPtr& newConfig)
+    {
+        PeriodicExecutor_->SetPeriod(newConfig->BundleScanPeriod.value_or(Config_->BundleScanPeriod));
+
+        Bootstrap_->GetNodeTracker()->OnDynamicConfigChanged(oldConfig->NodeTracker, newConfig->NodeTracker);
+
+        YT_LOG_DEBUG(
+            "Updated bundle controller dynamic config (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:
@@ -414,8 +434,10 @@ private:
         auto inputState = GetInputState(transaction);
         DropJailedBundlesFromInputState(&inputState);
 
+        Bootstrap_->GetNodeTracker()->UpdateNodeStates(inputState.TabletNodes);
+
         TSchedulerMutations mutations;
-        ScheduleBundles(inputState, &mutations);
+        ScheduleBundles(inputState, &mutations, Bootstrap_->GetNodeTracker());
 
         if (dryRun) {
             return;
@@ -532,9 +554,9 @@ private:
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
 
-        if (mutations.DynamicConfig) {
+        if (mutations.BundlesDynamicConfig) {
             DynamicConfigUpdateCounter_.Increment();
-            SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
+            SetBundlesDynamicConfig(transaction, *mutations.BundlesDynamicConfig);
         }
 
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
@@ -907,7 +929,7 @@ private:
                 for (const auto& nodeName : nodes) {
                     const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-                    if (nodeInfo->State != InstanceStateOnline) {
+                    if (!nodeInfo->IsOnline()) {
                         ++offlineNodeCount;
                         continue;
                     }
@@ -957,7 +979,7 @@ private:
             sensors->OfflineProxyCount.Update(offlineProxyCount);
         }
 
-        for (const auto& [dcPair, zoneDisrupted] : input.DatacenterDisrupted) {
+        for (const auto& [dcPair, zoneDisrupted] : input.DataCenterDisruptionStatuses) {
             auto sensor = GetZoneSensors(dcPair.first, dcPair.second);
             sensor->OfflineNodeCount.Update(zoneDisrupted.OfflineNodeCount);
             sensor->OfflineNodeThreshold.Update(zoneDisrupted.OfflineNodeThreshold);
@@ -1137,6 +1159,7 @@ private:
     {
         TSchedulerInputState inputState{
             .Config = Config_,
+            .DynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig(),
         };
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
@@ -1181,7 +1204,7 @@ private:
             {Config_->HulkDeallocationsPath, Config_->HulkDeallocationsHistoryPath},
             GetAliveDeallocationsId(inputState));
 
-        inputState.DynamicConfig = GetBundlesDynamicConfig(transaction);
+        inputState.BundlesDynamicConfig = GetBundlesDynamicConfig(transaction);
 
         inputState.SysConfig = GetSystemConfig(transaction);
 
@@ -1255,7 +1278,9 @@ private:
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
@@ -1286,7 +1311,9 @@ private:
     {
         TGetNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+
+        auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
+        options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
 
         auto yson = WaitFor(transaction->GetNode(path, options))
             .ValueOrThrow();
@@ -1417,8 +1444,6 @@ private:
         for (const auto& [requestId, requestBody] : requests) {
             auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
 
-            TSetNodeOptions setOptions;
-            setOptions.Recursive = true;
             auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)));
             MoveBundleToJailAndThrowOnError(result, requestBody->BundleName);
         }
@@ -1450,8 +1475,7 @@ private:
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions))
+            WaitFor(client->SetNode(path, ConvertToYsonString(attribute)))
                 .ThrowOnError();
         }
     }
@@ -1469,8 +1493,7 @@ private:
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation), setOptions));
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation)));
             MoveBundleToJailAndThrowOnError(result, attribute.BundleName);
         }
     }
@@ -1488,8 +1511,7 @@ private:
                 NYPath::ToYPathLiteral(bundleName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions));
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute)));
             MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
@@ -1594,8 +1616,7 @@ private:
         }
 
         auto path = Format("%v/@%v", BundleSystemQuotasPath, AccountAttributeResourceLimits);
-        TSetNodeOptions setOptions;
-        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits), setOptions));
+        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits)));
         MoveBundleToJailAndThrowOnError(result, lastBundle);
     }
 
@@ -1639,8 +1660,7 @@ private:
         const ITransactionPtr& transaction,
         const TBundlesDynamicConfig& config)
     {
-        TSetNodeOptions setOptions;
-        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config), setOptions))
+        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config)))
             .ThrowOnError();
     }
 

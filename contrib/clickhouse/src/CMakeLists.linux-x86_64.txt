@@ -1167,6 +1167,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/replaceAliasColumnsInQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/replaceForPositionalArguments.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/replaceMissedSubcolumnsInQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/replaceSubcolumnsToGetSubcolumnFunctionInQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/sortBlock.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Loggers/ExtendedLogChannel.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Loggers/Loggers.cpp
@@ -2431,6 +2432,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/filesystem.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/finalizeAggregation.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/firstLine.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/firstNonDefault.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/flattenTuple.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/format.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatDateTime.cpp

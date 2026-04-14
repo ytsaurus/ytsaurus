@@ -70,6 +70,8 @@ public:
     void WriteSymlink(const TFsPath& path, const TFsPath& target);
     void WriteHardlink(const TFsPath& path, const TFsPath& target);
 
+    void MakeArchiveFromDirectory(const TFsPath& directoryPath);
+
 private:
     class TImpl;
     THolder<TImpl> PImpl;

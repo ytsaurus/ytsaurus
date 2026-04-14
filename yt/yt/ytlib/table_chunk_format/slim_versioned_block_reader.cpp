@@ -204,7 +204,7 @@ TMutableVersionedRow TSlimVersionedBlockReader::ReadRowSingleVersion(TChunkedMem
                 ValueDictionary_,
                 ptr,
                 [&] (int /*chunkSchemaId*/) {
-                    if (Y_UNLIKELY(value == endValue)) {
+                    if (value == endValue) [[unlikely]] {
                         int oldValueCount = row.GetValueCount();
                         int newValueCount = oldValueCount * 2;
                         row = IncreaseRowValueCount(row, newValueCount, memoryPool);

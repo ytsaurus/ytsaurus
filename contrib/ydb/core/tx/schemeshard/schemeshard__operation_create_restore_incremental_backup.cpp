@@ -248,10 +248,7 @@ public:
 
         if (txState->TargetPathId != InvalidPathId) {
             Y_ABORT_UNLESS(context.SS->PathsById.contains(txState->TargetPathId));
-            auto targetPath = context.SS->PathsById.at(txState->TargetPathId);
-            
-            context.SS->ClearDescribePathCaches(targetPath);
-            context.OnComplete.PublishToSchemeBoard(OperationId, txState->TargetPathId);
+            // Don't publish here - finalize will publish after bumping index versions
             context.OnComplete.ReleasePathState(OperationId, txState->TargetPathId, TPathElement::EPathState::EPathStateNoChanges);
         }
 
@@ -452,7 +449,6 @@ public:
             auto table = context.SS->Tables.at(tablePath.Base()->PathId);
 
             Y_ABORT_UNLESS(table->AlterVersion != 0);
-            Y_ABORT_UNLESS(!table->AlterData);
 
             tablePath.Base()->PathState = NKikimrSchemeOp::EPathStateOutgoingIncrementalRestore;
             tablePath.Base()->LastTxId = OperationId.GetTxId();

@@ -86,7 +86,7 @@ TEST(TFilterSplitterTest, Complex)
 
     ASSERT_TRUE(splitTree.size() == subTrees.size());
 
-    for (size_t i = 0 ; i < subTrees.size(); ++i) {
+    for (size_t i = 0; i < subTrees.size(); ++i) {
         ParseAndCheck(
             splitTree[i],
             subTrees[i],
@@ -111,7 +111,7 @@ TEST(TFilterSplitterTest, Function)
 
     ASSERT_TRUE(splitTree.size() == subTrees.size());
 
-    for (size_t i = 0 ; i < subTrees.size(); ++i) {
+    for (size_t i = 0; i < subTrees.size(); ++i) {
         ParseAndCheck(
             splitTree[i],
             subTrees[i],

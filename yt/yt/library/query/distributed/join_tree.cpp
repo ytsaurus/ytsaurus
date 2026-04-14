@@ -198,16 +198,13 @@ public:
         innerNode->Left->MutableOrder = New<TOrderClause>();
 
         for (int index = 0; index < static_cast<int>(join->CommonKeyPrefix); ++index) {
-            const auto& expr = join->SelfEquations[index].Expression;
+            auto& expr = join->SelfEquations[index];
 
             auto name = InferName(expr);
             innerNode->Left->MutableProject->AddProjection(expr, name);
             innerNode->Left->MutableOrder->OrderItems.push_back({.Expression = expr, .Descending = false});
 
-            join->SelfEquations[index] = {
-                .Expression = New<TReferenceExpression>(expr->LogicalType, std::move(name)),
-                .Evaluated = false,
-            };
+            expr = New<TReferenceExpression>(expr->LogicalType, std::move(name));
         }
 
         innerNode->Left->AddJoinEquationsToChildrenProject();
@@ -253,7 +250,7 @@ public:
         auto& join = inner->MutableJoin;
         for (int index = join->CommonKeyPrefix; index < std::ssize(join->SelfEquations); ++index)
         {
-            harvester.Visit(join->SelfEquations[index].Expression);
+            harvester.Visit(join->SelfEquations[index]);
             harvester.Visit(join->ForeignEquations[index]);
         }
         MutableQuery_->JoinClauses = {std::move(join)};

@@ -71,7 +71,9 @@ message TTimeStatistics
     optional int64 prepare_root_fs_duration = 4;
     optional int64 gpu_check_duration = 5;
     optional int64 prepare_gpu_check_fs_duration = 7;
-    optional int64 prepare_tmpfs_duration = 8;
+    optional int64 prepare_non_root_volumes_duration = 8;
+    optional int64 validate_root_fs_duration = 9;
+    optional int64 link_volumes_duration = 10;
 }
 
 // Describes the current job status.
@@ -208,7 +210,7 @@ message TVolumeMount
 {
     required string volume_id = 1;
     required string mount_path = 2;
-    required bool is_read_only = 3 [default = false];
+    required bool read_only = 3 [default = false];
 }
 
 // Specification for starting user code during a job.
@@ -284,7 +286,7 @@ message TUserJobSpec
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;
 
-    optional NYT.NScheduler.NProto.TOldDiskRequest disk_request = 51;
+    optional NYT.NScheduler.NProto.TDeprecatedDiskRequest disk_request = 51;
 
     // Number of requested ports.
     required int32 port_count = 35;
@@ -522,8 +524,6 @@ message TJobSpecExt
     required bool interruptible = 34;
 
     optional bool allow_idle_cpu_policy = 35 [default = false];
-
-    optional bool enable_prefetching_job_throttler = 36; // TODO(galtsev): remove after 25.1
 
     // At most one job profiler is supported for now.
     repeated TJobProfilerSpec job_profilers = 37;

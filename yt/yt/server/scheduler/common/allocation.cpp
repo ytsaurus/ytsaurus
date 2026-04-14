@@ -70,7 +70,7 @@ NLogging::TLogger TAllocation::CreateLogger()
 TDuration TAllocation::GetPreemptibleProgressDuration() const
 {
     if (PreemptibleProgressStartTime_) {
-        return TInstant::Now() - PreemptibleProgressStartTime_;
+        return TInstant::Now() - PreemptibleProgressStartTime_.value();
     }
 
     return TDuration::Zero();

@@ -3,6 +3,7 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "private.h"
+#include "request_handler.h"
 #include "server.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -19,6 +20,8 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/client/kafka/packet.h>
 
@@ -162,6 +165,7 @@ private:
     NConcurrency::IThreadPoolPollerPtr Poller_;
     NConcurrency::IThreadPoolPollerPtr Acceptor_;
 
+    IRequestHandlerPtr RequestHandler_;
     IServerPtr Server_;
 
     NRpc::IServerPtr RpcServer_;
@@ -184,7 +188,9 @@ private:
     {
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        NApi::NNative::TConnectionOptions connectionOptions;
+        connectionOptions.CreateQueueConsumerRegistrationManager = true;
+        NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
         SetupClusterConnectionDynamicConfigUpdate(
             NativeConnection_,
@@ -198,7 +204,7 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         {
             TCypressRegistrarOptions options{
@@ -229,6 +235,10 @@ private:
             OrchidRoot_,
             "/dynamic_config_manager",
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/cluster_connection",
+            CreateVirtualNode(NativeConnection_->GetOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "cypress_proxy");
@@ -246,12 +256,16 @@ private:
             Poller_,
             NativeRootClient_);
 
-        Server_ = CreateServer(
+        RequestHandler_ = CreateRequestHandler(
             Config_,
             NativeConnection_,
-            AuthenticationManager_,
+            AuthenticationManager_);
+
+        Server_ = CreateServer(
+            Config_,
             Poller_,
-            Acceptor_);
+            Acceptor_,
+            RequestHandler_);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
 
@@ -275,6 +289,7 @@ private:
 
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
+        NativeConnection_->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
 
         CypressRegistrar_->Start();
     }
@@ -288,7 +303,7 @@ private:
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
 
-        Server_->OnDynamicConfigChanged(newConfig);
+        RequestHandler_->OnDynamicConfigChanged(newConfig);
     }
 };
 

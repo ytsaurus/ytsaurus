@@ -50,6 +50,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
@@ -213,7 +214,7 @@ public:
             TWatcherLockOptions{
                 .LockPath = GetPoolTreesLockPath(),
                 .CheckBackoff = Config_->PoolTreesLockCheckBackoff,
-                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout
+                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout,
             });
 
         MasterConnector_->SetCustomWatcher(
@@ -853,6 +854,10 @@ public:
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
 
+        if (const auto& controller = operation->GetController()) {
+            controller->Resume();
+        }
+
         YT_LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
 
@@ -937,7 +942,8 @@ public:
             operation,
             error,
             /*abortRunningAllocations*/ true,
-            /*setAlert*/ true));
+            /*setAlert*/ true,
+            /*initiatedByController*/ true));
     }
 
     void OnOperationAgentUnregistered(const TOperationPtr& operation)
@@ -1338,10 +1344,8 @@ public:
                     }
 
                     // Async materialize result is ready here as the combined future already has finished.
-                    YT_VERIFY(asyncMaterializeResult.IsSet());
-
-                    // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
-                    return asyncMaterializeResult.Get().Value().Suspend;
+                    // It contains no error, otherwise the |!error.IsOK()| check would trigger.
+                    return asyncMaterializeResult.GetOrCrash().Value().Suspend;
                 }();
 
                 FinishOperationMaterialization(operation, shouldSuspend, scheduleOperationInSingleTree);
@@ -1588,8 +1592,8 @@ public:
             ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
-        const auto* descriptor = mediumDirectory->FindByName(mediumName);
-        return descriptor ? std::optional(descriptor->Index) : std::nullopt;
+        auto descriptor = mediumDirectory->FindByName(mediumName);
+        return descriptor ? std::optional(descriptor->GetIndex()) : std::nullopt;
     }
 
     const std::string& GetMediumNameByIndex(int mediumIndex) const override
@@ -1598,8 +1602,8 @@ public:
             ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
-        const auto* descriptor = mediumDirectory->FindByIndex(mediumIndex);
-        return descriptor->Name;
+        auto descriptor = mediumDirectory->FindByIndex(mediumIndex);
+        return descriptor->Name();
     }
 
     const NStrategy::IStrategyPtr& GetStrategy() const override
@@ -1676,9 +1680,9 @@ public:
             MakeFormattableView(mediumIndexToFreeResources, [&mediumDirectory] (TStringBuilderBase* builder, const std::pair<int, std::vector<i64>>& pair) {
                 int mediumIndex = pair.first;
                 const auto& freeDiskSpace = pair.second;
-                auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+                auto mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
                 TStringBuf mediumName = mediumDescriptor
-                    ? mediumDescriptor->Name
+                    ? mediumDescriptor->Name()
                     : TStringBuf("unknown");
                 builder->AppendFormat("%v: %v", mediumName, freeDiskSpace);
             }));
@@ -1694,7 +1698,7 @@ public:
         if (Config_->UpdateLastMeteringLogTime) {
             return MasterConnector_->UpdateLastMeteringLogTime(time);
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -2915,7 +2919,7 @@ private:
             operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
 
             {
-                auto result = WaitFor(controller->Revive())
+                auto result = WaitFor(controller->Revive(operation->GetSuspended()))
                     .ValueOrThrow();
 
                 ValidateOperationState(operation, EOperationState::Reviving);
@@ -3214,8 +3218,7 @@ private:
         // Failure is intentionally ignored.
         Y_UNUSED(WaitFor(AllSet(futures)));
 
-        YT_VERIFY(unregisterFuture.IsSet());
-        auto resultOrError = unregisterFuture.Get();
+        auto resultOrError = unregisterFuture.GetOrCrash();
         if (!resultOrError.IsOK()) {
             return;
         }
@@ -3375,7 +3378,8 @@ private:
         const TOperationPtr& operation,
         const TError& error,
         bool abortRunningAllocations,
-        bool setAlert)
+        bool setAlert,
+        bool initiatedByController = false)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -3388,6 +3392,12 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         operation->SetSuspended(true);
+
+        if (!initiatedByController) {
+            if (const auto& controller = operation->GetController()) {
+                controller->Suspend();
+            }
+        }
 
         if (abortRunningAllocations) {
             AbortOperationAllocations(
@@ -3406,7 +3416,9 @@ private:
             DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, error);
         }
 
-        YT_LOG_INFO(error, "Operation suspended (OperationId: %v)",
+        YT_LOG_INFO(
+            error,
+            "Operation suspended (OperationId: %v)",
             operation->GetId());
     }
 
@@ -4120,8 +4132,7 @@ private:
             std::vector<TError> errors;
             errors.reserve(futures.size());
             for (const auto& future : futures) {
-                YT_VERIFY(future.IsSet());
-                errors.push_back(future.Get());
+                errors.push_back(future.GetOrCrash());
             }
             THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
                 action,

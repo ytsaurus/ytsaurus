@@ -122,20 +122,22 @@ static PyTypeObject *ptr__Bytes_Type = NULL;
 #  endif
 
 #  if PY_MAJOR_VERSION == 2 || !defined( Py_LIMITED_API )
+#    if PY_MAJOR_VERSION == 2 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11)
 static int *ptr_Py_DebugFlag = NULL;
 static int *ptr_Py_InteractiveFlag = NULL;
 static int *ptr_Py_OptimizeFlag = NULL;
 static int *ptr_Py_NoSiteFlag = NULL;
 static int *ptr_Py_VerboseFlag = NULL;
-
-#  if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
-#    if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
-static const char **ptr__Py_PackageContext = NULL;
-#    else
-static char **ptr__Py_PackageContext = NULL;
 #    endif
-#   endif
-#  elif PY_MAJOR_VERSION == 2
+
+#    if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
+#      if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
+static const char **ptr__Py_PackageContext = NULL;
+#      else
+static char **ptr__Py_PackageContext = NULL;
+#      endif
+#    endif
+#   elif PY_MAJOR_VERSION == 2
 static char **ptr__Py_PackageContext = NULL;
 #  endif
 
@@ -246,19 +248,20 @@ bool InitialisePythonIndirectInterface()
     ptr_Py_RefTotal             = GetInt_as_IntPointer( "_Py_RefTotal" );
 #  endif
 #  if PY_MAJOR_VERSION == 2 || !defined( Py_LIMITED_API )
+#    if PY_MAJOR_VERSION == 2 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11)
     ptr_Py_DebugFlag            = GetInt_as_IntPointer( "Py_DebugFlag" );
     ptr_Py_InteractiveFlag      = GetInt_as_IntPointer( "Py_InteractiveFlag" );
     ptr_Py_OptimizeFlag         = GetInt_as_IntPointer( "Py_OptimizeFlag" );
     ptr_Py_NoSiteFlag           = GetInt_as_IntPointer( "Py_NoSiteFlag" );
     ptr_Py_VerboseFlag          = GetInt_as_IntPointer( "Py_VerboseFlag" );
-
-#   if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
-#     if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
-    ptr__Py_PackageContext      = GetConstCharPointer_as_ConstCharPointerPointer( "_Py_PackageContext" );
-#     else
-    ptr__Py_PackageContext      = GetCharPointer_as_CharPointerPointer( "_Py_PackageContext" );
-#     endif
 #    endif
+#    if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
+#       if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
+    ptr__Py_PackageContext      = GetConstCharPointer_as_ConstCharPointerPointer( "_Py_PackageContext" );
+#       else
+    ptr__Py_PackageContext      = GetCharPointer_as_CharPointerPointer( "_Py_PackageContext" );
+#       endif
+#     endif
 #   elif PY_MAJOR_VERSION == 2
     ptr__Py_PackageContext      = GetCharPointer_as_CharPointerPointer( "_Py_PackageContext" );
 #   endif
@@ -405,19 +408,21 @@ PyTypeObject *_Bytes_Type()             { return ptr__Bytes_Type; }
 //    wrap the Python Flag variables
 //
 #  if PY_MAJOR_VERSION == 2 || !defined( Py_LIMITED_API )
+#    if PY_MAJOR_VERSION == 2 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11)
 int &_Py_DebugFlag()                    { return *ptr_Py_DebugFlag; }
 int &_Py_InteractiveFlag()              { return *ptr_Py_InteractiveFlag; }
 int &_Py_OptimizeFlag()                 { return *ptr_Py_OptimizeFlag; }
 int &_Py_NoSiteFlag()                   { return *ptr_Py_NoSiteFlag; }
 int &_Py_VerboseFlag()                  { return *ptr_Py_VerboseFlag; }
+#    endif
 #  endif
 
 #  if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
-#   if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
+#    if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
 const char *__Py_PackageContext()       { return *ptr__Py_PackageContext; }
-#   else
+#    else
 char *__Py_PackageContext()             { return *ptr__Py_PackageContext; }
-#   endif
+#    endif
 #  elif PY_MAJOR_VERSION == 2
 char *__Py_PackageContext()             { return *ptr__Py_PackageContext; }
 #  endif
@@ -530,11 +535,13 @@ PyTypeObject *_Bytes_Type()             { return &PyBytes_Type; }
 //    wrap flags
 //
 # if PY_MAJOR_VERSION == 2 || !defined( Py_LIMITED_API )
+#    if PY_MAJOR_VERSION == 2 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11)
 int &_Py_DebugFlag()                    { return Py_DebugFlag; }
 int &_Py_InteractiveFlag()              { return Py_InteractiveFlag; }
 int &_Py_OptimizeFlag()                 { return Py_OptimizeFlag; }
 int &_Py_NoSiteFlag()                   { return Py_NoSiteFlag; }
 int &_Py_VerboseFlag()                  { return Py_VerboseFlag; }
+#    endif
 #  if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
 #   if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
 const char *__Py_PackageContext()       { return _Py_PackageContext; }

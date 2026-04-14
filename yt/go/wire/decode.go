@@ -713,6 +713,11 @@ func (d *WireDecoder) decodeValueAny(value Value, v any) (err error) {
 	}
 
 	if value.Type == TypeNull {
+		// Struct field *T is passed as **T; null must clear the inner pointer (decodeReflect).
+		rv := reflect.ValueOf(v)
+		if rv.Kind() == reflect.Ptr && rv.Type().Elem().Kind() == reflect.Ptr {
+			return d.decodeReflect(value, rv)
+		}
 		return
 	}
 
@@ -818,6 +823,12 @@ func (d *WireDecoder) decodeReflect(value Value, v reflect.Value) error {
 	}
 
 	if value.Type == TypeNull {
+		// For **T (e.g. struct field *int64 passed as Addr), clear the inner pointer on null.
+		if v.Elem().Kind() == reflect.Ptr {
+			if v.Elem().CanSet() {
+				v.Elem().Set(reflect.Zero(v.Elem().Type()))
+			}
+		}
 		return nil
 	}
 
@@ -859,6 +870,18 @@ func (d *WireDecoder) decodeReflect(value Value, v reflect.Value) error {
 	case reflect.String:
 		s := string(value.Bytes())
 		v.Elem().SetString(string(s))
+		return nil
+
+	case reflect.Ptr:
+		inner := v.Elem()
+		if !inner.CanSet() {
+			return xerrors.Errorf("wire: cannot set pointer field: %v", v.Type())
+		}
+		newVal := reflect.New(inner.Type().Elem())
+		if err := d.decodeReflect(value, newVal); err != nil {
+			return err
+		}
+		inner.Set(newVal)
 		return nil
 
 	default:

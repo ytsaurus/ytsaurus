@@ -102,8 +102,8 @@ public:
             Report_.ProbingJobCompetitionId(),
             Report_.ExecAttributes(),
             Report_.JobCookie(),
-            Report_.DistributedGroupJobIndex(),
-            Report_.DistributedGroupMainJobId(),
+            Report_.CollectiveMemberRank(),
+            Report_.CollectiveId(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
@@ -224,11 +224,11 @@ public:
 
         // COMPAT(faucct)
         if (archiveVersion >= 65) {
-            record.DistributedGroupJobIndex = Report_.DistributedGroupJobIndex();
-            if (Report_.DistributedGroupMainJobId()) {
-                auto distributedGroupMainJobId = Report_.DistributedGroupMainJobId().Underlying();
-                record.DistributedGroupMainJobIdHi = distributedGroupMainJobId.Parts64[0];
-                record.DistributedGroupMainJobIdLo = distributedGroupMainJobId.Parts64[1];
+            record.CollectiveMemberRank = Report_.CollectiveMemberRank();
+            if (Report_.CollectiveId()) {
+                auto collectiveId = Report_.CollectiveId();
+                record.CollectiveIdHi = collectiveId.Parts64[0];
+                record.CollectiveIdLo = collectiveId.Parts64[1];
             }
         }
 
@@ -668,7 +668,7 @@ int TJobReporter::ExtractWriteFailuresCount()
     return 0;
 }
 
-bool TJobReporter::GetQueueIsTooLarge()
+bool TJobReporter::IsQueueIsTooLarge()
 {
     if (Impl_) {
         return Impl_->IsQueueTooLarge();

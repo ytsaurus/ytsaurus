@@ -233,6 +233,11 @@ protected:
     //! Used in tests to ensure that we do not resize vectors more than needed.
     size_t GetMaxVectorSize() const;
 
+    void ValidateChildJobSizes(
+        TOutputCookie parentCookie,
+        const std::vector<TOutputCookie>& childCookies,
+        const std::function<TChunkStripeListPtr(TOutputCookie)>& getStripeList) const;
+
 private:
     //! List of children output cookies for split jobs. Empty list corresponds to a job that was not split.
     std::vector<std::vector<IChunkPoolOutput::TCookie>> CookieToChildCookies_;

@@ -43,6 +43,9 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
     NChunkClient::TSessionId sessionId,
     NApi::TJournalChunkWriterOptionsPtr options,
     NApi::TJournalChunkWriterConfigPtr config,
+    NApi::TJournalWriterPerformanceCounters counters,
+    IInvokerPtr invoker,
+    std::optional<NChunkClient::TChunkReplicaWithMediumList> targets,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,24 +1,24 @@
-#include "client_impl.h"
 #include "backup_session.h"
-#include "chaos_lease.h"
 #include "chaos_helpers.h"
+#include "chaos_lease.h"
+#include "client_impl.h"
 #include "config.h"
 #include "connection.h"
 #include "helpers.h"
+#include "pick_replica_session.h"
+#include "private.h"
+#include "sticky_mount_cache.h"
 #include "tablet_helpers.h"
 #include "transaction.h"
 #include "type_handler.h"
-#include "sticky_mount_cache.h"
-#include "pick_replica_session.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
-#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
@@ -49,6 +49,7 @@
 #include <yt/yt/ytlib/query_client/explain.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
+
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
@@ -87,36 +88,36 @@
 #include <yt/yt/client/table_client/versioned_io_options.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/helpers.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
 #include <yt/yt/client/transaction_client/helpers.h>
-
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
-
-#include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
-#include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <yt/yt/library/query/secondary_index/transform.h>
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine/query_engine_config.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
-#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+#include <yt/yt/library/query/secondary_index/transform.h>
 
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <library/cpp/int128/int128.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <util/random/random.h>
 
@@ -444,7 +445,7 @@ public:
             .Run(path);
     }
 
-    void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend executionBackend) override
     {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
@@ -456,10 +457,10 @@ public:
             }
         }
 
-        auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(UdfRegistryPath_, externalNames))
+        auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(UdfRegistryPath_, externalNames, executionBackend))
             .ValueOrThrow();
 
-        AppendUdfDescriptors(typeInferrers, ExternalCGInfo_, externalNames, descriptors);
+        AppendUdfDescriptors(typeInferrers, ExternalCGInfo_, externalNames, descriptors, executionBackend);
     }
 
     TExternalCGInfoPtr GetExternalCGInfo() const
@@ -515,7 +516,7 @@ private:
                     false);
             } catch (const std::exception& ex) {
                 auto error = TError(NTabletClient::EErrorCode::TableSchemaIncompatible, "Schema validation failed during replica fallback")
-                    << TErrorAttribute(UpstreamReplicaIdAttributeName, tableInfo->UpstreamReplicaId)
+                    << TErrorAttribute(std::string(UpstreamReplicaIdAttributeName), tableInfo->UpstreamReplicaId)
                     << ex;
 
                 THROW_ERROR error;
@@ -588,6 +589,18 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     const std::vector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options)
 {
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        /*profilingInfo*/ nullptr,
+        [&] {
+            return DoGetTabletInfosImpl(tableInfo, tabletIndexes, options);
+        });
+}
+
+std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
+    const TTableMountInfoPtr& tableInfo,
+    const std::vector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
     tableInfo->ValidateDynamic();
 
     struct TTabletBatch
@@ -602,6 +615,7 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     for (int resultIndex = 0; resultIndex < std::ssize(tabletIndexes); ++resultIndex) {
         auto tabletIndex = tabletIndexes[resultIndex];
         auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+        ValidateTabletNotUnmounted(tableInfo, tabletInfo);
 
         auto [it, emplaced] = cellIdToTabletBatch.try_emplace(tabletInfo->CellId);
         if (emplaced) {
@@ -1058,7 +1072,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             {.AllowTimestampColumns = isTimestampedLookup});
     }
 
-    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
+    auto idMapping = BuildColumnIdMapping(*schema, nameTable, options.AllowMissingKeyColumns);
 
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
     auto resultSchema = schema->Filter(remappedColumnFilter, true);
@@ -1110,7 +1124,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         : nullptr;
 
     for (int index = 0; index < std::ssize(keys); ++index) {
-        ValidateClientKey(keys[index], *schema, idMapping, nameTable);
+        ValidateClientKey(keys[index], *schema, idMapping, nameTable, options.AllowMissingKeyColumns);
         auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(
             keys[index],
             *schema,
@@ -1149,10 +1163,13 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                         ? options.Timestamp
                         : SyncLastCommittedTimestamp);
 
-                YT_LOG_DEBUG("Picked in-sync replicas for lookup (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
+                YT_LOG_DEBUG(
+                    "Picked in-sync replicas for lookup "
+                    "(ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v, EnableReadFromInSyncAsyncReplicas: %v)",
                     replicaIds,
                     options.Timestamp,
-                    *replicationCard);
+                    *replicationCard,
+                    connectionConfig->EnableReadFromInSyncAsyncReplicas);
 
                 TTableReplicaInfoPtrList inSyncReplicas;
                 for (auto replicaId : replicaIds) {
@@ -1184,6 +1201,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             ? connectionConfig->ReplicaFallbackRetryCount
             : 0;
 
+        THashMap<TReplicaId, TError> triedReplicaIds;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
             TTableReplicaInfoPtrList inSyncReplicas;
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
@@ -1192,6 +1210,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (triedReplicaIds.contains(replicaInfo->ReplicaId)) {
+                    continue;
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
                 }
@@ -1204,6 +1224,10 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                         if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
                             replicaErrors.push_back(std::move(error));
                         }
+                    }
+
+                    for (const auto& [_, error] : triedReplicaIds) {
+                        replicaErrors.push_back(error);
                     }
                 }
 
@@ -1228,7 +1252,15 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 replicaFallbackInfo.ReplicaId);
 
             if (bannedReplicaTracker) {
-                bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                if (auto banReplicaDirective = TReplicaBanDirective::FromError(resultOrError);
+                    banReplicaDirective.Mode == EBanMode::Replica &&
+                    banReplicaDirective.ReplicaId == replicaFallbackInfo.ReplicaId)
+                {
+                    bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                } else {
+                    // Don't ban but exclude from current invocation.
+                    EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                }
             }
         }
 
@@ -1631,7 +1663,7 @@ int GetHyperLogLogPrecision(std::optional<int> inputPrecision)
         MinHyperLogLogPrecision,
         MaxHyperLogLogPrecision);
 
-    return MinHyperLogLogPrecision;
+    return *inputPrecision;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1641,13 +1673,15 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     TQueryOptions queryOptions;
 
     auto useOrderByInJoinSubqueriesDefault = false;
-    auto statisticsAggregationDefault = EStatisticsAggregation::None;
+    auto statisticsAggregationDefault = EStatisticsAggregation::DepthOmitNode;
     if (queryConfig) {
         useOrderByInJoinSubqueriesDefault = queryConfig->UseOrderByInJoinSubqueries.value_or(
             useOrderByInJoinSubqueriesDefault);
 
         statisticsAggregationDefault = queryConfig->StatisticsAggregation.value_or(
             statisticsAggregationDefault);
+
+        queryOptions.TruncatedQueryLengthForTracing = queryConfig->TruncatedQueryLengthForTracing;
     }
 
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
@@ -1758,8 +1792,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     TransformWithIndexStatement(
         astQuery,
         mountCache,
-        &parsedQuery->AstHead,
-        dynamicConfig->AllowUnaliasedSecondaryIndex);
+        &parsedQuery->AstHead);
 
     auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
@@ -1811,11 +1844,23 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
-        HeavyRequestMemoryUsageTracker_,
-        options.SyntaxVersion,
-        queryEngineConfig ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false) : false,
-        GetHyperLogLogPrecision(options.HyperLogLogPrecision));
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = options.SyntaxVersion,
+            .BuilderVersion = options.ExpressionBuilderVersion.value_or(
+                queryEngineConfig
+                    ? queryEngineConfig->ExpressionBuilderVersion.value_or(1)
+                    : 1),
+            .ExecutionBackend = queryOptions.ExecutionBackend,
+            .ShouldRewriteCardinalityIntoHyperLogLog = queryEngineConfig
+                ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false)
+                : false,
+            .HyperLogLogPrecision = GetHyperLogLogPrecision(options.HyperLogLogPrecision),
+            .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
+                ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
+        },
+        HeavyRequestMemoryUsageTracker_);
+
     const auto& query = fragment->Query;
 
     THROW_ERROR_EXCEPTION_IF(
@@ -1859,6 +1904,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto queryExecutor = CreateQueryExecutor(
         memoryChunkProvider,
+        HeavyRequestMemoryUsageTracker_,
         GetNativeConnection(),
         GetNativeConnection()->GetColumnEvaluatorCache(),
         GetNativeConnection()->GetQueryEvaluator(),
@@ -1917,7 +1963,7 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto singletonsConfig = TSingletonManager::GetDynamicConfig();
     auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
 
-    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
+    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead);
 
     auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
@@ -1967,11 +2013,22 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
-        HeavyRequestMemoryUsageTracker_,
-        options.SyntaxVersion,
-        queryEngineConfig ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false) : false,
-        GetHyperLogLogPrecision(options.HyperLogLogPrecision));
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = options.SyntaxVersion,
+            .BuilderVersion = options.ExpressionBuilderVersion.value_or(
+                queryEngineConfig
+                    ? queryEngineConfig->ExpressionBuilderVersion.value_or(1)
+                    : 1),
+            .ExecutionBackend = EExecutionBackend::Native, // TODO(dtorilov): Support WebAssembly in ExplainQuery.
+            .ShouldRewriteCardinalityIntoHyperLogLog = queryEngineConfig
+                ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false)
+                : false,
+            .HyperLogLogPrecision = GetHyperLogLogPrecision(options.HyperLogLogPrecision),
+            .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
+                ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
+        },
+        HeavyRequestMemoryUsageTracker_);
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(TReadSessionId::Create()),
@@ -2047,10 +2104,17 @@ void TClient::ExecuteTabletServiceRequest(
         path,
         &tableId,
         &externalCellTag,
-        {"path"});
+        {"tablet_cell_bundle", "path"});
 
     if (!IsTabletOwnerType(TypeFromId(tableId))) {
         THROW_ERROR_EXCEPTION("Object %v is not a tablet owner", path);
+    }
+
+    if (IsSequoiaId(tableId)) {
+        // COMPAT(h0pless): This is a quick and dirty fix for dynamic tables in Sequoia in 25.4.
+        auto bundle = tableAttributes->Get<std::string>("tablet_cell_bundle");
+        ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
+        ValidatePermissionImpl(path, EPermission::Mount);
     }
 
     auto nativeCellTag = CellTagFromId(tableId);
@@ -2329,7 +2393,9 @@ void TClient::DoReshardTableWithTabletCount(
         return;
     }
 
-    if (options.EnableSlicing.value_or(false)) {
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
+    if (options.EnableSlicing.value_or(dynamicConfig->EnableReshardWithSlicingByDefault)) {
         try {
             auto pivots = PickPivotKeysWithSlicing(
                 MakeStrong(this),
@@ -2343,6 +2409,9 @@ void TClient::DoReshardTableWithTabletCount(
             if (ex.Error().FindMatching(NChunkClient::EErrorCode::TooManyChunksToFetch)) {
                 YT_LOG_DEBUG(ex,
                     "Too many chunks have been requested to fetch, fallback to reshard without slicing");
+            } else if (dynamicConfig->EnableReshardWithSlicingByDefault) {
+                YT_LOG_DEBUG(ex,
+                    "Failed to pick pivot keys with slicing, fallback to reshard without slicing");
             } else {
                 throw;
             }
@@ -2465,6 +2534,9 @@ void TClient::DoTrimTable(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
 
+    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+    ValidateTabletMounted(tableInfo, tabletInfo);
+
     const auto& permissionCache = Connection_->GetPermissionCache();
     NSecurityClient::TPermissionKey permissionKey{
         .Path = FromObjectId(tableInfo->TableId),
@@ -2473,8 +2545,6 @@ void TClient::DoTrimTable(
     };
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
-
-    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
 
     auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
@@ -2566,7 +2636,8 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     if (movableTables.empty()) {
         auto cellTags = Connection_->GetSecondaryMasterCellTags();
         cellTags.push_back(Connection_->GetPrimaryMasterCellTag());
-        auto req = TTabletCellBundleYPathProxy::BalanceTabletCells("//sys/tablet_cell_bundles/" + tabletCellBundle);
+        auto path = Format("//sys/tablet_cell_bundles/%v", ToYPathLiteral(tabletCellBundle));
+        auto req = TTabletCellBundleYPathProxy::BalanceTabletCells(path);
         SetMutationId(req, options);
         req->set_keep_actions(options.KeepActions);
         for (const auto& cellTag : cellTags) {
@@ -2661,6 +2732,27 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
     const TPullQueueOptions& options,
     bool checkPermissions)
 {
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        options.DetailedProfilingInfo,
+        [&] {
+            return DoPullQueueImplOnce(
+                queuePath,
+                offset,
+                partitionIndex,
+                rowBatchReadOptions,
+                options,
+                checkPermissions);
+        });
+}
+
+IQueueRowsetPtr TClient::DoPullQueueImplOnce(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options,
+    bool checkPermissions)
+{
     // Bypassing authentication is only possible when using the native tablet node api.
     YT_VERIFY(checkPermissions || options.UseNativeTabletNodeApi);
 
@@ -2744,6 +2836,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
         TErrorOr<IQueueRowsetPtr> resultOrError;
 
+        THashMap<TReplicaId, TError> triedReplicaIds;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
             TTableReplicaInfoPtrList inSyncReplicas;
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
@@ -2752,6 +2845,8 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else if (connectionConfig->BannedInSyncReplicaClusters.contains(replicaInfo->ClusterName)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else if (triedReplicaIds.contains(replicaInfo->ReplicaId)) {
+                    continue;
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
                 }
@@ -2764,6 +2859,10 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
                         if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
                             replicaErrors.push_back(std::move(error));
                         }
+                    }
+
+                    for (const auto& [_, error] : triedReplicaIds) {
+                        replicaErrors.push_back(error);
                     }
                 }
 
@@ -2799,7 +2898,15 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
                 replicaFallbackInfo.ReplicaId);
 
             if (bannedReplicaTracker) {
-                bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                if (auto banReplicaDirective = TReplicaBanDirective::FromError(resultOrError);
+                    banReplicaDirective.Mode == EBanMode::Replica &&
+                    banReplicaDirective.ReplicaId == replicaFallbackInfo.ReplicaId)
+                {
+                    bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                } else {
+                    // Don't ban but exclude from current invocation.
+                    EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+                }
             }
         }
 
@@ -2924,6 +3031,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
 
+    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
     auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
     TQueryServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));
@@ -2981,7 +3089,7 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
         options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
     }
 
-    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
+    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManagerOrThrow()->GetRegistrationOrThrow(queuePath, consumerPath);
 
     IClientPtr queueClusterClient = MakeStrong(this);
     if (auto queueCluster = queuePath.GetCluster()) {
@@ -3057,7 +3165,7 @@ void TClient::DoRegisterQueueConsumer(
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
 
-    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManagerOrThrow();
     registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital, options.Partitions);
 
     YT_LOG_DEBUG(
@@ -3105,7 +3213,7 @@ void TClient::DoUnregisterQueueConsumer(
             .ThrowOnError();
     }
 
-    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManagerOrThrow();
     registrationCache->UnregisterQueueConsumer(queuePath, consumerPath);
 
     YT_LOG_DEBUG("Unregistered queue consumer (Queue: %v, Consumer: %v)", queuePath, consumerPath);
@@ -3116,15 +3224,15 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
     const std::optional<TRichYPath>& consumerPath,
     const TListQueueConsumerRegistrationsOptions& /*options*/)
 {
-    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManagerOrThrow();
     auto registrations = registrationCache->ListRegistrations(queuePath, consumerPath);
 
     std::vector<TListQueueConsumerRegistrationsResult> result;
     result.reserve(registrations.size());
     for (const auto& registration : registrations) {
         result.push_back({
-            .QueuePath = registration.Queue,
-            .ConsumerPath = registration.Consumer,
+            .QueuePath = TRichYPath(registration.Queue),
+            .ConsumerPath = TRichYPath(registration.Consumer),
             .Vital = registration.Vital,
             .Partitions = registration.Partitions,
         });
@@ -3422,7 +3530,7 @@ private:
     TFuture<void> DoPullRows()
     {
         if (IsTrivial_) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         try {
@@ -3445,6 +3553,7 @@ private:
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);
+            req->set_max_allowed_commit_instant(ToProto(Options_.MaxTransactionCommitInstant));
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
             ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
@@ -3467,7 +3576,7 @@ private:
 
         } catch (const std::exception& ex) {
             OnPullRowsResponse(TError("Failed to prepare request") << ex);
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -3660,7 +3769,7 @@ TPullRowsResult TClient::DoPullRows(
         requests.push_back({
             .TabletIndex = index,
             .StartReplicationRowIndex = getStartReplicationRowIndex(index),
-            .Progress = options.ReplicationProgress
+            .Progress = options.ReplicationProgress,
         });
     }
 
@@ -3791,9 +3900,9 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
     return GetNativeConnection()->GetChaosChannelByCellTag(cellTag, peerKind);
 }
 
-IChannelPtr TClient::GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind)
+IChannelPtr TClient::GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind)
 {
-    return GetNativeConnection()->GetChaosChannelByCardIdOrThrow(replicationCardId, peerKind);
+    return GetNativeConnection()->GetChaosChannelByObjectIdOrThrow(chaosObjectId, peerKind);
 }
 
 TReplicationCardPtr TClient::DoGetReplicationCard(
@@ -3810,7 +3919,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
             .ValueOrThrow();
     }
 
-    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::LeaderOrFollower);
+    auto channel = GetChaosChannelByObjectIdOrThrow(replicationCardId, EPeerKind::LeaderOrFollower);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3836,7 +3945,7 @@ void TClient::DoUpdateChaosTableReplicaProgress(
     const TUpdateChaosTableReplicaProgressOptions& options)
 {
     auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
-    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
+    auto channel = GetChaosChannelByObjectIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3862,7 +3971,7 @@ void TClient::DoAlterReplicationCard(
             replicationCardId);
     }
 
-    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
+    auto channel = GetChaosChannelByObjectIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3989,7 +4098,7 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     TChaosLeaseId chaosLeaseId,
     const TChaosLeaseAttachOptions& options)
 {
-    auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosLeaseId));
+    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
     auto proxy = TChaosNodeServiceProxy(channel);
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 

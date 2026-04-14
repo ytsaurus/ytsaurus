@@ -14,13 +14,13 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include "compaction_hint_controllers.h"
+#include "compaction_hint_fetching.h"
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
 #include <yt/yt/server/lib/lsm/config.h>
 #include <yt/yt/server/lib/lsm/hunk_chunk.h>
 #include <yt/yt/server/lib/lsm/lsm_backend.h>
@@ -40,7 +40,6 @@
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -167,8 +166,8 @@ private:
         backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();
 
         backendState.TabletNodeConfig = GenerateLsmConfig(
-            Bootstrap_->GetConfig()->TabletNode,
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode);
+            Bootstrap_->GetTabletNodeConfig(),
+            Bootstrap_->GetTabletNodeDynamicConfig());
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
@@ -244,7 +243,10 @@ private:
             lsmTablet->SetOverlappingStoreCount(tablet->GetOverlappingStoreCount());
             lsmTablet->SetEdenOverlappingStoreCount(tablet->GetEdenOverlappingStoreCount());
             lsmTablet->SetCriticalPartitionCount(tablet->GetCriticalPartitionCount());
-            lsmTablet->SetHasTtlColumn(tablet->GetTableSchema()->HasTtlColumn());
+
+            auto tableSchema = tablet->GetTableSchema();
+            lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
+            lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
         } else {
             for (const auto& [id, store] : tablet->StoreIdMap()) {
                 lsmTablet->Stores().push_back(ScanStore(store, lsmTablet.Get()));
@@ -273,6 +275,9 @@ private:
         lsmPartition->SetIsImmediateSplitRequested(partition->IsImmediateSplitRequested());
         lsmPartition->SetCompressedDataSize(partition->GetCompressedDataSize());
         lsmPartition->SetUncompressedDataSize(partition->GetUncompressedDataSize());
+        for (const auto& controller : partition->CompactionHints().Controllers()) {
+            lsmPartition->CompactionHints().Hints()[controller.GetPartitionCompactionHintKind()] = controller.LsmCompactionHint();
+        }
 
         for (const auto& store : partition->Stores()) {
             lsmPartition->Stores().push_back(ScanStore(
@@ -323,14 +328,22 @@ private:
             }
 
             if (store->IsSorted()) {
-                const auto& compactionHints = store->AsSortedChunk()->CompactionHints();
+                auto sortedChunkStore = store->AsSortedChunk();
 
-                if (auto hint = compactionHints.ChunkViewSize.CompactionHint) {
-                    lsmStore->CompactionHints().IsChunkViewTooNarrow = *hint == EChunkViewSizeStatus::CompactionRequired;
-                }
+                auto& fetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
+                for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+                    if (fetchPipelines.DefinitelyHasNoHint(storeKind)) {
+                        continue;
+                    }
 
-                if (auto hint = compactionHints.RowDigest.CompactionHint) {
-                    lsmStore->CompactionHints().RowDigest = *hint;
+                    if (auto pipeline = fetchPipelines.FetchPipelines()[storeKind]->Lock()) {
+                        lsmStore->CompactionHints().Payloads()[storeKind] = pipeline->Payload();
+                    }
+
+                    if (sortedChunkStore->CompactionHints().Controllers().IsValidIndex(storeKind)) {
+                        lsmStore->CompactionHints().Hints()[storeKind] =
+                            sortedChunkStore->CompactionHints().Controllers()[storeKind].LsmCompactionHint();
+                    }
                 }
             }
         }

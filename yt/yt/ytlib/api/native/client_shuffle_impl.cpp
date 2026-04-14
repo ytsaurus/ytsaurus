@@ -237,7 +237,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
             auto reader = CreateSchemalessSequentialMultiReader(
                 options.Config,
                 New<TTableReaderOptions>(),
-                CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(this)),
+                New<TMultiChunkReaderHost>(New<TChunkReaderHost>(this)),
                 dataSourceDirectory,
                 dataSlices,
                 /*hintKeyPrefixes*/ std::nullopt,

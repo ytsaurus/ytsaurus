@@ -107,7 +107,7 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 ------
 #### **Q: Как восстановить удалённые данные?** {#restore-deleted-data}
 
-**A:** Если удаление было через UI и там не была выбрана опция `Delete permanently`, то можно поискать таблицы в мусорке в папке соответствующего аккаунта.
+**A:** Если удаление было через UI и там не была выбрана опция `Delete permanently`, то можно поискать таблицы в {% if audience == "internal" %}[мусорке](https://yt.yandex-team.ru/kolmogorov/navigation?path=//trash/by-account/){% else %}мусорке{% endif %} в папке соответствующего аккаунта.
 Если удаление было через `yt remove` или аналогичные вызовы API, то восстановление **невозможно**.
 
 ------
@@ -136,7 +136,7 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 ------
 #### **Q: При запуске операции из python wrapper от роботного пользователя получаю ошибку "permission for node //tmp/yt_wrapper/file_storage is not allowed by any matching ACE"** {#python-wrapper-permission-error}
 
-**A:** У робота нет доступа к `/tmp`, необходимо запросить для робота роль **group member yandex** через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../user-guide/storage/auth.md#getting_token_for_robot).
+**A:** У робота нет доступа к `//tmp`, необходимо запросить для робота роль **group member yandex** через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../user-guide/storage/auth.md#getting_token_for_robot).
 
 ------
 #### **Q: Как узнать, валиден ли токен, от какого он пользователя и принимает ли его конкретный кластер?** {#check-token-validity}

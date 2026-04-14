@@ -16,6 +16,8 @@ using NYT::FromProto;
 
 struct TBlockLastKeysBufferTag { };
 
+constinit const auto Logger = TableClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta)
@@ -55,7 +57,7 @@ int GetCommonKeyPrefix(const TKeyColumns& lhs, const TKeyColumns& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
+TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta, bool compressBlockLastKeys)
 {
     ChunkType_ = FromProto<EChunkType>(chunkMeta.type());
     ChunkFormat_ = FromProto<EChunkFormat>(chunkMeta.format());
@@ -99,11 +101,35 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
         blockLastKeys.push_back(key);
     }
 
-    BlockLastKeysSize_ = buffer->GetCapacity();
+    BlockLastKeysSize_ = buffer->GetCapacity() + sizeof(TUnversionedRow) * blockLastKeys.size();
 
     BlockLastKeys_ = MakeSharedRange(
         blockLastKeys,
         std::move(buffer));
+
+    if (compressBlockLastKeys && ChunkFormat_ == EChunkFormat::TableVersionedColumnar) {
+        std::vector<ui32> blockChunkRowCounts;
+        blockChunkRowCounts.reserve(DataBlockMeta_->data_blocks_size());
+        for (const auto& block : DataBlockMeta_->data_blocks()) {
+            blockChunkRowCounts.push_back(block.chunk_row_count());
+        }
+
+        blockChunkRowCounts.erase(std::unique(blockChunkRowCounts.begin(), blockChunkRowCounts.end()), blockChunkRowCounts.end());
+
+        auto blockLastKeys = BlockLastKeys_.ToVector();
+        blockLastKeys.erase(std::unique(blockLastKeys.begin(), blockLastKeys.end()), blockLastKeys.end());
+
+        CompressedBlockLastKeys_ = NColumnarChunkFormat::CompressBlockLastKeys(blockLastKeys, std::move(blockChunkRowCounts), ChunkSchema_);
+
+        YT_LOG_DEBUG("Compressed block last keys (UncompressedSize: %v, CompressedSize: %v, CompressionRatio: %v, Count: %v)",
+            BlockLastKeysSize_,
+            CompressedBlockLastKeys_->GetByteSize(),
+            double(CompressedBlockLastKeys_->GetByteSize()) / BlockLastKeysSize_,
+            DataBlockMeta_->data_blocks_size());
+
+        BlockLastKeysSize_ = CompressedBlockLastKeys_->GetByteSize();
+        BlockLastKeys_.Reset();
+    }
 
     if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
         HunkChunkRefs_.reserve(optionalHunkChunkRefsExt->refs_size());
@@ -132,9 +158,8 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 
     return
         BlockLastKeysSize_ +
-        sizeof(TKey) * BlockLastKeys_.Size() +
         Misc_.SpaceUsedLong() +
-        DataBlockMeta_->GetSize() * metaMemoryFactor +
+        (DataBlockMeta_ ? DataBlockMeta_->GetSize() * metaMemoryFactor : 0) +
         (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage() +
@@ -142,9 +167,20 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         (sizeof(HunkChunkMetas_[0]) * HunkChunkMetas_.size());
 }
 
-void TColumnarChunkMeta::ClearColumnMeta()
+const TSharedRange<TUnversionedRow>& TColumnarChunkMeta::BlockLastKeys() const
 {
-    ColumnMeta_.Reset();
+    THROW_ERROR_EXCEPTION_IF(CompressedBlockLastKeys_, "Unsupported in compress_block_last_keys mode")
+    return BlockLastKeys_;
+}
+
+TKeyRef TColumnarChunkMeta::GetBlockLastKey(int index, std::vector<TUnversionedValue>* buffer) const
+{
+    return CompressedBlockLastKeys_->GetBlockLastKey(index, buffer);
+}
+
+const NColumnarChunkFormat::IBlockLastKeys* TColumnarChunkMeta::GetCompressedBlockLastKeys() const
+{
+    return CompressedBlockLastKeys_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

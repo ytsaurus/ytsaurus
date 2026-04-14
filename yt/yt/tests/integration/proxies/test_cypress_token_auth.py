@@ -145,6 +145,17 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         with raises_yt_error(yt_error_codes.NoSuchUser):
             issue_token("missing_user")
 
+    @authors("nadya73")
+    def test_document_cypress_token(self):
+        create_user("u1")
+        token = "XXX2"
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        create("document", f"//sys/cypress_tokens/{token_hash}", attributes={"user": "u1", "token_prefix": ""})
+        self._check_allow(token=token)
+
+        revoke_token("u1", token_hash)
+        wait(lambda: self._check_deny(token=token))
+
 
 @pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):

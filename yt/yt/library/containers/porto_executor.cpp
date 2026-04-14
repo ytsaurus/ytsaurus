@@ -188,11 +188,11 @@ public:
         Api_->SetDiskTimeout(Config_->ApiDiskTimeout.Seconds());
 
         Profiler_.AddFuncGauge("/volume_surplus", MakeStrong(this), [this] {
-            return VolumeSurplus_;
+            return VolumeSurplus_.load();
         });
 
         Profiler_.AddFuncGauge("/layer_surplus", MakeStrong(this), [this] {
-            return LayerSurplus_;
+            return LayerSurplus_.load();
         });
 
         PollExecutor_->Start();
@@ -383,14 +383,6 @@ public:
             container);
     }
 
-    TFuture<int> WaitContainer(const TString& container) override
-    {
-        return ExecutePortoApiAction(
-            &TPortoExecutor::DoWaitContainer,
-            "WaitContainer",
-            container);
-    }
-
     // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<TString> CreateVolume(
         const TString& path,
@@ -494,9 +486,9 @@ private:
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
     //! Gauge counting actual difference between the number of created and unlinked volumes.
-    i64 VolumeSurplus_ = 0;
+    std::atomic<i64> VolumeSurplus_ = 0;
     //! Gauge counting actual difference between the number of imported and removed layers.
-    i64 LayerSurplus_ = 0;
+    std::atomic<i64> LayerSurplus_ = 0;
 
     struct TCommandEntry
     {
@@ -706,9 +698,14 @@ private:
             portoSpec.set_root_readonly(spec.RootFS->IsRootReadOnly);
             portoSpec.set_root(spec.RootFS->RootPath);
 
+            // COMPAT(krasovav)
             for (const auto& bind : spec.RootFS->Binds) {
                 addBind(bind);
             }
+        }
+
+        for (const auto& bind : spec.Binds) {
+            addBind(bind);
         }
 
         for (const auto& place : spec.Places) {
@@ -825,62 +822,6 @@ private:
             }
         }
         return containerNames;
-    }
-
-    TFuture<int> DoWaitContainer(const TString& container)
-    {
-        auto result = NewPromise<int>();
-        auto waitCallback = [=, this, this_ = MakeStrong(this)] (const Porto::TWaitResponse& rsp) {
-            return OnContainerTerminated(rsp, result);
-        };
-
-        ExecuteApiCall(
-            [&] { return Api_->AsyncWait({container}, {}, waitCallback); },
-            "AsyncWait",
-            /*idempotent*/ false);
-
-        return result.ToFuture().ToImmediatelyCancelable();
-    }
-
-    void OnContainerTerminated(const Porto::TWaitResponse& portoWaitResponse, TPromise<int> result)
-    {
-        const auto& container = portoWaitResponse.name();
-        const auto& state = portoWaitResponse.state();
-        if (state != "dead" && state != "stopped") {
-            result.TrySet(TError("Container finished with unexpected state")
-                << TErrorAttribute("container_name", container)
-                << TErrorAttribute("container_state", state));
-            return;
-        }
-
-        // TODO(max42): switch to Subscribe.
-        YT_UNUSED_FUTURE(GetContainerProperty(container, "exit_status").Apply(BIND(
-            [=] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
-                if (!errorOrExitCode.IsOK()) {
-                    result.TrySet(TError("Container finished, but exit status is unknown")
-                        << errorOrExitCode);
-                    return;
-                }
-
-                const auto& optionalExitCode = errorOrExitCode.Value();
-                if (!optionalExitCode) {
-                    result.TrySet(TError("Container finished, but exit status is unknown")
-                        << TErrorAttribute("container_name", container)
-                        << TErrorAttribute("container_state", state));
-                    return;
-                }
-
-                try {
-                    int exitStatus = FromString<int>(*optionalExitCode);
-                    result.TrySet(exitStatus);
-                } catch (const std::exception& ex) {
-                    auto error = TError("Failed to parse Porto exit status")
-                        << TErrorAttribute("container_name", container)
-                        << TErrorAttribute("exit_status", optionalExitCode.value());
-                    error.MutableInnerErrors()->push_back(TError(ex));
-                    result.TrySet(error);
-                }
-            })));
     }
 
     TFuture<int> DoPollContainer(const TString& container)
@@ -1007,7 +948,7 @@ private:
             "UnlinkVolume",
             /*idempotent*/ false);
 
-        if (target == All) {
+        if (target == AnyTarget) {
             VolumeSurplus_ -= 1;
         }
     }
@@ -1043,6 +984,7 @@ private:
             specs.emplace_back(TVolumeSpec{
                 .Path = spec.path(),
                 .Backend = spec.backend(),
+                .State = spec.state(),
             });
         }
 

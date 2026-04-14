@@ -13,6 +13,8 @@ struct INodeDirectorySynchronizer
 {
     virtual void Start() const = 0;
 
+    virtual bool IsStarted() const = 0;
+
     virtual TFuture<void> Stop() const = 0;
 };
 

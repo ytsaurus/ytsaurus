@@ -165,7 +165,7 @@ private:
                 .AlienClusterIndex = alienClusterIndex,
                 .AlienCells = std::move(alienClusterInfo.AlienCellDescriptors),
                 .LostAlienCellIds = std::move(lostAlienCellIds),
-                .EnableMetadataCells = alienClusterInfo.EnableMetadataCells
+                .EnableMetadataCells = alienClusterInfo.EnableMetadataCells,
             });
         }
 
@@ -246,4 +246,3 @@ IAlienCellSynchronizerPtr CreateAlienCellSynchronizer(NCellMaster::TBootstrap* b
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosServer
-

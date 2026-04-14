@@ -27,12 +27,12 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!AsyncRows_.IsSet() || !AsyncRows_.Get().IsOK()) {
+        if (!AsyncRows_.IsSet() || !AsyncRows_.GetOrCrash().IsOK()) {
             // XXX: shouldn't we throw here?
             return CreateEmptyUnversionedRowBatch();
         }
 
-        const auto& rows = AsyncRows_.Get().Value();
+        const auto& rows = AsyncRows_.GetOrCrash().Value();
 
         CurrentRowIndex_ = BinarySearch(CurrentRowIndex_, std::ssize(rows), [&] (i64 index) {
             return !TestKeyWithWidening(

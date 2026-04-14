@@ -15,7 +15,6 @@ namespace NYT::NCypressServer {
 struct IPortalManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual void RegisterEntranceNode(

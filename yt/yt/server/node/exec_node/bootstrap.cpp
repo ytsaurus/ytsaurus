@@ -56,14 +56,16 @@
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
+#include <yt/yt/core/service_discovery/yp/config.h>
+
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <yt/yt/core/service_discovery/yp/config.h>
 
 #include <yt/yt/core/logging/config.h>
 
@@ -109,7 +111,7 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TBootstrap::OnSecondaryMasterCellListChanged, MakeStrong(this)));
 
@@ -193,6 +195,8 @@ public:
             GetConnection(),
             GetControlInvoker());
 
+        AuxPoller_ = CreateThreadPoolPoller(GetConfig()->AuxPollerThreadCount, "AuxPoller");
+
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ArtifactCache_->Initialize();
@@ -251,10 +255,9 @@ public:
                 /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
                 std::move(layerBlockCache),
                 connection->GetChunkMetaCache(),
-                /*nodeStatusDirectory*/ nullptr,
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                MakeUniformPerCategoryThrottlerProvider(GetDefaultInThrottler()),
+                GetReadRpsOutThrottler(),
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
             auto fileBlockCache = CreateClientBlockCache(
@@ -267,10 +270,9 @@ public:
                 /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
                 std::move(fileBlockCache),
                 connection->GetChunkMetaCache(),
-                /*nodeStatusDirectory*/ nullptr,
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                MakeUniformPerCategoryThrottlerProvider(GetDefaultInThrottler()),
+                GetReadRpsOutThrottler(),
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
         }
 
@@ -430,6 +432,11 @@ public:
         return SignatureComponents_->GetSignatureValidator();
     }
 
+    IPollerPtr GetAuxPoller() const override
+    {
+        return AuxPoller_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -473,6 +480,8 @@ private:
 
     TSignatureComponentsPtr SignatureComponents_;
 
+    IPollerPtr AuxPoller_;
+
     void BuildJobProxyConfigTemplate(const std::optional<TSecondaryMasterConnectionConfigs>& optionalNewSecondaryMasterConfigs)
     {
         auto localAddress = NNet::BuildServiceAddress(NNet::GetLoopbackAddress(), GetConfig()->RpcPort);
@@ -482,9 +491,8 @@ private:
 
         newJobProxyConfigTemplate->MergeAllSingletonConfigsFrom(*TSingletonManager::GetConfig());
         {
-            auto config = CloneYsonStruct(newJobProxyConfigTemplate->GetSingletonConfig<NNet::TAddressResolverConfig>());
+            auto config = newJobProxyConfigTemplate->GetSingletonConfig<NNet::TAddressResolverConfig>();
             config->LocalHostNameOverride = NNet::GetLocalHostName();
-            newJobProxyConfigTemplate->SetSingletonConfig<NNet::TAddressResolverConfig>(std::move(config));
         }
 
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
@@ -574,6 +582,8 @@ private:
     void OnSecondaryMasterCellListChanged(
         const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         BuildJobProxyConfigTemplate(newSecondaryMasterConfigs);
     }
 
@@ -628,6 +638,8 @@ private:
             NbdThreadPool_->SetThreadCount(newConfig->ExecNode->Nbd->Server->ThreadCount);
         }
     }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

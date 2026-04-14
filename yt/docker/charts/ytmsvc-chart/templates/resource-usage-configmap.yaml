@@ -15,10 +15,10 @@ data:
     api_prefix: {{ .Values.microservices.resourceUsage.api.config.apiPrefix | quote }}
 
     cors:
-      allowed_hosts: {{ .Values.microservices.resourceUsage.api.config.cors.allowedHosts | toYaml | nindent 8 }}
-      allowed_host_suffixes: {{ .Values.microservices.resourceUsage.api.config.cors.allowedHostSuffixes | toYaml | nindent 8}}
+      allowed_hosts: {{ .Values.cors.allowedHosts | toYaml | nindent 8 }}
+      allowed_host_suffixes: {{ .Values.cors.allowedHostSuffixes | toYaml | nindent 8}}
 
-    auth_cookie_name: {{ .Values.microservices.resourceUsage.api.config.authCookieName | quote }}
+    auth_cookie_name: {{ .Values.authCookieName | quote }}
 
     snapshot_root: {{ .Values.microservices.resourceUsage.api.config.snapshotRoot | quote }}
 

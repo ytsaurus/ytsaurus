@@ -64,6 +64,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/duration_moving_average.h>
+
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
@@ -102,6 +104,10 @@ static const auto& Profiler = CellarAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto DefaultWrittenBytesMovingAverageWindow = TDuration::Minutes(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalWritesObserver
     : public IJournalWritesObserver
 {
@@ -110,21 +116,43 @@ public:
         : ChangelogOutThrottler_(std::move(changelogOutThrottler))
         , Profiler(profiler.WithPrefix("/changelog_medium_usage"))
         , PayloadWrittenBytesCounter_(profiler.Counter("/payload_written_bytes_counter"))
+        , PayloadWrittenBytesMovingAverage_(profiler.Gauge("/payload_written_bytes_moving_average"))
         , MediaWrittenBytesCounter_(profiler.Counter("/media_written_bytes_counter"))
+        , MediaWrittenBytesMovingAverage_(profiler.Gauge("/media_written_bytes_moving_average"))
         , EstimatedInBytesCounter_(profiler.Counter("/estimated_in_bytes_counter"))
         , EstimatedOutBytesCounter_(profiler.Counter("/estimated_out_bytes_counter"))
     { }
 
     void RegisterPayloadWrite(i64 payload) override
     {
-        PayloadWrittenBytes_.fetch_add(payload, std::memory_order::relaxed);
+        double averagePayloadBytes;
+
+        {
+            auto guard = Guard(WrittenBytesLock_);
+
+            PayloadWrittenBytes_.UpdateAt(GetInstant(), payload);
+            averagePayloadBytes = PayloadWrittenBytes_.GetAverage();
+            TotalPayloadWrittenBytes_ += payload;
+        }
+
         PayloadWrittenBytesCounter_.Increment(payload);
+        PayloadWrittenBytesMovingAverage_.Update(averagePayloadBytes);
     }
 
     void RegisterJournalWrite(i64 journalWrittenBytes, i64 mediaWrittenBytes) override
     {
-        MediaWrittenBytes_.fetch_add(mediaWrittenBytes, std::memory_order::relaxed);
-        MediaWrittenBytesCounter_.Increment(mediaWrittenBytes);
+        double averageMediaBytes;
+
+        {
+            auto guard = Guard(WrittenBytesLock_);
+
+            MediaWrittenBytes_.UpdateAt(GetInstant(), mediaWrittenBytes);
+            averageMediaBytes = MediaWrittenBytes_.GetAverage();
+            TotalMediaWrittenBytes_ += mediaWrittenBytes;
+        }
+
+        MediaWrittenBytesCounter_.Increment(averageMediaBytes);
+        MediaWrittenBytesMovingAverage_.Update(averageMediaBytes);
 
         if (ChangelogOutThrottler_ && EnableChangelogNetworkUsageAccounting_.load(std::memory_order::relaxed)) {
             ChangelogOutThrottler_->Acquire(journalWrittenBytes);
@@ -134,15 +162,35 @@ public:
     i64 EstimateMediaBytes(i64 payloadBytes) const
     {
         static constexpr auto AccumulatedStatisticsThreshold = 1_MBs;
+        static constexpr auto MovingAverageStatisticsThreshold = 10_KBs;
 
-        double totalPayloadBytes = PayloadWrittenBytes_.load(std::memory_order::relaxed);
-        double mediaWrittenBytes = MediaWrittenBytes_.load(std::memory_order::relaxed);
+        double averagePayloadBytes, averageMediaBytes;
+        double totalPayloadBytes, totalMediaBytes;
 
-        if (totalPayloadBytes < AccumulatedStatisticsThreshold || mediaWrittenBytes < AccumulatedStatisticsThreshold) {
+        {
+            auto guard = Guard(WrittenBytesLock_);
+
+            averagePayloadBytes = PayloadWrittenBytes_.GetAverage();
+            averageMediaBytes = MediaWrittenBytes_.GetAverage();
+
+            totalPayloadBytes = TotalPayloadWrittenBytes_;
+            totalMediaBytes = TotalMediaWrittenBytes_;
+        }
+
+        PayloadWrittenBytesMovingAverage_.Update(averagePayloadBytes);
+        MediaWrittenBytesMovingAverage_.Update(averageMediaBytes);
+
+        if (totalPayloadBytes < AccumulatedStatisticsThreshold || totalMediaBytes < AccumulatedStatisticsThreshold) {
             return payloadBytes;
         }
 
-        auto results = static_cast<i64>(mediaWrittenBytes * payloadBytes / totalPayloadBytes);
+        // Using total statistics if moving averages are too small. Also prevents division by zero
+        if (averagePayloadBytes < MovingAverageStatisticsThreshold || averageMediaBytes < MovingAverageStatisticsThreshold) {
+            averagePayloadBytes = totalPayloadBytes;
+            averageMediaBytes = totalMediaBytes;
+        }
+
+        auto results = static_cast<i64>(averageMediaBytes * payloadBytes / averagePayloadBytes);
 
         EstimatedInBytesCounter_.Increment(payloadBytes);
         EstimatedOutBytesCounter_.Increment(results);
@@ -155,19 +203,36 @@ public:
         EnableChangelogNetworkUsageAccounting_.store(
             dynamicConfig->EnableChangelogNetworkUsageAccounting.value_or(false),
             std::memory_order::relaxed);
+
+        auto guard = Guard(WrittenBytesLock_);
+        auto newWindow = dynamicConfig->ChangelogThrottlingStatisticsMovingAverageWindow;
+        if (WrittenBytesMovingAverageWindow_ != newWindow) {
+            WrittenBytesMovingAverageWindow_ = newWindow;
+
+            auto window = WrittenBytesMovingAverageWindow_.value_or(DefaultWrittenBytesMovingAverageWindow);
+            PayloadWrittenBytes_.SetWindow(window);
+            MediaWrittenBytes_.SetWindow(window);
+        }
     }
 
 private:
     const IThroughputThrottlerPtr ChangelogOutThrottler_;
     NProfiling::TProfiler Profiler;
     NProfiling::TCounter PayloadWrittenBytesCounter_;
+    NProfiling::TGauge PayloadWrittenBytesMovingAverage_;
     NProfiling::TCounter MediaWrittenBytesCounter_;
+    NProfiling::TGauge MediaWrittenBytesMovingAverage_;
 
     NProfiling::TCounter EstimatedInBytesCounter_;
     NProfiling::TCounter EstimatedOutBytesCounter_;
 
-    std::atomic<i64> PayloadWrittenBytes_ = 0;
-    std::atomic<i64> MediaWrittenBytes_ = 0;
+    i64 TotalPayloadWrittenBytes_ = 0;
+    i64 TotalMediaWrittenBytes_ = 0;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WrittenBytesLock_);
+    std::optional<TDuration> WrittenBytesMovingAverageWindow_;
+    mutable TAverageDurationMovingAverage PayloadWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
+    mutable TAverageDurationMovingAverage MediaWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
 
     std::atomic<bool> EnableChangelogNetworkUsageAccounting_ = false;
 };
@@ -192,6 +257,7 @@ public:
         , Index_(index)
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
+        , CellId_(CellDescriptor_.CellId)
         , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(MakeLogger())
@@ -216,7 +282,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CellDescriptor_.CellId;
+        return CellId_;
     }
 
     EPeerState GetControlState() const override
@@ -380,9 +446,6 @@ public:
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
     {
         auto snapshotClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
-        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
-        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
-
         auto snapshotStore = Config_->Snapshots;
         switch (snapshotStore->StoreType) {
             case ESnapshotStoreType::Remote : {
@@ -390,8 +453,7 @@ public:
                 auto snapshotStore = CreateRemoteSnapshotStore(
                     remoteSnapshotStore,
                     Options_,
-                    primaryStoresPath + "/snapshots",
-                    secondaryStoresPath + "/snapshots",
+                    GetStoresPath() + "/snapshots",
                     snapshotClient,
                     PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
                     GetSnapshotOutThrottlerProvider());
@@ -426,6 +488,7 @@ public:
         auto client = Bootstrap_->GetClient();
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
+        YT_VERIFY(CellId_ == CellDescriptor_.CellId);
 
         // COMPAT(savrus)
         ConfigVersion_ = configureInfo.has_config_version()
@@ -483,8 +546,6 @@ public:
         ConfigureSnapshotStore(connection);
 
         auto changelogClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
-        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
-        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
         auto changelogProfiler = occupier->GetProfiler()
             .WithPrefix("/remote_changelog")
@@ -498,8 +559,7 @@ public:
         ChangelogStoreFactory_ = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
-            primaryStoresPath + "/changelogs",
-            secondaryStoresPath + "/changelogs",
+            GetStoresPath() + "/changelogs",
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
@@ -545,6 +605,7 @@ public:
                 .EnableObserverPersistence = independent,
                 .ResponseKeeper = ResponseKeeper_,
                 .EnableLocalHostSanitizing = false,
+                .ReportReignChange = true,
             };
 
             IDistributedHydraManagerPtr hydraManager;
@@ -813,6 +874,8 @@ private:
 
     int PeerId_;
     TCellDescriptor CellDescriptor_;
+    // Can be accessed from any thread so is stored separately from CellDescriptor_.
+    TCellId CellId_;
     int ConfigVersion_ = 0;
 
     const std::string CellBundleName_;
@@ -864,13 +927,10 @@ private:
     IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     std::atomic<bool> EnableSnapshotNetworkThrottling_ = false;
 
-    // COMPAT(danilalexeev): 'primary'.
-    TYPath GetStoresPath(bool primary)
+    TYPath GetStoresPath()
     {
         TStringBuilder builder;
-        builder.AppendString(primary
-            ? GetCellHydraPersistencePath(GetCellId())
-            : GetCellPath(GetCellId()));
+        builder.AppendString(GetCellHydraPersistencePath(GetCellId()));
         if (Options_->IndependentPeers) {
             builder.AppendFormat("/%v", PeerId_);
         }
@@ -932,7 +992,7 @@ private:
     static TFuture<void> OnLeaderLeaseCheckThunk(const TWeakPtr<TCellarOccupant>& weakThis)
     {
         auto this_ = weakThis.Lock();
-        return this_ ? this_->OnLeaderLeaseCheck() : VoidFuture;
+        return this_ ? this_->OnLeaderLeaseCheck() : OKFuture;
     }
 
     TFuture<void> OnLeaderLeaseCheck()

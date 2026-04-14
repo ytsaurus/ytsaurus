@@ -1,0 +1,88 @@
+scenarios:
+  nightly-dev:
+    type: simple
+    k8s_template: base-spec.yaml
+    checks: [test-check]
+    ttl: 600
+    operator:
+      version_filter: main
+    components:
+      ytsaurus:
+        version_filter: main
+  scenario-compat-first:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: 0.25.0
+    components:
+      ytsaurus:
+        version_filter: null
+  scenario-compat-empty:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: 0.24.0
+    components:
+      ytsaurus:
+        version_filter: null
+  scenario-compat-multi:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: ">=0.24.0"
+    components:
+      ytsaurus:
+        version_filter: null
+  scenario-compat-filter-ytsaurus:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: null
+    components:
+      ytsaurus:
+        version_filter: ">=25.3"
+  scenario-compat-main:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: main
+    components:
+      ytsaurus:
+        version_filter: main
+  scenario-compat-both-filters:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: main
+    components:
+      ytsaurus:
+        version_filter: "23.1"
+  scenario-compat-difficult-constraint:
+    type: compat
+    k8s_template: base-spec.yaml
+    checks: []
+    ttl: 999
+    operator:
+      version_filter: null
+    components:
+      ytsaurus:
+        version_filter: "23.1"
+checks:
+  test-check:
+    type: ODIN
+    description:
+      helmUrl: oci://ghcr.io/ytsaurus/odin-chart
+      releaseName: odin
+      version: 0.0.4

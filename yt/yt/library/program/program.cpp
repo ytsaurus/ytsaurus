@@ -2,6 +2,8 @@
 
 #include "build_attributes.h"
 
+#include "coverage.h"
+
 #include <yt/yt/build/build.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
@@ -88,6 +90,9 @@ TProgram::TProgram()
     Opts_.AddLongOption("build", "Prints build information")
         .NoArgument()
         .StoreValue(&PrintBuild_, true);
+    Opts_.AddLongOption("compatibility-info", "Prints compatibility info (e.g. current reign)")
+        .NoArgument()
+        .StoreValue(&PrintCompatibilityInfo_, true);
     Opts_.SetFreeArgsNum(0);
 }
 
@@ -98,7 +103,7 @@ void TProgram::SetCrashOnError()
     CrashOnError_ = true;
 }
 
-void TProgram::HandleVersionAndBuild()
+void TProgram::HandleProgramInfo()
 {
     if (PrintVersion_) {
         PrintVersionAndExit();
@@ -109,6 +114,15 @@ void TProgram::HandleVersionAndBuild()
     if (PrintBuild_) {
         PrintBuildAndExit();
     }
+    if (PrintCompatibilityInfo_) {
+        DoPrintCompatibilityInfo();
+        Exit(0);
+    }
+}
+
+void TProgram::DoPrintCompatibilityInfo()
+{
+    THROW_ERROR_EXCEPTION("Compatibility info is not implemented for this program");
 }
 
 int TProgram::Run(int argc, const char** argv)
@@ -119,7 +133,7 @@ int TProgram::Run(int argc, const char** argv)
     OptsParseResult_ = std::make_unique<TOptsParseResult>(this, argc, argv);
 
     auto run = [&] {
-        HandleVersionAndBuild();
+        HandleProgramInfo();
         DoRun();
     };
 

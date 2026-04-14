@@ -117,7 +117,8 @@ const TProgramMap& GetProgramMap()
             .Add(NCellMaster::RunCellMasterProgram, "master")
             .Add(NClusterClock::RunClusterClockProgram, "clock")
             .Add(NHttpProxy::RunHttpProxyProgram, "http-proxy")
-            // TODO(babenko): rename to rpc-proxy
+            .Add(NRpcProxy::RunRpcProxyProgram, "rpc-proxy")
+            // COMPAT(ponasenko-rs, YT-27171): Remove later.
             .Add(NRpcProxy::RunRpcProxyProgram, "proxy")
             .Add(NClusterNode::RunClusterNodeProgram, "node")
             .Add(NJobProxy::RunJobProxyProgram, "job-proxy")
@@ -127,6 +128,8 @@ const TProgramMap& GetProgramMap()
             .Add(NControllerAgent::RunControllerAgentProgram, "controller-agent")
             .Add(NLogTailer::RunLogTailerProgram, "log-tailer")
             .Add(NClusterDiscoveryServer::RunClusterDiscoveryServerProgram, "discovery")
+            .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-proxy")
+             // COMPAT(ponasenko-rs, YT-27171): Remove later.
             .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-provider")
             .Add(NMasterCache::RunMasterCacheProgram, "master-cache")
             .Add(NChaosCache::RunChaosCacheProgram, "chaos-cache")

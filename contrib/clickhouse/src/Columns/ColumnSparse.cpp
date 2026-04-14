@@ -167,6 +167,11 @@ char * ColumnSparse::serializeValueIntoMemory(size_t n, char * memory) const
     return values->serializeValueIntoMemory(getValueIndex(n), memory);
 }
 
+std::optional<size_t> ColumnSparse::getSerializedValueSize(size_t n) const
+{
+    return values->getSerializedValueSize(getValueIndex(n));
+}
+
 const char * ColumnSparse::deserializeAndInsertFromArena(const char * pos)
 {
     const char * res = nullptr;
@@ -879,6 +884,11 @@ void ColumnSparse::takeDynamicStructureFromSourceColumns(const Columns & source_
     for (const auto & source_column : source_columns)
         values_source_columns.push_back(assert_cast<const ColumnSparse &>(*source_column).getValuesPtr());
     values->takeDynamicStructureFromSourceColumns(values_source_columns);
+}
+
+void ColumnSparse::takeDynamicStructureFromColumn(const ColumnPtr & source_column)
+{
+    values->takeDynamicStructureFromColumn(assert_cast<const ColumnSparse &>(*source_column).getValuesPtr());
 }
 
 ColumnPtr recursiveRemoveSparse(const ColumnPtr & column)

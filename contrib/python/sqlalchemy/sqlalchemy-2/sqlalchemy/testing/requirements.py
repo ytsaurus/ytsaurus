@@ -1,5 +1,5 @@
 # testing/requirements.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -687,6 +687,15 @@ class SuiteRequirements(Requirements):
     def constraint_comment_reflection(self):
         """indicates if the database support comments on constraints
         and their reflection"""
+        return exclusions.closed()
+
+    @property
+    def column_collation_reflection(self):
+        """Indicates if the database support column collation reflection.
+
+        This requirement also uses ``get_order_by_collation`` to get
+        an available collation.
+        """
         return exclusions.closed()
 
     @property
@@ -1504,14 +1513,10 @@ class SuiteRequirements(Requirements):
     def ad_hoc_engines(self):
         """Test environment must allow ad-hoc engine/connection creation.
 
-        DBs that scale poorly for many connections, even when closed, i.e.
-        Oracle, may use the "--low-connections" option which flags this
-        requirement as not present.
+        No longer used in any tests; is a no-op
 
         """
-        return exclusions.skip_if(
-            lambda config: config.options.low_connections
-        )
+        return exclusions.open()
 
     @property
     def no_windows(self):
@@ -1626,6 +1631,12 @@ class SuiteRequirements(Requirements):
         )
 
     @property
+    def python314(self):
+        return exclusions.only_if(
+            lambda: util.py314, "Python 3.14 or above required"
+        )
+
+    @property
     def fail_python314b1(self):
         return exclusions.fails_if(
             lambda: util.compat.py314b1, "Fails as of python 3.14.0b1"
@@ -1644,6 +1655,11 @@ class SuiteRequirements(Requirements):
         return exclusions.skip_if(
             lambda: util.py314, "Python 3.14 or above not supported"
         )
+
+    @property
+    def pep649(self):
+        """pep649 deferred evaluation of annotations without future mode"""
+        return self.python314
 
     @property
     def cpython(self):

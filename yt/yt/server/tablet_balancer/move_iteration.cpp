@@ -1,5 +1,6 @@
 #include "bundle_state.h"
 #include "config.h"
+#include "helpers.h"
 #include "move_iteration.h"
 #include "private.h"
 #include "table_registry.h"
@@ -43,7 +44,7 @@ public:
 
     void StartIteration() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via move started (BundleName: %v, Group: %v, MoveBalancingType: %v)",
+        YT_LOG_INFO("Balancing tablets via move started (BundleName: %v, Group: %v, MoveBalancingType: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName());
@@ -51,7 +52,7 @@ public:
 
     void LogDisabledBalancing() const override
     {
-        YT_LOG_DEBUG("Balancing tablets via move is disabled (BundleName: %v, Group: %v, MoveBalancingType: %v)",
+        YT_LOG_INFO("Balancing tablets via move is disabled (BundleName: %v, Group: %v, MoveBalancingType: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName());
@@ -59,7 +60,7 @@ public:
 
     void FinishIteration(int actionCount) const override
     {
-        YT_LOG_DEBUG("Balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v, ActionCount: %v)",
+        YT_LOG_INFO("Balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v, ActionCount: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName(),
@@ -91,6 +92,17 @@ public:
         return GroupConfig_;
     }
 
+    TGuard<NYT::NThreading::TSpinLock> StartApplyingActions() const override
+    {
+        return Guard(BundleSnapshot_->PublishedObjectLock);
+    }
+
+    void ApplyMoveAction(const TTabletPtr& tablet, TTabletCellId cellId) const override
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(BundleSnapshot_->PublishedObjectLock);
+        ApplyMoveTabletAction(tablet, cellId);
+    }
+
     void Prepare() override
     { }
 
@@ -109,23 +121,11 @@ protected:
     std::vector<TMoveDescriptor> AnnotateSmoothMovementDescriptors(
         std::vector<TMoveDescriptor> descriptors)
     {
-        // EnableSmoothMovement flag occurs at global, bundle, group, and table levels.
-        // It may be true, false or unset at each of those levels. Smooth movement
-        // is enabled if at least one of the flags is true and none are false.
-        // NB: This behaviour is subject to change when smooth movement becomes stable enough.
-        bool hasTrue = false;
-        bool hasFalse = false;
-
-        auto onFlag = [&] (auto flag) {
-            if (flag) {
-                hasTrue |= *flag;
-                hasFalse |= !*flag;
-            }
-        };
-
-        onFlag(DynamicConfig_->EnableSmoothMovement);
-        onFlag(BundleSnapshot_->Bundle->Config->EnableSmoothMovement);
-        onFlag(GroupConfig_->EnableSmoothMovement);
+        auto [hasTrue, hasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovement,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
 
         if (hasFalse) {
             return descriptors;
@@ -389,7 +389,7 @@ public:
     void Prepare() override
     {
         if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
-            YT_LOG_DEBUG("Balancing tablets via replica move is not possible because "
+            YT_LOG_INFO("Balancing tablets via replica move is not possible because "
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
@@ -415,7 +415,16 @@ public:
             YT_VERIFY(std::ssize(table->PivotKeys) == std::ssize(table->Tablets));
 
             for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
-                // TODO(alexelexa): detect bunned or unavaliable clusters and skip it.
+                if (BundleSnapshot_->BannedReplicaClusters.contains(cluster)) {
+                    YT_LOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched "
+                        "(BundleName: %v, Group: %v, Cluster: %v)",
+                        BundleName_,
+                        GroupName_,
+                        cluster);
+                    continue;
+                }
+
+                // TODO(alexelexa): Detect unavaliable clusters and skip it.
 
                 for (const auto& minorTablePath : minorTablePaths) {
                     auto it = BundleSnapshot_->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
@@ -424,11 +433,20 @@ public:
                         "Check that table path is correct",
                         minorTablePath,
                         cluster);
+
+                    auto tableIt = BundleSnapshot_->AlienTables.find(it->second);
+                    if (tableIt == BundleSnapshot_->AlienTables.end()) {
+                        THROW_ERROR_EXCEPTION(
+                            "Not all statistics was fetched successfully. Attributes or statistics of table %v on cluster %Qv was not found",
+                            minorTablePath,
+                            cluster)
+                            << TErrorAttribute("table_id", it->second);
+                    }
                 }
             }
         }
 
-        YT_LOG_DEBUG("Preparations for balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v)",
+        YT_LOG_INFO("Preparations for balancing tablets via move finished (BundleName: %v, Group: %v, MoveBalancingType: %v)",
             BundleName_,
             GroupName_,
             GetActionSubtypeName());

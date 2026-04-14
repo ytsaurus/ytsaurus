@@ -7,8 +7,8 @@ import sys
 import yt.wrapper
 
 
-# @with_context позволяет заказать контекст для функции.
-# В этой переменной будут лежать контрольные атрибуты, заказанные при запуске операции.
+# `@with_context` brings some operation's context into function.
+# Control attributes which enabled at operation start will be placed here.
 @yt.wrapper.with_context
 def reducer_with_context(key, rows, context):
     for row in rows:
@@ -18,8 +18,8 @@ def reducer_with_context(key, rows, context):
         yield row
 
 
-# @with_context позволяет заказать контекст для функции.
-# В этой переменной будут лежать контрольные атрибуты, заказанные при запуске операции.
+# `@with_context` can be applied to classes also.
+# This variable will contain control attributes ordered when the operation is started.
 @yt.wrapper.with_context
 class ReducerWithContext(object):
     def __init__(self, value):
@@ -33,8 +33,8 @@ class ReducerWithContext(object):
             yield row
 
 
-# @aggregator позволяет отметить, что данный маппер является агрегатором,
-# то есть принимает на вход генератор рекордов, а не один рекорд.
+# decorator `@aggregator` marks mapper as an aggregator,
+# that is, function takes a generator of records as input, not a single record.
 @yt.wrapper.aggregator
 def mapper_aggregator(recs):
     sum = 0
@@ -43,8 +43,9 @@ def mapper_aggregator(recs):
     yield {"sum": sum}
 
 
-# @reduce_aggregator позволяет отметить, что reducer является агрегатором,
-# то есть принимает на вход не одну пару (ключ, записи), а генератор из пар, где каждая пара — (ключ, записи с этим ключом)
+# decorator `@reduce_aggregator` marks reducer function as aggregator,
+# that is, it takes as input not a single pair (key, records), but a generator of pairs
+# where each pair is (key, records with this key).
 @yt.wrapper.reduce_aggregator
 def reducer_aggregator(row_groups):
     sum = 0
@@ -54,7 +55,7 @@ def reducer_aggregator(row_groups):
     yield {"sum": sum}
 
 
-# @raw_io позволяет отметить, что функция будет брать записи (строки) из stdin и писать в stdout.
+# `@raw_io` marks that the function will take records (rows) from `stdin` and write to `stdout`.
 @yt.wrapper.raw_io
 def sum_x_raw():
     sum = 0
@@ -63,7 +64,7 @@ def sum_x_raw():
         sys.stdout.write("{0}\n".format(sum))
 
 
-# @raw позволяет отметить, что функция принимает на вход поток сырых данных, а не распарсенные записи.
+# decorator `@raw` marks that the function takes a stream of raw data as input, not parsed records.
 @yt.wrapper.raw
 def change_field_raw(line):
     yield "{}\n".format(int(line.strip()) + 10).encode()
@@ -82,7 +83,7 @@ def main():
     client.write_table("<sorted_by=[x]>{}/input1".format(path), [{"x": 2}, {"x": 4}])
     client.write_table("<sorted_by=[x]>{}/input2".format(path), [{"x": 1}, {"x": 100}])
 
-    # Чтобы получать в контексте непустой row_index, его необходимо заказать в спеке.
+    # To place non-empty row_index in the reducer context enable it in operation spec.
     client.run_reduce(
         reducer_with_context,
         [path + "/input1", path + "/input2"],
@@ -97,7 +98,7 @@ def main():
         {"row_index": 1, "table_index": 1, "x": 100},
     ]
 
-    # Чтобы получать в контексте непустой row_index, его необходимо заказать в спеке.
+    # To place non-empty `row_index` in the reducer context enable it in operation spec.
     client.run_reduce(
         ReducerWithContext(12),
         [path + "/input1", path + "/input2"],

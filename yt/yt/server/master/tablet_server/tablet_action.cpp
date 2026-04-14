@@ -78,6 +78,7 @@ void TTabletAction::Save(NCellMaster::TSaveContext& context) const
     Save(context, ExpirationTime_);
     Save(context, ExpirationTimeout_);
     Save(context, InplaceReshard_);
+    Save(context, TabletMountRevisions_);
     Save(context, TabletCellBundle_);
     Save(context, SavedTabletIds_);
 }
@@ -103,6 +104,10 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::InplaceReshard) {
         Load(context, InplaceReshard_);
     }
+    // COMPAT(atalmenev)
+    if (context.GetVersion() >= EMasterReign::ReshardRedirectionHint) {
+        Load(context, TabletMountRevisions_);
+    }
     Load(context, TabletCellBundle_);
     Load(context, SavedTabletIds_);
 }
@@ -120,7 +125,7 @@ void FormatValue(TStringBuilderBase* builder, const TTabletAction& action, TStri
         builder,
         "ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
         "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v, ExpirationTimeout: %v, "
-        "InplaceReshard: %v, TableId: %v, Bundle: %v",
+        "InplaceReshard: %v, TabletMountRevisions: %v, TableId: %v, Bundle: %v",
         action.GetId(),
         action.GetState(),
         action.GetKind(),
@@ -134,6 +139,7 @@ void FormatValue(TStringBuilderBase* builder, const TTabletAction& action, TStri
         action.GetExpirationTime(),
         action.GetExpirationTimeout(),
         action.IsInplaceReshard(),
+        action.TabletMountRevisions(),
         action.Tablets()[0]->GetOwner()->GetId(),
         action.GetTabletCellBundle()->GetName());
 }

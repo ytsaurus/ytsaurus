@@ -129,11 +129,12 @@ DECLARE_REFCOUNTED_STRUCT(TTableReplicaSnapshot)
 DECLARE_REFCOUNTED_STRUCT(IPullerReplicaCache)
 DECLARE_REFCOUNTED_STRUCT(TRefCountedReplicationProgress)
 DECLARE_REFCOUNTED_CLASS(TTableProfiler)
+DECLARE_REFCOUNTED_CLASS(THunkTabletProfiler)
 DECLARE_REFCOUNTED_CLASS(TChunkIOProfiler)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
-using TTransactionExternalizationToken = TGuid;
+YT_DEFINE_STRONG_TYPEDEF(TTransactionExternalizationToken, TGuid);
 
 using TExternalizedTransactionId = std::pair<TTransactionId, TTransactionExternalizationToken>;
 DECLARE_ENTITY_TYPE(TExternalizedTransaction, TExternalizedTransactionId, ::THash<TExternalizedTransactionId>)
@@ -167,8 +168,6 @@ DECLARE_REFCOUNTED_CLASS(TReplicatedStoreManager)
 
 DECLARE_REFCOUNTED_CLASS(TLockManager)
 using TLockManagerEpoch = i64;
-
-DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
 DECLARE_REFCOUNTED_CLASS(TPreloadedBlockCache)
 
@@ -212,6 +211,8 @@ DECLARE_REFCOUNTED_STRUCT(IErrorManager)
 DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TContainerCpuThrottlingTracker)
 DECLARE_REFCOUNTED_CLASS(TLogDropTracker)
+
+DECLARE_REFCOUNTED_CLASS(TCompactionHintFetchPipeline);
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(IMediumThrottlerManager)
@@ -241,6 +242,7 @@ DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TOverloadReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
 DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
@@ -279,6 +281,8 @@ DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
 
 DECLARE_REFCOUNTED_CLASS(THunkStore)
+
+DECLARE_REFCOUNTED_STRUCT(IOverloadReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

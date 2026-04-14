@@ -159,6 +159,85 @@ Here, `k0, k1, k2` is the primary table key.
 The tuple `(1, 2, 3)` is used as a cursor, and you need to update its value.
 Use `LIMIT` to adjust the read volume.
 
+## Subqueries { #subqueries }
+
+### Subquery in the FROM section
+
+You can specify a subquery in the `FROM` section. In this case, the inner query will be executed in a distributed manner, and the outer query will be executed on the proxy.
+
+Syntax:
+```sql
+FROM (<select-query>)
+```
+
+Example:
+```sql
+SELECT b AS c FROM (SELECT a AS b FROM `//t`)
+```
+
+### Subquery for hierarchical data
+
+You can run a subquery on list-type data. This can be useful if you need to filter a list or transform it in some way.
+To do this, in the `FROM` section of the subquery, you need to specify a list-type column and an alias through which will be provided access to the list elements.
+
+The column specification must be enclosed in parentheses. This is necessary to resolve the syntactic ambiguity between a query on a table and a query on a list-type column.
+
+You can also run a query on a set of lists. To do this, you need to list the list-type columns and aliases for them, separated by commas.
+In the case of a set of lists, the lists will be merged using the zip operation. The lists must have the same size.
+
+To use this functionality, you need to specify the `expression_builder_version=2` query option.
+
+Syntax of the `FROM` section of the subquery:
+```sql
+FROM (<list-expression-1> AS <alias-1>, <list-expression-2> AS <alias-2>, ...)
+```
+
+#### Examples
+
+Data:
+```
+a=1; b=[1;2;3]; c=[x;y;z]
+```
+
+Query:
+```sql
+SELECT t.a AS a, (SELECT b, c FROM (t.b AS b, t.c AS c) WHERE b > 1) AS nested FROM `//t` AS t
+```
+
+Result:
+```
+a=1; nested=[[2;y];[3;z]]
+```
+
+Lists of data can occur during aggregation in an outer query. The `array_agg(value, ignore_nulls)` aggregate function is used to aggregate data into a list.
+In a subquery about hierarchical data, you can use columns, aliases, and expressions from the outer query.
+
+```sql
+SELECT t.k + 1 AS a, (SELECT li * sum(t.s) AS x, li + a AS y, ls AS z FROM (array_agg(t.a, true) AS li, array_agg(t.b, true) AS ls) WHERE li < 4) AS nested FROM `//t` AS t GROUP BY a
+```
+
+In this example, in the expression `li + a`, the identifier `a` is expanded to the expression `t.k + 1` from the outer query.
+In a nested query, you can use aggregate functions on data from the grouping of the outer query — the expression `sum(t.s)`.
+
+Grouping can be used in both the outer and inner queries:
+```sql
+SELECT t.k % 2 AS a, (SELECT ls, sum(t.s) AS x, sum(li) AS y, sum(1) AS z FROM (array_agg(t.a, true) AS li, array_agg(t.b, true) AS ls) GROUP BY ls) AS nested FROM `//t` AS t GROUP BY a
+```
+
+The expression `sum(t.s)` will refer to the outer grouping, since the `t.s` column is not a grouping key and must be used under an aggregate function.
+
+```sql
+SELECT t.k % 2 AS a, (SELECT li + sum(t.s) AS x, sum(1) AS z FROM (array_agg(t.a, true) AS li) GROUP BY x) AS nested FROM `//t` AS t GROUP BY a
+```
+
+An expression from the inner query column and the aggregate expression of the outer query `ls + sum(t.s) AS x` is used as the grouping key of the inner query.
+
+```sql
+SELECT t.k % 2 AS a, sum(2) AS b, (SELECT b, sum(1) AS z FROM (array_agg(t.a, true) AS li) GROUP BY li) AS nested FROM `//t` AS t GROUP BY a
+```
+
+In the inner query, the identifier `b` is expanded to use the aggregate expression `sum(2)` from the outer grouping.
+
 ## Expression syntax { #expression_syntax }
 
 ```sql

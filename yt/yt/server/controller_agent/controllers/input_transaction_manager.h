@@ -47,21 +47,22 @@ class TClusterResolver
 {
 public:
     TClusterResolver() = default;
-    explicit TClusterResolver(const NApi::NNative::IClientPtr& client);
 
-    TFuture<void> Init();
+    TClusterResolver(std::optional<std::string> clusterName);
 
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
-
-    void Persist(const TPersistenceContext& context);
+    std::optional<std::string> GetLocalClusterName() const;
 
 private:
-    const NApi::NNative::IClientPtr LocalClient_;
-
     std::optional<std::string> LocalClusterName_;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TClusterResolver, 0xc4a8f2d5);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterResolver)
+
+TFuture<TClusterResolverPtr> CreateClusterResolver(NApi::NNative::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,8 +97,6 @@ public:
         NScheduler::TControllerTransactionIds* transactionIds) const;
 
     NTransactionClient::TTransactionId GetLocalInputTransactionId() const;
-
-    TClusterResolverPtr GetClusterResolver() const;
 
 private:
     const NScheduler::TOperationId OperationId_;

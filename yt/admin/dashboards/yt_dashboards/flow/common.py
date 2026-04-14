@@ -41,7 +41,8 @@ def get_dashboards_meta():
         "computation",
         "one-worker",
         "message-transfering",
-        "state-cache"
+        "state-cache",
+        "companion-manager"
     ]:
         dashboards[short_name] = DashboardMeta(
             short_name=short_name,
@@ -119,7 +120,8 @@ def build_versions(worker_host_aggr: bool = True):
 
     def make_url(name):
         return (f"https://monitoring.yandex-team.ru/projects/yt/dashboards/{name}"
-            "?p[project]={{project}}&p[cluster]={{cluster}}")
+            "?p[project]={{project}}&p[cluster]={{cluster}}"
+            "&p[pipeline_cluster]={{pipeline_cluster}}&p[pipeline_path]={{pipeline_path}}")
 
     description_rows = ["&#128196; [Diagnosis and problem solving documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"] + [
         f"&#128200; [{dashboard_meta.title} dashboard]({make_url(dashboard_meta.name)})"
@@ -311,10 +313,35 @@ def add_common_dashboard_parameters(dashboard):
     dashboard.add_parameter(
         "cluster",
         "Cluster",
-        MonitoringLabelDashboardParameter("", "cluster", "-", selectors='{sensor="yt.build.version"}'),
+        MonitoringLabelDashboardParameter(
+            project_id="yt",
+            label_key="cluster",
+            default_value="-",
+            selectors='{sensor="yt.build.version"}',
+        ),
     )
-    dashboard.add_parameter("pipeline_cluster", "Pipeline cluster", MonitoringTextDashboardParameter(default_value="-"))
-    dashboard.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))
+
+    dashboard.add_parameter(
+        "pipeline_cluster",
+        "Pipeline cluster",
+        MonitoringLabelDashboardParameter(
+            project_id="yt",
+            label_key="pipeline_cluster",
+            default_value="-",
+            selectors='{sensor="yt.build.version"}',
+        ),
+    )
+
+    dashboard.add_parameter(
+        "pipeline_path",
+        "Pipeline path",
+        MonitoringLabelDashboardParameter(
+            project_id="yt",
+            label_key="pipeline_path",
+            default_value="-",
+            selectors='{sensor="yt.build.version"}',
+        ),
+    )
 
 
 def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_host_aggr: bool = True):
@@ -329,5 +356,7 @@ def create_dashboard(short_name: str, filler: Callable[Dashboard, None], worker_
 
     d.value("project", TemplateTag("project"))
     d.value("cluster", TemplateTag("cluster"))
+    d.value("pipeline_cluster", TemplateTag("pipeline_cluster"))
+    d.value("pipeline_path", TemplateTag("pipeline_path"))
 
     return d

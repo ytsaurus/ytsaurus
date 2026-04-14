@@ -139,4 +139,28 @@ TEST(DistributedWriteTable, WithTransaction)
     EXPECT_EQ(reader->GetRow(), row);
 }
 
+TEST(DistributedWriteTable, ExceedTimeout)
+{
+    // NB(achains): Or remove and run with -DYT_RECIPE_BUILD_FROM_SOURCE=1
+    SKIP_TEST_IF(true, "Enable test after YT-27085 deploy");
+
+    TTestDistributedWriteTableFixture fixture;
+
+    auto client = fixture.GetClient();
+    auto path = fixture.GetTablePath();
+
+    TStartDistributedWriteTableOptions options;
+    options.SessionTimeout(TDuration::Seconds(1));
+
+    auto session = client->StartDistributedWriteTableSession(path, /*cookieCount*/ 1, options);
+    EXPECT_EQ(std::ssize(session.Cookies_), 1);
+
+    Sleep(TDuration::Seconds(2));
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        client->FinishDistributedWriteTableSession(session.Session_, {}),
+        NYT::TErrorResponse,
+        "No such transaction");
+}
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,19 +35,6 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString HideDigits(const TString& path)
-{
-    TString pathCopy = path;
-    for (auto& c : pathCopy) {
-        if (std::isdigit(c)) {
-            c = '_';
-        }
-    }
-    return pathCopy;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TKeyFilterCounters::TKeyFilterCounters(const TProfiler& profiler)
     : InputKeyCount(profiler.Counter("/input_key_count"))
     , FilteredOutKeyCount(profiler.Counter("/filtered_out_key_count"))
@@ -82,6 +69,7 @@ TLookupCounters::TLookupCounters(
         mediumHistogramProfiler.WithPrefix("/lookup/medium_statistics"))
     , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/lookup/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +109,7 @@ TSelectRowsCounters::TSelectRowsCounters(
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
     , CacheMisses(profiler.Counter("/select/cache_misses"))
     , CacheInserts(profiler.Counter("/select/cache_inserts"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/select/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,6 +159,7 @@ TWriteCounters::TWriteCounters(const TProfiler& profiler)
     , BulkInsertRowCount(profiler.Counter("/write/bulk_insert_row_count"))
     , BulkInsertDataWeight(profiler.Counter("/write/bulk_insert_data_weight"))
     , ValidateResourceWallTime(profiler.Timer("/write/validate_resource_wall_time"))
+    , WaitOnBlockedRowDuration(profiler.Timer("/write/wait_on_blocked_row_duration"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,13 +447,11 @@ void TWriterProfiler::Profile(
         CodecStatistics_,
         tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor);
 
-    if (HunkChunkWriterStatistics_) {
-        counters->HunkChunkWriterCounters.Increment(
-            HunkChunkWriterStatistics_,
-            HunkChunkDataStatistics_,
-            /*codecStatistics*/ {},
-            tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
-    }
+    counters->HunkChunkWriterCounters.Increment(
+        HunkChunkWriterStatistics_,
+        HunkChunkDataStatistics_,
+        /*codecStatistics*/ {},
+        tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
 }
 
 void TWriterProfiler::Update(const IMultiChunkWriterPtr& writer)
@@ -525,13 +513,9 @@ void TReaderProfiler::Profile(
     counters->UnmergedDataWeight.Increment(DataStatistics_.data_weight());
     counters->DecompressionCpuTime.Add(compressionCpuTime);
 
-    if (ChunkReaderStatistics_) {
-        counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
-    }
+    counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
 
-    if (HunkChunkReaderStatistics_) {
-        counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
-    }
+    counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
 }
 
 void TReaderProfiler::Update(
@@ -563,215 +547,6 @@ void TReaderProfiler::SetChunkReaderStatistics(const TChunkReaderStatisticsPtr& 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TTabletProfilerManager
-{
-public:
-    TTabletProfilerManager()
-        : ConsumedTableTags_(TabletNodeProfiler().Gauge("/consumed_table_tags"))
-    { }
-
-    TTableProfilerPtr CreateTabletProfiler(
-        EDynamicTableProfilingMode profilingMode,
-        const std::string& bundle,
-        const NYPath::TYPath& tablePath,
-        const TString& tableTag,
-        const std::string& account,
-        const std::string& medium,
-        TObjectId schemaId,
-        const TTableSchemaPtr& schema)
-    {
-        auto guard = Guard(Lock_);
-
-        TProfilerKey key;
-        switch (profilingMode) {
-            case EDynamicTableProfilingMode::Path:
-                key = {profilingMode, bundle, tablePath, account, medium, schemaId};
-                AllTables_.insert(tablePath);
-                ConsumedTableTags_.Update(AllTables_.size());
-                break;
-
-            case EDynamicTableProfilingMode::Tag:
-                key = {profilingMode, bundle, tableTag, account, medium, schemaId};
-                break;
-
-            case EDynamicTableProfilingMode::PathLetters:
-                key = {profilingMode, bundle, HideDigits(tablePath), account, medium, schemaId};
-                AllTables_.insert(HideDigits(tablePath));
-                ConsumedTableTags_.Update(AllTables_.size());
-                break;
-
-            case EDynamicTableProfilingMode::Disabled:
-            default:
-                key = {profilingMode, bundle, "", account, medium, schemaId};
-                break;
-        }
-
-        auto& profiler = Tables_[key];
-        auto p = profiler.Lock();
-        if (p) {
-            return p;
-        }
-
-
-        TTagSet tableTagSet;
-        tableTagSet.AddRequiredTag({"tablet_cell_bundle", bundle});
-
-        TTagSet mediumTagSet = tableTagSet;
-        TTagSet diskTagSet = tableTagSet;
-
-        switch (profilingMode) {
-            case EDynamicTableProfilingMode::Path:
-                tableTagSet.AddTag({"table_path", tablePath}, -1);
-
-                mediumTagSet = tableTagSet;
-                mediumTagSet.AddTagWithChild({"medium", medium}, -1);
-
-                diskTagSet = tableTagSet;
-                diskTagSet.AddTagWithChild({"account", account}, -1);
-                diskTagSet.AddTagWithChild({"medium", medium}, -2);
-                break;
-
-            case EDynamicTableProfilingMode::Tag:
-                tableTagSet.AddTag({"table_tag", tableTag}, -1);
-
-                mediumTagSet = tableTagSet;
-                mediumTagSet.AddTagWithChild({"medium", medium}, -1);
-
-                diskTagSet = tableTagSet;
-                diskTagSet.AddTagWithChild({"account", account}, -1);
-                diskTagSet.AddTagWithChild({"medium", medium}, -2);
-                break;
-
-            case EDynamicTableProfilingMode::PathLetters:
-                tableTagSet.AddTag({"table_path", HideDigits(tablePath)}, -1);
-
-                mediumTagSet = tableTagSet;
-                mediumTagSet.AddTagWithChild({"medium", medium}, -1);
-
-                diskTagSet = tableTagSet;
-                diskTagSet.AddTagWithChild({"account", account}, -1);
-                diskTagSet.AddTagWithChild({"medium", medium}, -2);
-                break;
-
-            case EDynamicTableProfilingMode::Disabled:
-            default:
-                mediumTagSet.AddTag({"medium", medium});
-
-                diskTagSet.AddTag({"account", account});
-                diskTagSet.AddTag({"medium", medium});
-                break;
-        }
-
-        auto tableProfiler = TabletNodeProfiler()
-            .WithHot()
-            .WithSparse()
-            .WithTags(tableTagSet);
-
-        auto diskProfiler = TabletNodeProfiler()
-            .WithHot()
-            .WithSparse()
-            .WithTags(diskTagSet);
-
-        auto mediumProfiler = TabletNodeProfiler()
-            .WithHot()
-            .WithSparse()
-            .WithTags(mediumTagSet);
-
-        auto mediumHistogramProfiler = TabletNodeProfiler()
-            .WithHot()
-            .WithTag("tablet_cell_bundle", bundle)
-            .WithTag("medium", medium);
-
-        p = New<TTableProfiler>(tableProfiler, diskProfiler, mediumProfiler, mediumHistogramProfiler, schema);
-        profiler = p;
-        return p;
-    }
-
-private:
-    TSpinLock Lock_;
-
-    THashSet<TString> AllTables_;
-    TGauge ConsumedTableTags_;
-
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, std::string, NYPath::TYPath, std::string, std::string, TObjectId>;
-    THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableProfilerPtr CreateTableProfiler(
-    EDynamicTableProfilingMode profilingMode,
-    const std::string& tabletCellBundle,
-    const TString& tablePath,
-    const TString& tableTag,
-    const std::string& account,
-    const std::string& medium,
-    TObjectId schemaId,
-    const TTableSchemaPtr& schema)
-{
-    return Singleton<TTabletProfilerManager>()->CreateTabletProfiler(
-        profilingMode,
-        tabletCellBundle,
-        tablePath,
-        tableTag,
-        account,
-        medium,
-        schemaId,
-        schema);
-}
-
-template <class TCounter>
-TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
-    bool disabled,
-    const std::optional<std::string>& userTag,
-    const TProfiler& profiler)
-{
-    if (disabled) {
-        static TCounter counter;
-        return &counter;
-    }
-
-    return Counters.FindOrInsert(userTag, [&] {
-        if (userTag) {
-            return TCounter{profiler.WithTag("user", *userTag)};
-        } else {
-            return TCounter{profiler};
-        }
-    }).first;
-}
-
-template <class TCounter>
-TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
-    bool disabled,
-    const std::optional<std::string>& userTag,
-    const TProfiler& tabletProfiler,
-    const TProfiler& mediumProfiler,
-    const TProfiler& mediumHistogramProfiler,
-    const TTableSchemaPtr& schema)
-{
-    if (disabled) {
-        static TCounter counter;
-        return &counter;
-    }
-
-    return Counters.FindOrInsert(userTag, [&] {
-        if (userTag) {
-            return TCounter(
-                tabletProfiler.WithTag("user", *userTag),
-                mediumProfiler.WithTag("user", *userTag),
-                mediumHistogramProfiler,
-                schema);
-        } else {
-            return TCounter(
-                tabletProfiler,
-                mediumProfiler,
-                mediumHistogramProfiler,
-                schema);
-        }
-    }).first;
-}
-
 
 TTableProfiler::TTableProfiler(
     const TProfiler& profiler,
@@ -950,6 +725,28 @@ TSmoothMovementCounters* TTableProfiler::GetSmoothMovementCounters()
 const TProfiler& TTableProfiler::GetProfiler() const
 {
     return Profiler_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEventTimer GetWaitOnBlockedRowTimer(
+    const TTableProfilerPtr& tableProfiler,
+    EInitialQueryKind initialQueryKind)
+{
+    switch (initialQueryKind) {
+        case EInitialQueryKind::LookupRows:
+            return tableProfiler
+                ->GetLookupCounters(GetCurrentProfilingUser())
+                ->WaitOnBlockedRowDuration;
+
+        case EInitialQueryKind::SelectRows:
+            return tableProfiler
+                ->GetSelectRowsCounters(GetCurrentProfilingUser())
+                ->WaitOnBlockedRowDuration;
+
+        default:
+            return {};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

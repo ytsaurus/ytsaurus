@@ -117,6 +117,7 @@ TControllerAgentPtr TOperationControllerImpl::FindAgent() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto guard = Guard(SpinLock_);
     return Agent_.Lock();
 }
 
@@ -257,7 +258,7 @@ TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materia
     return PendingMaterializeResult_;
 }
 
-TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
+TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive(bool suspended)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
@@ -273,6 +274,7 @@ TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
     auto req = ControllerAgentTrackerProxy_->ReviveOperation();
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     ToProto(req->mutable_operation_id(), OperationId_);
+    req->set_suspended(suspended);
     InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Subscribe(
         BIND([
             this,
@@ -356,7 +358,7 @@ TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
 
     if (!IncarnationId_) {
         YT_LOG_INFO("Operation has no agent assigned; terminate request ignored");
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_VERIFY(finalState == EOperationState::Aborted || finalState == EOperationState::Failed);
@@ -443,7 +445,7 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
     if (!IncarnationId_) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto req = ControllerAgentTrackerProxy_->UpdateOperationRuntimeParameters();
@@ -488,6 +490,38 @@ TFuture<void> TOperationControllerImpl::PatchSpec(const INodePtr& newCumulativeS
         }
         rspOrError.ThrowOnError();
     }));
+}
+
+void TOperationControllerImpl::Suspend()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!IncarnationId_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Suspend operation event enqueued");
+
+    EnqueueOperationEvent({
+        .EventType = ESchedulerToAgentOperationEventType::SuspendOperation,
+        .OperationId = OperationId_,
+    });
+}
+
+void TOperationControllerImpl::Resume()
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (!IncarnationId_) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Resume operation event enqueued");
+
+    EnqueueOperationEvent({
+        .EventType = ESchedulerToAgentOperationEventType::ResumeOperation,
+        .OperationId = OperationId_,
+    });
 }
 
 void TOperationControllerImpl::OnAllocationAborted(
@@ -670,7 +704,7 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 
     auto agent = Agent_.Lock();
     if (!agent) {
-        return VoidFuture;
+        return OKFuture;
     }
     return agent->GetFullHeartbeatProcessed();
 }

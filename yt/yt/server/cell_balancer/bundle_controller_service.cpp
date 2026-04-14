@@ -3,6 +3,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "cypress_bindings.h"
+#include "node_tracker.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -49,6 +50,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBundleConfig));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetBundleConfig));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
 
 private:
@@ -260,6 +262,21 @@ private:
         ValidateInputConfig(bundleName, bundleConfig, timeout);
         SetBundleConfig(bundleName, bundleConfig, timeout);
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, Heartbeat)
+    {
+        auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
+        auto nodeAddress = FromProto<std::string>(request->node_address());
+
+        YT_LOG_INFO("Bundle controller got node heartbeat (NodeId: %v, NodeAddress: %v)", nodeId, nodeAddress);
+
+        Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
+
+        context->SetRequestInfo("NodeId: %v, NodeAddress: %v",
+            nodeId,
+            nodeAddress);
         context->Reply();
     }
 };

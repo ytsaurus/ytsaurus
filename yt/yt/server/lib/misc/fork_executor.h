@@ -45,7 +45,7 @@ public:
     TFuture<void> Fork();
 
 protected:
-    explicit TForkExecutor(TForkCountersPtr counters);
+    TForkExecutor(TForkCountersPtr counters, bool dumpCoreOnTimeout);
 
     ~TForkExecutor();
 
@@ -69,6 +69,8 @@ protected:
     IInvokerPtr GetWatchdogInvoker();
 
 private:
+    const bool DumpCoreOnTimeout_ = false;
+
     pid_t ChildPid_ = -1;
     TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
@@ -76,6 +78,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
     std::atomic<bool> Forked_ = false;
     TForkCountersPtr Counters_;
+
+    std::optional<TInstant> DumpCoreStartTime_;
 
     void DoRunParent();
     void DoRunChild();
@@ -86,6 +90,8 @@ private:
 
     void OnCanceled(const TError& error);
     void DoCancel(const TError& error);
+
+    void KillWithCore();
 
     void DoCleanup();
 };

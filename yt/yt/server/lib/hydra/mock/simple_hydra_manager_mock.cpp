@@ -245,7 +245,7 @@ TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() c
 TFuture<void> TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/)
 {
     // Do nothing.
-    return VoidFuture;
+    return OKFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

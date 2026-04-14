@@ -32,7 +32,7 @@ class TSemaphoreGuard
 {
 public:
     TSemaphoreGuard(TSemaphoreGuard&&) = default;
-    TSemaphoreGuard& operator = (TSemaphoreGuard&&) = default;
+    TSemaphoreGuard& operator=(TSemaphoreGuard&&) = default;
 
     TSemaphoreGuard(TApi* api, const TUserCommandPair& key);
     ~TSemaphoreGuard();
@@ -40,7 +40,7 @@ public:
 private:
     struct TEmptyDeleter
     {
-        void operator () (TApi* /*api*/)
+        void operator()(TApi* /*api*/)
         { }
     };
 

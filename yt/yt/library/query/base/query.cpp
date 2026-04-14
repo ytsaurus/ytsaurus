@@ -306,6 +306,7 @@ TJoinClause::TJoinClause(const TJoinClause& other)
     , ForeignObjectId(other.ForeignObjectId)
     , ForeignCellId(other.ForeignCellId)
     , GroupClause(other.GroupClause)
+    , RequireSyncReplica(other.RequireSyncReplica)
 { }
 
 TTableSchemaPtr TJoinClause::GetRenamedSchema() const
@@ -505,17 +506,18 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , InferRanges(other.InferRanges)
 { }
 
-bool TBaseQuery::IsOrdered(bool allowUnorderedGroupByWithLimit) const
+EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
         if (allowUnorderedGroupByWithLimit) {
-            return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+            bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+            return ordered ? EScanOrder::Ordered : EScanOrder::Unordered;
         } else {
-            return !OrderClause;
+            return !OrderClause ? EScanOrder::Ordered : EScanOrder::Unordered;
         }
     } else {
         YT_VERIFY(!OrderClause);
-        return false;
+        return EScanOrder::Unordered;
     }
 }
 
@@ -668,10 +670,12 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
                     JoinToString(arrayExpressions)));
             } else {
                 std::vector<std::string> selfJoinEquation;
+                selfJoinEquation.reserve(joinClause->SelfEquations.size());
                 for (const auto& equation : joinClause->SelfEquations) {
-                    selfJoinEquation.push_back(InferName(equation.Expression, options));
+                    selfJoinEquation.push_back(InferName(equation, options));
                 }
                 std::vector<std::string> foreignJoinEquation;
+                foreignJoinEquation.reserve(joinClause->ForeignEquations.size());
                 for (const auto& equation : joinClause->ForeignEquations) {
                     foreignJoinEquation.push_back(InferName(equation, options));
                 }
@@ -944,9 +948,7 @@ std::vector<size_t> GetJoinGroups(
             TExtraColumnsChecker extraColumnsChecker(names);
 
             for (const auto& equation : joinClause->SelfEquations) {
-                if (!equation.Evaluated) {
-                    extraColumnsChecker.Visit(equation.Expression);
-                }
+                extraColumnsChecker.Visit(equation);
             }
 
             if (extraColumnsChecker.HasExtraColumns && counter > 0) {
@@ -1195,6 +1197,8 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (subqueryExpr->ProjectClause) {
             ToProto(proto->mutable_project_clause(), subqueryExpr->ProjectClause);
         }
+
+        ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
     }
 }
 
@@ -1390,6 +1394,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
                 FromProto(&result->ProjectClause, ext.project_clause());
             }
 
+            FromProto(&result->JoinClauses, ext.join_clauses());
+
             *original = result;
             return;
         }
@@ -1464,16 +1470,14 @@ void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialize
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TSelfEquation* proto, const TSelfEquation& original)
+void ToProto(NProto::TSelfEquation* proto, const TConstExpressionPtr& original)
 {
-    ToProto(proto->mutable_expression(), original.Expression);
-    proto->set_evaluated(original.Evaluated);
+    ToProto(proto->mutable_expression(), original);
 }
 
-void FromProto(TSelfEquation* original, const NProto::TSelfEquation& serialized)
+void FromProto(TConstExpressionPtr* original, const NProto::TSelfEquation& serialized)
 {
-    FromProto(&original->Expression, serialized.expression());
-    FromProto(&original->Evaluated, serialized.evaluated());
+    FromProto(original, serialized.expression());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1545,6 +1549,8 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     if (original->GroupClause) {
         ToProto(proto->mutable_group_clause(), original->GroupClause);
     }
+
+    proto->set_require_sync_replica(original->RequireSyncReplica);
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -1581,6 +1587,8 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     if (serialized.has_group_clause()) {
         FromProto(&result->GroupClause, serialized.group_clause());
     }
+
+    FromProto(&result->RequireSyncReplica, serialized.require_sync_replica());
 
     *original = result;
 }

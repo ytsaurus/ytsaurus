@@ -2,6 +2,7 @@
 
 #include "backup_manager.h"
 #include "config.h"
+#include "hunk_lock_manager.h"
 #include "hunks_serialization.h"
 #include "private.h"
 #include "serialize.h"
@@ -511,9 +512,18 @@ public:
             AbortPrelockedRows(transaction);
         }
 
-        // If transaction is transient, it is going to be removed, so we drop its write states.
-        if (transaction->GetTransient()) {
-            EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+        // COMPAT(ifsmirnov)
+        // If transaction is transient, it is going to be removed, so we drop its write state.
+        // However, transaction may be persistent itself but have not yet had affected the tablet.
+        // In this case we still treat it as transient and drop its write state.
+        if (Host_->GetDynamicConfig()->TabletCellWriteManager->DetectTransientTransactionsPerTablet) {
+            if (!TransactionIdToPersistentWriteState_.contains(transaction->GetId())) {
+                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+            }
+        } else {
+            if (transaction->GetTransient()) {
+                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+            }
         }
     }
 
@@ -645,7 +655,8 @@ public:
         }
 
         auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            ? TTransactionExternalizationToken(
+                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
             : TTransactionExternalizationToken{};
 
         const auto& transactionManager = Host_->GetTransactionManager();
@@ -740,7 +751,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            ? TTransactionExternalizationToken(
+                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
             : TTransactionExternalizationToken{};
 
         const auto& transactionManager = Host_->GetTransactionManager();
@@ -1189,6 +1201,15 @@ private:
         auto writeState = FindTransactionPersistentWriteState(transaction->GetId());
         if (!writeState) {
             return;
+        }
+
+        for (const auto& writeRecord : writeState->LocklessWriteLog) {
+            if (writeRecord.HunkChunksInfo) {
+                const auto& hunkLockManager = Tablet_->GetHunkLockManager();
+                for (auto [hunkStoreId, _] : writeRecord.HunkChunksInfo->HunkChunkRefs) {
+                    hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+                }
+            }
         }
 
         // Rows are not prepared - nothing to abort.

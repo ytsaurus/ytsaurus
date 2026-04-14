@@ -867,7 +867,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            "required fileds are not set");
+            "required fields are not set");
     }
 
     {
@@ -1496,9 +1496,10 @@ TEST_F(TPingTransactionsTest, Reconfigure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressKeyWriterTest
+class TCypressKeyWriterTest
     : public TApiTestBase
 {
+public:
     NNative::IConnectionPtr NativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
     NNative::IClientPtr NativeClient = NativeConnection->CreateNativeClient(
         NNative::TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName));
@@ -1780,9 +1781,10 @@ TEST_F(TCypressKeyWriterTest, NoCleanupWhenMaxKeyCountNotSet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSignatureComponentsTest
+class TSignatureComponentsTest
     : public TApiTestBase
 {
+public:
     NNative::IConnectionPtr NativeConnection = DynamicPointerCast<NApi::NNative::IConnection>(Connection_);
     TCypressKeyReaderConfigPtr CypressKeyReaderConfig = New<TCypressKeyReaderConfig>();
     TCypressKeyWriterConfigPtr CypressKeyWriterConfig = New<TCypressKeyWriterConfig>();
@@ -1812,8 +1814,8 @@ TEST_F(TSignatureComponentsTest, EmptyInit)
     Components = New<TSignatureComponents>(Config, OwnerId, NativeConnection, RotateInvoker);
     auto startRotationFuture = Components->StartRotation();
     auto stopRotationFuture = Components->StopRotation();
-    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.Get().IsOK());
-    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.Get().IsOK());
+    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.GetOrCrash().IsOK());
+    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.GetOrCrash().IsOK());
 
     auto generator = Components->GetSignatureGenerator();
     auto validator = Components->GetSignatureValidator();
@@ -1923,7 +1925,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureDisableGeneration)
 
     // Should be a no-op.
     auto startFuture = Components->StartRotation();
-    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.GetOrCrash().IsOK());
 }
 
 TEST_F(TSignatureComponentsTest, ReconfigureEnableValidation)
@@ -2052,7 +2054,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
 
     // Start rotation should be a no-op now.
     auto startFuture = Components->StartRotation();
-    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.GetOrCrash().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -54,11 +54,8 @@ struct TPersQueueReadBalancer::TTxInit : public ITransaction {
                     AFL_ENSURE(res)("tablet_id", Self->TabletID())("path", Self->Path)("topic", Self->Topic);
 
                     Migrate(Self->TabletConfig);
-                    Self->Consumers.clear();
-                    for (auto& consumer : Self->TabletConfig.GetConsumers()) {
-                        Self->Consumers[consumer.GetName()];
-                    }
                     Self->PartitionGraph = MakePartitionGraph(Self->TabletConfig);
+                    Self->UpdateActivePartitions();
 
                     if (SplitMergeEnabled(Self->TabletConfig)) {
                         // TODO DatabasePath is not initialized yet

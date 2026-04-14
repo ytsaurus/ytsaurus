@@ -1,0 +1,79 @@
+name: Release YT sidecars
+
+on:
+  push:
+    tags:
+      - 'docker/sidecars/0\.[0-9]+\.[0-9]+*'
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 16
+          memory: 64GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 372GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT24H
+          runner-home-dir: /actions-runner
+
+  release:
+    name: Run release
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
+      - name: Parse Tag
+        id: tag
+        run: |
+          echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/docker/sidecars/})" >> $GITHUB_OUTPUT
+
+      - name: Build And Push Docker Image
+        run: |
+          cd yt/docker/sidecars
+          make docker-build IMAGE_TAG=${{ steps.tag.outputs.RELEASE_VERSION }}
+          make docker-push IMAGE_TAG=${{ steps.tag.outputs.RELEASE_VERSION }}
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - release
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}

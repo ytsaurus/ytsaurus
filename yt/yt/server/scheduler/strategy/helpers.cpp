@@ -32,6 +32,10 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
             .Type = ESchedulerAlertType::NodesWithInsufficientResourceLimits,
             .Message = "Found nodes with insufficient resource limits",
         },
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::InvalidDefaultParentPool,
+            .Message = "Default parent pool is misconfigured",
+        },
     };
 
     return SchedulerTreeAlertDescriptors;

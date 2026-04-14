@@ -50,10 +50,9 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChytSettings
+struct TChytSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::optional<TString> Clique;
@@ -83,7 +82,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChytSettings)
-DECLARE_REFCOUNTED_CLASS(TChytSettings)
+DECLARE_REFCOUNTED_STRUCT(TChytSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,7 +197,7 @@ private:
     {
         YT_LOG_DEBUG("Checking permission");
 
-        auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", Clique_);
+        auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Clique_));
         TCheckPermissionOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
         auto result = WaitFor(QueryClient_->CheckPermission(User_, principalAclPath, EPermission::Use, options))
@@ -451,6 +450,11 @@ public:
     {
         ChytConfig_ = DynamicPointerCast<TChytEngineConfig>(config);
         NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
+    }
+
+    std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
+    {
+        return std::nullopt;
     }
 
 private:

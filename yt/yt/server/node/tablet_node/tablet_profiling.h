@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_profiling_base.h"
+
 #include "yt/yt/library/profiling/sensor.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
@@ -16,8 +18,6 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/core/profiling/public.h>
-
-#include <yt/yt/library/syncmap/map.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -70,6 +70,8 @@ struct TLookupCounters
     NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 
     TKeyFilterCounters KeyFilterCounters;
+
+    NYT::NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +120,8 @@ struct TSelectRowsCounters
     NProfiling::TCounter CacheOutdated;
     NProfiling::TCounter CacheMisses;
     NProfiling::TCounter CacheInserts;
+
+    NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +190,7 @@ struct TWriteCounters
     NProfiling::TCounter BulkInsertRowCount;
     NProfiling::TCounter BulkInsertDataWeight;
     NProfiling::TEventTimer ValidateResourceWallTime;
+    NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,6 +266,18 @@ struct TChunkWriteCounters
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletSizeMetrics
+{
+    i64 DataWeight = 0;
+    i64 UncompressedDataSize = 0;
+    i64 CompressedDataSize = 0;
+    i64 RowCount = 0;
+    i64 ChunkCount = 0;
+    i64 HunkCount = 0;
+    i64 TotalHunkLength = 0;
+    i64 HunkChunkCount = 0;
+};
 
 struct TTabletCounters
 {
@@ -448,18 +465,6 @@ struct TSmoothMovementCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableProfilerPtr CreateTableProfiler(
-    EDynamicTableProfilingMode profilingMode,
-    const std::string& tabletCellBundle,
-    const NYPath::TYPath& tablePath,
-    const TString& tableTag,
-    const std::string& account,
-    const std::string& medium,
-    NObjectClient::TObjectId schemaId,
-    const NTableClient::TTableSchemaPtr& schema);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TChunkWriteCountersVector = TEnumIndexedArray<
     EChunkWriteProfilingMethod,
     std::array<std::optional<TChunkWriteCounters>, 2>>;
@@ -518,29 +523,11 @@ public:
 
 private:
     const bool Disabled_ = true;
-    const NProfiling::TProfiler Profiler_ = {};
-    const NProfiling::TProfiler MediumProfiler_ = {};
-    const NProfiling::TProfiler MediumHistogramProfiler_ = {};
-    const NProfiling::TProfiler DiskProfiler_ = {};
+    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TProfiler MediumProfiler_;
+    const NProfiling::TProfiler MediumHistogramProfiler_;
+    const NProfiling::TProfiler DiskProfiler_;
     const NTableClient::TTableSchemaPtr Schema_;
-
-    template <class TCounter>
-    struct TUserTaggedCounter
-    {
-        NConcurrency::TSyncMap<std::optional<std::string>, TCounter> Counters;
-
-        TCounter* Get(
-            bool disabled,
-            const std::optional<std::string>& userTag,
-            const NProfiling::TProfiler& profiler);
-        TCounter* Get(
-            bool disabled,
-            const std::optional<std::string>& userTag,
-            const NProfiling::TProfiler& tableProfiler,
-            const NProfiling::TProfiler& mediumProfiler,
-            const NProfiling::TProfiler& mediumHistogramProfiler,
-            const NTableClient::TTableSchemaPtr& schema);
-    };
 
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
     TUserTaggedCounter<TTabletServiceCounters> TabletServiceCounters_;
@@ -646,6 +633,12 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NProfiling::TEventTimer GetWaitOnBlockedRowTimer(
+    const TTableProfilerPtr& tableProfiler,
+    NTableClient::EInitialQueryKind initialQueryKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

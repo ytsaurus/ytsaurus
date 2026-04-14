@@ -1,16 +1,17 @@
 LIBRARY()
 
 PEERDIR(
-    contrib/libs/fmt
-    contrib/libs/poco/Util
     contrib/libs/brotli/c/dec
+    contrib/libs/fmt
     contrib/libs/libbz2
     contrib/libs/lz4
     contrib/libs/lzma
+    contrib/libs/poco/Util
     contrib/libs/zstd
+    contrib/ydb/core/util
+    contrib/ydb/library/yql/dq/actors/protos
     contrib/ydb/library/yql/udfs/common/clickhouse/client
     yql/essentials/utils
-    contrib/ydb/library/yql/dq/actors/protos
 )
 
 ADDINCL(

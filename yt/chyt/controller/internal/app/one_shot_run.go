@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	"go.ytsaurus.tech/library/go/core/log"
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
@@ -42,13 +43,13 @@ func NewOneShotRunner(config *OneShotRunnerConfig, options *Options, cf strawber
 	runner.ytc, err = ythttp.NewClient(&yt.Config{
 		Token:  config.Token,
 		Proxy:  config.Proxy,
-		Logger: withName(runner.l, "yt"),
+		Logger: runner.l.WithName("yt").(log.Structured),
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	runner.c = cf.Ctor(withName(runner.l, "c"), runner.ytc, config.StrawberryRoot, config.Proxy, config.Controller)
+	runner.c = cf.Ctor(runner.l.WithName("c"), runner.ytc, config.StrawberryRoot, config.Proxy, config.Controller)
 
 	return
 }

@@ -212,8 +212,11 @@ private:
     i64 CompressedDataSize_ = 0;
     i64 UncompressedDataSize_ = 0;
 
-    template <class TProtoChunkSpec>
-    void OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec);
+    // Selectivity factors are applied. Data node is not yet capable to estimate selectivity on its side.
+    void OverrideSize(const TInputChunkPtr& inputChunk, const NProto::TChunkSlice& protoChunkSlice);
+
+    // Selectivity factors are not applied. Overrides are taken as-is from proto chunk spec.
+    void OverrideSize(const TInputChunkPtr& inputChunk, const NProto::TChunkSpec& protoChunkSpec);
 
     PHOENIX_DECLARE_TYPE(TInputChunkSlice, 0xe177a42);
 };

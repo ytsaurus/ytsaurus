@@ -338,7 +338,7 @@ func newBatchSubrequest(
 	return &batchSubrequest{
 		resultCh: resultCh,
 		subrequest: internal.BatchSubrequest{
-			Commmand:   reqInfo.params.HTTPVerb().String(),
+			Command:    reqInfo.params.HTTPVerb().String(),
 			Parameters: parameters,
 			Input:      input,
 		},

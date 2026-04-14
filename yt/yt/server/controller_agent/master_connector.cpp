@@ -12,9 +12,9 @@
 
 #include <yt/yt/server/lib/misc/update_executor.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -43,8 +43,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -1254,8 +1254,8 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto batchReq = proxy.ExecuteBatch();
         for (auto [mediumIndex, diskSpace] : diskQuota.DiskSpacePerMedium) {
-            auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
-            auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name));
+            auto mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name()));
             req->set_value(ToProto(ConvertToYsonStringNestingLimited(diskSpace)));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -1359,6 +1359,7 @@ private:
         // First reset the alerts.
         SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
         SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError());
+        SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, TError());
 
         if (Config_->EnableUnrecognizedAlert) {
             auto unrecognized = Config_->GetRecursiveUnrecognized();
@@ -1446,7 +1447,11 @@ private:
 
         THashMap<TOperationId, std::pair<TTransactionId, std::string>> transactions;
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
-            auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
+            auto controller = operation->GetController();
+            if (!controller->IsRunning()) {
+                continue;
+            }
+            auto [transaction, medium] = controller->GetIntermediateMediumTransaction();
             if (transaction) {
                 transactions[operationId] = {transaction->GetId(), medium};
             }
@@ -1533,6 +1538,10 @@ private:
                 if (auto operation = controllerAgent->FindOperation(operationId)) {
                     auto controller = operation->GetController();
                     YT_VERIFY(controller);
+
+                    if (!controller->IsRunning()) {
+                        continue;
+                    }
 
                     controller->UpdateIntermediateMediumUsage(*usage);
                     bool switchedToSlowMedium = controller->GetIntermediateMediumTransaction().first == nullptr;
@@ -1706,3 +1715,4 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
+

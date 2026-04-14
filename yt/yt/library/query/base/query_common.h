@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/codegen_api/execution_backend.h>
 
+#include <yt/yt/core/logging/log.h>
+
 namespace NYT::NQueryClient {
 
 using NTransactionClient::TReadTimestampRange;
@@ -174,6 +176,7 @@ struct TQueryBaseOptions
     bool MergeVersionedRows = true;
     // COMPAT(sabdenovch)
     bool AllowUnorderedGroupByWithLimit = true;
+    std::optional<int> TruncatedQueryLengthForTracing;
 };
 
 struct TQueryOptions
@@ -200,7 +203,7 @@ struct TQueryOptions
     i64 WriteRowsetSize = DefaultWriteRowsetSize;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
 
-    EStatisticsAggregation StatisticsAggregation = EStatisticsAggregation::None;
+    EStatisticsAggregation StatisticsAggregation = EStatisticsAggregation::DepthOmitNode;
 
     bool VerboseLogging = false;
     bool AllowFullScan = true;
@@ -255,6 +258,25 @@ struct TPlanFragment final
     TQueryPtr Query;
     TDataSource DataSource;
     TPlanFragmentPtr SubqueryFragment;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPreparePlanFragmentOptions
+{
+    int SyntaxVersion = 1;
+    int BuilderVersion = 1;
+    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
+    bool ShouldRewriteCardinalityIntoHyperLogLog = false; // COMPAT(dtorilov): Remove after 25.4.
+    int HyperLogLogPrecision = 14;
+    bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
+};
+
+struct TPreparePlanFragmentContext
+{
+    const NLogging::TLogger& Logger;
+    const THashMap<NYPath::TYPath, TDataSplit>& DataSplits;
+    const TPreparePlanFragmentOptions& Options;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #include "chaos_helpers.h"
 #include "config.h"
 #include "connection.h"
+#include "private.h"
 #include "tablet_helpers.h"
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
@@ -271,6 +272,24 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
     }
 
     return inSyncReplicas;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReplicaBanDirective TReplicaBanDirective::FromError(const TError& error)
+{
+    if (auto schemaError = error.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
+        if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
+            return TReplicaBanDirective{
+                .Mode = EBanMode::Replica,
+                .ReplicaId = *replicaId,
+            };
+        }
+    }
+
+    return TReplicaBanDirective{
+        .Mode = EBanMode::None,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

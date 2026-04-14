@@ -1,1 +1,0 @@
-pragma CostBasedOptimizer="native";

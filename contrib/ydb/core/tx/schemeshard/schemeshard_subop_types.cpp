@@ -55,6 +55,7 @@ bool IsCreate(ETxType t) {
         case TxMkDir:
         case TxCreateTable:
         case TxCopyTable:
+        case TxReadOnlyCopyColumnTable:
         case TxCreateOlapStore:
         case TxCreateColumnTable:
         case TxCreatePQGroup:
@@ -176,9 +177,11 @@ bool IsCreate(ETxType t) {
             return true; // IsCreate
         case TxRotateCdcStreamAtTable:
             return false; // IsCreate
+        case TxTruncateTable:
+            return false; // IsCreate
         case TxInvalid:
         case TxAllocatePQ:
-            Y_DEBUG_ABORT_UNLESS("UNREACHABLE");
+            Y_DEBUG_ABORT("UNREACHABLE");
             Y_UNREACHABLE();
 
         //NOTE: intentionally no default: case
@@ -222,6 +225,7 @@ bool IsDrop(ETxType t) {
         case TxMkDir:
         case TxCreateTable:
         case TxCopyTable:
+        case TxReadOnlyCopyColumnTable:
         case TxCreateOlapStore:
         case TxCreateColumnTable:
         case TxCreatePQGroup:
@@ -308,9 +312,11 @@ bool IsDrop(ETxType t) {
         case TxMoveTableIndex:
         case TxMoveSequence:
             return false; // IsDrop
+        case TxTruncateTable:
+            return false; // IsDrop
         case TxInvalid:
         case TxAllocatePQ:
-            Y_DEBUG_ABORT_UNLESS("UNREACHABLE");
+            Y_DEBUG_ABORT("UNREACHABLE");
             Y_UNREACHABLE();
 
         //NOTE: intentionally no default: case
@@ -359,6 +365,7 @@ bool CanDeleteParts(ETxType t) {
         case TxCreateOlapStore:
         case TxCreateColumnTable:
         case TxCopyTable:
+        case TxReadOnlyCopyColumnTable:
         case TxCreatePQGroup:
         case TxCreateSubDomain:
         case TxCreateExtSubDomain:
@@ -436,12 +443,12 @@ bool CanDeleteParts(ETxType t) {
         case TxRotateCdcStreamAtTable:
         case TxAlterSecret:
         case TxAlterStreamingQuery:
-            return false; // CanDeleteParts
         case TxIncrementalRestoreFinalize:
+        case TxTruncateTable:
             return false; // CanDeleteParts
         case TxInvalid:
         case TxAllocatePQ:
-            Y_DEBUG_ABORT_UNLESS("UNREACHABLE");
+            Y_DEBUG_ABORT("UNREACHABLE");
             Y_UNREACHABLE();
 
         //NOTE: intentionally no default: case
@@ -573,6 +580,7 @@ ETxType ConvertToTxType(NKikimrSchemeOp::EOperationType opType) {
         case NKikimrSchemeOp::ESchemeOpCreateStreamingQuery: return TxCreateStreamingQuery;
         case NKikimrSchemeOp::ESchemeOpAlterStreamingQuery: return TxAlterStreamingQuery;
         case NKikimrSchemeOp::ESchemeOpDropStreamingQuery: return TxDropStreamingQuery;
+        case NKikimrSchemeOp::ESchemeOpTruncateTable: return TxTruncateTable;
 
         // no matching tx-type
         case NKikimrSchemeOp::ESchemeOpBackupBackupCollection:
@@ -581,7 +589,6 @@ ETxType ConvertToTxType(NKikimrSchemeOp::EOperationType opType) {
         case NKikimrSchemeOp::ESchemeOpRestoreMultipleIncrementalBackups:
         case NKikimrSchemeOp::ESchemeOpCreateColumnBuild:
         case NKikimrSchemeOp::ESchemeOpDropColumnBuild:
-        case NKikimrSchemeOp::ESchemeOpCreateSetConstraintInitiate: // TODO flown4qqqq
             return TxInvalid;
 
         //NOTE: intentionally no default: case

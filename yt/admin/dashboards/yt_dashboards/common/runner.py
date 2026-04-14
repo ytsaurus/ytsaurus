@@ -10,6 +10,7 @@ except ImportError:
     from .opensource_settings import GRAFANA_BASE_URL, MONITORING_ENDPOINT, GRAFANA_DASHBOARD_TAGS  # noqa
 
 import argparse
+from functools import partial
 
 
 def expand_dashboards(specs):
@@ -30,10 +31,8 @@ def expand_dashboards(specs):
                     result.append((key, backend(desc[backend_name], desc["func"], uid, title)))
                     continue
                 id = desc[backend_name].get("id")
-                if "args" in desc[backend_name]:
-                    func = lambda args=desc[backend_name]["args"], desc=desc: desc["func"](*args)  # noqa: E731
-                else:
-                    func = desc["func"]
+                args = desc[backend_name].get("args", [])
+                func = partial(desc["func"], *args)
                 facade_instance = backend(id, func, uid, title)
                 if "postprocessor" in desc[backend_name]:
                     facade_instance.tag_postprocessor = desc[backend_name]["postprocessor"](facade_instance.tag_postprocessor)

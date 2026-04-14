@@ -21,6 +21,8 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -38,8 +40,6 @@
 #include <yt/yt/client/table_client/row_batch.h>
 
 #include <yt/yt/ytlib/job_proxy/private.h>
-
-#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 #include <limits>
 #include <vector>
@@ -115,7 +115,8 @@ std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
 
         if (rows.empty()) {
             // Reader is not ready, wait.
-            reader->GetReadyEvent().Get().ThrowOnError();
+            // TODO(babenko): consider replacing with WaitFor
+            reader->GetReadyEvent().BlockingGet().ThrowOnError();
         }
 
         for (auto row : rows) {
@@ -402,7 +403,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
-    auto& Logger = JobProxyClientLogger();
+    const auto& Logger = JobProxyClientLogger();
     auto rowBuffer = New<TRowBuffer>(TCreateSortedReduceJobReaderTag());
 
     YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
@@ -662,7 +663,7 @@ public:
                 for (const auto& keyColumn : keyColumns) {
                     sortColumns.push_back(TColumnSortSchema{
                         .Name = keyColumn,
-                        .SortOrder = ESortOrder::Ascending
+                        .SortOrder = ESortOrder::Ascending,
                     });
                 }
             }

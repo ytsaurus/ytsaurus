@@ -45,6 +45,13 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        glog_file_nonwindows.go
+        glog_file_other.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

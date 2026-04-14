@@ -2,8 +2,12 @@
 
 #include "bootstrap.h"
 #include "job_directory_manager.h"
-#include "slot_manager.h"
+#include "job_fs_secretary.h"
 #include "private.h"
+#include "slot_manager.h"
+#include "volume_artifact.h"
+#include "volume_manager.h"
+
 #include "yt/yt/core/concurrency/delayed_executor.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -17,15 +21,16 @@
 
 #include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/library/containers/helpers.h>
 #include <yt/yt/library/containers/process.h>
 
 #ifdef _linux_
-#include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
+
 #include <grp.h>
 #endif
 
@@ -156,7 +161,7 @@ public:
             const auto& stderrPath = config->StderrPath;
             if (stderrPath) {
                 process->AddArguments({
-                    "--stderr-path", *stderrPath
+                    "--stderr-path", *stderrPath,
                 });
             }
 
@@ -1046,9 +1051,9 @@ private:
             Bootstrap_);
 
         return WaitFor(future)
-                .ValueOrThrow(
-                    EErrorCode::PortoVolumeManagerFailure,
-                    "Failed to initialize volume manager");
+            .ValueOrThrow(
+                EErrorCode::PortoVolumeManagerFailure,
+                "Failed to initialize volume manager");
     }
 };
 
@@ -1091,18 +1096,11 @@ public:
         PodSpecs_.clear();
         SlotCpusetCpus_.clear();
         CpuLimit_ = cpuLimit;
+        FirstSlotInitialized_.Reset();
 
         PodDescriptors_.resize(slotCount);
         PodSpecs_.resize(slotCount);
         SlotCpusetCpus_.resize(slotCount);
-
-        // Init fake slot to download resource once before running init slots concurrently
-        // we need to wait for it before initializing slots.
-        auto tmpPodSpec = New<NCri::TCriPodSpec>();
-        tmpPodSpec->Name = Format("%v%v", SlotPodPrefix, 0);
-        auto tmpPodDescriptor = WaitFor(Executor_->RunPodSandbox(tmpPodSpec)).ValueOrThrow();
-        WaitFor(Executor_->StopPodSandbox(tmpPodDescriptor)).ThrowOnError();
-        WaitFor(Executor_->RemovePodSandbox(tmpPodDescriptor)).ThrowOnError();
 
         WaitFor(ImageCache_->Initialize())
             .ThrowOnError();
@@ -1116,6 +1114,14 @@ public:
     TFuture<void> InitSlot(int slotIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // Wait for first slot initialization to avoid downloading shared resources concurrently.
+        if (FirstSlotInitialized_) {
+            auto error = WaitForFast(FirstSlotInitialized_);
+            if (!error.IsOK()) {
+                return MakeFuture(error);
+            }
+        }
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
@@ -1136,6 +1142,10 @@ public:
                 }
             })
             .Via(Bootstrap_->GetJobInvoker()));
+
+        if (!FirstSlotInitialized_) {
+            FirstSlotInitialized_ = slotInitFuture.AsVoid();
+        }
 
         return slotInitFuture.AsVoid();
     }
@@ -1180,8 +1190,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Inject default docker image for job workspace.
-        if (!context.DockerImage && context.RootVolumeLayerArtifactKeys.empty()) {
-            context.DockerImage = ConcreteConfig_->JobProxyImage;
+        if (!context.FSSecretary->GetDockerImage() && context.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
+            context.FSSecretary->SetDockerImage(ConcreteConfig_->JobProxyImage);
         }
 
         return CreateCriJobWorkspaceBuilder(
@@ -1294,6 +1304,7 @@ private:
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
     double CpuLimit_ = 0;
+    TFuture<void> FirstSlotInitialized_;
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
@@ -1349,7 +1360,7 @@ private:
         spec->Credentials.Gid = ::getgid();
 
         if (!spec->Environment.contains("USER")) {
-            TString username;
+            std::string username;
             if (config->DoNotSetUserId) {
                 username = ::GetUsername();
             } else {

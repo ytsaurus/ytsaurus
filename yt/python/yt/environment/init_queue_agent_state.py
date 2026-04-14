@@ -192,6 +192,13 @@ class CreateSecondaryIndexAction(ReconfigurableAction):
                      f"{client.get(f'{self.table_path}/@schema')=} "
                      f"{client.get(f'{self.index_table_path}/@schema')=}")
 
+        if client.exists(f"{self.index_table_path}/@index_to"):
+            actual_table_path = client.get(f"{self.index_table_path}/@index_to/table_path")
+            if actual_table_path != self.table_path:
+                raise RuntimeError(f"Index already exists, but indexes different table: {actual_table_path}")
+            logging.info("Skipping index creation, since it already exists")
+            return
+
         client.unmount_table(self.secondary_index_attributes["table_path"], sync=True)
         client.unmount_table(self.secondary_index_attributes["index_table_path"], sync=True)
 
@@ -362,69 +369,8 @@ TRANSFORMS[3] = [
     ),
 ]
 
-# Add replica_mapping index.
-TRANSFORMS[4] = [
-    Conversion(
-        "replicated_table_mapping",
-        table_info=TableInfo(
-            [
-                ("cluster", "string"),
-                ("path", "string"),
-            ],
-            [
-                ("revision", "uint64"),
-                ("object_type", "string"),
-                ("meta", "any"),
-                ("synchronization_error", "any"),
-                ("replica_list", TypeV3({
-                    "type_name": "optional",
-                    "item": {
-                        "type_name": "list",
-                        "item": "string",
-                    },
-                })),
-            ],
-            optimize_for="lookup",
-            attributes=DEFAULT_TABLE_ATTRIBUTES,
-        ),
-        filter_callback=_replicated_table_filter_callback,
-    ),
-    Conversion(
-        "replica_mapping",
-        table_info=TableInfo(
-            [
-                ("replica_list", "string", None, {"required": True}),
-                ("cluster", "string"),
-                ("path", "string"),
-            ],
-            [
-                ("$empty", "int64"),
-            ],
-            optimize_for="lookup",
-            attributes=DEFAULT_TABLE_ATTRIBUTES,
-        ),
-        filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
-    ),
-]
-
-# Add secondary_index between replica_mapping and replicated_table_mapping.
-# Actual paths are set in prepare_migration.
-ACTIONS[5] = [
-    CreateSecondaryIndexAction(
-        table_name="replicated_table_mapping",
-        index_table_name="replica_mapping",
-        secondary_index_attributes={
-            "kind": "unfolding",
-            "unfolded_column": "replica_list",
-            "table_to_index_correspondence": "bijective",
-        },
-        table_filter_callback=_replicated_table_filter_callback,
-        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
-    )
-]
-
 # Add profiling tags to queues, consumers tables.
-TRANSFORMS[6] = [
+TRANSFORMS[4] = [
     Conversion(
         "queues",
         table_info=TableInfo(
@@ -474,6 +420,99 @@ TRANSFORMS[6] = [
     ),
 ]
 
+# Add replica_mapping index.
+TRANSFORMS[5] = [
+    Conversion(
+        "replicated_table_mapping",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("meta", "any"),
+                ("synchronization_error", "any"),
+                ("replica_list", TypeV3({
+                    "type_name": "optional",
+                    "item": {
+                        "type_name": "list",
+                        "item": "string",
+                    },
+                })),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_replicated_table_filter_callback,
+    ),
+    Conversion(
+        "replica_mapping",
+        table_info=TableInfo(
+            [
+                ("replica_list", "string", None, {"required": True}),
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("$empty", "int64"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    ),
+]
+
+
+# Add secondary_index between replica_mapping and replicated_table_mapping.
+# Actual paths are set in prepare_migration.
+def create_replica_mapping_index_action_factory():
+    return CreateSecondaryIndexAction(
+        table_name="replicated_table_mapping",
+        index_table_name="replica_mapping",
+        secondary_index_attributes={
+            "kind": "unfolding",
+            "unfolded_column": "replica_list",
+            "table_to_index_correspondence": "bijective",
+        },
+        table_filter_callback=_replicated_table_filter_callback,
+        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    )
+
+
+ACTIONS[6] = [
+    create_replica_mapping_index_action_factory(),
+]
+
+# Add is multi consumer flag to consumers table.
+TRANSFORMS[7] = [
+    Conversion(
+        "consumers",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("row_revision", "uint64"),
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("treat_as_queue_consumer", "boolean"),
+                ("schema", "any"),
+                ("queue_agent_stage", "string"),
+                ("queue_agent_banned", "boolean"),
+                ("synchronization_error", "any"),
+                ("queue_consumer_profiling_tag", "string"),
+                ("is_multi_consumer", "boolean"),  # new field
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES_WITH_OLD_BUNDLE,
+        ),
+    )
+]
+
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,
@@ -496,6 +535,8 @@ QUEUE_AGENT_OBJECT_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["queue_agent_object_
 REGISTRATION_TABLE_SCHEMA = MIGRATION_SCHEMAS["consumer_registrations"]
 
 REPLICATED_TABLE_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replicated_table_mapping"]
+
+REPLICA_MAPPING_TABLE_SCHEMA = MIGRATION_SCHEMAS["replica_mapping"]
 
 CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},

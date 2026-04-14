@@ -57,6 +57,7 @@ struct TSchemaOperation {
         ETypeCreateIncrementalRestoreSrc = 17,
         ETypeCreateIncrementalBackupSrc = 18,
         ETypeRotateCdcStream = 19,
+        ETypeTruncate = 20,
 
         ETypeUnknown = Max<ui32>()
     };
@@ -115,6 +116,7 @@ struct TSchemaOperation {
     bool IsRotateCdcStream() const { return Type == ETypeRotateCdcStream; }
     bool IsCreateIncrementalRestoreSrc() const { return Type == ETypeCreateIncrementalRestoreSrc; }
     bool IsCreateIncrementalBackupSrc() const { return Type == ETypeCreateIncrementalBackupSrc; }
+    bool IsTruncate() const { return Type == ETypeTruncate; }
 
     bool IsReadOnly() const { return ReadOnly; }
 };
@@ -131,6 +133,7 @@ public:
                      TInstant receivedAt,
                      const TString &txBody,
                      bool usesMvccSnapshot,
+                     const TString& userSID,
                      bool isPropose = false);
 
     ~TValidatedDataTx();
@@ -393,10 +396,12 @@ public:
                     const TActorId &target,
                     const TString &txBody,
                     const TVector<TSysTables::TLocksTable::TLock> &locks,
-                    ui64 artifactFlags);
+                    ui64 artifactFlags,
+                    const TString& userSID);
     void FillVolatileTxData(TDataShard *self,
                             TTransactionContext &txc,
-                            const TActorContext &ctx);
+                            const TActorContext &ctx,
+                            const TString& userSID);
 
     const TString &GetTxBody() const { return TxBody; }
     void SetTxBody(const TString &txBody) {
@@ -434,7 +439,7 @@ public:
     const TValidatedDataTx::TPtr& GetDataTx() const { return DataTx; }
     TValidatedDataTx::TPtr BuildDataTx(TDataShard *self,
                                        TTransactionContext &txc,
-                                       const TActorContext &ctx, bool isPropose = false);
+                                       const TActorContext &ctx, const TString& userSID, bool isPropose = false);
     void ClearDataTx() { DataTx = nullptr; }
 
     const NKikimrTxDataShard::TFlatSchemeTransaction &GetSchemeTx() const
@@ -529,7 +534,7 @@ public:
     }
 
     void ReleaseTxData(NTabletFlatExecutor::TTxMemoryProviderBase &provider, const TActorContext &ctx);
-    ERestoreDataStatus RestoreTxData(TDataShard * self, TTransactionContext &txc, const TActorContext &ctx);
+    ERestoreDataStatus RestoreTxData(TDataShard * self, TTransactionContext &txc, const TActorContext &ctx, const TString& userSID);
     void FinalizeDataTxPlan();
 
     // TOperation iface.
@@ -603,6 +608,10 @@ public:
     bool OnStopping(TDataShard& self, const TActorContext& ctx) override;
     void OnCleanup(TDataShard& self, std::vector<std::unique_ptr<IEventHandle>>& replies) override;
 
+    const TString& GetUserSID() const {
+        return UserSID;
+    }
+
 private:
     void TrackMemory() const;
     void UntrackMemory() const;
@@ -629,6 +638,7 @@ private:
     TActorId StreamSink;
     TActorId ScanActor;
     ui64 PageFaultCount = 0;
+    TString UserSID;
 };
 
 inline IOutputStream& operator << (IOutputStream& out, const TActiveTransaction& tx) {

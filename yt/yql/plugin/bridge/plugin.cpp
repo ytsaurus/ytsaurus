@@ -42,10 +42,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((DynamicConfig)       (6)) // lucius: Added OnDynamicConfigChanged.
     ((YtflowProvider)      (7)) // ngc224: Added ytflow provider support.
     ((PqProvider)          (8)) // artemmashin: Added pq provider support.
+    ((SolomonProvider)     (9)) // artemmashin: Added solomon provider support.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::PqProvider;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::PqProvider;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::SolomonProvider;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::SolomonProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +113,7 @@ public:
         TString dqGatewayConfig = options.DqGatewayConfig ? options.DqGatewayConfig.ToString() : "";
         TString ytflowGatewayConfig = options.YtflowGatewayConfig ? options.YtflowGatewayConfig.ToString() : "";
         TString pqGatewayConfig = options.PqGatewayConfig ? options.PqGatewayConfig.ToString() : "";
+        TString solomonGatewayConfig = options.SolomonGatewayConfig ? options.SolomonGatewayConfig.ToString() : "";
         TString dqManagerConfig = options.DqManagerConfig ? options.DqManagerConfig.ToString() : "";
 
         TBridgeYqlPluginOptions bridgeOptions {
@@ -125,6 +127,8 @@ public:
             .YtflowGatewayConfigLength = ytflowGatewayConfig.size(),
             .PqGatewayConfig = pqGatewayConfig.data(),
             .PqGatewayConfigLength = pqGatewayConfig.size(),
+            .SolomonGatewayConfig = solomonGatewayConfig.data(),
+            .SolomonGatewayConfigLength = solomonGatewayConfig.size(),
             .DqManagerConfig = dqManagerConfig.data(),
             .DqManagerConfigLength = dqManagerConfig.size(),
             .FileStorageConfig = options.FileStorageConfig.AsStringBuf().data(),

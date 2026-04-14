@@ -43,12 +43,12 @@ void RunUnderProfiler(const std::string& name, std::function<void()> work, bool 
         ASSERT_NE(0, profile.sample_size());
     }
 
-    Symbolize(&profile, true);
+    Symbolize(&profile, { .SymbolizeExistingFunctions = false });
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
     SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
-        .TmpDir = GetOutputPath(),
+        .TmpDir = GetOutputPath().GetPath(),
         .KeepTmpDir = true,
-        .RunTool = [] (const std::vector<TString>& args) {
+        .RunTool = [] (const std::vector<std::string>& args) {
             TShellCommand command{args[0], TList<TString>{args.begin()+1, args.end()}};
             command.Run();
 

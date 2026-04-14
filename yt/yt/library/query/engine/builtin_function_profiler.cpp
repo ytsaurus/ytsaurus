@@ -20,6 +20,8 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NWebAssembly;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> GetUdfBytecode(TStringBuf name)
@@ -39,7 +41,7 @@ TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> GetUdfBytecode(TStrin
 namespace NBuiltins {
 
 class TIfFunctionCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     static TCGValue CodegenValue(
@@ -116,7 +118,7 @@ public:
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -237,7 +239,7 @@ TConstraintRef IsNullConstraintExtractor(
 }
 
 class TIsNullCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -281,14 +283,14 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
 };
 
 class TIfNullCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -344,14 +346,14 @@ public:
         return nullableArgs[1];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
 };
 
 class TIsNaNCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -398,14 +400,14 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
 };
 
 class TCoalesceCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -460,14 +462,102 @@ private:
             });
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
+};
+
+class TTryGetFrontFromListCodegen
+    : public TFunctionCodegenBase
+{
+public:
+    TCodegenExpression Profile(
+        TCGVariables* /*variables*/,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
+        const std::string& /*name*/,
+        NCodegen::EExecutionBackend /*executionBackend*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
+    {
+        return [
+            =,
+            argIds = std::move(argIds),
+            wireResultType = GetWireType(type)
+        ] (TCGExprContext& builder) -> TCGValue {
+            Value* result = CodegenAllocateValues(builder, 1);
+            Value* ysonValue = CodegenAllocateValues(builder, 1);
+
+            CodegenFragment(builder, argIds[0])
+                .StoreToValues(builder, ysonValue, 0);
+
+            YT_VERIFY(wireResultType == EValueType::Int64);
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("TryGetFrontAsInt64"),
+                {
+                    result,
+                    ysonValue
+                });
+
+            return TCGValue::LoadFromRowValue(builder, result, wireResultType);
+        };
+    }
+
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
+};
+
+class TFarmHashInt64Codegen
+    : public TFunctionCodegenBase
+{
+public:
+    TCodegenExpression Profile(
+        TCGVariables* /*variables*/,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
+        const std::string& /*name*/,
+        NCodegen::EExecutionBackend /*executionBackend*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
+    {
+        return [
+            =,
+            argIds = std::move(argIds),
+            wireResultType = GetWireType(type)
+        ] (TCGExprContext& builder) -> TCGValue {
+            Value* result = CodegenAllocateValues(builder, 1);
+            Value* ysonValue = CodegenAllocateValues(builder, 1);
+
+            CodegenFragment(builder, argIds[0])
+                .StoreToValues(builder, ysonValue, 0);
+
+            YT_VERIFY(wireResultType == EValueType::Uint64);
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("GetFarmHashInt64"),
+                {
+                    result,
+                    ysonValue
+                });
+
+            return TCGValue::LoadFromRowValue(builder, result, EValueType::Uint64);
+        };
+    }
+
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
 };
 
 class TUserCastCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     explicit TUserCastCodegen(TWeakPtr<TFunctionProfilerMap> functionProfilers)
@@ -519,7 +609,7 @@ public:
                     {
                         builder.Buffer,
                         resultPtr,
-                        valuePtr
+                        valuePtr,
                     });
 
                 return TCGValue::LoadFromRowValue(
@@ -739,10 +829,10 @@ public:
         return nullableArgs[0];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
-        // We rely on the fact that all the necessary casting routines are builtins.
-        return GetUdfBytecode("to_any")[NCodegen::EExecutionBackend::WebAssembly];
+        // We rely on the fact that all the necessary casting routines (in this case, "to_any") are builtins.
+        return GetBuiltinYtQlUdfs();
     }
 
 private:
@@ -1066,7 +1156,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -1319,7 +1409,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -1625,16 +1715,21 @@ public:
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
-        std::vector<TType> /*argumentTypes*/,
+        std::vector<TType> argumentTypes,
         TType /*resultType*/,
         TType /*stateType*/,
+        TType repeatedArgType,
         TStringBuf implementationFile,
-        ECallingConvention callingConvention,
         bool isFirst) override
     {
         if (AggregateProfilers_) {
             AggregateProfilers_->emplace(aggregateName, New<TExternalAggregateCodegen>(
-                aggregateName, GetUdfBytecode(implementationFile), callingConvention, isFirst, TSharedRef()));
+                aggregateName,
+                GetUdfBytecode(implementationFile),
+                1 + argumentTypes.size(), // +1 due to state
+                std::move(repeatedArgType),
+                isFirst,
+                TSharedRef()));
         }
     }
 
@@ -1704,6 +1799,8 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
     result->emplace("cast_operator", userCastCodegen);
     result->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
     result->emplace("coalesce", New<NBuiltins::TCoalesceCodegen>());
+    result->emplace("try_get_front_int64_from_list", New<NBuiltins::TTryGetFrontFromListCodegen>());
+    result->emplace("farm_hash_int64", New<NBuiltins::TFarmHashInt64Codegen>());
 
     TProfilerFunctionRegistryBuilder builder{result.Get(), nullptr};
     RegisterBuiltinFunctions(&builder);
@@ -1734,7 +1831,8 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
     result->emplace("array_agg", New<TExternalAggregateCodegen>(
         "array_agg",
         GetUdfBytecode("array_agg"),
-        ECallingConvention::UnversionedValue,
+        -1,
+        EValueType::Null,
         false,
         TSharedRef()));
 

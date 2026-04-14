@@ -110,6 +110,7 @@ struct IBootstrapBase
 
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
 
+    // Returns cell id of the primary master.
     virtual NObjectClient::TCellId GetCellId() const = 0;
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
     virtual std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
@@ -204,8 +205,8 @@ struct IBootstrap
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;
-    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const TString& bucket) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const TString& bucket) = 0;
 
     virtual NDiskManager::IHotswapManagerPtr TryGetHotswapManager() const = 0;
 

@@ -25,6 +25,8 @@ target_compile_options(yt-server-http_proxy PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-http_proxy PUBLIC

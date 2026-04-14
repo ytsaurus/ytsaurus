@@ -23,7 +23,7 @@ class Mapper(yt.wrapper.TypedJob):
 
 
 def main():
-    # You need to set up cluster address in YT_PROXY environment variable.
+    # You should set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
         raise RuntimeError("Environment variable YT_PROXY is empty")
@@ -38,23 +38,23 @@ def main():
 
     cypress_path = yt.wrapper.ypath_join(path, "cypress_file")
 
-    # Записывать в файл можно из потока (бинарного!).
+    # You can write binary stream into file.
     with open(local_path, "rb") as f:
         client.write_file(cypress_path, f)
     assert client.read_file(cypress_path, length=5).read() == b"local"
     assert client.read_file(cypress_path, offset=6).read() == b"file"
 
-    # Записывать в файл можно только bytes.
+    # Only bytes can be written into a file.
     client.write_file(cypress_path, b"cypress file")
     assert client.read_file(cypress_path, length=7).read() == b"cypress"
     assert client.read_file(cypress_path, offset=8).read() == b"file"
 
     client.write_table_structured(yt.wrapper.ypath_join(path, "input_table"), Row, [Row(x=1)])
 
-    # В операции также можно передавать файлы.
-    # В параметре yt_files передаются пути до файлов, уже загруженных в Кипарис.
-    # В параметре local_files передаются пути до локальных файлов
-    # (можно оборачивать в LocalFile и указывать путь, по которому файл будет виден в джобе).
+    # You can pass files into the operations also.
+    # The `yt_files` parameter passes paths to files uploaded into Cypress.
+    # The `local_files` parameter passes paths to local files.
+    # You can wrap them into LocalFile to specify remote file paths can be seen in job.
     client.run_map(
         Mapper(),
         yt.wrapper.ypath_join(path, "input_table"),

@@ -1,20 +1,18 @@
 #include "tablet_context_mock.h"
 #include "sorted_store_helpers.h"
 
+#include <yt/yt/server/node/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/compaction_hint_fetching.h>
 #include <yt/yt/server/node/tablet_node/ordered_dynamic_store.h>
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_store.h>
 #include <yt/yt/server/node/tablet_node/sorted_chunk_store.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
-using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NTabletNode;
@@ -22,6 +20,11 @@ using namespace NHydra;
 using namespace NQueryClient;
 using namespace NCypressClient;
 using namespace NApi;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger Logger("TabletContextMock");
+static const NProfiling::TProfiler Profiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +73,11 @@ IInvokerPtr TTabletContextMock::GetAutomatonInvoker() const
     return GetSyncInvoker();
 }
 
+IInvokerPtr TTabletContextMock::GetStorageHeavyInvoker() const
+{
+    return nullptr;
+}
+
 IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache() const
 {
     return StoreContext_->GetColumnEvaluatorCache();
@@ -85,10 +93,9 @@ NNative::IClientPtr TTabletContextMock::GetClient() const
     return nullptr;
 }
 
-TClusterNodeDynamicConfigManagerPtr TTabletContextMock::GetDynamicConfigManager() const
+TTabletNodeDynamicConfigPtr TTabletContextMock::GetDynamicConfig() const
 {
-    auto config = New<TClusterNodeDynamicConfig>();
-    return New<TClusterNodeDynamicConfigManager>(std::move(config));
+    return New<TTabletNodeDynamicConfig>();
 }
 
 IStorePtr TTabletContextMock::CreateStore(
@@ -170,6 +177,17 @@ std::string TTabletContextMock::GetLocalHostName() const
 ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost() const
 {
     return MakeStrong(TabletWriteManagerHost_);
+}
+
+const TCompactionHintFetcherPtr& TTabletContextMock::GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind /*kind*/) const
+{
+    static TCompactionHintFetcherPtr nullFetcher = nullptr;
+    return nullFetcher;
+}
+
+TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* TTabletContextMock::GetMinHashDigestCache() const
+{
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

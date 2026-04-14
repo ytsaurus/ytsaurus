@@ -293,14 +293,8 @@ static void ValidateAggregatedColumns(const TTableSchema& schema)
 
             auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
             if (typeInferrer->IsAggregate()) {
-                std::vector<TTypeSet> typeConstraints;
-                std::vector<int> argumentIndexes;
-
-                auto [_, resultIndex] = typeInferrer->GetNormalizedConstraints(
-                    &typeConstraints,
-                    &argumentIndexes,
-                    aggregateName);
-                auto& resultConstraint = typeConstraints[resultIndex];
+                auto constraints = typeInferrer->GetNormalizedConstraints(aggregateName);
+                auto& resultConstraint = constraints.TypeConstraints[constraints.ReturnType];
 
                 if (!resultConstraint.Get(elementType)) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type set %Qlv differs from column %v type %Qlv",
@@ -575,7 +569,7 @@ static void ValidateAllConstrainedColumnsExist(
 }
 
 //! Validates that
-// - constraints expressions have remained the same or have been dropped.
+// - constraints expressions have remained the same or have been dropped
 // - types of constrained columns have remained the same
 static void ValidateConstraintsCompatibility(
     const TTableSchema& oldSchema,
@@ -633,19 +627,19 @@ void ValidateConstraintsMatch(
     }
 }
 
-void ValidateConstrainedSchemaAlteration(
+void ValidateConstrainedTableSchemaAlter(
     const TTableSchema& oldSchema,
     const TTableSchema& newSchema,
     const TColumnStableNameToConstraintMap& oldConstraints,
     const TColumnStableNameToConstraintMap& newConstraints,
     bool isTableEmpty)
 {
-    ValidateConstrainedSchemaCreation(newSchema, newConstraints);
+    ValidateConstrainedTableSchemaCreation(newSchema, newConstraints);
     ValidateNoNewConstraintsForExistingColumns(oldSchema, oldConstraints, newConstraints, isTableEmpty);
     ValidateConstraintsCompatibility(oldSchema, newSchema, oldConstraints, newConstraints, isTableEmpty);
 }
 
-void ValidateConstrainedSchemaCreation(
+void ValidateConstrainedTableSchemaCreation(
     const TTableSchema& schema,
     const TColumnStableNameToConstraintMap& constraints)
 {

@@ -1,64 +1,89 @@
-// This engine is deprecated in favor of SpytConnectEngine
 #include "spyt_engine.h"
 
 #include "config.h"
 #include "handler_base.h"
-#include "spyt_discovery.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
-
-#include <yt/yt/ytlib/discovery_client/config.h>
-
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
+#include <yt/yt/client/arrow/schema.h>
+#include <yt/yt/client/formats/parser.h>
+#include <yt/yt/client/table_client/value_consumer.h>
+
+#include <yt/yt/library/formats/arrow_parser.h>
+#include <yt/yt/library/arrow_adapter/public.h>
+
+#include <yt/yt/core/crypto/crypto.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
 
-#include <yt/yt/core/bus/tcp/config.h>
-#include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/delayed_executor.h>
-
 #include <yt/yt/core/json/json_writer.h>
 #include <yt/yt/core/json/json_parser.h>
 
-#include <yt/yt/core/rpc/bus/channel.h>
-#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
-#include <library/cpp/string_utils/base64/base64.h>
+#include <pyspark/sql/connect/proto/base.grpc.pb.h>
 
-#include <util/string/split.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+
+#include <grpcpp/grpcpp.h>
+
+#include <util/generic/guid.h>
 
 namespace NYT::NQueryTracker {
 
 using namespace NQueryTrackerClient;
+using namespace NQueryTrackerClient::NRecords;
 using namespace NApi;
-using namespace NYPath;
+using namespace NArrow;
+using namespace NConcurrency;
+using namespace NCrypto;
+using namespace NFormats;
+using namespace NHiveClient;
+using namespace NLogging;
 using namespace NRpc;
-using namespace NRpc::NBus;
+using namespace NScheduler;
+using namespace NTableClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NConcurrency;
+using namespace spark::connect;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytSettings
+struct TSpytSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
+
+    std::string Proxy;
 
     std::optional<TYPath> DiscoveryPath;
 
-    std::optional<TString> DiscoveryGroup;
-
-    std::optional<TString> SparkConf;
+    THashMap<TString, TString> SparkConf;
 
     THashMap<TString, TString> Params;
 
-    bool SessionReuse;
+    int NumExecutors;
+
+    int ExecutorCores;
+
+    std::string ExecutorMemory;
+
+    int DriverCores;
+
+    ui64 DriverMemory;
+
+    bool DriverReuse;
 
     REGISTER_YSON_STRUCT(TSpytSettings);
 
@@ -66,178 +91,562 @@ public:
     {
         registrar.Parameter("cluster", &TThis::Cluster)
             .Default();
-        registrar.Parameter("discovery_path", &TThis::DiscoveryPath)
+        registrar.Parameter("proxy", &TThis::Proxy)
             .Default();
-        registrar.Parameter("discovery_group", &TThis::DiscoveryGroup)
+        registrar.Parameter("discovery_path", &TThis::DiscoveryPath)
             .Default();
         registrar.Parameter("spark_conf", &TThis::SparkConf)
             .Default();
         registrar.Parameter("params", &TThis::Params)
             .Default();
-        registrar.Parameter("session_reuse", &TThis::SessionReuse)
+        registrar.Parameter("num_executors", &TThis::NumExecutors)
+            .Default(2);
+        registrar.Parameter("executor_cores", &TThis::ExecutorCores)
+            .Default(1);
+        registrar.Parameter("executor_memory", &TThis::ExecutorMemory)
+            .Default("4G");
+        registrar.Parameter("driver_cores", &TThis::DriverCores)
+            .Default(1);
+        registrar.Parameter("driver_memory", &TThis::DriverMemory)
+            .Default(1536_MB);
+        registrar.Parameter("driver_reuse", &TThis::DriverReuse)
             .Default(true);
+
+        registrar.Postprocessor([&] (TThis* config) {
+            if (config->Proxy.empty() && config->Cluster) {
+                config->Proxy = *config->Cluster;
+            }
+        });
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSpytSettings)
-DECLARE_REFCOUNTED_CLASS(TSpytSettings)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSpytVersion
-{
-public:
-    TSpytVersion(TString rawVersion)
-    {
-        auto dashPos = rawVersion.find_first_of('-');
-        // Strip SNAPSHOT version suffix.
-        if (dashPos != TString::npos) {
-            rawVersion = rawVersion.substr(0, dashPos);
-        }
-        if (!StringSplitter(rawVersion).Split('.').TryCollectInto(&Major_, &Minor_, &Patch_)) {
-            THROW_ERROR_EXCEPTION(
-                "Version %Qv cannot be parsed",
-                rawVersion);
-        }
-    }
-
-    bool operator<(const TSpytVersion& rhs) const
-    {
-        return Major_ < rhs.Major_ || Major_ == rhs.Major_ && (Minor_ < rhs.Minor_ || Minor_ == rhs.Minor_ && Patch_ < rhs.Patch_);
-    }
-
-private:
-    int Major_;
-    int Minor_;
-    int Patch_;
-};
+DEFINE_REFCOUNTED_TYPE(TSpytSettings);
+DECLARE_REFCOUNTED_STRUCT(TSpytSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSpytQueryResult
 {
     const bool IsTruncated;
-    const TSharedRef WireData;
+    const TArrowSchemaPtr ArrowSchema;
+    const std::vector<TString> ArrowData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytQueryHandler
-    : public TQueryHandlerBase
+struct IConnectServerLauncher
+    : public TRefCounted
 {
-public:
-    TSpytQueryHandler(
-        const NApi::IClientPtr& stateClient,
-        const NYPath::TYPath& stateRoot,
-        const TSpytEngineConfigPtr& config,
-        const IChannelFactoryPtr& channelFactory,
-        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const NHiveClient::TClusterDirectoryPtr& clusterDirectory,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
-        , Settings_(ConvertTo<TSpytSettingsPtr>(SettingsNode_))
-        , Config_(config)
-        , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
-        , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
-        , QueryClient_(NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(activeQuery.User)))
-        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
-        , Headers_(New<NHttp::THeaders>())
-        , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
-        , SessionReuse_(Settings_->SessionReuse)
+    virtual std::string GetSessionId() = 0;
+
+    virtual bool TryConnectToExistingSession() = 0;
+
+    virtual void StartDriver(const std::string& token) = 0;
+
+    virtual std::string WaitForSparkConnectEndpoint() = 0;
+
+    virtual void Abort() = 0;
+
+    virtual void Detach() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IConnectServerLauncher)
+DECLARE_REFCOUNTED_STRUCT(IConnectServerLauncher)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConnectServerLauncherBase
+    : public IConnectServerLauncher
+{
+protected:
+    const TSpytEngineConfigPtr Config_;
+    const TSpytSettingsPtr Settings_;
+    const std::string User_;
+    const NNative::IClientPtr TargetClusterClient_;
+
+    const TLogger Logger;
+
+    std::string SettingsHash_;
+
+    TConnectServerLauncherBase(
+        TSpytEngineConfigPtr config,
+        TSpytSettingsPtr settings,
+        std::string user,
+        NNative::IClientPtr clusterClient,
+        TLogger logger)
+        : Config_(std::move(config))
+        , Settings_(std::move(settings))
+        , User_(std::move(user))
+        , TargetClusterClient_(std::move(clusterClient))
+        , Logger(std::move(logger))
     {
-        if (Cluster_.empty()) {
-            THROW_ERROR_EXCEPTION("'cluster' setting is not specified");
-        }
-        auto discoveryPath = Settings_->DiscoveryPath.value_or(Config_->DefaultDiscoveryPath);
-        auto discoveryGroup = Settings_->DiscoveryGroup.value_or(Config_->DefaultDiscoveryGroup);
-        if (!discoveryPath.empty()) {
-            YT_LOG_DEBUG("Discovery path will be used (Path: %v)", discoveryPath);
-            Discovery_ = CreateDiscoveryV1(QueryClient_, discoveryPath);
-        } else if (!discoveryGroup.empty()) {
-            YT_LOG_DEBUG("Discovery group will be used (Group: %v)", discoveryGroup);
-            Discovery_ = CreateDiscoveryV2(NativeConnection_, discoveryGroup, channelFactory, Logger);
-        } else {
-            THROW_ERROR_EXCEPTION("Either 'discovery_path' or 'discovery_group' setting must be specified");
-        }
-        Headers_->Add("Content-Type", "application/json");
+        SettingsHash_ = ComputeSettingsHash();
     }
 
-    void Start() override
+    static const std::string FormatAsUUID(const TGuid& guid)
     {
-        YT_LOG_DEBUG("Starting SPYT query");
-        OnQueryStarted();
-        StartProgressWriter();
-        AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
-        AsyncQueryResult_.Subscribe(BIND(&TSpytQueryHandler::OnSpytResponse, MakeWeak(this)).Via(GetCurrentInvoker()));
+        TGUID uuid;
+        std::copy(guid.Parts32, guid.Parts32 + 4, uuid.dw);
+        return uuid.AsUuidString();
+    }
+
+private:
+    std::string ComputeSettingsHash() const
+    {
+        TSha256Hasher hasher;
+        std::vector<std::string> confKeys;
+        confKeys.reserve(Settings_->SparkConf.size());
+        for (const auto& kv : Settings_->SparkConf) {
+            confKeys.push_back(kv.first);
+        }
+        std::sort(confKeys.begin(), confKeys.end());
+        for (const auto& key : confKeys) {
+            hasher.Append(key);
+            hasher.Append(Settings_->SparkConf[key]);
+        }
+
+        hasher.Append(Settings_->ExecutorMemory);
+        hasher.Append(Format("%v;%v;%v;%v",
+            Settings_->NumExecutors,
+            Settings_->ExecutorCores,
+            Settings_->DriverCores,
+            Settings_->DriverMemory
+        ));
+        hasher.Append(User_);
+        return hasher.GetHexDigestLowerCase();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStandaloneConnectServerLauncher
+    : public TConnectServerLauncherBase
+{
+public:
+    TStandaloneConnectServerLauncher(
+        TSpytEngineConfigPtr config,
+        TSpytSettingsPtr settings,
+        std::string user,
+        NNative::IClientPtr clusterClient,
+        TLogger logger)
+        : TConnectServerLauncherBase(
+            std::move(config),
+            std::move(settings),
+            std::move(user),
+            std::move(clusterClient),
+            std::move(logger))
+        , DriverOperationDescription_(Format("QT Spark connect driver for %Qv", User_))
+    { }
+
+    std::string GetSessionId() override
+    {
+        // We need to format DriverOperationId as uuid.
+        return FormatAsUUID(DriverOperationId_.Underlying());
+    }
+
+    bool TryConnectToExistingSession() override
+    {
+        TListOperationsOptions options;
+        options.StateFilter = EOperationState::Running;
+        options.UserFilter = User_;
+        options.SubstrFilter = DriverOperationDescription_;
+
+        auto listOpsFuture = TargetClusterClient_->ListOperations(options);
+
+        auto result = WaitFor(listOpsFuture)
+            .ValueOrThrow();
+        if (!result.Operations.empty()) {
+            auto operation = result.Operations[0];
+            if (!operation.Id) {
+                THROW_ERROR_EXCEPTION("Operation doesn't have an Id field")
+                    << TErrorAttribute("operation", operation);
+            }
+            auto operationId = *operation.Id;
+            auto runningOpSettingsHash = GetAnnotation(operation, "settings_hash");
+            if (runningOpSettingsHash) {
+                YT_LOG_DEBUG("An operation already exists for a user (User: %v, RunningOpSettingsHash: %v, SettingsHash: %v, OperationId: %v)",
+                    User_,
+                    *runningOpSettingsHash,
+                    SettingsHash_,
+                    operationId);
+            }
+            if (!runningOpSettingsHash || SettingsHash_ != *runningOpSettingsHash) {
+                // TODO(atokarew): Should we allow more than one session from a user with different configurations?
+                YT_LOG_DEBUG("Stopping current Spark connect driver operation to launch a new one (User: %v, DriverOperationId: %v)",
+                    User_,
+                    operationId);
+                StopDriverOperation(operationId);
+                return false;
+            }
+            DriverOperationId_ = operationId;
+            YT_LOG_DEBUG("Reusing existing driver operation (User: %v, DriverOperationId: %v)",
+                User_,
+                DriverOperationId_);
+            return true;
+        }
+        return false;
+    }
+
+    void StartDriver(const std::string& token) override
+    {
+        auto specNode = CreateDriverSpec(token);
+        auto spec = ConvertToYsonString(specNode);
+        specNode->RemoveChild("secure_vault");
+        auto reducedSpec = ConvertToYsonString(specNode);
+        YT_LOG_DEBUG("Created Spark connect driver specification (DriverSpecification: %v)",
+            reducedSpec);
+
+        auto opFuture = TargetClusterClient_->StartOperation(EOperationType::Vanilla, spec);
+        DriverOperationId_ = WaitFor(opFuture)
+            .ValueOrThrow();
+        YT_LOG_DEBUG("Started new Spark connect driver operation (User: %v, DriverOperationId: %v)",
+            User_,
+            DriverOperationId_);
+    }
+
+    std::string WaitForSparkConnectEndpoint() override
+    {
+        std::optional<std::string> endpoint;
+        while (!endpoint) {
+            TDelayedExecutor::WaitForDuration(Config_->StatusPollPeriod);
+            auto operation = WaitFor(TargetClusterClient_->GetOperation(DriverOperationId_))
+                .ValueOrThrow();
+            if (operation.State && IsOperationFinished(*operation.State)) {
+                THROW_ERROR_EXCEPTION("Operation %v with Spark connect endpoint is already in finished state",
+                    DriverOperationId_);
+            }
+            endpoint = GetAnnotation(operation, "spark_connect_endpoint");
+        }
+        YT_LOG_DEBUG("Received Spark connect endpoint (SparkConnectEndpoint: %v)",
+            endpoint);
+        return *endpoint;
     }
 
     void Abort() override
     {
-        YT_LOG_DEBUG("Aborting SPYT query (SessionUrl: %v)", SessionUrl_);
-        AsyncQueryResult_.Cancel(TError("Query aborted"));
-        // After Abort() call there is Detach() call always. But double closing request is not the error.
-        FreeResources();
-        StopBackgroundExecutors();
+        YT_LOG_DEBUG("Aborting Spark connect query (User: %v, DriverOperationId: %v)",
+            User_,
+            DriverOperationId_);
     }
 
     void Detach() override
     {
-        YT_LOG_DEBUG("Detaching SPYT query (SessionUrl: %v)", SessionUrl_);
-        AsyncQueryResult_.Cancel(TError("Query detached"));
-        FreeResources();
-        StopBackgroundExecutors();
-    }
-
-private:
-    const TSpytSettingsPtr Settings_;
-    const TSpytEngineConfigPtr Config_;
-    const std::string Cluster_;
-    const NApi::NNative::IConnectionPtr NativeConnection_;
-    const NApi::NNative::IClientPtr QueryClient_;
-    const NHttp::IClientPtr HttpClient_;
-    const NHttp::THeadersPtr Headers_;
-    const TPeriodicExecutorPtr RefreshTokenExecutor_;
-    const bool SessionReuse_;
-    ISpytDiscoveryPtr Discovery_;
-    TFuture<TSpytQueryResult> AsyncQueryResult_;
-    TString SessionUrl_;
-    TString StatementUrl_;
-    std::optional<TString> Token_;
-    // Not exists for YT scheduled jobs
-    std::optional<TString> MasterWebUI_;
-
-    void SetProgress(double progressValue, const std::optional<INodePtr>& plan)
-    {
-        YT_LOG_DEBUG("Reporting progress (Progress: %v)", progressValue);
-        auto progress = BuildYsonStringFluently()
-            .BeginMap()
-                .OptionalItem("webui", MasterWebUI_)
-                .Item("spyt_progress").Value(progressValue)
-                .OptionalItem("spyt_plan", plan)
-            .EndMap();
-        OnProgress(std::move(progress));
-    }
-
-    TString GetLocation(const NHttp::IResponsePtr& response) const
-    {
-        return response->GetHeaders()->GetOrThrow("Location");
-    }
-
-    void ValidateStatusCode(const NHttp::IResponsePtr& response, const NHttp::EStatusCode& expected) const
-    {
-        if (response->GetStatusCode() != expected) {
-            THROW_ERROR_EXCEPTION(
-                "Unexpected Livy status code: expected %Qv, actual %Qv",
-                expected,
-                response->GetStatusCode())
-                    << TErrorAttribute("response_body", response->ReadAll().ToStringBuf());
+        if (!Settings_->DriverReuse && DriverOperationId_) {
+            StopDriverOperation(DriverOperationId_);
         }
     }
 
-    INodePtr ParseJson(const TSharedRef& data) const
+private:
+    const TString DriverOperationDescription_;
+
+    TOperationId DriverOperationId_;
+
+    std::string CreateCommand(const std::string& sparkHome, const std::string& sparkDistr) const
+    {
+        TStringBuilder command;
+        if (!Config_->UseSquashfs) {
+            command.AppendFormat("./setup-spyt-env.sh --spark-home . --spark-distributive %v.tgz && ", sparkDistr);
+        }
+        command.AppendFormat("%v/bin/spark-submit", sparkHome);
+        auto master = Settings_->Proxy.empty() ? Config_->DefaultCluster : Settings_->Proxy;
+        command.AppendFormat(" --master ytsaurus://%v", master);
+        command.AppendString(" --deploy-mode client");
+        command.AppendString(" --class org.apache.spark.sql.connect.ytsaurus.SpytConnectServer");
+        command.AppendFormat(" --num-executors %v", Settings_->NumExecutors);
+        command.AppendFormat(" --executor-cores %v", Settings_->ExecutorCores);
+        command.AppendFormat(" --executor-memory %v", Settings_->ExecutorMemory);
+        command.AppendFormat(" --queue %v", User_);
+        command.AppendFormat(" --name \"Spark connect driver for %v\"", User_);
+        command.AppendFormat(" --conf spark.ytsaurus.squashfs.enabled=%v", Config_->UseSquashfs);
+        command.AppendFormat(" --conf spark.driver.extraJavaOptions='-Djava.net.preferIPv6Addresses=%v'", Config_->PreferIpv6);
+        command.AppendFormat(" --conf spark.connect.grpc.binding.port=%v", Config_->GrpcPort);
+        command.AppendFormat(" --conf spark.ytsaurus.connect.token.refresh.period=%vs", Config_->RefreshTokenPeriod.Seconds());
+        command.AppendString(" --conf spark.ytsaurus.arrow.stringToBinary=true");
+        command.AppendString(" --conf spark.ytsaurus.driver.operation.id=$YT_OPERATION_ID");
+        for (auto confEntry : Settings_->SparkConf) {
+            command.AppendFormat(" --conf %v=%v", confEntry.first, confEntry.second);
+        }
+        command.AppendString(" spark-internal");
+
+        return command.Flush();
+    }
+
+    std::string GetReleaseType(const std::string& spytVersion) const
+    {
+        if (spytVersion.contains("alpha") || spytVersion.contains("beta") || spytVersion.contains("rc")) {
+            return "pre-releases";
+        } else {
+            return "releases";
+        }
+    }
+
+    IMapNodePtr CreateDriverSpec(const std::string& token) const
+    {
+        std::string sparkHome = Config_->UseSquashfs ? "/usr/lib/spark" : "$HOME/spark";
+        std::string sparkDistr = Format("spark-%v-bin-hadoop3", Config_->SparkVersion);
+        std::string sparkConnectJar = Format("spark-connect_2.12-%v.jar", Config_->SparkVersion);
+        std::string command = CreateCommand(sparkHome, sparkDistr);
+
+        std::string versionPath{Config_->SparkVersion};
+        std::replace(versionPath.begin(), versionPath.end(), '.', '/');
+
+        auto releaseType = GetReleaseType(Config_->SpytVersion);
+
+        TYPath releaseConfigPath = Format("%v/%v/%v/%v",
+            Config_->SpytConfigPath,
+            releaseType,
+            Config_->SpytVersion,
+            Config_->SpytLaunchConfFile);
+        auto releaseConfig = WaitFor(TargetClusterClient_->GetNode(releaseConfigPath))
+            .ValueOrThrow();
+        auto releaseConfigNode = ConvertToNode(releaseConfig)->AsMap();
+
+        YT_LOG_DEBUG(
+            "Creating Spark connect driver specification (SparkVersion: %v, SpytVersion: %v, LaunchCommand: %v)",
+            Config_->SparkVersion,
+            Config_->SpytVersion,
+            command);
+
+        std::vector<std::string> layerPaths;
+        std::vector<std::string> filePaths;
+
+        if (Config_->UseSquashfs) {
+            auto squashfsLayerPaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("squashfs_layer_paths");
+
+            layerPaths.reserve(squashfsLayerPaths.size() + 2);
+            layerPaths.push_back(Format("//home/spark/spyt/%v/%v/spyt-package.squashfs", releaseType, Config_->SpytVersion));
+            layerPaths.push_back(Format("//home/spark/distrib/%v/%v.squashfs", versionPath, sparkDistr));
+            layerPaths.insert(layerPaths.end(), squashfsLayerPaths.begin(), squashfsLayerPaths.end());
+        } else {
+            auto confLayerPaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("layer_paths");
+            layerPaths.reserve(confLayerPaths.size());
+            layerPaths.insert(layerPaths.end(), confLayerPaths.begin(), confLayerPaths.end());
+
+            filePaths.reserve(2);
+            filePaths.push_back(Format("//home/spark/distrib/%v/%v.tgz", versionPath, sparkDistr));
+            filePaths.push_back(Format("//home/spark/distrib/%v/spark-connect_2.12-%v.jar", versionPath, Config_->SparkVersion));
+        }
+
+        auto confFilePaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("file_paths");
+        filePaths.reserve(filePaths.size() + confFilePaths.size());
+        for (size_t i = 0; i < confFilePaths.size(); i++) {
+            auto path = confFilePaths[i];
+            if (!Config_->UseSquashfs || !path.ends_with("spyt-package.zip")) {
+                filePaths.push_back(path);
+            }
+        }
+
+        return BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("title").Value(Format("QT Spark connect server for %Qv", User_))
+                .Item("annotations").BeginMap()
+                    .Item("spark_connect_server_description").Value(DriverOperationDescription_)
+                    .Item("settings_hash").Value(SettingsHash_)
+                .EndMap()
+                .Item("secure_vault").BeginMap()
+                    .Item("YT_TOKEN").Value(token)
+                .EndMap()
+                .Item("tasks").BeginMap()
+                    .Item("driver").BeginMap()
+                        .Item("command").Value(command)
+                        .Item("job_count").Value(1)
+                        .Item("cpu_limit").Value(Settings_->DriverCores)
+                        .Item("memory_limit").Value(Settings_->DriverMemory)
+                        .Item("layer_paths").DoListFor(layerPaths, [&] (auto fluent, auto item) {
+                            fluent.Item().Value(item);
+                        })
+                        .Item("file_paths").DoListFor(filePaths, [&] (auto fluent, auto item) {
+                            fluent.Item().Value(item);
+                        })
+                        .Item("environment").BeginMap()
+                            .Item("JAVA_HOME").Value("/opt/jdk17")
+                            .Item("SPARK_CONF_DIR").Value(Config_->UseSquashfs ? "/usr/lib/spyt/conf" : "spyt-package/conf")
+                        .EndMap()
+                        .DoIf(Settings_->SparkConf.contains("spark.ytsaurus.network.project"), [&] (auto fluent) {
+                            fluent
+                                .Item("network_project").Value(Settings_->SparkConf["spark.ytsaurus.network.project"]);
+                        })
+                    .EndMap()
+                .EndMap()
+            .EndMap()->AsMap();
+    }
+
+    std::optional<std::string> GetAnnotation(const TOperation& operation, const std::string& key)
+    {
+        if (operation.RuntimeParameters) {
+            return TryGetString(operation.RuntimeParameters.AsStringBuf(), Format("/annotations/%v", key));
+        }
+        return std::nullopt;
+    }
+
+    void StopDriverOperation(const TOperationId& operationId)
+    {
+        YT_LOG_DEBUG("Stopping Spark connect driver operation (User: %v, DriverOperationId: %v)",
+            User_,
+            operationId);
+        WaitFor(TargetClusterClient_->CompleteOperation(operationId))
+            .ThrowOnError();
+    }
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClusterConnectServerLauncher
+    : public TConnectServerLauncherBase
+{
+public:
+    TClusterConnectServerLauncher(
+        TSpytEngineConfigPtr config,
+        TSpytSettingsPtr settings,
+        std::string user,
+        NNative::IClientPtr clusterClient,
+        TLogger logger)
+        : TConnectServerLauncherBase(
+            std::move(config),
+            std::move(settings),
+            std::move(user),
+            std::move(clusterClient),
+            std::move(logger))
+        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
+        , Headers_(New<NHttp::THeaders>())
+    {
+        auto discoveryValues = GetDiscoveryValues({"rest", "operation"});
+        SparkMasterConnectEndpoint_ = std::format("http://{}/v1/submissions/spytConnectServer", discoveryValues[0]);
+        SparkMasterKillDriverEndpoint_ = std::format("http://{}/v1/submissions/kill/", discoveryValues[0]);
+        SessionId_ = FormatAsUUID(TGuid::FromString(discoveryValues[1]));
+
+        Headers_->Add("Content-Type", "application/json");
+    }
+
+    std::string GetSessionId() override
+    {
+        return SessionId_;
+    }
+
+    bool TryConnectToExistingSession() override
+    {
+        auto response = WaitFor(HttpClient_->Get(std::format("{}?user={}", SparkMasterConnectEndpoint_, User_)))
+            .ValueOrThrow();
+        ValidateStatusCode(response, NHttp::EStatusCode::OK);
+        auto responseNode = ParseJson(response->ReadAll());
+        auto apps = responseNode->AsMap()->GetChildValueOrThrow<IListNodePtr>("apps")->GetChildren();
+        if (apps.size() == 0) {
+            return false;
+        }
+        for (const auto& runningApp : apps) {
+            auto settingsHash = runningApp->AsMap()->GetChildValueOrDefault<std::string>("settingsHash", "");
+            if (settingsHash == SettingsHash_) {
+                UpdateFieldsFromResponse(runningApp);
+                YT_LOG_DEBUG("Reusing existing Spark connect driver (User: %v, DriverId: %v)",
+                    User_,
+                    *DriverId_);
+            } else {
+                auto runningDriverId = runningApp->AsMap()->GetChildValueOrThrow<std::string>("driverId");
+                YT_LOG_DEBUG("Settings hashes are different, will stop an existing driver and launch a new one (OldSettingsHash: %v, NewSettingsHash: %v, OldDriverId: %v)",
+                    settingsHash,
+                    SettingsHash_,
+                    runningDriverId);
+                StopDriver(runningDriverId);
+            }
+        }
+
+        return GrpcEndpoint_ ? true : false;
+    }
+
+    void StartDriver(const std::string& token) override
+    {
+        auto requestBodyString = CreateStartConnectServerRequest(token);
+        auto requestBody = TSharedRef::FromString(requestBodyString);
+        auto response = WaitFor(HttpClient_->Post(SparkMasterConnectEndpoint_, requestBody, Headers_))
+            .ValueOrThrow();
+        ValidateStatusCode(response, NHttp::EStatusCode::OK);
+        auto responseNode = ParseJson(response->ReadAll());
+        UpdateFieldsFromResponse(responseNode);
+        YT_LOG_DEBUG("Started new Spark connect driver in inner cluster (User: %v, DiscoveryPath: %v, Endpoint: %v, DriverId: %v)",
+            User_,
+            Settings_->DiscoveryPath,
+            *GrpcEndpoint_,
+            *DriverId_);
+    }
+
+    std::string WaitForSparkConnectEndpoint() override
+    {
+        return *GrpcEndpoint_;
+    }
+
+    void Abort() override
+    {
+        YT_LOG_DEBUG("Aborting Spark connect query (User: %v, DiscoveryPath: %v, DriverId: %v)",
+            User_,
+            Settings_->DiscoveryPath,
+            DriverId_);
+    }
+
+    void Detach() override
+    {
+        if (!Settings_->DriverReuse && DriverId_) {
+            StopDriver(*DriverId_);
+        }
+    }
+
+private:
+    const NHttp::IClientPtr HttpClient_;
+    const NHttp::THeadersPtr Headers_;
+
+    std::string SparkMasterConnectEndpoint_;
+    std::string SparkMasterKillDriverEndpoint_;
+    std::string SessionId_;
+    std::optional<std::string> GrpcEndpoint_;
+    std::optional<std::string> DriverId_;
+
+    std::vector<std::string> GetDiscoveryValues(const std::vector<std::string>& keys)
+    {
+        auto path = Format("%v/discovery", Settings_->DiscoveryPath);
+        auto discovery = WaitFor(TargetClusterClient_->GetNode(path))
+            .ValueOrThrow();
+
+        auto discoveryNode = ConvertTo<IMapNodePtr>(discovery);
+
+        std::vector<std::string> values;
+        values.reserve(keys.size());
+
+        for (const auto& key: keys) {
+            auto childNode = discoveryNode->GetChildValueOrThrow<IMapNodePtr>(key);
+            if (childNode->GetKeys().size() != 1) {
+                THROW_ERROR_EXCEPTION("SPYT discovery path should have exacly one %Qv element", key);
+            }
+            values.push_back(childNode->GetKeys()[0]);
+        }
+        return values;
+    }
+
+    std::string CreateStartConnectServerRequest(const std::string& token)
+    {
+        auto requestBody = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("action").Value("StartConnectServerRequest")
+                .Item("driverMemory").Value(Settings_->DriverMemory)
+                .Item("numExecutors").Value(Settings_->NumExecutors)
+                .Item("executorCores").Value(Settings_->ExecutorCores)
+                .Item("executorMemory").Value(Settings_->ExecutorMemory)
+                .Item("grpcPortStart").Value(Config_->GrpcPort)
+                .Item("sparkConf").DoMap([&] (auto fluent) {
+                    for (const auto& kv : Settings_->SparkConf) {
+                        fluent.Item(kv.first).Value(kv.second);
+                    }
+                    fluent
+                        .Item("spark.hadoop.yt.user").Value(User_)
+                        .Item("spark.hadoop.yt.token").Value(token)
+                        .Item("spark.app.name").Value(Format("Spark connect server for %Qv", User_))
+                        .Item("spark.ytsaurus.arrow.stringToBinary").Value("true")
+                        .Item("spark.ytsaurus.connect.settings.hash").Value(SettingsHash_);
+                })
+            .EndMap();
+        return ConvertToJson(requestBody);
+    }
+
+    static INodePtr ParseJson(const TSharedRef& data)
     {
         TMemoryInput stream(data.Begin(), data.Size());
         auto factory = NYTree::CreateEphemeralNodeFactory();
@@ -247,57 +656,7 @@ private:
         return builder->EndTree();
     }
 
-    INodePtr ExecuteGetQuery(const TString& url) const
-    {
-        YT_LOG_DEBUG("Executing HTTP GET request (Url: %v)", url);
-        auto rsp = WaitFor(HttpClient_->Get(url))
-            .ValueOrThrow();
-        YT_LOG_DEBUG("HTTP GET request executed (StatusCode: %v)", rsp->GetStatusCode());
-        ValidateStatusCode(rsp, NHttp::EStatusCode::OK);
-        auto jsonRoot = ParseJson(rsp->ReadAll());
-        return jsonRoot;
-    }
-
-    TString WaitSessionStatusChange(const TString& url, const TString& defaultState)
-    {
-        auto state = defaultState;
-        while (state == defaultState) {
-            TDelayedExecutor::WaitForDuration(Config_->StatusPollPeriod);
-            state = ExecuteGetQuery(url)->AsMap()->GetChildValueOrThrow<TString>("state");
-        }
-        return state;
-    }
-
-    TString WaitStatementStatusChange(const TString& url, const TString& defaultState)
-    {
-        auto state = defaultState;
-        while (state == defaultState) {
-            TDelayedExecutor::WaitForDuration(Config_->StatusPollPeriod);
-            auto jsonRoot = ExecuteGetQuery(url)->AsMap();
-            state = jsonRoot->GetChildValueOrThrow<TString>("state");
-            auto progressValue = jsonRoot->GetChildValueOrThrow<double>("progress");
-            auto rawPlan = jsonRoot->FindChild("plan");
-            auto plan = rawPlan ? std::make_optional(rawPlan) : std::nullopt;
-            SetProgress(progressValue, plan);
-        }
-        return state;
-    }
-
-    TString GetReleaseMode(const TString& version) const
-    {
-        if (version.Contains("SNAPSHOT")) {
-            return "snapshots";
-        } else {
-            return "releases";
-        }
-    }
-
-    TString GetSpytFile(const TString& version, const TString& filename) const
-    {
-        return Format("yt:/%v/spyt/%v/%v/%v", Config_->SpytHome, GetReleaseMode(version), version, filename);
-    }
-
-    TString SerializeYsonToJson(const INodePtr& ysonNode) const
+    static std::string ConvertToJson(const INodePtr& ysonNode)
     {
         TString result;
         TStringOutput resultOutput(result);
@@ -307,350 +666,330 @@ private:
         return result;
     }
 
-    THashMap<TString, TString> GetSparkConf() const
+    static void ValidateStatusCode(const NHttp::IResponsePtr& response, NHttp::EStatusCode expected)
     {
-        THashMap<TString, TString> sparkConf;
-        if (Settings_->SparkConf) {
-            sparkConf = ConvertTo<THashMap<TString, TString>>(TYsonString(Settings_->SparkConf.value()));
-            if (sparkConf.contains("spark.hadoop.yt.user") || sparkConf.contains("spark.hadoop.yt.token")) {
-                THROW_ERROR_EXCEPTION("Providing credentials is forbidden");
-            }
-        }
-        // COMPAT(alex-shishkin): Cluster >= 1.78.0 doesn't require client files.
-        auto clusterVersion = Discovery_->GetVersion();
-        if (clusterVersion && TSpytVersion(*clusterVersion) < TSpytVersion("1.78.0")) {
-            sparkConf["spark.yt.version"] = *clusterVersion;
-            auto extraJar = GetSpytFile(*clusterVersion, "spark-yt-data-source.jar");
-            auto jarsInsert = sparkConf.emplace("spark.yt.jars", extraJar).second;
-            if (!jarsInsert) {
-                THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.jars' is forbidden");
-            }
-            auto pyFilesInsert = sparkConf.emplace("spark.yt.pyFiles", GetSpytFile(*clusterVersion, "spyt.zip")).second;
-            if (!pyFilesInsert) {
-                THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.pyFiles' is forbidden");
-            }
-        }
-        // Dirty hack for absent scheme.
-        sparkConf.emplace("spark.hadoop.fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem");
-        sparkConf.emplace("spark.yt.log.enabled", "false");
-        YT_LOG_DEBUG("Session spark conf prepared (Data: %v)", sparkConf);
-        // Token insertion after data logging.
-        if (Token_) {
-            sparkConf.emplace("spark.hadoop.yt.user", User_);
-            sparkConf.emplace("spark.hadoop.yt.token", *Token_);
-            YT_LOG_DEBUG("Authetication information for user was inserted (User: %v)", User_);
-        }
-        return sparkConf;
-    }
-
-    TString MakeSessionStartQueryData() const
-    {
-        auto dataNode = BuildYsonNodeFluently()
-            .BeginMap()
-                .Item("kind").Value("spark")
-                .Item("proxyUser").Value(User_)
-                .Item("conf").Value(GetSparkConf())
-            .EndMap();
-        return SerializeYsonToJson(dataNode);
-    }
-
-    void StartSession(const TString& rootUrl)
-    {
-        auto data = MakeSessionStartQueryData();
-        auto body = TSharedRef::FromString(data);
-        auto rsp = WaitFor(HttpClient_->Post(rootUrl + "/sessions", body, Headers_))
-            .ValueOrThrow();
-        ValidateStatusCode(rsp, NHttp::EStatusCode::Created);
-        YT_LOG_DEBUG("Session creation response received (Headers: %v)", rsp->GetHeaders()->Dump());
-        SessionUrl_ = rootUrl + GetLocation(rsp);
-        YT_LOG_DEBUG("Session creation response parsed (Url: %v)", SessionUrl_);
-    }
-
-    void WaitSessionReady()
-    {
-        auto state = WaitSessionStatusChange(SessionUrl_, "starting");
-        if (!(state == "idle" || (state == "busy" && SessionReuse_))) {
+        if (response->GetStatusCode() != expected) {
             THROW_ERROR_EXCEPTION(
-                "Unexpected Livy session state: expected \"idle\" or \"busy\", found %Qv",
-                state);
+                "Unexpected HTTP status code from Spark Master: expected %Qlv, actual %Qlv",
+                expected,
+                response->GetStatusCode())
+                    << TErrorAttribute("response_body", response->ReadAll().ToStringBuf());
         }
     }
 
-    void CancelStatement() const
+    void UpdateFieldsFromResponse(const INodePtr& responseNode)
     {
-        if (!StatementUrl_.empty()) {
-            YT_LOG_DEBUG("Canceling statement");
-            auto data = TSharedRef::FromString("{}");
-            auto rsp = WaitFor(HttpClient_->Post(StatementUrl_ + "/cancel", data, Headers_))
-                .ValueOrThrow();
-            YT_LOG_DEBUG("Statement cancelation response received (Code: %v)", rsp->GetStatusCode());
-        }
+        auto responseMap = responseNode->AsMap();
+        GrpcEndpoint_ = responseMap->GetChildValueOrThrow<std::string>("endpoint");
+        DriverId_ = responseMap->GetChildValueOrThrow<std::string>("driverId");
     }
 
-    void CloseSession() const
+    void StopDriver(const std::string& driverId)
     {
-        if (!SessionUrl_.empty()) {
-            YT_LOG_DEBUG("Closing session");
-            auto rsp = WaitFor(HttpClient_->Delete(SessionUrl_, Headers_))
-                .ValueOrThrow();
-            YT_LOG_DEBUG("Session closing response received (Code: %v)", rsp->GetStatusCode());
-        }
+        YT_LOG_DEBUG("Stopping Spark connect driver operation (User: %v, DiscoveryPath: %v, DriverId: %v)",
+            User_,
+            Settings_->DiscoveryPath,
+            driverId);
+        auto response = WaitFor(HttpClient_->Post(SparkMasterKillDriverEndpoint_ + driverId, TSharedRef::MakeEmpty()))
+            .ValueOrThrow();
+        ValidateStatusCode(response, NHttp::EStatusCode::OK);
     }
+};
 
-    TString ConcatChunks(const std::vector<TString>& chunks) const
+////////////////////////////////////////////////////////////////////////////////
+
+class TSpytQueryHandler
+    : public TQueryHandlerBase
+{
+public:
+    TSpytQueryHandler(
+        const IClientPtr& stateClient,
+        const TYPath& stateRoot,
+        const IInvokerPtr& controlInvoker,
+        const TSpytEngineConfigPtr& config,
+        const TActiveQuery& activeQuery,
+        const TClusterDirectoryPtr& clusterDirectory,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        , Settings_(ConvertTo<TSpytSettingsPtr>(SettingsNode_))
+        , Config_(config)
+        , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
+        , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
+        , TargetClusterClient_(NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(activeQuery.User)))
+
+        , GrpcContext_(std::make_unique<grpc::ClientContext>())
     {
-        size_t summarySize = 0;
-        for (const auto& chunk : chunks) {
-            summarySize += chunk.size();
-        }
-        TString result;
-        result.reserve(summarySize);
-        for (const auto& chunk : chunks) {
-            result.append(chunk);
-        }
-        return result;
-    }
-
-    TSpytQueryResult ExtractTableBytes(const TString& queryResult) const
-    {
-        auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<std::string>();
-        YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
-
-        bool IsTruncated = encodedChunks[0] == "T";
-        std::vector<TString> tableChunks;
-        for (size_t i = 1; i < encodedChunks.size(); i++) {
-            tableChunks.push_back(Base64StrictDecode(encodedChunks[i]));
-        }
-
-        return {IsTruncated, TSharedRef::FromString(ConcatChunks(tableChunks))};
-    }
-
-    TString ParseQueryOutput(const IMapNodePtr& outputNode) const
-    {
-        auto status = outputNode->GetChildOrThrow("status")->AsString()->GetValue();
-        if (status == "ok") {
-            auto dataNode = outputNode->GetChildOrThrow("data")->AsMap();
-            return dataNode->GetChildValueOrThrow<TString>("text/plain");
-        } else if (status == "error") {
-            auto error = outputNode->GetChildValueOrThrow<TString>("evalue");
-            auto traceback = outputNode->GetChildValueOrThrow<std::vector<TString>>("traceback");
-            THROW_ERROR_EXCEPTION("Livy error: %v", error)
-                << TErrorAttribute("traceback", traceback);
+        if (Settings_->DiscoveryPath) {
+            ServerLauncher_ = New<TClusterConnectServerLauncher>(
+                config,
+                Settings_,
+                User_,
+                TargetClusterClient_,
+                Logger);
+            YT_LOG_DEBUG("Discovery path is set in settings, Spark inner cluster will be used (DiscoveryPath: %v)",
+                Settings_->DiscoveryPath);
         } else {
-            THROW_ERROR_EXCEPTION("Unknown Livy query status: %v", status);
+            ServerLauncher_ = New<TStandaloneConnectServerLauncher>(
+                config,
+                Settings_,
+                User_,
+                TargetClusterClient_,
+                Logger);
+            YT_LOG_DEBUG("Discovery path is not set, a separate operation for connect server will be launched or reused");
         }
     }
 
-    TString MakeStatementSubmitQueryData(const TString& sqlQuery) const
+    void Start() override
     {
-        TString paramsSetting;
-        for (const auto &[name, value] : Settings_->Params) {
-            paramsSetting.append(Format("spark.sql(\"set %v=%v\");", name, value));
-        }
-        auto code = Format(
-            "{"
-            " import tech.ytsaurus.spyt.serializers.GenericRowSerializer;"
-            " import java.util.Base64; import java.nio.charset.StandardCharsets.UTF_8;"
-            " %v"
-            " val query = new String(Base64.getDecoder().decode(\"%v\"), UTF_8);"
-            " val rowCountLimit = %v;"
-            " val df = spark.sql(query).limit(rowCountLimit + 1);"
-            " println(GenericRowSerializer.dfToYTFormatWithBase64(df, rowCountLimit).mkString(\"\\n\"))"
-            "}",
-            paramsSetting,
-            Base64Encode(sqlQuery),
-            Config_->RowCountLimit);
-        auto dataNode = BuildYsonNodeFluently()
-            .BeginMap()
-                .Item("code").Value(code)
-            .EndMap();
-        return SerializeYsonToJson(dataNode);
+        YT_LOG_DEBUG("Starting Spark connect query (Query: %v)",
+            Query_);
+        OnQueryStarted();
+        AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+        AsyncQueryResult_.Subscribe(BIND(&TSpytQueryHandler::OnSpytConnectResponse, MakeWeak(this))
+            .Via(GetCurrentInvoker()));
     }
 
-    void SubmitStatement(const TString& rootUrl, const TString& sqlQuery)
+    void Abort() override
     {
-        auto data = MakeStatementSubmitQueryData(sqlQuery);
-        YT_LOG_DEBUG("Statement data prepared (Data: %v)", data);
-        auto body = TSharedRef::FromString(data);
-        auto rsp = WaitFor(HttpClient_->Post(SessionUrl_ + "/statements", body, Headers_))
-            .ValueOrThrow();
-        ValidateStatusCode(rsp, NHttp::EStatusCode::Created);
-        YT_LOG_DEBUG("Statement submission response received (Headers: %v)", rsp->GetHeaders()->Dump());
-        StatementUrl_ = rootUrl + GetLocation(rsp);
-        YT_LOG_DEBUG("Statement submission response parsed (Url: %v)", StatementUrl_);
+        ServerLauncher_->Abort();
+        AsyncQueryResult_.Cancel(TError("Query aborted"));
+        // After Abort() call there is Detach() call always.
     }
 
-    TString WaitStatementFinished()
+    void Detach() override
     {
-        // Query may be in queue.
-        auto state = WaitStatementStatusChange(StatementUrl_, "waiting");
-        state = WaitStatementStatusChange(StatementUrl_, "running");
-        if (state != "available") {
-            THROW_ERROR_EXCEPTION(
-                "Unexpected Livy result state: expected \"available\", found %Qv",
-                state);
-        }
-        auto queryResult = ExecuteGetQuery(StatementUrl_);
-        auto outputNode = queryResult->AsMap()->GetChildOrThrow("output")->AsMap();
-        return ParseQueryOutput(outputNode);
+        YT_LOG_DEBUG("Detaching Spark connect query (User: %v)", User_);
+        AsyncQueryResult_.Cancel(TError("Query detached"));
+        CancelQuery();
+        ServerLauncher_->Detach();
     }
 
-    TString GetLivyServerUrl() const
-    {
-        YT_LOG_DEBUG("Listing livy discovery");
-        auto livyUrlOptional = Discovery_->GetLivyUrl();
-        if (!livyUrlOptional) {
-            THROW_ERROR_EXCEPTION(
-                "Livy address was not found in discovery. SPYT cluster must be started with '--enable-livy' option");
-        }
-        auto livyUrl = "http://" + *livyUrlOptional;
-        YT_LOG_DEBUG("Livy server url received (Url: %v)", livyUrl);
-        return livyUrl;
-    }
+private:
+    const TSpytSettingsPtr Settings_;
+    const TSpytEngineConfigPtr Config_;
+    const std::string Cluster_;
+    const NNative::IConnectionPtr NativeConnection_;
+    const NNative::IClientPtr TargetClusterClient_;
+    const std::unique_ptr<grpc::ClientContext> GrpcContext_;
 
-    std::optional<TString> IssueToken() const
+    IConnectServerLauncherPtr ServerLauncher_;
+    TFuture<TSpytQueryResult> AsyncQueryResult_;
+
+    std::string IssueToken() const
     {
         auto options = TIssueTemporaryTokenOptions{ .ExpirationTimeout = Config_->TokenExpirationTimeout };
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("query_id", QueryId_);
         attributes->Set("responsible", "query_tracker");
-        YT_LOG_DEBUG("Requesting token (User: %v)", User_);
-        auto rspOrError = WaitFor(QueryClient_->IssueTemporaryToken(User_, attributes, options));
-        if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG("Token request failed (User: %v)", User_);
-            return std::nullopt;
-        }
-        auto token = rspOrError.Value().Token;
-        YT_LOG_DEBUG("Token received (User: %v)", User_);
+        YT_LOG_DEBUG("Requesting token (User: %v)",
+            User_);
+        auto result = WaitFor(TargetClusterClient_->IssueTemporaryToken(User_, attributes, options))
+            .ValueOrThrow();
+        auto token = result.Token;
+        YT_LOG_DEBUG("Token received (User: %v)",
+            User_);
         return token;
     }
 
-    void RefreshToken() const
+    std::string PrepareSession()
     {
-        YT_VERIFY(Token_);
-        YT_LOG_DEBUG("Refreshing token (User: %v)", User_);
-        auto rspOrError = WaitFor(QueryClient_->RefreshTemporaryToken(User_, *Token_, {}));
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING("Token refreshing failed (User: %v)", User_);
-        } else {
-            YT_LOG_DEBUG("Token refreshed (User: %v)", User_);
-        }
-    }
-
-    void UpdateMasterWebUIUrl()
-    {
-        YT_LOG_DEBUG("Listing webui discovery");
-        auto url = Discovery_->GetMasterWebUIUrl();
-        YT_LOG_DEBUG("Master webui url received (Url: %v)", url);
-        if (url) {
-            MasterWebUI_ = "http://" + *url;
-        }
-    }
-
-    // Try to initialize SessionUrl_ and Token_ by existing session.
-    bool TryConnectToExistingSession(const TString& rootUrl)
-    {
-        auto dataNode = BuildYsonNodeFluently().BeginMap().Item("proxyUser").Value(User_).EndMap();
-        auto body = TSharedRef::FromString(SerializeYsonToJson(dataNode));
-        auto rsp = WaitFor(HttpClient_->Post(rootUrl + "/sessions/find-by-user", body, Headers_))
-            .ValueOrThrow();
-        YT_LOG_DEBUG("Session search response received (Headers: %v)", rsp->GetHeaders()->Dump());
-        if (rsp->GetStatusCode() == NHttp::EStatusCode::OK) {
-            auto sessionUrl = rootUrl + GetLocation(rsp);
-            // NB(alex-shishkin): Session data contains sensetive data.
-            auto jsonRoot = ParseJson(rsp->ReadAll())->AsMap();
-            auto token = jsonRoot->GetChildOrThrow("conf")->AsMap()->FindChildValue<TString>("spark.hadoop.yt.token");
-            SessionUrl_ = sessionUrl;
-            Token_ = token;
-            YT_LOG_DEBUG("Existing session parsed (Url: %v)", SessionUrl_);
-            return true;
-        } else if (rsp->GetStatusCode() == NHttp::EStatusCode::NotFound) {
-            YT_LOG_DEBUG("Existing session was not found");
-            return false;
-        } else if (rsp->GetStatusCode() == NHttp::EStatusCode::MethodNotAllowed) {
-            YT_LOG_DEBUG("Livy server doesn't support 'find-by-user' endpoint");
-            return false;
-        } else {
-            THROW_ERROR_EXCEPTION(
-                "Unexpected session search status code: %Qv",
-                rsp->GetStatusCode())
-                    << TErrorAttribute("response_body", rsp->ReadAll().ToStringBuf());
-        }
-    }
-
-    void PrepareSession(const TString& rootUrl)
-    {
-        if (SessionReuse_ && TryConnectToExistingSession(rootUrl)) {
-            YT_LOG_DEBUG("Reusing old session");
-        } else {
+        if (!ServerLauncher_->TryConnectToExistingSession()) {
             try {
                 YT_LOG_DEBUG("Starting session");
-                Token_ = IssueToken();
-                StartSession(rootUrl);  // Session URL stores to the class field
-                WaitSessionReady();
+                auto token = IssueToken();
+                ServerLauncher_->StartDriver(token);
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Caught error while preparing session");
-                CloseSession();
+                YT_LOG_ERROR(ex, "Caught error while preparing session");
                 throw;
             }
         }
-        if (Token_) {
-            RefreshTokenExecutor_->Start();
-        }
+        return ServerLauncher_->WaitForSparkConnectEndpoint();
     }
 
-    void FreeResources()
+    TSpytQueryResult SubmitQuery(const TString& endpoint)
     {
-        if (SessionReuse_) {
-            CancelStatement();
-        } else {
-            CloseSession();
+        auto sessionId = ServerLauncher_->GetSessionId();
+        ExecutePlanRequest request;
+        request.set_client_type("YTsaurus Query Tracker");
+        request.set_session_id(sessionId);
+        auto user_context = request.mutable_user_context();
+        user_context->set_user_id(User_);
+        user_context->set_user_name(User_);
+
+        auto limit = request.mutable_plan()->mutable_root()->mutable_limit();
+        limit->set_limit(Config_->RowCountLimit + 1);
+        auto sql = limit->mutable_input()->mutable_sql();
+        sql->set_query(Query_);
+        auto sqlArgs = sql->mutable_args();
+
+        for (const auto &[name, value] : Settings_->Params) {
+            Expression_Literal valueLiteral;
+            valueLiteral.set_string(value);
+            sqlArgs->emplace(std::move(name), std::move(valueLiteral));
         }
+
+        YT_LOG_DEBUG("Created gRPC request for executing a plan (ExecutePlanRequest: %v)",
+            request.DebugString());
+
+        auto channel = grpc::CreateChannel(endpoint, grpc::InsecureChannelCredentials());
+        auto service = SparkConnectService::NewStub(channel);
+
+        auto responseReader = service->ExecutePlan(GrpcContext_.get(), request);
+        ExecutePlanResponse responsePart;
+        i64 rowCount = 0;
+        std::vector<TString> arrowData;
+        std::optional<TArrowSchemaPtr> arrowSchema;
+        while (responseReader->Read(&responsePart)) {
+            if (responsePart.has_arrow_batch()) {
+                auto data = responsePart.arrow_batch().Getdata();
+                arrowData.push_back(data);
+                rowCount += responsePart.arrow_batch().Getrow_count();
+                if (!arrowSchema) {
+                    std::string strData = data;
+                    auto buf = std::make_shared<arrow20::Buffer>(strData);
+                    arrow20::io::BufferReader arrowBufferReader{buf};
+                    auto ipcReaderResult = arrow20::ipc::RecordBatchStreamReader::Open(&arrowBufferReader);
+                    if (ipcReaderResult.ok()) {
+                        auto ipcReader = ipcReaderResult.ValueOrDie();
+                        arrowSchema = ipcReader->schema();
+                    } else {
+                        THROW_ERROR_EXCEPTION("An error has occured during arrow schema reading")
+                            << TErrorAttribute("error", ipcReaderResult.status().ToString());
+                    }
+                }
+            }
+        }
+
+        auto status = responseReader->Finish();
+
+        if (!status.ok()) {
+            THROW_ERROR_EXCEPTION("gRPC request failed")
+                << TErrorAttribute("status", static_cast<i32>(status.error_code()))
+                << TErrorAttribute("message", status.error_message());
+        }
+
+        if (!arrowSchema) {
+            THROW_ERROR_EXCEPTION("Result does not contain a schema, probably there was an error");
+        }
+
+        return TSpytQueryResult{
+            .IsTruncated = rowCount > Config_->RowCountLimit,
+            .ArrowSchema = *arrowSchema,
+            .ArrowData = std::move(arrowData)
+        };
     }
 
-    void StopBackgroundExecutors()
+    void CancelQuery()
     {
-        StopProgressWriter();
-        YT_UNUSED_FUTURE(RefreshTokenExecutor_->Stop());
+        YT_LOG_DEBUG("Cancelling gRPC request for query");
+        GrpcContext_->TryCancel();
     }
 
     TSpytQueryResult Execute()
     {
-        UpdateMasterWebUIUrl();
-        SetProgress(0.0, std::nullopt);
-        auto rootUrl = GetLivyServerUrl();
+        TString endpoint = PrepareSession();
         try {
-            PrepareSession(rootUrl);
-            YT_LOG_DEBUG("Session is ready, submitting statement (SessionUrl: %v)", SessionUrl_);
-            SubmitStatement(rootUrl, Query_);
-            auto queryResult = WaitStatementFinished();
-            YT_LOG_DEBUG("Query finished");
-            FreeResources();
-            return ExtractTableBytes(queryResult);
+            return SubmitQuery(endpoint);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Caught error while executing query");
-            FreeResources();
             throw;
         }
     }
 
-    void OnSpytResponse(const TErrorOr<TSpytQueryResult>& queryResultOrError)
+    void OnSpytConnectResponse(const TErrorOr<TSpytQueryResult>& queryResultOrError)
     {
-        StopBackgroundExecutors();
-        if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
-            return;
-        }
         if (!queryResultOrError.IsOK()) {
             OnQueryFailed(queryResultOrError);
             return;
         }
+
         auto result = queryResultOrError.Value();
-        OnQueryCompletedWire({TWireRowset{
-            .Rowset = result.WireData,
+
+        auto tableSchema = CreateYTTableSchemaFromArrowSchema(result.ArrowSchema);
+
+        TBuildingValueConsumer valueConsumer(tableSchema, Logger, true);
+        auto parser = CreateParserForArrow(&valueConsumer);
+        YT_LOG_DEBUG("Processing response arrow batches (ArrowBatchesNum: %v)",
+            result.ArrowData.size());
+        for (size_t i = 0; i < result.ArrowData.size(); i++) {
+            parser->Read(result.ArrowData[i]);
+        }
+        parser->Finish();
+
+        std::vector<TUnversionedRow> rows = valueConsumer.GetRows();
+        if (std::ssize(rows) > Config_->RowCountLimit) {
+            rows.pop_back();
+        }
+
+        OnQueryCompleted({TRowset{
+            .Rowset = CreateRowset(valueConsumer.GetSchema(), MakeSharedRange(rows)),
             .IsTruncated = result.IsTruncated,
         }});
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProxySpytEngineProvider
+    : public IProxyEngineProvider
+{
+public:
+    TProxySpytEngineProvider(IClientPtr stateClient)
+        : StateClient_(std::move(stateClient))
+    { }
+
+    TYsonString GetEngineInfo([[maybe_unused]] IMapNodePtr settingsMap) override
+    {
+        return EngineInfo_;
+    }
+
+    TYsonString GetDeclaredParametersInfo([[maybe_unused]] const std::string& query,[[maybe_unused]] const TYsonString& settings) override
+    {
+        return TYsonString();
+    }
+
+    void Reconfigure(const TSpytProxyConfigPtr& config)
+    {
+        std::vector<std::string> clustersWithSpyt;
+        auto spytDistribExists = WaitFor(StateClient_->NodeExists("//home/spark"))
+            .ValueOrThrow();
+        if (spytDistribExists) {
+            auto stateClusterName = WaitFor(StateClient_->GetClusterName())
+                .ValueOrThrow();
+            if (stateClusterName) {
+                clustersWithSpyt.push_back(*stateClusterName);
+            }
+        }
+        clustersWithSpyt.reserve(clustersWithSpyt.size() + config->Clusters.size());
+        clustersWithSpyt.insert(
+            clustersWithSpyt.end(),
+            config->Clusters.begin(),
+            config->Clusters.end());
+
+        if (!clustersWithSpyt.empty()) {
+            EngineInfo_ = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("clusters").DoListFor(clustersWithSpyt, [&] (auto fluent, auto item) {
+                        fluent.Item().Value(item);
+                    })
+                    .Item("default_settings").Value(config->DefaultSettings)
+                .EndMap();
+        } else {
+            EngineInfo_ = TYsonString();
+        }
+    }
+
+private:
+    const IClientPtr StateClient_;
+    TYsonString EngineInfo_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxySpytEngineProvider);
+DECLARE_REFCOUNTED_CLASS(TProxySpytEngineProvider);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSpytEngine
     : public IQueryEngine
@@ -659,39 +998,53 @@ public:
     TSpytEngine(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
-        , ControlQueue_(New<TActionQueue>("SpytEngineControl"))
+        , ControlQueue_(New<TActionQueue>("SpytConnectEngineControl"))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
-        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
+        , ProxyEngineProvider_(New<TProxySpytEngineProvider>(StateClient_))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartOrAttachQuery(TActiveQuery activeQuery) override
     {
+        if (Config_->SparkVersion.empty() || !Config_->SparkVersion.starts_with("3.5")) {
+            THROW_ERROR_EXCEPTION("Spark version should not be empty, and only 3.5.x is supported");
+        }
+        if (Config_->SpytVersion.empty()) {
+            THROW_ERROR_EXCEPTION("SPYT version should not be empty");
+        }
         return New<TSpytQueryHandler>(
             StateClient_,
             StateRoot_,
+            ControlQueue_->GetInvoker(),
             Config_,
-            ChannelFactory_,
             activeQuery,
             ClusterDirectory_,
-            ControlQueue_->GetInvoker(),
-            NotIndexedQueriesTTL_);
+            NotIndexedQueriesTtl_);
     }
 
     void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TSpytEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
+        NotIndexedQueriesTtl_ = notIndexedQueriesTTL;
+        ProxyEngineProvider_->Reconfigure(Config_->ProxyConfig);
+    }
+
+    std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
+    {
+        return ProxyEngineProvider_;
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
-    const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
-    const IChannelFactoryPtr ChannelFactory_;
+    const TClusterDirectoryPtr ClusterDirectory_;
+    const TProxySpytEngineProviderPtr ProxyEngineProvider_;
+    TDuration NotIndexedQueriesTtl_;
+
     TSpytEngineConfigPtr Config_;
-    TDuration NotIndexedQueriesTTL_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)
 {

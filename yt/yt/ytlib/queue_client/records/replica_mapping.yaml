@@ -1,0 +1,27 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TReplicaMapping
+    descriptor_verbatim: static constexpr TStringBuf Name = "replica_mapping";
+    add_empty_field: True
+    fields:
+      - cpp_name: ReplicaList
+        cpp_type: std::string
+        column_name: replica_list
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Cluster
+        cpp_type: std::string
+        column_name: cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Path
+        cpp_type: NYPath::TYPath
+        column_name: path
+        column_type: String
+        sort_order: Ascending
+        required: True

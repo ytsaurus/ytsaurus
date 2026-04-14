@@ -1,12 +1,16 @@
 #include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NObjectClient {
 namespace {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +84,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         EXPECT_FALSE(cookie2.IsActive());
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
         EXPECT_TRUE(cookie2.GetValue().IsSet());
-        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().Get().Value()->GetResponseMessage()));
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, WaitForFast(cookie2.GetValue()).Value()->GetResponseMessage()));
     }
 
     NConcurrency::TDelayedExecutor::WaitForDuration(5 * expirationTime);
@@ -174,7 +178,7 @@ TEST(TObjectServiceCacheTest, TestStaleError)
         EXPECT_FALSE(cookie2.IsActive());
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
         EXPECT_TRUE(cookie2.GetValue().IsSet());
-        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().Get().Value()->GetResponseMessage()));
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, WaitForFast(cookie2.GetValue()).Value()->GetResponseMessage()));
     }
 
     NConcurrency::TDelayedExecutor::WaitForDuration(5 * expirationTime);

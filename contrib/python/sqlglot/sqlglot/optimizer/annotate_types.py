@@ -30,6 +30,15 @@ if t.TYPE_CHECKING:
 
 logger = logging.getLogger("sqlglot")
 
+# EXTRACT/DATE_PART specifiers that return BIGINT instead of INT
+BIGINT_EXTRACT_DATE_PARTS = {
+    "EPOCH_SECOND",
+    "EPOCH_MILLISECOND",
+    "EPOCH_MICROSECOND",
+    "EPOCH_NANOSECOND",
+    "NANOSECOND",
+}
+
 
 def annotate_types(
     expression: E,
@@ -120,6 +129,7 @@ class _TypeAnnotator(type):
             exp.DataType.Type.DECFLOAT,
             exp.DataType.Type.DOUBLE,
             exp.DataType.Type.FLOAT,
+            exp.DataType.Type.BIGDECIMAL,
             exp.DataType.Type.DECIMAL,
             exp.DataType.Type.BIGINT,
             exp.DataType.Type.INT,
@@ -212,10 +222,14 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         # When set to False, this enables partial annotation by skipping already-annotated nodes
         self._overwrite_types = overwrite_types
 
+        # Maps Scope to its corresponding selected sources
+        self._scope_selects: t.Dict[Scope, t.Dict[str, t.Dict[str, t.Any]]] = {}
+
     def clear(self) -> None:
         self._visited.clear()
         self._null_expressions.clear()
         self._setop_column_types.clear()
+        self._scope_selects.clear()
 
     def _set_type(
         self, expression: E, target_type: t.Optional[exp.DataType | exp.DataType.Type]
@@ -234,20 +248,6 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         elif prev_type and t.cast(exp.DataType, prev_type).this == exp.DataType.Type.NULL:
             self._null_expressions.pop(expression_id, None)
 
-        if (
-            isinstance(expression, exp.Column)
-            and expression.is_type(exp.DataType.Type.JSON)
-            and (dot_parts := expression.meta.get("dot_parts"))
-        ):
-            # JSON dot access is case sensitive across all dialects, so we need to undo the normalization.
-            i = iter(dot_parts)
-            parent = expression.parent
-            while isinstance(parent, exp.Dot):
-                parent.expression.set("this", exp.to_identifier(next(i), quoted=True))
-                parent = parent.parent
-
-            expression.meta.pop("dot_parts", None)
-
         return expression
 
     def annotate(self, expression: E, annotate_scope: bool = True) -> E:
@@ -260,80 +260,65 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         # This takes care of non-traversable expressions
         self._annotate_expression(expression)
 
-        # Replace NULL type with UNKNOWN, since the former is not an actual type;
+        # Replace NULL type with the default type of the targeted dialect, since the former is not an actual type;
         # it is mostly used to aid type coercion, e.g. in query set operations.
         for expr in self._null_expressions.values():
-            expr.type = exp.DataType.Type.UNKNOWN
+            expr.type = self.dialect.DEFAULT_NULL_TYPE
 
         return expression
 
-    def annotate_scope(self, scope: Scope) -> None:
-        selects = {}
-        for name, source in scope.sources.items():
-            if not isinstance(source, Scope):
-                continue
-
-            expression = source.expression
-            if isinstance(expression, exp.UDTF):
-                values = []
-
-                if isinstance(expression, exp.Lateral):
-                    if isinstance(expression.this, exp.Explode):
-                        values = [expression.this.this]
-                elif isinstance(expression, exp.Unnest):
-                    values = [expression]
-                elif not isinstance(expression, exp.TableFromRows):
-                    values = expression.expressions[0].expressions
-
-                if not values:
+    def _get_scope_selects(self, scope: Scope) -> t.Dict[str, t.Dict[str, t.Any]]:
+        if scope not in self._scope_selects:
+            selects = {}
+            for name, source in scope.sources.items():
+                if not isinstance(source, Scope):
                     continue
 
-                selects[name] = {
-                    alias: column.type
-                    for alias, column in zip(expression.alias_column_names, values)
-                }
-            elif isinstance(expression, exp.SetOperation) and len(expression.left.selects) == len(
-                expression.right.selects
-            ):
-                selects[name] = col_types = self._setop_column_types.setdefault(id(expression), {})
+                expression = source.expression
+                if isinstance(expression, exp.UDTF):
+                    values = []
 
-                if not col_types:
-                    # Process a chain / sub-tree of set operations
-                    for set_op in expression.walk(
-                        prune=lambda n: not isinstance(n, (exp.SetOperation, exp.Subquery))
+                    if isinstance(expression, exp.Lateral):
+                        if isinstance(expression.this, exp.Explode):
+                            values = [expression.this.this]
+                    elif isinstance(expression, exp.Unnest):
+                        values = [expression]
+                    elif not isinstance(expression, exp.TableFromRows):
+                        values = expression.expressions[0].expressions
+
+                    if not values:
+                        continue
+
+                    alias_column_names = expression.alias_column_names
+
+                    if (
+                        isinstance(expression, exp.Unnest)
+                        and expression.type
+                        and expression.type.is_type(exp.DataType.Type.STRUCT)
                     ):
-                        if not isinstance(set_op, exp.SetOperation):
-                            continue
-
-                        if set_op.args.get("by_name"):
-                            r_type_by_select = {
-                                s.alias_or_name: s.type for s in set_op.right.selects
-                            }
-                            setop_cols = {
-                                s.alias_or_name: self._maybe_coerce(
-                                    t.cast(exp.DataType, s.type),
-                                    r_type_by_select.get(s.alias_or_name)
-                                    or exp.DataType.Type.UNKNOWN,
-                                )
-                                for s in set_op.left.selects
-                            }
-                        else:
-                            setop_cols = {
-                                ls.alias_or_name: self._maybe_coerce(
-                                    t.cast(exp.DataType, ls.type), t.cast(exp.DataType, rs.type)
-                                )
-                                for ls, rs in zip(set_op.left.selects, set_op.right.selects)
-                            }
-
-                        # Coerce intermediate results with the previously registered types, if they exist
-                        for col_name, col_type in setop_cols.items():
-                            col_types[col_name] = self._maybe_coerce(
-                                col_type, col_types.get(col_name, exp.DataType.Type.NULL)
+                        selects[name] = {
+                            col_def.name: t.cast(
+                                t.Union[exp.DataType, exp.DataType.Type], col_def.kind
                             )
+                            for col_def in expression.type.expressions
+                            if isinstance(col_def, exp.ColumnDef) and col_def.kind
+                        }
+                    else:
+                        selects[name] = {
+                            alias: column.type for alias, column in zip(alias_column_names, values)
+                        }
+                elif isinstance(expression, exp.SetOperation) and len(
+                    expression.left.selects
+                ) == len(expression.right.selects):
+                    selects[name] = self._get_setop_column_types(expression)
+                else:
+                    selects[name] = {s.alias_or_name: s.type for s in expression.selects}
 
-            else:
-                selects[name] = {s.alias_or_name: s.type for s in expression.selects}
+            self._scope_selects[scope] = selects
 
+        return self._scope_selects[scope]
+
+    def annotate_scope(self, scope: Scope) -> None:
         if isinstance(self.schema, MappingSchema):
             for table_column in scope.table_columns:
                 source = scope.sources.get(table_column.name)
@@ -364,7 +349,7 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
                     self._set_type(table_column, source.expression.meta["query_type"])
 
         # Iterate through all the expressions of the current scope in post-order, and annotate
-        self._annotate_expression(scope.expression, scope, selects)
+        self._annotate_expression(scope.expression, scope)
 
         if self.dialect.QUERY_RESULTS_ARE_STRUCTS and isinstance(scope.expression, exp.Query):
             struct_type = exp.DataType(
@@ -393,10 +378,8 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         self,
         expression: exp.Expression,
         scope: t.Optional[Scope] = None,
-        selects: t.Optional[t.Dict[str, t.Dict[str, t.Any]]] = None,
     ) -> None:
         stack = [(expression, False)]
-        selects = selects or {}
 
         while stack:
             expr, children_annotated = stack.pop()
@@ -415,18 +398,39 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
                 continue
 
             if scope and isinstance(expr, exp.Column) and expr.table:
-                source = scope.sources.get(expr.table)
+                source = None
+                source_scope = scope
+                while source_scope and not source:
+                    source = source_scope.sources.get(expr.table)
+                    if not source:
+                        source_scope = source_scope.parent
+
                 if isinstance(source, exp.Table):
                     self._set_type(expr, self.schema.get_column_type(source, expr))
                 elif source:
-                    if expr.table in selects and expr.name in selects[expr.table]:
-                        self._set_type(expr, selects[expr.table][expr.name])
+                    col_type = (
+                        self._get_scope_selects(source_scope).get(expr.table, {}).get(expr.name)
+                    )
+                    if col_type:
+                        self._set_type(expr, col_type)
                     elif isinstance(source.expression, exp.Unnest):
                         self._set_type(expr, source.expression.type)
                     else:
                         self._set_type(expr, exp.DataType.Type.UNKNOWN)
                 else:
                     self._set_type(expr, exp.DataType.Type.UNKNOWN)
+
+                if expr.is_type(exp.DataType.Type.JSON) and (
+                    dot_parts := expr.meta.get("dot_parts")
+                ):
+                    # JSON dot access is case sensitive across all dialects, so we need to undo the normalization.
+                    i = iter(dot_parts)
+                    parent = expr.parent
+                    while isinstance(parent, exp.Dot):
+                        parent.expression.replace(exp.to_identifier(next(i), quoted=True))
+                        parent = parent.parent
+
+                    expr.meta.pop("dot_parts", None)
 
                 if expr.type and expr.type.args.get("nullable") is False:
                     expr.meta["nonnull"] = True
@@ -477,6 +481,69 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
 
         return type2_value if type2_value in self.coerces_to.get(type1_value, {}) else type1_value
 
+    def _get_setop_column_types(
+        self, setop: exp.SetOperation
+    ) -> t.Dict[str, exp.DataType | exp.DataType.Type]:
+        """
+        Computes and returns the coerced column types for a SetOperation.
+
+        This handles UNION, INTERSECT, EXCEPT, etc., coercing types across
+        left and right operands for all projections/columns.
+
+        Args:
+            setop: The SetOperation expression to analyze
+
+        Returns:
+            Dictionary mapping column names to their coerced types
+        """
+        setop_id = id(setop)
+        if setop_id in self._setop_column_types:
+            return self._setop_column_types[setop_id]
+
+        col_types: t.Dict[str, exp.DataType | exp.DataType.Type] = {}
+
+        # Validate that left and right have same number of projections
+        if not (
+            isinstance(setop, exp.SetOperation)
+            and setop.left.selects
+            and setop.right.selects
+            and len(setop.left.selects) == len(setop.right.selects)
+        ):
+            return col_types
+
+        # Process a chain / sub-tree of set operations
+        for set_op in setop.walk(
+            prune=lambda n: not isinstance(n, (exp.SetOperation, exp.Subquery))
+        ):
+            if not isinstance(set_op, exp.SetOperation):
+                continue
+
+            if set_op.args.get("by_name"):
+                r_type_by_select = {s.alias_or_name: s.type for s in set_op.right.selects}
+                setop_cols = {
+                    s.alias_or_name: self._maybe_coerce(
+                        t.cast(exp.DataType, s.type),
+                        r_type_by_select.get(s.alias_or_name) or exp.DataType.Type.UNKNOWN,
+                    )
+                    for s in set_op.left.selects
+                }
+            else:
+                setop_cols = {
+                    ls.alias_or_name: self._maybe_coerce(
+                        t.cast(exp.DataType, ls.type), t.cast(exp.DataType, rs.type)
+                    )
+                    for ls, rs in zip(set_op.left.selects, set_op.right.selects)
+                }
+
+            # Coerce intermediate results with the previously registered types, if they exist
+            for col_name, col_type in setop_cols.items():
+                col_types[col_name] = self._maybe_coerce(
+                    col_type, col_types.get(col_name, exp.DataType.Type.NULL)
+                )
+
+        self._setop_column_types[setop_id] = col_types
+        return col_types
+
     def _annotate_binary(self, expression: B) -> B:
         left, right = expression.left, expression.right
         if not left or not right:
@@ -492,7 +559,7 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         elif (left_type, right_type) in self.binary_coercions:
             self._set_type(expression, self.binary_coercions[(left_type, right_type)](left, right))
         else:
-            self._set_type(expression, self._maybe_coerce(left_type, right_type))
+            self._annotate_by_args(expression, left, right)
 
         if isinstance(expression, exp.Is) or (
             left.meta.get("nonnull") is True and right.meta.get("nonnull") is True
@@ -528,28 +595,64 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
     def _annotate_by_args(
         self,
         expression: E,
-        *args: str,
+        *args: str | exp.Expression,
         promote: bool = False,
         array: bool = False,
     ) -> E:
-        expressions: t.List[exp.Expression] = []
+        literal_type = None
+        non_literal_type = None
+        nested_type = None
+
         for arg in args:
-            arg_expr = expression.args.get(arg)
-            expressions.extend(expr for expr in ensure_list(arg_expr) if expr)
+            if isinstance(arg, str):
+                expressions = expression.args.get(arg)
+            else:
+                expressions = arg
 
-        last_datatype = None
-        for expr in expressions:
-            expr_type = expr.type
+            for expr in ensure_list(expressions):
+                expr_type = expr.type
 
-            # Stop at the first nested data type found - we don't want to _maybe_coerce nested types
-            if expr_type.args.get("nested"):
-                last_datatype = expr_type
+                # Stop at the first nested data type found - we don't want to _maybe_coerce nested types
+                if expr_type.args.get("nested"):
+                    nested_type = expr_type
+                    break
+
+                if isinstance(expr, exp.Literal):
+                    literal_type = self._maybe_coerce(literal_type or expr_type, expr_type)
+                else:
+                    non_literal_type = self._maybe_coerce(non_literal_type or expr_type, expr_type)
+
+            if nested_type:
                 break
 
-            if not expr_type.is_type(exp.DataType.Type.UNKNOWN):
-                last_datatype = self._maybe_coerce(last_datatype or expr_type, expr_type)
+        result_type = None
 
-        self._set_type(expression, last_datatype)
+        if nested_type:
+            result_type = nested_type
+        elif literal_type and non_literal_type:
+            if self.dialect.PRIORITIZE_NON_LITERAL_TYPES:
+                literal_this_type = (
+                    literal_type.this if isinstance(literal_type, exp.DataType) else literal_type
+                )
+                non_literal_this_type = (
+                    non_literal_type.this
+                    if isinstance(non_literal_type, exp.DataType)
+                    else non_literal_type
+                )
+                if (
+                    literal_this_type in exp.DataType.INTEGER_TYPES
+                    and non_literal_this_type in exp.DataType.INTEGER_TYPES
+                ) or (
+                    literal_this_type in exp.DataType.REAL_TYPES
+                    and non_literal_this_type in exp.DataType.REAL_TYPES
+                ):
+                    result_type = non_literal_type
+        else:
+            result_type = literal_type or non_literal_type or exp.DataType.Type.UNKNOWN
+
+        self._set_type(
+            expression, result_type or self._maybe_coerce(non_literal_type, literal_type)
+        )
 
         if promote:
             if expression.type.this in exp.DataType.INTEGER_TYPES:
@@ -617,6 +720,12 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
 
     def _annotate_dot(self, expression: exp.Dot) -> exp.Dot:
         self._set_type(expression, None)
+
+        # Propagate type from qualified UDF calls (e.g., db.my_udf(...))
+        if isinstance(expression.expression, exp.Anonymous):
+            self._set_type(expression, expression.expression.type)
+            return expression
+
         this_type = expression.this.type
 
         if this_type and this_type.is_type(exp.DataType.Type.STRUCT):
@@ -642,31 +751,59 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         self._set_type(expression, expr_type)
         return expression
 
+    def _annotate_subquery(self, expression: exp.Subquery) -> exp.Subquery:
+        # For scalar subqueries (subqueries with a single projection), infer the type
+        # from that single projection. This allows type propagation in cases like:
+        # SELECT (SELECT 1 AS c) AS c
+        query = expression.unnest()
+
+        if isinstance(query, exp.Query):
+            selects = query.selects
+            if len(selects) == 1:
+                self._set_type(expression, selects[0].type)
+                return expression
+
+        self._set_type(expression, exp.DataType.Type.UNKNOWN)
+        return expression
+
     def _annotate_struct_value(
         self, expression: exp.Expression
     ) -> t.Optional[exp.DataType] | exp.ColumnDef:
         # Case: STRUCT(key AS value)
+        this: t.Optional[exp.Expression] = None
+        kind = expression.type
+
         if alias := expression.args.get("alias"):
-            return exp.ColumnDef(this=alias.copy(), kind=expression.type)
+            this = alias.copy()
+        elif expression.expression:
+            # Case: STRUCT(key = value) or STRUCT(key := value)
+            this = expression.this.copy()
+            kind = expression.expression.type
+        elif isinstance(expression, exp.Column):
+            # Case: STRUCT(c)
+            this = expression.this.copy()
 
-        # Case: STRUCT(key = value) or STRUCT(key := value)
-        if expression.expression:
-            return exp.ColumnDef(this=expression.this.copy(), kind=expression.expression.type)
+        if kind and kind.is_type(exp.DataType.Type.UNKNOWN):
+            return None
 
-        # Case: STRUCT(c)
-        if isinstance(expression, exp.Column):
-            return exp.ColumnDef(this=expression.this.copy(), kind=expression.type)
+        if this:
+            return exp.ColumnDef(this=this, kind=kind)
 
-        return expression.type
+        return kind
 
     def _annotate_struct(self, expression: exp.Struct) -> exp.Struct:
+        expressions = []
+        for expr in expression.expressions:
+            struct_field_type = self._annotate_struct_value(expr)
+            if struct_field_type is None:
+                self._set_type(expression, None)
+                return expression
+
+            expressions.append(struct_field_type)
+
         self._set_type(
             expression,
-            exp.DataType(
-                this=exp.DataType.Type.STRUCT,
-                expressions=[self._annotate_struct_value(expr) for expr in expression.expressions],
-                nested=True,
-            ),
+            exp.DataType(this=exp.DataType.Type.STRUCT, expressions=expressions, nested=True),
         )
         return expression
 
@@ -712,6 +849,8 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
             self._set_type(expression, exp.DataType.Type.TIME)
         elif part == "DATE":
             self._set_type(expression, exp.DataType.Type.DATE)
+        elif part in BIGINT_EXTRACT_DATE_PARTS:
+            self._set_type(expression, exp.DataType.Type.BIGINT)
         else:
             self._set_type(expression, exp.DataType.Type.INT)
         return expression

@@ -1,5 +1,5 @@
-#include "kqp_proxy_service.h"
 #include "kqp_proxy_service_impl.h"
+#include "kqp_proxy_service.h"
 #include "kqp_script_executions.h"
 
 #include <contrib/ydb/core/actorlib_impl/long_timer.h>
@@ -18,11 +18,13 @@
 #include <contrib/ydb/core/kqp/common/kqp_lwtrace_probes.h>
 #include <contrib/ydb/core/kqp/common/kqp_timeouts.h>
 #include <contrib/ydb/core/kqp/compile_service/kqp_compile_service.h>
+#include <contrib/ydb/core/kqp/compile_service/kqp_warmup_compile_actor.h>
 #include <contrib/ydb/core/kqp/compute_actor/kqp_compute_actor.h>
 #include <contrib/ydb/core/kqp/counters/kqp_counters.h>
 #include <contrib/ydb/core/kqp/executer_actor/kqp_executer.h>
 #include <contrib/ydb/core/kqp/gateway/behaviour/streaming_query/behaviour.h>
 #include <contrib/ydb/core/kqp/node_service/kqp_node_service.h>
+#include <contrib/ydb/core/kqp/proxy_service/kqp_query_text_cache_service.h>
 #include <contrib/ydb/core/kqp/session_actor/kqp_worker_common.h>
 #include <contrib/ydb/core/kqp/workload_service/kqp_workload_service.h>
 #include <contrib/ydb/core/mon/mon.h>
@@ -32,6 +34,15 @@
 #include <contrib/ydb/core/sys_view/common/registry.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>
 #include <contrib/ydb/core/ydb_convert/ydb_convert.h>
+#include <contrib/ydb/core/fq/libs/checkpoint_storage/storage_service.h>
+#include <contrib/ydb/core/fq/libs/row_dispatcher/events/data_plane.h>
+#include <contrib/ydb/core/fq/libs/row_dispatcher/row_dispatcher_service.h>
+
+#include <contrib/ydb/library/yql/dq/runtime/dq_channel_service.h>
+#include <contrib/ydb/library/yql/utils/actor_log/log.h>
+#include <yql/essentials/core/services/mounts/yql_mounts.h>
+#include <contrib/ydb/library/yql/providers/common/http_gateway/yql_http_gateway.h>
+
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/core/interconnect.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
@@ -186,6 +197,7 @@ public:
     TKqpProxyService(const NKikimrConfig::TLogConfig& logConfig,
         const NKikimrConfig::TTableServiceConfig& tableServiceConfig,
         const NKikimrConfig::TQueryServiceConfig& queryServiceConfig,
+        const NKikimrConfig::TTliConfig& tliConfig,
         TVector<NKikimrKqp::TKqpSetting>&& settings,
         std::shared_ptr<IQueryReplayBackendFactory> queryReplayFactory,
         std::shared_ptr<TKqpProxySharedResources>&& kqpProxySharedResources,
@@ -194,6 +206,7 @@ public:
         ): LogConfig(logConfig)
         , TableServiceConfig(tableServiceConfig)
         , QueryServiceConfig(queryServiceConfig)
+        , TliConfig(tliConfig)
         , FeatureFlags()
         , WorkloadManagerConfig()
         , KqpSettings(std::make_shared<const TKqpSettings>(std::move(settings)))
@@ -219,6 +232,7 @@ public:
         LocalSessions = std::make_unique<TLocalSessionsRegistry>(AppData()->RandomProvider);
         ExecuterConfig = MakeIntrusive<TExecuterMutableConfig>();
         ExecuterConfig->ApplyFromTableServiceConfig(TableServiceConfig);
+        RebuildKqpConfig();
 
         RandomProvider = AppData()->RandomProvider;
         if (!GetYqlDefaultModuleResolver(ModuleResolverState->ExprCtx, ModuleResolverState->ModuleResolver)) {
@@ -234,15 +248,16 @@ public:
 
         UpdateYqlLogLevels();
 
-        // Subscribe for TableService & Logger & FeatureFlags config changes
+        // Subscribe for TableService & Logger & FeatureFlags & TliConfig config changes
         ui32 tableServiceConfigKind = (ui32)NKikimrConsole::TConfigItem::TableServiceConfigItem;
         ui32 logConfigKind = (ui32)NKikimrConsole::TConfigItem::LogConfigItem;
         ui32 featureFlagsKind = (ui32)NKikimrConsole::TConfigItem::FeatureFlagsItem;
         ui32 workloadManagerKind = (ui32)NKikimrConsole::TConfigItem::WorkloadManagerConfigItem;
         ui32 queryServiceConfigKind = (ui32)NKikimrConsole::TConfigItem::QueryServiceConfigItem;
+        ui32 tliConfigKind = (ui32)NKikimrConsole::TConfigItem::TliConfigItem;
         Send(NConsole::MakeConfigsDispatcherID(SelfId().NodeId()),
             new NConsole::TEvConfigsDispatcher::TEvSetConfigSubscriptionRequest(
-                {tableServiceConfigKind, logConfigKind, featureFlagsKind, workloadManagerKind, queryServiceConfigKind}),
+                {tableServiceConfigKind, logConfigKind, featureFlagsKind, workloadManagerKind, queryServiceConfigKind, tliConfigKind}),
             IEventHandle::FlagTrackDelivery);
 
         WhiteBoardService = NNodeWhiteboard::MakeNodeWhiteboardServiceId(SelfId().NodeId());
@@ -292,9 +307,30 @@ public:
                 MakeKqpCompileComputationPatternServiceID(SelfId().NodeId()), CompileComputationPatternService);
         }
 
+        NYql::NDq::TDqChannelLimits limits = {
+            .LocalChannelInflightBytes  = TableServiceConfig.GetLocalChannelInflightBytes(),
+            .RemoteChannelInflightBytes = TableServiceConfig.GetRemoteChannelInflightBytes(),
+            .NodeSessionIcInflightBytes = TableServiceConfig.GetNodeSessionIcInflightBytes()
+        };
+
+        ui32 channelPoolId = AppData()->UserPoolId;
+        // {
+        //     auto it = AppData()->ServicePools.find("Interconnect");
+        //     if (it != AppData()->ServicePools.end()) {
+        //         channelPoolId = it->second;
+        //     }
+        // }
+
+        auto channelServiceActorId = TActivationContext::Register(
+            NYql::NDq::CreateLocalChannelServiceActor(TActivationContext::ActorSystem(), SelfId().NodeId(),
+            Counters->GetChannelCounters(), limits, channelPoolId, ChannelService),
+            TActorId{}, TMailboxType::HTSwap, channelPoolId);
+        TActivationContext::ActorSystem()->RegisterLocalService(
+            NYql::NDq::MakeChannelServiceActorID(SelfId().NodeId()), channelServiceActorId);
+
         ResourceManager_ = GetKqpResourceManager();
         CaFactory_ = NComputeActor::MakeKqpCaFactory(
-            TableServiceConfig.GetResourceManager(), ResourceManager_, AsyncIoFactory, FederatedQuerySetup);
+            TableServiceConfig.GetResourceManager(), ResourceManager_, AsyncIoFactory, FederatedQuerySetup, ChannelService);
 
         KqpNodeService = TActivationContext::Register(CreateKqpNodeService(TableServiceConfig, ResourceManager_, CaFactory_, Counters, AsyncIoFactory, FederatedQuerySetup));
         TActivationContext::ActorSystem()->RegisterLocalService(
@@ -325,6 +361,10 @@ public:
                 TActivationContext::ActorSystem(), SelfId());
         }
 
+        KqpQueryTextCacheService = TActivationContext::Register(CreateKqpQueryTextCacheService());
+        TActivationContext::ActorSystem()->RegisterLocalService(
+            MakeKqpQueryTextCacheServiceId(SelfId().NodeId()), KqpQueryTextCacheService);
+
         KqpRmServiceActor = MakeKqpRmServiceID(SelfId().NodeId());
 
         KqpTempTablesAgentActor = Register(new TKqpTempTablesAgentActor());
@@ -340,6 +380,15 @@ public:
 
     TDuration GetSessionIdleDuration() const {
         return TDuration::Seconds(TableServiceConfig.GetSessionIdleDurationSeconds());
+    }
+
+    void RebuildKqpConfig() {
+        auto cfg = MakeIntrusive<NYql::TKikimrConfiguration>();
+        cfg->Init(KqpSettings->DefaultSettings.GetDefaultSettings(),
+            TString(DefaultKikimrPublicClusterName), KqpSettings->Settings, false);
+        cfg->ApplyServiceConfig(TableServiceConfig);
+        cfg->FreezeDefaults();
+        KqpConfig = std::move(cfg);
     }
 
     void ScheduleIdleSessionCheck(const TDuration& scheduleInterval) {
@@ -417,6 +466,7 @@ public:
 
         Send(KqpWorkloadService, new TEvents::TEvPoison());
         Send(KqpComputeSchedulerService, new TEvents::TEvPoison());
+        Send(KqpQueryTextCacheService, new TEvents::TEvPoison());
         if (RowDispatcherService) {
             Send(RowDispatcherService, new TEvents::TEvPoison());
         }
@@ -445,6 +495,7 @@ public:
         KQP_PROXY_LOG_D("Updated table service config.");
 
         ExecuterConfig->ApplyFromTableServiceConfig(TableServiceConfig);
+        RebuildKqpConfig();
 
         LogConfig.Swap(event.MutableConfig()->MutableLogConfig());
         UpdateYqlLogLevels();
@@ -465,8 +516,14 @@ public:
             QueryServiceConfig.Swap(event.MutableConfig()->MutableQueryServiceConfig());
         }
 
+        if (event.GetConfig().HasTliConfig()) {
+            TliConfig.Swap(event.MutableConfig()->MutableTliConfig());
+        }
+
         auto responseEv = MakeHolder<NConsole::TEvConsole::TEvConfigNotificationResponse>(event);
         Send(ev->Sender, responseEv.Release(), IEventHandle::FlagTrackDelivery, ev->Cookie);
+        InitSharedReading();
+        InitCheckpointStorage();
     }
 
     void Handle(TEvents::TEvUndelivered::TPtr& ev) {
@@ -682,6 +739,10 @@ public:
                 return;
             }
             LocalSessions->AttachQueryText(sessionInfo, ev->Get()->GetQuery());
+            
+            // Pass WmState from session to the event
+            Y_ABORT_UNLESS(sessionInfo->WmState, "WmState must be initialized in session constructor");
+            ev->Get()->SetWmSessionUpdater(sessionInfo->WmState);
         }
 
         if (!TryFillPoolInfoFromCache(ev, requestId)) {
@@ -701,7 +762,7 @@ public:
 
         auto cancelAfter = ev->Get()->GetCancelAfter();
         auto timeout = ev->Get()->GetOperationTimeout();
-        auto timerDuration = ev->Get()->GetDisableDefaultTimeout() ? timeout : GetQueryTimeout(queryType, timeout.MilliSeconds(), TableServiceConfig, QueryServiceConfig);
+        auto timerDuration = GetQueryTimeout(queryType, timeout.MilliSeconds(), TableServiceConfig, QueryServiceConfig, ev->Get()->GetDisableDefaultTimeout());
         if (cancelAfter) {
             timerDuration = Min(timerDuration, cancelAfter);
         }
@@ -716,7 +777,7 @@ public:
     void Handle(TEvKqp::TEvScriptRequest::TPtr& ev) {
         if (CheckScriptExecutionsTablesReady(ev, EDelayedRequestType::ScriptRequest)) {
             auto req = ev->Get()->Record.MutableRequest();
-            auto maxRunTime = ev->Get()->DisableDefaultTimeout ? TDuration::MilliSeconds(req->GetTimeoutMs()) : GetQueryTimeout(req->GetType(), req->GetTimeoutMs(), TableServiceConfig, QueryServiceConfig);
+            auto maxRunTime = GetQueryTimeout(req->GetType(), req->GetTimeoutMs(), TableServiceConfig, QueryServiceConfig, ev->Get()->DisableDefaultTimeout);
             req->SetTimeoutMs(maxRunTime.MilliSeconds());
             if (req->GetCancelAfterMs()) {
                 maxRunTime = TDuration::MilliSeconds(Min(req->GetCancelAfterMs(), maxRunTime.MilliSeconds()));
@@ -916,9 +977,15 @@ public:
 
     void Handle(TEvPrivate::TEvCollectPeerProxyData::TPtr&) {
         if (!ShutdownRequested) {
-            const auto& sbs = TableServiceConfig.GetSessionBalancerSettings();
-            ui64 millis = sbs.GetBoardLookupIntervalMs();
-            TDuration d = TDuration::MilliSeconds(millis + (RandomProvider->GenRand() % millis));
+            TDuration d;
+            if (!WarmupStarted && TableServiceConfig.HasCompileCacheWarmupConfig()) {
+                // Short polling interval until warmup starts
+                d = TDuration::Seconds(2);
+            } else {
+                const auto& sbs = TableServiceConfig.GetSessionBalancerSettings();
+                ui64 millis = sbs.GetBoardLookupIntervalMs();
+                d = TDuration::MilliSeconds(millis + (RandomProvider->GenRand() % millis));
+            }
             Schedule(d, new TEvPrivate::TEvCollectPeerProxyData());
         }
 
@@ -962,6 +1029,29 @@ public:
 
         PeerStats = CalcPeerStats(PeerProxyNodeResources, *SelfDataCenterId);
         TryKickSession();
+        TryStartWarmup();
+    }
+
+    void TryStartWarmup() {
+        if (WarmupStarted) {
+            return;
+        }
+
+        if (!TableServiceConfig.HasCompileCacheWarmupConfig()) {
+            return;
+        }
+
+        if (PeerProxyNodeResources.size() > 1) {
+            WarmupStarted = true;
+            TVector<ui32> nodeIds;
+            nodeIds.reserve(PeerProxyNodeResources.size());
+            for (const auto& resource : PeerProxyNodeResources) {
+                nodeIds.push_back(resource.GetNodeId());
+            }
+            KQP_PROXY_LOG_I("Discovered " << PeerProxyNodeResources.size() 
+                << " proxy nodes, starting warmup");
+            Send(MakeKqpWarmupActorId(SelfId().NodeId()), new TEvStartWarmup(PeerProxyNodeResources.size(), std::move(nodeIds)));
+        }
     }
 
     bool ShouldStartBalancing(const TSimpleResourceStats& stats, const double minResourceThreshold, const double currentResourceUsage) const {
@@ -1383,14 +1473,12 @@ private:
 
         auto dbCounters = Counters->GetDbCounters(database);
 
-        TKqpWorkerSettings workerSettings(cluster, database, clientApplicationName, clientUserName, ExecuterConfig, TableServiceConfig, QueryServiceConfig, dbCounters);
+        TKqpWorkerSettings workerSettings(cluster, database, clientApplicationName, clientUserName, ExecuterConfig, TableServiceConfig, QueryServiceConfig, TliConfig, dbCounters);
         workerSettings.LongSession = longSession;
 
-        auto config = CreateConfig(KqpSettings, workerSettings);
-
-        IActor* sessionActor = CreateKqpSessionActor(SelfId(), QueryCache, ResourceManager_, CaFactory_, sessionId, KqpSettings, workerSettings,
-            FederatedQuerySetup, AsyncIoFactory, ModuleResolverState, Counters,
-            QueryServiceConfig, KqpTempTablesAgentActor);
+        IActor* sessionActor = CreateKqpSessionActor(SelfId(), QueryCache, ResourceManager_, CaFactory_, sessionId, KqpConfig,
+            KqpSettings, workerSettings, FederatedQuerySetup, AsyncIoFactory, ModuleResolverState, Counters,
+            QueryServiceConfig, KqpTempTablesAgentActor, ChannelService, clientSid);
         auto workerId = TActivationContext::Register(sessionActor, SelfId(), TMailboxType::HTSwap, AppData()->UserPoolId);
         TKqpSessionInfo* sessionInfo = LocalSessions->Create(
             sessionId, workerId, database, dbCounters, supportsBalancing, GetSessionIdleDuration(), pgWire);
@@ -1576,7 +1664,7 @@ private:
 
     void StartScriptExecutionsTablesCreation() {
         ScriptExecutionsCreationStatus = EScriptExecutionsCreationStatus::Pending;
-        Register(CreateScriptExecutionsTablesCreator(FeatureFlags, ScriptExecutionsTalesGeneration), TMailboxType::HTSwap, AppData()->SystemPoolId);
+        Register(CreateScriptExecutionsTablesCreator(FeatureFlags.GetEnableSecureScriptExecutions(), ScriptExecutionsTalesGeneration), TMailboxType::HTSwap, AppData()->SystemPoolId);
     }
 
     template<typename TEvent>
@@ -1699,7 +1787,7 @@ private:
     }
 
     void Handle(TEvKqp::TEvListSessionsRequest::TPtr& ev) {
-        KQP_PROXY_LOG_D("incoming list sessions request " << ev->Get()->Record.ShortUtf8DebugString());
+        KQP_PROXY_LOG_D("incoming list sessions request " << ev->Get()->Record.ShortUtf8DebugString() << ", local sessions #" << LocalSessions->size());
 
         auto result = std::make_unique<TEvKqp::TEvListSessionsResponse>();
 
@@ -1708,7 +1796,7 @@ private:
 
         auto startIt = LocalSessions->GetOrderedLowerBound(tenant, ev->Get()->Record.GetSessionIdStart());
         auto endIt = LocalSessions->GetOrderedEnd();
-        i32 freeSpace = ev->Get()->Record.GetFreeSpace();
+        i64 freeSpace = ev->Get()->Record.GetFreeSpace();
 
         TKqpSessionInfo::TFieldsMap fieldsMap(ev->Get()->Record.GetColumns());
 
@@ -1792,9 +1880,12 @@ private:
 
     void InitSharedReading() {
         const auto& streamingQueries = QueryServiceConfig.GetStreamingQueries();
-        if (!streamingQueries.HasExternalStorage() || !FederatedQuerySetup) {
+        if (!FederatedQuerySetup || !FeatureFlags.GetEnableStreamingQueries() || RowDispatcherService) {
             return;
         }
+
+        const auto& pqGatewayFactory = FederatedQuerySetup->PqGatewayFactory;
+        Y_VALIDATE(pqGatewayFactory, "Missing PQ gateway factory in federated query setup");
 
         auto rowDispatcher = NFq::NewRowDispatcherService(
             streamingQueries.GetExternalStorage(),
@@ -1803,12 +1894,12 @@ private:
             AppData()->FunctionRegistry,
             AppData()->TenantName,
             Counters->GetKqpCounters()->GetSubgroup("subsystem", "row_dispatcher"),
-            FederatedQuerySetup->PqGateway,
+            pqGatewayFactory->CreatePqGateway(),
             *FederatedQuerySetup->Driver,
             AppData()->Mon,
             Counters->GetKqpCounters(),
             {},
-            AppData()->FeatureFlags.GetEnableStreamingQueriesCounters());
+            FeatureFlags.GetEnableStreamingQueriesCounters());
 
         RowDispatcherService = TActivationContext::Register(rowDispatcher.release());
         TActivationContext::ActorSystem()->RegisterLocalService(
@@ -1816,7 +1907,7 @@ private:
     }
 
     void InitCheckpointStorage() {
-        if (!FederatedQuerySetup || !AppData()->FeatureFlags.GetEnableStreamingQueries()) {
+        if (!FederatedQuerySetup || !FeatureFlags.GetEnableStreamingQueries() || CheckpointStorageService) {
             return;
         }
 
@@ -1836,13 +1927,16 @@ private:
     NKikimrConfig::TLogConfig LogConfig;
     NKikimrConfig::TTableServiceConfig TableServiceConfig;
     NKikimrConfig::TQueryServiceConfig QueryServiceConfig;
+    NKikimrConfig::TTliConfig TliConfig;
     NKikimrConfig::TFeatureFlags FeatureFlags;
     NKikimrConfig::TWorkloadManagerConfig WorkloadManagerConfig;
     TKqpSettings::TConstPtr KqpSettings;
+    TIntrusiveConstPtr<NYql::TKikimrConfiguration> KqpConfig;
     IKqpFederatedQuerySetupFactory::TPtr FederatedQuerySetupFactory;
     std::optional<TKqpFederatedQuerySetup> FederatedQuerySetup;
     std::shared_ptr<IQueryReplayBackendFactory> QueryReplayFactory;
     NYql::NConnector::IClient::TPtr ConnectorClient;
+    std::shared_ptr<NYql::NDq::IDqChannelService> ChannelService;
 
     std::optional<TPeerStats> PeerStats;
     TKqpProxyRequestTracker PendingRequests;
@@ -1865,6 +1959,7 @@ private:
     TKqpQueryCachePtr QueryCache;
 
     bool ServerWorkerBalancerComplete = false;
+    bool WarmupStarted = false;
     std::optional<TString> SelfDataCenterId;
     TIntrusivePtr<IRandomProvider> RandomProvider;
     std::vector<ui64> LocalDatacenterProxies;
@@ -1878,6 +1973,7 @@ private:
     TActorId WhiteBoardService;
     TActorId KqpWorkloadService;
     TActorId KqpComputeSchedulerService;
+    TActorId KqpQueryTextCacheService;
     TActorId RowDispatcherService;
     TActorId CheckpointStorageService;
     NYql::NDq::IDqAsyncIoFactory::TPtr AsyncIoFactory;
@@ -1909,6 +2005,7 @@ private:
 IActor* CreateKqpProxyService(const NKikimrConfig::TLogConfig& logConfig,
     const NKikimrConfig::TTableServiceConfig& tableServiceConfig,
     const NKikimrConfig::TQueryServiceConfig& queryServiceConfig,
+    const NKikimrConfig::TTliConfig& tliConfig,
     TVector<NKikimrKqp::TKqpSetting>&& settings,
     std::shared_ptr<IQueryReplayBackendFactory> queryReplayFactory,
     std::shared_ptr<TKqpProxySharedResources> kqpProxySharedResources,
@@ -1916,7 +2013,7 @@ IActor* CreateKqpProxyService(const NKikimrConfig::TLogConfig& logConfig,
     std::shared_ptr<NYql::NDq::IS3ActorsFactory> s3ActorsFactory
     )
 {
-    return new TKqpProxyService(logConfig, tableServiceConfig, queryServiceConfig, std::move(settings),
+    return new TKqpProxyService(logConfig, tableServiceConfig, queryServiceConfig, tliConfig, std::move(settings),
         std::move(queryReplayFactory), std::move(kqpProxySharedResources), std::move(federatedQuerySetupFactory), std::move(s3ActorsFactory));
 }
 

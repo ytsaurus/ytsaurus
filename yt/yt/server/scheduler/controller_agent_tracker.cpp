@@ -526,7 +526,7 @@ public:
             agent->SetState(EControllerAgentState::Registered);
         }
 
-        TLeaseManager::RenewLease(agent->GetLease(), Config_->HeartbeatTimeout);
+        TLeaseManager::RenewLease(agent->GetLease(), GetConfig()->HeartbeatTimeout);
     }
 
     void ProcessOperationInfos(

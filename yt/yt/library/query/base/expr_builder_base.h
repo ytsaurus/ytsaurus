@@ -94,15 +94,16 @@ private:
     std::vector<TNameSource> NameSources_;
 };
 
-class TExprBuilder
+class TExpressionBuilder
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Source);
     DEFINE_BYREF_RO_PROPERTY(TConstTypeInferrerMapPtr, Functions);
 
-    TExprBuilder(
+    TExpressionBuilder(
         TStringBuf source,
-        const TConstTypeInferrerMapPtr& functions);
+        const TConstTypeInferrerMapPtr& functions,
+        const TPreparePlanFragmentContext& context);
 
     virtual void AddTable(TNameSource nameSource) = 0;
     virtual TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) = 0;
@@ -128,18 +129,26 @@ public:
             EValueType::Composite
         }) = 0;
 
-    virtual ~TExprBuilder() = default;
+    virtual ~TExpressionBuilder() = default;
+
+    const NLogging::TLogger& GetLogger() const;
+    const TPreparePlanFragmentContext& GetContext() const;
+
+protected:
+    const TPreparePlanFragmentContext& Context_;
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap);
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context);
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
-    const NAst::TAliasMap& aliasMap);
+    const NAst::TAliasMap& aliasMap,
+    const TPreparePlanFragmentContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

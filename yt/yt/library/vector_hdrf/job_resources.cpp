@@ -124,7 +124,7 @@ double GetMaxResourceRatio(
     return result;
 }
 
-TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
+TJobResources operator+(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Set##Name(lhs.Get##Name() + rhs.Get##Name());
@@ -133,7 +133,7 @@ TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
+TJobResources& operator+=(TJobResources& lhs, const TJobResources& rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() + rhs.Get##Name());
     ITERATE_JOB_RESOURCES(XX)
@@ -141,7 +141,7 @@ TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
     return lhs;
 }
 
-TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
+TJobResources operator-(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Set##Name(lhs.Get##Name() - rhs.Get##Name());
@@ -150,7 +150,7 @@ TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
+TJobResources& operator-=(TJobResources& lhs, const TJobResources& rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() - rhs.Get##Name());
     ITERATE_JOB_RESOURCES(XX)
@@ -158,7 +158,7 @@ TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
     return lhs;
 }
 
-TJobResources operator * (const TJobResources& lhs, i64 rhs)
+TJobResources operator*(const TJobResources& lhs, i64 rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Set##Name(lhs.Get##Name() * rhs);
@@ -167,12 +167,12 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
     return result;
 }
 
-TJobResources operator * (const TJobResources& lhs, int rhs)
+TJobResources operator*(const TJobResources& lhs, int rhs)
 {
     return lhs * static_cast<i64>(rhs);
 }
 
-TJobResources operator * (const TJobResources& lhs, double rhs)
+TJobResources operator*(const TJobResources& lhs, double rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Set##Name(static_cast<decltype(lhs.Get##Name())>(round(lhs.Get##Name() * rhs)));
@@ -181,7 +181,7 @@ TJobResources operator * (const TJobResources& lhs, double rhs)
     return result;
 }
 
-TJobResources& operator *= (TJobResources& lhs, i64 rhs)
+TJobResources& operator*=(TJobResources& lhs, i64 rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() * rhs);
     ITERATE_JOB_RESOURCES(XX)
@@ -189,13 +189,13 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
     return lhs;
 }
 
-TJobResources& operator *= (TJobResources& lhs, int rhs)
+TJobResources& operator*=(TJobResources& lhs, int rhs)
 {
     lhs *= static_cast<i64>(rhs);
     return lhs;
 }
 
-TJobResources& operator *= (TJobResources& lhs, double rhs)
+TJobResources& operator*=(TJobResources& lhs, double rhs)
 {
     #define XX(name, Name) lhs.Set##Name(static_cast<decltype(lhs.Get##Name())>(round(lhs.Get##Name() * rhs)));
     ITERATE_JOB_RESOURCES(XX)
@@ -203,7 +203,7 @@ TJobResources& operator *= (TJobResources& lhs, double rhs)
     return lhs;
 }
 
-TJobResources  operator - (const TJobResources& resources)
+TJobResources  operator-(const TJobResources& resources)
 {
     TJobResources result;
     #define XX(name, Name) result.Set##Name(-resources.Get##Name());
@@ -212,7 +212,7 @@ TJobResources  operator - (const TJobResources& resources)
     return result;
 }
 
-bool operator == (const TJobResources& lhs, const TJobResources& rhs)
+bool operator==(const TJobResources& lhs, const TJobResources& rhs)
 {
     return
     #define XX(name, Name) lhs.Get##Name() == rhs.Get##Name() &&
@@ -221,7 +221,7 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
-std::ostream& operator << (std::ostream& os, const TJobResources& jobResources)
+std::ostream& operator<<(std::ostream& os, const TJobResources& jobResources)
 {
     return os << Format("%v", jobResources);
 }

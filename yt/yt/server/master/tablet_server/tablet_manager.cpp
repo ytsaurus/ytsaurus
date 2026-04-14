@@ -122,6 +122,8 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <algorithm>
 
 namespace NYT::NTabletServer {
@@ -858,8 +860,8 @@ public:
             const auto& bundle = table->TabletCellBundle();
 
             if (dynamicConfig->EnableClockCellTagValidationOnChaosReplicaMount && bundle->GetOptions()->ClockClusterTag == InvalidCellTag) {
-                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
-                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source.");
+                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source");
             }
         }
 
@@ -918,6 +920,16 @@ public:
                     continue;
                 }
 
+                if (auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+                    miscExt &&
+                        miscExt->has_is_compatible_with_dynamic_table_constraints() &&
+                        !miscExt->is_compatible_with_dynamic_table_constraints())
+                {
+                    error = TError("Cannot mount tablet %v since chunk %v has too large row or value size",
+                        tablet->GetId(),
+                        chunk->GetId());
+                }
+
                 if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize();
                     maxBlockSize.has_value() && chunkMaxBlockSize > *maxBlockSize)
                 {
@@ -949,11 +961,7 @@ public:
 
     void PrepareMountHunkStorage(THunkStorageNode* hunkStorage)
     {
-        GetHunkStorageSettings(
-            hunkStorage,
-            Bootstrap_->GetObjectManager(),
-            Bootstrap_->GetChunkManager(),
-            GetDynamicConfig());
+        Y_UNUSED(ValidateAndGetHunkStorageSettings(hunkStorage));
     }
 
     void Mount(
@@ -2858,15 +2866,7 @@ private:
     THashSet<ui32> GeneratedAvenueIdEntropies_;
 
     // COMPAT(ifsmirnov)
-    bool RecomputeAggregateTabletStatistics_ = false;
-    // COMPAT(ifsmirnov)
-    bool RecomputeHunkResourceUsage_ = false;
-
-    // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
-
-    // COMPAT(ifsmirnov)
-    bool InternalizeBundleResourceQuotaAttribute_ = false;
 
     // COMPAT(babenko)
     bool WeakRefTableReplicas_ = false;
@@ -3009,7 +3009,7 @@ private:
                 entries.push_back({
                     GetMinKeyOrThrow(chunkOrView),
                     GetUpperBoundKeyOrThrow(chunkOrView),
-                    size
+                    size,
                 });
                 totalSize += size;
             }
@@ -3131,7 +3131,7 @@ private:
 
     void DoMountTablets(
         TTabletOwnerBase* table,
-        const TSerializedTabletOwnerSettings& serializedTableSettings,
+        const TSerializedTabletOwnerSettings& serializedSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
         bool useRetainedPreloadedChunks = false,
@@ -3151,10 +3151,11 @@ private:
         for (auto [tablet, cell] : assignment) {
             YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
-            if (!IsCellActive(cell) && tablet->GetType() == EObjectType::Tablet) {
-                TabletActionManager_->CreateOrphanedTabletAction(
-                    tablet->As<TTablet>(),
-                    freeze);
+            if (!IsCellActive(cell) ||
+                (GetDynamicConfig()->Testing->MountViaOrphanedTabletActions &&
+                !tablet->GetAction()))
+            {
+                TabletActionManager_->CreateOrphanedTabletAction(tablet, freeze);
                 continue;
             }
 
@@ -3195,7 +3196,7 @@ private:
                     DoMountTableTablet(
                         tablet->As<TTablet>(),
                         table->As<TTableNode>(),
-                        std::get<TSerializedTableSettings>(serializedTableSettings),
+                        std::get<TSerializedTableSettings>(serializedSettings),
                         cell,
                         freeze,
                         useRetainedPreloadedChunks,
@@ -3205,7 +3206,7 @@ private:
                 case EObjectType::HunkTablet:
                     DoMountHunkTablet(
                         tablet->As<THunkTablet>(),
-                        std::get<TSerializedHunkStorageSettings>(serializedTableSettings),
+                        std::get<TSerializedHunkStorageSettings>(serializedSettings),
                         cell);
                     break;
 
@@ -3319,6 +3320,10 @@ private:
             MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &req);
 
             reqReplicatable.set_retained_timestamp(tablet->GetRetainedTimestamp());
+            if (table->IsPhysicallySorted()) {
+                reqReplicatable.set_conflict_horizon_timestamp(tablet->GetConflictHorizonTimestamp());
+            }
+
             if (!table->IsPhysicallySorted()) {
                 reqReplicatable.set_trimmed_row_count(tablet->GetTrimmedRowCount());
             }
@@ -3491,6 +3496,7 @@ private:
         TReqMountHunkTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+        request.set_path(tablet->GetOwner()->GetMountPath());
 
         MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &request);
 
@@ -3576,8 +3582,37 @@ private:
         hiveManager->PostMessage(mailbox, req);
     }
 
+    bool ShouldAllocateDynamicStoreForSmoothMovement(TTablet* tablet) const
+    {
+        // Smooth movement initiates store rotation. If DSR is enabled, we should
+        // send dynamic store id so that rotation succeeds. However, ordered
+        // tablet will not perform rotation if active store is empty. If there
+        // are too many dynamic stores in the chunk list then likely they correspond
+        // to the id pool and not to real dynamic stores, so we do not send extra
+        // dynamic stores in this case. If the pool happens to be empty,
+        // movement will fail on the node side.
+        const auto* table = tablet->GetTable();
+
+        if (!IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
+            return false;
+        }
+
+        if (!table->IsPhysicallySorted() &&
+            ssize(tablet->DynamicStores()) >= DynamicStoreIdPoolSize + 1)
+        {
+            YT_LOG_DEBUG("Ordered tablet has enough dynamic stores, will not send "
+                "dynamic store id for smooth movement (TabletId: %v, DynamicStoreCount: %v)",
+                tablet->GetId(),
+                ssize(tablet->DynamicStores()));
+            return false;
+        }
+
+        return true;
+    }
+
     void StartSmoothMovement(TTabletBase* tablet, TTabletCell* cell) override
     {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
         YT_VERIFY(tablet->AuxiliaryServant().GetCell() == cell);
 
         TReqStartSmoothMovement req;
@@ -3589,10 +3624,7 @@ private:
             req.mutable_source_avenue_endpoint_id(),
             tablet->GetTabletwiseAvenueEndpointId());
 
-        if (IsDynamicStoreReadEnabled(
-            tablet->GetOwner()->As<TTableNode>(),
-            GetDynamicConfig()))
-        {
+        if (ShouldAllocateDynamicStoreForSmoothMovement(tablet->As<TTablet>())) {
             auto* dynamicStore = TabletChunkManager_->CreateDynamicStore(
                 tablet->As<TTablet>());
             AttachDynamicStoreToTablet(tablet->As<TTablet>(), dynamicStore);
@@ -3606,8 +3638,13 @@ private:
 
     void AbortSmoothMovement(TTabletBase* tablet) override
     {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+
         TReqAbortSmoothMovement req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
+        // NB: Not necessary here but added for consistency with the case when
+        // the same mutation is scheduled by the node itself.
+        req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
@@ -4041,12 +4078,14 @@ private:
             newTabletCount,
             pivotKeys);
 
-        // Calculate retained and unflushed timestamp for removed tablets.
+        // Calculate retained, conflict horizon and unflushed timestamps for removed tablets.
         auto retainedTimestamp = MinTimestamp;
+        auto conflictHorizonTimestamp = MinTimestamp;
         auto unflushedTimestamp = MaxTimestamp;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
             retainedTimestamp = std::max(retainedTimestamp, tablet->GetRetainedTimestamp());
+            conflictHorizonTimestamp = std::max(conflictHorizonTimestamp, tablet->GetConflictHorizonTimestamp());
             unflushedTimestamp = std::min(unflushedTimestamp, tablet->NodeStatistics().unflushed_timestamp());
         }
 
@@ -4082,6 +4121,7 @@ private:
                 }
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
+            newTablet->SetConflictHorizonTimestamp(conflictHorizonTimestamp);
             newTablet->NodeStatistics().set_unflushed_timestamp(unflushedTimestamp);
             newTablets.push_back(newTablet);
 
@@ -4135,10 +4175,14 @@ private:
         }
 
         std::vector<TOwningKeyBound> oldPivotKeyBounds;
+        std::vector<TTabletId> oldTabletIds;
+        oldTabletIds.reserve(lastTabletIndex - firstTabletIndex + 1);
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
+            oldTabletIds.push_back(tablet->GetId());
+
             if (table->IsPhysicallySorted()) {
                 oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
@@ -4169,6 +4213,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
+            oldTabletIds,
             oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);
@@ -4290,85 +4335,20 @@ private:
             Load<THashSet<std::string>>(context);
         }
 
-        // COMPAT(ifsmirnov)
-        InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
-
         // COMPAT(babenko)
         WeakRefTableReplicas_ = context.GetVersion() < EMasterReign::WeakPtrInTableReplicas;
-    }
-
-    void RecomputeHunkResourceUsage()
-    {
-        for (const auto& [id, tabletBase] : Tablets()) {
-            if (tabletBase->GetType() != EObjectType::Tablet) {
-                continue;
-            }
-            auto* tablet = tabletBase->As<TTablet>();
-
-            auto* table = tablet->GetTable();
-            if (!table) {
-                continue;
-            }
-
-            YT_LOG_DEBUG("Recomputing hunk resource usage (TabletId: %v, TableId: %v, "
-                "HunkUncompressedDataSize: %v, HunkCompressedDataSize: %v)",
-                tablet->GetId(),
-                table->GetId(),
-                tablet->GetHunkUncompressedDataSize(),
-                tablet->GetHunkCompressedDataSize());
-
-            i64 memoryDelta = 0;
-            switch (tablet->GetInMemoryMode()) {
-                case EInMemoryMode::Uncompressed:
-                    memoryDelta = -tablet->GetHunkUncompressedDataSize();
-                    break;
-                case EInMemoryMode::Compressed:
-                    memoryDelta = -tablet->GetHunkCompressedDataSize();
-                    break;
-                case EInMemoryMode::None:
-                    memoryDelta = 0;
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            TTabletStatistics statisticsDelta;
-            statisticsDelta.HunkUncompressedDataSize = tablet->GetHunkUncompressedDataSize();
-            statisticsDelta.HunkCompressedDataSize = tablet->GetHunkCompressedDataSize();
-            statisticsDelta.MemorySize = memoryDelta;
-            table->AccountTabletStatisticsDelta(statisticsDelta);
-
-            auto resourcesDelta = TTabletResources{}
-                .SetTabletStaticMemory(memoryDelta);
-            UpdateResourceUsage(table, resourcesDelta);
-        }
     }
 
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        RecomputeAggregateTabletStatistics_ = false;
-        RecomputeHunkResourceUsage_ = false;
-        InternalizeBundleResourceQuotaAttribute_ = false;
         WeakRefTableReplicas_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        if (RecomputeAggregateTabletStatistics_) {
-            THashSet<TTabletOwnerBase*> resetTables;
-            for (auto [id, tablet] : Tablets()) {
-                if (auto* table = tablet->GetOwner()) {
-                    if (resetTables.insert(table).second) {
-                        table->ResetTabletStatistics();
-                    }
-                    table->AccountTabletStatistics(tablet->GetTabletStatistics());
-                }
-            }
-        }
 
         InitBuiltins();
 
@@ -4405,52 +4385,6 @@ private:
                 ++NonAvenueTabletCount_;
             }
         }
-
-        if (InternalizeBundleResourceQuotaAttribute_) {
-            const auto& cellManager = Bootstrap_->GetTamedCellManager();
-            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
-                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
-                auto* bundle = bundleBase->As<TTabletCellBundle>();
-
-                TYsonString resourceQuotaAttribute;
-
-                if (auto* attribute = bundle->FindAttribute("resource_quota")) {
-                    resourceQuotaAttribute = *attribute;
-                    YT_VERIFY(bundle->GetMutableAttributes()->TryRemove("resource_quota"));
-                } else {
-                    continue;
-                }
-
-                auto resourceQuotaNode = ConvertToNode(resourceQuotaAttribute);
-
-                try {
-                    auto resourceQuota = ConvertTo<TTabletCellBundleQuota>(
-                        *resourceQuotaNode);
-                    static_cast<TTabletCellBundleQuota&>(bundle->ResourceLimits())
-                        = resourceQuota;
-
-                    auto schemafulNode = ConvertToNode(resourceQuota);
-                    if (!AreNodesEqual(resourceQuotaNode, schemafulNode)) {
-                        THROW_ERROR_EXCEPTION("Unrecognized fields found")
-                            << TErrorAttribute(
-                                "original_resource_quota",
-                                ConvertToYsonString(resourceQuotaNode, EYsonFormat::Text))
-                            << TErrorAttribute(
-                                "converted_resource_quota",
-                                ConvertToYsonString(schemafulNode, EYsonFormat::Text));
-                    }
-                } catch (const std::exception& ex) {
-                    // QWFP alert
-                    YT_LOG_INFO(ex, "Failed to internalize \"resource_quota\" attribute "
-                        "(BundleName: %v, ResourceQuota: %v)",
-                        bundle->GetName(),
-                        ConvertToYsonString(*resourceQuotaNode, EYsonFormat::Text));
-                    bundle->GetMutableAttributes()->Set(
-                        "resource_quota_backup_after_failed_migration",
-                        resourceQuotaAttribute);
-                }
-            }
-        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()
@@ -4469,11 +4403,6 @@ private:
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage().Initialize(Bootstrap_);
-        }
-
-        // COMPAT(ifsmirnov)
-        if (RecomputeHunkResourceUsage_) {
-            RecomputeHunkResourceUsage();
         }
 
         TabletActionManager_->OnAfterCellManagerSnapshotLoaded();
@@ -4830,6 +4759,30 @@ private:
         UpdateTabletState(tabletOwner);
     }
 
+    void SendReshardRedirectionHint(
+        TTabletCellId cellId,
+        const std::vector<TTabletBaseRawPtr>& newTablets,
+        const std::vector<TTabletBaseRawPtr>& oldTablets,
+        const std::vector<NHydra::TRevision>& oldTabletMountRevisions) override
+    {
+        NTabletNode::NProto::TReqSetReshardRedirectionHint request;
+
+        for (const auto& [tablet, mountRevision] : Zip(oldTablets, oldTabletMountRevisions)) {
+            ToProto(request.add_old_tablet_ids(), tablet->GetId());
+            request.add_old_tablet_mount_revisions(ToProto(mountRevision));
+        }
+
+        for (const auto& tablet : newTablets) {
+            ToProto(request.add_new_tablet_ids(), tablet->GetId());
+            ToProto(request.add_new_tablet_pivot_keys(), tablet->As<TTablet>()->GetPivotKey());
+        }
+        request.set_new_tablets_mount_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto mailbox = hiveManager->GetMailbox(cellId);
+        hiveManager->PostMessage(mailbox, request);
+    }
+
     void UpdateTabletState(TTabletOwnerBase* table)
     {
         if (!IsObjectAlive(table)) {
@@ -5117,6 +5070,14 @@ private:
         }
 
         auto* typedTablet = tablet->As<TTablet>();
+
+        // COMPAT(ponasenko-rs): Assume physically sorted tablets always have has_conflict_horizon_timestamp
+        // after EMasterReign::AddPerTabletConflictHorizonTimestamp is removed.
+        if (response->has_conflict_horizon_timestamp()) {
+            YT_VERIFY(typedTablet->GetTable()->IsPhysicallySorted());
+            typedTablet->SetConflictHorizonTimestamp(response->conflict_horizon_timestamp());
+        }
+
         if (response->has_replication_progress()) {
             typedTablet->ReplicationProgress() = FromProto<TReplicationProgress>(response->replication_progress());
         }
@@ -5147,6 +5108,8 @@ private:
 
         auto* hunkTablet = tablet->As<THunkTablet>();
         DoTabletServantUnmounted(hunkTablet, &hunkTablet->Servant(), /*force*/ false);
+
+        TabletActionManager_->OnTabletActionStateChanged(hunkTablet->GetAction());
     }
 
     void HydraOnTabletFrozen(NProto::TRspFreezeTablet* response)
@@ -5198,6 +5161,14 @@ private:
 
         servant->SetState(ETabletState::Frozen);
         tablet->SetState(ETabletState::Frozen);
+
+        // COMPAT(ponasenko-rs): Assume physically sorted tablets always have has_conflict_horizon_timestamp
+        // after EMasterReign::AddPerTabletConflictHorizonTimestamp is removed.
+        if (response->has_conflict_horizon_timestamp()) {
+            YT_VERIFY(table->IsPhysicallySorted());
+            tablet->SetConflictHorizonTimestamp(response->conflict_horizon_timestamp());
+        }
+
         TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
     }
@@ -6595,7 +6566,7 @@ private:
         TTablet* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks)
+        TUnmountTabletOptions options)
     {
         if (tablet->GetState() == ETabletState::Unmounted) {
             return;
@@ -6626,7 +6597,8 @@ private:
         TReqUnmountTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_force(force);
-        request.set_retain_preloaded_chunks(retainPreloadedChunks);
+        request.set_retain_preloaded_chunks(options.RetainPreloadedChunks);
+        request.set_use_extended_snapshot_eviction_timeout(options.UseExtendedSnapshotEvictionTimeout);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(force
@@ -6699,7 +6671,7 @@ private:
         TTabletBase* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks = false) override
+        TUnmountTabletOptions options = {}) override
     {
         switch (tablet->GetType()) {
             case EObjectType::Tablet:
@@ -6707,7 +6679,7 @@ private:
                     tablet->As<TTablet>(),
                     force,
                     onDestroy,
-                    retainPreloadedChunks);
+                    options);
                 break;
             case EObjectType::HunkTablet:
                 DoUnmountHunkTablet(tablet->As<THunkTablet>(), force);
@@ -6908,6 +6880,15 @@ private:
     {
         return NTabletServer::GetTableSettings(
             table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
+    }
+
+    THunkStorageSettings ValidateAndGetHunkStorageSettings(THunkStorageNode* hunkStorage) const override
+    {
+        return NTabletServer::ValidateAndGetHunkStorageSettings(
+            hunkStorage,
             Bootstrap_->GetObjectManager(),
             Bootstrap_->GetChunkManager(),
             GetDynamicConfig());

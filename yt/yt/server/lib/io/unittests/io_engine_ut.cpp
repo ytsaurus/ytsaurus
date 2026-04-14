@@ -3,6 +3,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/utilex/random.h>
 
@@ -83,21 +84,19 @@ TEST_P(TIOEngineTest, WriteError)
     auto fileName = GenerateRandomFileName("IOEngine");
     TTempFile tempFile(fileName);
 
-    auto file = engine->Open({fileName, RdWr | CreateAlways})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdWr | CreateAlways}))
         .ValueOrThrow();
 
     constexpr auto S = 64_KB;
     auto data = GenerateRandomBlob(S);
 
     auto writeToFail = [&] {
-        return engine->Write({
+        return WaitFor(engine->Write({
             .Handle = file,
             .Offset = -10,
             .Buffers = {data.Slice(0, 10), data.Slice(20, 30), data, data.Slice(40, 50)},
             .Flush = true,
-        })
-            .Get();
+        }));
     };
 
     for (int i = 0; i < 1000; ++i) {
@@ -113,33 +112,29 @@ TEST_P(TIOEngineTest, ReadWrite)
     auto fileName = GenerateRandomFileName("IOEngine");
     TTempFile tempFile(fileName);
 
-    auto file = engine->Open({fileName, RdWr | CreateAlways})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdWr | CreateAlways}))
         .ValueOrThrow();
 
     constexpr auto S = 64_KB;
     auto data = GenerateRandomBlob(S);
 
     auto write = [&] {
-        engine->Write({
+        WaitFor(engine->Write({
             .Handle = file,
             .Offset = 0,
             .Buffers = {data.Slice(1, 1), data.Slice(1, 1), data, data.Slice(1, 1)},
             .Flush = true,
-        })
-            .Get()
+        }))
             .ThrowOnError();
     };
 
     auto flush = [&] {
-        engine->FlushFile({file, EFlushFileMode::Data})
-            .Get()
+        WaitForFast(engine->FlushFile({file, EFlushFileMode::Data}))
             .ThrowOnError();
     };
 
     auto read = [&] (i64 offset, i64 size) {
-        auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
-            .Get()
+        auto result = WaitForFast(engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()))
             .ValueOrThrow();
         EXPECT_EQ(result.OutputBuffers.size(), 1UL);
         EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
@@ -175,8 +170,7 @@ TEST_P(TIOEngineTest, ReadAll)
 
     WriteFile(fileName, data);
 
-    auto result = engine->ReadAll(fileName)
-        .Get()
+    auto result = WaitForFast(engine->ReadAll(fileName))
         .ValueOrThrow();
 
     EXPECT_EQ(result.OutputBuffers.size(), 1UL);
@@ -199,13 +193,11 @@ TEST_P(TIOEngineTest, DirectIO)
 
     WriteFile(fileName, data);
 
-    auto file = engine->Open({fileName, RdOnly | DirectAligned})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
         .ValueOrThrow();
 
     auto read = [&] (i64 offset, i64 size) {
-        auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
-            .Get()
+        auto result = WaitForFast(engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()))
             .ValueOrThrow();
         EXPECT_EQ(result.OutputBuffers.size(), 1UL);
         EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
@@ -237,13 +229,11 @@ TEST_P(TIOEngineTest, DirectIOUnalignedFile)
 
     WriteFile(fileName, data);
 
-    auto file = engine->Open({fileName, RdOnly | DirectAligned})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
         .ValueOrThrow();
 
     auto read = [&] (i64 offset, i64 size) {
-        auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
-            .Get()
+        auto result = WaitForFast(engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()))
             .ValueOrThrow();
         EXPECT_EQ(result.OutputBuffers.size(), 1UL);
         EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
@@ -271,8 +261,7 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
 
     WriteFile(fileName, data);
 
-    auto file = engine->Open({fileName, RdOnly | DirectAligned})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
         .ValueOrThrow();
 
     std::vector<TFuture<TReadResponse>> futures;
@@ -282,8 +271,7 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
         futures.push_back(engine->Read({{file, 10, 20}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()));
     }
 
-    AllSucceeded(std::move(futures))
-        .Get()
+    WaitForFast(AllSucceeded(std::move(futures)))
         .ThrowOnError();
 }
 
@@ -322,8 +310,7 @@ private:
 
         WriteFile(fileName, data);
 
-        auto file = Engine_->Open({fileName, RdOnly})
-            .Get()
+        auto file = WaitForFast(Engine_->Open({fileName, RdOnly}))
             .ValueOrThrow();
 
         while (!Stopped_) {
@@ -422,16 +409,14 @@ TEST_P(TIOEngineTest, DirectIOAligned)
 
     WriteFile(fileName, data);
 
-    auto file = engine->Open({fileName, RdOnly | DirectAligned})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
         .ValueOrThrow();
 
     auto read = [&] (std::vector<TReadRequest> requests) {
         for (auto& request : requests) {
             request.Handle = file;
         }
-        auto result = engine->Read(requests, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
-            .Get()
+        auto result = WaitForFast(engine->Read(requests, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()))
             .ValueOrThrow();
 
         EXPECT_TRUE(result.OutputBuffers.size() == requests.size());
@@ -472,16 +457,14 @@ TEST_P(TIOEngineTest, DirectIOUnaligned)
 
     WriteFile(fileName, data);
 
-    auto file = engine->Open({fileName, RdOnly | DirectAligned})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
         .ValueOrThrow();
 
     auto read = [&] (std::vector<TReadRequest> requests) {
         for (auto& request : requests) {
             request.Handle = file;
         }
-        auto result = engine->Read(requests, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
-            .Get()
+        auto result = WaitForFast(engine->Read(requests, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()))
             .ValueOrThrow();
 
         EXPECT_TRUE(result.OutputBuffers.size() == requests.size());
@@ -520,8 +503,7 @@ TEST_P(TIOEngineTest, DirectIOUnalignedRandomized)
     auto data = GenerateRandomBlob(S);
     WriteFile(fileName, data);
 
-    auto file = engine->Open({fileName, RdOnly | DirectAligned})
-        .Get()
+    auto file = WaitForFast(engine->Open({fileName, RdOnly | DirectAligned}))
         .ValueOrThrow();
 
     std::mt19937_64 rng(std::random_device{}());
@@ -537,8 +519,7 @@ TEST_P(TIOEngineTest, DirectIOUnalignedRandomized)
         SCOPED_TRACE(Format("Iteration %v: Offset=%v Size=%v Valid=%v", i, offset, size, validRequest));
 
         try {
-            auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
-                .Get()
+            auto result = WaitForFast(engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()))
                 .ValueOrThrow();
 
             EXPECT_TRUE(validRequest) << "Expected error due to reading beyond EOF";
@@ -601,58 +582,50 @@ TEST_P(TIOEngineTest, Lock)
     auto fileName = GenerateRandomFileName("IOEngine");
     TTempFile tempFile(fileName);
 
-    auto firstHandler = engine->Open({fileName, RdWr | CreateAlways})
-        .Get()
+    auto firstHandler = WaitForFast(engine->Open({fileName, RdWr | CreateAlways}))
         .ValueOrThrow();
 
-    engine->Lock({firstHandler, ELockFileMode::Exclusive})
-        .Get()
+    WaitForFast(engine->Lock({firstHandler, ELockFileMode::Exclusive}))
         .ThrowOnError();
 
     // Open file once more.
-    auto secondHandler = engine->Open({fileName, RdOnly})
-        .Get()
+    auto secondHandler = WaitForFast(engine->Open({fileName, RdOnly}))
         .ValueOrThrow();
 
     // Shared lock attempts should fail.
     EXPECT_THROW({
-        engine->Lock({
+        WaitFor(engine->Lock({
             .Handle = secondHandler,
             .Mode = ELockFileMode::Shared,
             .Nonblocking = true,
-        })
-            .Get()
+        }))
             .ThrowOnError();
     }, NYT::TErrorException);
 
-    engine->Lock({firstHandler, ELockFileMode::Unlock})
-        .Get()
+    WaitForFast(engine->Lock({firstHandler, ELockFileMode::Unlock}))
         .ThrowOnError();
 
-    engine->Lock({
+    WaitFor(engine->Lock({
         .Handle = secondHandler,
         .Mode = ELockFileMode::Shared,
         .Nonblocking = true,
-    })
-        .Get()
+    }))
         .ThrowOnError();
 
     EXPECT_THROW({
-        engine->Lock({
+        WaitFor(engine->Lock({
             .Handle = firstHandler,
             .Mode = ELockFileMode::Exclusive,
             .Nonblocking = true,
-        })
-            .Get()
+        }))
             .ThrowOnError();
     }, NYT::TErrorException);
 
-    engine->Lock({
+    WaitFor(engine->Lock({
         .Handle = firstHandler,
         .Mode = ELockFileMode::Shared,
         .Nonblocking = true,
-    })
-        .Get()
+    }))
         .ThrowOnError();
 }
 

@@ -183,7 +183,12 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
+            YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
+            ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
+
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
@@ -334,13 +339,16 @@ private:
         // Probably it should be reworked, it seems like this code is only relevant for partition tables.
         if (JobSizeConstraints_->IsExplicitJobCount() && !SingleJob_ && !JobSizeConstraints_->GetSamplingRate()) {
             i64 totalDataWeight = 0;
+            i64 totalCompressedDataSize = 0;
             for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
                 const auto& stripe = Stripes_[inputCookie].GetStripe();
                 for (const auto& dataSlice : stripe->DataSlices()) {
                     totalDataWeight += dataSlice->GetDataWeight();
+                    totalCompressedDataSize += dataSlice->GetCompressedDataSize();
                 }
             }
             JobSizeConstraints_->UpdateInputDataWeight(totalDataWeight);
+            JobSizeConstraints_->UpdateInputCompressedDataSize(totalCompressedDataSize);
         }
 
         int droppedTeleportChunkCount = 0;

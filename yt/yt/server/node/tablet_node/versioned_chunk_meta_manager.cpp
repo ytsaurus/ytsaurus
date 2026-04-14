@@ -3,8 +3,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
@@ -17,16 +15,16 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TVersionedChunkMetaCacheKey::operator ==(const TVersionedChunkMetaCacheKey& other) const
+bool TVersionedChunkMetaCacheKey::operator==(const TVersionedChunkMetaCacheKey& other) const
 {
     return
         ChunkId == other.ChunkId &&
         TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount &&
-        PreparedColumnarMeta == other.PreparedColumnarMeta;
+        PreparedColumnarMeta == other.PreparedColumnarMeta &&
+        CompressedBlockLastKeys == other.CompressedBlockLastKeys;
 }
 
 TVersionedChunkMetaCacheKey::operator size_t() const
@@ -34,7 +32,8 @@ TVersionedChunkMetaCacheKey::operator size_t() const
     return MultiHash(
         ChunkId,
         TableSchemaKeyColumnCount,
-        PreparedColumnarMeta);
+        PreparedColumnarMeta,
+        CompressedBlockLastKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,12 +74,14 @@ public:
         const TTableSchemaPtr& schema,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<i64> metaSize,
-        bool prepareColumnarMeta) override
+        bool prepareColumnarMeta,
+        bool compressBlockLastKeys) override
     {
         TVersionedChunkMetaCacheKey key{
             chunkReader->GetChunkId(),
             schema->GetKeyColumnCount(),
-            prepareColumnarMeta
+            prepareColumnarMeta,
+            compressBlockLastKeys
         };
 
         TFuture<TVersionedChunkMetaCacheEntryPtr> future;
@@ -92,7 +93,9 @@ public:
                 .MetaSize = metaSize,
             })
                 .Apply(BIND(
-                    &TCachedVersionedChunkMeta::Create,
+                    (compressBlockLastKeys
+                        ? &TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                        : &TCachedVersionedChunkMeta::Create),
                     prepareColumnarMeta,
                     MemoryUsageTracker_))
                 .AsUnique().Apply(BIND(
@@ -125,7 +128,11 @@ public:
             return false;
         }
 
-        auto cachedMeta = TCachedVersionedChunkMeta::Create(
+        auto cachedMeta = (
+            key.CompressedBlockLastKeys
+                ? &TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                : &TCachedVersionedChunkMeta::Create)
+            (
             key.PreparedColumnarMeta,
             MemoryUsageTracker_,
             meta);

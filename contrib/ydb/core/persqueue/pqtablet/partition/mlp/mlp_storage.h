@@ -3,14 +3,16 @@
 #include "mlp.h"
 #include "mlp_common.h"
 
+#include <library/cpp/containers/absl_flat_hash/flat_hash_set.h>
+#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 
 #include <library/cpp/time_provider/time_provider.h>
 
 #include <deque>
 #include <map>
-#include <unordered_map>
-#include <unordered_set>
+
 
 namespace NKikimr::NPQ::NMLP {
 
@@ -18,6 +20,7 @@ class TStorage {
     static constexpr size_t MAX_MESSAGES = 48000;
     static constexpr size_t MIN_MESSAGES = 100;
     static constexpr size_t MAX_PROCESSING_COUNT = 1023;
+    static constexpr TDuration VACUUM_INTERVAL = TDuration::Seconds(1);
 
 public:
     // The maximum number of messages per flight. If a larger number is required, then you need
@@ -51,7 +54,7 @@ public:
 
     struct TMessage {
         ui32 Status: 3 = static_cast<ui32>(EMessageStatus::Unprocessed);
-        ui32 Reserve: 3;
+        ui32 Reserve: 3 = 0;
         // It stores how many times the message was submitted to work.
         // If the value is large, then the message has been processed several times,
         // but it has never been processed successfully.
@@ -64,7 +67,10 @@ public:
         // in the topic.
         ui32 MessageGroupIdHash: 31 = 0;
         ui32 WriteTimestampDelta: 26 = 0;
-        ui32 Reserve2: 6;
+        ui32 Reserve2: 6 = 0;
+        ui32 LockingTimestampMilliSecondsDelta: 26 = 0;
+        ui32 LockingTimestampSign: 1 = 0;
+        ui32 Reserve3: 5 = 0;
 
         EMessageStatus GetStatus() const {
             return static_cast<EMessageStatus>(Status);
@@ -74,7 +80,7 @@ public:
             Status = static_cast<ui32>(status);
         }
     };
-    static_assert(sizeof(TMessage) == sizeof(ui32) * 3);
+    static_assert(sizeof(TMessage) == sizeof(ui32) * 4);
 
     struct TMessageWrapper {
         bool SlowZone;
@@ -83,6 +89,9 @@ public:
         ui32 ProcessingCount;
         TInstant ProcessingDeadline;
         TInstant WriteTimestamp;
+        TInstant LockingTimestamp;
+        std::optional<ui32> MessageGroupIdHash;
+        bool MessageGroupIsLocked;
     };
 
     struct TMessageIterator {
@@ -112,6 +121,7 @@ public:
         size_t AddedMessageCount() const;
         size_t ChangedMessageCount() const;
         size_t DLQMessageCount() const;
+        bool GetPurged() const;
 
     protected:
         void AddNewMessage(ui64 offset);
@@ -119,6 +129,7 @@ public:
         void AddToDLQ(ui64 offset, ui64 seqNo);
         void MoveToSlow(ui64 offset);
         void DeleteFromSlow(ui64 offset);
+        void SetPurged();
 
         void Compacted(size_t count);
         void MoveBaseTime(TInstant baseDeadline, TInstant baseWriteTimestamp);
@@ -133,22 +144,10 @@ public:
         std::vector<ui64> MovedToSlowZone;
         std::vector<ui64> DeletedFromSlowZone;
         size_t CompactedMessages = 0;
+        bool Purged = false;
 
         std::optional<TInstant> BaseDeadline;
         std::optional<TInstant> BaseWriteTimestamp;
-    };
-
-    struct TMetrics {
-        size_t InflyMessageCount = 0;
-        size_t UnprocessedMessageCount = 0;
-        size_t LockedMessageCount = 0;
-        size_t LockedMessageGroupCount = 0;
-        size_t DelayedMessageCount = 0;
-        size_t CommittedMessageCount = 0;
-        size_t DeadlineExpiredMessageCount = 0;
-        size_t DLQMessageCount = 0;
-
-        size_t TotalScheduledToDLQMessageCount = 0;
     };
 
     TStorage(TIntrusivePtr<ITimeProvider> timeProvider, size_t minMessages = MIN_MESSAGES, size_t maxMessages = MAX_MESSAGES);
@@ -167,9 +166,12 @@ public:
     TInstant GetBaseWriteTimestamp() const;
     TInstant GetMessageDeadline(ui64 message);
     std::pair<const TMessage*, bool> GetMessage(ui64 message);
+    bool DLQEmpty() const;
     std::deque<TDLQMessage> GetDLQMessages();
-    const std::unordered_set<ui32>& GetLockedMessageGroupsId() const;
-
+    const absl::flat_hash_set<ui32>& GetLockedMessageGroupsId() const;
+    void InitMetrics();
+    bool HasRetentionExpiredMessages() const;
+    bool GetKeepMessageOrder() const;
 
     struct TPosition {
         std::optional<std::map<ui64, TMessage>::iterator> SlowPosition;
@@ -185,6 +187,7 @@ public:
     // For SQS compatibility
     // https://docs.amazonaws.cn/en_us/AWSSimpleQueueService/latest/APIReference/API_ChangeMessageVisibility.html
     bool ChangeMessageDeadline(ui64 message, TInstant deadline);
+    bool Purge(ui64 endOffset);
     bool AddMessage(ui64 offset, bool hasMessagegroup, ui32 messageGroupIdHash, TInstant writeTimestamp, TDuration delay = TDuration::Zero());
     bool MarkDLQMoved(TDLQMessage message);
     bool WakeUpDLQ();
@@ -193,7 +196,8 @@ public:
     size_t Compact();
     void MoveBaseDeadline();
 
-    TBatch GetBatch();
+    TBatch ExtractBatch();
+    bool IsBatchEmpty() const;
 
     bool Initialize(const NKikimrPQ::TMLPStorageSnapshot& snapshot);
     bool SerializeTo(NKikimrPQ::TMLPStorageSnapshot& snapshot);
@@ -213,17 +217,21 @@ private:
     std::pair<TMessage*, bool> GetMessageInt(ui64 offset, EMessageStatus expectedStatus);
     ui64 NormalizeDeadline(TInstant deadline);
 
-    ui64 DoLock(ui64 offset, TMessage& message, TInstant& deadline);
-    bool DoCommit(ui64 offset);
+    ui64 DoLock(ui64 offset, TMessage& message, TInstant deadline);
+    bool DoCommit(ui64 offset, size_t& totalMetrics);
     bool DoUnlock(ui64 offset);
     void DoUnlock(ui64 offset, TMessage& message);
     bool DoUndelay(ui64 offset);
 
     void UpdateFirstUncommittedOffset();
 
+    TInstant GetMessageLockingTime(const TMessage& message) const;
+    void SetMessageLockingTime(TMessage& message, const TInstant& lockingTime, const TInstant& baseDeadline) const;
+    void UpdateMessageLockingDurationMetrics(const TMessage& message);
     void MoveBaseDeadline(TInstant newBaseDeadline, TInstant newBaseWriteTimestamp);
 
     void RemoveMessage(ui64 offset, const TMessage& message);
+    void UpdateMessageMetrics(const TMessage& message);
 
     std::optional<ui32> GetRetentionDeadlineDelta() const;
 
@@ -243,13 +251,14 @@ private:
 
     TInstant BaseDeadline;
     TInstant BaseWriteTimestamp;
+    TInstant NextVacuumRun;
 
     std::deque<TMessage> Messages;
     std::map<ui64, TMessage> SlowMessages;
-    std::unordered_set<ui32> LockedMessageGroupsId;
+    absl::flat_hash_set<ui32> LockedMessageGroupsId;
     std::deque<TDLQMessage> DLQQueue;
     // offset->seqNo
-    std::unordered_map<ui64, ui64> DLQMessages;
+    absl::flat_hash_map<ui64, ui64> DLQMessages;
 
     TBatch Batch;
     TMetrics Metrics;

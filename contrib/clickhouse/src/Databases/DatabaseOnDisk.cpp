@@ -136,7 +136,8 @@ std::pair<String, StoragePtr> createTableFromAST(
     /// those query settings
     /// In order to ignore them now we call `applySettingsFromQuery` which will move the settings from engine to query level
     auto ast = std::make_shared<ASTCreateQuery>(std::move(ast_create_query));
-    InterpreterSetQuery::applySettingsFromQuery(ast, context);
+    auto set_context = Context::createCopy(context);
+    InterpreterSetQuery::applySettingsFromQuery(ast, set_context);
 
     return {
         ast->getTable(),
@@ -900,18 +901,18 @@ void DatabaseOnDisk::modifySettingsMetadata(const SettingsChanges & settings_cha
 void DatabaseOnDisk::checkTableNameLength(const String & table_name) const
 {
     std::lock_guard lock(mutex);
-    checkTableNameLengthUnlocked(table_name);
+    checkTableNameLengthUnlocked(database_name, table_name, getContext());
 }
 
-void DatabaseOnDisk::checkTableNameLengthUnlocked(const String & table_name) const TSA_REQUIRES(mutex)
+void DatabaseOnDisk::checkTableNameLengthUnlocked(const String & database_name_, const String & table_name, ContextPtr context_)
 {
-    const size_t allowed_max_length = computeMaxTableNameLength(database_name, getContext());
+    const size_t allowed_max_length = computeMaxTableNameLength(database_name_, context_);
     const size_t escaped_name_length = escapeForFileName(table_name).length();
     if (escaped_name_length > allowed_max_length)
     {
         throw Exception(ErrorCodes::ARGUMENT_OUT_OF_BOUND,
             "The max length of table name for database {} is {}, current length is {}",
-            database_name, allowed_max_length, escaped_name_length);
+            database_name_, allowed_max_length, escaped_name_length);
     }
 }
 

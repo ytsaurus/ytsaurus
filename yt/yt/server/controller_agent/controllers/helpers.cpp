@@ -1,16 +1,17 @@
-#include "helpers.h"
 #include "aggregated_job_statistics.h"
-#include "table.h"
+#include "helpers.h"
 #include "job_info.h"
-
-#include <yt/yt/server/controller_agent/controllers/task_host.h>
+#include "table.h"
 
 #include <yt/yt/server/controller_agent/config.h>
 
+#include <yt/yt/server/controller_agent/controllers/task_host.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -22,10 +23,11 @@
 
 #include <yt/yt/client/formats/config.h>
 
+#include <yt/yt/library/query/base/query.h>
+
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
-
-#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -608,7 +610,29 @@ TYsonString MakeIntermediateTableWriterConfig(
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
             })
             .OptionalItem("direct_upload_node_count", directUploadNodeCount)
+            .Item("enable_large_columnar_statistics").Value(false)
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDynamicTableOutputChunkConstraints(NChunkClient::TInputChunkPtr chunk, i64 maxChunkSize, i64 maxBlockSize)
+{
+    if (IsTableChunkFormatVersioned(chunk->GetChunkFormat())) {
+        return;
+    }
+
+    if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize(); chunkMaxBlockSize > maxBlockSize) {
+        THROW_ERROR_EXCEPTION("Cannot attach output chunk to a dynamic table since it has too large block size")
+            << TErrorAttribute("chunk_max_block_size", chunkMaxBlockSize)
+            << TErrorAttribute("max_unversioned_block_size", maxBlockSize);
+        }
+
+    if (auto chunkCompressedDataSize = chunk->GetCompressedDataSize(); chunkCompressedDataSize > maxChunkSize) {
+        THROW_ERROR_EXCEPTION("Cannot attach output chunk to a dynamic table since it is too large")
+            << TErrorAttribute("chunk_compressed_data_size", chunkCompressedDataSize)
+            << TErrorAttribute("max_unversioned_chunk_size", maxChunkSize);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

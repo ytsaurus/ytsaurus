@@ -107,11 +107,11 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers)
+    TJoinProfilerRegistry joinProfilerRegistry)
 {
-    Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
+    Profile(query, id, variables, joinProfilerRegistry, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfilers, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
+        Profile(query, id, variables, joinProfilerRegistry, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
 }
 
@@ -154,19 +154,18 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     NYson::TYsonStringBuf placeholderValues,
-    int syntaxVersion,
+    const TPreparePlanFragmentOptions& options,
     IMemoryUsageTrackerPtr memoryTracker)
 {
-    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, options.SyntaxVersion);
 
     return PreparePlanFragment(
         callbacks,
         parsedSource->Source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
-        DefaultExpressionBuilderVersion,
-        std::move(memoryTracker),
-        syntaxVersion);
+        options,
+        std::move(memoryTracker));
 }
 
 TConstExpressionPtr ParseAndPrepareExpression(
@@ -174,12 +173,12 @@ TConstExpressionPtr ParseAndPrepareExpression(
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
     THashSet<std::string>* references,
-    int exprBuilderVersion)
+    TPreparePlanFragmentOptions options)
 {
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
         tableSchema,
-        exprBuilderVersion,
+        options.BuilderVersion,
         functions,
         references);
 }

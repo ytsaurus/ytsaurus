@@ -238,7 +238,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ == EPeerState::Stopped) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_INFO("Hydra instance is finalizing");
@@ -354,7 +354,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        return AutomatonEpochContext_ ? AutomatonEpochContext_->Term : InvalidTerm;
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->Term.load() : InvalidTerm;
     }
 
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
@@ -366,7 +366,7 @@ public:
                 .AsyncVia(epochContext->EpochControlInvoker)
                 .Run();
         }
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsEnteringReadOnlyMode() const override
@@ -482,7 +482,11 @@ public:
                             .Item("leader_id").Value(epochContext->LeaderId)
                             .Item("self_id").Value(selfId)
                             .Item("voting").Value(epochContext->CellManager->GetPeerConfig(selfId)->Voting)
-                            .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode);
+                            .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode)
+                            .Item("catching_up").Value(epochContext->CatchingUp)
+                            .Item("leader_switch_started").Value(epochContext->LeaderSwitchStarted)
+                            .Item("leader_lease_expired").Value(epochContext->LeaderLeaseExpired)
+                            .Item("acquiring_changelog").Value(epochContext->AcquiringChangelog);
                             // TODO(aleksandra-zh): add stuff.
                     })
                     .Item("state").Value(DecoratedAutomaton_->GetState())
@@ -530,7 +534,7 @@ public:
             epochContext->Discombobulated)
         {
             // NB: Leader lease is already checked in IsActive.
-            return VoidFuture;
+            return OKFuture;
         }
 
         return epochContext->LeaderSyncBatcher->Run();
@@ -1390,7 +1394,7 @@ private:
 
             if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
                 auto* snapshotResponse = response->mutable_snapshot_response();
-                const auto& snapshotParamsOrError = SnapshotFuture_.Get();
+                const auto& snapshotParamsOrError = SnapshotFuture_.GetOrCrash();
                 snapshotResponse->set_snapshot_id(SnapshotId_);
                 if (snapshotParamsOrError.IsOK()) {
                     const auto& snapshotParams = snapshotParamsOrError.Value();
@@ -1464,7 +1468,7 @@ private:
         MutationDraftQueue_->Enqueue({
             .Request = request,
             .Promise = std::move(promise),
-            .RandomSeed = randomSeed
+            .RandomSeed = randomSeed,
         });
 
         if (Config_->Get()->MinimizeCommitLatency) {
@@ -2236,6 +2240,31 @@ private:
 
             ExecuteFinalRecoveryAction();
 
+            auto lastMutationReign = GetLastMutationReign();
+
+            if (Config_->Get()->ReportReignChange.value_or(Options_.ReportReignChange) &&
+                !GetReadOnly() &&
+                lastMutationReign != GetCurrentReign() &&
+                lastMutationReign != InvalidReign)
+            {
+                YT_LOG_INFO("Committing reign change mutation (PreviousReign: %v, CurrentReign: %v)",
+                    lastMutationReign,
+                    GetCurrentReign());
+
+                TReqReportReignChange protoReq;
+                protoReq.set_previous_reign(lastMutationReign);
+
+                TMutationRequest req;
+                req.Reign = GetCurrentReign();
+                req.Data = SerializeProtoToRefWithEnvelope(protoReq);
+                req.Type = protoReq.GetTypeName();
+                WaitFor(ForceCommitMutation(std::move(req)))
+                    .ThrowOnError();
+
+                YT_LOG_INFO("Reign change mutation committed (CurrentReign: %v)",
+                    GetCurrentReign());
+            }
+
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
@@ -2799,7 +2828,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (GetAutomatonState() == EPeerState::Leading) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Synchronizing with leader");
@@ -3013,7 +3042,11 @@ private:
 
         YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
 
-        switch (DecoratedAutomaton_->GetFinalRecoveryAction()) {
+        auto action = DecoratedAutomaton_->GetFinalRecoveryAction();
+        YT_LOG_INFO("Executing final recovery action (Action: %v)",
+            action);
+
+        switch (action) {
             case EFinalRecoveryAction::BuildSnapshotAndRestart: {
                 auto snapshotId = WaitFor(BuildSnapshot(/*setReadOnly*/ false, /*waitForSnapshotCompletion*/ true, /*enableAutomatonReadOnlyBarrier*/ false))
                     .ValueOrThrow();
@@ -3097,8 +3130,9 @@ private:
             futures.push_back(req->Invoke());
         }
 
+        // TODO(babenko): consider replacing with WaitFor
         AllSucceeded(std::move(futures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 

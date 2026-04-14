@@ -244,7 +244,7 @@ public:
         , Codec_(NErasure::GetCodec(CodecId_))
         , WorkloadDescriptor_(workloadDescriptor)
         , ErasureWindowSize_(RoundUp<i64>(Config_->ErasureWindowSize, Codec_->GetWordSize()))
-        , ReadyEvent_(VoidFuture)
+        , ReadyEvent_(OKFuture)
         , Writers_(writers)
         , BlockReorderer_(Config_)
     {
@@ -277,7 +277,7 @@ public:
         for (const auto& block : blocks) {
             WriteBlock(options, workloadDescriptor, block);
         }
-        return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
+        return ReadyEvent_.IsSet() && ReadyEvent_.GetOrCrash().IsOK();
     }
 
     TFuture<void> GetReadyEvent() override
@@ -308,9 +308,10 @@ public:
             YT_VERIFY(replicas.size() == 1);
             result.Replicas.emplace_back(
                 replicas[0].GetNodeId(),
-                i,
+                /*replicaIndex*/ i,
                 replicas[0].GetMediumIndex(),
-                replicas[0].GetChunkLocationUuid());
+                replicas[0].GetChunkLocationUuid(),
+                replicas[0].GetChunkLocationIndex());
         }
         return result;
     }
@@ -327,8 +328,7 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override;
+        const TDeferredChunkMetaPtr& chunkMeta) override;
 
     TChunkId GetChunkId() const override
     {
@@ -432,7 +432,7 @@ bool TErasureWriter::WriteBlock(
         Blocks_.clear();
     }
 
-    return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
+    return ReadyEvent_.IsSet() && ReadyEvent_.GetOrCrash().IsOK();
 }
 
 TFuture<void> TErasureWriter::WriteDataBlocks(
@@ -510,7 +510,7 @@ TFuture<void> TErasureWriter::Flush(const IChunkWriter::TWriteBlocksOptions& opt
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     if (blocks.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     BlockReorderer_.ReorderBlocks(blocks);
@@ -533,11 +533,9 @@ TFuture<void> TErasureWriter::Flush(const IChunkWriter::TWriteBlocksOptions& opt
 TFuture<void> TErasureWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadCategory,
-    const TDeferredChunkMetaPtr& chunkMeta,
-    std::optional<int> truncateBlockCount)
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(IsOpen_);
-    YT_VERIFY(!truncateBlockCount.has_value());
 
     return BIND(&TErasureWriter::DoClose, MakeStrong(this), options, workloadCategory, chunkMeta)
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())

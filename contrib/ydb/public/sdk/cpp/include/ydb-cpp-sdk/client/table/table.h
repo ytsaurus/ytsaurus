@@ -57,6 +57,11 @@ template <typename TClient, typename TStatusType>
 class TRetryContext;
 } // namespace NRetry::Sync
 
+namespace NRetry {
+template <typename TClient>
+class TRetryDeadlineHelper;
+} // namespace NRetry
+
 namespace NScheme {
 struct TPermissions;
 } // namespace NScheme
@@ -225,6 +230,14 @@ private:
 };
 
 struct TGlobalIndexSettings {
+    static constexpr const int VectorKMeansTreeLevelTablePosition = 0;
+    static constexpr const int VectorKMeansTreePostingTablePosition = 1;
+    static constexpr const int VectorKMeansTreePrefixTablePosition = 2;
+    static constexpr const int FulltextRelevanceDictTablePosition = 0;
+    static constexpr const int FulltextRelevanceDocsTablePosition = 1;
+    static constexpr const int FulltextRelevanceStatsTablePosition = 2;
+    static constexpr const int FulltextRelevancePostingTablePosition = 3;
+
     using TUniformOrExplicitPartitions = std::variant<std::monostate, uint64_t, TExplicitPartitions>;
 
     TPartitioningSettings PartitioningSettings;
@@ -300,12 +313,6 @@ public:
 
 struct TFulltextIndexSettings {
 public:
-    enum class ELayout {
-        Unspecified = 0,
-        Flat,
-        FlatRelevance,
-    };
-
     enum class ETokenizer {
         Unspecified = 0,
         Whitespace,
@@ -332,7 +339,6 @@ public:
         std::optional<TAnalyzers> Analyzers;
     };
 
-    std::optional<ELayout> Layout;
     std::vector<TColumnAnalyzers> Columns;
 
     static TFulltextIndexSettings FromProto(const Ydb::Table::FulltextIndexSettings& proto);
@@ -453,6 +459,8 @@ public:
     TChangefeedDescription& WithRetentionPeriod(const TDuration& value);
     // Initial scan will output the current state of the table first
     TChangefeedDescription& WithInitialScan();
+    // Enable UserSIDs
+    TChangefeedDescription& WithUserSIDs();
     // Attributes
     TChangefeedDescription& AddAttribute(const std::string& key, const std::string& value);
     TChangefeedDescription& SetAttributes(const std::unordered_map<std::string, std::string>& attrs);
@@ -468,6 +476,7 @@ public:
     bool GetSchemaChanges() const;
     const std::optional<TDuration>& GetResolvedTimestamps() const;
     bool GetInitialScan() const;
+    bool GetUserSIDs() const;
     const std::unordered_map<std::string, std::string>& GetAttributes() const;
     const std::string& GetAwsRegion() const;
     const std::optional<TInitialScanProgress>& GetInitialScanProgress() const;
@@ -497,6 +506,7 @@ private:
     std::optional<TDuration> ResolvedTimestamps_;
     std::optional<TDuration> RetentionPeriod_;
     bool InitialScan_ = false;
+    bool UserSIDs_ = false;
     std::unordered_map<std::string, std::string> Attributes_;
     std::string AwsRegion_;
     std::optional<TInitialScanProgress> InitialScanProgress_;
@@ -803,8 +813,11 @@ private:
     void AddVectorKMeansTreeIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const TKMeansTreeSettings& indexSettings);
     void AddVectorKMeansTreeIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns, const TKMeansTreeSettings& indexSettings);
     // fulltext
-    void AddFulltextIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const TFulltextIndexSettings& indexSettings);
-    void AddFulltextIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns, const TFulltextIndexSettings& indexSettings);
+    void AddFulltextIndex(const std::string& indexName, EIndexType type, const std::vector<std::string>& indexColumns, const TFulltextIndexSettings& indexSettings);
+    void AddFulltextIndex(const std::string& indexName, EIndexType type, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns, const TFulltextIndexSettings& indexSettings);
+    // json
+    void AddJsonIndex(const std::string& indexName, const std::vector<std::string>& indexColumns);
+    void AddJsonIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns);
 
     // default
     void AddSecondaryIndex(const std::string& indexName, const std::vector<std::string>& indexColumns);
@@ -1049,6 +1062,8 @@ public:
     // fulltext
     TTableBuilder& AddFulltextIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const TFulltextIndexSettings& indexSettings);
     TTableBuilder& AddFulltextIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns, const TFulltextIndexSettings& indexSettings);
+    TTableBuilder& AddFulltextRelevanceIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const TFulltextIndexSettings& indexSettings);
+    TTableBuilder& AddFulltextRelevanceIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns, const TFulltextIndexSettings& indexSettings);
 
     // default
     TTableBuilder& AddSecondaryIndex(const std::string& indexName, const std::vector<std::string>& indexColumns, const std::vector<std::string>& dataColumns);
@@ -1857,6 +1872,7 @@ class TSession {
     friend class TDataQuery;
     friend class TTransaction;
     friend class TSessionPool;
+    friend class NRetry::TRetryDeadlineHelper<TTableClient>;
 
 public:
     //! The following methods perform corresponding calls.
@@ -1931,10 +1947,14 @@ public:
     //! Returns session id
     const std::string& GetId() const;
 
+    const std::optional<TDeadline>& GetPropagatedDeadline() const;
+
     class TImpl;
 private:
     TSession(std::shared_ptr<TTableClient::TImpl> client, const std::string& sessionId, const std::string& endpointId, bool isOwnedBySessionPool);
     TSession(std::shared_ptr<TTableClient::TImpl> client, std::shared_ptr<TSession::TImpl> SessionImpl_);
+
+    void SetPropagatedDeadline(const TDeadline& deadline);
 
     std::shared_ptr<TTableClient::TImpl> Client_;
     std::shared_ptr<TSession::TImpl> SessionImpl_;

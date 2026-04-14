@@ -115,6 +115,7 @@ public:
         NCellMaster::TBootstrap* const Bootstrap = nullptr;
     };
 
+    virtual void ValidateBeginUpload(const TBeginUploadContext& context);
     virtual void BeginUpload(const TBeginUploadContext& context);
 
     struct TEndUploadContext

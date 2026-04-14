@@ -10,6 +10,31 @@
 #include "tablet_commit_session.h"
 #include "tablet_helpers.h"
 
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+
+#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
+
+#include <yt/yt/ytlib/queue_client/helpers.h>
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
+
+#include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
+
+#include <yt/yt/ytlib/security_client/permission_cache.h>
+
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
+#include <yt/yt/ytlib/table_client/schema.h>
+
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+
+#include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
+
 #include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
 #include <yt/yt/client/api/queue_transaction_mixin.h>
 
@@ -29,40 +54,17 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
-
-#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
-
-#include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
-
-#include <yt/yt/ytlib/queue_client/registration_manager.h>
-#include <yt/yt/ytlib/queue_client/helpers.h>
-
-#include <yt/yt/ytlib/security_client/permission_cache.h>
-
-#include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/hunks.h>
-#include <yt/yt/ytlib/table_client/schema.h>
-
-#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
-
-#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
-#include <yt/yt/ytlib/transaction_client/action.h>
-#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/compression/codec.h>
-
-#include <yt/yt/core/misc/range_formatters.h>
 #include <yt/yt/core/misc/sliding_window.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NApi::NNative {
 
@@ -849,7 +851,8 @@ private:
                                 *versionedWriteSchema,
                                 versionedWriteIdMapping,
                                 NameTable_,
-                                tabletIndexColumnId);
+                                tabletIndexColumnId,
+                                Options_.AllowMissingKeyColumns);
                         }
                         break;
 
@@ -864,7 +867,8 @@ private:
                             TUnversionedRow(modification.Row),
                             *deleteSchema,
                             deleteIdMapping,
-                            NameTable_);
+                            NameTable_,
+                            Options_.AllowMissingKeyColumns);
                         break;
 
                     case ERowModificationType::WriteAndLock: {
@@ -946,16 +950,17 @@ private:
         TFuture<void> WriteHunks()
         {
             if (HunkPayloads_.empty()) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             const auto& hunkTableInfo = TableSession_->GetHunkTableInfo();
-            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet();
+            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
 
             auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
             TTabletServiceProxy proxy(cellChannel);
@@ -1006,6 +1011,7 @@ private:
                     << TError(ex);
             }
         }
+
         void GuardedSubmitRows()
         {
             auto transaction = Transaction_.Lock();
@@ -1037,7 +1043,8 @@ private:
                 ? Connection_->GetColumnEvaluatorCache()->Find(primarySchema)
                 : nullptr;
 
-            auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
+            auto randomTabletInfo = tableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
 
             std::vector<int> columnIndexToLockIndex;
             GetLocksMapping(
@@ -1346,7 +1353,7 @@ private:
             } else {
                 auto transaction = Transaction_.Lock();
                 if (!transaction) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
@@ -1395,12 +1402,12 @@ private:
             YT_ASSERT_THREAD_AFFINITY_ANY();
 
             if (!TableInfo_->HunkStorageId) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto hunkStorageId = TableInfo_->HunkStorageId;
@@ -1410,7 +1417,7 @@ private:
             auto maybeTableInfoOrError = tableInfoFuture.TryGet();
             if (maybeTableInfoOrError && maybeTableInfoOrError->IsOK()) {
                 OnGotHunkTableMountInfo(maybeTableInfoOrError->Value());
-                return VoidFuture;
+                return OKFuture;
             } else {
                 return tableInfoFuture
                     .Apply(BIND(
@@ -1655,7 +1662,7 @@ private:
             [&] {
                 const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
                 if (clusterDirectory->FindConnection(replicaInfo->ClusterName)) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 YT_LOG_DEBUG("Replica cluster is not known; waiting for cluster directory sync (ClusterName: %v)",
@@ -1839,7 +1846,7 @@ private:
 
         CheckReadPermission(consumerPath.GetPath(), tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
 
-        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
+        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManagerOrThrow()->GetRegistrationOrThrow(queuePath, consumerPath);
 
         auto queueClient = GetClient();
         if (auto queueCluster = registrationCheckResult.ResolvedQueue.GetCluster()) {
@@ -2163,7 +2170,7 @@ private:
                 tabletSession->PrepareRequests();
             }
 
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -2179,7 +2186,7 @@ private:
     TFuture<void> DoCommitTabletSessions()
     {
         if (TabletIdToSession_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         std::vector<ITabletCommitSessionPtr> sessions;
@@ -2218,7 +2225,7 @@ private:
             }
 
             const auto& replicationCard = session->GetReplicationCard();
-            const auto& replicationCardId = session->GetInfo()->ReplicationCardId;
+            auto replicationCardId = session->GetInfo()->ReplicationCardId;
             if (replicationCardId &&
                 replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
@@ -2249,14 +2256,14 @@ private:
                 }
 
                 if (options.CoordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy) {
-                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qv is incompatible with chaos tables",
+                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qlv is incompatible with chaos tables",
                         options.CoordinatorCommitMode);
                 }
 
                 NObjectClient::TCellId coordinatorCellId;
-                // Actual problem is NP-hard, so use a simple heuristic (however greedy approach could do better here):
+                // The actual problem is NP-hard, so use a simple heuristic (however greedy approach could do better here):
                 // if we've already seen given cell id, use it. Otherwise select a random one.
-                for (const auto& coordinatorCellIdCandidate : coordinatorCellIds) {
+                for (auto coordinatorCellIdCandidate : coordinatorCellIds) {
                     if (selectedCellIds.contains(coordinatorCellIdCandidate)) {
                         coordinatorCellId = coordinatorCellIdCandidate;
                         break;
@@ -2277,7 +2284,7 @@ private:
                     auto prerequisiteType = TypeFromId(prerequisiteId);
                     if (!IsChaosLeaseType(prerequisiteType)) {
                         THROW_ERROR_EXCEPTION(
-                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids.")
+                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids")
                             << TErrorAttribute("prerequisite_id", prerequisiteId)
                             << TErrorAttribute("prerequisite_type", prerequisiteType)
                             << TErrorAttribute("table_path", path);
@@ -2291,7 +2298,7 @@ private:
                 CommitOptions_.Force2PC = true;
                 if (!CommitOptions_.CoordinatorCellId) {
                     CommitOptions_.CoordinatorCellId = coordinatorCellId;
-                    YT_LOG_DEBUG("2PC Coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
+                    YT_LOG_DEBUG("2PC coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
                 }
 
                 YT_LOG_DEBUG("Coordinator selected (Path: %v, ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v)",
@@ -2345,13 +2352,13 @@ private:
             [&] {
                 return needsFlush
                     ? AllSucceeded(GetTableSessionsPrepareFutures(PendingSessions_))
-                    : VoidFuture;
+                    : OKFuture;
             }()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
                     BuildAdjustedCommitOptions(options);
 
-                    return needsFlush ? PrepareRequests() : VoidFuture;
+                    return needsFlush ? PrepareRequests() : OKFuture;
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
@@ -2379,6 +2386,14 @@ private:
                         }
                     }
 
+                    if (GetType() == ETransactionType::Tablet) {
+                        // NB: Master prerequisite transactions for tablet transactions are already handled
+                        // at the data sending stage (TReqWrite) and are not used during commit stage.
+                        // Chaos leases are excluded from prerequisite transaction ids even earlier,
+                        // in BuildAdjustedCommitOptions.
+                        CommitOptions_.PrerequisiteTransactionIds = {};
+                    }
+
                     return Transaction_->Commit(CommitOptions_);
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
@@ -2389,10 +2404,17 @@ private:
                             State_ = ETransactionState::Committed;
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
-                            THROW_ERROR_EXCEPTION("Error committing transaction %v",
+
+                            auto error = TError(
+                                NTransactionClient::EErrorCode::NativeTransactionCommitFailure,
+                                "Error committing transaction %v",
                                 GetId())
                                 << MakeClusterIdErrorAttribute()
                                 << resultOrError;
+
+                            Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
+
+                            THROW_ERROR(error);
                         }
                     }
 

@@ -1,0 +1,5 @@
+# Provide includes for testing records to match their macros.
+# We usually omit includes from record descriptions and provide them in GENERATE_YT_RECORD macro.
+
+simple_mapping.yaml:
+  - "library/cpp/yt/yson_string/string.h"

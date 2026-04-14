@@ -36,7 +36,6 @@
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
-using namespace NClusterNode;
 using namespace NCompression;
 using namespace NHydra;
 using namespace NLeaseServer;
@@ -243,7 +242,7 @@ public:
                     // Client already decided to go on with the next generation of rows, so we are ok to even ignore
                     // possible commit errors. Note that the result of this particular write does not affect the outcome of the
                     // transaction any more, so we are safe to lose some of freshly enqueued mutations.
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 updateReplicationProgress = tablet->GetReplicationCardId() && !params.Versioned;
@@ -369,10 +368,16 @@ public:
             // NB: Yielding is now possible.
             // Cannot neither access tablet, nor transaction.
             if (context.BlockedStore) {
-                context.BlockedStore->WaitOnBlockedRow(
+                auto waitOnBlockedRowDuration = context.BlockedStore->WaitOnBlockedRow(
                     context.BlockedRow,
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
+
+                tablet
+                    ->GetTableProfiler()
+                    ->GetWriteCounters(GetCurrentProfilingUser())
+                    ->WaitOnBlockedRowDuration
+                    .Record(waitOnBlockedRowDuration);
             }
 
             context.Error.ThrowOnError();
@@ -575,7 +580,7 @@ private:
         if (tablet->SmoothMovementData().ShouldForwardMutation()) {
             TReqWriteRows forwardedRequest;
             DeserializeProtoWithEnvelope(&forwardedRequest, context->Request().Data);
-            ForwardWriteRowsMutation(tablet, transaction, std::move(forwardedRequest));
+            ForwardWriteRowsMutation(tablet, transaction, transactionId, std::move(forwardedRequest));
         }
     }
 
@@ -599,7 +604,8 @@ private:
             hunkChunksInfo = FromProto<THunkChunksInfo>(request->hunk_chunks_info());
         }
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
-        auto transactionExternalizationToken = FromProto<TGuid>(request->transaction_externalization_token());
+        auto transactionExternalizationToken = FromProto<TTransactionExternalizationToken>(
+            request->transaction_externalization_token());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = Host_->FindTablet(tabletId);
@@ -667,9 +673,8 @@ private:
                         false,
                         transactionExternalizationToken);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v@%v, TabletId: %v)",
-                        transactionId,
-                        transactionExternalizationToken,
+                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
+                        FormatTransactionId(transactionId, transactionExternalizationToken),
                         tabletId);
                     return;
                 }
@@ -683,11 +688,10 @@ private:
                 }
 
                 YT_LOG_DEBUG(
-                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v@%v, "
+                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
                     "BatchGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
                     tabletId,
-                    transactionId,
-                    transactionExternalizationToken,
+                    FormatTransactionId(transactionId, transactionExternalizationToken),
                     generation,
                     transaction->GetPersistentGeneration(),
                     prerequisiteTransactionIds);
@@ -743,30 +747,39 @@ private:
         }
 
         if (tablet->SmoothMovementData().ShouldForwardMutation()) {
-            ForwardWriteRowsMutation(tablet, transaction, *request);
+            ForwardWriteRowsMutation(tablet, transaction, transactionId, *request);
         }
     }
 
     void ForwardWriteRowsMutation(
         TTablet* tablet,
         TTransaction* transaction,
+        TTransactionId transactionId,
         TReqWriteRows request)
     {
         YT_LOG_DEBUG("Forwarding writes to sibling servant (%v, TransactionId: %v)",
             tablet->GetLoggingTag(),
-            transaction->GetId());
+            transactionId);
 
-        YT_VERIFY(transaction);
+        TTransactionExternalizationToken token(tablet->SmoothMovementData().GetSiblingAvenueEndpointId());
+        auto atomicity = AtomicityFromTransactionId(transactionId);
 
-        auto token = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
+        if (atomicity == EAtomicity::Full) {
+            YT_VERIFY(transaction);
+            YT_VERIFY(transaction->GetId() == transactionId);
 
-        const auto& transactionManager = Host_->GetTransactionManager();
-        transactionManager->RegisterExternalizerTablet(transaction, tablet->GetId(), token);
+            const auto& transactionManager = Host_->GetTransactionManager();
+            transactionManager->RegisterExternalizerTablet(transaction, tablet->GetId(), token);
+        }
+
+        auto newTransactionType = atomicity == EAtomicity::Full
+            ? EObjectType::ExternalizedAtomicTabletTransaction
+            : EObjectType::ExternalizedNonAtomicTabletTransaction;
 
         ToProto(request.mutable_transaction_externalization_token(), token);
         ToProto(
             request.mutable_transaction_id(),
-            ReplaceTypeInId(transaction->GetId(), EObjectType::ExternalizedAtomicTabletTransaction));
+            ReplaceTypeInId(transactionId, newTransactionType));
         request.set_mount_revision(
             ToProto(tablet->SmoothMovementData().GetSiblingMountRevision()));
 

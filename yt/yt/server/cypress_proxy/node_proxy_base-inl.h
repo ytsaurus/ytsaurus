@@ -24,7 +24,6 @@ void TNodeProxyBase::FinishSequoiaSessionAndReply(
 {
     auto responseMessage = CreateResponseMessage(context->Response(), context->Response().Attachments());
 
-    // TODO(cherepashka): after `set` is done, make all responses with mutationId handled correctly.
     if (commitSession) {
         if (auto mutationId = context->GetMutationId()) {
             const auto& responseKeeper = Bootstrap_->GetResponseKeeper();

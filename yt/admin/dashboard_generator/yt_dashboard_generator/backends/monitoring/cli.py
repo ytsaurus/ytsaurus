@@ -46,13 +46,13 @@ class MonitoringFacade(cli.FacadeBase):
         print(proxy.fetch_dashboard(self.dashboard_id))
 
     def preview(self):
-        dashboard = self.func()
+        dashboard = self._call_func(self.func)
         serializer = monitoring.MonitoringDebugSerializer(self.tag_postprocessor)
         result = dashboard.serialize(serializer)
         pretty_print_fixed_indent(result)
 
     def _prepare_serialized_dashboard(self, verbose):
-        dashboard = self.func()
+        dashboard = self._call_func(self.func)
         if self.set_name:
             dashboard.try_set_name(self.uid)
         serializer = monitoring.MonitoringDictSerializer(self.tag_postprocessor)

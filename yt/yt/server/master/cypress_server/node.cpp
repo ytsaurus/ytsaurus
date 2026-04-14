@@ -344,7 +344,7 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
 
             // TODO(aleksandra-zh): links should not be a special case here
             if (ImmutableSequoiaProperties() && GetType() != EObjectType::Link) {
-                YT_LOG_ALERT("Non-sequoia node has mutable Sequoia properties (NodeId: %v)",
+                YT_LOG_ALERT("Non-sequoia node has immutable Sequoia properties (NodeId: %v)",
                     GetVersionedId());
             }
         }

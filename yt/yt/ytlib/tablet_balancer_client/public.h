@@ -1,0 +1,33 @@
+#pragma once
+
+#include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/ref_counted.h>
+
+namespace NYT::NTabletBalancerClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TTabletBalancerChannelConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TReqRequestBalancing;
+class TRspRequestBalancing;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EBalancingRequestMode,
+    ((Move)    (0))
+    ((Reshard) (1))
+);
+
+struct TBalancingRequest;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletBalancerClient

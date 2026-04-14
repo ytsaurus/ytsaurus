@@ -66,6 +66,7 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(options.RowBuffer)
+        , ChunkPoolStatistics_(options.ChunkPoolStatistics)
     {
         Logger = options.Logger;
         StructuredLogger = options.StructuredLogger;
@@ -201,19 +202,38 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
-            auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
-            for (auto& dataSlice : foreignSlices) {
-                dataSlice->LowerLimit().KeyBound = ShortenKeyBound(
-                    dataSlice->LowerLimit().KeyBound,
-                    SortedJobOptions_.ForeignComparator.GetLength(),
-                    RowBuffer_);
+            YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
 
-                dataSlice->UpperLimit().KeyBound = ShortenKeyBound(
-                    dataSlice->UpperLimit().KeyBound,
-                    SortedJobOptions_.ForeignComparator.GetLength(),
-                    RowBuffer_);
+            std::vector<TLegacyDataSlicePtr> foreignSlices;
+            for (const auto& stripe : GetStripeList(cookie)->Stripes()) {
+                if (!stripe->IsForeign()) {
+                    continue;
+                }
+                for (const auto& dataSlice : stripe->DataSlices()) {
+                    dataSlice->LowerLimit().KeyBound = ShortenKeyBound(
+                        dataSlice->LowerLimit().KeyBound,
+                        SortedJobOptions_.ForeignComparator.GetLength(),
+                        RowBuffer_);
+
+                    dataSlice->UpperLimit().KeyBound = ShortenKeyBound(
+                        dataSlice->UpperLimit().KeyBound,
+                        SortedJobOptions_.ForeignComparator.GetLength(),
+                        RowBuffer_);
+
+                    foreignSlices.push_back(dataSlice);
+                }
             }
-            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount, cookie);
+
+            auto childCookies = SplitJob(
+                jobSummary.UnreadInputDataSlices,
+                foreignSlices,
+                jobSummary.SplitJobCount,
+                cookie);
+
+            ValidateChildJobSizes(cookie, childCookies, [&] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
+
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
@@ -281,6 +301,8 @@ private:
     TSerializableLogger StructuredLogger;
 
     std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
+
+    TSortedChunkPoolStatisticsPtr ChunkPoolStatistics_;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -445,7 +467,7 @@ private:
                         .DataSlice = dataSlice,
                         .LowerBound = lowerBound,
                         .UpperBound = upperBound,
-                        .InputCookie = inputCookie
+                        .InputCookie = inputCookie,
                     });
                 }
 
@@ -543,7 +565,7 @@ private:
 
         i64 totalTeleportChunkSize = 0;
         for (const auto& teleportChunk : TeleportChunks_) {
-            ChunkTeleported_.Fire(teleportChunk, /* tag = */ std::any{});
+            ChunkTeleported_.Fire(teleportChunk, /*tag*/ std::any{});
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 
@@ -588,6 +610,7 @@ private:
                     TeleportChunks_,
                     retryIndex,
                     InputStreamDirectory_,
+                    ChunkPoolStatistics_,
                     Logger,
                     StructuredLogger);
 
@@ -621,7 +644,12 @@ private:
             jobStubPtrs.emplace_back(std::make_unique<TNewJobStub>(std::move(jobStub)));
         }
 
-        JobManager_->AddJobs(std::move(jobStubPtrs));
+        auto cookies = JobManager_->AddJobs(std::move(jobStubPtrs));
+
+        YT_LOG_TRACE(
+            "Jobs are built (CookieCount: %v, Statistics: %v)",
+            cookies,
+            ChunkPoolStatistics_);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
@@ -638,7 +666,7 @@ private:
 
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
         std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
-        std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
+        const std::vector<TLegacyDataSlicePtr>& foreignInputDataSlices,
         int splitJobCount,
         TOutputCookie cookie)
     {
@@ -682,9 +710,17 @@ private:
         for (const auto& dataSlice : foreignInputDataSlices) {
             dataWeight += dataSlice->GetDataWeight();
         }
-        i64 dataWeightPerJob = splitJobCount == 1
-            ? std::numeric_limits<i64>::max() / 4
-            : DivCeil(dataWeight, static_cast<i64>(splitJobCount));
+
+        // NB(coteeq): We do not set isExplicitJob count because sorted pool
+        // does not support this flag and it would be *very* hard to support
+        // (and it probably is not worth it).
+        // So we just increase all constraints to effective infinity to trick
+        // the pool to always make a single job.
+        auto adjustSizeIfSingleJob = [singleJob = splitJobCount == 1] (i64 size) {
+            return singleJob ? std::numeric_limits<i64>::max() / 4 : size;
+        };
+
+        i64 dataWeightPerJob = adjustSizeIfSingleJob(DivCeil(dataWeight, static_cast<i64>(splitJobCount)));
 
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
@@ -694,9 +730,9 @@ private:
             /*jobCount*/ splitJobCount,
             dataWeightPerJob,
             /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
-            JobSizeConstraints_->GetCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetPrimaryCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
+            adjustSizeIfSingleJob(JobSizeConstraints_->GetCompressedDataSizePerJob()),
+            adjustSizeIfSingleJob(JobSizeConstraints_->GetPrimaryCompressedDataSizePerJob()),
+            adjustSizeIfSingleJob(JobSizeConstraints_->GetMaxDataSlicesPerJob()),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
@@ -706,6 +742,8 @@ private:
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
             /*samplingRate*/ std::nullopt);
+
+        YT_LOG_DEBUG("Initialized constraints (Constraints: %v)", jobSizeConstraints);
 
         auto splitSortedJobOptions = SortedJobOptions_;
         // We do not want to yield during job splitting because it may potentially lead
@@ -718,6 +756,7 @@ private:
             /*teleportChunks*/ {}, // Each job is already located between the teleport chunks.
             0 /*retryIndex*/,
             InputStreamDirectory_,
+            ChunkPoolStatistics_,
             Logger,
             StructuredLogger);
 
@@ -753,6 +792,11 @@ private:
             }
         }
         childCookies.resize(writeIndex);
+
+        YT_LOG_TRACE(
+            "Jobs are built (CookieCount: %v, ChunkPoolStatistics: %v)",
+            std::ssize(childCookies),
+            ChunkPoolStatistics_);
 
         return childCookies;
     }
@@ -817,6 +861,9 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(20, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+
+    PHOENIX_REGISTER_FIELD(21, ChunkPoolStatistics_,
+        .SinceVersion(ESnapshotVersion::ChunkPoolStatistics));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

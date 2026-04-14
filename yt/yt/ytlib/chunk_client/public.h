@@ -153,6 +153,7 @@ DEFINE_ENUM_UNKNOWN_VALUE(EChunkFeatures, Unknown);
 DEFINE_ENUM(EChunkClientFeature,
     // COMPAT(akozhikhov).
     ((AllBlocksIndex)           (0))
+    ((MultiplePartitionTags)    (1))
 );
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkMergerMode, i8,
@@ -193,6 +194,8 @@ DECLARE_REFCOUNTED_STRUCT(TChunkTeleporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheDynamicConfig)
+
+DECLARE_REFCOUNTED_STRUCT(TS3MediumConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 
@@ -237,6 +240,10 @@ DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizer)
+
+DECLARE_REFCOUNTED_CLASS(TMediumDescriptor)
+DECLARE_REFCOUNTED_CLASS(TDomesticMediumDescriptor)
+DECLARE_REFCOUNTED_CLASS(TS3MediumDescriptor)
 
 DECLARE_REFCOUNTED_CLASS(TChunkMetaFetcher)
 

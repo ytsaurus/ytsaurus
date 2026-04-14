@@ -120,10 +120,10 @@ Table 1 shows some general `Ytsaurus` settings. Full description: [YtsaurusSpec]
 | `coreImage` | `string` | Image for the main server components (for example, `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`). |
 | `uiImage` | `string` | Image for the UI (for example, `ghcr.io/ytsaurus/ui:stable`). |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Secrets needed to pull images from a private registry. Learn more [here](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
-| `configOverrides` | `optional<LocalObjectReference>` | A ConfigMap for overriding generated static configs. It should only be used in rare cases. |
+| `configOverrides` | `optional<LocalObjectReference>` | A ConfigMap for overriding generated static configs. See [Configuration overrides](../../admin-guide/config-overrides.md) for details. |
 | `adminCredentials` | `optional<LocalObjectReference>` | A secret with the login/password for the admin account. |
 | `isManaged` | `bool` | A flag that lets you disable all operator actions on this cluster in order to manually work with the cluster where needed. |
-| `ephemeralCluster` | `bool` | A flag that lets you disable antiaffinity constraints. It should only be used in test cluster scenarios or when the number of k8s nodes is smaller than the number of master servers. |
+| `ephemeralCluster` | `bool` | A flag that lets you disable anti-affinity constraints. It should only be used in test cluster scenarios or when the number of k8s nodes is smaller than the number of master servers. |
 | `enableFullUpdate` | `bool` | A flag that lets you prohibit the launch of a full cluster update. |
 | `useIpv6` | `bool` | Use IPv6 or IPv4 |
 | `bootstrap` | BootstrapSpec | Settings for initially deploying the cluster (for example, [tablet cell bundle parameters](../../user-guide/dynamic-tables/concepts#tablet_cell_bundles)) |
@@ -191,6 +191,36 @@ A proper logging configuration is essential for diagnosing problems and facilita
 ## Locations
 
 There are recommendations for disk layout and location configuration on a separate [page](../../admin-guide/locations.md).
+
+## Pod anti-affinity {#anti-affinity}
+
+For production deployments, it's crucial to configure [pod anti-affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity) rule to ensure high availability by distributing component instances across different Kubernetes nodes. This prevents multiple instances of the same component from running on the same node, which could lead to service disruption if that node fails.
+
+### Configuration {#anti-affinity-setup}
+
+Anti-affinity is configured using the standard Kubernetes `affinity` field in the component specification. The recommended pattern uses `podAntiAffinity` with `requiredDuringSchedulingIgnoredDuringExecution` to ensure strict separation of pods.
+
+Example configuration for tablet nodes:
+
+```yaml
+tabletNodes:
+  - instanceCount: 3
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+            - key: yt_component
+              operator: In
+              values:
+              - "ytdemo-yt-tablet-node"
+          topologyKey: "kubernetes.io/hostname"
+```
+
+In this configuration:
+- `yt_component` label identifies pods of the same component type
+- The value format is `<cluster-name>-yt-<component-type>` (e.g., `ytdemo-yt-tablet-node` for a cluster named `ytdemo`)
+- `topologyKey: "kubernetes.io/hostname"` ensures pods are spread across different nodes
 
 ## Operation execution environment {#job-environment}
 

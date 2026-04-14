@@ -69,9 +69,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("locations", &TThis::Locations);
 
-    registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
-        .Default(true);
-
     registrar.Parameter("detached_tmpfs_umount", &TThis::DetachedTmpfsUmount)
         .Default(true);
 
@@ -83,9 +80,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
-
-    registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
-        .Default(false);
 
     registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
         .Default(false);
@@ -167,6 +161,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("volume_release_timeout", &TThis::VolumeReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
+    registrar.Parameter("remove_volumes_from_porto_place_timeout", &TThis::RemoveVolumesFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("remove_layers_from_porto_place_timeout", &TThis::RemoveLayersFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
     registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
         .Default(false);
 
@@ -181,6 +181,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
+
+    registrar.Parameter("enable_async_artifact_copy", &TThis::EnableAsyncArtifactCopy)
+        .Default(false);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] {
@@ -372,6 +375,18 @@ const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicCo
                 .Item("path").Value("/user_job/block_io/io_total")
                 .Item("type").Value("counter")
                 .Item("profiling_name").Value("/user_job/block_io/io_total")
+            .EndMap()
+
+            .Item("block_io/bytes_read").BeginMap()
+                .Item("path").Value("/user_job/block_io/bytes_read")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/user_job/block_io/bytes_read")
+            .EndMap()
+
+            .Item("block_io/bytes_written").BeginMap()
+                .Item("path").Value("/user_job/block_io/bytes_written")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/user_job/block_io/bytes_written")
             .EndMap()
 
             .Item("network/rx_bytes").BeginMap()
@@ -639,6 +654,9 @@ void TTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_address_resolve", &TThis::FailAddressResolve)
         .Default(false);
+
+    registrar.Parameter("delay_in_artifacts_caching", &TThis::DelayInArtifactsCaching)
+        .Default();
 }
 
 void TJobProbeConfig::Register(TRegistrar registrar)
@@ -685,6 +703,12 @@ void TJobCommonConfig::Register(TRegistrar registrar)
     registrar.Parameter("treat_job_proxy_failure_as_abort", &TThis::TreatJobProxyFailureAsAbort)
         .Default(false);
 
+    registrar.Parameter("treat_job_proxy_preparation_failure_as_abort", &TThis::TreatJobProxyPreparationFailureAsAbort)
+        .Default(true);
+
+    registrar.Parameter("treat_job_proxy_io_error_as_abort", &TThis::TreatJobProxyIOErrorAsAbort)
+        .Default(true);
+
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();
 
@@ -708,6 +732,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_finish_timeout_after_interruption_call_failed", &TThis::JobFinishTimeoutAfterInterruptionCallFailed)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("statistics_reporting_period", &TThis::StatisticsReportingPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

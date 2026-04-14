@@ -347,7 +347,17 @@ void TOperationController::OnScheduleAllocationFailed(
     if (backoffDeadline > 0) {
         YT_LOG_DEBUG("Failed to schedule allocation, backing off (Duration: %v, Reasons: %v)",
             backoffDeadline - now,
-            scheduleAllocationResult->Failed);
+            MakeFormatterWrapper([&] (auto* builder) {
+                // NB(bystrovserg): Log only non-zero fail reasons.
+                builder->AppendChar('{');
+                TDelimitedStringBuilderWrapper delimitedBuilder(builder);
+                for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
+                    if (auto count = scheduleAllocationResult->Failed[reason]; count > 0) {
+                        delimitedBuilder->AppendFormat("%v: %v", reason, count);
+                    }
+                }
+                builder->AppendChar('}');
+            }));
         ScheduleAllocationBackoffDeadline_.store(backoffDeadline);
         ScheduleAllocationBackoffObserved_.store(true);
     }

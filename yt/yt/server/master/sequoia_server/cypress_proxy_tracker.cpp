@@ -18,6 +18,8 @@
 #include <yt/yt/server/master/cypress_server/config.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/server/lib/sequoia/proto/cypress_proxy_tracker.pb.h>
 
 #include <yt/yt/core/misc/id_generator.h>
@@ -31,6 +33,7 @@ using namespace NHydra;
 using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSequoiaClient;
+using namespace NServer;
 using namespace NThreading;
 
 using namespace NProto;
@@ -257,17 +260,17 @@ private:
     {
         auto* inheritableAttributesInfo = response->mutable_supported_inheritable_attributes();
 
-        #define XX(CamelCase, snake_case) \
-            inheritableAttributesInfo->add_inheritable_attribute_keys(#snake_case);
+    #define XX(FieldName, AttributeKey) \
+        inheritableAttributesInfo->add_inheritable_attribute_keys(EInternedAttributeKey::AttributeKey.Unintern());
         FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-        XX(Account, account)
-        #undef XX
+        XX(Account, Account)
+    #undef XX
 
-        #define XX(CamelCase, snake_case) \
-            inheritableAttributesInfo->add_inheritable_during_copy_attribute_keys(#snake_case);
+    #define XX(FieldName, AttributeKey) \
+        inheritableAttributesInfo->add_inheritable_during_copy_attribute_keys(EInternedAttributeKey::AttributeKey.Unintern());
         FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
-        XX(Account, account)
-        #undef XX
+        XX(Account, Account)
+    #undef XX
     }
 };
 

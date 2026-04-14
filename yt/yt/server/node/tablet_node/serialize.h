@@ -22,6 +22,15 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NTesting {
+
+// Should only be used in tests. Do not set it when tablet cells are alive.
+void SetCurrentReignOverride(NHydra::TReign reign);
+
+} // namespace NTesting
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETabletReign,
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
@@ -65,6 +74,14 @@ DEFINE_ENUM(ETabletReign,
     ((PerTabletTxActionForwarding)                 (101402)) // ifsmirnov
     ((ProvisionalFlush)                            (101403)) // atalmenev
     ((PreservePreserveTimestamps)                  (101404)) // sabdenovch
+    ((SaveOriginatorTabletsAfterReshard)           (101405)) // atalmenev
+    ((SmoothMovementOrdered)                       (101406)) // ifsmirnov
+    ((AddConflictHorizon)                          (101407)) // ponasenko-rs
+    ((ReignInHiveMessages)                         (101408)) // ifsmirnov
+    // 26.1 starts here.
+    ((Start_26_1)                                  (101500)) // akozhikhov
+    ((HunkTabletSensors)                           (101501)) // akozhikhov
+    ((ReshardRedirectionHint)                      (101502)) // atalmenev
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "data_flow_graph.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -152,6 +151,10 @@ NTableClient::TTableSchema::TSystemColumnOptions ControlAttributesToColumnOption
 NYson::TYsonString MakeIntermediateTableWriterConfig(
     const TOperationSpecBasePtr& spec,
     bool fastIntermediateMediumEnabled);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDynamicTableOutputChunkConstraints(NChunkClient::TInputChunkPtr chunk, i64 maxChunkSize, i64 maxBlockSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

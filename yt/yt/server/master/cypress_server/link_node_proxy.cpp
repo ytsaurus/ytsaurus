@@ -148,7 +148,7 @@ private:
             auto rsp = client->NodeExists(cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode));
             return rsp.Apply(BIND([] (const TErrorOr<bool>& rspOrError) {
                 if (!rspOrError.IsOK()) {
-                    return TrueFuture;
+                    return MakeFuture(true);
                 }
                 return MakeFuture(!rspOrError.Value());
             }));

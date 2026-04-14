@@ -42,22 +42,6 @@ ECellarType GetCellarTypeFromCellBundleId(TObjectId id)
     }
 }
 
-const TYPath& GetCellarTypeCypressPathPrefix(ECellarType type)
-{
-    switch (type) {
-        case ECellarType::Tablet:
-            return TabletCellCypressPrefix;
-
-        case ECellarType::Chaos:
-            return ChaosCellCypressPrefix;
-    }
-}
-
-const TYPath& GetCellCypressPathPrefix(TCellId id)
-{
-    return GetCellarTypeCypressPathPrefix(GetCellarTypeFromCellId(id));
-}
-
 const TYPath& GetCellHydraPersistenceCypressPathPrefix(TCellId id)
 {
     switch (TypeFromId(id)) {
@@ -70,11 +54,6 @@ const TYPath& GetCellHydraPersistenceCypressPathPrefix(TCellId id)
         default:
             YT_ABORT();
     }
-}
-
-TYPath GetCellPath(NElection::TCellId id)
-{
-    return Format("%v/%v", GetCellCypressPathPrefix(id), id);
 }
 
 TYPath GetCellHydraPersistencePath(NElection::TCellId id)

@@ -2,12 +2,16 @@
 
 #include "artifact.h"
 #include "bootstrap.h"
+#include "volume_helpers.h"
 #include "private.h"
-#include "volume_manager.h"
+
+#include <yt/yt/server/node/exec_node/preparation_options.h>
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h>
+
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -15,9 +19,9 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/logging/public.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NExecNode {
 
@@ -88,12 +92,26 @@ void SetNodeInfoToRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
+void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode
 
 template <>
 struct THash<NYT::NExecNode::TControllerAgentDescriptor>
 {
-    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
+    size_t operator()(const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
 };
 
 #define HELPERS_INL_H_

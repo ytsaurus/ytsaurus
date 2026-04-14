@@ -79,8 +79,8 @@ Operation commands:
     abort-op, suspend-op, resume-op, complete-op, update-op-parameters,
     get-operation, list-operations, track-op
 Job commands:
-    run-job-shell, abort-job, get-job-stderr, get-job-input,
-    get-job-input-paths, get-job, list-jobs
+    run-job-shell, run-job-shell-command, abort-job, get-job-stderr,
+    get-job-input, get-job-input-paths, get-job, list-jobs
 Transaction commands:
     start-tx, commit-tx, abort-tx, ping-tx,
     lock, unlock
@@ -975,8 +975,6 @@ def reshard_table(**kwargs):
         del kwargs["pivot_keys"]
     if kwargs.get("uniform") is False:
         del kwargs["uniform"]
-    if kwargs.get("enable_slicing") is False:
-        del kwargs["enable_slicing"]
     yt.reshard_table(**kwargs)
 
 
@@ -987,9 +985,13 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("--tablet-count", type=int)
     parser.add_argument("--sync", action="store_true")
     parser.add_argument("--uniform", action="store_true")
-    parser.add_argument("--enable-slicing", action="store_true")
     parser.add_argument("--slicing-accuracy", type=float)
     parser.add_argument("--trimmed-row-counts", type=int, nargs="+")
+    enable_slicing_parser = parser.add_mutually_exclusive_group(required=False)
+    enable_slicing_parser.add_argument(
+        "--enable-slicing", dest="enable_slicing", default=None, action="store_true")
+    enable_slicing_parser.add_argument(
+        "--no-enable-slicing", dest="enable_slicing", default=None, action="store_false")
 
 
 def add_reshard_table_automatic_parser(add_parser):
@@ -1992,7 +1994,16 @@ def execute(**kwargs):
     command_description = get_commands_description()[kwargs["command_name"]]
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
-    data = chunk_iter_stream(get_binary_std_stream(sys.stdin), 16 * MB) if command_description.input_type is not None else None
+
+    # command_description behaves differently in python and native implementations.
+    if callable(command_description.input_type):
+        # native implementation.
+        input_type_is_null = command_description.input_type() == b'Null'
+    else:
+        # python implementation.
+        input_type_is_null = command_description.input_type is None
+
+    data = chunk_iter_stream(get_binary_std_stream(sys.stdin), 16 * MB) if not input_type_is_null else None
     result = yt.driver.make_request(kwargs["command_name"], kwargs["execute_params"], data=data)
     if result is not None:
         print_to_output(result, eoln=False)
@@ -2057,6 +2068,18 @@ def add_run_job_shell_parser(add_parser):
     parser.add_argument("--timeout", type=int, help="inactivity timeout in milliseconds after job has "
                                                     "finished, by default 60000 milliseconds")
     add_hybrid_argument(parser, "command", group_required=False)
+
+
+@copy_docstring_from(yt.run_job_shell_command)
+def run_job_shell_command(**kwargs):
+    write_silently(chunk_iter_stream(yt.run_job_shell_command(**kwargs), yt.config["read_buffer_size"]))
+
+
+def add_run_job_shell_command_parser(add_parser):
+    parser = add_parser("run-job-shell-command", run_job_shell_command)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    add_hybrid_argument(parser, "command", help="command to execute in job sandbox")
+    parser.add_argument("--shell-name", type=str, help="name of the job shell to use")
 
 
 def add_abort_job_parser(add_parser):
@@ -2519,19 +2542,19 @@ def remove_maintenance(**kwargs):
 def add_maintenance_request_parsers(add_parser):
     parser = add_parser("add-maintenance", add_maintenance)
     parser.add_argument("-c", "--component", type=str)
-    parser.add_argument("-a", "--address", type=str)
-    parser.add_argument("-t", "--type", type=str)
+    parser.add_argument("-a", "--address", type=str, help="Component address")
+    parser.add_argument("-t", "--type", type=str, help="Maintenance type")
     parser.add_argument("--comment", type=str)
 
     parser = add_parser("remove-maintenance", remove_maintenance)
     parser.add_argument("-c", "--component", type=str)
-    parser.add_argument("-a", "--address", type=str)
+    parser.add_argument("-a", "--address", type=str, help="Component address")
     parser.add_argument("--id", default=None)
     add_structured_argument(parser, "--ids", default=None)
-    parser.add_argument("-t", "--type", default=None)
+    parser.add_argument("-t", "--type", default=None, help="Maintenance type")
     parser.add_argument("-u", "--user", default=None)
-    parser.add_argument("--mine", default=False)
-    parser.add_argument("--all", default=False)
+    parser.add_argument("--mine", action="store_true")
+    parser.add_argument("--all", action="store_true")
 
 
 def add_admin_parser(root_subparsers):
@@ -2757,7 +2780,7 @@ def add_flow_set_pipeline_spec_parser(add_parser):
                         help="Set spec even if pipeline is paused")
     parser.add_argument("--spec-path", help="Path inside pipeline spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
-                        help="new spec attribute value")
+                        help="New spec attribute value; if it is not set, it will be read from stdin")
 
 
 def add_flow_remove_pipeline_spec_parser(add_parser):
@@ -2788,7 +2811,7 @@ def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
-                        help="new spec attribute value")
+                        help="New spec attribute value; if it is not set, it will be read from stdin")
 
 
 def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
@@ -2889,9 +2912,9 @@ def add_flow_execute_parser(add_parser):
                         help="Execute YT Flow specific command")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_hybrid_argument(parser, "flow_command", group_required=True,
-                        help="name of the command to execute")
+                        help="Name of the command to execute; use command 'list' to list all available commands")
     add_hybrid_argument(parser, "flow_argument", group_required=False,
-                        help="argument of the command (optional)")
+                        help="Argument of the command (optional)")
     add_structured_format_argument(parser, "--input-format")
     add_structured_format_argument(parser, "--output-format")
 
@@ -3135,6 +3158,7 @@ def _prepare_parser():
     add_generate_timestamp_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
+    add_run_job_shell_command_parser(add_parser)
     add_get_job_stderr_parser(add_parser)
     add_get_job_input_parser(add_parser)
     add_get_job_input_paths_parser(add_parser)

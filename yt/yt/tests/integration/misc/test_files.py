@@ -340,7 +340,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
-    DELTA_RPC_DRIVER_CONFIG = {"default_streaming_stall_timeout": 1500}
+    DELTA_RPC_DRIVER_CONFIG = {"use_total_streaming_timeout_for_heavy_reads": False, "default_streaming_stall_timeout": 1500}
 
     class FaultyStringStream(TextIOBase):
         def __init__(self, data):

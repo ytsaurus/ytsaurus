@@ -4,7 +4,6 @@ SRCS(
     data.proto
     import_snapshot.cpp
     remove_excessive.cpp
-    misc.cpp
     main.cpp
 )
 
@@ -15,6 +14,7 @@ PEERDIR(
     yt/cpp/mapreduce/tests/yt_initialize_hook
     yt/cpp/mapreduce/tests/yt_unittest_lib
     yt/cpp/mapreduce/util
+    yt/microservices/resource_usage_roren/lib
     yt/yt/core
     yt/yt/library/named_value
     yt/yt/library/auth
@@ -29,5 +29,6 @@ END()
 IF (NOT OPENSOURCE)
     RECURSE_FOR_TESTS(
         tests
+        ut
     )
 ENDIF()

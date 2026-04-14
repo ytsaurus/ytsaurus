@@ -1,6 +1,9 @@
 #include "orchid_bindings.h"
 
 #include "config.h"
+#include "input_state.h"
+#include "mutations.h"
+#include "pod_id_helpers.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -109,12 +112,12 @@ void TScanBundleCounter::Register(TRegistrar registrar)
 template <class TBundleInstances, class TCollection>
 void PopulateInstances(
     const TBundleInstances& bundleInstances,
-    const TCollection& instanciesInfo,
-    THashMap<std::string, TInstanceInfoPtr>& instancies)
+    const TCollection& instancesInfo,
+    TIndexedEntries<TInstanceInfo>& instances)
 {
     for (const auto& name : bundleInstances) {
         auto instance = New<TInstanceInfo>();
-        const auto& instanceInfo = GetOrCrash(instanciesInfo, name);
+        const auto& instanceInfo = GetOrCrash(instancesInfo, name);
         const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
         const auto& cypressAnnotations = instanceInfo->CypressAnnotations;
 
@@ -124,7 +127,7 @@ void PopulateInstances(
 
         instance->DataCenter = bundleControllerAnnotations->DataCenter;
 
-        instancies[name] = instance;
+        instances[name] = instance;
     }
 }
 
@@ -132,8 +135,8 @@ template <class TBundleToInstances, class TCollection>
 void PopulateInstancesPerDC(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,
-    const TCollection& instanciesInfo,
-    THashMap<std::string, TInstanceInfoPtr>& instancies)
+    const TCollection& instancesInfo,
+    TIndexedEntries<TInstanceInfo>& instances)
 {
     auto it = bundleToInstances.find(bundleName);
     if (it == bundleToInstances.end()) {
@@ -141,7 +144,7 @@ void PopulateInstancesPerDC(
     }
 
     for (const auto& [_, dataCenterNodes] : it->second) {
-        PopulateInstances(dataCenterNodes, instanciesInfo, instancies);
+        PopulateInstances(dataCenterNodes, instancesInfo, instances);
     }
 }
 
@@ -149,15 +152,15 @@ template <class TBundleToInstances, class TCollection>
 void PopulateInstancesPerBundle(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,
-    const TCollection& instanciesInfo,
-    THashMap<std::string, TInstanceInfoPtr>& instancies)
+    const TCollection& instancesInfo,
+    TIndexedEntries<TInstanceInfo>& instances)
 {
     auto it = bundleToInstances.find(bundleName);
     if (it == bundleToInstances.end()) {
         return;
     }
 
-    PopulateInstances(it->second, instanciesInfo, instancies);
+    PopulateInstances(it->second, instancesInfo, instances);
 }
 
 static const std::string INITIAL_REQUEST_STATE = "REQUEST_CREATED";
@@ -188,7 +191,7 @@ void PopulateAllocatingInstances(
 
 void MarkDeallocatingInstances(
     const TIndexedEntries<TDeallocationRequestState>& deallocations,
-    THashMap<std::string, TInstanceInfoPtr>& allocatedInstances)
+    TIndexedEntries<TInstanceInfo>& allocatedInstances)
 {
     for (const auto& [_, deallocationState] : deallocations) {
         auto it = allocatedInstances.find(deallocationState->InstanceName);

@@ -35,7 +35,9 @@ TSignatureComponents::TSignatureComponents(
     IInvokerPtr rotateInvoker)
     : OwnerId_(std::move(ownerId))
     , Client_(connection->CreateNativeClient(
-        TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
+        config->UseRootUser
+            ? TClientOptions::Root()
+            : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
     , CypressKeyReader_(config->Validation
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
@@ -75,13 +77,14 @@ void TSignatureComponents::InitializeCryptographyIfRequired(const TSignatureComp
         .Apply(BIND([actionQueue = std::move(actionQueue)] {}));
 }
 
-TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfigPtr& config) {
+TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfigPtr& config)
+{
     YT_LOG_INFO("Reconfiguring signature components");
 
     auto guard = Guard(ReconfigureSpinLock_);
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    auto returnFuture = VoidFuture;
+    auto returnFuture = OKFuture;
 
     InitializeCryptographyIfRequired(config);
     if (config->Generation) {
@@ -100,7 +103,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
         if (KeyRotator_) {
             // NB: Best effort attempt to get the first rotation *after* Reconfigure.
             // Can't be put later, because Reconfigure might trigger an immediate rotation.
-            returnFuture = KeyRotator_->GetNextRotation();
+            returnFuture = KeyRotator_->GetNextRotationFuture();
             KeyRotator_->Reconfigure(config->Generation->KeyRotator);
         } else {
             KeyRotator_ = New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_);
@@ -161,16 +164,16 @@ TFuture<void> TSignatureComponents::DoStartRotation() const
                 if (auto keyRotator = weakRotator.Lock()) {
                     return keyRotator->Start();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TSignatureComponents::StopRotation()
 {
     auto guard = Guard(ReconfigureSpinLock_);
-    return KeyRotator_ ? KeyRotator_->Stop() : VoidFuture;
+    return KeyRotator_ ? KeyRotator_->Stop() : OKFuture;
 }
 
 TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
@@ -183,10 +186,10 @@ TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
                 if (auto keyRotator = weakRotator.Lock()) {
                     return keyRotator->Rotate();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TSignatureComponents::RotateOutOfBand()

@@ -92,10 +92,11 @@ def _annotate_within_group(self: TypeAnnotator, expression: exp.WithinGroup) -> 
     """Annotate WithinGroup with correct type based on the inner function.
 
     1) Annotate args first
-    2) Check if this is PercentileDisc and if so, re-annotate its type to match the ordered expression's type
+    2) Check if this is PercentileDisc/PercentileCont and if so, re-annotate its type to match the ordered expression's type
     """
+
     if (
-        isinstance(expression.this, exp.PercentileDisc)
+        isinstance(expression.this, (exp.PercentileDisc, exp.PercentileCont))
         and isinstance(order_expr := expression.expression, exp.Order)
         and len(order_expr.expressions) == 1
         and isinstance(ordered_expr := order_expr.expressions[0], exp.Ordered)
@@ -109,7 +110,7 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
     """Annotate MEDIAN function with correct return type.
 
     Based on Snowflake documentation:
-    - If the expr is FLOAT -> annotate as FLOAT
+    - If the expr is FLOAT/DOUBLE -> annotate as DOUBLE (FLOAT is a synonym for DOUBLE)
     - If the expr is NUMBER(p, s) -> annotate as NUMBER(min(p+3, 38), min(s+3, 37))
     """
     # First annotate the argument to get its type
@@ -118,9 +119,9 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
     # Get the input type
     input_type = expression.this.type
 
-    if input_type.is_type(exp.DataType.Type.FLOAT):
-        # If input is FLOAT, return FLOAT
-        self._set_type(expression, exp.DataType.Type.FLOAT)
+    if input_type.is_type(exp.DataType.Type.DOUBLE):
+        # If input is FLOAT/DOUBLE, return DOUBLE (FLOAT is normalized to DOUBLE in Snowflake)
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
     else:
         # If input is NUMBER(p, s), return NUMBER(min(p+3, 38), min(s+3, 37))
         exprs = input_type.expressions
@@ -137,6 +138,67 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
         # Build the new NUMBER type
         new_type = exp.DataType.build(f"NUMBER({new_precision}, {new_scale})", dialect="snowflake")
         self._set_type(expression, new_type)
+
+    return expression
+
+
+def _annotate_variance(self: TypeAnnotator, expression: exp.Expression) -> exp.Expression:
+    """Annotate variance functions (VAR_POP, VAR_SAMP, VARIANCE, VARIANCE_POP) with correct return type.
+
+    Based on Snowflake behavior:
+    - DECFLOAT -> DECFLOAT(38)
+    - FLOAT/DOUBLE -> FLOAT
+    - INT, NUMBER(p, 0) -> NUMBER(38, 6)
+    - NUMBER(p, s) -> NUMBER(38, max(12, s))
+    """
+    # First annotate the argument to get its type
+    expression = self._annotate_by_args(expression, "this")
+
+    # Get the input type
+    input_type = expression.this.type
+
+    # Special case: DECFLOAT -> DECFLOAT(38)
+    if input_type.is_type(exp.DataType.Type.DECFLOAT):
+        self._set_type(expression, exp.DataType.build("DECFLOAT", dialect="snowflake"))
+    # Special case: FLOAT/DOUBLE -> DOUBLE
+    elif input_type.is_type(exp.DataType.Type.FLOAT, exp.DataType.Type.DOUBLE):
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
+    # For NUMBER types: determine the scale
+    else:
+        exprs = input_type.expressions
+        scale_expr = seq_get(exprs, 1)
+        scale = scale_expr.this.to_py() if scale_expr else 0
+
+        # If scale is 0 (INT, BIGINT, NUMBER(p,0)): return NUMBER(38, 6)
+        # Otherwise, Snowflake appears to assign scale through the formula MAX(12, s)
+        new_scale = 6 if scale == 0 else max(12, scale)
+
+        # Build the new NUMBER type
+        new_type = exp.DataType.build(f"NUMBER({MAX_PRECISION}, {new_scale})", dialect="snowflake")
+        self._set_type(expression, new_type)
+
+    return expression
+
+
+def _annotate_kurtosis(self: TypeAnnotator, expression: exp.Kurtosis) -> exp.Kurtosis:
+    """Annotate KURTOSIS with correct return type.
+
+    Based on Snowflake behavior:
+    - DECFLOAT input -> DECFLOAT
+    - DOUBLE or FLOAT input -> DOUBLE
+    - Other numeric types (INT, NUMBER) -> NUMBER(38, 12)
+    """
+    expression = self._annotate_by_args(expression, "this")
+    input_type = expression.this.type
+
+    if input_type.is_type(exp.DataType.Type.DECFLOAT):
+        self._set_type(expression, exp.DataType.build("DECFLOAT", dialect="snowflake"))
+    elif input_type.is_type(exp.DataType.Type.FLOAT, exp.DataType.Type.DOUBLE):
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
+    else:
+        self._set_type(
+            expression, exp.DataType.build(f"NUMBER({MAX_PRECISION}, 12)", dialect="snowflake")
+        )
 
     return expression
 
@@ -163,6 +225,18 @@ def _annotate_math_with_float_decfloat(
     return expression
 
 
+def _annotate_str_to_time(self: TypeAnnotator, expression: exp.StrToTime) -> exp.StrToTime:
+    # target_type is stored as a DataType instance
+    target_type_arg = expression.args.get("target_type")
+    target_type = (
+        target_type_arg.this
+        if isinstance(target_type_arg, exp.DataType)
+        else exp.DataType.Type.TIMESTAMP
+    )
+    self._set_type(expression, target_type)
+    return expression
+
+
 EXPRESSION_METADATA = {
     **EXPRESSION_METADATA,
     **{
@@ -173,6 +247,7 @@ EXPRESSION_METADATA = {
             exp.DateTrunc,
             exp.Floor,
             exp.Left,
+            exp.Mode,
             exp.Pad,
             exp.Right,
             exp.Round,
@@ -187,8 +262,18 @@ EXPRESSION_METADATA = {
         for expr_type in (
             exp.ApproxTopK,
             exp.ApproxTopKEstimate,
+            exp.Array,
             exp.ArrayAgg,
+            exp.ArrayAppend,
+            exp.ArrayCompact,
+            exp.ArrayConcat,
+            exp.ArrayConstructCompact,
+            exp.ArrayPrepend,
+            exp.ArrayRemove,
+            exp.ArraysZip,
+            exp.ArrayUniqueAgg,
             exp.ArrayUnionAgg,
+            exp.MapKeys,
             exp.RegexpExtractAll,
             exp.Split,
             exp.StringToArray,
@@ -205,6 +290,8 @@ EXPRESSION_METADATA = {
             exp.MD5NumberLower64,
             exp.MD5NumberUpper64,
             exp.Rand,
+            exp.Seq8,
+            exp.Zipf,
         }
     },
     **{
@@ -215,9 +302,15 @@ EXPRESSION_METADATA = {
             exp.BitmapOrAgg,
             exp.Compress,
             exp.DecompressBinary,
+            exp.Decrypt,
+            exp.DecryptRaw,
+            exp.Encrypt,
+            exp.EncryptRaw,
+            exp.HexString,
             exp.MD5Digest,
             exp.SHA1Digest,
             exp.SHA2Digest,
+            exp.ToBinary,
             exp.TryBase64DecodeBinary,
             exp.TryHexDecodeBinary,
             exp.Unhex,
@@ -232,8 +325,10 @@ EXPRESSION_METADATA = {
             exp.BoolxorAgg,
             exp.EqualNull,
             exp.IsNullValue,
+            exp.MapContainsKey,
             exp.Search,
             exp.SearchIp,
+            exp.ToBoolean,
         }
     },
     **{
@@ -255,26 +350,25 @@ EXPRESSION_METADATA = {
             exp.BitwiseXorAgg,
             exp.RegexpCount,
             exp.RegexpInstr,
+            exp.ToNumber,
         )
     },
     **{
         expr_type: {"returns": exp.DataType.Type.DOUBLE}
         for expr_type in {
+            exp.ApproxPercentileEstimate,
             exp.ApproximateSimilarity,
-            exp.Asinh,
-            exp.Atanh,
-            exp.Cbrt,
-            exp.Cosh,
+            exp.CosineDistance,
+            exp.CovarPop,
+            exp.CovarSamp,
+            exp.DotProduct,
+            exp.EuclideanDistance,
+            exp.ManhattanDistance,
             exp.MonthsBetween,
             exp.Normal,
-            exp.RegrAvgx,
-            exp.RegrAvgy,
-            exp.RegrSlope,
-            exp.RegrValx,
-            exp.RegrValy,
-            exp.Sinh,
         }
     },
+    exp.Kurtosis: {"annotator": _annotate_kurtosis},
     **{
         expr_type: {"returns": exp.DataType.Type.DECFLOAT}
         for expr_type in {
@@ -289,6 +383,7 @@ EXPRESSION_METADATA = {
             exp.Asin,
             exp.Atan,
             exp.Atan2,
+            exp.Cbrt,
             exp.Cos,
             exp.Cot,
             exp.Degrees,
@@ -297,6 +392,17 @@ EXPRESSION_METADATA = {
             exp.Log,
             exp.Pow,
             exp.Radians,
+            exp.RegrAvgx,
+            exp.RegrAvgy,
+            exp.RegrCount,
+            exp.RegrIntercept,
+            exp.RegrR2,
+            exp.RegrSlope,
+            exp.RegrSxx,
+            exp.RegrSxy,
+            exp.RegrSyy,
+            exp.RegrValx,
+            exp.RegrValy,
             exp.Sin,
             exp.Sqrt,
             exp.Tan,
@@ -306,37 +412,68 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.INT}
         for expr_type in {
-            exp.Ascii,
-            exp.BitLength,
             exp.ByteLength,
-            exp.Getbit,
             exp.Grouping,
-            exp.Hour,
             exp.JarowinklerSimilarity,
-            exp.Length,
-            exp.Levenshtein,
+            exp.MapSize,
             exp.Minute,
             exp.RtrimmedLength,
             exp.Second,
-            exp.StrPosition,
-            exp.Unicode,
+            exp.Seq1,
+            exp.Seq2,
+            exp.Seq4,
             exp.WidthBucket,
         }
     },
     **{
         expr_type: {"returns": exp.DataType.Type.OBJECT}
         for expr_type in {
+            exp.ApproxPercentileAccumulate,
+            exp.ApproxPercentileCombine,
+            exp.ApproxTopKAccumulate,
+            exp.ApproxTopKCombine,
             exp.ObjectAgg,
             exp.ParseIp,
             exp.ParseUrl,
-            exp.ApproxTopKAccumulate,
-            exp.ApproxTopKCombine,
+            exp.XMLGet,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.MAP}
+        for expr_type in {
+            exp.MapCat,
+            exp.MapDelete,
+            exp.MapInsert,
+            exp.MapPick,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.FILE}
+        for expr_type in {
+            exp.ToFile,
         }
     },
     **{
         expr_type: {"returns": exp.DataType.Type.TIME}
         for expr_type in {
             exp.TimeFromParts,
+            exp.TsOrDsToTime,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.TIMESTAMPLTZ}
+        for expr_type in {
+            exp.CurrentTimestamp,
+            exp.Localtimestamp,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.TINYINT}
+        for expr_type in {
+            exp.DayOfMonth,
+            exp.DayOfWeek,
+            exp.DayOfYear,
+            exp.Quarter,
         }
     },
     **{
@@ -349,27 +486,36 @@ EXPRESSION_METADATA = {
             exp.Base64Encode,
             exp.CheckJson,
             exp.CheckXml,
-            exp.Chr,
             exp.Collate,
             exp.Collation,
+            exp.CurrentAccount,
+            exp.CurrentAccountName,
+            exp.CurrentAvailableRoles,
+            exp.CurrentClient,
+            exp.CurrentDatabase,
+            exp.CurrentIpAddress,
+            exp.CurrentSchemas,
+            exp.CurrentSecondaryRoles,
+            exp.CurrentSession,
+            exp.CurrentStatement,
+            exp.CurrentTransaction,
+            exp.CurrentWarehouse,
+            exp.CurrentOrganizationUser,
+            exp.CurrentRegion,
+            exp.CurrentRole,
+            exp.CurrentRoleType,
+            exp.CurrentOrganizationName,
             exp.DecompressString,
             exp.HexDecodeString,
             exp.HexEncode,
-            exp.Initcap,
-            exp.MD5,
-            exp.Monthname,
             exp.Randstr,
             exp.RegexpExtract,
             exp.RegexpReplace,
             exp.Repeat,
             exp.Replace,
-            exp.SHA,
-            exp.SHA2,
             exp.Soundex,
             exp.SoundexP123,
-            exp.Space,
             exp.SplitPart,
-            exp.Translate,
             exp.TryBase64DecodeString,
             exp.TryHexDecodeString,
             exp.Uuid,
@@ -381,6 +527,13 @@ EXPRESSION_METADATA = {
             exp.Minhash,
             exp.MinhashCombine,
         }
+    },
+    **{
+        expr_type: {"annotator": _annotate_variance}
+        for expr_type in (
+            exp.Variance,
+            exp.VariancePop,
+        )
     },
     exp.ArgMax: {"annotator": _annotate_arg_max_min},
     exp.ArgMin: {"annotator": _annotate_arg_max_min},
@@ -395,17 +548,14 @@ EXPRESSION_METADATA = {
     },
     exp.DateAdd: {"annotator": _annotate_date_or_time_add},
     exp.DecodeCase: {"annotator": _annotate_decode_case},
-    exp.GreatestIgnoreNulls: {
-        "annotator": lambda self, e: self._annotate_by_args(e, "expressions")
-    },
     exp.HashAgg: {
         "annotator": lambda self, e: self._set_type(
             e, exp.DataType.build("NUMBER(19, 0)", dialect="snowflake")
         )
     },
-    exp.LeastIgnoreNulls: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.Median: {"annotator": _annotate_median},
     exp.Reverse: {"annotator": _annotate_reverse},
+    exp.StrToTime: {"annotator": _annotate_str_to_time},
     exp.TimeAdd: {"annotator": _annotate_date_or_time_add},
     exp.TimestampFromParts: {"annotator": _annotate_timestamp_from_parts},
     exp.WithinGroup: {"annotator": _annotate_within_group},

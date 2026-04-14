@@ -26,6 +26,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(lib)
+
 add_executable(resource_usage_roren)
 
 
@@ -39,6 +41,7 @@ target_link_libraries(resource_usage_roren PUBLIC
   mapreduce-tests-yt_initialize_hook
   mapreduce-tests-yt_unittest_lib
   cpp-mapreduce-util
+  microservices-resource_usage_roren-lib
   yt-yt-core
   yt-library-named_value
   yt-library-auth
@@ -68,7 +71,6 @@ target_proto_messages(resource_usage_roren PRIVATE
 target_sources(resource_usage_roren PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/microservices/resource_usage_roren/import_snapshot.cpp
   ${PROJECT_SOURCE_DIR}/yt/microservices/resource_usage_roren/remove_excessive.cpp
-  ${PROJECT_SOURCE_DIR}/yt/microservices/resource_usage_roren/misc.cpp
   ${PROJECT_SOURCE_DIR}/yt/microservices/resource_usage_roren/main.cpp
   ${PROJECT_BINARY_DIR}/yt/microservices/resource_usage_roren/data.pb.h
 )

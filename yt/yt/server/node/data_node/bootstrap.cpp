@@ -99,7 +99,7 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         OverloadController_ = NRpc::CreateOverloadController(
             New<NRpc::TOverloadControllerConfig>(),
@@ -158,7 +158,7 @@ public:
                 EDataNodeThrottlerKind::JobIn,
                 EDataNodeThrottlerKind::ReincarnationIn,
             }) {
-                Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
+                Throttlers_[kind] = ClusterNodeBootstrap_->CreateInThrottler(FormatEnum(kind));
             }
 
             for (auto kind : {
@@ -176,7 +176,7 @@ public:
                 EDataNodeThrottlerKind::TabletStoreFlushOut,
                 EDataNodeThrottlerKind::ReincarnationOut,
             }) {
-                Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
+                Throttlers_[kind] = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(kind));
             }
         } else {
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
@@ -271,8 +271,7 @@ public:
 
         GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
-        GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
-            GetConfig()->DataNode->DistributedChunkSessionService,
+        GetRpcServer()->RegisterService(NDistributedChunkSessionServer::CreateDistributedChunkSessionService(
             GetStorageLightInvoker(),
             GetConnection()));
 

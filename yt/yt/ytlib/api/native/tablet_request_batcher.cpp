@@ -105,7 +105,7 @@ private:
             columnCount,
             keyColumnCount,
             ColumnEvaluator_,
-            NRowMerger::GetNestedColumnsSchema(TableSchema_));
+            NRowMerger::GetNestedColumnsSchema(*TableSchema_));
 
         bool hasSharedWriteLocks = false;
 

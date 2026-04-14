@@ -1,6 +1,9 @@
 #include "columnar_conversion.h"
 
 #include "config.h"
+#include "helpers.h"
+
+#include <library/cpp/iterator/enumerate.h>
 
 #include <yt/yt/client/table_client/columnar.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -8,12 +11,19 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
+#include <yt/yt/library/tz_types/tz_types.h>
 
 #include <Columns/ColumnDecimal.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnNothing.h>
+#include <Columns/ColumnsDateTime.h>
+#include <Columns/ColumnLowCardinality.h>
+#include <Columns/ColumnUnique.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeLowCardinality.h>
+#include <DataTypes/DataTypeString.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -27,6 +37,17 @@ constinit const auto Logger = ClickHouseYtLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+TRef GetNullBitmap(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    const auto* valueColumn = ytColumn.Rle
+        ? ytColumn.Rle->ValueColumn
+        : &ytColumn;
+    if (valueColumn->NullBitmap) {
+        return valueColumn->NullBitmap->Data;
+    }
+    return {};
+}
 
 template <EExtendedYsonFormat ysonFormat, class F>
 DB::ColumnString::MutablePtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
@@ -212,6 +233,81 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
     return chColumn;
 }
 
+template <class T>
+DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumnImpl(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    const IUnversionedColumnarRowBatch::TColumn& ytValueColumn,
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    bool isNullable)
+{
+    DB::DataTypePtr dictionaryType = std::make_shared<DB::DataTypeNumber<T>>();
+    if (isNullable) {
+        dictionaryType = std::make_shared<DB::DataTypeNullable>(dictionaryType);
+    }
+
+    DB::MutableColumnUniquePtr dictionaryColumn;
+
+    auto values = ytValueColumn.GetTypedValues<ui64>();
+    auto baseValue = ytValueColumn.Values->BaseValue;
+    auto zigZagEncoded = ytValueColumn.Values->ZigZagEncoded;
+
+    std::function<ui32(i64)> dictionaryIndexFetcher;
+    if (dictionaryIndexes) {
+        YT_LOG_TRACE("Converting integer column with prepared dictionary to LowCardinality");
+
+        size_t specialValueCount = isNullable ? 2 : 1;
+        auto dictionaryValues = DB::ColumnVector<T>::create(values.size() + specialValueCount, 0);
+        auto& dictionaryData = dictionaryValues->getData();
+        size_t nextDictionaryIndex = specialValueCount;
+
+        std::vector<ui32> indexMapping(values.size());
+        for (const auto& [index, value] : Enumerate(values)) {
+            T decodedValue = DecodeIntegerValue<T>(value, baseValue, zigZagEncoded);
+            // CH always stores default value in holder column at the first indexes.
+            if (!decodedValue) {
+                indexMapping[index] = isNullable ? 1 : 0;
+                continue;
+            }
+            indexMapping[index] = nextDictionaryIndex;
+            dictionaryData[nextDictionaryIndex++] = decodedValue;
+        }
+        dictionaryData.resize(nextDictionaryIndex);
+
+        dictionaryColumn = DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType, std::move(dictionaryValues));
+
+        dictionaryIndexFetcher = [indexMapping = std::move(indexMapping)] (auto index) {
+            return indexMapping[index];
+        };
+    } else {
+        dictionaryColumn = DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType);
+        auto nullBitmap = GetNullBitmap(ytColumn);
+        dictionaryIndexFetcher = [&, nullBitmap = nullBitmap] (auto index) {
+            if (nullBitmap && GetBit(nullBitmap, index)) {
+                return dictionaryColumn->getNullValueIndex();
+            }
+            auto decodedValue = DecodeIntegerValue<T>(values[index], baseValue, zigZagEncoded);
+            return dictionaryColumn->uniqueInsert(decodedValue);
+        };
+    }
+
+    auto indexesColumn = DB::DataTypeUInt32().createColumn();
+    DecodeRawVector<ui32>(
+        ytColumn.StartIndex,
+        ytColumn.StartIndex + ytColumn.ValueCount,
+        dictionaryIndexes,
+        rleIndexes,
+        dictionaryIndexFetcher,
+        [&] (auto dictionaryIndex) {
+            indexesColumn->insert(dictionaryIndex);
+        });
+
+    return DB::ColumnLowCardinality::create(
+        std::move(dictionaryColumn),
+        std::move(indexesColumn),
+        /*is_shared*/ false);
+}
+
 auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     TRange<ui64> rleIndexes;
@@ -240,17 +336,6 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
         ytValueColumn,
         rleIndexes,
         dictionaryIndexes);
-}
-
-TRef GetNullBitmap(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
-{
-    const auto* valueColumn = ytColumn.Rle
-        ? ytColumn.Rle->ValueColumn
-        : &ytColumn;
-    if (valueColumn->NullBitmap) {
-        return valueColumn->NullBitmap->Data;
-    }
-    return {};
 }
 
 template <class T>
@@ -405,7 +490,7 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
 
     auto checkedConsumer = [&] (auto pair) {
         auto [str, length] = pair;
-        if (Y_UNLIKELY(remainingCHCharsCapacity <= static_cast<size_t>(length))) {
+        if (remainingCHCharsCapacity <= static_cast<size_t>(length)) [[unlikely]] {
             resizeCHChars(
                 std::max(chChars.size() * 2, chChars.size() + (static_cast<size_t>(length) + 1)));
         }
@@ -562,6 +647,245 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
     return chColumn;
 }
 
+template <ESimpleLogicalValueType LogicalType, class TColumn, class... Args>
+DB::MutableColumnPtr ConvertTzYTColumnToCHColumnImpl(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    Args&&... args)
+{
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    YT_LOG_TRACE("Converting tz column (Count: %v, Dictionary: %v, Rle: %v)",
+        ytColumn.ValueCount,
+        static_cast<bool>(dictionaryIndexes),
+        static_cast<bool>(rleIndexes));
+
+    YT_VERIFY(ytValueColumn->Values);
+    YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
+    YT_VERIFY(ytValueColumn->Values->BaseValue == 0);
+    YT_VERIFY(ytValueColumn->Values->ZigZagEncoded);
+    YT_VERIFY(ytValueColumn->Strings);
+    YT_VERIFY(ytValueColumn->Strings->AvgLength);
+
+    auto ytOffsets = ytValueColumn->GetTypedValues<ui32>();
+    const auto* ytChars = ytValueColumn->Strings->Data.Begin();
+
+    YT_VERIFY(ytValueColumn->Strings->AvgLength);
+    auto avgLength = *ytValueColumn->Strings->AvgLength;
+
+    auto chColumn = TColumn::create(ytColumn.ValueCount, std::forward<Args>(args)...);
+
+    auto* currentOutput = chColumn->getData().data();
+
+    using TDateInt = TTzIntegerType<LogicalType>;
+
+    i64 rowIndex = 0;
+
+    std::function<TDateInt(i64)> fetcher;
+    if (filterHint) {
+        fetcher = [&] (i64 index) {
+            if (!filterHint[rowIndex]) {
+                return static_cast<TDateInt>(0);
+            }
+            auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+            return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
+        };
+    } else {
+        fetcher = [&] (i64 index) {
+            auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+            return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
+        };
+    }
+
+    auto consumer = [&] (TDateInt timestamp) {
+        *currentOutput++ = timestamp;
+        ++rowIndex;
+    };
+
+    DecodeRawVector<TDateInt>(
+        ytColumn.StartIndex,
+        ytColumn.StartIndex + ytColumn.ValueCount,
+        dictionaryIndexes,
+        rleIndexes,
+        fetcher,
+        consumer);
+
+    return chColumn;
+}
+
+DB::MutableColumnUniquePtr ConvertStringLikeYtColumnDictionaryToChColumnUniqueImpl(
+    const std::vector<const char*>& ytStrings,
+    const std::vector<i32>& ytStringLengths,
+    const std::vector<ui32> dictionaryIndexes,
+    DB::DataTypePtr dictionaryType)
+{
+    // Additional byte for zero in the end of every string.
+    // Default and null elements are accounted in dictionaryIndexes as zero values.
+    auto dictionaryByteSize = std::accumulate(
+        dictionaryIndexes.begin(),
+        dictionaryIndexes.end(),
+        0,
+        [&] (auto sum, auto index) {
+            return sum + (index > 0 ? ytStringLengths[index - 1] : 0) + 1;
+        });
+
+    auto chColumn = DB::ColumnString::create();
+    auto& chOffsets = chColumn->getOffsets();
+    chOffsets.resize(dictionaryIndexes.size());
+    auto* currentCHOffset = chOffsets.data() - 1;
+
+    auto& chChars = chColumn->getChars();
+    chChars.resize(dictionaryByteSize);
+    ui64 currentCHCharsPosition = 0;
+    auto* currentCHChar = chChars.data();
+
+    auto uncheckedConsumer = [&] (const char* str, i32 length) {
+        *currentCHOffset++ = currentCHCharsPosition;
+        memcpy(currentCHChar, str, length);
+        currentCHChar += length;
+        *currentCHChar++ = '\x0';
+        currentCHCharsPosition += length + 1;
+    };
+
+    for (auto dictionaryIndex : dictionaryIndexes) {
+        if (dictionaryIndex == 0) {
+            uncheckedConsumer(nullptr, 0);
+        } else {
+            uncheckedConsumer(ytStrings[dictionaryIndex - 1], ytStringLengths[dictionaryIndex - 1]);
+        }
+    }
+
+    // Put the final offset.
+    *currentCHOffset++ = currentCHCharsPosition;
+    YT_VERIFY(currentCHOffset == chOffsets.end());
+
+    // Trim chars.
+    chChars.resize(currentCHCharsPosition);
+
+    return DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType, std::move(chColumn));
+}
+
+DB::MutableColumnPtr ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    bool isNullable)
+{
+    size_t specialValueCount = isNullable ? 2 : 1;
+
+    DB::DataTypePtr dictionaryType = std::make_shared<DB::DataTypeString>();
+    if (isNullable) {
+        dictionaryType = std::make_shared<DB::DataTypeNullable>(dictionaryType);
+    }
+
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    YT_LOG_TRACE("Converting string-like column to LowCardinality (Count: %v, Dictionary: %v, Rle: %v, IsNullable: %v)",
+        ytColumn.ValueCount,
+        static_cast<bool>(dictionaryIndexes),
+        static_cast<bool>(rleIndexes),
+        isNullable);
+
+    YT_VERIFY(ytValueColumn->Values);
+    YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
+    YT_VERIFY(ytValueColumn->Values->BaseValue == 0);
+    YT_VERIFY(ytValueColumn->Values->ZigZagEncoded);
+    YT_VERIFY(ytValueColumn->Strings);
+    YT_VERIFY(ytValueColumn->Strings->AvgLength);
+
+    auto avgLength = *ytValueColumn->Strings->AvgLength;
+    auto ytOffsets = ytValueColumn->GetTypedValues<ui32>();
+    const auto* ytChars = ytValueColumn->Strings->Data.Begin();
+
+    DB::MutableColumnUniquePtr dictionaryColumn;
+
+    auto indexColumn = DB::ColumnVector<ui32>::create(ytColumn.ValueCount);
+    auto* currentIndexOutput = indexColumn->getData().data();
+
+    auto* currentHintByte = filterHint ? filterHint.begin() : nullptr;
+
+    if (dictionaryIndexes) {
+        std::vector<const char*> ytStrings(ytOffsets.size());
+        std::vector<i32> ytStringLengths(ytOffsets.size());
+        DecodeStringPointersAndLengths(
+            ytOffsets,
+            avgLength,
+            ytValueColumn->Strings->Data,
+            TMutableRange(ytStrings),
+            TMutableRange(ytStringLengths));
+
+        std::unordered_set<ui32> requiredIdSet;
+
+        std::vector<ui32> requiredIds;
+        requiredIds.reserve(requiredIds.size() + specialValueCount);
+        requiredIds.resize(specialValueCount, 0);
+
+        THashMap<ui32, ui32> idMapping;
+        // Map indexes of special values in Yt dictionary to corresponding indexes in Ch dictionary.
+        idMapping[0] = 0;
+        if (auto it = std::find(ytStringLengths.begin(), ytStringLengths.end(), 0); it != ytStringLengths.end()) {
+            auto zeroDictIndex = std::distance(ytStringLengths.begin(), it) + 1;
+            idMapping[zeroDictIndex] = specialValueCount - 1;
+        }
+
+        // Decode full indexes column and collect all required dictionary indexes.
+        DecodeRawVector<ui32>(
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            dictionaryIndexes,
+            rleIndexes,
+            [&] (auto dictionaryIndex) {
+                return dictionaryIndex + 1;
+            },
+            [&] (auto dictionaryIndex) {
+                if (currentHintByte && !*currentHintByte++) {
+                    *currentIndexOutput++ = 0;
+                    return;
+                }
+
+                auto [it, inserted] = idMapping.emplace(dictionaryIndex, requiredIds.size());
+                if (inserted) {
+                    requiredIds.push_back(dictionaryIndex);
+                }
+                *currentIndexOutput++ = it->second;
+            });
+
+        dictionaryColumn = ConvertStringLikeYtColumnDictionaryToChColumnUniqueImpl(
+            ytStrings,
+            ytStringLengths,
+            requiredIds,
+            dictionaryType);
+    } else {
+        dictionaryColumn = DB::DataTypeLowCardinality::createColumnUnique(*dictionaryType);
+
+        auto nullBitmap = GetNullBitmap(*ytValueColumn);
+        DecodeRawVector<std::pair<const char*, i32>>(
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            dictionaryIndexes,
+            rleIndexes,
+            [&] (i64 index) {
+                if (nullBitmap && GetBit(nullBitmap, index)) {
+                    return std::make_pair((const char*)nullptr, 0l);
+                }
+
+                auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+                return std::make_pair(ytChars + startOffset, endOffset - startOffset);
+            },
+            [&] (auto pair) {
+                if (pair.first == nullptr || (currentHintByte && !*currentHintByte++)) {
+                    *currentIndexOutput++ = 0;
+                } else {
+                    *currentIndexOutput++ = dictionaryColumn->uniqueInsertData(pair.first, pair.second);
+                }
+            });
+    }
+
+    return DB::ColumnLowCardinality::create(
+        std::move(dictionaryColumn),
+        DB::MutableColumnPtr(std::move(indexColumn)),
+        /*is_shared*/ false);
+}
+
 } // namespace
 
 DB::MutableColumnPtr ConvertDoubleYTColumnToCHColumn(
@@ -587,6 +911,14 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumn(
     TRange<DB::UInt8> filterHint)
 {
     return ConvertStringLikeYTColumnToCHColumnImpl(ytColumn, filterHint);
+}
+
+DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    bool isNullable)
+{
+    return ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(ytColumn, filterHint, isNullable);
 }
 
 DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
@@ -719,6 +1051,79 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
     }
 }
 
+DB::MutableColumnPtr ConvertTzYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    NTableClient::ESimpleLogicalValueType type)
+{
+    switch(type) {
+        #define XX(ytType, columnType, ...) \
+                case ESimpleLogicalValueType::ytType: { \
+                    return ConvertTzYTColumnToCHColumnImpl<ESimpleLogicalValueType::ytType, columnType>(__VA_ARGS__); \
+                }
+        #define XX_ARGS ytColumn, filterHint
+        #define XX_VECTOR_COLUMN(ytType, chType) XX(ytType, DB::ColumnVector<chType>, XX_ARGS)
+        #define XX_DECIMAL_COLUMN(ytType, decimalScale) XX(ytType, DB::ColumnDecimal<DB::DateTime64>, XX_ARGS, decimalScale)
+
+        XX_VECTOR_COLUMN(TzDate,        UInt16)
+        XX_VECTOR_COLUMN(TzDate32,      Int32)
+        XX_VECTOR_COLUMN(TzDatetime,    UInt32)
+
+        XX_DECIMAL_COLUMN(TzDatetime64, 0)
+        XX_DECIMAL_COLUMN(TzTimestamp, 6)
+        XX_DECIMAL_COLUMN(TzTimestamp64, 6)
+
+        #undef XX
+        #undef XX_ARGS
+        #undef XX_VECTOR_COLUMN
+        #undef XX_DECIMAL_COLUMN
+
+        default:
+            YT_ABORT();
+    }
+}
+
+DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    ESimpleLogicalValueType type,
+    bool insideOptional)
+{
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    YT_LOG_TRACE("Converting integer column (Count: %v, Rle: %v, Dictionary: %v)",
+        ytColumn.ValueCount,
+        static_cast<bool>(rleIndexes),
+        static_cast<bool>(dictionaryIndexes));
+
+    switch (type) {
+        #define XX(ytType, chType, ...) \
+            case ESimpleLogicalValueType::ytType: { \
+                return ConvertIntegerYTColumnToLowCardinalityCHColumnImpl<chType>(ytColumn, *ytValueColumn, dictionaryIndexes, rleIndexes, insideOptional); \
+            }
+
+        XX(Int8,        Int8)
+        XX(Int16,       Int16)
+        XX(Int32,       Int32)
+        XX(Int64,       Int64)
+
+        XX(Uint8,       UInt8)
+        XX(Uint16,      UInt16)
+        XX(Uint32,      UInt32)
+        XX(Uint64,      UInt64)
+
+        XX(Date,        UInt16)
+        XX(Date32,      Int32)
+        XX(Datetime,    UInt32)
+        XX(Interval,    Int64)
+        XX(Interval64,  Int64)
+
+        #undef XX
+
+        default:
+            YT_ABORT();
+    }
+}
+
 DB::ColumnString::MutablePtr ConvertCHColumnToAny(
     const DB::IColumn& column,
     ESimpleLogicalValueType type,
@@ -742,12 +1147,12 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
 }
 
 void ReduceFilterToDistinct(
-    DB::IColumn::Filter& filter,
+    DB::IColumn::Filter* filter,
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter.empty()) {
+    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter->empty()) {
         return;
     }
 
@@ -755,26 +1160,48 @@ void ReduceFilterToDistinct(
     newFilter.resize_fill(ytValueColumn->ValueCount + 1);
 
     int rowIndex = 0;
+    YT_VERIFY(ytColumn.StartIndex == 0);
     bool hasNull = false;
+    auto dict = ytColumn.Rle ? ytColumn.Rle->ValueColumn->Dictionary : ytColumn.Dictionary;
+    bool zeroMeansNull = (dict && dict->ZeroMeansNull);
     DecodeRawVector<i64>(
         ytColumn.StartIndex,
         ytColumn.StartIndex + ytColumn.ValueCount,
         dictionaryIndexes,
         rleIndexes,
-        [] (i64 index) {
+        [&] (i64 index) {
             return index + 1;
         },
         [&] (i64 index) {
-            hasNull |= (index == 0);
-            if (filter[rowIndex++]) {
-                index = (index == 0) ? newFilter.size() : index;
+            hasNull |= (index == 0 && zeroMeansNull);
+            if ((*filter)[rowIndex++]) {
+                index = (index == 0 && zeroMeansNull) ? newFilter.size() : index;
                 newFilter.data()[index - 1] = 1;
             }
         });
     if (!hasNull) {
         newFilter.pop_back();
     }
-    filter = std::move(newFilter);
+    *filter = std::move(newFilter);
+}
+
+const IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(const IUnversionedColumnarRowBatch::TColumn* ytColumn)
+{
+    if (ytColumn->Rle && ytColumn->StartIndex == 0 ) {
+        auto rleIndexes = ytColumn->GetTypedValues<ui64>();
+        if (ytColumn->ValueCount > static_cast<i64>(rleIndexes.Back())) {
+            ytColumn = ytColumn->Rle->ValueColumn;
+        } else {
+            return ytColumn;
+        }
+    }
+    if (ytColumn->Dictionary) {
+        auto dictionaryIndexes = ytColumn->GetTypedValues<ui32>();
+        if (std::ssize(dictionaryIndexes) == ytColumn->ValueCount) {
+            ytColumn = ytColumn->Dictionary->ValueColumn;
+        }
+    }
+    return ytColumn;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

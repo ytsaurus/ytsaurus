@@ -23,12 +23,12 @@ TFuture<void> TMemoryWriter::Open()
 
     Open_ = true;
 
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TMemoryWriter::Cancel()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 bool TMemoryWriter::WriteBlock(
@@ -61,18 +61,16 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
 
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TMemoryWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& /*options*/,
     const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TDeferredChunkMetaPtr& chunkMeta,
-    std::optional<int> truncateBlockCount)
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
-    YT_VERIFY(!truncateBlockCount.has_value());
 
     if (!chunkMeta->IsFinalized()) {
         auto& mapping = chunkMeta->BlockIndexMapping();
@@ -83,7 +81,7 @@ TFuture<void> TMemoryWriter::Close(
 
     ChunkMeta_ = chunkMeta;
     Closed_ = true;
-    return VoidFuture;
+    return OKFuture;
 }
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const

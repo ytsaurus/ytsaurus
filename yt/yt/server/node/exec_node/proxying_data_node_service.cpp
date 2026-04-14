@@ -1,11 +1,11 @@
 #include "proxying_data_node_service.h"
 
 #include "bootstrap.h"
-#include "private.h"
 #include "job_input_cache.h"
+#include "private.h"
 
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -26,6 +26,8 @@ using namespace NRpc;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +57,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
+
+        DeclareServerFeature(EChunkClientFeature::MultiplePartitionTags);
     }
 
 private:

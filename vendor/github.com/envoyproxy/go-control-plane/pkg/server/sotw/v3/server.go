@@ -18,12 +18,14 @@ package sotw
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync/atomic"
 
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	"github.com/envoyproxy/go-control-plane/pkg/log"
 	"github.com/envoyproxy/go-control-plane/pkg/server/config"
 	"github.com/envoyproxy/go-control-plane/pkg/server/stream/v3"
 )
@@ -65,6 +67,31 @@ func WithOrderedADS() config.XDSOption {
 	}
 }
 
+// WithLogger configures the server logger. Defaults to no logging
+func WithLogger(logger log.Logger) config.XDSOption {
+	return func(o *config.Opts) {
+		o.Logger = logger
+	}
+}
+
+// DeactivateLegacyWildcard deactivates legacy wildcard mode for all resource types.
+// In legacy wildcard mode, empty requests to a stream, are treated as wildcard requests as long
+// as there is no request made with resources or explicit wildcard requests on the same stream.
+// When deactivated, empty requests are treated as a request with no subscriptions to any resource.
+// This is recommended for when you are using the go-control-plane to serve grpc-xds clients.
+// These clients never want to treat an empty request as a wildcard subscription.
+func DeactivateLegacyWildcard() config.XDSOption {
+	return config.DeactivateLegacyWildcard()
+}
+
+// DeactivateLegacyWildcardForTypes deactivates legacy wildcard mode for specific resource types.
+// In legacy wildcard mode, empty requests to a stream, are treated as wildcard requests as long
+// as there is no request made with resources or explicit wildcard requests on the same stream.
+// When deactivated, empty requests are treated as a request with no subscriptions to any resource.
+func DeactivateLegacyWildcardForTypes(types []string) config.XDSOption {
+	return config.DeactivateLegacyWildcardForTypes(types)
+}
+
 type server struct {
 	cache     cache.ConfigWatcher
 	callbacks Callbacks
@@ -88,43 +115,39 @@ type streamWrapper struct {
 	callbacks Callbacks     // callbacks for performing actions through stream lifecycle
 
 	node *core.Node // registered xDS client
-
-	// The below fields are used for tracking resource
-	// cache state and should be maintained per stream.
-	streamState            stream.StreamState
-	lastDiscoveryResponses map[string]lastDiscoveryResponse
 }
 
 // Send packages the necessary resources before sending on the gRPC stream,
 // and sets the current state of the world.
-func (s *streamWrapper) send(resp cache.Response) (string, error) {
+func (s *streamWrapper) send(resp cache.Response) error {
 	if resp == nil {
-		return "", errors.New("missing response")
+		return errors.New("missing response")
 	}
 
 	out, err := resp.GetDiscoveryResponse()
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// increment nonce and convert it to base10
 	out.Nonce = strconv.FormatInt(atomic.AddInt64(&s.nonce, 1), 10)
 
-	lastResponse := lastDiscoveryResponse{
-		nonce:     out.GetNonce(),
-		resources: make(map[string]struct{}),
+	typeURL := resp.GetRequest().GetTypeUrl()
+	w, ok := s.watches.responders[typeURL]
+	if !ok {
+		return fmt.Errorf("no current watch for %s", typeURL)
 	}
-	for _, r := range resp.GetRequest().GetResourceNames() {
-		lastResponse.resources[r] = struct{}{}
-	}
-	s.lastDiscoveryResponses[resp.GetRequest().GetTypeUrl()] = lastResponse
+
+	// Track in the type subcription the nonce and objects returned to the client.
+	w.sub.SetReturnedResources(resp.GetReturnedResources())
+	w.nonce = out.Nonce
 
 	// Register with the callbacks provided that we are sending the response.
 	if s.callbacks != nil {
 		s.callbacks.OnStreamResponse(resp.GetContext(), s.ID, resp.GetRequest(), out)
 	}
 
-	return out.GetNonce(), s.stream.Send(out)
+	return s.stream.Send(out)
 }
 
 // Shutdown closes all open watches, and notifies API consumers the stream has closed.
@@ -133,15 +156,6 @@ func (s *streamWrapper) shutdown() {
 	if s.callbacks != nil {
 		s.callbacks.OnStreamClosed(s.ID, s.node)
 	}
-}
-
-// Discovery response that is sent over GRPC stream.
-// We need to record what resource names are already sent to a client
-// So if the client requests a new name we can respond back
-// regardless current snapshot version (even if it is not changed yet)
-type lastDiscoveryResponse struct {
-	nonce     string
-	resources map[string]struct{}
 }
 
 // StreamHandler converts a blocking read call to channels and initiates stream processing

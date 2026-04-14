@@ -181,7 +181,7 @@ class ChangeDistiller:
     def __init__(self, f: float = 0.6, t: float = 0.6, dialect: DialectType = None) -> None:
         self.f = f
         self.t = t
-        self._sql_generator = Dialect.get_or_raise(dialect).generator()
+        self._sql_generator = Dialect.get_or_raise(dialect).generator(comments=False)
 
     def diff(
         self,
@@ -393,8 +393,10 @@ def _get_expression_leaves(expression: exp.Expression) -> t.Iterator[exp.Express
 
 def _get_non_expression_leaves(expression: exp.Expression) -> t.Iterator[t.Tuple[str, t.Any]]:
     for arg, value in expression.args.items():
-        if isinstance(value, exp.Expression) or (
-            isinstance(value, list) and isinstance(seq_get(value, 0), exp.Expression)
+        if (
+            value is None
+            or isinstance(value, exp.Expression)
+            or (isinstance(value, list) and isinstance(seq_get(value, 0), exp.Expression))
         ):
             continue
 

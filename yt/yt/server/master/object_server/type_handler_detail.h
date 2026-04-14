@@ -55,7 +55,7 @@ public:
 
         auto result = DoGetReplicationCellTags(object->As<TImpl>());
 
-        if (auto it = std::ranges::find(result, object->GetNativeCellTag()); Y_UNLIKELY(it != result.end())) {
+        if (auto it = std::ranges::find(result, object->GetNativeCellTag()); it != result.end()) [[unlikely]] {
             YT_LOG_ALERT("Replication cell tags of an object contain its native cell tag, omitting (ObjectId: %v)",
                 GetObjectId(object));
             result.erase(it);

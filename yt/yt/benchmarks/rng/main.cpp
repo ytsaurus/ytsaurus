@@ -3,7 +3,7 @@
 #include <random>
 
 template <typename TRng>
-void BenchmarkRng(const TString& rngName)
+void BenchmarkRng(TStringBuf rngName)
 {
     constexpr int Runs = 100'000'000;
 

@@ -3,8 +3,6 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/logging/fluent_log.h>
 
@@ -34,7 +32,6 @@ DEFINE_ENUM(ELogEntryType,
 struct IStructuredLogger
     : public TRefCounted
 {
-public:
     //! Log arbitrary event fluently.
     //! Thread affinity: any.
     virtual NLogging::TOneShotFluentLogEvent LogEvent(TStringBuf eventType) = 0;
@@ -100,7 +97,9 @@ struct IPerTabletStructuredLogger
     virtual void OnBackingStoreSet(
         const IChunkStorePtr& store,
         const IDynamicStorePtr& backingStore) = 0;
-    virtual void OnBackingStoreReleased(const IChunkStorePtr& store) = 0;
+    virtual void OnBackingStoreReleased(
+        const IChunkStorePtr& store,
+        const IDynamicStorePtr& backingStore) = 0;
 
     virtual void OnTabletStoresUpdatePrepared(
         const std::vector<TStoreId>& addedStoreIds,

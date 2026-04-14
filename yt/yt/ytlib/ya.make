@@ -22,6 +22,7 @@ SRCS(
     api/native/chaos_table_replica_type_handler.cpp
     api/native/client_admin_impl.cpp
     api/native/client_authentication_impl.cpp
+    api/native/client_ban_impl.cpp
     api/native/client_cache.cpp
     api/native/client_cypress_impl.cpp
     api/native/client_distributed_table_impl.cpp
@@ -59,6 +60,7 @@ SRCS(
     api/native/partition_tables.cpp
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
+    api/native/pool_weight_provider.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -96,6 +98,8 @@ SRCS(
 
     auth/proto/tvm_bridge_service.proto
 
+    ban_client/proto/ban_service.proto
+
     bundle_controller/config.cpp
     bundle_controller/bundle_controller_channel.cpp
 
@@ -104,7 +108,10 @@ SRCS(
     cell_master_client/cell_directory_synchronizer.cpp
     cell_master_client/cell_directory.cpp
     cell_master_client/config.cpp
+    cell_master_client/helpers.cpp
     cell_master_client/protobuf_helpers.cpp
+
+    cell_master_client/proto/cell_master_service.proto
 
     cellar_client/proto/tablet_cell_service.proto
 
@@ -115,11 +122,11 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
-    chaos_client/replication_card_channel_factory.cpp
     chaos_client/replication_card_updates_batcher.cpp
     chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
@@ -144,6 +151,7 @@ SRCS(
     chunk_client/chunk_meta_fetcher.cpp
     chunk_client/chunk_reader_host.cpp
     chunk_client/chunk_reader_memory_manager.cpp
+    chunk_client/chunk_reader_options.cpp
     chunk_client/chunk_reader_statistics.cpp
     chunk_client/chunk_replica_cache.cpp
     chunk_client/chunk_scraper.cpp
@@ -179,6 +187,7 @@ SRCS(
     chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
+    chunk_client/medium_descriptor.cpp
     chunk_client/memory_reader.cpp
     chunk_client/memory_tracked_deferred_chunk_meta.cpp
     chunk_client/memory_writer.cpp
@@ -332,6 +341,7 @@ SRCS(
     misc/synchronizer_detail.cpp
 
     columnar_chunk_format/column_block_manager.cpp
+    columnar_chunk_format/compressed_block_last_keys.cpp
     columnar_chunk_format/memory_helpers.cpp
     columnar_chunk_format/prepared_meta.cpp
     columnar_chunk_format/rowset_builder.cpp
@@ -368,15 +378,16 @@ SRCS(
     query_client/explain.cpp
     query_client/functions_cache.cpp
     query_client/session_coordinator.cpp
-    query_client/tracked_memory_chunk_provider.cpp
 
     queue_client/config.cpp
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
+    queue_client/path.cpp
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
     queue_client/registration_manager_base.cpp
+    queue_client/registration_manager_new.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
 
@@ -477,6 +488,7 @@ SRCS(
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
+    table_client/row_layout.cpp
     table_client/row_level_security.cpp
     table_client/rows_digest.cpp
     table_client/samples_fetcher.cpp
@@ -513,6 +525,12 @@ SRCS(
     table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
+
+    tablet_balancer_client/balancing_request.cpp
+    tablet_balancer_client/config.cpp
+    tablet_balancer_client/tablet_balancer_channel.cpp
+
+    tablet_balancer_client/proto/tablet_balancer_service.proto
 
     tablet_client/backup.cpp
     tablet_client/config.cpp
@@ -594,7 +612,7 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
-    sequoia_client/records/child_node.yaml
+    sequoia_client/records/child_nodes.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
@@ -768,6 +786,13 @@ GENERATE_YT_RECORD(
         yt/yt/ytlib/queue_client/public.h
 )
 
+GENERATE_YT_RECORD(
+    queue_client/records/replica_mapping.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
+)
+
 ADDINCL(
     contrib/libs/sparsehash/src
 )
@@ -797,11 +822,13 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/federated
     yt/yt/client/logging
     yt/yt/library/formats
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/program
+    yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
     yt/yt/library/query/engine

@@ -99,11 +99,13 @@ void FormatResources(
         FormatMemoryUsage(limits.SystemMemory),
         // Network
         usage.Network,
+        limits.Network,
+        // DiskSpace
         FormatMemoryUsage(usage.DiskSpaceRequest),
         FormatMemoryUsage(limits.DiskSpaceRequest),
+        // Inodes
         usage.InodeRequest,
         limits.InodeRequest,
-        limits.Network,
         // Replication slots
         usage.ReplicationSlots,
         limits.ReplicationSlots,
@@ -118,7 +120,7 @@ void FormatResources(
         limits.RepairSlots,
         // Repair data size
         usage.RepairDataSize,
-        limits.RepairSlots,
+        limits.RepairDataSize,
         // Seal slots
         usage.SealSlots,
         limits.SealSlots,
@@ -261,7 +263,7 @@ TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources
     return result;
 }
 
-TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
+TJobResources operator+(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = lhs.Name + rhs.Name;
@@ -271,7 +273,7 @@ TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
+TJobResources& operator+=(TJobResources& lhs, const TJobResources& rhs)
 {
     #define XX(name, Name) lhs.Name = lhs.Name + rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -280,7 +282,7 @@ TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
     return lhs;
 }
 
-TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
+TJobResources operator-(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = lhs.Name - rhs.Name;
@@ -290,7 +292,7 @@ TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
+TJobResources& operator-=(TJobResources& lhs, const TJobResources& rhs)
 {
     #define XX(name, Name) lhs.Name = lhs.Name - rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -299,7 +301,7 @@ TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
     return lhs;
 }
 
-TJobResources operator * (const TJobResources& lhs, i64 rhs)
+TJobResources operator*(const TJobResources& lhs, i64 rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = lhs.Name * rhs;
@@ -309,7 +311,7 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
     return result;
 }
 
-TJobResources operator * (const TJobResources& lhs, double rhs)
+TJobResources operator*(const TJobResources& lhs, double rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + static_cast<decltype(lhs.Name * rhs)>(0.5));
@@ -319,7 +321,7 @@ TJobResources operator * (const TJobResources& lhs, double rhs)
     return result;
 }
 
-TJobResources& operator *= (TJobResources& lhs, i64 rhs)
+TJobResources& operator*=(TJobResources& lhs, i64 rhs)
 {
     #define XX(name, Name) lhs.Name = lhs.Name * rhs;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -328,7 +330,7 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
     return lhs;
 }
 
-TJobResources& operator *= (TJobResources& lhs, double rhs)
+TJobResources& operator*=(TJobResources& lhs, double rhs)
 {
     #define XX(name, Name) lhs.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + static_cast<decltype(lhs.Name * rhs)>(0.5));
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -337,7 +339,7 @@ TJobResources& operator *= (TJobResources& lhs, double rhs)
     return lhs;
 }
 
-TJobResources  operator - (const TJobResources& resources)
+TJobResources  operator-(const TJobResources& resources)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = -resources.Name;
@@ -347,7 +349,7 @@ TJobResources  operator - (const TJobResources& resources)
     return result;
 }
 
-bool operator == (const TJobResources& lhs, const TJobResources& rhs)
+bool operator==(const TJobResources& lhs, const TJobResources& rhs)
 {
     return
         #define XX(name, Name) lhs.Name == rhs.Name &&
@@ -619,9 +621,6 @@ void TNodeResourceManager::UpdateLimits()
 
     YT_LOG_DEBUG("Updating node resource limits");
 
-    UpdateLoggingCategory();
-    UpdateProfilingCategory();
-    UpdateMemoryFootprint();
     UpdateMemoryLimits();
     UpdateJobsCpuLimit();
 }
@@ -689,61 +688,6 @@ void TNodeResourceManager::UpdateMemoryLimits()
     }
 }
 
-void TNodeResourceManager::UpdateProfilingCategory()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    Bootstrap_->GetNodeMemoryUsageTracker()->UpdateUsage(EMemoryCategory::Profiling, GetCountersBytesAlive());
-}
-
-void TNodeResourceManager::UpdateLoggingCategory()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    Bootstrap_
-        ->GetNodeMemoryUsageTracker()
-        ->UpdateUsage(
-            EMemoryCategory::Logging,
-            TRefCountedTracker::Get()
-                ->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>()));
-}
-
-void TNodeResourceManager::UpdateMemoryFootprint()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
-
-    i64 bytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes").value_or(0);
-    i64 bytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size").value_or(0);
-    auto newFragmentation = std::max<i64>(0, bytesCommitted - bytesUsed);
-
-    auto newFootprint = bytesUsed;
-    for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        if (memoryCategory == EMemoryCategory::UserJobs ||
-            memoryCategory == EMemoryCategory::Footprint ||
-            memoryCategory == EMemoryCategory::AllocFragmentation ||
-            memoryCategory == EMemoryCategory::TmpfsLayers)
-        {
-            continue;
-        }
-
-        newFootprint -= memoryUsageTracker->GetUsed(memoryCategory);
-    }
-    newFootprint = std::max<i64>(newFootprint, 0);
-
-    auto oldFootprint = memoryUsageTracker->UpdateUsage(EMemoryCategory::Footprint, newFootprint);
-    auto oldFragmentation = memoryUsageTracker->UpdateUsage(EMemoryCategory::AllocFragmentation, newFragmentation);
-
-    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, Fragmentation: %v -> %v, Rpc: %v)",
-        bytesCommitted,
-        bytesUsed,
-        oldFootprint,
-        newFootprint,
-        oldFragmentation,
-        newFragmentation,
-        memoryUsageTracker->GetUsed(EMemoryCategory::Rpc));
-}
 
 void TNodeResourceManager::UpdateJobsCpuLimit()
 {

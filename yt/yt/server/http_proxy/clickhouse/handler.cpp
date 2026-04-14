@@ -155,7 +155,7 @@ public:
             .Item("request_id").Value(Request_->GetRequestId())
             .OptionalItem("authenticated_user", !User_.empty() ? std::make_optional(User_) : std::nullopt)
             .OptionalItem("token_hash", !Token_.empty() ? std::make_optional(NAuth::GetCryptoHash(Token_)) : std::nullopt)
-            .Item("proxy_address").Value(Bootstrap_->GetCoordinator()->GetSelf()->GetHost())
+            .Item("proxy_address").Value(Bootstrap_->GetCoordinator()->GetSelfEntry()->GetHost())
             .Item("client_address").Value(ToString(Request_->GetRemoteAddress()))
             .OptionalItem("user_agent", FindUserAgent(Request_))
             .Item("http_method").Value(Request_->GetMethod())
@@ -949,7 +949,7 @@ private:
     {
         auto error = WaitFor(
             PermissionCache_->Get(TPermissionKey{
-                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", CliqueAlias_),
+                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(CliqueAlias_)),
                 .User = User_,
                 .Permission = EPermission::Use,
             }));

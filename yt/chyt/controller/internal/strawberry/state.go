@@ -69,6 +69,9 @@ type InfoState struct {
 		// TODO(max42): build Revision, etc.
 	} `yson:"controller"`
 
+	Health       OpletHealth `yson:"health"`
+	HealthReason string      `yson:"health_reason"`
+
 	YTOpStartTime  yson.Time `yson:"yt_op_start_time,omitempty"`
 	YTOpFinishTime yson.Time `yson:"yt_op_finish_time,omitempty"`
 }

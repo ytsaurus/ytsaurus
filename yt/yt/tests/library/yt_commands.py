@@ -371,8 +371,6 @@ def execute_command(
     parse_yson=None,
     unwrap_v4_result=True,
 ):
-    global _zombie_responses
-
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
@@ -560,10 +558,12 @@ def assert_true_for_all_cells(env, predicate):
 
 
 def _check_true_for_all_cells(env, predicate):
+    ret = True
     for i in range(env.yt_config.secondary_cell_count + 1):
+        print_debug("Checking at cell", i)
         if not predicate(get_driver(i)):
-            return False
-    return True
+            ret = False
+    return ret
 
 
 def wait_true_for_all_cells(env, predicate):
@@ -684,6 +684,12 @@ def poll_job_shell(job_id, authenticated_user=None, shell_name=None, **kwargs):
     if shell_name:
         kwargs["shell_name"] = shell_name
     return execute_command("poll_job_shell", kwargs, parse_yson=True)
+
+
+def run_job_shell_command(job_id, command, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["command"] = command
+    return execute_command("run_job_shell_command", kwargs)
 
 
 def abort_job(job_id, **kwargs):
@@ -1461,13 +1467,32 @@ class Operation(object):
 
         return get(job_orchid_path, verbose=False, driver=self._driver)
 
-    def interrupt_job(self, job_id, interruption_timeout=10000):
+    def interrupt_job(self, job_id, interruption_timeout=10000, raise_on_failed_interruption=True):
+        """
+        Interrupt job. If raise_on_failed_interruption is True and job was completed
+        (and not interrupted), raise an error.
+        """
 
-        wait(lambda: self.get_job_node_orchid(job_id)["job_state"] == "running")
+        @wait
+        def _wait_running():
+            state = self.get_job_node_orchid(job_id)["job_state"]
+            if state in ("completed", "aborted"):
+                raise YtError(f"Job cannot be interrupted as it is in {state} state")
+            return state == "running"
 
         interrupt_job(job_id, interruption_timeout)
 
-        wait(lambda: self.get_job_node_orchid(job_id)["interrupted"])
+        @wait
+        def _wait_interrupted():
+            orchid = self.get_job_node_orchid(job_id)
+            if orchid["job_state"] == "completed":
+                if not orchid["interrupted"]:
+                    print_debug(f"Job {job_id} completed naturally")
+                    if raise_on_failed_interruption:
+                        raise YtError("Job completed without interruption")
+
+                return True
+            return orchid["interrupted"]
 
     def get_job_phase(self, job_id):
         job_orchid = self.get_job_node_orchid(job_id)
@@ -1814,6 +1839,9 @@ def start_op(op_type, **kwargs):
     if fail_fast and ("spec" not in kwargs or "max_failed_job_count" not in kwargs["spec"]):
         set_branch(kwargs, ["spec", "max_failed_job_count"], 1)
 
+    if "spec" not in kwargs or "enable_root_volume_disk_quota" not in kwargs["spec"]:
+        set_branch(kwargs, ["spec", "enable_root_volume_disk_quota"], True)
+
     track = kwargs.get("track", True)
     if "track" in kwargs:
         del kwargs["track"]
@@ -1944,12 +1972,13 @@ def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
 
 
-def build_snapshot(*args, **kwargs):
-    return get_driver().build_snapshot(*args, **kwargs)
+def build_snapshot(cell_id, **kwargs):
+    kwargs["cell_id"] = cell_id
+    return execute_command("build_snapshot", kwargs, parse_yson=True)
 
 
 def build_master_snapshots(*args, **kwargs):
-    return get_driver().build_master_snapshots(*args, **kwargs)
+    return execute_command("build_master_snapshots", kwargs)
 
 
 def exit_read_only(cell_id, **kwargs):
@@ -1959,6 +1988,10 @@ def exit_read_only(cell_id, **kwargs):
 
 def master_exit_read_only(**kwargs):
     return execute_command("master_exit_read_only", kwargs)
+
+
+def reset_dynamically_propagated_master_cells(**kwargs):
+    return execute_command("reset_dynamically_propagated_master_cells", kwargs)
 
 
 def discombobulate_nonvoting_peers(cell_id, **kwargs):
@@ -2463,14 +2496,7 @@ def create_domestic_medium(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    # COMPAT(babenko)
-    try:
-        return execute_command("create", kwargs)
-    except YtResponseError as err:
-        if not err.contains_text("Error parsing"):
-            raise
-        kwargs["type"] = "medium"
-        return execute_command("create", kwargs)
+    return execute_command("create", kwargs)
 
 
 def create_s3_medium(name, config, **kwargs):
@@ -3012,6 +3038,14 @@ def disable_tablet_cells_on_node(address, reason="", driver=None):
 def enable_tablet_cells_on_node(address, driver=None):
     clear_node_maintenance_flag(address, "disable_tablet_cells", driver=driver)
     print_debug(f"Tablet cells are enabled on node {address}")
+
+
+def enable_local_throttling():
+    update_nodes_dynamic_config({
+        "tablet_node": {
+            "enable_collocated_dat_node_throttling": True
+        }
+    })
 
 
 def wait_for_nodes(driver=None):
@@ -3658,34 +3692,29 @@ def update_user_to_default_pool_map(user_to_default_pool):
     wait(lambda: get("//sys/scheduler/orchid/scheduler/user_to_default_pool") == user_to_default_pool)
 
 
-def get_nodes_with_flavor(flavor):
-    cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
+def get_nodes_with_flavor(flavor, driver=None):
+    cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"], driver=driver)
     nodes = []
     for node in cluster_nodes:
-        # COMPAT(gritukan)
-        if "flavors" not in node.attributes:
-            nodes.append(str(node))
-            continue
-
         if flavor in node.attributes["flavors"]:
             nodes.append(str(node))
     return nodes
 
 
-def get_data_nodes():
-    return get_nodes_with_flavor("data")
+def get_data_nodes(driver=None):
+    return get_nodes_with_flavor("data", driver=driver)
 
 
-def get_exec_nodes():
-    return get_nodes_with_flavor("exec")
+def get_exec_nodes(driver=None):
+    return get_nodes_with_flavor("exec", driver=driver)
 
 
-def get_tablet_nodes():
-    return get_nodes_with_flavor("tablet")
+def get_tablet_nodes(driver=None):
+    return get_nodes_with_flavor("tablet", driver=driver)
 
 
-def get_chaos_nodes():
-    return get_nodes_with_flavor("chaos")
+def get_chaos_nodes(driver=None):
+    return get_nodes_with_flavor("chaos", driver=driver)
 
 
 def is_active_primary_master_leader(rpc_address):
@@ -3847,7 +3876,14 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
-def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
+def flow_execute(
+    pipeline_path: str,
+    flow_command: str,
+    flow_argument=None,
+    is_raw=False,
+    plaintext=False,
+    **kwargs
+):
     is_input_raw = is_raw or "input_format" in kwargs
     if not is_input_raw:
         flow_argument = yson.dumps(flow_argument)
@@ -3862,11 +3898,14 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_r
     kwargs["pipeline_path"] = pipeline_path
     kwargs["flow_command"] = flow_command
 
-    is_output_raw = is_raw or "output_format" in kwargs
+    if plaintext:
+        kwargs["flow_argument"] = flow_argument
+
+    is_output_raw = plaintext or is_raw or "output_format" in kwargs
     return execute_command(
-        "flow_execute",
+        "flow_execute" if not plaintext else "flow_execute_plaintext",
         kwargs,
-        input_stream=BytesIO(flow_argument),
+        input_stream=BytesIO(flow_argument) if not plaintext else None,
         parse_yson=not is_output_raw,
         unwrap_v4_result=False)
 
@@ -3915,3 +3954,23 @@ def finish_distributed_write_session(session: yson.YsonType, results: list[yson.
 def ping_chaos_lease(chaos_lease_id, **kwargs):
     kwargs["chaos_lease_id"] = chaos_lease_id
     execute_command("ping_chaos_lease", kwargs)
+
+
+def get_connection_orchid_value(path="", **kwargs):
+    kwargs["path"] = path
+    return execute_command("get_connection_orchid_value", kwargs, parse_yson=True)
+
+
+def get_user_banned(user_name, **kwargs):
+    kwargs["user_name"] = user_name
+    return execute_command("get_user_banned", kwargs, parse_yson=True)
+
+
+def set_user_banned(user_name, is_banned, **kwargs):
+    kwargs["user_name"] = user_name
+    kwargs["is_banned"] = is_banned
+    execute_command("set_user_banned", kwargs)
+
+
+def list_banned_users(**kwargs):
+    return execute_command("list_banned_users", kwargs, parse_yson=True)

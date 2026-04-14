@@ -260,6 +260,7 @@
   { "include": ["@\"__type_traits/.*\"", "private", "<type_traits>", "public"] },
   { "include": ["@\"__utility/.*\"", "private", "<utility>", "public"] },
   { "include": ["@\"__variant/.*\"", "private", "<variant>", "public"] },
+  { "include": ["@\"__vector/.*\"", "private", "<vector>", "public"] },
   { "include": ["\"__assert\"", "private", "<cassert>", "public"] },
   { "include": ["\"__bit_reference\"", "private", "<vector>", "public"] },
   { "include": ["\"__hash_table\"", "private", "<unordered_map>", "public"] },

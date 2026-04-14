@@ -45,7 +45,7 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
 ////////////////////////////////////////////////////////////////////////////////
 
 [[maybe_unused]]
-std::ostream& operator << (std::ostream& os, const TCumulativeStatisticsEntry& entry)
+std::ostream& operator<<(std::ostream& os, const TCumulativeStatisticsEntry& entry)
 {
     return os << Format("{RowCount=%v;ChunkCount=%v;DataSize=%v}",
         entry.RowCount,

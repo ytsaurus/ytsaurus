@@ -4,6 +4,7 @@
 
 #include "actions.h"
 #include "bootstrap.h"
+#include "ban_service.h"
 #include "config.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
@@ -106,7 +107,7 @@ public:
             BIND_NO_PROPAGATE(&TObjectService::OnUserDirectoryUpdated, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeAfterConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     IServicePtr GetService() override
@@ -129,12 +130,6 @@ private:
 
     const NNative::IConnectionPtr Connection_;
 
-    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
-    const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
-
-    class TExecuteSession;
-    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
-
     class TExecuteRequestQueueProvider
         : public TPerUserAndWorkloadRequestQueueProvider
     {
@@ -145,6 +140,26 @@ private:
             : TPerUserAndWorkloadRequestQueueProvider(std::move(reconfigurationCallback))
             , Owner_(owner)
         { }
+
+        void UpdateTotalLimits(const TUserDirectoryPtr& userDirectory)
+        {
+            THashMap<TThrottlerId, std::optional<double>> newTotalLimits;
+            for (const auto& [name, descriptor] : userDirectory->GetNameOrAliasToUserDescriptor()) {
+                auto readKey = GetRequestQueueNameForKey({name, EUserWorkloadType::Read});
+                std::optional<double> limit = descriptor->ReadRequestRateLimit
+                    ? std::optional(static_cast<double>(*descriptor->ReadRequestRateLimit))
+                    : std::nullopt;
+                EmplaceOrCrash(newTotalLimits, std::move(readKey), limit);
+
+                auto writeKey = GetRequestQueueNameForKey({name, EUserWorkloadType::Write});
+                limit = descriptor->WriteRequestRateLimit
+                    ? std::optional(static_cast<double>(*descriptor->WriteRequestRateLimit))
+                    : std::nullopt;
+                EmplaceOrCrash(newTotalLimits, std::move(writeKey), limit);
+            }
+
+            Owner_->ThrottlerFactory_->UpdateTotalLimits(newTotalLimits);
+        }
 
     private:
         TObjectService* const Owner_;
@@ -171,6 +186,12 @@ private:
         }
     };
 
+    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const TIntrusivePtr<TExecuteRequestQueueProvider> RequestQueueProvider_;
+
+    class TExecuteSession;
+    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
+
     static TPerUserAndWorkloadRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(
         IBootstrap* bootstrap,
         IDistributedThrottlerFactoryPtr throttlerFactory)
@@ -187,14 +208,18 @@ private:
                 return;
             }
 
-            // TODO(danilalexeev): Support queue size limit reconfiguration.
             const auto& userDirectory = bootstrap->GetUserDirectory();
             const auto descriptor = userDirectory->FindUserByName(userNameAndWorkloadType.first);
             if (!descriptor) {
                 return;
             }
 
-            auto newConfig = TThroughputThrottlerConfig::Create(GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second));
+            auto limit = GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second);
+            if (limit) {
+                limit = *limit * dynamicConfig->RequestRateLimitFactor;
+            }
+
+            auto newConfig = TThroughputThrottlerConfig::Create(limit);
             queue->ConfigureWeightThrottler(newConfig);
             queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
@@ -207,18 +232,20 @@ private:
         });
     }
 
-    void OnUserDirectoryUpdated(const std::string& userName)
+    void OnUserDirectoryUpdated(const std::vector<std::string>& users)
     {
-        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
-        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+        for (const auto& userName : users) {
+            RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
+            RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+        }
+
+        RequestQueueProvider_->UpdateTotalLimits(Bootstrap_->GetUserDirectory());
     }
 
-    void OnDynamicConfigChanged(
-        const TCypressProxyDynamicConfigPtr& oldConfig,
-        const TCypressProxyDynamicConfigPtr& newConfig)
+    void OnDynamicConfigChanged(const TCypressProxyDynamicConfigPtr& oldConfig)
     {
         const auto& oldObjectServiceConfig = oldConfig->ObjectService;
-        const auto& newObjectServiceConfig = newConfig->ObjectService;
+        const auto& newObjectServiceConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
 
         ThrottlerFactory_->Reconfigure(newObjectServiceConfig->DistributedThrottler);
 
@@ -236,7 +263,12 @@ private:
 
             YT_LOG_DEBUG("Per-user request weight throttling was %v",
                 newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
+        } else if (newObjectServiceConfig->EnablePerUserRequestWeightThrottling &&
+            newObjectServiceConfig->RequestRateLimitFactor != oldObjectServiceConfig->RequestRateLimitFactor)
+        {
+            RequestQueueProvider_->ReconfigureAllQueues();
         }
+
     }
 };
 
@@ -333,6 +365,7 @@ private:
 
     void GuardedRun()
     {
+        ValidateUserNotBanned();
         ParseSubrequests();
 
         if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
@@ -346,6 +379,14 @@ private:
         InvokeMasterRequests(/*beforeSequoiaResolve*/ false);
 
         Reply();
+    }
+
+    void ValidateUserNotBanned()
+    {
+        const auto& user = AuthenticationIdentity_.User;
+        if (Owner_->Bootstrap_->GetBanService()->IsBanned(user)) {
+            THROW_ERROR_EXCEPTION("User %Qv is banned via ban service", user);
+        }
     }
 
     void ParseSubrequests()
@@ -404,7 +445,7 @@ private:
                 mutating = mutatingSubrequest;
             }
 
-            if (mutating != mutatingSubrequest && Owner_->GetDynamicConfig()->AlertOnMixedReadWriteBatch) {
+            if (mutating != mutatingSubrequest) {
                 YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
             }
         }
@@ -960,6 +1001,8 @@ private:
             return response;
         }
 
+        NTracing::TChildTraceContextGuard traceContextGuard("SequoiaService.Invoke");
+
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         return Visit(invokeResult,
@@ -996,9 +1039,12 @@ private:
         };
 
         auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
-        if (relevantSubrequestCount != 0) {
-            MaybeSyncWithMaster();
+        if (relevantSubrequestCount == 0) {
+            // No Sequoia requests are present.
+            return;
         }
+
+        MaybeSyncWithMaster();
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;

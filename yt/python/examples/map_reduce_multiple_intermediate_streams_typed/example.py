@@ -43,7 +43,7 @@ class Mapper(yt.wrapper.TypedJob):
             yield yt.wrapper.OutputRow(row, table_index=0)
         else:
             assert context.get_table_index() == 1
-            # Выбираем только события типа "клик".
+            # Select events of "click" type only.
             if row.type == "click":
                 assert row.url is not None
                 yield yt.wrapper.OutputRow(
@@ -52,7 +52,7 @@ class Mapper(yt.wrapper.TypedJob):
                 )
 
     def get_intermediate_stream_count(self):
-        # Указываем, что промежуточные данные текут в два потока.
+        # Specify two streams for intermediate data.
         return 2
 
 
@@ -62,11 +62,11 @@ class Reducer(yt.wrapper.TypedJob):
         user_row = None
         for row, ctx in rows.with_context():
             if ctx.get_table_index() == 0:
-                # Пользователи приходят в нулевой таблице.
+                # Users come into the null table.
                 user_row = row
             else:
                 assert ctx.get_table_index() == 1
-                # А клики — в первой.
+                # And clicks come into the first table.
                 urls.append(row.url)
         if user_row is not None:
             yield NamedClicks(name=user_row.name, urls=urls)

@@ -22,12 +22,15 @@ struct IChunkReader
         std::optional<i64> EstimatedSize;
         IInvokerPtr SessionInvoker;
         bool DisableBandwidthThrottler = false;
+        bool EnableP2P = true;
+        bool FetchNodeDescriptors = false;
     };
 
     struct TGetMetaOptions
     {
         TClientChunkReadOptions ClientOptions;
         std::optional<i64> MetaSize;
+        IInvokerPtr SessionInvoker;
     };
 
     //! Asynchronously reads a given set of blocks.

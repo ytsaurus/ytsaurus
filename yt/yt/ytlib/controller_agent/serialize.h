@@ -108,6 +108,15 @@ DEFINE_ENUM(ESnapshotVersion,
     ((UseCounterGuardsInChunkPoolMerger)     (302201))
     ((FileRlsReadSpec)                       (302202))
     ((DropExcessFieldsInOrderedController)   (302203))
+    ((ChunkPoolStatistics)                   (302204))
+    ((FixSimpleSort)                         (302205))
+    ((ValidateRootFS)                        (302206))
+    ((FixOutputChunkPoolIndexSerialization)  (302207))
+    ((FixPartitionsDispatchStatistics)       (302208))
+    ((FixInputStreamDirectory)               (302209))
+    ((AccessControlRule)                     (302210))
+    ((LinkVolumes)                           (302211))
+    ((HighThreadCountJobPerTask)             (302212))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,26 +4,16 @@ import json
 import logging
 
 from importlib import resources
-from importlib.resources.abc import Traversable
+from importlib.resources.abc import TraversalError
 from pathlib import Path
 from datetime import datetime
 from typing import Any
-from enum import StrEnum
 
 from yt.yson import YsonType, yson_to_json
 
 ################################################################################
 
 ROOT_RESOURCE = resources.files(__package__)
-
-
-class QuerySource(StrEnum):
-    RESOURCES = "resources"
-    FILESYSTEM = "filesystem"
-
-
-def root_path(query_source: QuerySource) -> Path | Traversable:
-    return ROOT_RESOURCE if query_source == QuerySource.RESOURCES else Path()
 
 
 class RunnableQuery:
@@ -36,31 +26,23 @@ class RunnableQuery:
         self.hand_optimized = hand_optimized
         self.pragmas = pragmas
 
-    def get_title(self, prefix: str = ""):
-        result = prefix + f"TPC-DS {self.index:02d}"
+    def get_title(self, prefix: str = "") -> str:
+        result = f"{prefix} TPC-DS {self.index:02d}"
         if self.hand_optimized:
-            result = result + " (hand-optimized)"
+            result += " (hand-optimized)"
         return result
 
 
 def combine_pragma_settings(
     default_pragmas_text: str,
-    pragma_add: list[str],
-    pragma_file: str | None,
     pragma_preset: list[str]
 ) -> str:
     result = default_pragmas_text
-    if pragma_file:
-        with open(pragma_file, "r") as file:
-            result = file.read()
 
     if pragma_preset:
         result = ""
         for preset in pragma_preset:
             result += (ROOT_RESOURCE / "pragmas" / f"{preset}.sql").read_text() + "\n"
-
-    for pragma in pragma_add:
-        result += "pragma " + pragma + ";\n"
 
     return result
 
@@ -69,50 +51,33 @@ def get_runnable_queries(
     queries: list[int] | None,
     use_hand_optimized: bool,
     query_path: str,
-    optimized_path: str,
-    query_source: QuerySource,
-    pragma_add: list[str],
-    pragma_file: str | None,
+    hand_optimized_path: str,
     pragma_preset: list[str]
 ) -> list[RunnableQuery]:
-
-    original_queries = list_all_queries(query_path, query_source)
-    original_pragmas = combine_pragma_settings(
+    all_queries = list_all_queries(query_path)
+    pragmas = combine_pragma_settings(
         (ROOT_RESOURCE / "pragmas" / "default.sql").read_text() + "\n",
-        pragma_add,
-        pragma_file,
         pragma_preset
     )
-    original_set = set(original_queries)
 
     if not queries:
-        queries = original_queries
+        queries = all_queries
     else:
-        unknown_queries = set(queries).difference(original_queries)
+        unknown_queries = set(queries).difference(set(all_queries))
         if unknown_queries:
             logging.warning(f"Unknown queries {unknown_queries}")
 
     if not use_hand_optimized:
-        runset = [RunnableQuery(num, False, original_pragmas) for num in queries if num in original_set]
+        runset = [RunnableQuery(num, False, pragmas) for num in queries if num in all_queries]
     else:
-        # Override the original queries with hand-optimized when present.
-        optimized_queries = list_all_queries(optimized_path, query_source)
-        optimized_pragmas = combine_pragma_settings(
-            (ROOT_RESOURCE / "pragmas" / "optimized.sql").read_text() + "\n",
-            pragma_add,
-            pragma_file,
-            pragma_preset
-        )
-        optimized_set = set(optimized_queries)
-
+        optimized_queries = list_all_queries(hand_optimized_path)
         runset = []
         for num in queries:
-            if num not in original_set:
+            if num not in all_queries:
                 continue
 
-            optimized = num in optimized_set
-            pragma_set = optimized_pragmas if optimized else original_pragmas
-            runset.append(RunnableQuery(num, optimized, pragma_set))
+            hand_optimized = num in optimized_queries
+            runset.append(RunnableQuery(num, hand_optimized, pragmas))
 
     runset.sort(key=lambda query: (query.index, query.hand_optimized))
     return runset
@@ -121,28 +86,23 @@ def get_runnable_queries(
 def make_query(
     runnable: RunnableQuery,
     query_path: str,
-    optimized_path: str,
-    query_source: QuerySource,
+    hand_optimized_path: str,
 ) -> str:
     query_body = None
     query_name = f"{runnable.index:02d}.sql"
-    path_root = root_path(query_source)
 
-    if runnable.hand_optimized:
-        path = path_root / optimized_path / query_name
-    else:
-        path = path_root / query_path / query_name
+    path = ROOT_RESOURCE / (hand_optimized_path if runnable.hand_optimized else query_path) / query_name
 
     query_body = path.read_text()
     return runnable.pragmas + "\n" + query_body
 
 
-def list_all_queries(query_prefix: str, query_source: QuerySource) -> list[int]:
+def list_all_queries(query_prefix: str) -> list[int]:
     try:
-        path = root_path(query_source) / query_prefix
-    except FileNotFoundError:
-        # Traversable will throw exception in '/' operator if query_prefix doesn't exist, Path won't.
+        path = ROOT_RESOURCE / query_prefix
+    except TraversalError:
         return []
+
     if not path.is_dir():
         return []
     return [int(query.name.removesuffix(".sql"))
@@ -311,13 +271,6 @@ def run_options(func):
         help="Override original queries with hand-optimized versions when those are available.",
     )
     @click.option(
-        "--query-source",
-        type=click.Choice(list(QuerySource)),
-        default="resources",
-        show_default=True,
-        help="Where to load the queries from: resfs or filesystem.",
-    )
-    @click.option(
         "--query-path",
         type=str,
         default="queries",
@@ -325,29 +278,17 @@ def run_options(func):
         help="Path to load the queries from."
     )
     @click.option(
-        "--optimized-path",
+        "--hand-optimized-path",
         type=str,
         default="queries_optimized",
         show_default=True,
-        help="Path to load the optimized queries from.",
+        help="Path to load the hand-optimized queries from.",
     )
     @click.option(
         "--proxy",
         envvar="YT_PROXY",
         required=True,
         help="YT cluster where the queries should be executed.",
-    )
-    @click.option(
-        "-p",
-        "--pragma-add",
-        multiple=True,
-        default=None,
-        help="Adds a single SQL pragma statement directly. This option can be repeated to include multiple pragmas.",
-    )
-    @click.option(
-        "--pragma-file",
-        help="Loads pragma settings from a specified file.",
-        type=click.Path(exists=True, dir_okay=False, readable=True),
     )
     @click.option(
         "--pragma-preset",
@@ -358,7 +299,7 @@ def run_options(func):
     )
     @click.option(
         "--poller-interval",
-        default="500ms",
+        default="200ms",
         show_default=True,
     )
     @click.option(

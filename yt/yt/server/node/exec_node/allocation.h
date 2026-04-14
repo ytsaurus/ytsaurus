@@ -1,7 +1,8 @@
 #pragma once
 
-#include "job.h"
 #include "helpers.h"
+#include "job.h"
+#include "job_fs_secretary.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -22,6 +23,7 @@ DEFINE_ENUM(EAllocationFinishReason,
     (NoNewJobSettled)
     (AgentDisconnected)
     (JobFinishedUnsuccessfully)
+    (UserSlotDisabled)
 );
 
 class TAllocation
@@ -132,6 +134,8 @@ private:
     EAllocationState State_ = EAllocationState::Waiting;
 
     std::optional<TJobId> LastJobId_;
+
+    TJobFSSecretaryPtr FSSecretary_;
 
     TJobPtr Job_;
 

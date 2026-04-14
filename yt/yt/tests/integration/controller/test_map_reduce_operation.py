@@ -6,7 +6,7 @@ from yt_commands import (
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort, alter_table, start_op,
     abandon_job, abort_job, get_operation,
-    raises_yt_error,
+    raises_yt_error, list_jobs, sync_create_cells,
     set_node_banned, get_table_columnar_statistics, update_controller_agent_config)
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
@@ -20,6 +20,8 @@ import yt.yson as yson
 
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
+
+import yt.environment.init_operations_archive as init_operations_archive
 
 import pytest
 
@@ -433,9 +435,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             spec={"reducer": {"format": "dsv"}, "ordered": ordered},
         )
 
-    @authors("faucct")
+    @authors("faucct", "pogorelov")
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_reduce_distributed(self, ordered):
+    def test_map_reduce_job_collective(self, ordered):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 
@@ -447,15 +449,15 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out=["//tmp/t_out"],
                 sort_by="line",
-                reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                spec={"reducer": {"format": "dsv", "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "ordered": ordered},
+                reducer_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                spec={"reducer": {"format": "dsv", "collective_options": {"size": 2}, "close_stdout_if_unused": True}, "ordered": ordered},
             )
         map_reduce(
             in_="//tmp/t_in",
             out=["//tmp/t_out"],
             sort_by="line",
-            reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
-            spec={"reducer": {"format": "dsv", "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "ordered": ordered},
+            reducer_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
+            spec={"reducer": {"format": "dsv", "collective_options": {"size": 2}, "close_stdout_if_unused": True}, "ordered": ordered},
         )
         assert read_table("//tmp/t_out") == [{'line': 'some_data'}]
 
@@ -1411,8 +1413,8 @@ print("x={0}\ty={1}".format(x, y))
 
         assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
 
-    @authors("faucct")
-    def test_user_job_spec_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_user_job_spec_job_collective(self):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 
@@ -1424,14 +1426,14 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                mapper_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                mapper_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 reducer_command='cat',
                 reduce_combiner_command='cat',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                    "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                    "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "mapper": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                    "reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                    "reduce_combiner": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
                     "force_reduce_combiners": True,
                 },
             )
@@ -1439,13 +1441,13 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                reduce_combiner_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
+                reducer_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                reduce_combiner_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                    "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                    "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "mapper": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                    "reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                    "reduce_combiner": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
                     "force_reduce_combiners": True,
                 },
             )
@@ -1453,26 +1455,26 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
-                reduce_combiner_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                reducer_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
+                reduce_combiner_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                    "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                    "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "mapper": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                    "reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                    "reduce_combiner": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
                     "force_reduce_combiners": True,
                 },
             )
         map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
-            reduce_combiner_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
+            reducer_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
+            reduce_combiner_command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
             sort_by=[{"name": "key", "sort_order": "ascending"}],
             spec={
-                "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
-                "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                "mapper": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                "reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True},
+                "reduce_combiner": {"cpu_limit": 1, "collective_options": {"size": 2}, "close_stdout_if_unused": True},
                 "force_reduce_combiners": True,
             },
         )
@@ -4745,6 +4747,7 @@ class TestPartitionsMerging(TestSchedulerMapReduceBase):
             "operation_options": {
                 "min_uncompressed_block_size": 1,
                 "min_partition_weight": 1,
+                "default_partition_data_weight_for_merging": 50,
             },
         }
     }
@@ -4778,7 +4781,7 @@ for line in sys.stdin:
                 "enable_final_partitions_merging": enable_final_partitions_merging,
                 # COMPAT(apollo1321)
                 "use_new_partitions_heuristic": self.Env.get_component_version("ytserver-controller-agent").abi < (25, 3)
-            },
+            } | ({"partition_data_weight_for_merging": 80} if enable_final_partitions_merging else {}),
         )
         tasks = get(op.get_path() + "/@progress/tasks")
         assert len(tasks) == 4
@@ -4802,15 +4805,45 @@ for line in sys.stdin:
                 },
             )
 
+        with raises_yt_error("cannot be greater than"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by=["x"],
+                sort_by=["x", "y"],
+                reducer_command="cat",
+                spec={
+                    "enable_final_partitions_merging": True,
+                    "partition_data_weight_for_merging": 2**30,
+                    "data_weight_per_sort_job": 2**28,
+                },
+            )
+
+        with raises_yt_error("cannot be specified when"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by=["x"],
+                sort_by=["x", "y"],
+                reducer_command="cat",
+                spec={
+                    "enable_final_partitions_merging": False,
+                    "partition_data_weight_for_merging": 80,
+                },
+            )
+
     @authors("apollo1321")
     @pytest.mark.parametrize("enable_final_partitions_merging", [False, True])
-    def test_final_partitions_merging(self, enable_final_partitions_merging):
+    @pytest.mark.parametrize("use_default_partition_data_weight_for_merging", [False, True])
+    def test_final_partitions_merging(self, enable_final_partitions_merging, use_default_partition_data_weight_for_merging):
+        if use_default_partition_data_weight_for_merging and not enable_final_partitions_merging:
+            pytest.skip("Default partition data weight for merging only applies when merging is enabled")
+
         create("table", "//tmp/t_in")
 
         rows = [{"x": i} for i in range(100)]
         write_table("<append=%true>//tmp/t_in", rows)
 
-        map_job_count = 5
         op = map_reduce(
             in_="//tmp/t_in",
             out="<create=%true>//tmp/t_out",
@@ -4820,9 +4853,10 @@ for line in sys.stdin:
             spec={
                 "enable_final_partitions_merging": enable_final_partitions_merging,
                 "mapper": {"format": "json"},
-                "map_job_count": map_job_count,
-                "partition_data_weight": 100,
-            },
+                "map_job_io": {"table_writer": {"block_size": 1}},
+            } | ({
+                "partition_data_weight_for_merging": 100,
+            } if not use_default_partition_data_weight_for_merging and enable_final_partitions_merging else {}),
         )
 
         progress = get(op.get_path() + "/@progress")
@@ -4833,17 +4867,18 @@ for line in sys.stdin:
         assert progress["partitions"]["completed"] == actual_partition_count
         assert progress["partition_reduce"]["total"] <= actual_partition_count
 
+        assert len(progress["tasks"]) == 2
+
         if enable_final_partitions_merging:
-            assert len(progress["tasks"]) == 2
-            assert actual_partition_count == 1
-            assert progress["partition_reduce"]["total"] == 1
+            expected_partition_count = 2 if use_default_partition_data_weight_for_merging else 1
+            assert actual_partition_count == expected_partition_count
+            assert progress["partition_reduce"]["total"] == expected_partition_count
         else:
             assert actual_partition_count > 5
-            assert len(progress["tasks"]) >= 2
             assert progress["partition_reduce"]["total"] > 1
 
     @authors("apollo1321")
-    def test_final_partitions_merging_limit(self):
+    def test_final_partitions_merging_limit_map_reduce(self):
         create("table", "//tmp/t_in")
 
         rows = [{"x": i} for i in range(100)]
@@ -4861,6 +4896,7 @@ for line in sys.stdin:
                 "mapper": {"format": "json"},
                 "map_job_count": map_job_count,
                 "partition_data_weight": 35,
+                "partition_data_weight_for_merging": 35,
             },
         )
 
@@ -4874,6 +4910,36 @@ for line in sys.stdin:
 
         assert len(progress["tasks"]) == 2
         assert actual_partition_count == 3
+
+    @authors("apollo1321")
+    def test_final_partitions_merging_limit_sort(self):
+        create("table", "//tmp/t_in")
+
+        rows = [{"x": i} for i in range(100)]
+        write_table("<append=%true>//tmp/t_in", rows)
+
+        op = sort(
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            sort_by=["x"],
+            spec={
+                "enable_final_partitions_merging": True,
+                "partition_data_weight": 35,
+                "partition_job_count": 3,
+                "partition_data_weight_for_merging": 600,
+            },
+        )
+
+        progress = get(op.get_path() + "/@progress")
+
+        assert read_table("//tmp/t_out") == [{"x": i} for i in range(100)]
+
+        actual_partition_count = progress["partitions"]["total"]
+        assert progress["partitions"]["completed"] == actual_partition_count
+        assert progress["final_sort"]["total"] <= actual_partition_count
+
+        assert len(progress["tasks"]) == 2
+        assert actual_partition_count == 2
 
     @authors("apollo1321")
     def test_final_partitions_merging_with_lost_intermediate_data(self):
@@ -4904,6 +4970,7 @@ for line in sys.stdin:
                 "map_job_count": map_job_count,
                 "mapper": {"format": "json"},
                 "partition_data_weight": 50,
+                "partition_data_weight_for_merging": 50,
                 "resource_limits": {"user_slots": 1},
                 "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
             },
@@ -4937,6 +5004,11 @@ for line in sys.stdin:
     @pytest.mark.parametrize("data_weight_per_sort_job", [500, 2100, 30000])
     @pytest.mark.parametrize("operation", ["map_reduce", "sort"])
     def test_final_partitions_merging_stress(self, data_weight_per_sort_job, operation):
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -4981,14 +5053,14 @@ for line in sys.stdin:
 
         match operation:
             case "map_reduce":
-                map_reduce(
+                op = map_reduce(
                     **common_args,
                     reduce_by=["x"],
                     reducer_command="cat",
                     spec=common_spec | {
                         "map_job_io": {
                             "table_writer": {
-                                "block_size": 1024,
+                                "block_size": 128,
                                 "desired_chunk_size": 1,
                             }
                         },
@@ -4997,13 +5069,13 @@ for line in sys.stdin:
                     },
                 )
             case "sort":
-                sort(
+                op = sort(
                     **common_args,
                     sort_by=["x"],
                     spec=common_spec | {
                         "partition_job_io": {
                             "table_writer": {
-                                "block_size": 1024,
+                                "block_size": 128,
                                 "desired_chunk_size": 1,
                             }
                         },
@@ -5014,6 +5086,18 @@ for line in sys.stdin:
                 assert False
 
         assert read_table("//tmp/t_out") == sorted(rows, key=lambda row : row["x"])
+
+        wait(lambda: list_jobs(op.id)["jobs"])
+
+        jobs = list_jobs(op.id)["jobs"]
+        assert len(jobs) > 0
+        for job in jobs:
+            if job["type"] in ("sorted_merge", "sorted_reduce", "partition"):
+                continue
+            wait(lambda: op.get_job_statistics(job["id"]).get("data"))
+            statistics = op.get_job_statistics(job["id"])
+            assert statistics["data"]["input"]["chunk_count"]["sum"] == 1 or \
+                statistics["data"]["input"]["data_weight"]["sum"] <= data_weight_per_sort_job
 
 
 ##################################################################

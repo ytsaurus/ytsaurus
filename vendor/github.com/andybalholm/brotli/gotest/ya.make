@@ -2,7 +2,7 @@ GO_TEST_FOR(vendor/github.com/andybalholm/brotli)
 
 LICENSE(MIT)
 
-VERSION(v1.1.1)
+VERSION(v1.2.0)
 
 DATA(
     arcadia/vendor/github.com/andybalholm/brotli/testdata

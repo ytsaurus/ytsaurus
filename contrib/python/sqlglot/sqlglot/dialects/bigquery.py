@@ -51,6 +51,8 @@ JSON_EXTRACT_TYPE = t.Union[exp.JSONExtract, exp.JSONExtractScalar, exp.JSONExtr
 
 DQUOTES_ESCAPING_JSON_FUNCTIONS = ("JSON_QUERY", "JSON_VALUE", "JSON_QUERY_ARRAY")
 
+MAKE_INTERVAL_KWARGS = ["year", "month", "day", "hour", "minute", "second"]
+
 
 def _derived_table_values_to_unnest(self: BigQuery.Generator, expression: exp.Values) -> str:
     if not expression.find_ancestor(exp.From, exp.Join):
@@ -242,10 +244,28 @@ def _build_datetime(args: t.List) -> exp.Func:
     return exp.TimestampFromParts.from_arg_list(args)
 
 
+def build_date_diff(args: t.List) -> exp.Expression:
+    expr = exp.DateDiff(
+        this=seq_get(args, 0),
+        expression=seq_get(args, 1),
+        unit=seq_get(args, 2),
+        date_part_boundary=True,
+    )
+
+    # Normalize plain WEEK to WEEK(SUNDAY) to preserve the semantic in the AST to facilitate transpilation
+    # This is done post exp.DateDiff construction since the TimeUnit mixin performs canonicalizations in its constructor too
+    unit = expr.args.get("unit")
+
+    if isinstance(unit, exp.Var) and unit.name.upper() == "WEEK":
+        expr.set("unit", exp.WeekStart(this=exp.var("SUNDAY")))
+
+    return expr
+
+
 def _build_regexp_extract(
     expr_type: t.Type[E], default_group: t.Optional[exp.Expression] = None
-) -> t.Callable[[t.List], E]:
-    def _builder(args: t.List) -> E:
+) -> t.Callable[[t.List, BigQuery], E]:
+    def _builder(args: t.List, dialect: BigQuery) -> E:
         try:
             group = re.compile(args[1].name).groups == 1
         except re.error:
@@ -258,6 +278,11 @@ def _build_regexp_extract(
             position=seq_get(args, 2),
             occurrence=seq_get(args, 3),
             group=exp.Literal.number(1) if group else default_group,
+            **(
+                {"null_if_pos_overflow": dialect.REGEXP_EXTRACT_POSITION_OVERFLOW_RETURNS_NULL}
+                if expr_type is exp.RegexpExtract
+                else {}
+            ),
         )
 
     return _builder
@@ -366,6 +391,10 @@ class BigQuery(Dialect):
     EXCLUDES_PSEUDOCOLUMNS_FROM_STAR = True
     QUERY_RESULTS_ARE_STRUCTS = True
     JSON_EXTRACT_SCALAR_SCALAR_ONLY = True
+    LEAST_GREATEST_IGNORES_NULLS = False
+    DEFAULT_NULL_TYPE = exp.DataType.Type.BIGINT
+    PRIORITIZE_NON_LITERAL_TYPES = True
+    ALIAS_POST_VERSION = False
 
     # https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#initcap
     INITCAP_DEFAULT_DELIMITER_CHARS = ' \t\n\r\f\v\\[\\](){}/|<>!?@"^#$&~_,.:;*%+\\-'
@@ -382,6 +411,15 @@ class BigQuery(Dialect):
         "%D": "%m/%d/%y",
         "%E6S": "%S.%f",
         "%e": "%-d",
+        "%F": "%Y-%m-%d",
+        "%T": "%H:%M:%S",
+        "%c": "%a %b %e %H:%M:%S %Y",
+    }
+
+    INVERSE_TIME_MAPPING = {
+        # Preserve %E6S instead of expanding to %T.%f - since both %E6S & %T.%f are semantically different in BigQuery
+        # %E6S is semantically different from %T.%f: %E6S works as a single atomic specifier for seconds with microseconds, while %T.%f expands incorrectly and fails to parse.
+        "%H:%M:%S.%f": "%H:%M:%E6S",
     }
 
     FORMAT_MAPPING = {
@@ -404,7 +442,13 @@ class BigQuery(Dialect):
     # https://cloud.google.com/bigquery/docs/querying-partitioned-tables#query_an_ingestion-time_partitioned_table
     # https://cloud.google.com/bigquery/docs/querying-wildcard-tables#scanning_a_range_of_tables_using_table_suffix
     # https://cloud.google.com/bigquery/docs/query-cloud-storage-data#query_the_file_name_pseudo-column
-    PSEUDOCOLUMNS = {"_PARTITIONTIME", "_PARTITIONDATE", "_TABLE_SUFFIX", "_FILE_NAME"}
+    PSEUDOCOLUMNS = {
+        "_PARTITIONTIME",
+        "_PARTITIONDATE",
+        "_TABLE_SUFFIX",
+        "_FILE_NAME",
+        "_DBT_MAX_PARTITION",
+    }
 
     # All set operations require either a DISTINCT or ALL specifier
     SET_OP_DISTINCT_BY_DEFAULT = dict.fromkeys((exp.Except, exp.Intersect, exp.Union), None)
@@ -416,6 +460,13 @@ class BigQuery(Dialect):
     }
     COERCES_TO[exp.DataType.Type.DECIMAL] |= {exp.DataType.Type.BIGDECIMAL}
     COERCES_TO[exp.DataType.Type.BIGINT] |= {exp.DataType.Type.BIGDECIMAL}
+    COERCES_TO[exp.DataType.Type.VARCHAR] |= {
+        exp.DataType.Type.DATE,
+        exp.DataType.Type.DATETIME,
+        exp.DataType.Type.TIME,
+        exp.DataType.Type.TIMESTAMP,
+        exp.DataType.Type.TIMESTAMPTZ,
+    }
 
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
@@ -542,6 +593,7 @@ class BigQuery(Dialect):
             "CONTAINS_SUBSTR": _build_contains_substring,
             "DATE": _build_date,
             "DATE_ADD": build_date_delta_with_interval(exp.DateAdd),
+            "DATE_DIFF": build_date_diff,
             "DATE_SUB": build_date_delta_with_interval(exp.DateSub),
             "DATE_TRUNC": lambda args: exp.DateTrunc(
                 unit=seq_get(args, 1),
@@ -555,12 +607,6 @@ class BigQuery(Dialect):
             "EDIT_DISTANCE": _build_levenshtein,
             "FORMAT_DATE": _build_format_time(exp.TsOrDsToDate),
             "GENERATE_ARRAY": exp.GenerateSeries.from_arg_list,
-            "GREATEST": lambda args: exp.Greatest(
-                this=seq_get(args, 0), expressions=args[1:], null_if_any_null=True
-            ),
-            "LEAST": lambda args: exp.Least(
-                this=seq_get(args, 0), expressions=args[1:], null_if_any_null=True
-            ),
             "JSON_EXTRACT_SCALAR": _build_extract_json_with_default_path(exp.JSONExtractScalar),
             "JSON_EXTRACT_ARRAY": _build_extract_json_with_default_path(exp.JSONExtractArray),
             "JSON_EXTRACT_STRING_ARRAY": _build_extract_json_with_default_path(exp.JSONValueArray),
@@ -917,7 +963,7 @@ class BigQuery(Dialect):
         def _parse_make_interval(self) -> exp.MakeInterval:
             expr = exp.MakeInterval()
 
-            for arg_key in expr.arg_types:
+            for arg_key in MAKE_INTERVAL_KWARGS:
                 value = self._parse_lambda()
 
                 if not value:
@@ -1021,6 +1067,27 @@ class BigQuery(Dialect):
                 this=self._match_text_seq("AS") and self._parse_select(),
             )
 
+        def _parse_column_ops(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
+            func_index = self._index + 1
+            this = super()._parse_column_ops(this)
+
+            if isinstance(this, exp.Dot) and isinstance(this.expression, exp.Func):
+                prefix = this.this.name.upper()
+
+                func: t.Optional[t.Type[exp.Func]] = None
+                if prefix == "NET":
+                    func = exp.NetFunc
+                elif prefix == "SAFE":
+                    func = exp.SafeFunc
+
+                if func:
+                    # Retreat to try and parse a known function instead of an anonymous one,
+                    # which is parsed by the base column ops parser due to anonymous_func=true
+                    self._retreat(func_index)
+                    this = func(this=self._parse_function(any_token=True))
+
+            return this
+
     class Generator(generator.Generator):
         INTERVAL_ALLOWS_PLURAL_FORM = False
         JOIN_HINTS = False
@@ -1046,6 +1113,7 @@ class BigQuery(Dialect):
         SUPPORTS_EXPLODING_PROJECTIONS = False
         EXCEPT_INTERSECT_SUPPORT_ALL_CLAUSE = False
         SUPPORTS_UNIX_SECONDS = True
+        DECLARE_DEFAULT_ASSIGNMENT = "DEFAULT"
 
         SAFE_JSON_PATH_KEY_RE = re.compile(r"^[_\-a-zA-Z][\-\w]*$")
 
@@ -1168,6 +1236,7 @@ class BigQuery(Dialect):
             ),
             exp.StrToDate: _str_to_datetime_sql,
             exp.StrToTime: _str_to_datetime_sql,
+            exp.SessionUser: lambda *_: "SESSION_USER()",
             exp.TimeAdd: date_add_interval_sql("TIME", "ADD"),
             exp.TimeFromParts: rename_func("TIME"),
             exp.TimestampFromParts: rename_func("DATETIME"),
@@ -1476,12 +1545,3 @@ class BigQuery(Dialect):
                     return f"{self.sql(expression, 'to')}{self.sql(this)}"
 
             return super().cast_sql(expression, safe_prefix=safe_prefix)
-
-        def declareitem_sql(self, expression: exp.DeclareItem) -> str:
-            variables = self.expressions(expression, "this")
-            default = self.sql(expression, "default")
-            default = f" DEFAULT {default}" if default else ""
-            kind = self.sql(expression, "kind")
-            kind = f" {kind}" if kind else ""
-
-            return f"{variables}{kind}{default}"

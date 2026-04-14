@@ -50,6 +50,29 @@ TEST(TSymbolizeTest, SingleLocation)
         << "function name is " << name;
 }
 
+TEST(TSymbolizeTest, FillLinesAndFunctions)
+{
+    NProto::Profile profile;
+    profile.add_string_table();
+
+    auto thisIP = GetIP();
+
+    {
+        auto location = profile.add_location();
+        location->set_address(reinterpret_cast<ui64>(thisIP));
+    }
+
+    Symbolize(&profile, { .SymbolizeLocations = true });
+
+    ASSERT_EQ(1, profile.function_size());
+    auto function = profile.function(0);
+
+    auto name = profile.string_table(function.name());
+    ASSERT_TRUE(name.find("FillLinesAndFunctions") != std::string::npos)
+        << "function name is " << name;
+}
+
+
 TEST(TSymbolizeTest, GetBuildId)
 {
     if (!IsProfileBuild()) {

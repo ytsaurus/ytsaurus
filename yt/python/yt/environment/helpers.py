@@ -48,9 +48,9 @@ except ImportError:
     yatest_common = None
 
 if yatest_common is not None:
-    from yatest.common import network as yatest_common_network
+    from library.python import port_manager as port_manager_module
 else:
-    yatest_common_network = None
+    port_manager_module = None
 
 logger = logging.getLogger("YtLocal")
 
@@ -67,7 +67,7 @@ def _dump_netstat(dump_file_path):
 
 class OpenPortIterator(Iterator):
     def __init__(self, port_locks_path=None, local_port_range=None):
-        if yatest_common_network is None:
+        if port_manager_module is None:
             self._impl = OpenPortIteratorNonArcadia(port_locks_path, local_port_range)
         else:
             self._impl = OpenPortIteratorArcadia()
@@ -84,11 +84,11 @@ class OpenPortIterator(Iterator):
 
 class OpenPortIteratorArcadia(Iterator):
     def __init__(self):
-        if yatest_common_network is None:
+        if port_manager_module is None:
             raise RuntimeError("Cannot use OpenPortIteratorArcadia outside arcadia")
         if os.environ.get("PS1") and not os.environ.get("VALID_PORT_RANGE"):
             os.environ["VALID_PORT_RANGE"] = "10000:20000"
-        self.port_manager = yatest_common_network.PortManager()
+        self.port_manager = port_manager_module.PortManager()
 
     def release(self):
         self.port_manager.release()

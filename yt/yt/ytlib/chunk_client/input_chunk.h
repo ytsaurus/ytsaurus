@@ -71,7 +71,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, StripedErasure, false);
 
     //! Factor providing the ratio of the sum of sizes of chunk blocks to be read
-    //! to the sum of sizes of all blocks.
+    //! to the sum of sizes of all blocks. Should not be greater than 1.
     DEFINE_BYVAL_RW_PROPERTY(double, ReadSizeSelectivityFactor, 1.0);
 
 public:

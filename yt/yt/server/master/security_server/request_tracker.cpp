@@ -110,14 +110,16 @@ void TRequestTracker::ChargeUser(
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
 {
     const auto& throttler = user->GetRequestRateThrottler(workloadType);
-    return throttler ? throttler->Throttle(requestCount) : VoidFuture;
+    return throttler ? throttler->Throttle(requestCount) : OKFuture;
 }
 
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
-    YT_VERIFY(user != rootUser);
+
+    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+        "Cannot set user request rate limit for root");
 
     user->SetRequestRateLimit(limit, type);
     ReconfigureUserRequestRateThrottlers(user);
@@ -129,7 +131,9 @@ void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfig
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
-    YT_VERIFY(user != rootUser);
+
+    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+        "Cannot set request rate limits for root");
 
     user->SetObjectServiceRequestLimits(std::move(config));
     ReconfigureUserRequestRateThrottlers(user);

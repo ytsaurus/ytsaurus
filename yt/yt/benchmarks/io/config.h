@@ -39,7 +39,7 @@ DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 struct TEpochConfig
     : public NYTree::TYsonStruct
 {
-    TString EpochName;
+    std::string EpochName;
     std::vector<int> IterateThreads;
     std::vector<int> IterateBlockSizeLog;
     std::vector<std::pair<int, int>> IterateZone;
@@ -107,7 +107,7 @@ DEFINE_REFCOUNTED_TYPE(TEpochConfig)
 struct TTestConfig
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
     std::vector<TEpochConfigPtr> Epochs;
 
     REGISTER_YSON_STRUCT(TTestConfig);

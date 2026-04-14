@@ -2,7 +2,7 @@ from yt.wrapper.common import MB, GB
 
 from yt.common import update_inplace
 
-from .default_config import get_dynamic_node_config
+from .default_config import get_dynamic_node_config, get_dynamic_rpc_proxy_config
 
 try:
     from yt.packages.six import iteritems, itervalues
@@ -289,6 +289,16 @@ def get_patched_dynamic_node_config(yt_config):
             update_inplace(dyn_node_config["%true"], patch)
 
     return dyn_node_config
+
+
+def get_patched_dynamic_rpc_proxy_config(yt_config, cluster_configuration):
+    dyn_rpc_proxy_config = get_dynamic_rpc_proxy_config()
+    rpc_proxy_config = cluster_configuration["rpc_proxy"][0]
+    dyn_rpc_proxy_config["cluster_connection"] = rpc_proxy_config["cluster_connection"]
+    if "api_service" in rpc_proxy_config:
+        dyn_rpc_proxy_config["api"] = rpc_proxy_config["api_service"]
+
+    return dyn_rpc_proxy_config
 
 
 def get_patched_dynamic_master_config(yt_config):

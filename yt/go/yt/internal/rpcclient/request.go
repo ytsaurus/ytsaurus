@@ -1234,6 +1234,9 @@ func (r ListJobsRequest) Log() []log.Field {
 	if r.Attributes != nil {
 		fields = append(fields, log.Any("attributes", makeAttributeFilter(r.GetAttributes())))
 	}
+	if r.GetWithSpec() {
+		fields = append(fields, log.Bool("with_spec", true))
+	}
 	if r.SortField != nil {
 		fields = append(fields, log.Any("sort_field", r.GetSortField()))
 	}
@@ -1301,6 +1304,33 @@ func (r GetJobStderrRequest) Log() []log.Field {
 }
 
 func (r GetJobStderrRequest) Path() (string, bool) {
+	return "", false
+}
+
+type ListOperationEventsRequest struct {
+	*rpc_proxy.TReqListOperationEvents
+}
+
+func NewListOperationEventsRequest(r *rpc_proxy.TReqListOperationEvents) *ListOperationEventsRequest {
+	return &ListOperationEventsRequest{TReqListOperationEvents: r}
+}
+
+func (r ListOperationEventsRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("opID", r.GetOperationId()),
+		log.String("alias", r.GetOperationAlias()),
+	}
+	if r.EventType != nil {
+		fields = append(fields, log.Any("event_type", r.GetEventType()))
+	}
+	if r.Limit != nil {
+		fields = append(fields, log.UInt64("limit", r.GetLimit()))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqListOperationEvents)
+	return fields
+}
+
+func (r ListOperationEventsRequest) Path() (string, bool) {
 	return "", false
 }
 

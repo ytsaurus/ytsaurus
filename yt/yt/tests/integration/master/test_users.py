@@ -78,17 +78,20 @@ class TestUsers(YTEnvSetup):
         assert not is_banned("root")
 
     @authors("babenko")
-    def test_request_rate_limit1(self):
+    def test_request_rate_limit(self):
         create_user("u")
+        set("//sys/users/u/@write_request_rate_limit", 1)
+        set("//sys/users/u/@read_request_rate_limit", 1)
+
         with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@read_request_rate_limit", -1)
         with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@write_request_rate_limit", -1)
 
-    @authors("babenko")
-    def test_request_rate_limit2(self):
-        create_user("u")
-        set("//sys/users/u/@request_rate_limit", 1)
+    @authors("h0pless")
+    def test_request_rate_limit_root(self):
+        with raises_yt_error("Cannot set"):
+            set("//sys/users/root/@request_limits", {"read_request_rate": {"default": 1}, "write_request_rate": {"default": 1}})
 
     @authors("babenko")
     def test_request_queue_size_limit1(self):
@@ -146,6 +149,7 @@ class TestUsers(YTEnvSetup):
                 'yt-chunk-replica-cache',
                 'yt-permission-cache',
                 'yt-signature-keysmith',
+                'yt-bundle-controller',
             ],
         )
         assert_items_equal(get("//sys/groups/admins/@members"), [])
@@ -624,7 +628,7 @@ class TestUsers(YTEnvSetup):
         with raises_yt_error("Token issuance can be performed"):
             issue_token("u", "v", authenticated_user="v")
 
-        with raises_yt_error("Failed to get token"):
+        with raises_yt_error("Token is missing in Cypress or missing attributes \"user_id\" and \"user\" on token Cypress node"):
             revoke_token("u", "xxx", "u", authenticated_user="u")
         with raises_yt_error("User provided invalid password"):
             revoke_token("u", t1_hash, "a", authenticated_user="u")
@@ -714,7 +718,7 @@ class TestUsers(YTEnvSetup):
         check_profiling_counters("u", False)
         check_profiling_counters("v", True)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         # Shutdown masters and wait a bit.
         with Restarter(self.Env, MASTERS_SERVICE):

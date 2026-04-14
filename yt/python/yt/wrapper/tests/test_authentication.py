@@ -34,7 +34,6 @@ def test_cypress_authentication_using_rpc_proxy():
 
 @authors("denvr")
 def test_tvm_user_ticket():
-
     tvm_auth = tvm.UserTicketFixedAuth()
     client = yt.YtClient(
         "localhost",

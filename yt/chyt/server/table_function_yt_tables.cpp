@@ -137,7 +137,7 @@ public:
         auto* queryContext = GetQueryContext(context);
         auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/parse_arguments"_SP);
 
-        size_t maxPaths = queryContext->Settings->ConcatTables->MaxTables;
+        size_t maxPaths = queryContext->SessionSettings->ConcatTables->MaxTables;
 
         for (const auto& arg : args) {
             if (auto* subqueryArg = arg->as<DB::ASTSubquery>()) {
@@ -212,11 +212,11 @@ private:
         auto* queryContext = GetQueryContext(context);
         auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/execute"_SP);
 
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             std::move(TablePaths_),
             /*skipUnsuitableNodes*/ false,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         DB::StorageID storageId{"YT", BuildStorageName(tables)};

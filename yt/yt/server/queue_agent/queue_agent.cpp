@@ -3,10 +3,11 @@
 #include "config.h"
 #include "consumer_controller.h"
 #include "helpers.h"
-#include "snapshot.h"
 #include "object.h"
+#include "pass_profiler.h"
 #include "queue_controller.h"
 #include "queue_export_manager.h"
+#include "snapshot.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -53,6 +54,26 @@ using namespace NCypressElection;
 using namespace NYPath;
 using namespace NRpc::NBus;
 using namespace NProfiling;
+using namespace NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TTablePath& ref)
+{
+    if (auto* rowPtr = replicatedTableMapping.FindPtr(ref)) {
+        return *rowPtr;
+    }
+    return {};
+}
+
+std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TGenericObjectPath& ref)
+{
+    return GetReplicatedTableMappingRow(replicatedTableMapping, ToTablePath(ref));
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,22 +151,22 @@ public:
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
-        auto objectRef = TCrossClusterReference::FromString(key);
+        TGenericObjectPath objectPath{key.data()};
 
         const auto& objectToHost = Owner_->ObjectToHost_;
-        auto objectToHostIt = objectToHost.find(objectRef);
+        auto objectToHostIt = objectToHost.find(objectPath);
         if (objectToHostIt == objectToHost.end()) {
             THROW_ERROR_EXCEPTION(
                 NQueueClient::EErrorCode::QueueAgentObjectIsNotMapped,
                 "Object %Qv is not mapped to any queue agent",
-                objectRef);
+                objectPath);
         }
 
-        if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(objectRef)) {
+        if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(objectPath)) {
             // NB(apachee): It is possible to try to access queue using consumers orchid (and vice versa), e.g.
             // //queue_agent/consumers/<queue>, and previously that would've let to redirect, but
             // this condition short-circuits resolving of such paths.
-            THROW_ERROR_EXCEPTION("Type of the object %Qv does not match with the path used", objectRef);
+            THROW_ERROR_EXCEPTION("Type of the object %Qv does not match with the path used", objectPath);
         }
 
         const auto& objectAgentId = objectToHostIt->second;
@@ -155,7 +176,7 @@ public:
                 auto error = TError(
                     NQueueClient::EErrorCode::QueueAgentRetriableError,
                     "Object %v is not available from instance %v",
-                    objectRef,
+                    objectPath,
                     Owner_->AgentId_)
                     << TErrorAttribute("cached_object_agent_id", objectAgentId);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unavailable, retry later")
@@ -168,9 +189,9 @@ public:
 
         const auto& objectMap = Owner_->Objects_[ObjectKind_];
 
-        auto it = objectMap.find(objectRef);
+        auto it = objectMap.find(objectPath);
         if (it == objectMap.end()) {
-            THROW_ERROR_EXCEPTION("Object %Qv is missing", objectRef);
+            THROW_ERROR_EXCEPTION("Object %Qv is missing", objectPath);
         }
 
         return IYPathService::FromProducer(BIND(&IObjectController::BuildOrchid, it->second.Controller));
@@ -178,12 +199,12 @@ public:
 
 private:
     // The queue agent is not supposed to be destroyed, so raw pointer is fine.
-    const TQueueAgent* Owner_;
+    const TQueueAgent* const Owner_;
     const EObjectKind ObjectKind_;
 
     struct TProxyConfig
     {
-        bool Enable;
+        bool Enable = false;
         TString RemoteQueryRoot;
     };
     const TProxyConfig ProxyConfig_;
@@ -205,7 +226,7 @@ TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
 class TQueueAgent::TControllerInfoProducer final
 {
 public:
-    TControllerInfoProducer(const TQueueAgent* queueAgent)
+    explicit TControllerInfoProducer(const TQueueAgent* queueAgent)
         : QueueAgent_(queueAgent)
         , ControlInvoker_(queueAgent->ControlInvoker_)
     { }
@@ -219,34 +240,33 @@ public:
 
         {
             auto guard = ReaderGuard(QueueAgent_->ObjectLock_);
-            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
                 auto& partialControllerPasses = controllerPasses[objectKind];
                 for (const auto& [path, object] : QueueAgent_->Objects_[objectKind]) {
                     auto snapshot = DynamicPointerCast<TObjectSnapshotBase>(object.Controller->GetLatestSnapshot());
                     if (!snapshot->Error.IsOK()) {
-                        ++clusterToErrorCounts[path.Cluster][objectKind];
+                        ++clusterToErrorCounts[path.GetCluster().value()][objectKind];
                         continue;
                     }
                     partialControllerPasses.push_back(TControllerPassInfo{
                         .PassInstant = snapshot->PassInstant,
                         .Leading = object.Controller->IsLeading(),
-                        .Path = path,
+                        .Path = TRichYPath(path),
                     });
-                    YT_VERIFY(partialControllerPasses.back().Path.GetCluster().has_value());
                 }
             }
         }
 
         TEnumIndexedArray<EObjectKind, int> errorCounts;
         for (const auto& [_, partialErrorCounts] : clusterToErrorCounts) {
-            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
                 errorCounts[objectKind] += partialErrorCounts[objectKind];
             }
         }
 
         THashMap<std::string, TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>>> clusterToControllerPasses;
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             for (const auto& controllerPass : controllerPasses[objectKind]) {
                 clusterToControllerPasses[*controllerPass.Path.GetCluster()][objectKind].push_back(controllerPass);
             }
@@ -284,7 +304,7 @@ private:
     struct TControllerPassInfo
     {
         TInstant PassInstant;
-        bool Leading;
+        bool Leading = false;
         NYPath::TRichYPath Path;
     };
 
@@ -300,7 +320,7 @@ private:
             return passInfo.PassInstant;
         };
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             SortBy(controllerPasses[objectKind], getPassInstant);
         }
 
@@ -333,7 +353,7 @@ private:
             }
         };
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             leadingControllerPasses[objectKind] = filterLeading(controllerPasses[objectKind]);
             followingControllerPasses[objectKind] = std::move(controllerPasses[objectKind]);
 
@@ -398,6 +418,7 @@ TQueueAgent::TQueueAgent(
         ControlInvoker_,
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
+    , PassProfiler_(QueueAgentProfiler())
     , AgentId_(std::move(agentId))
     , QueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
     , QueueExportManager_(CreateQueueExportManager(
@@ -492,16 +513,29 @@ void TQueueAgent::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
-TRefCountedPtr TQueueAgent::FindSnapshot(TCrossClusterReference objectRef) const
+TQueueSnapshotConstPtr TQueueAgent::FindQueueSnapshot(TQueuePath objectPath) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ObjectLock_);
 
-    for (const auto& objectMap : Objects_) {
-        if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
-            return it->second.Controller->GetLatestSnapshot();
-        }
+    const auto& objectMap = Objects_[EObjectKind::Queue];
+    if (auto it = objectMap.find(TGenericObjectPath(objectPath)); it != objectMap.end()) {
+        return DynamicPointerCast<const TQueueSnapshot>(it->second.Controller->GetLatestSnapshot());
+    }
+
+    return nullptr;
+}
+
+TConsumerSnapshotConstPtr TQueueAgent::FindConsumerSnapshot(TConsumerPath objectPath) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(ObjectLock_);
+
+    const auto& objectMap = Objects_[EObjectKind::Consumer];
+    if (auto it = objectMap.find(objectPath); it != objectMap.end()) {
+        return DynamicPointerCast<const TConsumerSnapshot>(it->second.Controller->GetLatestSnapshot());
     }
 
     return nullptr;
@@ -513,7 +547,7 @@ NYTree::IYPathServicePtr TQueueAgent::GetObjectService(EObjectKind objectKind) c
 }
 
 std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
-    TCrossClusterReference objectRef,
+    TGenericObjectPath objectPath,
     EObjectKind objectKind) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -521,7 +555,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
     auto guard = ReaderGuard(ObjectLock_);
 
     const auto& objectMap = Objects_[objectKind];
-    if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
+    if (auto it = objectMap.find(objectPath); it != objectMap.end()) {
         return it->second.Registrations;
     }
 
@@ -534,18 +568,35 @@ void TQueueAgent::Pass()
 
     PassInstant_ = TInstant::Now();
     ++PassIndex_;
+    PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
-
     auto Logger = QueueAgentLogger().WithTag("PassIndex: %v", PassIndex_);
 
-    // Collect queue and consumer rows.
-
     YT_LOG_INFO("Pass started");
-    auto finalizePass = Finally([&] {
-        AlertCollector_->PublishAlerts();
-        YT_LOG_INFO("Pass finished");
-    });
+
+    try {
+        GuardedPass(Logger);
+        PassError_ = TError();
+    } catch (const std::exception& ex) {
+        PassError_ = ex;
+        YT_LOG_ERROR(PassError_, "Error in Queue Agent pass");
+        AlertCollector_->StageAlert(CreateAlert(
+            NAlerts::EErrorCode::QueueAgentPassFailed,
+            "Error in Queue Agent pass",
+            /*tags*/ {},
+            PassError_));
+        PassProfiler_.OnError();
+    }
+
+    AlertCollector_->PublishAlerts();
+    PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
+    YT_LOG_INFO("Pass finished");
+}
+
+void TQueueAgent::GuardedPass(const TLogger& Logger)
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     // NB: The tables below contain information about all stages.
     auto asyncQueueRows = DynamicState_->Queues->Select();
@@ -554,27 +605,19 @@ void TQueueAgent::Pass()
     // NB: Only contains objects with the same stage as ours.
     auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select();
 
-    std::vector<TFuture<void>> futures{
+    std::vector futures{
         asyncQueueRows.AsVoid(),
         asyncConsumerRows.AsVoid(),
         asyncRegistrationRows.AsVoid(),
         asyncObjectMappingRows.AsVoid(),
     };
-
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
-        PassError_ = error;
-        YT_LOG_ERROR(error, "Error while reading dynamic state");
-        AlertCollector_->StageAlert(CreateAlert(
-            NAlerts::EErrorCode::QueueAgentPassFailed,
-            "Error while reading dynamic state",
-            /*tags*/ {},
-            error));
-        return;
+        THROW_ERROR_EXCEPTION("Error while reading dynamic state") << error;
     }
-    auto queueRows = asyncQueueRows.AsUnique().Get().Value();
-    auto consumerRows = asyncConsumerRows.AsUnique().Get().Value();
-    const auto& registrationRows = asyncRegistrationRows.Get().Value();
-    const auto& objectMappingRows = asyncObjectMappingRows.Get().Value();
+    auto queueRows = asyncQueueRows.AsUnique().GetOrCrash().Value();
+    auto consumerRows = asyncConsumerRows.AsUnique().GetOrCrash().Value();
+    const auto& registrationRows = asyncRegistrationRows.GetOrCrash().Value();
+    const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
     std::vector<TReplicatedTableMappingTableRow> replicatedTableMappingRows;
     // NB: This table might not exist and we should still perform passes.
@@ -595,9 +638,9 @@ void TQueueAgent::Pass()
         replicatedTableMappingRows.size());
 
     auto getHashTable = [] <class T>(const std::vector<T>& rowList) {
-        THashMap<TCrossClusterReference, T> result;
+        THashMap<decltype(T::Path), T> result;
         for (const auto& row : rowList) {
-            result[row.Ref] = row;
+            result.emplace(row.Path, row);
         }
         return result;
     };
@@ -606,12 +649,12 @@ void TQueueAgent::Pass()
     auto allConsumers = getHashTable(consumerRows);
 
     auto getObjectsWithOurStage = [&, this] <class T>(const std::vector<T>& rowList) {
-        THashSet<NQueueClient::TCrossClusterReference> result;
+        THashSet<TGenericObjectPath> result;
         for (const auto& row : rowList) {
             if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
                 continue;
             }
-            result.insert(row.Ref);
+            result.emplace(row.Path);
         }
         return result;
     };
@@ -638,7 +681,7 @@ void TQueueAgent::Pass()
             }
 
             // NB: We don't need to check the object's stage, since the object to host mapping only contains objects for our stage.
-            auto it = objectMapping.find(row.Ref);
+            auto it = objectMapping.find(TGenericObjectPath(row.Path));
             return it == objectMapping.end() || it->second != AgentId_;
         }), rowList.end());
     };
@@ -661,23 +704,17 @@ void TQueueAgent::Pass()
 
     TEnumIndexedArray<EObjectKind, TObjectMap> freshObjects;
 
-    auto getReplicatedTableMappingRow = [&] (const TCrossClusterReference& ref) -> std::optional<TReplicatedTableMappingTableRow> {
-        if (auto* rowPtr = replicatedTableMapping.FindPtr(ref)) {
-            return *rowPtr;
-        }
-        return {};
-    };
-
     auto updateControllers = [&] (EObjectKind objectKind, const auto& rows, auto updateController, bool leading) {
         YT_ASSERT_READER_SPINLOCK_AFFINITY(ObjectLock_);
 
         for (const auto& row : rows) {
             YT_LOG_TRACE("Processing row (Kind: %v, Row: %v)", objectKind, ConvertToYsonString(row, EYsonFormat::Text).ToString());
-            auto& freshObject = freshObjects[objectKind][row.Ref];
+            TGenericObjectPath ref(row.Path);
+            auto& freshObject = freshObjects[objectKind][ref];
             auto& controller = freshObject.Controller;
 
             bool reused = false;
-            if (auto it = Objects_[objectKind].find(row.Ref); it != Objects_[objectKind].end()) {
+            if (auto it = Objects_[objectKind].find(ref); it != Objects_[objectKind].end()) {
                 controller = it->second.Controller;
                 reused = true;
             }
@@ -689,7 +726,7 @@ void TQueueAgent::Pass()
                 controller,
                 leading,
                 row,
-                getReplicatedTableMappingRow(row.Ref),
+                GetReplicatedTableMappingRow(replicatedTableMapping, row.Path),
                 /*store*/ this,
                 QueueExportManager_,
                 DynamicConfig_->Controller,
@@ -699,7 +736,7 @@ void TQueueAgent::Pass()
             YT_LOG_DEBUG(
                 "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v, Leading: %v)",
                 objectKind,
-                row.Ref,
+                row.Path,
                 reused,
                 recreated,
                 leading);
@@ -718,14 +755,14 @@ void TQueueAgent::Pass()
     auto ledQueues = getHashTable(leaderQueueRows);
     auto ledConsumers = getHashTable(leaderConsumerRows);
 
-    THashMap<TCrossClusterReference, TQueueTableRow> followedQueues;
-    THashMap<TCrossClusterReference, TConsumerTableRow> followedConsumers;
+    THashMap<TQueuePath, TQueueTableRow> followedQueues;
+    THashMap<TConsumerPath, TConsumerTableRow> followedConsumers;
 
     // Then, collect follower objects from registrations.
     // NB: Follower objects can be from stages other than ours, since consumers from one stage can be registered for queues from another.
 
     // Checks that the given object is known to the QA and skips objects which are led by this QA.
-    auto addFollowedObject = [] (const TCrossClusterReference& ref, auto& allObjects, auto& ledObjects, auto& followedObjects) {
+    auto addFollowedObject = [] (const auto& ref, auto& allObjects, auto& ledObjects, auto& followedObjects) {
         auto allObjectsIt = allObjects.find(ref);
         auto ledObjectsIt = ledObjects.find(ref);
         if (allObjectsIt != allObjects.end() && ledObjectsIt == ledObjects.end()) {
@@ -743,11 +780,11 @@ void TQueueAgent::Pass()
         }
     }
 
-    auto addFollowedReplicas = [&] (const std::vector<TCrossClusterReference>& queueRefs) {
-        for (const auto& queue : queueRefs) {
-            if (auto replicatedTableMappingRow = getReplicatedTableMappingRow(queue)) {
+    auto addFollowedReplicas = [&] (const std::vector<TQueuePath>& queuePaths) {
+        for (const auto& queue : queuePaths) {
+            if (auto replicatedTableMappingRow = GetReplicatedTableMappingRow(replicatedTableMapping, queue)) {
                 for (const auto& queueReplica : replicatedTableMappingRow->GetReplicas()) {
-                    addFollowedObject(TCrossClusterReference::FromRichYPath(queueReplica), allQueues, ledQueues, followedQueues);
+                    addFollowedObject(TQueuePath(queueReplica), allQueues, ledQueues, followedQueues);
                 }
             }
         }
@@ -771,27 +808,13 @@ void TQueueAgent::Pass()
     // Then, put fresh registrations into fresh objects (both leading and following).
 
     for (const auto& registration : registrationRows) {
-        auto appendRegistration = [&] (TObjectMap& objectMap, const NQueueClient::TCrossClusterReference& objectRef) {
-            if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
+        auto appendRegistration = [&] (TObjectMap& objectMap, const TGenericObjectPath& objectPath) {
+            if (auto it = objectMap.find(objectPath); it != objectMap.end()) {
                 it->second.Registrations.push_back(registration);
             }
         };
-        appendRegistration(freshObjects[EObjectKind::Queue], registration.Queue);
+        appendRegistration(freshObjects[EObjectKind::Queue], TGenericObjectPath(registration.Queue));
         appendRegistration(freshObjects[EObjectKind::Consumer], registration.Consumer);
-    }
-
-    // Then, find and stop to-be-deleted controllers.
-
-    {
-        auto guard = ReaderGuard(ObjectLock_);
-
-        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
-            for (const auto& [ref, object] : Objects_[objectKind]) {
-                if (!freshObjects[objectKind].contains(ref)) {
-                    object.Controller->Stop();
-                }
-            }
-        }
     }
 
     // Then, replace old objects with fresh ones.
@@ -812,15 +835,33 @@ void TQueueAgent::Pass()
         ObjectToHost_.swap(objectMapping);
     }
 
+    // Then, find and stop to-be-deleted controllers.
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        // NB(panesher): After swap we have here only old objects.
+        auto& oldObjects = freshObjects;
+
+        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+            for (const auto& [ref, object] : oldObjects[objectKind]) {
+                if (!Objects_[objectKind].contains(ref)) {
+                    object.Controller->Stop();
+                }
+            }
+        }
+    }
+
+
     // Finally, update rows in the controllers. As best effort to prevent some inconsistencies (like enabling trimming
     // with obsolete list of vital registrations), we do that strictly after registration update.
 
     auto updateRows = [&] (EObjectKind objectKind, const auto& rows) {
         for (const auto& row : rows) {
             // Existence of a key in the map is guaranteed by updateControllers.
-            const auto& object = GetOrCrash(Objects_[objectKind], row.Ref);
+            const auto& object = GetOrCrash(Objects_[objectKind], TGenericObjectPath(row.Path));
             object.Controller->OnRowUpdated(row);
-            object.Controller->OnReplicatedTableMappingRowUpdated(getReplicatedTableMappingRow(row.Ref));
+            object.Controller->OnReplicatedTableMappingRowUpdated(GetReplicatedTableMappingRow(replicatedTableMapping, row.Path));
         }
     };
 
@@ -833,8 +874,6 @@ void TQueueAgent::Pass()
         updateRows(EObjectKind::Queue, GetValues(followedQueues));
         updateRows(EObjectKind::Consumer, GetValues(followedConsumers));
     }
-
-    PassError_ = TError();
 
     Profile();
 }
@@ -860,11 +899,11 @@ void TQueueAgent::Profile()
     {
         auto guard = ReaderGuard(ObjectLock_);
 
-        for (const auto& [queueRef, queue] : Objects_[EObjectKind::Queue]) {
+        for (const auto& [queuePath, queue] : Objects_[EObjectKind::Queue]) {
             const auto& snapshot = DynamicPointerCast<TQueueSnapshot>(queue.Controller->GetLatestSnapshot());
 
             TProfilingTags profilingTags = {
-                .Cluster = queueRef.Cluster,
+                .Cluster = queuePath.GetCluster().value(),
                 .LeadingStatus = getLeadingStatus(queue.Controller),
                 .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
                 .ObjectType = snapshot->Row.ObjectType ? ToString(*snapshot->Row.ObjectType) : NoneObjectType,
@@ -883,11 +922,11 @@ void TQueueAgent::Profile()
                 ++taggedCounters.ErroneousQueueCount;
             }
         }
-        for (const auto& [consumerRef, consumer] : Objects_[EObjectKind::Consumer]) {
+        for (const auto& [consumerPath, consumer] : Objects_[EObjectKind::Consumer]) {
             const auto& snapshot = DynamicPointerCast<TConsumerSnapshot>(consumer.Controller->GetLatestSnapshot());
 
             TProfilingTags profilingTags = {
-                .Cluster = consumerRef.Cluster,
+                .Cluster = consumerPath.GetCluster().value(),
                 .LeadingStatus = getLeadingStatus(consumer.Controller),
                 .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
                 .ObjectType = snapshot->Row.ObjectType ? ToString(*snapshot->Row.ObjectType) : NoneObjectType,

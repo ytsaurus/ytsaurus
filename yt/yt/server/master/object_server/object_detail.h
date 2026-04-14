@@ -167,7 +167,7 @@ protected:
         NYTree::EPermission permission,
         const std::string& /*user*/ = {}) override;
 
-    void ValidatePermission(
+    virtual void ValidatePermission(
         TObject* object,
         NYTree::EPermission permission);
 

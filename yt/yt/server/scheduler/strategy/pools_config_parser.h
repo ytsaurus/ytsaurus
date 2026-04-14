@@ -45,8 +45,9 @@ private:
     const THashSet<TString> EphemeralPools_;
     const THashMap<TString, NYTree::INodePtr> PoolConfigPresets_;
 
+    THashSet<TString> EphemeralPoolParents_;
     THashSet<TString> ParsedPoolNames_;
-    std::vector<TUpdatePoolAction> UpdatePoolActions;
+    std::vector<TUpdatePoolAction> UpdatePoolActions_;
     TError Error_;
 
     bool TryParse(const NYTree::INodePtr& configNode, const TString& parentName, bool isFifo);

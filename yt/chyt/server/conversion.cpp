@@ -45,9 +45,9 @@ DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TComp
     DB::DataTypes result;
     result.reserve(ssize(schemas));
 
-    for (const auto& column : schemas) {
-        TComplexTypeFieldDescriptor descriptor(column);
-        result.emplace_back(ToDataType(std::move(descriptor), settings, isReadConversions));
+    for (int i = 0; i < std::ssize(schemas); ++i) {
+        const auto& column = schemas[i];
+        result.emplace_back(ToDataType(column, settings, isReadConversions));
     }
 
     return result;

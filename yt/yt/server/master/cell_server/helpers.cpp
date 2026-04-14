@@ -22,17 +22,6 @@ int GetCellShardIndex(TCellId cellId)
     return GetShardIndex<CellShardCount>(cellId);
 }
 
-TEnumIndexedArray<NCellarClient::ECellarType, bool> CheckLegacyCellMapNodeTypesOrThrow(
-    const NCypressServer::ICypressManagerPtr& cypressManager)
-{
-    auto tabletCellMapNode = cypressManager->ResolvePathToNodeProxy(TabletCellCypressPrefix);
-    auto chaosCellMapNode = cypressManager->ResolvePathToNodeProxy(ChaosCellCypressPrefix);
-    return {
-        {ECellarType::Tablet, tabletCellMapNode->GetTrunkNode()->GetType() == EObjectType::TabletCellMap},
-        {ECellarType::Chaos, chaosCellMapNode->GetTrunkNode()->GetType() == EObjectType::ChaosCellMap}
-    };
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellServer

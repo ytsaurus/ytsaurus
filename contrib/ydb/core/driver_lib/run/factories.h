@@ -1,0 +1,76 @@
+#pragma once
+#include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_util_devicemode.h>
+#include <contrib/ydb/core/kqp/common/kqp.h>
+#include <contrib/ydb/core/tx/datashard/export_iface.h>
+#include <contrib/ydb/core/tx/replication/service/transfer_writer_factory.h>
+#include <contrib/ydb/core/tx/schemeshard/schemeshard_operation_factory.h>
+#include <contrib/ydb/core/persqueue/common/proxy/actor_persqueue_client_iface.h>
+#include <contrib/ydb/core/protos/auth.pb.h>
+#include <contrib/ydb/core/base/grpc_service_factory.h>
+
+#include <contrib/ydb/core/ymq/actor/auth_factory.h>
+#include <contrib/ydb/core/http_proxy/auth_factory.h>
+
+#include <contrib/ydb/library/folder_service/folder_service.h>
+#include <contrib/ydb/library/folder_service/proto/config.pb.h>
+#include <contrib/ydb/library/pdisk_io/aio.h>
+#include <contrib/ydb/core/fq/libs/config/protos/audit.pb.h>
+
+#include <yql/essentials/minikql/computation/mkql_computation_node.h>
+#include <contrib/ydb/library/yql/providers/pq/cm_client/client.h>
+
+#include <contrib/ydb/library/yaml_config/yaml_config.h>
+
+#include <contrib/ydb/library/actors/wilson/wilson_uploader.h>
+
+#include <functional>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+namespace NKikimr {
+
+struct TTicketParserSettings;
+struct TTokenManagerSettings;
+
+// A way to parameterize YDB binary, we do it via a set of factories
+struct TModuleFactories {
+    // A backend factory for Query Replay
+    std::shared_ptr<NKqp::IQueryReplayBackendFactory> QueryReplayBackendFactory;
+    //
+    std::shared_ptr<NMsgBusProxy::IPersQueueGetReadSessionsInfoWorkerFactory> PQReadSessionsInfoWorkerFactory;
+    // Can be nullptr. In that case there would be no ability to work with internal configuration manager.
+    NPq::NConfigurationManager::IConnections::TPtr PqCmConnections;
+    // Export implementation for Data Shards
+    std::shared_ptr<NDataShard::IExportFactory> DataShardExportFactory;
+    // Factory for Simple queue services implementation details
+    std::shared_ptr<NSQS::IEventsWriterFactory> SqsEventsWriterFactory;
+    // Scheme operations
+    std::shared_ptr<NSchemeShard::IOperationFactory> SchemeOperationFactory;
+
+    IActor*(*CreateTicketParser)(const TTicketParserSettings&);
+    IActor*(*FolderServiceFactory)(const NKikimrProto::NFolderService::TFolderServiceConfig&);
+    IActor*(*CreateTokenManager)(const TTokenManagerSettings&);
+
+    // Factory for grpc services
+    TGrpcServiceFactory GrpcServiceFactory;
+
+    std::shared_ptr<NPQ::IPersQueueMirrorReaderFactory> PersQueueMirrorReaderFactory;
+    std::shared_ptr<NReplication::NService::ITransferWriterFactory> TransferWriterFactory;
+    /// Factory for pdisk's aio engines
+    std::shared_ptr<NPDisk::IIoContextFactory> IoContextFactory;
+
+    std::function<NActors::TMon* (NActors::TMon::TConfig, const NKikimrConfig::TAppConfig& appConfig)> MonitoringFactory;
+    std::shared_ptr<NSQS::IAuthFactory> SqsAuthFactory;
+
+    std::shared_ptr<NHttpProxy::IAuthFactory> DataStreamsAuthFactory;
+    std::vector<NKikimr::NMiniKQL::TComputationNodeFactory> AdditionalComputationNodeFactories;
+
+    std::unique_ptr<NWilson::IGrpcSigner>(*WilsonGrpcSignerFactory)(const NKikimrConfig::TTracingConfig::TBackendConfig::TAuthConfig&);
+
+    std::unique_ptr<NYamlConfig::IConfigSwissKnife> ConfigSwissKnife;
+
+    ~TModuleFactories();
+};
+
+} // NKikimr

@@ -749,3 +749,123 @@ ru:
     - from: /problems/woodpeckers.md
       to: /user-guide/problems/woodpeckers.md
       type: redirect
+
+    # Flow docs reorg (YTFLOW-483)
+    - from: /flow/examples/lb2lb.md
+      to: /flow/cpp/examples/lb2lb.md
+      type: redirect
+
+    - from: /flow/examples/shuffle.md
+      to: /flow/cpp/examples/shuffle.md
+      type: redirect
+
+    - from: /flow/examples/wait_click_join.md
+      to: /flow/cpp/examples/wait_click_join.md
+      type: redirect
+
+    - from: /flow/java-api/overview.md
+      to: /flow/java/getting-started.md
+      type: redirect
+
+    - from: /flow/java-api/computation.md
+      to: /flow/java/computation.md
+      type: redirect
+
+    - from: /flow/java-api/process-function.md
+      to: /flow/java/computation.md
+      type: redirect
+
+    - from: /flow/java-api/grep-function.md
+      to: /flow/java/grep-function.md
+      type: redirect
+
+    - from: /flow/java-api/typed-streams.md
+      to: /flow/java/typed-streams.md
+      type: redirect
+
+    - from: /flow/java-api/state-accessor.md
+      to: /flow/java/state-accessor.md
+      type: redirect
+
+    - from: /flow/java-api/internal-state.md
+      to: /flow/java/internal-state.md
+      type: redirect
+
+    - from: /flow/java-api/external-state.md
+      to: /flow/java/external-state.md
+      type: redirect
+
+    - from: /flow/java-api/spring.md
+      to: /flow/java/spring.md
+      type: redirect
+
+    - from: /flow/java-api/testing.md
+      to: /flow/java/testing.md
+      type: redirect
+
+    - from: /flow/release/integration_tests.md
+      to: /flow/cpp/testing.md
+      type: redirect
+
+    - from: /flow/java-api/wait-click-join-java.md
+      to: /flow/java/examples/wait_click_join.md
+      type: redirect
+
+    # Flow: connectors → extensions split
+    - from: /flow/connectors/logbroker.md
+      to: /flow/extensions/logbroker.md
+      type: redirect
+
+    - from: /flow/connectors/bigrt.md
+      to: /flow/extensions/bigrt.md
+      type: redirect
+
+    - from: /flow/connectors/grut-watchlog.md
+      to: /flow/extensions/grut-watchlog.md
+      type: redirect
+
+    # Redirects for Cluster Access article
+
+    - from: /admin-guide/cluster-access-proxy.md#how-to-resolve
+      to: /admin-guide/cluster-access-proxy/network-isolation
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#use-flat-network
+      to: /admin-guide/cluster-access-proxy/network-isolation.md#use-flat-network
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#k8s-services
+      to: /admin-guide/cluster-access-proxy/network-isolation.md#k8s-services
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#k8s-services
+      to: /admin-guide/cluster-access-proxy/network-isolation.md#k8s-services
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#spyt-access
+      to: /admin-guide/cluster-access-proxy/spyt.md
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#manage-traffic
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#split-traffic
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md#split-traffic
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#osobennosti-http-dostupa-i-ingress
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md#ingress
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#projects
+      to: /admin-guide/cluster-access-proxy/manage-traffic.md#projects
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md#faq
+      to: /admin-guide/cluster-access-proxy/faq.md
+      type: redirect
+
+    - from: /admin-guide/cluster-access-proxy.md
+      to: /admin-guide/cluster-access-proxy/index.md
+      type: redirect

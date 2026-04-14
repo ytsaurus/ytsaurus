@@ -64,7 +64,7 @@ TFuture<ITableReaderPtr> TClient::CreateTableReader(
         New<TNameTable>(),
         /*columnFilter*/ {},
         /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-        /*rpsThrottler*/ GetUnlimitedThrottler(),
+        /*rpsThrottler*/ nullptr,
         HeavyRequestMemoryUsageTracker_);
 }
 
@@ -138,7 +138,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
         YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
         if (!path.GetColumns().has_value()) {
-            THROW_ERROR_EXCEPTION("Received ypath without column selectors")
+            THROW_ERROR_EXCEPTION("Received YPath without column selectors")
                 << TErrorAttribute("ypath", path);
         }
 
@@ -229,7 +229,7 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
 
     auto nameTable = New<TNameTable>();
 
-    auto chunkReaderHost = CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this)));
+    auto chunkReaderHost = New<TMultiChunkReaderHost>(New<TChunkReaderHost>(MakeStrong(this)));
 
     auto columnFilter = TColumnFilter{};
     auto tableReaderOptions = ToInternalTableReaderOptions(options);

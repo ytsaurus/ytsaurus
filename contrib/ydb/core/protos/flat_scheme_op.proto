@@ -93,6 +93,11 @@ enum EMvccState {
     MvccDisabled = 2;
 }
 
+message TColumnCompression {
+    optional string Algorithm = 1;
+    optional int64 Level = 2;
+}
+
 message TColumnDescription {
     optional string Name = 1;
     optional string Type = 2;
@@ -110,6 +115,7 @@ message TColumnDescription {
     // flag that indicates that column is currently under the build
     // operation.
     optional bool IsBuildInProgress = 11 [default = false];
+    optional TColumnCompression Compression = 13;
 }
 
 message TStorageSettings {
@@ -349,6 +355,9 @@ message TTableDescription {
     optional EPathState PathState = 46;
     // Skip automatic index/impl table copying - indexes will be handled separately
     optional bool OmitIndexes = 47 [default = false];
+    optional TDropCdcStream DropSrcCdcStream = 48;
+    // Coordinated schema version for backup operations - persisted with AlterData
+    optional uint64 CoordinatedSchemaVersion = 49;
 }
 
 message TDictionaryEncodingSettings {
@@ -377,7 +386,7 @@ message TOlapColumnDiff {
     optional string StorageId = 6;
     optional string DefaultValue = 7;
     optional NKikimrArrowAccessorProto.TRequestedConstructor DataAccessorConstructor = 8;
-    optional string ColumnFamilyName = 9;
+    optional string ColumnFamilyName = 9 [deprecated = true];
 }
 
 message TOlapColumnDescription {
@@ -392,14 +401,14 @@ message TOlapColumnDescription {
     optional NKikimrProto.TTypeInfo TypeInfo = 6;
     optional bool NotNull = 7;
 
-    optional TCompressionOptions Compression = 8[deprecated = true];
+    optional TCompressionOptions Compression = 8 [deprecated = true];
     optional TDictionaryEncodingSettings DictionaryEncoding = 9;
     optional TOlapColumn.TSerializer Serializer = 10;
     optional string StorageId = 11;
     optional NKikimrColumnShardColumnDefaults.TColumnDefault DefaultValue = 12;
     optional NKikimrArrowAccessorProto.TConstructor DataAccessorConstructor = 13;
-    optional uint32 ColumnFamilyId = 14;
-    optional string ColumnFamilyName = 15;
+    optional uint32 ColumnFamilyId = 14 [deprecated = true];
+    optional string ColumnFamilyName = 15 [deprecated = true];
 }
 
 message TIndexDataExtractor {
@@ -451,6 +460,11 @@ message TRequestedMaxIndex {
     optional string ColumnName = 1;
 }
 
+message TRequestedMinMaxIndex {
+    optional string ColumnName = 1;
+    optional TIndexDataExtractor DataExtractor = 2;
+}
+
 message TRequestedCountMinSketch {
     // sketch built on the combined data from the set of columns
     repeated string ColumnNames = 1;
@@ -468,6 +482,7 @@ message TOlapIndexRequested {
         TRequestedMaxIndex MaxIndex = 41;
         TRequestedCountMinSketch CountMinSketch = 42;
         TRequestedBloomNGrammFilter BloomNGrammFilter = 43;
+        TRequestedMinMaxIndex MinMaxIndex = 44;
     }
 }
 
@@ -494,6 +509,11 @@ message TMaxIndex {
     optional uint32 ColumnId = 1;
 }
 
+message TMinMaxIndex {
+    optional uint32 ColumnId = 1;
+    optional TIndexDataExtractor DataExtractor = 2;
+}
+
 message TCountMinSketch {
     repeated uint32 ColumnIds = 1;
 }
@@ -514,6 +534,7 @@ message TOlapIndexDescription {
         TMaxIndex MaxIndex = 42;
         TCountMinSketch CountMinSketch = 43;
         TBloomNGrammFilter BloomNGrammFilter = 44;
+        TMinMaxIndex MinMaxIndex = 45;
     }
 }
 
@@ -544,6 +565,8 @@ message TCompactionLevelConstructorContainer {
         optional uint64 PortionsCountLimit = 4;
         optional uint64 PortionsSizeLimit = 5;
         optional uint64 Concurrency = 6;
+        optional uint64 CompactionTaskMemoryLimit = 7;
+        optional uint64 CompactionTaskPortionsCountLimit = 8;
     }
 
     message TOneLayer {
@@ -931,6 +954,12 @@ message TColumnTableDescription {
 
     // For kqp internal use only
     optional bool Temporary = 14;
+    
+    optional bool IsRestore = 15;
+    
+    optional string CopyFromTable = 16;
+    
+    optional bool IsBackup = 17;
 }
 
 message TAlterColumnTable {
@@ -954,14 +983,16 @@ message TLoginCreateUser {
     optional string User = 1;
     optional string Password = 2;
     optional bool CanLogin = 3 [default = true];
-    optional bool IsHashedPassword = 4 [default = false];
+    optional bool IsHashedPassword = 4 [default = false, deprecated = true];
+    optional string HashedPassword = 5;
 }
 
 message TLoginModifyUser {
     optional string User = 1;
     optional string Password = 2;
     optional bool CanLogin = 3;
-    optional bool IsHashedPassword = 4 [default = false];
+    optional bool IsHashedPassword = 4 [default = false, deprecated = true];
+    optional string HashedPassword = 5;
 }
 
 message TLoginRemoveUser {
@@ -1051,6 +1082,7 @@ message TCdcStreamDescription {
     optional uint64 ResolvedTimestampsIntervalMs = 10;
     optional TCdcStreamScanProgress ScanProgress = 11;
     optional bool SchemaChanges = 12;
+    optional bool UserSIDs = 13;
 }
 
 message TCreateCdcStream {
@@ -1158,13 +1190,19 @@ message TCreateLongIncrementalBackupOp {
     repeated NKikimrProto.TPathID StreamPathIds = 1;
 }
 
+message TTruncateTable {
+    optional string TableName = 1;
+}
+
 enum EIndexType {
     EIndexTypeInvalid = 0;
     EIndexTypeGlobal = 1;
     EIndexTypeGlobalAsync = 2;
     EIndexTypeGlobalUnique = 3;
     EIndexTypeGlobalVectorKmeansTree = 4;
-    EIndexTypeGlobalFulltext = 5;
+    EIndexTypeGlobalFulltextPlain = 5;
+    EIndexTypeGlobalFulltextRelevance = 6;
+    EIndexTypeGlobalJson = 7;
 }
 
 enum EIndexState {
@@ -1285,11 +1323,14 @@ message TCopyTableConfig { //TTableDescription implemets copying a table in orig
     optional bool AllowUnderSameOperation = 7 [default = false];
 
     optional NKikimrSchemeOp.EPathState TargetPathTargetState = 8;
-    
+
     // Map from index name to CDC stream config for incremental backups
     // Key: index name (e.g., "age_index", "name_index")
     // Value: CDC stream configuration to create on that index's impl table
     map<string, TCreateCdcStream> IndexImplTableCdcStreams = 9;
+    // additionally dropes cdc stream on src table consistently with taking snapshot
+    optional TDropCdcStream DropSrcCdcStream = 10;
+    map<string, TDropCdcStream> IndexImplTableDropCdcStreams = 11;
 }
 
 message TConsistentTableCopyingConfig {
@@ -1778,32 +1819,6 @@ message TSetColumnConstraintSettings {
     optional EConstraint Constraint = 2;
 }
 
-message TSetColumnConstraintsInitiate {
-    optional string TableName = 1;
-    repeated TSetColumnConstraintSettings ConstraintSettings = 2;
-}
-
-message TSetColumnConstraintsLock {
-    optional string TableName = 1;
-    repeated TSetColumnConstraintSettings ConstraintSettings = 2;
-}
-
-message TSetColumnConstraintsCheck {
-    optional string TableName = 1;
-    repeated TSetColumnConstraintSettings ConstraintSettings = 2;
-}
-
-message TSetColumnConstraintsFinalize {
-    enum EStatus {
-        SUCCESS = 0;
-        COLUMN_CONSTRAINT_VIOLATION = 1;
-    }
-
-    optional string TableName = 1;
-    repeated TSetColumnConstraintSettings ConstraintSettings = 2;
-    optional EStatus Status = 3;
-}
-
 // End Set Column Constraints
 
 // Request for scheme modification
@@ -1922,13 +1937,19 @@ message TModifyScheme {
 
     optional TCreateLongIncrementalBackupOp CreateLongIncrementalBackupOp = 85;
 
-    optional TSetColumnConstraintsInitiate SetColumnConstraintsInitiate = 87;
+    reserved 87;
 
     // Secret
     optional TSecretSchemaOp CreateSecret = 88;
     optional TSecretSchemaOp AlterSecret = 89;
 
     optional TStreamingQueryDescription CreateStreamingQuery = 90;
+
+    // This field is needed, because the "truncate table" feature is implemented as a schema operation.
+    // As of right now, it does not actually change the schema,
+    // but in the future it may have an indirect impact on the schema,
+    // for example, by resetting all sequences.
+    optional TTruncateTable TruncateTable = 92;
 
     // Some entries are grouped by semantics, so are out of order
 }
@@ -2011,6 +2032,7 @@ enum EPathSubType {
     EPathSubTypeStreamImpl = 3;
     EPathSubTypeVectorKmeansTreeIndexImplTable = 4;
     EPathSubTypeFulltextIndexImplTable = 5;
+    EPathSubTypeJsonIndexImplTable = 6;
 }
 
 enum EPathState {

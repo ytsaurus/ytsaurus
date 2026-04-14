@@ -2,6 +2,7 @@
 #include <yt/yt/core/misc/concurrent_cache.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -20,7 +21,7 @@ struct TRandomCharGenerator
         , Uniform(0, 'z' - 'a' + '9' - '0' + 1)
     { }
 
-    char operator() ()
+    char operator()()
     {
         char symbol = Uniform(Engine);
         auto result = symbol >= 10 ? symbol - 10 + 'a' : symbol + '0';
@@ -140,7 +141,7 @@ int main(int argc, char** argv)
             .Run());
         }
 
-        AllSucceeded(asyncResults).Get();
+        WaitFor(AllSucceeded(asyncResults)).ThrowOnError();
         threadPool->Shutdown();
 
     } catch (const std::exception& ex) {

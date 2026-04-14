@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,39 @@
 # limitations under the License.
 
 """Python driver for MongoDB."""
+from __future__ import annotations
+
+from typing import ContextManager, Optional
+
+__all__ = [
+    "ASCENDING",
+    "DESCENDING",
+    "GEO2D",
+    "GEOSPHERE",
+    "HASHED",
+    "TEXT",
+    "version_tuple",
+    "get_version_string",
+    "__version__",
+    "version",
+    "ReturnDocument",
+    "MAX_SUPPORTED_WIRE_VERSION",
+    "MIN_SUPPORTED_WIRE_VERSION",
+    "CursorType",
+    "MongoClient",
+    "AsyncMongoClient",
+    "DeleteMany",
+    "DeleteOne",
+    "IndexModel",
+    "InsertOne",
+    "ReplaceOne",
+    "UpdateMany",
+    "UpdateOne",
+    "ReadPreference",
+    "WriteConcern",
+    "has_c",
+    "timeout",
+]
 
 ASCENDING = 1
 """Ascending sort order."""
@@ -22,21 +55,7 @@ DESCENDING = -1
 GEO2D = "2d"
 """Index specifier for a 2-dimensional `geospatial index`_.
 
-.. _geospatial index: http://docs.mongodb.org/manual/core/2d/
-"""
-
-GEOHAYSTACK = "geoHaystack"
-"""**DEPRECATED** - Index specifier for a 2-dimensional `haystack index`_.
-
-**DEPRECATED** - :attr:`GEOHAYSTACK` is deprecated and will be removed in
-PyMongo 4.0. geoHaystack indexes (and the geoSearch command) were deprecated
-in MongoDB 4.4. Instead, create a 2d index and use $geoNear or $geoWithin.
-See https://dochub.mongodb.org/core/4.4-deprecate-geoHaystack.
-
-.. versionchanged:: 3.11
-   Deprecated.
-
-.. _haystack index: http://docs.mongodb.org/manual/core/geohaystack/
+.. _geospatial index: https://mongodb.com/docs/manual/core/2d/
 """
 
 GEOSPHERE = "2dsphere"
@@ -44,7 +63,7 @@ GEOSPHERE = "2dsphere"
 
 .. versionadded:: 2.5
 
-.. _spherical geospatial index: http://docs.mongodb.org/manual/core/2dsphere/
+.. _spherical geospatial index: https://mongodb.com/docs/manual/core/2dsphere/
 """
 
 HASHED = "hashed"
@@ -52,7 +71,7 @@ HASHED = "hashed"
 
 .. versionadded:: 2.5
 
-.. _hashed index: http://docs.mongodb.org/manual/core/index-hashed/
+.. _hashed index: https://mongodb.com/docs/manual/core/index-hashed/
 """
 
 TEXT = "text"
@@ -64,58 +83,14 @@ TEXT = "text"
 
 .. versionadded:: 2.7.1
 
-.. _text index: http://docs.mongodb.org/manual/core/index-text/
+.. _text index: https://mongodb.com/docs/manual/core/index-text/
 """
 
-OFF = 0
-"""**DEPRECATED** - No database profiling.
-
-**DEPRECATED** - :attr:`OFF` is deprecated and will be removed in PyMongo 4.0.
-Instead, specify this profiling level using the numeric value ``0``.
-See https://docs.mongodb.com/manual/tutorial/manage-the-database-profiler
-
-.. versionchanged:: 3.12
-   Deprecated
-"""
-SLOW_ONLY = 1
-"""**DEPRECATED** - Only profile slow operations.
-
-**DEPRECATED** - :attr:`SLOW_ONLY` is deprecated and will be removed in
-PyMongo 4.0. Instead, specify this profiling level using the numeric
-value ``1``.
-See https://docs.mongodb.com/manual/tutorial/manage-the-database-profiler
-
-.. versionchanged:: 3.12
-   Deprecated
-"""
-ALL = 2
-"""**DEPRECATED** - Profile all operations.
-
-**DEPRECATED** - :attr:`ALL` is deprecated and will be removed in PyMongo 4.0.
-Instead, specify this profiling level using the numeric value ``2``.
-See https://docs.mongodb.com/manual/tutorial/manage-the-database-profiler
-
-.. versionchanged:: 3.12
-   Deprecated
-"""
-
-version_tuple = (3, 13, 0)
-
-
-def get_version_string():
-    if isinstance(version_tuple[-1], str):
-        return ".".join(map(str, version_tuple[:-1])) + version_tuple[-1]
-    return ".".join(map(str, version_tuple))
-
-
-__version__ = version = get_version_string()
-"""Current version of PyMongo."""
-
-from pymongo.collection import ReturnDocument
-from pymongo.common import MAX_SUPPORTED_WIRE_VERSION, MIN_SUPPORTED_WIRE_VERSION
+from pymongo import _csot
+from pymongo._version import __version__, get_version_string, version_tuple
+from pymongo.asynchronous.mongo_client import AsyncMongoClient
+from pymongo.common import MAX_SUPPORTED_WIRE_VERSION, MIN_SUPPORTED_WIRE_VERSION, has_c
 from pymongo.cursor import CursorType
-from pymongo.mongo_client import MongoClient
-from pymongo.mongo_replica_set_client import MongoReplicaSetClient
 from pymongo.operations import (
     DeleteMany,
     DeleteOne,
@@ -126,14 +101,78 @@ from pymongo.operations import (
     UpdateOne,
 )
 from pymongo.read_preferences import ReadPreference
+from pymongo.synchronous.collection import ReturnDocument
+from pymongo.synchronous.mongo_client import MongoClient
 from pymongo.write_concern import WriteConcern
 
+# Public module compatibility imports
+# isort: off
+from pymongo import uri_parser  # noqa: F401
+from pymongo import change_stream  # noqa: F401
+from pymongo import client_session  # noqa: F401
+from pymongo import collection  # noqa: F401
+from pymongo import command_cursor  # noqa: F401
+from pymongo import database  # noqa: F401
+# isort: on
 
-def has_c():
-    """Is the C extension installed?"""
-    try:
-        from pymongo import _cmessage
+version = __version__
+"""Current version of PyMongo."""
 
-        return True
-    except ImportError:
-        return False
+
+def timeout(seconds: Optional[float]) -> ContextManager[None]:
+    """**(Provisional)** Apply the given timeout for a block of operations.
+
+    .. note:: :func:`~pymongo.timeout` is currently provisional. Backwards
+       incompatible changes may occur before becoming officially supported.
+
+    Use :func:`~pymongo.timeout` in a with-statement::
+
+      with pymongo.timeout(5):
+          client.db.coll.insert_one({})
+          client.db.coll2.insert_one({})
+
+    When the with-statement is entered, a deadline is set for the entire
+    block. When that deadline is exceeded, any blocking pymongo operation
+    will raise a timeout exception. For example::
+
+      try:
+          with pymongo.timeout(5):
+              client.db.coll.insert_one({})
+              time.sleep(5)
+              # The deadline has now expired, the next operation will raise
+              # a timeout exception.
+              client.db.coll2.insert_one({})
+      except PyMongoError as exc:
+          if exc.timeout:
+              print(f"block timed out: {exc!r}")
+          else:
+              print(f"failed with non-timeout error: {exc!r}")
+
+    When nesting :func:`~pymongo.timeout`, the nested deadline is capped by
+    the outer deadline. The deadline can only be shortened, not extended.
+    When exiting the block, the previous deadline is restored::
+
+      with pymongo.timeout(5):
+          coll.find_one()  # Uses the 5 second deadline.
+          with pymongo.timeout(3):
+              coll.find_one() # Uses the 3 second deadline.
+          coll.find_one()  # Uses the original 5 second deadline.
+          with pymongo.timeout(10):
+              coll.find_one()  # Still uses the original 5 second deadline.
+          coll.find_one()  # Uses the original 5 second deadline.
+
+    :param seconds: A non-negative floating point number expressing seconds, or None.
+
+    :raises: :py:class:`ValueError`: When `seconds` is negative.
+
+    See `Limit Server Execution Time <https://www.mongodb.com/docs/languages/python/pymongo-driver/current/connect/connection-options/csot/#overview>`_ for more examples.
+
+    .. versionadded:: 4.2
+    """
+    if not isinstance(seconds, (int, float, type(None))):
+        raise TypeError(f"timeout must be None, an int, or a float, not {type(seconds)}")
+    if seconds and seconds < 0:
+        raise ValueError("timeout cannot be negative")
+    if seconds is not None:
+        seconds = float(seconds)
+    return _csot._TimeoutContext(seconds)

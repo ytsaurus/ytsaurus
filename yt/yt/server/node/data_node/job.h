@@ -5,9 +5,11 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
+#include <yt/yt/server/lib/chunk_server/proto/job_common.pb.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/server/lib/chunk_server/proto/job_common.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
@@ -98,6 +100,8 @@ protected:
 
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex);
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid);
+
+    NChunkClient::TPerCategoryThrottlerProvider CreateBandwidthThrottlerProvider(EDataNodeThrottlerKind kind);
 
 private:
     void DoSetFinished(NJobAgent::EJobState finalState, const TError& error);

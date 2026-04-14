@@ -28,27 +28,25 @@ public:
             TJobApiServiceProxy::GetDescriptor(),
             JobApiLogger())
         , Config_(std::move(config))
-        , JobProxy_(jobProxy)
+        , JobProxy_(std::move(jobProxy))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProgressSaved));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnProgressSaved));
     }
 
 private:
-    TJobApiServiceConfigPtr Config_;
-    TWeakPtr<TJobProxy> JobProxy_;
+    const TJobApiServiceConfigPtr Config_;
+    const TWeakPtr<TJobProxy> JobProxy_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobApi::NProto, ProgressSaved)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobApi::NProto, OnProgressSaved)
     {
-        YT_LOG_INFO("Received a progress save notification");
-
-        TInstant progressSaveTime = TInstant::Now();
-        GetJobProxy()->OnProgressSaved(progressSaveTime);
+        auto progressSaveTime = TInstant::Now();
+        GetJobProxyOrThrow()->OnProgressSaved(progressSaveTime);
 
         context->SetRequestInfo();
         context->Reply();
     }
 
-    TJobProxyPtr GetJobProxy()
+    TJobProxyPtr GetJobProxyOrThrow()
     {
         auto jobProxy = JobProxy_.Lock();
         if (!jobProxy) {
@@ -59,7 +57,7 @@ private:
 };
 
 NRpc::IServicePtr CreateJobApiService(
-    NJobProxy::TJobApiServiceConfigPtr config,
+    TJobApiServiceConfigPtr config,
     IInvokerPtr controlInvoker,
     TWeakPtr<TJobProxy> jobProxy)
 {

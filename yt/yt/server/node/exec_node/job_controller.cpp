@@ -24,6 +24,7 @@
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
@@ -42,12 +43,11 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
-#include <yt/yt/core/misc/statistics.h>
 #include <yt/yt/core/misc/process_exit_profiler.h>
+#include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
-
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -72,6 +72,8 @@ using namespace NControllerAgent;
 using namespace NServer;
 using namespace NGpu;
 
+using NYT::FromProto;
+
 using NNodeTrackerClient::NProto::TNodeResources;
 
 using TControllerAgentConnectorPtr = TControllerAgentConnectorPool::TControllerAgentConnectorPtr;
@@ -90,7 +92,7 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
 {
     NScheduler::TAllocationToAbort result;
 
-    FromProto(&result, allocationToAbortProto);
+    NScheduler::NProto::FromProto(&result, allocationToAbortProto);
 
     return result;
 }
@@ -1355,7 +1357,7 @@ private:
 
         const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
         request->set_job_reporter_write_failures_count(jobReporter->ExtractWriteFailuresCount());
-        request->set_job_reporter_queue_is_too_large(jobReporter->GetQueueIsTooLarge());
+        request->set_job_reporter_queue_is_too_large(jobReporter->IsQueueIsTooLarge());
 
         // Only for scheduler `cpu` stores `vcpu` actually.
         // In all resource limits and usages we send and get back vcpu instead of cpu.

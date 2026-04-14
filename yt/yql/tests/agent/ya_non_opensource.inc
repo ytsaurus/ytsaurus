@@ -1,8 +1,15 @@
-INCLUDE(${ARCADIA_ROOT}/kikimr/public/tools/federation_recipe/recipe.inc)
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/library/yql/tools/solomon_emulator/recipe/recipe.inc)
 
 PEERDIR(
-    library/python/ydb/federated_topic_client
     kikimr/public/sdk/python/ydb_v3_new_behavior
+
+    library/python/ydb/federated_topic_client
+
+    logbroker/tools/lib/recipe_helpers
+
+    yt/yql/tests/common/test_framework
+
+    contrib/ydb/library/yql/tools/solomon_emulator/client
 )
 
 TEST_SRCS(
@@ -10,6 +17,10 @@ TEST_SRCS(
 )
 
 DEPENDS(
+    kikimr/public/tools/federation_recipe
+    kikimr/public/tools/package/stable
+    logbroker/config-manager/bin
+
     yt/yql/tests/agent/throwing_udf
     yt/yql/tools/ytflow_worker
 )

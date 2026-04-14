@@ -767,6 +767,23 @@ class TestAccessControl(YTEnvSetup):
         with raises_yt_error(ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
 
+    @authors("mpereskokova")
+    def test_alter_filter_factors(self, query_tracker):
+        q1 = start_query("mock", "run_forever")
+        q2 = start_query("mock", "complete_after", settings={"duration": 1000})
+        q2.track()
+
+        expect_queries([q1], list_queries(filter="run_forever"))
+        expect_queries([q2], list_queries(filter="complete_after"))
+        expect_queries([], list_queries(filter="asd"))
+
+        q1.alter(annotations={"qwe": "asd"})
+        q2.alter(annotations={"qwe": "asd"})
+
+        expect_queries([q1], list_queries(filter="run_forever"))
+        expect_queries([q2], list_queries(filter="complete_after"))
+        expect_queries([q1, q2], list_queries(filter="asd"))
+
 
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfo(YTEnvSetup):

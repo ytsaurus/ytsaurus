@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v0.3.1)
+VERSION(v0.3.2)
 
 SRCS(
     auth.go

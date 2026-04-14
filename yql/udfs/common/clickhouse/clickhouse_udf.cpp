@@ -82,6 +82,19 @@
 using namespace NYql;
 using namespace NUdf;
 
+namespace {
+
+static constexpr char CLICKHOUSE_GEODATA_ROOT[] = "YQL_UDF_CLICKHOUSE_GEODATA_ROOT";
+
+TMaybe<TString> GetClickHouseGeoDataRoot() {
+    static TMaybe<TString> Path = [](){
+        return TryGetEnv(TString(CLICKHOUSE_GEODATA_ROOT));
+    }();
+    return Path;
+}
+
+} // namespace
+
 namespace DB::Setting {
 
 extern const SettingsUInt64 preferred_block_size_bytes;
@@ -136,12 +149,12 @@ public:
     bool getRaw(const std::string& key, std::string& value) const override {
         if (const std::unique_lock lock(Mutex_); key == "path_to_regions_hierarchy_file") {
             PrepareGeo();
-            value = (TmpDir_->Path() / "regions_hierarchy.txt").GetPath();
+            value = (GeoDataRoot_ / "regions_hierarchy.txt").GetPath();
             return true;
         }
         else if (key == "path_to_regions_names_files") {
             PrepareGeo();
-            value = TmpDir_->Path().GetPath();
+            value = GeoDataRoot_.GetPath();
             return true;
         }
 
@@ -150,8 +163,18 @@ public:
 
 private:
     void PrepareGeo() const {
-        if (!TmpDir_) {
-            TmpDir_ = std::make_unique<TTempDir>();
+        if (!GeoDataRoot_) {
+            if (const auto geoDataRoot = GetClickHouseGeoDataRoot()) {
+                GeoDataRoot_ = *geoDataRoot;
+                // GeoData is already extracted within the
+                // directory, specified by env variable.
+                IsGeoExtracted_ = true;
+            } else {
+                // XXX: Anchor temporary directory to prevent its
+                // removal while using UDF.
+                TmpDirAnchor_ = std::make_unique<TTempDir>();
+                GeoDataRoot_ = TmpDirAnchor_->Path();
+            }
         }
 
         if (!IsGeoExtracted_) {
@@ -160,7 +183,7 @@ private:
             for (const auto& r : resources) {
                 auto file = r.Key;
                 Y_ENSURE(file.SkipPrefix("/geo/"));
-                TUnbufferedFileOutput out(TmpDir_->Path() / file);
+                TUnbufferedFileOutput out(GeoDataRoot_ / file);
                 out.Write(r.Data.data(), r.Data.size());
                 out.Finish();
             }
@@ -171,7 +194,8 @@ private:
 
 private:
     mutable std::mutex Mutex_;
-    mutable std::unique_ptr<TTempDir> TmpDir_;
+    mutable TFsPath GeoDataRoot_;
+    mutable std::unique_ptr<TTempDir> TmpDirAnchor_;
     mutable bool IsGeoExtracted_ = false;
 };
 
@@ -884,6 +908,13 @@ void FillArrowType(TColumnMeta& meta, const TType* type, const ITypeInfoHelper::
     }
 }
 
+TString FormatType(const TType* type, const ITypeInfoHelper::TPtr& typeHelper) {
+    TTypePrinter printer(*typeHelper, type);
+    TStringStream out;
+    printer.Out(out);
+    return out.Str();
+}
+
 TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper) {
     TColumnMeta ret;
     auto blockInspector = TBlockTypeInspector(*typeHelper, type);
@@ -892,6 +923,7 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
         ret.IsScalarBlock = blockInspector.IsScalar();
     }
 
+    const TType* originalType = type;
     FillArrowTypeSingle(ret, type, typeHelper);
 
     auto varInspector = TVariantTypeInspector(*typeHelper, type);
@@ -899,13 +931,13 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
         auto underlying = varInspector.GetUnderlyingType();
         auto structInspector = TStructTypeInspector(*typeHelper, underlying);
         if (!structInspector) {
-            throw yexception() << "Expected only enum";
+            throw yexception() << "Expected struct variant, but got: " << FormatType(originalType, typeHelper);
         }
 
         for (ui32 i = 0; i < structInspector.GetMembersCount(); ++i) {
             auto memberType = structInspector.GetMemberType(i);
             if (typeHelper->GetTypeKind(memberType) != ETypeKind::Void) {
-                throw yexception() << "Expected only enum";
+                throw yexception() << "Expected only enum, but member '" << structInspector.GetMemberName(i) << "' has type: " << FormatType(memberType, typeHelper);
             }
 
             ret.Enum.push_back(TString(structInspector.GetMemberName(i)));
@@ -918,13 +950,13 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
     if (taggedInspector) {
         ret.Aggregation = taggedInspector.GetTag();
         if (!ret.Aggregation->StartsWith("AggregateFunction(") || !ret.Aggregation->EndsWith(")")) {
-            throw yexception() << "Unsupported tag: " << *ret.Aggregation;
+            throw yexception() << "Unsupported tag: " << *ret.Aggregation << " for type: " << FormatType(originalType, typeHelper);
         }
 
         type = taggedInspector.GetBaseType();
         auto dataInspector = TDataTypeInspector(*typeHelper, type);
         if (!dataInspector || dataInspector.GetTypeId() != TDataType<const char*>::Id) {
-            throw yexception() << "Expected only tagged String";
+            throw yexception() << "Expected only tagged String, but got: " << FormatType(originalType, typeHelper);
         }
 
         return ret;
@@ -965,7 +997,7 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
 
     auto dataInspector = TDataTypeInspector(*typeHelper, type);
     if (!dataInspector) {
-        throw yexception() << "Unsupported input type kind: " << typeHelper->GetTypeKind(type);
+        throw yexception() << "Unsupported input type: " << FormatType(originalType, typeHelper);
     }
 
     ret.Slot = GetDataSlot(dataInspector.GetTypeId());
@@ -2461,11 +2493,11 @@ public:
                         itemType = TStreamTypeInspector(*typeHelper, arg0).GetItemType();
                     }
                     else {
-                        throw yexception() << "Unsupported first argument input type kind: " << typeHelper->GetTypeKind(arg0);
+                        throw yexception() << "Unsupported first argument input type: " << FormatType(arg0, typeHelper);
                     }
 
                     if (typeHelper->GetTypeKind(itemType) != ETypeKind::Struct) {
-                        throw yexception() << "Unsupported first argument input row type kind: " << typeHelper->GetTypeKind(itemType);
+                        throw yexception() << "Unsupported first argument input row type: " << FormatType(itemType, typeHelper);
                     }
 
                     sessionContext->getHostContext() = std::make_shared<THostContext>(itemType, typeHelper);

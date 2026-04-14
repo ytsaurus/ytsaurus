@@ -12,7 +12,7 @@ void TBoundaryKeys::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, MaxKey);
 }
 
-bool TBoundaryKeys::operator ==(const TBoundaryKeys& other) const
+bool TBoundaryKeys::operator==(const TBoundaryKeys& other) const
 {
     return MinKey == other.MinKey && MaxKey == other.MaxKey;
 }
@@ -74,7 +74,7 @@ void TChunkStripeKey::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::DropOutputOrder));
 }
 
-bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
+bool TChunkStripeKey::operator==(const TChunkStripeKey& other) const
 {
     return Key_ == other.Key_;
 }

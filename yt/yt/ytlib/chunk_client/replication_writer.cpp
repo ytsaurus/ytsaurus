@@ -130,6 +130,11 @@ public:
         return TargetLocationUuid_;
     }
 
+    const TChunkLocationIndex& GetTargetLocationIndex() const
+    {
+        return TargetLocationIndex_;
+    }
+
     const TNodeDescriptor& GetDescriptor() const
     {
         return Descriptor_;
@@ -144,6 +149,7 @@ public:
         int index,
         IChannelPtr channel,
         TChunkLocationUuid targetLocationUuid,
+        TChunkLocationIndex targetLocationIndex,
         bool useProbePutBlocks)
     {
         YT_VERIFY(channel);
@@ -152,6 +158,7 @@ public:
         Index_ = index;
         Channel_ = channel;
         TargetLocationUuid_ = targetLocationUuid;
+        TargetLocationIndex_ = targetLocationIndex;
         UseProbePutBlocks_ = useProbePutBlocks;
     }
 
@@ -241,6 +248,7 @@ private:
     int Index_;
     IChannelPtr Channel_;
     TChunkLocationUuid TargetLocationUuid_;
+    TChunkLocationIndex TargetLocationIndex_;
 
     NThreading::TAtomicObject<TError> Error_;
     TPeriodicExecutorPtr PingExecutor_;
@@ -417,12 +425,10 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
-        YT_VERIFY(!truncateBlockCount.has_value());
 
         State_.store(EReplicationWriterState::Closing);
 
@@ -465,7 +471,7 @@ public:
         TWrittenChunkReplicasInfo result;
         for (const auto& node : Nodes_) {
             if (node->IsAlive() && node->IsFinished()) {
-                result.Replicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid());
+                result.Replicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid(), node->GetTargetLocationIndex());
             }
         }
         return result;
@@ -974,6 +980,9 @@ private:
         auto targetLocationUuid = rsp->has_location_uuid()
             ? FromProto<TChunkLocationUuid>(rsp->location_uuid())
             : InvalidChunkLocationUuid;
+        auto targetLocationIndex = rsp->has_location_index()
+            ? FromProto<TChunkLocationIndex>(rsp->location_index())
+            : InvalidChunkLocationIndex;
 
         YT_LOG_DEBUG("Write session started (Address: %v)", address);
 
@@ -981,6 +990,7 @@ private:
             Nodes_.size(),
             channel,
             targetLocationUuid,
+            targetLocationIndex,
             rsp->use_probe_put_blocks());
         node->StartPing(
             BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
@@ -1399,7 +1409,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
                 }
             }));
         } else {
-            throttleFuture = VoidFuture;
+            throttleFuture = OKFuture;
         }
 
         putBlocksFutures.push_back(throttleFuture.Apply(BIND([req] {

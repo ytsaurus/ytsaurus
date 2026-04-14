@@ -72,7 +72,7 @@ def table_init_callback(client, table_path):
     if not client.exists(table_path):
         return
 
-    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces"]:
+    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces", "job_profiles"]:
         set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
     if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
         set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
@@ -1161,6 +1161,78 @@ TRANSFORMS[65] = [
                 "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
             })),
 ]
+
+TRANSFORMS[66] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo(
+            [
+                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("interruption_info", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean"),
+                ("exec_attributes", "any"),
+                ("task_name", "string"),
+                ("statistics_lz4", "string"),
+                ("brief_statistics", "any"),
+                ("pool_tree", "string"),
+                ("monitoring_descriptor", "string"),
+                ("probing_job_competition_id", "string"),
+                ("has_probing_competitors", "boolean"),
+                ("job_cookie", "int64"),
+                ("controller_state", "string"),
+                ("archive_features", "any"),
+                ("$ttl", "uint64"),
+                ("operation_incarnation", "string"),
+                ("allocation_id_hi", "uint64"),
+                ("allocation_id_lo", "uint64"),
+                ("addresses", "any"),
+                ("controller_start_time", "int64"),
+                ("controller_finish_time", "int64"),
+                ("gang_rank", "int64"),
+                # COMPAT(pogorelov): Next six columns are not used anymore.
+                # Remove them when it is possible.
+                ("job_cookie_group_index", "int64"),
+                ("main_job_id_hi", "uint64"),
+                ("main_job_id_lo", "uint64"),
+                ("distributed_group_job_index", "int64"),
+                ("distributed_group_main_job_id_hi", "uint64"),
+                ("distributed_group_main_job_id_lo", "uint64"),
+
+                ("collective_member_rank", "int64"),
+                ("collective_id_hi", "uint64"),
+                ("collective_id_lo", "uint64"),
+            ],
+            default_lock="operations_cleaner",
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 
 
@@ -1257,6 +1329,13 @@ def create_tables_latest_version(client, override_tablet_cell_bundle="default", 
     )
 
 
+def get_client_config():
+    config = get_config_from_env()
+    # NB(bystrovserg): Increase default timeout in case of big tables.
+    config["tablets_ready_timeout"] = 120 * 1000
+    return config
+
+
 # NB(bystrovserg): Do not forget to update args in luigi.
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform operations archive")
@@ -1297,7 +1376,7 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, config=get_config_from_env())
+    client = YtClient(proxy=args.proxy, config=get_client_config())
 
     run(
         client=client,

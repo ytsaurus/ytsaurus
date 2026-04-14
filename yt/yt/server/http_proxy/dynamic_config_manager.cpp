@@ -21,7 +21,7 @@ public:
             TDynamicConfigManagerOptions{
                 .ConfigPath = bootstrap->GetConfig()->DynamicConfigPath,
                 .Name = "HttpProxy",
-                .ConfigIsTagged = bootstrap->GetConfig()->UseTaggedDynamicConfig
+                .ConfigIsTagged = bootstrap->GetConfig()->UseTaggedDynamicConfig,
             },
             bootstrap->GetConfig()->DynamicConfigManager,
             bootstrap->GetRootClient(),
@@ -30,8 +30,8 @@ public:
         const auto& coordinator = bootstrap->GetCoordinator();
         coordinator->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
 
-        BaseTags_.push_back(coordinator->GetSelf()->Endpoint);
-        ProxyRole_.Store(coordinator->GetSelf()->Role);
+        BaseTags_.push_back(coordinator->GetSelfEntry()->Endpoint);
+        ProxyRole_.Store(coordinator->GetSelfEntry()->Role);
     }
 
 private:

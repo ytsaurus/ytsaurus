@@ -321,7 +321,7 @@ struct IChunkManager
     virtual void SetMediumConfig(TDomesticMedium* medium, TDomesticMediumConfigPtr newConfig) = 0;
 
     //! Returns the medium with a given name (|nullptr| if none).
-    virtual TMedium* FindMediumByName(const std::string& name) const = 0;
+    virtual TMedium* FindMediumByName(const std::string& name, bool throwOnInvalidId) const = 0;
 
     //! Returns the medium with a given name (throws if none).
     virtual TMedium* GetMediumByNameOrThrow(const std::string& name) const = 0;
@@ -384,7 +384,9 @@ struct IChunkManager
     virtual TFuture<void> ConfirmSequoiaChunk(
         NChunkClient::NProto::TReqConfirmChunk* request) = 0;
     virtual TFuture<void> ConfirmSequoiaChunkBatched(
-        NChunkClient::NProto::TReqConfirmChunk* request) = 0;
+        NChunkClient::NProto::TReqConfirmChunk request) = 0;
+
+    virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
 
 private:
     friend class TChunkTypeHandler;
@@ -398,6 +400,8 @@ private:
     virtual void DestroyChunk(TChunk* chunk) = 0;
     virtual void ExportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag) = 0;
     virtual void UnexportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag, int importRefCounter) = 0;
+
+    virtual bool IsDurabilityRequiredForChunk(TChunk* chunk, TChunkRequisitionIndex requisitionIndex) = 0;
 
     virtual NHydra::TEntityMap<TChunkList>& MutableChunkLists() = 0;
     virtual void DestroyChunkList(TChunkList* chunkList) = 0;

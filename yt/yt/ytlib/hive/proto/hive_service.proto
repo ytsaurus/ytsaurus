@@ -13,6 +13,7 @@ message TEncapsulatedMessage
     reserved 3 to 8;
     optional NYT.NTracing.NProto.TTracingExt tracing_ext = 9;
     optional int64 logical_time = 10 [default = 0];
+    optional int32 reign = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

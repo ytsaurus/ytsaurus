@@ -1,29 +1,28 @@
 #pragma once
 
-#include "private.h"
-
-#include "speculative_job_manager.h"
+#include "aggregated_job_statistics.h"
 #include "data_flow_graph.h"
 #include "experiment_job_manager.h"
 #include "extended_job_resources.h"
+#include "helpers.h"
+#include "job_collective_manager.h"
 #include "job_info.h"
 #include "job_splitter.h"
-#include "helpers.h"
+#include "private.h"
 #include "probing_job_manager.h"
-#include "distributed_job_manager.h"
-#include "aggregated_job_statistics.h"
+#include "speculative_job_manager.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/read_range_registry.h>
+
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/server/lib/scheduler/structs.h>
-
-#include <yt/yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/yt/server/lib/controller_agent/read_range_registry.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
@@ -448,8 +447,8 @@ private:
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
     TExperimentJobManager ExperimentJobManager_;
-    TDistributedJobManager DistributedJobManager_;
-    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &DistributedJobManager_};
+    TJobCollectiveManager JobCollectiveManager_;
+    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &JobCollectiveManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
@@ -510,7 +509,7 @@ private:
     {
         std::optional<EJobCompetitionType> CompetitionType;
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
-        int DistributedGroupJobIndex = 0;
+        int CollectiveMemberRank = 0;
     };
 
     std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TryScheduleJob(

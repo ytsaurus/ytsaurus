@@ -60,7 +60,8 @@
 
 struct __emutls_control;
 
-extern "C" void* yt__emutls_get_address(__emutls_control* control) Y_NO_SANITIZE("memory")
+Y_NO_SANITIZE("memory")
+extern "C" void* yt__emutls_get_address(__emutls_control* control)
 {
     auto fn = (void(*)(void*))control;
     void* p;
@@ -231,11 +232,9 @@ public:
 
         YT_LOG_DEBUG("Compiling with codegen optimization (Level: %v)", OptimizationLevel_);
 
-        if (OptimizationLevel_ == EOptimizationLevel::None) {
-            builder.setOptLevel(llvm::CodeGenOptLevel::None);
-        } else {
-            builder.setOptLevel(llvm::CodeGenOptLevel::Default);
-        }
+        builder.setOptLevel(OptimizationLevel_ == EOptimizationLevel::None
+            ? llvm::CodeGenOptLevel::None
+            : llvm::CodeGenOptLevel::Default);
 
         if (ExecutionBackend_ == EExecutionBackend::Native) {
             builder

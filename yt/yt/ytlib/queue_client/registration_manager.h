@@ -18,6 +18,13 @@ struct TQueueConsumerRegistrationManagerProfilingCounters
     explicit TQueueConsumerRegistrationManagerProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter ListAllRegistrationsRequestCount;
+
+    //! Counter for resolve replica calls made specifically for actual replicated table replica,
+    //! i.e. "upstream_replica_id" is not null.
+    NProfiling::TCounter ResolveReplicatedTableReplicaRequestCount;
+    //! Counter for failed resolve replica calls made specifically for actual replicated table replica,
+    //! i.e. "upstream_replica_id" is not null.
+    NProfiling::TCounter ResolveReplicatedTableReplicaFailedRequestCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,8 +32,8 @@ struct TQueueConsumerRegistrationManagerProfilingCounters
 struct IQueueConsumerRegistrationManager
     : public TRefCounted
 {
-    virtual void StartSync() const = 0;
-    virtual void StopSync() const = 0;
+    virtual void StartSync() = 0;
+    virtual void StopSync() = 0;
 
     //! Contains path resolution context for better error messages.
     struct TGetRegistrationResult
@@ -73,10 +80,11 @@ DEFINE_REFCOUNTED_TYPE(IQueueConsumerRegistrationManager)
 
 IQueueConsumerRegistrationManagerPtr CreateQueueConsumerRegistrationManager(
     TQueueConsumerRegistrationManagerConfigPtr config,
-    NApi::NNative::IConnection* connection,
+    TWeakPtr<NApi::NNative::IConnection> connection,
+    std::optional<std::string> clusterName,
     IInvokerPtr invoker,
-    const NProfiling::TProfiler& profiler,
-    const NLogging::TLogger& logger);
+    NProfiling::TProfiler profiler,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

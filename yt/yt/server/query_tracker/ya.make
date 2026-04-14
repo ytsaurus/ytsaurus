@@ -17,8 +17,6 @@ SRCS(
     program.cpp
     ql_engine.cpp
     search_index.cpp
-    spyt_connect_engine.cpp
-    spyt_discovery.cpp
     spyt_engine.cpp
     yql_engine.cpp
     tokenizer.cpp

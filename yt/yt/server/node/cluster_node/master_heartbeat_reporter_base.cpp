@@ -78,10 +78,7 @@ void TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(const THash
         } else {
             executor = New<TRetryingPeriodicExecutor>(
                 Bootstrap_->GetMasterConnectionInvoker(),
-                BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), cellTag] {
-                    auto this_ = weakThis.Lock();
-                    return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-                }),
+                BIND_NO_PROPAGATE(&TMasterHeartbeatReporterBase::ReportHeartbeat, MakeStrong(this), cellTag),
                 Options_);
 
             executor->Start();
@@ -122,12 +119,12 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCe
             }
             if (!guardsOrError.IsOK()) {
                 YT_LOG_ALERT(
-                        guardsOrError,
-                        "Failed to acquire lock writer guards to start heartbeat reports to masters (MasterCellTags: %v)",
-                        allowedMasterCellTags);
-                    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-                    clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
-                    return;
+                    guardsOrError,
+                    "Failed to acquire lock writer guards to start heartbeat reports to masters (MasterCellTags: %v)",
+                    allowedMasterCellTags);
+                const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+                clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
+                return;
             }
             std::vector<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>> guards;
             for (auto guardOrError: guardsOrError.Value()) {
@@ -218,10 +215,7 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
     for (auto cellTag : masterCellTags) {
         auto executor = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
-            BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), cellTag] {
-                auto this_ = weakThis.Lock();
-                return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-            }),
+            BIND_NO_PROPAGATE(&TMasterHeartbeatReporterBase::ReportHeartbeat, MakeStrong(this), cellTag),
             Options_);
 
         YT_LOG_INFO(

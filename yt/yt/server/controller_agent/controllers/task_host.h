@@ -1,16 +1,13 @@
 #pragma once
 
-#include "private.h"
-
 #include "data_flow_graph.h"
-#include "table.h"
 #include "extended_job_resources.h"
+#include "private.h"
+#include "table.h"
 
 #include <yt/yt/server/controller_agent/operation_controller.h>
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
-
-#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
@@ -21,6 +18,8 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <expected>
 
@@ -154,8 +153,6 @@ struct ITaskHost
     virtual TSharedRef BuildJobSpecProto(
         const TJobletPtr& joblet,
         const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec) = 0;
-
-    virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
 
     virtual void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) = 0;
     virtual void AbortJob(TJobId jobId, EAbortReason abortReason) = 0;

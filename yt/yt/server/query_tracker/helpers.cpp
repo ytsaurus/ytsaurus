@@ -91,7 +91,8 @@ THashSet<std::string> GetUserSubjects(const std::string& user, const IClientPtr&
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.SuccessStalenessBound = TDuration::Minutes(1);
-    auto userSubjectsOrError = WaitFor(client->GetNode("//sys/users/" + user + "/@member_of_closure", options));
+    auto path = Format("//sys/users/%v/@member_of_closure", NYPath::ToYPathLiteral(user));
+    auto userSubjectsOrError = WaitFor(client->GetNode(path, options));
     if (!userSubjectsOrError.IsOK()) {
         if (userSubjectsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             return {};

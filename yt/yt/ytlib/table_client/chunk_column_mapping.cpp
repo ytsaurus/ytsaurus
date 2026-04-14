@@ -123,7 +123,7 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
 
             valueIdMapping.push_back({
                 .ChunkSchemaIndex = chunkIndex,
-                .ReaderSchemaIndex = TableKeyColumnCount_ + schemaValueIndex
+                .ReaderSchemaIndex = TableKeyColumnCount_ + schemaValueIndex,
             });
         }
     } else {
@@ -142,7 +142,7 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
 
             valueIdMapping.push_back({
                 .ChunkSchemaIndex = chunkIndex,
-                .ReaderSchemaIndex = index
+                .ReaderSchemaIndex = index,
             });
         }
     }

@@ -166,7 +166,7 @@ public:
         if (tmp_data_buffer)
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Temporary file was already requested for writing, there musto be only one writer");
 
-        tmp_data_buffer = std::make_unique<TemporaryDataBuffer>(temporary_data_on_disk.get());
+        tmp_data_buffer = std::make_unique<TemporaryDataBuffer>(temporary_data_on_disk);
         return *tmp_data_buffer;
     }
 
@@ -260,7 +260,7 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::extractMergingAndGatheringColu
             key_columns.insert(name);
         /// If we don't have this column in storage columns, it must be a subcolumn of one of the storage columns.
         else
-            key_columns.insert(Nested::splitName(name).first);
+            key_columns.insert(String(Nested::getColumnFromSubcolumn(name, storage_columns)));
     }
 
     /// Force sign column for Collapsing mode
@@ -295,8 +295,9 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::extractMergingAndGatheringColu
             const auto & column_name = index_columns.front();
             if (storage_columns.contains(column_name))
                 global_ctx->skip_indexes_by_column[column_name].push_back(index);
+            /// If we don't have this column in storage columns, it must be a subcolumn of one of the storage columns.
             else
-                global_ctx->skip_indexes_by_column[Nested::splitName(column_name).first].push_back(index);
+                global_ctx->skip_indexes_by_column[String(Nested::getColumnFromSubcolumn(column_name, storage_columns))].push_back(index);
         }
         else
         {
@@ -306,7 +307,7 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::extractMergingAndGatheringColu
                     key_columns.insert(index_column);
                 /// If we don't have this column in storage columns, it must be a subcolumn of one of the storage columns.
                 else
-                    key_columns.insert(Nested::splitName(index_column).first);
+                    key_columns.insert(String(Nested::getColumnFromSubcolumn(index_column, storage_columns)));
             }
 
             global_ctx->merging_skip_indexes.push_back(index);
@@ -490,7 +491,7 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
     }
 
     const auto & local_part_min_ttl = global_ctx->new_data_part->ttl_infos.part_min_ttl;
-    if (local_part_min_ttl && local_part_min_ttl <= global_ctx->time_of_merge)
+    if (global_ctx->metadata_snapshot->hasAnyTTL() && local_part_min_ttl && local_part_min_ttl <= global_ctx->time_of_merge)
         ctx->need_remove_expired_values = true;
 
     global_ctx->new_data_part->setColumns(global_ctx->storage_columns, infos, global_ctx->metadata_snapshot->getMetadataVersion());

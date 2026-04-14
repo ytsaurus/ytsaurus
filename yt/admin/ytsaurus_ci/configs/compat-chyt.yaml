@@ -1,0 +1,18 @@
+main:
+  source: dev
+  show_in_matrix: false
+  constraints:
+    ytsaurus: main
+2.16.0:
+  source: stable
+  constraints:
+    ytsaurus: "<=25.3"
+2.17.3:
+  source: stable
+2.17.4:
+  source: stable
+2.18.1:
+  source: stable
+  constraints:
+    strawberry: ">=0.0.16"
+    ytsaurus: ">=25.2"

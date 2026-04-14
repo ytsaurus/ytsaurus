@@ -34,6 +34,7 @@ target_link_libraries(src-compiler-grpc_plugin_support PUBLIC
   yutil
   contrib-libs-protobuf
   contrib-libs-protoc
+  contrib-restricted-abseil-cpp-tstring
 )
 
 target_sources(src-compiler-grpc_plugin_support PRIVATE

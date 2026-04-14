@@ -15,6 +15,7 @@
 #include <contrib/ydb/core/blobstorage/base/transparent.h>
 #include <contrib/ydb/core/blobstorage/backpressure/queue_backpressure_client.h>
 #include <contrib/ydb/core/blobstorage/common/immediate_control_defaults.h>
+#include <contrib/ydb/core/retro_tracing_impl/lazy_retro_span.h>
 #include <contrib/ydb/library/actors/core/interconnect.h>
 #include <contrib/ydb/library/actors/wilson/wilson_span.h>
 #include <contrib/ydb/core/base/appdata_fwd.h>
@@ -221,6 +222,8 @@ public:
         , RequestStartTime(params.Common.Now)
         , Source(params.Common.Source)
         , Cookie(params.Common.Cookie)
+        , RelevanceOwner(std::make_shared<TMessageRelevanceTracker>())
+        , ExternalRelevanceWatcher(std::move(params.Common.ExternalRelevanceWatcher))
         , LatencyQueueKind(params.Common.LatencyQueueKind)
         , RacingDomains(&Info->GetTopology())
         , ExecutionRelay(std::move(params.Common.ExecutionRelay))
@@ -236,16 +239,17 @@ public:
             Span.Attribute("RestartCounter", RestartCounter);
             Span.Attribute("database", AppData()->TenantName);
             Span.Attribute("storagePool", Info->GetStoragePoolName());
-            params.Common.Event->ToSpan(Span);
+            params.Common.Event->ToSpan(*Span.GetWilsonSpanPtr());
+        } else if (ParentSpan.GetRetroSpanPtr()) {
+            const NWilson::TTraceId& parentTraceId = ParentSpan.GetTraceId();
+            Span = TLazyRetroSpan(TWilson::BlobStorage, NWilson::TTraceId::NewTraceId(TWilson::BlobStorage,
+                    parentTraceId.GetTimeToLive(), true), "DSProxy.RTX");
+        } else {
+            // Span = TLazyRetroSpan(TWilson::BlobStorage, NWilson::TTraceId::NewTraceId(TWilson::BlobStorage, Max<ui32>(), true),
+            //         "DSProxy.RTX");
         }
 
         Y_ABORT_UNLESS(CostModel);
-
-        if (params.Common.ExternalRelevanceWatcher) {
-            Relevance = std::move(*params.Common.ExternalRelevanceWatcher);
-        } else {
-            Relevance = std::make_shared<TMessageRelevanceTracker>();
-        }
     }
 
     virtual ~TBlobStorageGroupRequestActor() = default;
@@ -310,8 +314,8 @@ protected:
     TIntrusivePtr<TBlobStorageGroupProxyMon> Mon;
     TIntrusivePtr<TStoragePoolCounters> PoolCounters;
     TLogContext LogCtx;
-    NWilson::TSpan ParentSpan;
-    NWilson::TSpan Span;
+    TLazyRetroSpan ParentSpan;
+    TLazyRetroSpan Span;
     TStackVec<std::pair<TDiskResponsivenessTracker::TDiskId, TDuration>, 16> Responsiveness;
     TString ErrorReason;
     TMaybe<TStoragePoolCounters::EHandleClass> RequestHandleClass;
@@ -326,7 +330,8 @@ protected:
 private:
     const TActorId Source;
     const ui64 Cookie;
-    std::variant<TMessageRelevanceOwner, TMessageRelevanceWatcher> Relevance;
+    TMessageRelevanceOwner RelevanceOwner;
+    std::optional<TMessageRelevanceWatcher> ExternalRelevanceWatcher;
     ui32 RequestsInFlight = 0;
     std::unique_ptr<IEventBase> Response;
     const TMaybe<TGroupStat::EKind> LatencyQueueKind;

@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT::NFormats {
 namespace {
@@ -173,8 +174,7 @@ TEST(TDsvWriterTest, SimpleTabular)
         0);
 
     EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     std::string output =
@@ -204,7 +204,7 @@ TEST(TDsvWriterTest, AnyTabular)
         0);
 
     EXPECT_FALSE(writer->Write(rows));
-    EXPECT_ANY_THROW(writer->GetReadyEvent().Get().ThrowOnError());
+    EXPECT_ANY_THROW(WaitForFast(writer->GetReadyEvent()).ThrowOnError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,8 +248,7 @@ TEST(TTskvWriterTest, SimpleTabular)
         0);
 
     EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     std::string output =
@@ -288,8 +287,7 @@ TEST(TTskvWriterTest, Escaping)
         0);
 
     EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     std::string output =

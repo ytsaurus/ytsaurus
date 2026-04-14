@@ -25,6 +25,7 @@ DECLARE_REFCOUNTED_STRUCT(TFSQuotaConfig)
 DECLARE_REFCOUNTED_STRUCT(TChownChmodConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TGetDirectorySizesAsRootConfig)
+DECLARE_REFCOUNTED_STRUCT(TGetTotalDirectoriesSizeAsRootConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TCopyDirectoryContentConfig)
 
@@ -35,6 +36,8 @@ DECLARE_REFCOUNTED_STRUCT(TRootDirectoryConfig)
 DECLARE_REFCOUNTED_STRUCT(TDirectoryBuilderConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TMkFsConfig)
+
+DECLARE_REFCOUNTED_STRUCT(TChangeOomScoreAdjAsRootConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,16 +4,11 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "distributed_throttler_manager.h"
-#include "hint_manager.h"
 #include "hunk_tablet_manager.h"
-#include "master_connector.h"
 #include "medium_throttler_manager.h"
 #include "mutation_forwarder.h"
 #include "mutation_forwarder_thunk.h"
 #include "private.h"
-#include "security_manager.h"
-#include "serialize.h"
-#include "slot_manager.h"
 #include "smooth_movement_tracker.h"
 #include "tablet.h"
 #include "tablet_cell_write_manager.h"
@@ -21,8 +16,6 @@
 #include "tablet_service.h"
 #include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/automaton_invoker_hood.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -46,17 +39,13 @@
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
-
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -589,7 +578,10 @@ public:
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetTabletOrchidService())
             ->AddChild("per_cluster_tablet_replication_status", TabletManager_->GetTabletReplicationOrchidService())
-            ->AddChild("hunk_tablets", HunkTabletManager_->GetOrchidService());
+            ->AddChild("hunk_tablets", HunkTabletManager_->GetOrchidService())
+            ->AddChild("reign", IYPathService::FromProducer(BIND([] (IYsonConsumer* consumer) {
+                consumer->OnInt64Scalar(GetCurrentReign());
+            })));
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() override
@@ -627,8 +619,8 @@ public:
 
     IReconfigurableThroughputThrottlerPtr GetChunkFragmentReaderMediumThrottler(TTablet* tablet) const
     {
-        auto config = Bootstrap_->GetDynamicConfigManager()->GetConfig();
-        const auto& throttlersConfig = config->TabletNode->MediumThrottlers;
+        auto config = Bootstrap_->GetTabletNodeDynamicConfig();
+        const auto& throttlersConfig = config->MediumThrottlers;
 
         if (!throttlersConfig->EnableBlobThrottling) {
             return GetUnlimitedThrottler();
@@ -639,27 +631,27 @@ public:
 
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
-        auto mediumThrottler = GetChunkFragmentReaderMediumThrottler(tablet);
+        auto config = Bootstrap_->GetTabletNodeDynamicConfig();
+        bool chunkFragmentReaderThrottlingEnabled = config->EnableChunkFragmentReaderThrottling;
+
+        auto chunkReaderHost = New<TChunkReaderHost>(
+            Bootstrap_->GetClient(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetBlockCache(),
+            Bootstrap_->GetClient()->GetNativeConnection()->GetChunkMetaCache(),
+            BIND([chunkFragmentReaderThrottlingEnabled, bootstrap = Bootstrap_] (EWorkloadCategory category) {
+                return chunkFragmentReaderThrottlingEnabled
+                    ?  bootstrap->GetInThrottler(category)
+                    : GetUnlimitedThrottler();
+            }),
+            /*rpsThrottler*/ nullptr,
+            GetChunkFragmentReaderMediumThrottler(tablet),
+            /*trafficMeter*/ nullptr);
 
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
-            Bootstrap_->GetClient(),
-            Bootstrap_->GetHintManager(),
-            Bootstrap_->GetBlockCache(),
-            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
-            std::move(mediumThrottler),
-            [bootstrap = Bootstrap_] (EWorkloadCategory category) -> const IThroughputThrottlerPtr& {
-                const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
-                auto config = dynamicConfigManager->GetConfig();
-                const auto& tabletNodeConfig = config->TabletNode;
-
-                if (!tabletNodeConfig->EnableChunkFragmentReaderThrottling) {
-                    static const IThroughputThrottlerPtr NullThrottler;
-                    return NullThrottler;
-                }
-
-                return bootstrap->GetInThrottler(category);
-            });
+            std::move(chunkReaderHost),
+            tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"));
     }
 
     ICompressionDictionaryManagerPtr GetCompressionDictionaryManager() const override
@@ -685,7 +677,7 @@ public:
 
     TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() override
     {
-        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->TransactionManager;
+        return Bootstrap_->GetTabletNodeDynamicConfig()->TransactionManager;
     }
 
 private:
@@ -772,21 +764,27 @@ private:
         auto options = GetOptions();
         YT_VERIFY(options);
 
-        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(options->ChangelogPrimaryMedium);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(
+            options->ChangelogPrimaryMedium,
+            ETabletDistributedThrottlerKind::ChangelogMediumWrite);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(
+            mediumName,
+            ETabletDistributedThrottlerKind::BlobMediumWrite);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(
+            mediumName,
+            ETabletDistributedThrottlerKind::BlobMediumRead);
     }
 };
 

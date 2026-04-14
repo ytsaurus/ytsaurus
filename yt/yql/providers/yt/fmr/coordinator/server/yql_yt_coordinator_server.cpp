@@ -8,6 +8,7 @@
 #include <yql/essentials/utils/yql_panic.h>
 #include <yt/yql/providers/yt/fmr/coordinator/interface/proto_helpers/yql_yt_coordinator_proto_helpers.h>
 #include <yt/yql/providers/yt/fmr/utils/yql_yt_log_context.h>
+#include <yt/yql/providers/yt/fmr/utils/yql_yt_tvm_helpers.h>
 
 namespace NYql::NFmr {
 
@@ -26,13 +27,20 @@ enum class EOperationHandler {
     Ping,
     OpenSession,
     PingSession,
-    ListSessions
+    ListSessions,
+    PrepareOperation
 };
 
 class TReplier: public TRequestReplier {
 public:
-    TReplier(std::unordered_map<EOperationHandler, THandler>& handlers)
+    TReplier(
+        std::unordered_map<EOperationHandler, THandler>& handlers
+        , IFmrTvmClient::TPtr tvmClient
+        , const std::vector<TTvmId>& allowedSourceTvmIds
+    )
         : Handlers_(handlers)
+        , TvmClient_(tvmClient)
+        , AllowedSourceTvmIds_(allowedSourceTvmIds)
     {
     }
 
@@ -46,15 +54,17 @@ public:
 
         try {
             YQL_ENSURE(Handlers_.contains(*handlerName));
+            if (*handlerName == ::EOperationHandler::SendHeartbeatResponse) {
+                // for now, just check tvm for worker, for other methods we need to get service tickets from yql gateway.
+                CheckTvmServiceTicket(params.Input.Headers(), TvmClient_, AllowedSourceTvmIds_);
+            }
+
             auto callbackFunc = Handlers_[*handlerName];
             params.Output << callbackFunc(params.Input);
         } catch (...) {
             YQL_CLOG(ERROR, FastMapReduce) << "Error while processing url path " << httpRequest.Path << " is: " << CurrentExceptionMessage();
-            THttpResponse response = THttpResponse(HTTP_INTERNAL_SERVER_ERROR);
-            NProto::TErrorResponse errorResponse;
-            errorResponse.SetErrorMessage(CurrentExceptionMessage());
-            response.SetContentType("application/x-protobuf");
-            response.SetContent(errorResponse.SerializeAsString());
+            THttpResponse response = THttpResponse(HTTP_BAD_REQUEST);
+            response.SetContent(CurrentExceptionMessage());
             params.Output << response;
         }
         return true;
@@ -62,6 +72,8 @@ public:
 
 private:
     std::unordered_map<EOperationHandler, THandler> Handlers_;
+    IFmrTvmClient::TPtr TvmClient_;
+    const std::vector<TTvmId> AllowedSourceTvmIds_;
 
     TMaybe<EOperationHandler> GetHandlerName(TParsedHttpFull httpRequest) {
         TStringBuf queryPath;
@@ -98,6 +110,9 @@ private:
         } else if (queryPath == "list_sessions") {
             YQL_ENSURE(httpRequest.Method == "GET");
             return EOperationHandler::ListSessions;
+        } else if (queryPath == "prepare_operation") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::PrepareOperation;
         }
         return Nothing();
     }
@@ -105,8 +120,12 @@ private:
 
 class TFmrCoordinatorServer: public THttpServer::ICallBack, public IRunnable {
 public:
-    TFmrCoordinatorServer(IFmrCoordinator::TPtr coordinator, const TFmrCoordinatorServerSettings& settings)
-        : Coordinator_(coordinator), Port_(settings.Port), Host_(settings.Host)
+    TFmrCoordinatorServer(IFmrCoordinator::TPtr coordinator, const TFmrCoordinatorServerSettings& settings, IFmrTvmClient::TPtr tvmClient)
+        : Coordinator_(coordinator)
+        , Port_(settings.Port)
+        , Host_(settings.Host)
+        , AllowedSourceTvmIds_(settings.AllowedSourceTvmIds)
+        , TvmClient_(tvmClient)
     {
         THttpServer::TOptions opts;
         opts.AddBindAddress(Host_, Port_);
@@ -123,6 +142,7 @@ public:
         THandler openSessionHandler = std::bind(&TFmrCoordinatorServer::OpenSessionHandler, this, std::placeholders::_1);
         THandler pingSessionHandler = std::bind(&TFmrCoordinatorServer::PingSessionHandler, this, std::placeholders::_1);
         THandler listSessionsHandler = std::bind(&TFmrCoordinatorServer::ListSessionsHandler, this, std::placeholders::_1);
+        THandler PrepareOperationHandler = std::bind(&TFmrCoordinatorServer::PrepareOperationHandler, this, std::placeholders::_1);
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
             {EOperationHandler::StartOperation, startOperationHandler},
@@ -135,7 +155,8 @@ public:
             {EOperationHandler::Ping, pingHandler},
             {EOperationHandler::OpenSession, openSessionHandler},
             {EOperationHandler::PingSession, pingSessionHandler},
-            {EOperationHandler::ListSessions, listSessionsHandler}
+            {EOperationHandler::ListSessions, listSessionsHandler},
+            {EOperationHandler::PrepareOperation, PrepareOperationHandler}
         };
     }
 
@@ -153,7 +174,7 @@ public:
     }
 
     TClientRequest* CreateClient() override {
-        return new TReplier(Handlers_);
+       return new TReplier(Handlers_, TvmClient_, AllowedSourceTvmIds_);
     }
 
 private:
@@ -162,6 +183,8 @@ private:
     THolder<THttpServer> HttpServer_;
     const ui16 Port_;
     const TString Host_;
+    const std::vector<TTvmId> AllowedSourceTvmIds_;
+    IFmrTvmClient::TPtr TvmClient_;
 
     THttpResponse StartOperationHandler(THttpInput& input) {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
@@ -309,12 +332,30 @@ private:
         httpResponse.SetContent(protoResponse.SerializeAsString());
         return httpResponse;
     }
+
+    THttpResponse PrepareOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+        NProto::TPrepareOperationRequest protoRequest;
+        YQL_ENSURE(protoRequest.ParseFromString(input.ReadAll()));
+
+        auto response = Coordinator_->PrepareOperation(PrepareOperationRequestFromProto(protoRequest)).GetValueSync();
+        auto protoResponse = PrepareOperationResponseToProto(response);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoResponse.SerializeAsString());
+        return httpResponse;
+    }
 };
 
 } // namespace
 
-IFmrServer::TPtr MakeFmrCoordinatorServer(IFmrCoordinator::TPtr coordinator, const TFmrCoordinatorServerSettings& settings) {
-    return MakeHolder<TFmrCoordinatorServer>(coordinator, settings);
+IFmrServer::TPtr MakeFmrCoordinatorServer(
+    IFmrCoordinator::TPtr coordinator,
+    const TFmrCoordinatorServerSettings& settings,
+    IFmrTvmClient::TPtr tvmClient
+) {
+    return MakeHolder<TFmrCoordinatorServer>(coordinator, settings, tvmClient);
 }
 
 } // namespace NYql::NFmr

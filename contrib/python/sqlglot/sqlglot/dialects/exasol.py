@@ -4,23 +4,25 @@ import typing as t
 
 from sqlglot import exp, generator, parser, tokens, transforms
 from sqlglot.dialects.dialect import (
+    DATE_ADD_OR_SUB,
     Dialect,
     NormalizationStrategy,
     binary_from_function,
+    build_date_delta,
     build_formatted_time,
+    build_timetostr_or_tochar,
+    build_trunc,
     groupconcat_sql,
+    no_last_day_sql,
     rename_func,
     strposition_sql,
     timestrtotime_sql,
     timestamptrunc_sql,
-    build_date_delta,
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
-
-if t.TYPE_CHECKING:
-    from sqlglot.dialects.dialect import DialectType
+from sqlglot.optimizer.scope import build_scope
 
 
 def _sha2_sql(self: Exasol.Generator, expression: exp.SHA2) -> str:
@@ -39,25 +41,6 @@ def _date_diff_sql(self: Exasol.Generator, expression: exp.DateDiff | exp.TsOrDs
     return self.func(f"{unit}S_BETWEEN", expression.this, expression.expression)
 
 
-# https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/trunc%5Bate%5D%20(datetime).htm
-# https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/trunc%5Bate%5D%20(number).htm
-def _build_trunc(args: t.List[exp.Expression], dialect: DialectType) -> exp.Expression:
-    first, second = seq_get(args, 0), seq_get(args, 1)
-
-    if not first or not second:
-        return exp.Anonymous(this="TRUNC", expressions=args)
-
-    if not first.type:
-        from sqlglot.optimizer.annotate_types import annotate_types
-
-        first = annotate_types(first, dialect=dialect)
-
-    if first.is_type(exp.DataType.Type.DATE, exp.DataType.Type.TIMESTAMP) and second.is_string:
-        return exp.DateTrunc(this=first, unit=second)
-
-    return exp.Anonymous(this="TRUNC", expressions=args)
-
-
 # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/zeroifnull.htm
 def _build_zeroifnull(args: t.List) -> exp.If:
     cond = exp.Is(this=seq_get(args, 0), expression=exp.Null())
@@ -73,12 +56,11 @@ def _build_nullifzero(args: t.List) -> exp.If:
 # https://docs.exasol.com/db/latest/sql/select.htm#:~:text=If%20you%20have,local.x%3E10
 def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
     if isinstance(expression, exp.Select):
-        aliases: dict[str, bool] = {}
-        for sel in expression.selects:
-            alias = sel.args.get("alias")
-
-            if isinstance(sel, exp.Alias) and alias:
-                aliases[alias.name] = bool(alias.args.get("quoted"))
+        aliases: dict[str, bool] = {
+            alias.name: bool(alias.args.get("quoted"))
+            for sel in expression.selects
+            if isinstance(sel, exp.Alias) and (alias := sel.args.get("alias"))
+        }
 
         table = expression.find(exp.Table)
         table_ident = table.this if table else None
@@ -90,18 +72,33 @@ def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
         ):
             table_ident.replace(exp.to_identifier(table_ident.name.upper(), quoted=True))
 
-        def prefix_local(node):
+        def prefix_local(node, visible_aliases: dict[str, bool]) -> exp.Expression:
             if isinstance(node, exp.Column) and not node.table:
-                if node.name in aliases:
+                if node.name in visible_aliases:
                     return exp.Column(
-                        this=exp.to_identifier(node.name, quoted=aliases[node.name]),
+                        this=exp.to_identifier(node.name, quoted=visible_aliases[node.name]),
                         table=exp.to_identifier("LOCAL", quoted=False),
                     )
             return node
 
         for key in ("where", "group", "having"):
             if arg := expression.args.get(key):
-                expression.set(key, arg.transform(prefix_local))
+                expression.set(key, arg.transform(lambda node: prefix_local(node, aliases)))
+
+        seen_aliases: dict[str, bool] = {}
+        new_selects: list[exp.Expression] = []
+        for sel in expression.selects:
+            if isinstance(sel, exp.Alias):
+                inner = sel.this.transform(lambda node: prefix_local(node, seen_aliases))
+                sel.set("this", inner)
+
+                alias_node = sel.args.get("alias")
+
+                seen_aliases[sel.alias] = bool(alias_node and getattr(alias_node, "quoted", False))
+                new_selects.append(sel)
+            else:
+                new_selects.append(sel.transform(lambda node: prefix_local(node, seen_aliases)))
+        expression.set("expressions", new_selects)
 
     return expression
 
@@ -167,6 +164,89 @@ def _substring_index_sql(self: Exasol.Generator, expression: exp.SubstringIndex)
     return self.func("SUBSTR", haystack_sql, direction, length)
 
 
+# https://docs.exasol.com/db/latest/sql/select.htm#:~:text=The%20select_list%20defines%20the%20columns%20of%20the%20result%20table.%20If%20*%20is%20used%2C%20all%20columns%20are%20listed.%20You%20can%20use%20an%20expression%20like%20t.*%20to%20list%20all%20columns%20of%20the%20table%20t%2C%20the%20view%20t%2C%20or%20the%20object%20with%20the%20table%20alias%20t.
+def _qualify_unscoped_star(expression: exp.Expression) -> exp.Expression:
+    """
+    Exasol doesn't support a bare * alongside other select items, so we rewrite it
+    Rewrite: SELECT *, <other> FROM <Table>
+    Into: SELECT T.*, <other> FROM <Table> AS T
+    """
+
+    if not isinstance(expression, exp.Select):
+        return expression
+
+    select_expressions = expression.expressions or []
+
+    def is_bare_star(expr: exp.Expression) -> bool:
+        return isinstance(expr, exp.Star) and expr.this is None
+
+    has_other_expression = False
+    bare_star_expr: exp.Expression | None = None
+    for expr in select_expressions:
+        has_bare_star = is_bare_star(expr)
+        if has_bare_star and bare_star_expr is None:
+            bare_star_expr = expr
+        elif not has_bare_star:
+            has_other_expression = True
+        if bare_star_expr and has_other_expression:
+            break
+
+    if not (bare_star_expr and has_other_expression):
+        return expression
+
+    scope = build_scope(expression)
+
+    if not scope or not scope.selected_sources:
+        return expression
+
+    table_identifiers: list[exp.Identifier] = []
+
+    for source_name, (source_expr, _) in scope.selected_sources.items():
+        ident = (
+            source_expr.this.copy()
+            if isinstance(source_expr, exp.Table) and isinstance(source_expr.this, exp.Identifier)
+            else exp.to_identifier(source_name)
+        )
+        table_identifiers.append(ident)
+
+    qualified_star_columns = [
+        exp.Column(this=bare_star_expr.copy(), table=ident) for ident in table_identifiers
+    ]
+
+    new_select_expressions: list[exp.Expression] = []
+
+    for select_expr in select_expressions:
+        new_select_expressions.extend(qualified_star_columns) if is_bare_star(
+            select_expr
+        ) else new_select_expressions.append(select_expr)
+
+    expression.set("expressions", new_select_expressions)
+    return expression
+
+
+def _add_date_sql(self: Exasol.Generator, expression: DATE_ADD_OR_SUB) -> str:
+    interval = expression.expression if isinstance(expression.expression, exp.Interval) else None
+
+    unit = (
+        (interval.text("unit") or "DAY").upper()
+        if interval is not None
+        else (expression.text("unit") or "DAY").upper()
+    )
+
+    if unit not in DATE_UNITS:
+        self.unsupported(f"'{unit}' is not supported in Exasol.")
+        return self.function_fallback_sql(expression)
+
+    offset_expr: exp.Expression = expression.expression
+    if interval is not None:
+        offset_expr = interval.this
+
+    if isinstance(expression, exp.DateSub):
+        offset_expr = exp.Neg(this=offset_expr)
+
+    return self.func(f"ADD_{unit}S", expression.this, offset_expr)
+
+
 DATE_UNITS = {"DAY", "WEEK", "MONTH", "YEAR", "HOUR", "MINUTE", "SECOND"}
 
 
@@ -219,6 +299,7 @@ class Exasol(Dialect):
             "ENDIF": TokenType.END,
             "LONG VARCHAR": TokenType.TEXT,
             "SEPARATOR": TokenType.SEPARATOR,
+            "SYSTIMESTAMP": TokenType.SYSTIMESTAMP,
         }
         KEYWORDS.pop("DIV")
 
@@ -233,12 +314,21 @@ class Exasol(Dialect):
                 f"{unit}S_BETWEEN": build_date_delta(exp.DateDiff, default_unit=unit)
                 for unit in DATE_UNITS
             },
+            "APPROXIMATE_COUNT_DISTINCT": exp.ApproxDistinct.from_arg_list,
             "BIT_AND": binary_from_function(exp.BitwiseAnd),
             "BIT_OR": binary_from_function(exp.BitwiseOr),
             "BIT_XOR": binary_from_function(exp.BitwiseXor),
             "BIT_NOT": lambda args: exp.BitwiseNot(this=seq_get(args, 0)),
             "BIT_LSHIFT": binary_from_function(exp.BitwiseLeftShift),
             "BIT_RSHIFT": binary_from_function(exp.BitwiseRightShift),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/convert_tz.htm
+            "CONVERT_TZ": lambda args: exp.ConvertTimezone(
+                source_tz=seq_get(args, 1),
+                target_tz=seq_get(args, 2),
+                timestamp=seq_get(args, 0),
+                options=seq_get(args, 3),
+            ),
+            "CURDATE": exp.CurrentDate.from_arg_list,
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/date_trunc.htm#DATE_TRUNC
             "DATE_TRUNC": lambda args: exp.TimestampTrunc(
                 this=seq_get(args, 1), unit=seq_get(args, 0)
@@ -250,6 +340,14 @@ class Exasol(Dialect):
             "HASH_SHA1": exp.SHA.from_arg_list,
             "HASH_MD5": exp.MD5.from_arg_list,
             "HASHTYPE_MD5": exp.MD5Digest.from_arg_list,
+            "HASH_SHA256": lambda args: exp.SHA2(
+                this=seq_get(args, 0), length=exp.Literal.number(256)
+            ),
+            "HASH_SHA512": lambda args: exp.SHA2(
+                this=seq_get(args, 0), length=exp.Literal.number(512)
+            ),
+            "NOW": exp.CurrentTimestamp.from_arg_list,
+            "NULLIFZERO": _build_nullifzero,
             "REGEXP_SUBSTR": exp.RegexpExtract.from_arg_list,
             "REGEXP_REPLACE": lambda args: exp.RegexpReplace(
                 this=seq_get(args, 0),
@@ -258,26 +356,12 @@ class Exasol(Dialect):
                 position=seq_get(args, 3),
                 occurrence=seq_get(args, 4),
             ),
-            "HASH_SHA256": lambda args: exp.SHA2(
-                this=seq_get(args, 0), length=exp.Literal.number(256)
-            ),
-            "HASH_SHA512": lambda args: exp.SHA2(
-                this=seq_get(args, 0), length=exp.Literal.number(512)
-            ),
-            "TRUNC": _build_trunc,
-            "TRUNCATE": _build_trunc,
-            "VAR_POP": exp.VariancePop.from_arg_list,
-            "APPROXIMATE_COUNT_DISTINCT": exp.ApproxDistinct.from_arg_list,
-            "TO_CHAR": build_formatted_time(exp.ToChar, "exasol"),
+            "TRUNC": build_trunc,
+            "TRUNCATE": build_trunc,
+            "TO_CHAR": build_timetostr_or_tochar,
             "TO_DATE": build_formatted_time(exp.TsOrDsToDate, "exasol"),
-            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/convert_tz.htm
-            "CONVERT_TZ": lambda args: exp.ConvertTimezone(
-                source_tz=seq_get(args, 1),
-                target_tz=seq_get(args, 2),
-                timestamp=seq_get(args, 0),
-                options=seq_get(args, 3),
-            ),
-            "NULLIFZERO": _build_nullifzero,
+            "USER": exp.CurrentUser.from_arg_list,
+            "VAR_POP": exp.VariancePop.from_arg_list,
             "ZEROIFNULL": _build_zeroifnull,
         }
         CONSTRAINT_PARSERS = {
@@ -287,11 +371,25 @@ class Exasol(Dialect):
                 this=self._match(TokenType.IS) and self._parse_string(),
             ),
         }
+
+        FUNC_TOKENS = {
+            *parser.Parser.FUNC_TOKENS,
+            TokenType.SYSTIMESTAMP,
+        }
+
+        NO_PAREN_FUNCTIONS = {
+            **parser.Parser.NO_PAREN_FUNCTIONS,
+            TokenType.SYSTIMESTAMP: exp.Systimestamp,
+            TokenType.CURRENT_SCHEMA: exp.CurrentSchema,
+        }
+
         FUNCTION_PARSERS = {
             **parser.Parser.FUNCTION_PARSERS,
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/listagg.htm
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/group_concat.htm
             **dict.fromkeys(("GROUP_CONCAT", "LISTAGG"), lambda self: self._parse_group_concat()),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/json_value.htm
+            "JSON_VALUE": lambda self: self._parse_json_value(),
         }
 
         def _parse_column(self) -> t.Optional[exp.Expression]:
@@ -338,6 +436,9 @@ class Exasol(Dialect):
             exp.DataType.Type.DECIMAL128: "DECIMAL",
             exp.DataType.Type.DECIMAL256: "DECIMAL",
             exp.DataType.Type.DATETIME: "TIMESTAMP",
+            exp.DataType.Type.TIMESTAMPTZ: "TIMESTAMP",
+            exp.DataType.Type.TIMESTAMPLTZ: "TIMESTAMP",
+            exp.DataType.Type.TIMESTAMPNTZ: "TIMESTAMP",
         }
 
         def datatype_sql(self, expression: exp.DataType) -> str:
@@ -364,7 +465,11 @@ class Exasol(Dialect):
             exp.BitwiseRightShift: rename_func("BIT_RSHIFT"),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/bit_xor.htm
             exp.BitwiseXor: rename_func("BIT_XOR"),
+            exp.CurrentSchema: lambda *_: "CURRENT_SCHEMA",
             exp.DateDiff: _date_diff_sql,
+            exp.DateAdd: _add_date_sql,
+            exp.TsOrDsAdd: _add_date_sql,
+            exp.DateSub: _add_date_sql,
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/div.htm#DIV
             exp.IntDiv: rename_func("DIV"),
             exp.TsOrDsDiff: _date_diff_sql,
@@ -380,6 +485,10 @@ class Exasol(Dialect):
             ),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/mod.htm
             exp.Mod: rename_func("MOD"),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/rank.htm
+            exp.Rank: unsupported_args("expressions")(lambda *_: "RANK()"),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/dense_rank.htm
+            exp.DenseRank: unsupported_args("expressions")(lambda *_: "DENSE_RANK()"),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/regexp_substr.htm
             exp.RegexpExtract: unsupported_args("parameters", "group")(
                 rename_func("REGEXP_SUBSTR")
@@ -425,6 +534,7 @@ class Exasol(Dialect):
             exp.CommentColumnConstraint: lambda self, e: f"COMMENT IS {self.sql(e, 'this')}",
             exp.Select: transforms.preprocess(
                 [
+                    _qualify_unscoped_star,
                     _add_local_prefix_for_aliases,
                 ]
             ),
@@ -435,6 +545,476 @@ class Exasol(Dialect):
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_timestamp.htm
             exp.Timestamp: rename_func("TO_TIMESTAMP"),
             exp.Quarter: lambda self, e: f"CEIL(MONTH(TO_DATE({self.sql(e, 'this')}))/3)",
+            exp.LastDay: no_last_day_sql,
+        }
+
+        # https://docs.exasol.com/db/7.1/sql_references/system_tables/metadata/exa_sql_keywords.htm
+        RESERVED_KEYWORDS = {
+            "absolute",
+            "action",
+            "add",
+            "after",
+            "all",
+            "allocate",
+            "alter",
+            "and",
+            "any",
+            "append",
+            "are",
+            "array",
+            "as",
+            "asc",
+            "asensitive",
+            "assertion",
+            "at",
+            "attribute",
+            "authid",
+            "authorization",
+            "before",
+            "begin",
+            "between",
+            "bigint",
+            "binary",
+            "bit",
+            "blob",
+            "blocked",
+            "bool",
+            "boolean",
+            "both",
+            "by",
+            "byte",
+            "call",
+            "called",
+            "cardinality",
+            "cascade",
+            "cascaded",
+            "case",
+            "casespecific",
+            "cast",
+            "catalog",
+            "chain",
+            "char",
+            "character",
+            "character_set_catalog",
+            "character_set_name",
+            "character_set_schema",
+            "characteristics",
+            "check",
+            "checked",
+            "clob",
+            "close",
+            "coalesce",
+            "collate",
+            "collation",
+            "collation_catalog",
+            "collation_name",
+            "collation_schema",
+            "column",
+            "commit",
+            "condition",
+            "connect_by_iscycle",
+            "connect_by_isleaf",
+            "connect_by_root",
+            "connection",
+            "constant",
+            "constraint",
+            "constraint_state_default",
+            "constraints",
+            "constructor",
+            "contains",
+            "continue",
+            "control",
+            "convert",
+            "corresponding",
+            "create",
+            "cs",
+            "csv",
+            "cube",
+            "current",
+            "current_cluster",
+            "current_cluster_uid",
+            "current_date",
+            "current_path",
+            "current_role",
+            "current_schema",
+            "current_session",
+            "current_statement",
+            "current_time",
+            "current_timestamp",
+            "current_user",
+            "cursor",
+            "cycle",
+            "data",
+            "datalink",
+            "datetime_interval_code",
+            "datetime_interval_precision",
+            "day",
+            "dbtimezone",
+            "deallocate",
+            "dec",
+            "decimal",
+            "declare",
+            "default",
+            "default_like_escape_character",
+            "deferrable",
+            "deferred",
+            "defined",
+            "definer",
+            "delete",
+            "deref",
+            "derived",
+            "desc",
+            "describe",
+            "descriptor",
+            "deterministic",
+            "disable",
+            "disabled",
+            "disconnect",
+            "dispatch",
+            "distinct",
+            "dlurlcomplete",
+            "dlurlpath",
+            "dlurlpathonly",
+            "dlurlscheme",
+            "dlurlserver",
+            "dlvalue",
+            "do",
+            "domain",
+            "double",
+            "drop",
+            "dynamic",
+            "dynamic_function",
+            "dynamic_function_code",
+            "each",
+            "else",
+            "elseif",
+            "elsif",
+            "emits",
+            "enable",
+            "enabled",
+            "end",
+            "end-exec",
+            "endif",
+            "enforce",
+            "equals",
+            "errors",
+            "escape",
+            "except",
+            "exception",
+            "exec",
+            "execute",
+            "exists",
+            "exit",
+            "export",
+            "external",
+            "extract",
+            "false",
+            "fbv",
+            "fetch",
+            "file",
+            "final",
+            "first",
+            "float",
+            "following",
+            "for",
+            "forall",
+            "force",
+            "format",
+            "found",
+            "free",
+            "from",
+            "fs",
+            "full",
+            "function",
+            "general",
+            "generated",
+            "geometry",
+            "get",
+            "global",
+            "go",
+            "goto",
+            "grant",
+            "granted",
+            "group",
+            "group_concat",
+            "grouping",
+            "groups",
+            "hashtype",
+            "hashtype_format",
+            "having",
+            "high",
+            "hold",
+            "hour",
+            "identity",
+            "if",
+            "ifnull",
+            "immediate",
+            "impersonate",
+            "implementation",
+            "import",
+            "in",
+            "index",
+            "indicator",
+            "inner",
+            "inout",
+            "input",
+            "insensitive",
+            "insert",
+            "instance",
+            "instantiable",
+            "int",
+            "integer",
+            "integrity",
+            "intersect",
+            "interval",
+            "into",
+            "inverse",
+            "invoker",
+            "is",
+            "iterate",
+            "join",
+            "key_member",
+            "key_type",
+            "large",
+            "last",
+            "lateral",
+            "ldap",
+            "leading",
+            "leave",
+            "left",
+            "level",
+            "like",
+            "limit",
+            "listagg",
+            "localtime",
+            "localtimestamp",
+            "locator",
+            "log",
+            "longvarchar",
+            "loop",
+            "low",
+            "map",
+            "match",
+            "matched",
+            "merge",
+            "method",
+            "minus",
+            "minute",
+            "mod",
+            "modifies",
+            "modify",
+            "module",
+            "month",
+            "names",
+            "national",
+            "natural",
+            "nchar",
+            "nclob",
+            "new",
+            "next",
+            "nls_date_format",
+            "nls_date_language",
+            "nls_first_day_of_week",
+            "nls_numeric_characters",
+            "nls_timestamp_format",
+            "no",
+            "nocycle",
+            "nologging",
+            "none",
+            "not",
+            "null",
+            "nullif",
+            "number",
+            "numeric",
+            "nvarchar",
+            "nvarchar2",
+            "object",
+            "of",
+            "off",
+            "old",
+            "on",
+            "only",
+            "open",
+            "option",
+            "options",
+            "or",
+            "order",
+            "ordering",
+            "ordinality",
+            "others",
+            "out",
+            "outer",
+            "output",
+            "over",
+            "overlaps",
+            "overlay",
+            "overriding",
+            "pad",
+            "parallel_enable",
+            "parameter",
+            "parameter_specific_catalog",
+            "parameter_specific_name",
+            "parameter_specific_schema",
+            "parquet",
+            "partial",
+            "path",
+            "permission",
+            "placing",
+            "plus",
+            "preceding",
+            "preferring",
+            "prepare",
+            "preserve",
+            "prior",
+            "privileges",
+            "procedure",
+            "profile",
+            "qualify",
+            "random",
+            "range",
+            "read",
+            "reads",
+            "real",
+            "recovery",
+            "recursive",
+            "ref",
+            "references",
+            "referencing",
+            "refresh",
+            "regexp_like",
+            "relative",
+            "release",
+            "rename",
+            "repeat",
+            "replace",
+            "restore",
+            "restrict",
+            "result",
+            "return",
+            "returned_length",
+            "returned_octet_length",
+            "returns",
+            "revoke",
+            "right",
+            "rollback",
+            "rollup",
+            "routine",
+            "row",
+            "rows",
+            "rowtype",
+            "savepoint",
+            "schema",
+            "scope",
+            "scope_user",
+            "script",
+            "scroll",
+            "search",
+            "second",
+            "section",
+            "security",
+            "select",
+            "selective",
+            "self",
+            "sensitive",
+            "separator",
+            "sequence",
+            "session",
+            "session_user",
+            "sessiontimezone",
+            "set",
+            "sets",
+            "shortint",
+            "similar",
+            "smallint",
+            "some",
+            "source",
+            "space",
+            "specific",
+            "specifictype",
+            "sql",
+            "sql_bigint",
+            "sql_bit",
+            "sql_char",
+            "sql_date",
+            "sql_decimal",
+            "sql_double",
+            "sql_float",
+            "sql_integer",
+            "sql_longvarchar",
+            "sql_numeric",
+            "sql_preprocessor_script",
+            "sql_real",
+            "sql_smallint",
+            "sql_timestamp",
+            "sql_tinyint",
+            "sql_type_date",
+            "sql_type_timestamp",
+            "sql_varchar",
+            "sqlexception",
+            "sqlstate",
+            "sqlwarning",
+            "start",
+            "state",
+            "statement",
+            "static",
+            "structure",
+            "style",
+            "substring",
+            "subtype",
+            "sysdate",
+            "system",
+            "system_user",
+            "systimestamp",
+            "table",
+            "temporary",
+            "text",
+            "then",
+            "time",
+            "timestamp",
+            "timezone_hour",
+            "timezone_minute",
+            "tinyint",
+            "to",
+            "trailing",
+            "transaction",
+            "transform",
+            "transforms",
+            "translation",
+            "treat",
+            "trigger",
+            "trim",
+            "true",
+            "truncate",
+            "under",
+            "union",
+            "unique",
+            "unknown",
+            "unlink",
+            "unnest",
+            "until",
+            "update",
+            "usage",
+            "user",
+            "using",
+            "value",
+            "values",
+            "varchar",
+            "varchar2",
+            "varray",
+            "verify",
+            "view",
+            "when",
+            "whenever",
+            "where",
+            "while",
+            "window",
+            "with",
+            "within",
+            "without",
+            "work",
+            "year",
+            "yes",
+            "zone",
         }
 
         def converttimezone_sql(self, expression: exp.ConvertTimezone) -> str:
@@ -451,19 +1031,5 @@ class Exasol(Dialect):
             false = self.sql(expression, "false")
             return f"IF {this} THEN {true} ELSE {false} ENDIF"
 
-        def dateadd_sql(self, expression: exp.DateAdd) -> str:
-            unit = expression.text("unit").upper() or "DAY"
-            if unit not in DATE_UNITS:
-                self.unsupported(f"'{unit}' is not supported in Exasol.")
-                return self.function_fallback_sql(expression)
-
-            return self.func(f"ADD_{unit}S", expression.this, expression.expression)
-
         def collate_sql(self, expression: exp.Collate) -> str:
             return self.sql(expression.this)
-
-        # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/rank.htm
-        def rank_sql(self, expression: exp.Rank) -> str:
-            if expression.args.get("expressions"):
-                self.unsupported("Exasol does not support arguments in RANK")
-            return self.func("RANK")

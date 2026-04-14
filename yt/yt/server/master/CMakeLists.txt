@@ -39,6 +39,8 @@ target_compile_options(yt-server-master PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-server-master PUBLIC
@@ -83,6 +85,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/alert_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_master_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config.cpp
@@ -192,6 +195,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/global_sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp
@@ -459,6 +463,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_transaction_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/sequoia_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_finisher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp

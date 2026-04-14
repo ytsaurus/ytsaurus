@@ -27,7 +27,7 @@ class TProcessBase
     : public TRefCounted
 {
 public:
-    explicit TProcessBase(const TString& path);
+    explicit TProcessBase(TStringBuf path);
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
@@ -95,7 +95,7 @@ class TSimpleProcess
 {
 public:
     explicit TSimpleProcess(
-        const TString& path,
+        TStringBuf path,
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
     // We move dtor in .cpp file to avoid

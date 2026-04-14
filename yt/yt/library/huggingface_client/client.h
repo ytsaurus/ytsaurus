@@ -18,7 +18,7 @@ public:
 
     std::vector<TString> GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split);
 
-    NConcurrency::IAsyncZeroCopyInputStreamPtr DownloadFile(const TString& url);
+    NConcurrency::IAsyncZeroCopyInputStreamPtr DownloadFile(const std::string& url);
 
 private:
     static constexpr int MaxRedirectCount = 10;

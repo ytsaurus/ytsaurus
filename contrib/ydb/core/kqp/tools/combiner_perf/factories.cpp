@@ -1,7 +1,6 @@
 #include "factories.h"
 
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_block_hash_join.h>
-#include <contrib/ydb/library/yql/dq/comp_nodes/dq_hash_aggregate.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_hash_combine.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_scalar_hash_join.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_impl.h>

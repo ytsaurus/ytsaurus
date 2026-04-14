@@ -586,7 +586,7 @@ class Simplifier:
                 group.meta[FINAL] = True
 
                 for s in node.selects:
-                    for n in s.walk(FINAL):
+                    for n in s.walk():
                         if n in groups:
                             s.meta[FINAL] = True
                             break
@@ -609,6 +609,10 @@ class Simplifier:
             elif isinstance(node, exp.Where):
                 wheres.append(node)
             elif isinstance(node, exp.Join):
+                # snowflake match_conditions have very strict ordering rules
+                if match := node.args.get("match_condition"):
+                    match.meta[FINAL] = True
+
                 joins.append(node)
 
         for where in wheres:

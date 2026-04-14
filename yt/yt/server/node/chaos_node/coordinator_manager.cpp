@@ -329,7 +329,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
         YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
@@ -543,7 +543,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
     }
 
@@ -571,14 +571,17 @@ private:
                 &TCoordinatorManager::BuildInternalOrchid,
                 MakeWeak(this))
                 ->Via(Slot_->GetAutomatonInvoker()))
-            ->AddChild("shortcuts", TShortcutOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()));
+            ->AddChild("shortcuts", TShortcutOrchidService::Create(
+                MakeWeak(this),
+                Slot_->GetGuardedAutomatonInvoker()));
     }
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_)
+                .Item("suspended").Value(
+                    Suspended_ && Shortcuts_.empty())
             .EndMap();
     }
 

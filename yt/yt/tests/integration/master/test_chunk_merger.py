@@ -77,7 +77,6 @@ class TestChunkMerger(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
     ENABLE_RPC_PROXY = True
     DRIVER_BACKEND = "rpc"
 
@@ -477,6 +476,31 @@ class TestChunkMerger(YTEnvSetup):
 
         wait(lambda: get("//tmp/t1/@chunk_count") == 1)
 
+        self._abort_chunk_merger_txs()
+
+    @authors("cherepashka")
+    def test_chunk_accounting_on_merge(self):
+        create_account("a")
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 0)
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        self._remove_merge_quotas("//tmp/t1")
+
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t1", {"b": "c"})
+        write_table("<append=true>//tmp/t1", {"c": "d"})
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == get("//tmp/t1/@chunk_count"))
+
+        copy("//tmp/t1", "//tmp/t2", preserve_account=True)
+        assert get("//tmp/t1/@chunk_ids") == get("//tmp/t2/@chunk_ids")
+        assert get("//tmp/t1/@chunk_count") > 1
+        assert get("//tmp/t2/@chunk_count") > 1
+        assert get("//sys/accounts/a/@resource_usage/chunk_count") == get("//tmp/t1/@chunk_count")
+
+        _wait_for_merge("//tmp/t1", "auto")
+        _wait_for_merge("//tmp/t2", "auto")
+
+        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 2)
         self._abort_chunk_merger_txs()
 
     @authors("aleksandra-zh")
@@ -1444,8 +1468,6 @@ class TestChunkMerger(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["auto", "deep", "shallow"])
     @pytest.mark.parametrize("operation", [copy, move])
     def test_inherit_chunk_merger_mode_after_copy(self, merge_mode, operation):
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
-
         create("map_node", "//tmp/d")
         set("//tmp/d/@chunk_merger_mode", merge_mode)
         assert get("//tmp/d/@chunk_merger_mode") == merge_mode

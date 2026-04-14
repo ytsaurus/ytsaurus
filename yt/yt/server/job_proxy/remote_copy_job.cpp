@@ -1,10 +1,10 @@
-#include "remote_copy_job.h"
-#include "private.h"
 #include "job_detail.h"
+#include "private.h"
+#include "remote_copy_job.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -13,16 +13,16 @@
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/erasure_part_reader.h>
 #include <yt/yt/ytlib/chunk_client/erasure_part_writer.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
-#include <yt/yt/ytlib/chunk_client/data_sink.h>
-#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -857,9 +857,10 @@ private:
 
             writtenReplicas.emplace_back(
                 replicas.front().GetNodeId(),
-                index,
+                /*replicaIndex*/ index,
                 replicas.front().GetMediumIndex(),
-                replicas.front().GetChunkLocationUuid());
+                replicas.front().GetChunkLocationUuid(),
+                replicas.front().GetChunkLocationIndex());
         }
 
         chunkInfo.set_disk_space(diskSpace);
@@ -979,13 +980,12 @@ private:
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const TChunkReplicaWithLocation& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
         });
+        bool useLocationIndicies = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const TChunkReplicaWithLocation& replica) {
+            return replica.GetChunkLocationIndex() != InvalidChunkLocationIndex;
+        });
 
-        if (useLocationUuids) {
-            for (const auto& replica : writtenReplicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+        if (useLocationUuids || useLocationIndicies) {
+            ToProto(req->mutable_replicas(), writtenReplicas);
         }
 
         auto rspOrError = WaitFor(req->Invoke());
@@ -1146,10 +1146,9 @@ private:
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Host_->GetInBandwidthThrottler(clusterName),
+            MakeUniformPerCategoryThrottlerProvider(Host_->GetInBandwidthThrottler(clusterName)),
             Host_->GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             Host_->GetTrafficMeter());
     }
 

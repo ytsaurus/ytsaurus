@@ -7,11 +7,7 @@
 #include "store_flusher.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
-#include "transaction.h"
 #include "versioned_chunk_meta_manager.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -63,9 +59,6 @@ using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 
-using NTabletNode::NProto::TAddStoreDescriptor;
-using NTabletNode::NProto::TMountHint;
-
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +94,27 @@ void TOrderedStoreManager::Mount(
         std::move(options));
     Tablet_->UpdateTotalRowCount();
     Tablet_->RecomputeReplicaStatuses();
+}
+
+void TOrderedStoreManager::PopulateReplicateTabletContentRequest(
+    NProto::TReqReplicateTabletContent* request)
+{
+    auto* replicatableContent = request->mutable_replicatable_content();
+    auto& movementData = Tablet_->SmoothMovementData();
+
+    auto onStore = [&] (const IStorePtr& store) {
+        if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
+            movementData.CommonDynamicStoreIds().insert(store->GetId());
+        }
+
+        store->PopulateAddStoreDescriptor(replicatableContent->add_stores());
+    };
+
+    for (const auto& [rowIndex, store] : Tablet_->StoreRowIndexMap()) {
+        onStore(store);
+    }
+
+    TStoreManagerBase::PopulateReplicateTabletContentRequest(request);
 }
 
 void TOrderedStoreManager::LockHunkStores(TWriteContext* context)
@@ -158,6 +172,14 @@ i64 TOrderedStoreManager::ComputeStartingRowIndex() const
     }
 
     const auto& lastStore = storeRowIndexMap.rbegin()->second;
+
+    if (auto rowCountOverride = GetOrDefault(
+        Tablet_->SmoothMovementData().StoreRowCountOverride(),
+        lastStore->GetId()))
+    {
+        return lastStore->GetStartingRowIndex() + rowCountOverride;
+    }
+
     YT_VERIFY(lastStore->GetRowCount() > 0);
     return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
 }
@@ -275,13 +297,16 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
+        writerOptions->MemoryUsageTracker = TabletContext_
+            ->GetNodeMemoryUsageTracker()
+            ->WithCategory(EMemoryCategory::TabletBackground);
         writerOptions->Postprocess();
 
         auto writerConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
-        writerConfig->EnableLocalThrottling = TabletContext_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        writerConfig->EnableLocalThrottling = TabletContext_->GetDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
         writerConfig->Postprocess();
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
@@ -298,7 +323,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto combinedThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             throttler,
-            tabletSnapshot->FlushThrottler
+            tabletSnapshot->FlushThrottler,
         });
 
         auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);
@@ -320,8 +345,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
         tableWriter = CreateSchemalessChunkWriter(
-            tabletSnapshot->Settings.StoreWriterConfig,
-            tabletSnapshot->Settings.StoreWriterOptions,
+            writerConfig,
+            writerOptions,
             tabletSnapshot->PhysicalSchema,
             /*nameTable*/ nullptr,
             chunkWriter,
@@ -366,6 +391,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                             .ChunkId = tableWriter->GetChunkId(),
                             .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
                             .PreparedColumnarMeta = false,
+                            .CompressedBlockLastKeys = false,
                         },
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }
@@ -444,7 +470,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
         auto mediumThrottler = GetBlobMediumWriteThrottler(
-            TabletContext_->GetDynamicConfigManager(),
+            TabletContext_->GetDynamicConfig(),
             tabletSnapshot);
 
         YT_LOG_DEBUG("Throttling blobs media write in ordered store flush (DiskSpace: %v)",

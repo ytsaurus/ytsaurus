@@ -691,7 +691,7 @@ private:
     {
         YT_LOG_INFO("Started building compressed posting lists");
 
-        int maxPostingListSize = PostingMap_.GetPostingCount(SortedTrigrams_.back());
+        int maxPostingListSize = SortedTrigrams_.empty() ? 0 : PostingMap_.GetPostingCount(SortedTrigrams_.back());
         auto postingListBuffer = std::make_unique<TPosting[]>(maxPostingListSize);
 
         auto joinedIndexSegmentsLengthThreshold = static_cast<i64>(UncompressedInputSize_ * Options_.IndexSizeFactor);

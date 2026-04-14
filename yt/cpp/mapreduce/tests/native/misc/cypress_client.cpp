@@ -94,6 +94,10 @@ TEST(CypressClient, TestCreate)
     EXPECT_THROW(
         client->Create(workingDir + "/existing_table", NT_MAP, TCreateOptions().IgnoreExisting(true)),
         TErrorResponse);
+    client->Create(workingDir + "/existing_table", NT_MAP, TCreateOptions().IgnoreExisting(true).IgnoreTypeMismatch(true));
+    EXPECT_EQ(
+        client->Get(workingDir + "/existing_table/@type"),
+        TNode("table"));
 
     client->Create(workingDir + "/node_with_attributes", NT_TABLE, TCreateOptions().Attributes(TNode()("attr_name", "attr_value")));
     EXPECT_EQ(

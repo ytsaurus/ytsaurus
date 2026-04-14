@@ -27,18 +27,9 @@ using NApi::NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterResolver::TClusterResolver(const IClientPtr& client)
-    : LocalClient_(client)
+TClusterResolver::TClusterResolver(std::optional<std::string> clusterName)
+    : LocalClusterName_(std::move(clusterName))
 { }
-
-TFuture<void> TClusterResolver::Init()
-{
-    return LocalClient_->GetClusterName()
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) {
-            LocalClusterName_ = clusterNameOrError.ValueOrDefault(std::nullopt);
-            return VoidFuture;
-        }));
-}
 
 TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
 {
@@ -49,10 +40,25 @@ TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
     return LocalClusterName;
 }
 
-void TClusterResolver::Persist(const TPersistenceContext& context)
+std::optional<std::string> TClusterResolver::GetLocalClusterName() const
 {
-    using NYT::Persist;
-    Persist(context, LocalClusterName_);
+    return LocalClusterName_;
+}
+
+void TClusterResolver::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, LocalClusterName_);
+}
+
+PHOENIX_DEFINE_TYPE(TClusterResolver);
+
+TFuture<TClusterResolverPtr> CreateClusterResolver(IClientPtr client)
+{
+    return client->GetClusterName()
+        .Apply(BIND([] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) mutable {
+            auto clusterName = clusterNameOrError.ValueOrDefault(std::nullopt);
+            return New<TClusterResolver>(std::move(clusterName));
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,11 +293,6 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
 TTransactionId TInputTransactionManager::GetLocalInputTransactionId() const
 {
     return LocalInputTransaction_ ? LocalInputTransaction_->GetId() : NullTransactionId;
-}
-
-TClusterResolverPtr TInputTransactionManager::GetClusterResolver() const
-{
-    return ClusterResolver_;
 }
 
 TRichTransactionId TInputTransactionManager::GetTransactionParentFromPath(const TRichYPath& path) const

@@ -15,7 +15,7 @@ class Row:
     x: int
 
 
-# Можно использовать наследование датаклассов.
+# Inheritance of dataclasses can be used.
 @yt.wrapper.yt_dataclass
 class IndexRow(Row):
     table_index: int
@@ -27,9 +27,9 @@ class SumRow:
     sum: int
 
 
-# @with_context позволяет заказать контекст для функции.
-# В этой переменной будут лежать контрольные атрибуты
-# (например, индекс текущей строки и входной таблицы)
+# `@with_context` allows you to request a context for a function.
+# This variable will contain control attributes
+# (for example, the index of the current row and input table).
 @yt.wrapper.with_context
 class MapperWithContext(yt.wrapper.TypedJob):
     def __call__(self, row: Row, context: Context) -> typing.Iterable[IndexRow]:
@@ -38,8 +38,8 @@ class MapperWithContext(yt.wrapper.TypedJob):
         yield IndexRow(x=row.x, table_index=table_index, row_index=row_index)
 
 
-# @aggregator позволяет отметить, что данный маппер является агрегатором,
-# то есть принимает на вход итератор строк, а не одну строку.
+# `@aggregator` helps to mark if that mapper is aggregator.
+# This means mapper-aggregator take the string iterator as input (instead of single row).
 @yt.wrapper.aggregator
 class MapperAggregator(yt.wrapper.TypedJob):
     def __call__(self, rows: RowIterator[Row]) -> typing.Iterable[SumRow]:
@@ -49,7 +49,7 @@ class MapperAggregator(yt.wrapper.TypedJob):
         yield SumRow(sum=sum)
 
 
-# Для редьюсера есть аналогичный декоратор.
+# You can use a similar decorator for the reducer.
 @yt.wrapper.reduce_aggregator
 class ReduceAggregator(yt.wrapper.TypedJob):
     def __call__(self, row_groups: typing.Iterable[RowIterator[Row]]) -> typing.Iterable[SumRow]:
@@ -60,27 +60,27 @@ class ReduceAggregator(yt.wrapper.TypedJob):
         yield SumRow(sum=sum)
 
 
-# @raw_io позволяет отметить, что функция будет брать записи (строки) из stdin и писать в stdout.
+# `@raw_io` helps to mark the function taking records(rows) from `stdin` and writing to `stdout`.
 @yt.wrapper.raw_io
 def sum_x_raw():
     sum = 0
     for line in sys.stdin:
         sum += int(line.strip())
-        # Обратите внимание: в Python 3 в stdout надо писать строки, а не байты.
+        # NB: stdout takes strings not bytes in Python 3.
         sys.stdout.write(json.dumps({"sum": sum}) + "\n")
 
 
-# @raw позволяет отметить, что функция принимает на вход поток сырых данных, а не распарсенные записи.
+# `@raw` marks the function taking raw data stream as input instead of parsed records.
 @yt.wrapper.raw
 def change_field_raw(line):
     row = json.loads(line)
     row["x"] += 10
-    # А вот такой маппер получает и отдаёт **байтовые** строки.
+    # Mapper like this gets and passes byte strings.
     yield json.dumps(row).encode() + b"\n"
 
 
 def main():
-    # You need to set up cluster address in YT_PROXY environment variable.
+    # You should set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
         raise RuntimeError("Environment variable YT_PROXY is empty")
@@ -139,11 +139,11 @@ def main():
         sum_x_raw,
         input1,
         output,
-        # Входной и выходной форматы могут различаться.
-        # В данном случае вход будет приходить в формате schemaful dsv
+        # Input and output formats can be different.
+        # We will get format schemaful dsv as input in this case.
         # https://yt.yandex-team.ru/docs/description/storage/formats#schemaful_dsv
         input_format=yt.wrapper.SchemafulDsvFormat(columns=["x"]),
-        # Выход ожидается в виде некоторой вариации json lines:
+        # We expect some variant of json lines as output.
         # https://yt.yandex-team.ru/docs/description/storage/formats#json
         output_format=yt.wrapper.JsonFormat(),
     )

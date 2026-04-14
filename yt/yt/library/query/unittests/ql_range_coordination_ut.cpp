@@ -1,10 +1,10 @@
-#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <util/random/fast.h>
 
@@ -354,13 +354,13 @@ TEST(TestHelpersTest, SplitByPivots)
     struct TPredicate
     {
         // itemIt PRECEDES shardIt
-        bool operator() (TItemIt itemIt, TShardIt shardIt) const
+        bool operator()(TItemIt itemIt, TShardIt shardIt) const
         {
             return itemIt->second <= *shardIt;
         }
 
         // itemIt FOLLOWS shardIt
-        bool operator() (TShardIt shardIt, TItemIt itemIt) const
+        bool operator()(TShardIt shardIt, TItemIt itemIt) const
         {
             return *shardIt <= itemIt->first;
         }

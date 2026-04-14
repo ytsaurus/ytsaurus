@@ -3,10 +3,13 @@
 
 #include <yt/yt/client/table_client/row_batch.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NFormats;
+using namespace NProfiling;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,15 +29,69 @@ public:
         return TFirstBatchTimeTrackingBase::GetTimeToFirstBatch();
     }
 
+    TWriterTimingStatistics GetTimingStatistics() const override
+    {
+        auto guard = Guard(Lock_);
+        TWriterTimingStatistics statistics;
+        statistics.WriteTime = WriteTimer_.GetElapsedTime();
+        statistics.WaitTime = WaitTimer_.GetElapsedTime();
+        statistics.CloseTime = CloseTimer_.GetElapsedTime();
+        statistics.IdleTime = TotalTimer_.GetElapsedTime() - statistics.WriteTime - statistics.WaitTime - statistics.CloseTime;
+        return statistics;
+    }
+
     // IWriterBase
     TFuture<void> GetReadyEvent() override
     {
-        return Underlying_->GetReadyEvent();
+        {
+            auto guard = Guard(Lock_);
+            int oldWaiterCount = WaiterCount_++;
+            if (oldWaiterCount == 0) {
+                WaitTimer_.Start();
+            }
+        }
+
+        auto stopTimer = BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (const TError& /*error*/) {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return;
+            }
+
+            auto guard = Guard(Lock_);
+            --WaiterCount_;
+            YT_VERIFY(WaiterCount_ >= 0);
+            if (WaiterCount_ == 0) {
+                WaitTimer_.Stop();
+            }
+        });
+
+        auto readyEvent = Underlying_->GetReadyEvent();
+        readyEvent.Subscribe(std::move(stopTimer));
+        return readyEvent;
     }
 
     TFuture<void> Close() override
     {
-        return Underlying_->Close();
+        {
+            auto guard = Guard(Lock_);
+            YT_VERIFY(
+                CloseTimer_.GetElapsedTime() == TDuration::Zero(),
+                "Close must only be called once");
+            YT_VERIFY(CloseTimer_.Start());
+        }
+
+        auto stopTimer = BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), startTime = GetInstant()] (const TError& /*error*/) {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return;
+            }
+            auto guard = Guard(Lock_);
+            YT_VERIFY(CloseTimer_.Stop());
+        });
+
+        auto closeFuture = Underlying_->Close();
+        closeFuture.Subscribe(std::move(stopTimer));
+        return closeFuture;
     }
 
     // IMultiChunkWriter
@@ -61,10 +118,20 @@ public:
     // IUnversionedRowsetWriter
     bool Write(TRange<TUnversionedRow> rows) override
     {
+        {
+            auto guard = Guard(Lock_);
+            YT_VERIFY(WriteTimer_.Start());
+        }
+
         if (!rows.Empty()) {
             TryUpdateFirstBatchTime();
         }
-        return Underlying_->Write(rows);
+
+        auto result = Underlying_->Write(rows);
+
+        auto guard = Guard(Lock_);
+        YT_VERIFY(WriteTimer_.Stop());
+        return result;
     }
 
     std::optional<TRowsDigest> GetDigest() const override
@@ -85,6 +152,14 @@ public:
 
 private:
     const ISchemalessMultiChunkWriterPtr Underlying_;
+
+    //! Lock_ protects everything below.
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    int WaiterCount_ = 0;
+    TWallTimer WriteTimer_ = TWallTimer(/*start*/ false);
+    TWallTimer TotalTimer_ = TWallTimer();
+    TWallTimer WaitTimer_ = TWallTimer(/*start*/ false);
+    TWallTimer CloseTimer_ = TWallTimer(/*start*/ false);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

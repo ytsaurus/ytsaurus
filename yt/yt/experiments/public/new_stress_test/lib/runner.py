@@ -81,6 +81,9 @@ def prepare_attributes(spec):
         "mount_config": {},
     }
 
+    if spec.chunk_format == "table_versioned_indexed" and spec.compression_codec is None:
+        spec.compression_codec = "none"
+
     if spec.compression_codec is not None:
         attributes["compression_codec"] = spec.compression_codec
 

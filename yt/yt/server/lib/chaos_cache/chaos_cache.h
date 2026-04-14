@@ -18,7 +18,7 @@ struct TChaosCacheKey
     NChaosClient::TReplicationCardFetchOptions FetchOptions;
 
     operator size_t() const;
-    bool operator == (const TChaosCacheKey& other) const = default;
+    bool operator==(const TChaosCacheKey& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*spec*/);

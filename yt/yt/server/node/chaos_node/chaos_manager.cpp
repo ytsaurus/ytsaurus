@@ -163,6 +163,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveCellMailbox, Unretained(this)));
     }
 
     void Initialize() override
@@ -337,6 +338,16 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void RemoveCellMailbox(const TCtxRemoveCellMailboxPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraRemoveCellMailbox,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
     const std::vector<TCellId>& CoordinatorCellIds() const override
     {
         return CoordinatorCellIds_;
@@ -460,8 +471,7 @@ public:
             case EObjectType::ReplicationCard:
                 return ReplicationCardMap_.Find(chaosObjectId);
 
-            case EObjectType::ChaosLease:
-            {
+            case EObjectType::ChaosLease: {
                 const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
                 return chaosLeaseManager->FindChaosLease(chaosObjectId);
             }
@@ -684,7 +694,7 @@ private:
 
         // COMPAT(gryzlov-ad)
         if (MoveChaosLeasesToChaosLeaseManager_) {
-            auto getRootId = [&](TChaosLease* chaosLease) {
+            auto getRootId = [&] (TChaosLease* chaosLease) {
                 auto* currentChaosLease = chaosLease;
                 while (currentChaosLease && chaosLease->GetParentId()) {
                     currentChaosLease = ChaosLeaseMap_.Find(chaosLease->GetParentId());
@@ -700,7 +710,7 @@ private:
                 newChaosLease->SetRootId(getRootId(chaosLease));
                 newChaosLease->SetTimeout(chaosLease->GetTimeout());
                 newChaosLease->SetState(chaosLease->GetState());
-                for (const auto& nestedLeaseId : chaosLease->NestedLeaseIds()) {
+                for (auto nestedLeaseId : chaosLease->NestedLeaseIds()) {
                     newChaosLease->NestedLeaseIds().push_back(nestedLeaseId);
                 }
 
@@ -1055,7 +1065,7 @@ private:
             NChaosNode::NProto::TReqRemoveReplicationCard req;
             ToProto(req.mutable_replication_card_id(), replicationCard->GetId());
 
-            auto mailbox = hiveManager->GetMailbox(replicationCard->Migration().OriginCellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(replicationCard->Migration().OriginCellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG("Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
@@ -1253,7 +1263,7 @@ private:
                 .Mode = mode,
                 .State = enabled && replicationCard->GetEra() == InitialReplicationEra
                     ? ETableReplicaState::Enabled
-                    : ETableReplicaState::Disabled
+                    : ETableReplicaState::Disabled,
             });
         }
 
@@ -1274,7 +1284,7 @@ private:
             .ClusterName = clusterName,
             .TablePath = replicaPath,
             .TrackingEnabled = enableReplicatedTableTracker,
-            .ContentType = contentType
+            .ContentType = contentType,
         });
 
         ToProto(response->mutable_replica_id(), newReplicaId);
@@ -1524,7 +1534,7 @@ private:
                     auto* chaosObject = FindChaosObject(chaosObjectId);
 
                     if (!chaosObject) {
-                        YT_LOG_WARNING("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
+                        YT_LOG_DEBUG("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
                             chaosObjectId,
                             TypeFromId(chaosObjectId));
                         continue;
@@ -1533,8 +1543,8 @@ private:
                     chaosObjects.push_back(chaosObject);
                 }
 
-                YT_LOG_DEBUG("Received grant shortcuts response, but coordinator is suspended. "
-                    "Revoking shortcuts (CoordinatorCellId: %v)",
+                YT_LOG_DEBUG("Received grant shortcuts response, but coordinator is suspended; "
+                    "revoking shortcuts (CoordinatorCellId: %v)",
                     coordinatorCellId);
 
                 RevokeShortcuts(chaosObjects, coordinatorCellId);
@@ -1616,7 +1626,7 @@ private:
     }
 
     std::vector<std::pair<TCellId, NChaosNode::NProto::TReqRevokeShortcuts>> BuildRevokeShortcutsRequests(
-        TRange<TChaosObjectBase*> chaosObjects, std::optional<TCellId> suspendedCoordinatorCellId)
+        TRange<TChaosObjectBase*> chaosObjects, TCellId suspendedCoordinatorCellId)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1627,8 +1637,8 @@ private:
             if (!suspendedCoordinatorCellId) {
                 coordinators = GetValuesSortedByKey(chaosObject->Coordinators());
             } else {
-              auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), *suspendedCoordinatorCellId);
-              coordinators = {{suspendedCoordinatorCellId.value(), coordinatorInfo}};
+              auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), suspendedCoordinatorCellId);
+              coordinators = {{suspendedCoordinatorCellId, coordinatorInfo}};
             }
 
             for (auto [cellId, coordinator] : coordinators) {
@@ -1665,9 +1675,7 @@ private:
         return SortHashMapByKeys(coordinatorToRequest);
     }
 
-    void RevokeShortcuts(
-        TRange<TChaosObjectBase*> chaosObjects,
-        std::optional<TCellId> suspendedChaosCellId) override
+    void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects, TCellId suspendedChaosCellId) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1676,7 +1684,7 @@ private:
         const auto& hiveManager = Slot_->GetHiveManager();
 
         for (const auto& [coordinatorCellId, request] : revokeShortcutsRequests) {
-            auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+            auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
             hiveManager->PostMessage(mailbox, request);
         }
 
@@ -1686,6 +1694,11 @@ private:
                 TypeFromId(chaosObject->GetId()),
                 chaosObject->GetEra());
         }
+    }
+
+    void RevokeShortcut(TChaosObjectBase* chaosObject, TCellId suspendedChaosCellId = NullCellId)
+    {
+        RevokeShortcuts(TRange(&chaosObject, 1), suspendedChaosCellId);
     }
 
     void GrantShortcuts(TChaosObjectBase* chaosObject, const std::vector<TCellId>& coordinatorCellIds, bool strict = true) override
@@ -1800,11 +1813,23 @@ private:
                 auto chaosLeaseManager = Slot_->GetChaosLeaseManager();
                 chaosLeaseManager->HandleChaosLeaseStateTransition(chaosLease);
             } else {
-                YT_LOG_FATAL("Unexpected chaos object %v with type %Qlv during ForsakeCoordinator",
+                YT_LOG_FATAL("Unexpected chaos object during ForsakeCoordinator (ChaosObjectId: %v, Type: %v)",
                     chaosObject->GetId(),
                     TypeFromId(chaosObject->GetId()));
             }
         }
+    }
+
+    void HydraRemoveCellMailbox(
+        const TCtxRemoveCellMailboxPtr& /*context*/,
+        NChaosClient::NProto::TReqRemoveCellMailbox* request,
+        NChaosClient::NProto::TRspRemoveCellMailbox* response)
+    {
+        auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
+        const auto& hiveManager = Slot_->GetHiveManager();
+        bool succes = hiveManager->TryRemoveCellMailbox(destinationCellId);
+
+        response->set_success(succes);
     }
 
     void HydraMigrateReplicationCards(
@@ -1870,9 +1895,17 @@ private:
             YT_LOG_DEBUG("Suspending chaos cell");
 
             // COMPAT(gryzlov-ad)
-            if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) >= EChaosReign::IntroduceChaosLeaseManager) {
+            auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            if (reign >= EChaosReign::IntroduceChaosLeaseManager) {
                 const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
-                chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+                if (reign >= EChaosReign::AllowChaosLeaseManagerRepeatingDisabling) {
+                    auto state = chaosLeaseManager->GetState();
+                    if (state != EChaosLeaseManagerState::Disabled) {
+                        chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+                    }
+                } else {
+                    chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+                }
             }
 
             Suspended_ = true;
@@ -2482,7 +2515,7 @@ private:
                 && !IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
                 continue;
             }
-            if (!chaosObject->IsNormal()) {
+            if (!chaosObject->IsNormalState()) {
                 continue;
             }
 
@@ -2498,7 +2531,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -2516,7 +2549,7 @@ private:
                 && !IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
                 continue;
             }
-            if (!chaosObject->IsNormal()) {
+            if (!chaosObject->IsNormalState()) {
                 continue;
             }
 
@@ -2538,7 +2571,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -3356,7 +3389,7 @@ IChaosManagerPtr CreateChaosManager(
 {
     return New<TChaosManager>(
         std::move(config),
-        slot,
+        std::move(slot),
         bootstrap);
 }
 

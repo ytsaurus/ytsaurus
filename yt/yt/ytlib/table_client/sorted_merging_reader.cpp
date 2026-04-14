@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/heap.h>
 
+#include <library/cpp/yt/memory/atomic.h>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
@@ -192,8 +194,8 @@ public:
             statistics += stream->Reader()->GetDataStatistics();
         }
 
-        statistics.set_row_count(FetchedRowCount_);
-        statistics.set_data_weight(FetchedDataWeight_);
+        statistics.set_row_count(RowCount_);
+        statistics.set_data_weight(DataWeight_);
 
         return statistics;
     }
@@ -260,7 +262,7 @@ public:
 
     i64 GetSessionRowIndex() const override
     {
-        return FetchedRowCount_;
+        return RowCount_;
     }
 
     i64 GetTotalRowCount() const override
@@ -293,9 +295,9 @@ protected:
     //! May be set during interrupt to nofify early competion of ready event.
     TPromise<void> FinishShortcutPromise_ = NewPromise<void>();
 
-    //! Amount and cumulative data weight of rows returns via |Read| call.
-    i64 FetchedRowCount_ = 0;
-    i64 FetchedDataWeight_ = 0;
+    //! Number and cumulative data weight of rows returns via |Read| call.
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 
     //! Total number of rows in all streams minus number of
     //! unjoined foreign rows.
@@ -487,7 +489,7 @@ public:
                     lastKey,
                     key);
 
-                SetReadyEvent(VoidFuture);
+                SetReadyEvent(OKFuture);
                 StreamHeap_.clear();
                 return rows.empty()
                     ? nullptr
@@ -512,8 +514,8 @@ public:
             stream = StreamHeap_.front();
         }
 
-        FetchedRowCount_ += std::ssize(rows);
-        FetchedDataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, std::ssize(rows));
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
 
         if (lastKey) {
             LastKeyHolder_ = TUnversionedOwningRow({lastKey.Begin(), lastKey.End()});
@@ -733,8 +735,8 @@ public:
             stream = StreamHeap_.front();
         }
 
-        FetchedRowCount_ += std::ssize(rows);
-        FetchedDataWeight_ += dataWeight;
+        RowCount_ += std::ssize(rows);
+        DataWeight_ += dataWeight;
 
         if (lastPrimaryKey) {
             LastPrimaryKeyHolder_ = TUnversionedOwningRow({lastPrimaryKey.Begin(), lastPrimaryKey.End()});

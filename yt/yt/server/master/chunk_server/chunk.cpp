@@ -359,10 +359,10 @@ void TChunk::RemoveReplica(
         }
     }
 
-    auto storedReplicas = data->GetStoredReplicas();
+    const auto& storedReplicas = data->StoredReplicaList();
     for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
-        auto existingReplica = storedReplicas[replicaIndex];
-        auto* locationReplica = existingReplica.As<EStoredReplicaType::ChunkLocation>();
+        const auto& existingReplica = storedReplicas[replicaIndex];
+        const auto* locationReplica = existingReplica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
         }
@@ -468,7 +468,7 @@ bool TChunk::IsAvailable() const
         return false;
     }
 
-    const auto& storedReplicas = ReplicasData_->GetStoredReplicas();
+    const auto& storedReplicas = ReplicasData_->StoredReplicaList();
     switch (GetType()) {
         case EObjectType::Chunk:
             return !storedReplicas.empty();
@@ -607,18 +607,8 @@ int TChunk::GetMaxReplicasPerFailureDomain(
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
-            if (GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->EnableRecalculationMaxReplicasPerFailureDomain) {
-                auto replicationFactor = replicationFactorOverride
-                    ? *replicationFactorOverride
-                    : GetAggregatedReplicationFactor(mediumIndex, registry);
-                return std::max(replicationFactor - 1, 1);
-            } else {
-                if (replicationFactorOverride) {
-                    return *replicationFactorOverride;
-                }
-                auto replicationFactor = GetAggregatedReplicationFactor(mediumIndex, registry);
-                return std::max(replicationFactor - 1, 1);
-            }
+            auto replicationFactor = replicationFactorOverride.value_or(GetAggregatedReplicationFactor(mediumIndex, registry));
+            return std::max(replicationFactor - 1, 1);
         }
 
         case EObjectType::ErasureChunk: {
@@ -856,6 +846,30 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
     SetStripedErasure(miscExt.striped_erasure());
 }
 
+TStoredChunkReplicaList TChunk::GetStoredReplicaList(bool includeNonOnlineReplicas) const
+{
+    const auto& data = ReplicasData();
+    auto replicas = data.StoredReplicaList();
+
+    // COMPAT(grphil)
+    if (!includeNonOnlineReplicas) {
+        includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
+    }
+
+    if (!includeNonOnlineReplicas) {
+        auto endIt = std::remove_if(replicas.begin(), replicas.end(), [] (const TAugmentedStoredChunkReplicaPtr& replica) {
+            if (replica.GetStoredReplicaType() != EStoredReplicaType::ChunkLocation) {
+                return false;
+            }
+            auto locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+            auto node = locationReplica->AsChunkLocationPtr()->GetNode();
+            return node->GetLocalState() != NNodeTrackerClient::ENodeState::Online;
+        });
+        replicas.erase(endIt, replicas.end());
+    }
+    return replicas;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
@@ -865,9 +879,9 @@ TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TRepl
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TRange<TAugmentedStoredChunkReplicaPtr> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
+const TStoredChunkReplicaList& TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::StoredReplicaList() const
 {
-    return TRange(StoredReplicas);
+    return StoredReplicas;
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
@@ -924,22 +938,7 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::
 
     Load(context, StoredReplicas);
     Load(context, LastSeenReplicas);
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::FixLastSeenReplicas) {
-        auto index = Load<int>(context);
-        if constexpr (MaxLastSeenReplicaCount > 0) {
-            auto legacyLastSeenReplicas = LastSeenReplicas;
-            // Position of queue's tail.
-            LastSeenReplicaCount = 0;
-            for (int offset : std::views::iota(0u, MaxLastSeenReplicaCount)) {
-                AddLastSeenReplica(legacyLastSeenReplicas[(index + offset) % MaxLastSeenReplicaCount]);
-            }
-        } else {
-            LastSeenReplicaCount = 0;
-        }
-    } else {
-        Load(context, LastSeenReplicaCount);
-    }
+    Load(context, LastSeenReplicaCount);
     Load(context, ApprovedReplicaCount);
 }
 

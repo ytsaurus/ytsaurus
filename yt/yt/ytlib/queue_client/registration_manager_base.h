@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "config.h"
 #include "registration_manager.h"
 
 namespace NYT::NQueueClient {
@@ -12,15 +13,10 @@ class TQueueConsumerRegistrationManagerBase
     : public IQueueConsumerRegistrationManager
 {
 public:
-    TQueueConsumerRegistrationManagerBase(
-        TQueueConsumerRegistrationManagerConfigPtr config,
-        NApi::NNative::IConnection* connection,
-        IInvokerPtr invoker,
-        const NProfiling::TProfiler& profiler,
-        const NLogging::TLogger& logger);
+    virtual void Initialize();
 
-    void StartSync() const override;
-    void StopSync() const override;
+    void StartSync() override;
+    void StopSync() override;
 
     TGetRegistrationResult GetRegistrationOrThrow(
         NYPath::TRichYPath queue,
@@ -40,7 +36,15 @@ public:
         NYPath::TRichYPath queue,
         NYPath::TRichYPath consumer) override final;
 
+    virtual EQueueConsumerRegistrationManagerImplementation GetImplementationType() const = 0;
+
+    virtual void Reconfigure(
+        const TQueueConsumerRegistrationManagerConfigPtr& oldConfig,
+        const TQueueConsumerRegistrationManagerConfigPtr& newConfig);
+
 protected:
+    // Virtual methods.
+
     virtual std::optional<TConsumerRegistrationTableRow> DoFindRegistration(
         NYPath::TRichYPath resolvedQueue,
         NYPath::TRichYPath resolvedConsumer) = 0;
@@ -56,16 +60,18 @@ protected:
         const NTabletClient::TTableMountInfoPtr& tableMountInfo,
         bool throwOnFailure) const = 0;
 
-    //! Method for handling changes in derived classes. It must only handle config changes
-    //! specific to the derived class, e.g. cache_refresh_period for full-scan implementation
-    //! of registration manager.
-    virtual void OnDynamicConfigChanged(
-        const TQueueConsumerRegistrationManagerConfigPtr oldConfig,
-        const TQueueConsumerRegistrationManagerConfigPtr newConfig) = 0;
-
     virtual void RefreshCache() = 0;
 
-protected:
+    // Helper methods.
+
+    TQueueConsumerRegistrationManagerBase(
+        TQueueConsumerRegistrationManagerConfigPtr config,
+        TWeakPtr<NApi::NNative::IConnection> connection,
+        std::optional<std::string> clusterName,
+        IInvokerPtr invoker,
+        NProfiling::TProfiler profiler,
+        NLogging::TLogger logger);
+
     //! Returns the stored dynamic config.
     TQueueConsumerRegistrationManagerConfigPtr GetDynamicConfig() const;
 
@@ -92,21 +98,14 @@ protected:
         const NYPath::TRichYPath& objectPath,
         const NTabletClient::TTableMountInfoPtr& tableMountInfo) const;
 
-    //! Updates configuration from cluster connection and calls #Reconfigure
-    //! to process the changes after a successful update.
-    void RefreshConfiguration();
-    void GuardedRefreshConfiguration();
-
     //! Validates that a statically configured cluster name is set.
     void ValidateClusterNameConfigured() const;
 
-protected:
     const TQueueConsumerRegistrationManagerConfigPtr Config_;
     // The connection holds a strong reference to this object.
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
     const IInvokerPtr Invoker_;
     const std::optional<std::string> ClusterName_;
-    const NConcurrency::TPeriodicExecutorPtr ConfigurationRefreshExecutor_;
     const NLogging::TLogger Logger;
 
     TQueueConsumerRegistrationManagerProfilingCounters ProfilingCounters_;
@@ -114,6 +113,10 @@ protected:
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigurationSpinLock_);
     TQueueConsumerRegistrationManagerConfigPtr DynamicConfig_;
+
+    //! Verifies that config->Implementation is equal to #GetImplementationType().
+    //! Crashes if not.
+    void VerifyConfigImplementation(const TQueueConsumerRegistrationManagerConfigPtr& config);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManagerBase)

@@ -4,7 +4,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimingStatistics& operator += (TTimingStatistics& lhs, const TTimingStatistics& rhs)
+TTimingStatistics& operator+=(TTimingStatistics& lhs, const TTimingStatistics& rhs)
 {
     lhs.IdleTime += rhs.IdleTime;
     lhs.ReadTime += rhs.ReadTime;

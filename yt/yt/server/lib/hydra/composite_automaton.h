@@ -98,6 +98,7 @@ protected:
 
     virtual void OnBeforeSnapshotLoaded();
     virtual void OnAfterSnapshotLoaded();
+    virtual void OnReignChanged(TReign previousReign);
 
     virtual void OnStartLeading();
     virtual void OnLeaderRecoveryComplete();
@@ -280,6 +281,7 @@ private:
     bool IsRecovery() const;
 
     void HydraResetStateHash(NProto::TReqResetStateHash* request);
+    void HydraReportReignChange(NProto::TReqReportReignChange* request);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)

@@ -1,6 +1,6 @@
 #include "chunk_list_pool.h"
-#include "private.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 

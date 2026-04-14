@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "performance_counters.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -133,6 +132,9 @@ struct IHunkChunkReaderStatistics
     virtual std::atomic<int>& BackendReadRequestCount() = 0;
     virtual std::atomic<int>& BackendHedgingReadRequestCount() = 0;
     virtual std::atomic<int>& BackendProbingRequestCount() = 0;
+
+    virtual IHunkChunkReaderStatisticsPtr CloneEmpty() const = 0;
+    virtual void AddFrom(const IHunkChunkReaderStatisticsPtr& from) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHunkChunkReaderStatistics)
@@ -355,7 +357,6 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableUnversionedRow> rows);
 
 //! A versioned counterpart of #ReadAndDecodeHunksInSchemafulRows.
@@ -364,7 +365,6 @@ TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
     TTabletPerformanceCountersPtr performanceCounters,
-    NTableClient::EPerformanceCountedRequestType requestType,
     TSharedRange<TMutableVersionedRow> rows);
 
 //! Constructs a writer performing hunk encoding.

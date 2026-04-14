@@ -25,8 +25,6 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <util/generic/function_ref.h>
-
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,10 +78,16 @@ struct TUserWorkload
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSuccessfulPermissionValidationResult
+{
+    bool HasRowLevelAce = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISecurityManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Account, TAccount);
@@ -275,7 +279,13 @@ public:
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
-    virtual TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) = 0;
+    //! The result contains only the inherited ACEs. The object itself does not
+    //! inherit its every ACE. For grafted nodes (PortalExit, Scion), to mimic
+    //! the natural behaviour, one must provide a join of the object's ACEs and
+    //! inherited ancestry ACEs to the target node, hence the #skipFirstObject flag.
+    virtual TAccessControlList GetEffectiveAcl(
+        NObjectServer::TObject* object,
+        bool skipFirstObject = false) = 0;
 
     //! Sets the authenticated user.
     virtual void SetAuthenticatedUser(TUser* user) = 0;
@@ -289,10 +299,10 @@ public:
     //! Returns |true| if safe mode is active.
     virtual bool IsSafeMode() const = 0;
 
-    //! Returns |true| if object has columnar ace for this user.
-    virtual bool HasColumnarAce(NObjectServer::TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride = {}) const = 0;
+    //! Returns |true| if object has columnar ace.
+    virtual bool HasColumnarAce(NObjectServer::TObject* object) const = 0;
 
-    //! Returns |true| if object has columnar ace for any user.
+    //! Returns |true| if object has row-level ace.
     virtual bool HasRowLevelAce(NObjectServer::TObject* object) const = 0;
 
     //! Checks if #object ACL allows access with #permission. May throw on invalid request.
@@ -313,25 +323,18 @@ public:
         const TAccessControlList& acl,
         TPermissionCheckOptions options = {}) = 0;
 
-    //! Checks if given ACL allows access with #permission.
-    virtual TPermissionCheckResponse CheckPermission(
-        TUser* user,
-        EPermission permission,
-        TFunctionRef<TAccessControlList()> aclProducer,
-        TPermissionCheckOptions options = {}) = 0;
-
     //! Checks if given user is a member of superusers group.
     virtual bool IsSuperuser(const TUser* user) const = 0;
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
-    virtual void ValidatePermission(
+    virtual TSuccessfulPermissionValidationResult ValidatePermission(
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         TPermissionCheckOptions options = {}) = 0;
 
     //! Another overload that uses the current user.
-    virtual void ValidatePermission(
+    virtual TSuccessfulPermissionValidationResult ValidatePermission(
         NObjectServer::TObject* object,
         EPermission permission,
         TPermissionCheckOptions options = {}) = 0;
@@ -425,6 +428,9 @@ public:
 
     //! Updates Sequoia tables on ACD change. Is not expected to be called manually.
     virtual void OnObjectAcdUpdated(TAccessControlDescriptor* acd) = 0;
+
+    //! Increases account statistics and puts update in gossip queue.
+    virtual void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

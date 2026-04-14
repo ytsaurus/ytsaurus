@@ -23,12 +23,15 @@ DEFINE_ENUM(ELogEventType,
     (OperationPrepared)
     (OperationMaterialized)
     (OperationBannedInTree)
+    (OperationIncarnationStarted)
     (FairShareInfo)
     (ClusterInfo)
     (NodesInfo)
     (PoolsInfo)
     (RuntimeParametersInfo)
     (AccumulatedUsageInfo)
+    (OperationStarvationStarted)
+    (OperationStarvationFinished)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

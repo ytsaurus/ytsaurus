@@ -5,6 +5,7 @@
 #include <yt/yt/core/bus/tcp/client.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
@@ -99,7 +100,7 @@ protected:
             /*sessionId*/ NChunkClient::TSessionId(),
             Logger());
 
-        handler->Initialize().Get().ThrowOnError();
+        WaitFor(handler->Initialize()).ThrowOnError();
 
         NHPTimer::STime t;
         NHPTimer::GetTime(&t);
@@ -107,15 +108,15 @@ protected:
         for (int i = 0; i < config->NumIters; ++i) {
             auto data = Format("data_%v", i);
             auto offset = RandomNumber<ui64>(config->Size - data.size());
-            handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()}).Get().ThrowOnError();
-            auto response = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).Get().ValueOrThrow();
+            WaitFor(handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()})).ThrowOnError();
+            auto response = WaitFor(handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()})).ValueOrThrow();
             assert(ToString(response.Data.ToStringBuf()) == data);
         }
 
         NHPTimer::STime tcur = t;
         double seconds = NHPTimer::GetTimePassed(&tcur);
 
-        handler->Finalize().Get().ThrowOnError();
+        WaitFor(handler->Finalize()).ThrowOnError();
 
         Cout << "Rps test complete in " << seconds << " seconds. RPS = " << (double) config->NumIters / seconds << Endl;
     }

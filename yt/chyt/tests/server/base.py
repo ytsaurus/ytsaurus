@@ -9,10 +9,10 @@ from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_con
 
 from yt.environment import arcadia_interop
 
-from yt_env_setup import YTEnvSetup, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build, is_tsan_build
 
 from yt.wrapper import YtClient
-from yt.wrapper.common import simplify_structure
+from yt.wrapper.common import simplify_structure, GB
 
 from yt.common import update, update_inplace, YtError, wait, parts_to_uuid, YtResponseError
 
@@ -22,6 +22,9 @@ import yt.packages.requests as requests
 
 import yt.yson as yson
 
+if is_tsan_build():
+    import yatest.common
+
 from threading import Thread
 import os
 import errno
@@ -29,6 +32,7 @@ import time
 import json
 import random
 import copy
+import re
 import string
 import pathlib
 
@@ -36,18 +40,18 @@ HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse
 
 DEFAULTS = {
     "memory_config": {
-        "footprint": 1 * 1024 ** 3,
-        "clickhouse": int(2.5 * 1024 ** 3),
-        "reader": 1 * 1024 ** 3,
+        "footprint": 1 * GB,
+        "clickhouse": int(2.5 * GB),
+        "reader": 1 * GB,
         "uncompressed_block_cache": 0,
         "compressed_block_cache": 0,
         "chunk_meta_cache": 0,
         "log_tailer": 0,
         "watchdog_oom_watermark": 0,
         "watchdog_window_oom_watermark": 0,
-        "clickhouse_watermark": 1 * 1024 ** 3,
-        "memory_limit": int((1 + 2.5 + 1 + 1) * 1024 ** 3),
-        "max_server_memory_usage": int((1 + 2.5 + 1) * 1024 ** 3),
+        "clickhouse_watermark": 1 * GB,
+        "memory_limit": int((1 + 2.5 + 1 + 1) * GB),
+        "max_server_memory_usage": int((1 + 2.5 + 1) * GB),
     },
     "host_ytserver_clickhouse_path": HOST_PATHS["ytserver-clickhouse"],
     "host_clickhouse_trampoline_path": HOST_PATHS["clickhouse-trampoline"],
@@ -163,9 +167,8 @@ class Clique(object):
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
         config["yt"]["dictionary_repository"] = dict()
-        self.dictionaries_path = "//sys/strawberry/chyt/{}/dictionaries".format(self.alias)
-        config["yt"]["dictionary_repository"]["path"] = self.dictionaries_path
-        config["yt"]["dictionary_repository"]["enabled"] = True
+        self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
+        config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
         create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
             "acl": [ace],
         })
@@ -211,6 +214,17 @@ class Clique(object):
                 "log_tailer_config.yson",
             )
 
+        if is_tsan_build():
+            llvm_symbolizer_path = "//tmp/llvm-symbolizer"
+
+            self._upload_llvm_symbolizer(llvm_symbolizer_path)
+
+            # XXX: It is not a config. However there is no requirements to be config.
+            cypress_config_paths["llvm-symbolizer"] = (
+                llvm_symbolizer_path,
+                None,
+            )
+
         core_dump_destination = os.environ.get("YT_CORE_DUMP_DESTINATION")
 
         spec_builder = get_clique_spec_builder(
@@ -240,9 +254,41 @@ class Clique(object):
 
         self.spec["alias"] = "*" + self.alias
 
+        if is_tsan_build():
+            def _patch_external_symbolizer_path(options: str, path: str) -> str:
+                patch = f"external_symbolizer_path={path}"
+
+                if "external_symbolizer_path" not in options:
+                    return options + " " + patch
+
+                pattern = r"external_symbolizer_path=\S+"
+                result = re.sub(pattern, patch, options)
+                assert result != options, "external_symbolizer_path is either empty or badly formatted"
+
+                return result
+
+            if "tasks" not in spec:
+                spec["tasks"] = {"instances": {}}
+
+            for task_key in spec["tasks"]:
+                task = spec["tasks"][task_key]
+                environment = task.get("environment", {})
+
+                environment["TSAN_OPTIONS"] = _patch_external_symbolizer_path(
+                    environment.get("TSAN_OPTIONS", ""),
+                    "./llvm-symbolizer",
+                )
+
+                task["environment"] = environment
+
         self.instance_count = instance_count
 
         create_access_control_object(name=self.alias, namespace="chyt")
+
+    def _upload_llvm_symbolizer(self, llvm_symbolizer_path):
+        with open(yatest.common.binary_path("contrib/libs/llvm20/tools/llvm-symbolizer/llvm-symbolizer"), 'rb') as f:
+            self.yt_client.create("file", llvm_symbolizer_path, attributes={"executable": True})
+            self.yt_client.write_file(llvm_symbolizer_path, f)
 
     def get_active_instances_for_discovery_v1(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
@@ -446,9 +492,11 @@ class Clique(object):
         # Make some improvements to query: strip trailing semicolon, add format if needed.
 
         def prepare_query(query):
+            import re
             query = query.strip()
 
-            assert "format" not in query.lower()
+            assert not re.search(r'\bformat\s+\w+', query, re.IGNORECASE), \
+                "Query should not contain FORMAT clause"
             query_type = query.strip().split(" ", 1)[0]
             if query.endswith(";"):
                 query = query[:-1]
@@ -694,7 +742,7 @@ class Clique(object):
         return get(orchid_path + path, verbose=verbose)
 
     def get_profiler(self, instance_id=None):
-        if not instance_id:
+        if instance_id is None:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
         sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
@@ -811,6 +859,12 @@ class ClickHouseTestBase(YTEnvSetup):
         },
     }
 
+    DELTA_CHYT_CONFIG = {
+        "yt" : {
+            "enable_schema_id_fetching": "1",
+        }
+    }
+
     @classmethod
     def _get_proxy_address(cls):
         return "http://" + cls.Env.get_http_proxy_address()
@@ -831,6 +885,14 @@ class ClickHouseTestBase(YTEnvSetup):
     def _signal_instance(pid, signal_number):
         print_debug("Killing instance with with os.kill({}, {})".format(pid, signal_number))
         os.kill(pid, signal_number)
+
+    @classmethod
+    def _collect_delta_chyt_config(cls):
+        result = {}
+        for base in cls.__mro__[::-1]:
+            patch = base.__dict__.get("DELTA_CHYT_CONFIG", {})
+            update_inplace(result, patch)
+        return result
 
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
@@ -892,6 +954,8 @@ class ClickHouseTestBase(YTEnvSetup):
                 "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_CLIENT_PRIVATE_KEY",
             }
 
+        Clique.base_config = update(Clique.base_config, cls._collect_delta_chyt_config())
+
         Clique.proxy_address = cls._get_proxy_address()
         Clique.chyt_http_address = cls._get_chyt_http_address()
 
@@ -900,6 +964,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
+        create_user("yt-clikhouse-dictionaries")
 
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))

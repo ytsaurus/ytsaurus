@@ -9,7 +9,7 @@ from yt_commands import (
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
-    get_singular_chunk_id, check_all_stderrs,
+    get_singular_chunk_id, check_all_stderrs, make_random_string,
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
@@ -26,7 +26,8 @@ from yt.common import YtError
 from flaky import flaky
 
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
+import itertools
 import pytest
 import random
 import string
@@ -161,7 +162,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t2{index}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 790262}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1135017}
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -191,7 +192,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         if self.ENABLE_UNIQUE_COUNT_CHECK:
             all_statistics = get_table_columnar_statistics("[\"//tmp/t_output1{index}\";\"//tmp/t_output2{value}\"]")
-            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 683}
+            assert all_statistics[0]['column_estimated_unique_counts'] == {'index': 1121}
             assert all_statistics[1]['column_estimated_unique_counts'] == {'value': 1}
 
     @authors("ignat")
@@ -1890,8 +1891,8 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1900,28 +1901,53 @@ print(json.dumps(input))
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then exit 1; fi',
-                spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
+                command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then exit 1; fi',
+                spec={"mapper": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}},
             )
         with pytest.raises(YtError, match="echo"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
+                command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                spec={"mapper": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}},
             )
         map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
-            spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
+            command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi',
+            spec={"mapper": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}},
         )
 
         res = read_table("//tmp/t2")
         assert res == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_aborting(self):
+    @authors("pogorelov")
+    def test_master_job_completed_before_secondary_scheduled(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi""",
+            spec={
+                "mapper": {
+                    "collective_options": {
+                        "size": 2,
+                    },
+                    "close_stdout_if_unused": True,
+                },
+                "data_weight_per_job": 1,
+                "resource_limits": {"user_slots": 1},
+            },
+        )
+
+        op.track()
+        assert op.get_job_count("aborted") == 0
+
+    @authors("faucct", "pogorelov")
+    def test_job_collective_aborting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1929,19 +1955,20 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi"""),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
+            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi; BREAKPOINT;"""),
+            spec={"mapper": {"collective_options": {"size": 2}}},
         )
-        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"])
-        wait_breakpoint(job_count=2)[0]
-        assert op.get_job_count("aborted") == 2
-        assert read_table("//tmp/t2") == []
+        wait_breakpoint(job_count=2)
+
+        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["collective_id"])["collective_id"])
+
+        wait(lambda: op.get_job_count("aborted") == 2)
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @authors("faucct")
-    def test_distributed_interrupting(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_interrupting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1949,21 +1976,22 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi"""),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
+            command=with_breakpoint("""if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""),
+            spec={"mapper": {"collective_options": {"size": 2}}},
         )
         job_ids = wait_breakpoint(job_count=2)
         print_debug("Fetched jobs: ", get_job(op.id, job_ids[0]))
-        distributed_group_main_job_id = get_job(op.id, job_ids[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
+        # collective_id equals master job id.
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
         with pytest.raises(YtError, match="Error interrupting job"):
-            interrupt_job(({*job_ids} - {distributed_group_main_job_id}).pop())
-        interrupt_job(distributed_group_main_job_id)
+            interrupt_job(({*job_ids} - {collective_id}).pop())
+        interrupt_job(collective_id)
         release_breakpoint()
         op.track()
         assert op.get_job_count("aborted") == 0
 
-    @authors("faucct")
-    def test_distributed_with_secondary_job_hang(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_with_slave_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -1971,42 +1999,188 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint(
-                """
-                BREAKPOINT
-                if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi
-                """
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
             ),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
-            track=False,
-        )
-        job_ids = wait_breakpoint(job_count=2)
-        distributed_group_main_job_id = get_job(op.id, job_ids[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
-        release_breakpoint(job_id=distributed_group_main_job_id)
-        op.track()
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-
-    @authors("faucct")
-    def test_distributed_with_secondary_job_fail_and_operation_completion(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b"})
-        op = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=with_breakpoint(
-                """BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
-            ),
-            spec={"mapper": {"distributed_job_options": {"factor": 2}}, "max_failed_job_count": 2},
+            spec={"mapper": {"collective_options": {"size": 2}}, "max_failed_job_count": 2},
             track=False,
         )
         first_incarnation = wait_breakpoint(job_count=2)
-        distributed_group_main_job_id = get_job(op.id, first_incarnation[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
-        secondary_job_id, = {*first_incarnation} - {distributed_group_main_job_id}
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
         release_breakpoint(job_id=secondary_job_id)
         wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
         wait_breakpoint(job_count=2)
         release_breakpoint()
         op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_master_job_completed_operation_waits_for_slave(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+        time.sleep(2)
+        assert op.get_state() == "running"
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 0
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_aborted(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        abort_job(secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("aborted") == 1
+
+    @authors("pogorelov")
+    def test_master_job_completed_slave_failed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; else exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, job_ids[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*job_ids} - {collective_id}
+
+        release_breakpoint(job_id=collective_id)
+        wait(lambda: op.get_job_count("completed") >= 1)
+
+        release_breakpoint(job_id=secondary_job_id)
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert op.get_job_count("failed") == 1
+
+    @authors("pogorelov")
+    def test_slave_aborted_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        abort_job(secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "aborted", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+        release_breakpoint(job_id=secondary_job_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("pogorelov")
+    def test_slave_failed_before_master_completed_collective_restarts(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
+            ),
+            spec={
+                "mapper": {
+                    "collective_options": {"size": 2},
+                    "close_stdout_if_unused": True,
+                },
+                "max_failed_job_count": 2,
+            },
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        collective_id = get_job(op.id, first_incarnation[0], attributes=["collective_id"])["collective_id"]
+        secondary_job_id, = {*first_incarnation} - {collective_id}
+
+        release_breakpoint(job_id=secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
+
+        release_breakpoint(job_id=collective_id)
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ifsmirnov")
@@ -2238,6 +2412,58 @@ print(json.dumps(input))
         assert exists("//tmp/stderr_table1")
         assert exists("//tmp/core_table1")
 
+    @authors("dann239")
+    def test_auto_create_with_attributes(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+
+        map(
+            in_="//tmp/in",
+            out='<create={}>//tmp/out',
+            command="cat",
+        )
+
+        assert exists("//tmp/out")
+
+        map(
+            in_="//tmp/in",
+            out='<create={abacaba="dabacaba"}>//tmp/out2',
+            command="cat",
+        )
+
+        assert exists("//tmp/out2")
+        assert get("//tmp/out2/@abacaba") == "dabacaba"
+
+        with pytest.raises(YtError, match='Attribute "create" cannot be of type "int64"'):
+            map(
+                in_="//tmp/in",
+                out="<create=42>//tmp/out3",
+                command="cat",
+            )
+
+        with pytest.raises(YtError, match="Error parsing boolean value"):
+            map(
+                in_="//tmp/in",
+                out="<create=please>//tmp/out4",
+                command="cat",
+            )
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/in",
+                out='<create={}>//tmp/out2',
+                command="exit 1",
+                spec={
+                    "core_table_path": '<create={abacaba="daba"}>//tmp/core_table2',
+                    "stderr_table_path": '<create={abacaba="caba"}>//tmp/stderr_table2',
+                },
+            )
+
+        assert exists("//tmp/core_table2")
+        assert get("//tmp/core_table2/@abacaba") == "daba"
+        assert exists("//tmp/stderr_table2")
+        assert get("//tmp/stderr_table2/@abacaba") == "caba"
+
     @authors("galtsev")
     @pytest.mark.parametrize("hunks", [True, False])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -2298,7 +2524,18 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat && echo stderr > /proc/self/fd/2 && BREAKPOINT"),
+            spec={
+                # Chunk lists creation may be slow.
+                # We allocate them in materialization,
+                # so we should have them ready for the first job.
+                "suspend_operation_after_materialization": True,
+            }
         )
+
+        # Wait for the CreateChunkLists to complete.
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        time.sleep(1)
+        op.resume()
 
         # orchid does not outlive operation, so we need to inspect it in the middle of the operation
         wait_breakpoint()
@@ -2462,6 +2699,64 @@ print(json.dumps(input))
 
         assert first_read <= first_written <= chunk_reader_spent_time
 
+    @authors("coteeq")
+    def test_writer_timing_statistics(self):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                "job_io": {
+                    # Try really hard to write as slow as possible
+                    "table_writer": {
+                        "block_size": 1,
+                        "desired_chunk_size": 1,
+                    }
+                }
+            }
+        )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
+
+        assert op.get_job_count("completed") == 1
+        job_time_ms = extract_statistic_v2(statistics, "time.exec")
+
+        eps_ms = 20
+
+        def assert_total_time(total_time):
+            # Not very precise :(.
+            assert abs(job_time_ms - total_time) < 1000
+
+        for table_index in [0, 1]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time > eps_ms
+            assert write_time > eps_ms
+            assert close_time >= 100 * chunk_count
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
+        for table_index in [2]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time == 0
+            assert write_time == 0
+            assert 100 <= close_time < 100 + eps_ms  # tesing_delay_before_chunk_close + eps.
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")
@@ -2623,6 +2918,141 @@ print(json.dumps(input))
             out="<rename_columns={key=key1;value=value2;non_existent=non_existent}>//tmp/t_out",
             command="cat",
         )
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_interruption_with_inaccurate_columnar_statistics_estimation(self, ordered):
+        MAPPER = """
+python3 -u -c '
+import json
+import os
+import sys
+
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
+print(json.dumps(input))
+'"""
+
+        table_count = 2
+        column_count = 20
+        for j in range(table_count):
+            create("table", f"//tmp/t_in{j}", attributes={
+                "schema": make_schema([
+                    {"name": f"col{i}", "type": "string"}
+                    for i in range(column_count)
+                ]),
+                "optimize_for": "scan",
+            })
+
+        def sample_size():
+            return max(int(random.gauss(200, 100)), 1)
+
+        set("//sys/@config/chunk_manager/max_heavy_columns", 1)
+
+        for q in range(table_count):
+            for _ in range(1 if ordered else 2):
+                write_table(
+                    f"<append=%true>//tmp/t_in{q}",
+                    [{f"col{i}": make_random_string(sample_size()) for i in range(column_count)} for _ in range(2)],
+                    table_writer={"block_size": 1, "desired_chunk_size": 1},
+                )
+
+        columns = [f"col{i}" for i in range(column_count)]
+
+        def choose_columns():
+            selected_columns = random.sample(columns, k=column_count - 1)
+            return "{{{}}}".format(",".join(selected_columns))
+
+        op = map(
+            ordered=True,
+            track=False,
+            in_=[f"//tmp/t_in{i}{choose_columns()}" for i in range(table_count)],
+            out=[f"<create=%true>//tmp/t_out{i}" for i in range(table_count)],
+            command=with_breakpoint(MAPPER + "; BREAKPOINT; cat"),
+            spec={
+                "mapper": {"format": "json"},
+                "max_failed_job_count": 1,
+                "ordered": ordered,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 200,
+                },
+                "enable_job_splitting": False,
+                "max_speculative_job_count_per_task": 0,
+                "input_table_columnar_statistics": {
+                    "enabled": True,
+                    "mode": "from_master",
+                },
+                "job_count": 1,
+                "force_allow_job_interruption": True,
+            },
+        )
+
+        jobs = wait_breakpoint(job_count=1)
+
+        op.interrupt_job(jobs[0])
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("apollo1321")
+    def test_fail_tactics_with_chunk_scraper(self):
+        """
+        This test ensures that unavailable input chunk is not added to chunk scraper if
+        unavailable_chunk_tactics is set to fail. Otherwise internal invariants may be
+        violated, because when this chunk is found, `Resume` is called without preceding
+        `Suspend` call.
+        """
+
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+
+        write_table("<append=%true>//tmp/t_in", [
+            {"col": "1"},
+            {"col": "2"},
+        ])
+
+        mapper_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("mapper_started"),
+                events_on_fs().wait_event_cmd("continue_mapper"),
+            ]
+        )
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            command=mapper_cmd,
+            spec={
+                "job_count": 2,
+                "unavailable_chunk_strategy": "fail",
+                "unavailable_chunk_tactics": "fail",
+                "resource_limits": {"user_slots": 1},
+                "job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "testing": {
+                    "fail_operation_delay": "10s",
+                }
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("mapper_started", timeout=timedelta(1000))
+
+        chunk_id = get_singular_chunk_id("//tmp/t_in")
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        set_nodes_banned(replicas, True)
+
+        events_on_fs().notify_event("continue_mapper")
+
+        time.sleep(5)
+
+        set_nodes_banned(replicas, False)
+
+        with raises_yt_error(f"Input chunk {chunk_id} is unavailable"):
+            op.track()
 
 
 ##################################################################
@@ -2986,6 +3416,108 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         op.track()
         assert op.get_state() == "completed"
+
+    @authors("coteeq")
+    @pytest.mark.timeout(180)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    def test_ordered_interrupted_adjusted(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [
+                {"name": "index", "type": "int64"},
+                {"name": "payload", "type": "string"},
+            ]},
+        )
+
+        # We need random to make chunk pool schedule jobs from the middle.
+        # If we schedule jobs left-to-right, the probability of the misadjusment is much lower.
+        payload_size = (800, 1000)
+        seed = random.randint(0, 2**16)
+        print_debug(f"Seed: {seed}")
+        rng = random.Random(seed)
+
+        def rows(*indices):
+            return [{"index": i, "payload": rng.randint(payload_size[0], payload_size[1]) * "x"} for i in indices]
+
+        for indices in itertools.batched(range(1000), n=50):
+            write_table("<append=%true>//tmp/in", rows(*indices))
+
+        ranges = [
+            "{lower_limit={row_index=%s};upper_limit={row_index=%s}}" % (range[0], range[-1] + 1)
+            for range in itertools.batched(range(1000), n=100)
+        ]
+
+        op = map(
+            track=False,
+            in_=[
+                f"<ranges=[{';'.join(ranges)}]>//tmp/in",
+            ],
+            out="<create=%true>//tmp/t_output",
+            command="cat",
+            ordered=True,
+            spec={
+                "data_weight_per_job": 10_000,
+                "mapper": {"format": "json"},
+                "resource_limits": {"user_slots": 3},
+                "force_allow_job_interruption": True,
+                "force_job_size_adjuster": True,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 100},
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+            }
+        )
+
+        op.wait_for_state("running")
+
+        def get_and_print_progress():
+            try:
+                progress = get(
+                    op.get_path() + "/@brief_progress/jobs",
+                    verbose=False
+                )
+            except YtError as e:
+                if e.contains_code(500):
+                    return None
+                else:
+                    raise
+
+            print_debug("Progress: ", (", ".join(f"{category}={count}" for category, count in progress.items())))
+            return progress
+
+        while op.get_state() == "running":
+            progress = get_and_print_progress()
+            if not progress:
+                continue
+
+            # No point in interrupting final jobs. They are not going to be adjusted anyway.
+            if progress["pending"] <= 5:
+                break
+
+            progress = op.build_progress()
+            jobs = op.get_running_jobs(verbose=False)
+            if len(jobs) >= 1:
+                job_id = next(iter(jobs))
+                try:
+                    time.sleep(1.5)  # Wait a bit until job starts reading.
+                    op.interrupt_job(job_id, raise_on_failed_interruption=False)
+                    print_debug(f"Successfully interrupted {job_id}")
+                except YtError:
+                    print_debug(f"Failed to interrupt {job_id}")
+                    pass
+
+        op.track()
+
+        # Otherwise payload shows up in diff
+        def strip_payload(rows):
+            return [
+                {"index": row["index"]}
+                for row in rows
+            ]
+
+        assert strip_payload(read_table("//tmp/t_output", verbose=False)) == strip_payload(rows(*range(1000)))
 
 
 ##################################################################

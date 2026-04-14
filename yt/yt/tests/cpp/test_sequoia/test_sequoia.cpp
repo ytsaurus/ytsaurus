@@ -934,7 +934,7 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     int okWithoutRetries = 0;
     int sequoiaRetriableErrors = 0;
     for (int i : std::views::iota(0, RequestCount)) {
-        const auto& error = responses[i].Get();
+        const auto& error = responses[i].GetOrCrash();
         if (error.IsOK()) {
             ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
@@ -1019,6 +1019,63 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
         WaitFor(Client_->RemoveNode("//sequoia/*"))
             .ThrowOnError();
     }
+}
+
+TEST_F(TSequoiaTest, TestLatency)
+{
+    WaitFor(Client_->CreateNode("//latency", EObjectType::MapNode)).ThrowOnError();
+    auto finally = Finally([] {
+        Y_UNUSED(WaitFor(Client_->RemoveNode("//latency", {.Recursive = true, .Force = true})));
+    });
+
+    constexpr auto AttemptCount = 40;
+    auto threadPool = CreateThreadPool(8, "Worker");
+
+    std::vector<TFuture<TDuration>> futures;
+    futures.reserve(AttemptCount);
+    for (auto attempt : std::views::iota(0, AttemptCount)) {
+        futures.emplace_back(BIND([client = Client_, attempt] {
+            NProfiling::TWallTimer timer;
+
+            ITransactionPtr tx;
+           {
+               NTracing::TTraceContextGuard guard(NTracing::TTraceContext::NewRoot(""));
+               tx = WaitFor(client->StartTransaction(ETransactionType::Master))
+                    .ValueOrThrow();
+           }
+
+            auto path = Format("//latency/%v", attempt);
+            {
+                NTracing::TTraceContextGuard guard(NTracing::TTraceContext::NewRoot(""));
+                WaitFor(tx->CreateNode(path, EObjectType::MapNode))
+                    .ThrowOnError();
+            }
+
+            {
+                NTracing::TTraceContextGuard guard(NTracing::TTraceContext::NewRoot(""));
+                WaitFor(tx->RemoveNode(path, {}))
+                    .ThrowOnError();
+            }
+
+            {
+                NTracing::TTraceContextGuard guard(NTracing::TTraceContext::NewRoot(""));
+                WaitFor(tx->Commit())
+                    .ThrowOnError();
+            }
+
+            return timer.GetElapsedTime();
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+    }
+
+    auto total = TDuration::Zero();
+    for (auto& f : futures) {
+        total += WaitForFast(f)
+            .ValueOrThrow();
+    }
+
+    YT_LOG_DEBUG("Mean time per test: %vms", total.MilliSeconds() / AttemptCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

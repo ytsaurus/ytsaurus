@@ -23,6 +23,8 @@ target_compile_options(fair_share_action_queue PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(fair_share_action_queue PUBLIC

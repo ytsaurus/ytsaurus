@@ -106,6 +106,7 @@ struct IStrategyHost
 
 struct TAllocationUpdate
 {
+    NNodeTrackerClient::TNodeId NodeId;
     TOperationId OperationId;
     TAllocationId AllocationId;
     std::string TreeId;
@@ -116,8 +117,10 @@ struct TAllocationUpdate
     std::optional<std::string> AllocationInfinibandCluster;
 
     bool ResourceUsageUpdated = false;
-    bool ResetPreemptibleProgress = false;
     bool Finished = false;
+
+    // Is non-empty if preemptible progress has been reset.
+    std::optional<TInstant> PreemptibleProgressStartTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

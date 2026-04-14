@@ -142,9 +142,9 @@ struct TCompositeNeededResources
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/);
 
-TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
-TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
-TCompositeNeededResources operator - (const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator+(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator-(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator-(const TCompositeNeededResources& rhs);
 
 TString FormatResources(const TCompositeNeededResources& resources);
 
@@ -163,6 +163,8 @@ struct TAllocationGroupResources
     int AllocationCount = 0;
 
     void Persist(const TStreamPersistenceContext& context);
+
+    bool operator==(const TAllocationGroupResources& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/);

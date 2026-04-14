@@ -20,52 +20,52 @@ bool ConvertInputArrowType(TType* blockType, arrow::ValueDescr& descr) {
 
 class TOutputTypeVisitor: public arrow::TypeVisitor {
 public:
-    TOutputTypeVisitor(TTypeEnvironment& env)
+    explicit TOutputTypeVisitor(TTypeEnvironment& env)
         : Env_(env)
     {
     }
 
-    arrow::Status Visit(const arrow::BooleanType&) {
+    arrow::Status Visit(const arrow::BooleanType&) override {
         SetDataType(NUdf::EDataSlot::Bool);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::Int8Type&) {
+    arrow::Status Visit(const arrow::Int8Type&) override {
         SetDataType(NUdf::EDataSlot::Int8);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::UInt8Type&) {
+    arrow::Status Visit(const arrow::UInt8Type&) override {
         SetDataType(NUdf::EDataSlot::Uint8);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::Int16Type&) {
+    arrow::Status Visit(const arrow::Int16Type&) override {
         SetDataType(NUdf::EDataSlot::Int16);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::UInt16Type&) {
+    arrow::Status Visit(const arrow::UInt16Type&) override {
         SetDataType(NUdf::EDataSlot::Uint16);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::Int32Type&) {
+    arrow::Status Visit(const arrow::Int32Type&) override {
         SetDataType(NUdf::EDataSlot::Int32);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::UInt32Type&) {
+    arrow::Status Visit(const arrow::UInt32Type&) override {
         SetDataType(NUdf::EDataSlot::Uint32);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::Int64Type&) {
+    arrow::Status Visit(const arrow::Int64Type&) override {
         SetDataType(NUdf::EDataSlot::Int64);
         return arrow::Status::OK();
     }
 
-    arrow::Status Visit(const arrow::UInt64Type&) {
+    arrow::Status Visit(const arrow::UInt64Type&) override {
         SetDataType(NUdf::EDataSlot::Uint64);
         return arrow::Status::OK();
     }
@@ -175,7 +175,8 @@ bool FindArrowFunction(TStringBuf name, const TArrayRef<TType*>& inputTypes, TTy
 }
 
 bool HasArrowCast(TType* from, TType* to) {
-    std::shared_ptr<arrow::DataType> fromArrowType, toArrowType;
+    std::shared_ptr<arrow::DataType> fromArrowType;
+    std::shared_ptr<arrow::DataType> toArrowType;
     if (!ConvertArrowType(from, fromArrowType)) {
         return false;
     }

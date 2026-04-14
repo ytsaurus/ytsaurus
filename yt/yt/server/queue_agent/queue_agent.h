@@ -1,6 +1,7 @@
 #pragma once
 
 #include "object.h"
+#include "pass_profiler.h"
 
 #include <yt/yt/server/lib/cypress_election/public.h>
 
@@ -54,12 +55,12 @@ public:
         const TQueueAgentDynamicConfigPtr& newConfig);
 
     // IObjectStore implementation.
-
-    TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const override;
+    TQueueSnapshotConstPtr FindQueueSnapshot(NQueueClient::TQueuePath objectPath) const override;
+    TConsumerSnapshotConstPtr FindConsumerSnapshot(NQueueClient::TConsumerPath objectPath) const override;
     NYTree::IYPathServicePtr GetObjectService(EObjectKind objectKind) const override;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(
-        NQueueClient::TCrossClusterReference objectRef,
+        NQueueClient::TGenericObjectPath objectPath,
         EObjectKind objectKind) const override;
 
 private:
@@ -75,6 +76,7 @@ private:
     const NAlertManager::IAlertCollectorPtr AlertCollector_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
+    const TPassProfiler PassProfiler_;
 
     const TString AgentId_;
 
@@ -87,19 +89,19 @@ private:
         IObjectControllerPtr Controller;
         std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
     };
-    using TObjectMap = THashMap<NQueueClient::TCrossClusterReference, TObject>;
+    using TObjectMap = THashMap<NQueueClient::TGenericObjectPath, TObject>;
 
     mutable NThreading::TReaderWriterSpinLock ObjectLock_;
     //! Objects available in this queue agent.
     //! NB: Holds objects with both leading and following controllers.
     TEnumIndexedArray<EObjectKind, TObjectMap> Objects_;
     //! All objects with the queue agent stage corresponding to the stage of this queue agent.
-    TEnumIndexedArray<EObjectKind, THashSet<NQueueClient::TCrossClusterReference>> ObjectsWithOurStage_;
+    TEnumIndexedArray<EObjectKind, THashSet<NQueueClient::TGenericObjectPath>> ObjectsWithOurStage_;
     //! The number of objects (per object type) with leading controllers.
     //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
     TEnumIndexedArray<EObjectKind, i64> LeadingObjectCount_;
     //! Mapping of objects to their corresponding queue agent host.
-    THashMap<NQueueClient::TCrossClusterReference, TString> ObjectToHost_;
+    THashMap<NQueueClient::TGenericObjectPath, TString> ObjectToHost_;
 
     //! Current pass error if any.
     TError PassError_;
@@ -121,6 +123,7 @@ private:
 
     //! One iteration of state polling and object store updating.
     void Pass();
+    void GuardedPass(const NLogging::TLogger& Logger);
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

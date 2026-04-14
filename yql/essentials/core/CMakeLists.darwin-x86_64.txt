@@ -84,6 +84,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_csee.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_optimize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation_pg.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_func_stack.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_gc_transformer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_graph_transformer.cpp
@@ -101,6 +102,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_rewrite_io.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_utils.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window_stream_transformers.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_annotation.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_helpers.cpp
@@ -109,6 +111,10 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_udf_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data_storage.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_features.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings_pg.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_callable_transform.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_data_provider.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_default_valid_value.h
@@ -117,6 +123,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_csee.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_optimize.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation_pg.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_func_stack.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_gc_transformer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_graph_transformer.h
@@ -129,6 +136,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_rewrite_io.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_utils.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_window_stream_transformers.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_annotation.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_type_helpers.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_udf_index.h
@@ -136,6 +144,11 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_udf_resolver.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data_storage.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_features.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_setting_bound.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings_pg.h
 )
 
 

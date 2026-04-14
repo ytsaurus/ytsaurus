@@ -1,5 +1,7 @@
 #pragma once
 
+#include "path.h"
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
@@ -13,6 +15,8 @@ namespace NYT::NQueueClient {
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentStageChannelConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerBatchLookupConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerConfig)
 
 inline const std::string ProductionStage = "production";
@@ -36,6 +40,7 @@ DECLARE_REFCOUNTED_CLASS(TConsumerTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentObjectMappingTable)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableMappingTable)
+DECLARE_REFCOUNTED_CLASS(TReplicaMappingTable)
 DECLARE_REFCOUNTED_STRUCT(TDynamicState)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +54,7 @@ struct TQueueTableRow;
 struct TConsumerTableRow;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
-using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
+using TConsumerRowMap = THashMap<TConsumerPath, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

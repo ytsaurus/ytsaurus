@@ -171,12 +171,15 @@ DB::Pipe CreateRemoteSource(
 
     bool isInsert = queryAst->as<DB::ASTInsertQuery>();
 
-    DB::RemoteQueryExecutor::Extension extension;
-    extension.task_iterator = std::make_shared<std::function<std::string()>>([
-        taskIterator = std::move(taskIterator)
-    ] {
-            return taskIterator->NextTask();
-    });
+    std::optional<DB::RemoteQueryExecutor::Extension> extension;
+    if (taskIterator) {
+        extension.emplace();
+        extension->task_iterator = std::make_shared<std::function<std::string()>>([
+            taskIterator = std::move(taskIterator)
+        ] {
+                return taskIterator->NextTask();
+        });
+    }
 
     auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),
@@ -187,7 +190,7 @@ DB::Pipe CreateRemoteSource(
         scalars,
         externalTables,
         processingStage,
-        std::move(extension));
+        extension);
     remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
 
     auto* traceContext = TryGetCurrentTraceContext();

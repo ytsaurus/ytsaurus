@@ -18,7 +18,6 @@ namespace NYT::NChunkClient {
 struct IChunkReplicaCache
     : public virtual TRefCounted
 {
-public:
     virtual std::vector<TErrorOr<TAllyReplicasInfo>> FindReplicas(
         const std::vector<TChunkId>& chunkIds) = 0;
 

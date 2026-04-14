@@ -1,15 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "structs.h"
-#include "assignment_plan_update.h"
-#include "assignment_plan_context_detail.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
 #include <yt/yt/server/scheduler/strategy/public.h>
-
-#include <yt/yt/server/scheduler/common/public.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
@@ -17,22 +12,23 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulingPolicy
-    : public NPolicy::ISchedulingPolicy
-{
-    // TODO(eshcherbin): Update node descriptor in ProcessSchedulingHeartbeat after dry-run scheduling policy is no more.
-    virtual void UpdateNodeDescriptor(NNodeTrackerClient::TNodeId nodeId, TExecNodeDescriptorPtr descriptor) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ISchedulingPolicy)
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISchedulingPolicyPtr CreateSchedulingPolicy(
+ISchedulingPolicyPtr CreateDryRunOrNoopSchedulingPolicy(
+    std::string treeId,
+    NLogging::TLogger logger,
     TWeakPtr<ISchedulingPolicyHost> host,
+    IPoolTreeHost* treeHost,
     IStrategyHost* strategyHost,
-    const std::string& treeId,
-    const TStrategyTreeConfigPtr& config);
+    TStrategyTreeConfigPtr config,
+    NProfiling::TProfiler profiler);
+
+ISchedulingPolicyPtr CreateAllocatingSchedulingPolicy(
+    std::string treeId,
+    NLogging::TLogger logger,
+    TWeakPtr<ISchedulingPolicyHost> host,
+    IPoolTreeHost* treeHost,
+    IStrategyHost* strategyHost,
+    TStrategyTreeConfigPtr config,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

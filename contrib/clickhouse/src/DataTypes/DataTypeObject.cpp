@@ -23,6 +23,7 @@
 #include <Interpreters/Context.h>
 #include <Core/Settings.h>
 #include <IO/Operators.h>
+#include <boost/algorithm/string.hpp>
 
 #include "clickhouse_config.h"
 
@@ -198,7 +199,11 @@ String DataTypeObject::doGetName() const
     for (const auto & path : sorted_typed_paths)
     {
         write_separator();
-        out << backQuoteIfNeed(path) << " " << typed_paths.at(path)->getName();
+        /// We must quote path "SKIP" to avoid its confusion with SKIP keyword.
+        if (boost::to_upper_copy(path) == "SKIP")
+            out << backQuote(path) << " " << typed_paths.at(path)->getName();
+        else
+            out << backQuoteIfNeed(path) << " " << typed_paths.at(path)->getName();
     }
 
     std::vector<String> sorted_skip_paths;
@@ -356,6 +361,7 @@ std::unique_ptr<ISerialization::SubstreamData> DataTypeObject::getDynamicSubcolu
                 if (path.starts_with(prefix))
                     result_dynamic_paths.emplace_back(path.substr(prefix.size()), column);
             }
+            result_object_column.setMaxDynamicPaths(result_dynamic_paths.size());
             result_object_column.setDynamicPaths(result_dynamic_paths);
 
             const auto & shared_data_offsets = object_column.getSharedDataOffsets();
@@ -484,11 +490,12 @@ static DataTypePtr createObject(const ASTPtr & arguments, const DataTypeObject::
         }
         else if (object_type_argument->path_with_type)
         {
-            const auto * path_with_type = object_type_argument->path_with_type->as<ASTNameTypePair>();
+            const auto * path_with_type = object_type_argument->path_with_type->as<ASTObjectTypedPathArgument>();
             auto data_type = DataTypeFactory::instance().get(path_with_type->type);
-            if (typed_paths.contains(path_with_type->name))
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Found duplicated path with type: {}", path_with_type->name);
-            typed_paths.emplace(path_with_type->name, data_type);
+            if (typed_paths.contains(path_with_type->path))
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Found duplicated path with type: {}", path_with_type->path);
+
+            typed_paths.emplace(path_with_type->path, data_type);
         }
         else if (object_type_argument->skip_path)
         {

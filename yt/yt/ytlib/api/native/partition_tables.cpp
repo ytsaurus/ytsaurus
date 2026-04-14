@@ -77,12 +77,17 @@ TMultiTablePartitioner::TMultiTablePartitioner(
     , Options_(std::move(options))
     , User_(std::move(user))
     , Logger(std::move(logger))
-{ }
+{
+    if (!Options_.DataWeightPerPartition && !Options_.CompressedDataSizePerPartition) {
+        THROW_ERROR_EXCEPTION("Must specify either DataWeightPerPartition or CompressedDataSizePerPartition");
+    }
+}
 
 TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
 {
-    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, MaxPartitionCount: %v, AdjustDataWeightPerPartition: %v)",
+    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, MaxPartitionCount: %v, AdjustDataWeightPerPartition: %v)",
         Options_.DataWeightPerPartition,
+        Options_.CompressedDataSizePerPartition,
         Options_.MaxPartitionCount,
         Options_.AdjustDataWeightPerPartition);
 
@@ -98,6 +103,7 @@ void TMultiTablePartitioner::InitializeChunkPool()
     ChunkPool_ = CreateChunkPool(
         Options_.PartitionMode,
         Options_.DataWeightPerPartition,
+        Options_.CompressedDataSizePerPartition,
         Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
         Logger);
 }
@@ -206,12 +212,18 @@ void TMultiTablePartitioner::BuildPartitions()
     YT_VERIFY(ChunkPool_);
     YT_VERIFY(IsDataSourcesReady());
 
-    while (true) {
-        auto cookie = ChunkPool_->Extract();
-        if (cookie == IChunkPoolOutput::NullCookie) {
-            break;
+    std::vector<TOutputCookie> cookies;
+    if (Options_.PartitionMode == ETablePartitionMode::Ordered) {
+        auto orderedOutput = DynamicPointerCast<IChunkPoolOutputWithOrderedCookies>(ChunkPool_);
+        YT_VERIFY(orderedOutput);
+        cookies = orderedOutput->GetOutputCookiesInOrder();
+    } else {
+        for (auto cookie = ChunkPool_->Extract(); cookie != IChunkPoolOutput::NullCookie; cookie = ChunkPool_->Extract()) {
+            cookies.push_back(cookie);
         }
+    }
 
+    for (const auto& cookie : cookies) {
         if (Options_.MaxPartitionCount && std::ssize(Partitions_.Partitions) >= *Options_.MaxPartitionCount) {
             // Note: YQL tests check this error message, but they are not run automatically on commits.
             // If you change the message, please change the tests after deployment.
@@ -316,6 +328,11 @@ void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inp
 {
     const auto& [inputChunks, tableIndex] = inputTable;
     const auto& comparator = GetComparator(tableIndex);
+    if (Options_.CompressedDataSizePerPartition) {
+        THROW_ERROR_EXCEPTION("Partitioning versioned table by compressed data size is unimplemented")
+            << TErrorAttribute("table_index", tableIndex);
+    }
+    YT_VERIFY(Options_.DataWeightPerPartition);
 
     YT_LOG_DEBUG("Fetching versioned data slices (TableIndex: %v, ChunkCount: %v)",
         tableIndex,
@@ -340,7 +357,7 @@ void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inp
         YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)",
             tableIndex,
             dataSlice);
-        fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
+        fetcher->AddDataSliceForSlicing(dataSlice, comparator, *Options_.DataWeightPerPartition, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
     }
 
     FetchState_.TableFetchers.push_back(std::move(fetcher));

@@ -53,7 +53,7 @@ private:
 
         TKey Key;
         TUpdateParameters UpdateParameters;
-        TFuture<void> LastUpdateFuture = VoidFuture;
+        TFuture<void> LastUpdateFuture = OKFuture;
     };
 
     THashMap<TKey, TUpdateRecord> Updates_;

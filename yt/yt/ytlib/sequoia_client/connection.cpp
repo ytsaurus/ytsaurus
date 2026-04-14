@@ -89,7 +89,7 @@ private:
             clientCache = ClientCache_;
         }
 
-        if (Y_UNLIKELY(!clientCache)) {
+        if (!clientCache) [[unlikely]] {
             auto localConnection = LocalConnection_.Lock();
             if (!localConnection) {
                 THROW_ERROR_EXCEPTION("Sequoia connection finds local connection destroyed while creating authenticated local client");
@@ -112,7 +112,7 @@ private:
             result = GroundClientFuture_;
         }
 
-        if (result && (!result.IsSet() || result.Get().IsOK())) {
+        if (result && (!result.IsSet() || result.GetOrCrash().IsOK())) {
             return result;
         }
 

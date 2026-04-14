@@ -37,6 +37,8 @@ target_compile_options(server-lib-user_job PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(server-lib-user_job PUBLIC

@@ -16,13 +16,13 @@ using namespace NUdf;
 namespace {
 class TPireUdfBase: public TBoxedValue {
 protected:
-    TPireUdfBase(TSourcePosition pos)
+    explicit TPireUdfBase(TSourcePosition pos)
         : Pos_(pos)
     {
     }
 
     void SetCommonOptions(std::string_view& regex, TFsm::TOptions& options) {
-        if (regex.size() >= 4U && regex.substr(0U, 4U) == "(?i)") {
+        if (regex.size() >= 4U && regex.starts_with("(?i)")) {
             options.SetCaseInsensitive(true);
             regex.remove_prefix(4U);
         }
@@ -176,7 +176,7 @@ class TPireCapture: public TPireUdfBase {
 public:
     class TFactory: public TPireUdfBase {
     public:
-        TFactory(TSourcePosition pos)
+        explicit TFactory(TSourcePosition pos)
             : TPireUdfBase(pos)
         {
         }
@@ -231,7 +231,7 @@ class TPireReplace: public TPireUdfBase {
 public:
     class TFactory: public TPireUdfBase {
     public:
-        TFactory(TSourcePosition pos)
+        explicit TFactory(TSourcePosition pos)
             : TPireUdfBase(pos)
         {
         }

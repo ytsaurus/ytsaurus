@@ -61,6 +61,7 @@ type UserScript struct {
 	UsePortoMemoryTracking *bool          `yson:"use_porto_memory_tracking,omitempty"`
 	UseSmapsMemoryTracker  *bool          `yson:"use_smaps_memory_tracker,omitempty"`
 	Monitoring             map[string]any `yson:"monitoring,omitempty"`
+	EnableGpuCheck         *bool          `yson:"enable_gpu_check,omitempty"`
 
 	// Following fields are used only in vanilla operations.
 	JobCount         int           `yson:"job_count,omitempty"`
@@ -189,6 +190,8 @@ type Spec struct {
 	CoreTablePath                 ypath.Path    `yson:"core_table_path,omitempty"`
 
 	JobCPUMonitor *JobCPUMonitor `yson:"job_cpu_monitor,omitempty"`
+
+	EnableRootVolumeDiskQuota bool `yson:"enable_root_volume_disk_quota,omitempty"`
 
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`

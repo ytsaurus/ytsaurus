@@ -94,7 +94,7 @@ auto MakeFinishRequestFormatter(const TTransactionFinishRequest& request)
             additionalFormatter);
         return false;
     }
-    if (transaction->GetIsCypressTransaction() && transaction->IsForeign()) {
+    if (transaction->IsCypressTransaction() && transaction->IsForeign()) {
         YT_LOG_ALERT("Attempted to %v foreign Cypress transaction (TransactionId: %v%v)",
             actionDescription,
             GetObjectId(transaction),
@@ -443,7 +443,7 @@ public:
         }
 
         if (!Requests_.contains(transaction)) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // NB: active request has to be unregistered to allow transaction to be

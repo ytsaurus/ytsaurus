@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/query/base/query_common.h>
 
+#include <yt/yt/library/web_assembly/engine/builtins.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +88,8 @@ Value* CodegenLexicographicalCompare(
     Value* rhsData,
     Value* rhsLength);
 
+Value* CodegenAllocateValues(const TCGIRBuilderPtr& builder, size_t valueCount);
+
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
     bool nullable,
@@ -151,7 +155,8 @@ TCodegenExpression MakeCodegenLikeExpr(
     EStringMatchOp opcode,
     size_t patternId,
     std::optional<size_t> escapeCharacterId,
-    int contextIndex);
+    int contextIndex,
+    bool nullable);
 
 TCodegenExpression MakeCodegenCompositeMemberAccessorExpr(
     size_t compositeId,
@@ -235,7 +240,7 @@ size_t MakeCodegenFilterFinalizedOp(
 
 struct TSingleJoinCGParameters
 {
-    std::vector<std::pair<size_t, bool>> Equations;
+    std::vector<size_t> Equations;
     size_t CommonKeyPrefix;
     size_t ForeignKeyPrefix;
     std::vector<EValueType> LookupKeyTypes;
@@ -342,47 +347,28 @@ void MakeCodegenWriteOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUsedWebAssemblyFilesHasher
-{
-public:
-    ui64 operator()(const TSharedRef& ref) const;
-};
-
-class TUsedWebAssemblyFilesEqComparer
-{
-public:
-    bool operator()(const TSharedRef& lhs, const TSharedRef& rhs) const;
-};
-
-DECLARE_REFCOUNTED_CLASS(TUsedWebAssemblyFiles)
-
-class TUsedWebAssemblyFiles final
-    : public THashSet<TSharedRef, TUsedWebAssemblyFilesHasher, TUsedWebAssemblyFilesEqComparer>
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TUsedWebAssemblyFiles)
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotIndex,
     NCodegen::EExecutionBackend executionBackend,
     NCodegen::EOptimizationLevel optimizationLevel,
-    const TUsedWebAssemblyFiles& usedWebAssemblyFiles);
+    const NWebAssembly::TModuleBytecode& sdk,
+    const NWebAssembly::TModuleBytecodeHashSet& usedWebAssemblyFiles);
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
     NCodegen::EExecutionBackend executionBackend,
-    const TUsedWebAssemblyFiles& usedWebAssemblyFiles);
+    const NWebAssembly::TModuleBytecode& sdk,
+    const NWebAssembly::TModuleBytecodeHashSet& usedWebAssemblyFiles);
 
 TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
     NCodegen::EExecutionBackend executionBackend,
-    const TUsedWebAssemblyFiles& usedWebAssemblyFiles);
+    const NWebAssembly::TModuleBytecode& sdk,
+    const NWebAssembly::TModuleBytecodeHashSet& usedWebAssemblyFiles);
 
 ////////////////////////////////////////////////////////////////////////////////
 

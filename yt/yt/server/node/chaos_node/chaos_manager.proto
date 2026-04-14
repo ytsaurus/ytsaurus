@@ -135,6 +135,7 @@ message TReqMigrateChaosLeases
 
     repeated TChaosLease chaos_leases = 3;
 }
+
 message TReqConfirmChaosObjectsMigration
 {
     repeated NYT.NProto.TGuid chaos_object_ids = 1;

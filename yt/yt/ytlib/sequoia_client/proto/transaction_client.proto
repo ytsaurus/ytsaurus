@@ -30,6 +30,9 @@ message TReqStartTransaction
 {
     required NYT.NProto.TGuid id = 1;
     required int64 timeout = 2;
+
+    optional bool suppress_strongly_ordered_transaction_barrier = 9 [default = false];
+
     required NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
     required TWriteSet write_set = 4;
     repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;

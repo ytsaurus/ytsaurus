@@ -122,6 +122,21 @@ bool AreScalarAttributeMappingsEqual(
 
 template <class T>
 bool AreScalarAttributesEqualImpl(
+    const std::optional<T>& lhs,
+    const std::optional<T>& rhs,
+    const TComparisonOptions& options)
+{
+    if (!lhs.has_value() && !rhs.has_value()) {
+        return true;
+    }
+    if (!lhs.has_value() || !rhs.has_value()) {
+        return false;
+    }
+    return AreScalarAttributesEqualImpl(*lhs, *rhs, options);
+}
+
+template <class T>
+bool AreScalarAttributesEqualImpl(
     const std::vector<T>& lhs,
     const std::vector<T>& rhs,
     const TComparisonOptions& options)
@@ -449,16 +464,14 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing, bool allowRelative)
+void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing)
 {
     TClearVisitor visitor;
     visitor.SetAllowAsterisk(true);
     if (skipMissing) {
         visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
     }
-    visitor.SetRelativeIndexPolicy(allowRelative
-        ? ERelativeIndexPolicy::Reinterpret
-        : ERelativeIndexPolicy::Throw);
+    visitor.SetRelativeIndexPolicy(ERelativeIndexPolicy::Throw);
     visitor.Visit(std::forward<T>(from), path);
 }
 

@@ -38,6 +38,9 @@ DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 
 DECLARE_REFCOUNTED_STRUCT(ISequoiaReplicasModifier)
 
+DECLARE_REFCOUNTED_STRUCT(IGlobalSequoiaChunkRefresher)
+struct TGlobalSequoiaChunkRefreshStatus;
+
 template <class TPayload>
 class TChunkScanQueueWithPayload;
 using TChunkScanQueue = TChunkScanQueueWithPayload<void>;

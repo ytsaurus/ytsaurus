@@ -20,7 +20,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -74,7 +74,7 @@ public:
 
     void ProcessTransaction(const TTransaction* transaction)
     {
-        YT_VERIFY(transaction->GetIsCypressTransaction());
+        YT_VERIFY(transaction->IsCypressTransaction());
 
         if (transaction->IsNative()) {
             ProcessNativeTransaction(transaction);
@@ -324,13 +324,13 @@ private:
         const std::string& key,
         NCypressServer::TNodeId childId)
     {
-        if (Consumer_->ChildNode) {
+        if (Consumer_->ChildNodes) {
             auto row = NRecords::TChildNode{
                 .Key = {.ParentId = parent->GetId(), .TransactionId = GetObjectId(parent->GetTransaction()), .ChildKey = key},
                 .ChildId = childId,
             };
 
-            Consumer_->ChildNode->Consume(row);
+            Consumer_->ChildNodes->Consume(row);
         }
     }
 
@@ -506,7 +506,7 @@ void ReconstructTransactionTables(TBootstrap* bootstrap, TSequoiaReconstructorMa
     const auto& cypressManager = bootstrap->GetTransactionManager();
     for (auto [transactionId, transaction] : cypressManager->Transactions()) {
         if (IsObjectAlive(transaction) &&
-            transaction->GetIsCypressTransaction())
+            transaction->IsCypressTransaction())
         {
             mapper.ProcessTransaction(transaction);
         }
@@ -528,7 +528,7 @@ void ExecuteSequoiaReconstructorMapStage(
     if (consumer->NodeForks ||
         consumer->NodeSnapshots ||
         consumer->NodeIdToPath ||
-        consumer->ChildNode ||
+        consumer->ChildNodes ||
         consumer->ChildForks ||
         consumer->PathToNodeId ||
         consumer->PathForks ||

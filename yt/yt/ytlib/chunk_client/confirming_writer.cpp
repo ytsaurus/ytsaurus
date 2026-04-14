@@ -93,10 +93,10 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_VERIFY(!Initialized_);
+        YT_VERIFY(!Initialized_.load());
         YT_VERIFY(!OpenFuture_);
 
-        OpenFuture_ = BIND(&TConfirmingWriter::OpenSession, MakeWeak(this))
+        OpenFuture_ = BIND(&TConfirmingWriter::Initialize, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
         return OpenFuture_;
@@ -115,10 +115,9 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
-        YT_VERIFY(Initialized_);
-        YT_VERIFY(OpenFuture_.IsSet());
+        YT_VERIFY(Initialized_.load());
 
-        if (!OpenFuture_.Get().IsOK()) {
+        if (!OpenFuture_.GetOrCrash().IsOK()) {
             return false;
         } else {
             return UnderlyingWriter_->WriteBlocks(options, workloadDescriptor, blocks);
@@ -127,9 +126,8 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        YT_VERIFY(Initialized_);
-        YT_VERIFY(OpenFuture_.IsSet());
-        if (!OpenFuture_.Get().IsOK()) {
+        YT_VERIFY(Initialized_.load());
+        if (!OpenFuture_.GetOrCrash().IsOK()) {
             return OpenFuture_;
         } else {
             return UnderlyingWriter_->GetReadyEvent();
@@ -139,12 +137,9 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
-        YT_VERIFY(Initialized_);
-        YT_VERIFY(OpenFuture_.IsSet());
-        YT_VERIFY(!truncateBlockCount.has_value());
+        YT_VERIFY(Initialized_.load());
 
         ChunkMeta_ = chunkMeta;
 
@@ -183,6 +178,10 @@ public:
 
     TChunkId GetChunkId() const override
     {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
+            return {};
+        }
         return SessionId_.ChunkId;
     }
 
@@ -193,11 +192,15 @@ public:
 
     bool IsCloseDemanded() const override
     {
-        if (UnderlyingWriter_) {
-            return UnderlyingWriter_->IsCloseDemanded();
-        } else {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
             return false;
         }
+        // Initialize() could have been unsuccessful.
+        if (!UnderlyingWriter_) {
+            return false;
+        }
+        return UnderlyingWriter_->IsCloseDemanded();
     }
 
     TFuture<void> Cancel() override
@@ -233,18 +236,15 @@ private:
 
     NLogging::TLogger Logger;
 
-    void OpenSession()
+    void Initialize()
     {
         auto finally = Finally([&] {
-            Initialized_ = true;
+            Initialized_.store(true);
         });
 
         if (SessionId_.ChunkId) {
             YT_LOG_DEBUG("Writing existing chunk (ChunkId: %v)", SessionId_.ChunkId);
         } else {
-            if (Options_->Account.empty()) {
-                THROW_ERROR_EXCEPTION("Error creating chunk: account should not be empty");
-            }
             SessionId_ = NChunkClient::CreateChunk(
                 Client_,
                 CellTag_,
@@ -252,7 +252,7 @@ private:
                 TransactionId_,
                 ParentChunkListId_,
                 Logger);
-            YT_LOG_DEBUG("Chunk created");
+            YT_LOG_DEBUG("Chunk created (ChunkId: %v)", SessionId_.ChunkId);
         }
 
         Logger.AddTag("ChunkId: %v", SessionId_);
@@ -331,6 +331,8 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
+        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)", replicas);
+
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
@@ -348,11 +350,7 @@ private:
 
             req->set_location_uuids_supported(true);
 
-            for (const auto& replica : replicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+            ToProto(req->mutable_replicas(), replicas);
 
             if (SchemaId_ != NullTableSchemaId) {
                 ToProto(req->mutable_schema_id(), SchemaId_);

@@ -218,6 +218,8 @@ protected:
     void VisitOther(TVisitParam&& target, EVisitReason reason);
 }; // TPathVisitor
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NOrm::NAttributes
 
 #define PATH_VISITOR_INL_H_

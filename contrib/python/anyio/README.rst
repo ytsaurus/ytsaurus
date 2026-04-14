@@ -10,6 +10,9 @@
 .. image:: https://badges.gitter.im/gitterHQ/gitter.svg
   :target: https://gitter.im/python-trio/AnyIO
   :alt: Gitter chat
+.. image:: https://tidelift.com/badges/package/pypi/anyio
+  :target: https://tidelift.com/subscription/pkg/pypi-anyio
+  :alt: Tidelift
 
 AnyIO is an asynchronous networking and concurrency library that works on top of either asyncio_ or
 Trio_. It implements Trio-like `structured concurrency`_ (SC) on top of asyncio and works in harmony
@@ -48,6 +51,7 @@ AnyIO offers the following functionality:
 * Subinterpreter support for code parallelization (on Python 3.13 and later)
 * Asynchronous file I/O (using worker threads)
 * Signal handling
+* Asynchronous version of the functools_ module
 
 AnyIO also comes with its own pytest_ plugin which also supports asynchronous fixtures.
 It even works with the popular Hypothesis_ library.
@@ -58,4 +62,13 @@ It even works with the popular Hypothesis_ library.
 .. _nurseries: https://trio.readthedocs.io/en/stable/reference-core.html#nurseries-and-spawning
 .. _Happy eyeballs: https://en.wikipedia.org/wiki/Happy_Eyeballs
 .. _pytest: https://docs.pytest.org/en/latest/
+.. _functools: https://docs.python.org/3/library/functools.html
 .. _Hypothesis: https://hypothesis.works/
+
+Security contact information
+----------------------------
+
+To report a security vulnerability, please use the `Tidelift security contact`_.
+Tidelift will coordinate the fix and disclosure.
+
+.. _Tidelift security contact: https://tidelift.com/security

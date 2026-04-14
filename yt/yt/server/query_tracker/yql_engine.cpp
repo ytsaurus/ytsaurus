@@ -47,10 +47,9 @@ const std::string DefaultYqlAgentStageName = "production";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlSettings
+struct TYqlSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
 
@@ -66,7 +65,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TYqlSettings)
-DECLARE_REFCOUNTED_CLASS(TYqlSettings)
+DECLARE_REFCOUNTED_STRUCT(TYqlSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -332,50 +331,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlEngine
-    : public IQueryEngine
-{
-public:
-    TYqlEngine(IClientPtr stateClient, TYPath stateRoot)
-        : StateClient_(std::move(stateClient))
-        , StateRoot_(std::move(stateRoot))
-        , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
-    { }
-
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        return New<TYqlQueryHandler>(
-            StateClient_,
-            StateRoot_,
-            Config_,
-            activeQuery,
-            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
-            ControlQueue_->GetInvoker(),
-            NotIndexedQueriesTTL_);
-    }
-
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
-    }
-
-private:
-    const IClientPtr StateClient_;
-    const TYPath StateRoot_;
-    const TActionQueuePtr ControlQueue_;
-    TYqlEngineConfigPtr Config_;
-    TDuration NotIndexedQueriesTTL_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProxyYqlEngineProvider
     : public IProxyEngineProvider
 {
@@ -479,16 +434,60 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+class TYqlEngine
+    : public IQueryEngine
 {
-    return New<TYqlEngine>(stateClient, stateRoot);
-}
+public:
+    TYqlEngine(IClientPtr stateClient, TYPath stateRoot)
+        : StateClient_(std::move(stateClient))
+        , StateRoot_(std::move(stateRoot))
+        , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
+        , ProxyEngineProvider_(New<TProxyYqlEngineProvider>(StateClient_, StateRoot_))
+    { }
+
+    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        return New<TYqlQueryHandler>(
+            StateClient_,
+            StateRoot_,
+            Config_,
+            activeQuery,
+            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
+            ControlQueue_->GetInvoker(),
+            NotIndexedQueriesTTL_);
+    }
+
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
+    }
+
+    std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
+    {
+        return ProxyEngineProvider_;
+    }
+
+private:
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
+    const TActionQueuePtr ControlQueue_;
+    const IProxyEngineProviderPtr ProxyEngineProvider_;
+    TYqlEngineConfigPtr Config_;
+    TDuration NotIndexedQueriesTTL_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IProxyEngineProviderPtr CreateProxyYqlEngineProvider(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {
-    return New<TProxyYqlEngineProvider>(stateClient, stateRoot);
+    return New<TYqlEngine>(stateClient, stateRoot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

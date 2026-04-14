@@ -250,7 +250,7 @@ struct TUringRequest
 {
     struct TRequestToNode
     {
-        TIntrusiveLinkedListNode<TUringRequest>* operator() (TUringRequest* request) const {
+        TIntrusiveLinkedListNode<TUringRequest>* operator()(TUringRequest* request) const {
             return request;
         }
     };
@@ -1394,7 +1394,7 @@ private:
 
     EQueueSubmitResult CheckShardAfterEnqueue(int shardIndex)
     {
-        if (Y_UNLIKELY(shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst))) {
+        if (shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst)) [[unlikely]] {
             return EQueueSubmitResult::NeedReconfigure;
         }
 
@@ -1500,6 +1500,9 @@ public:
         , ReconfigureInvoker_(std::move(reconfigureInvoker))
         , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , RequestQueue_(New<TQueue>(locationId, Config_))
+    { }
+
+    void InitializeRefCounted()
     {
         ResizeThreads();
     }
@@ -1570,7 +1573,7 @@ public:
 
     void ReconfigureQueueIfNeeded(EQueueSubmitResult result)
     {
-        if (Y_LIKELY(result != EQueueSubmitResult::NeedReconfigure)) {
+        if (result != EQueueSubmitResult::NeedReconfigure) [[likely]] {
             return;
         }
 
@@ -1838,7 +1841,7 @@ private:
                 uringRequest->ReadSubrequests.push_back({
                     .Handle = std::move(slice.Request.Handle),
                     .Offset = slice.Request.Offset,
-                    .Size = slice.Request.Size
+                    .Size = slice.Request.Size,
                 });
                 uringRequest->ReadSubrequestStates.push_back({
                     .Buffer = slice.OutputBuffer,

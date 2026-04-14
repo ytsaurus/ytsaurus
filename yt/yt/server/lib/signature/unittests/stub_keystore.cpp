@@ -20,7 +20,7 @@ TFuture<void> TStubKeyStore::RegisterKey(const TKeyInfoPtr& keyInfo)
     YT_VERIFY(ownerId == OwnerId);
 
     Data[ownerId].push_back(New<TKeyInfo>(*keyInfo));
-    return VoidFuture;
+    return OKFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

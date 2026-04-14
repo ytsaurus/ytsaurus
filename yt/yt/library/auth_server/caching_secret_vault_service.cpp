@@ -29,7 +29,7 @@ public:
         NProfiling::TProfiler profiler)
         : TAsyncExpiringCache(
             config->Cache,
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             AuthLogger().WithTag("Cache: SecretVault"),
             std::move(profiler))
         , Underlying_(std::move(underlying))

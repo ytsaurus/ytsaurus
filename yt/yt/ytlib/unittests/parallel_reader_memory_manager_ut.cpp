@@ -42,7 +42,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerAllocatesDesiredMemorySi
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100'000,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -69,7 +69,7 @@ TEST(TParallelReaderMemoryManagerTest, TestChunkReaderMemoryManagerGetsMemory)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100'000,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -98,7 +98,7 @@ TEST(TParallelReaderMemoryManagerTest, TestChunkReaderMemoryManagerRevokesMemory
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -134,7 +134,7 @@ TEST(TParallelReaderMemoryManagerTest, TestChunkReaderMemoryManagerUnregister)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -167,7 +167,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerAllocatesAsMuchAsPossibl
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 120,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -194,7 +194,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerFreesMemoryAfterUnregist
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -222,7 +222,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerBalancing1)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -250,7 +250,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerBalancing2)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -295,7 +295,7 @@ TEST(TParallelReaderMemoryManagerTest, TestInitialMemorySize)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 60
+            .MaxInitialReaderReservedMemory = 60,
         },
         actionQueue->GetInvoker());
 
@@ -321,7 +321,7 @@ TEST(TParallelReaderMemoryManagerTest, TestTotalSize)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -346,7 +346,7 @@ TEST(TParallelReaderMemoryManagerTest, TestFreeMemorySize)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -371,7 +371,7 @@ TEST(TParallelReaderMemoryManagerTest, TestRequiredMemorySizeNeverDecreases)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 100,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -400,7 +400,7 @@ TEST(TParallelReaderMemoryManagerTest, PerformanceAndStressTest)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 10'000'000,
-            .MaxInitialReaderReservedMemory = 10'000'000
+            .MaxInitialReaderReservedMemory = 10'000'000,
         },
         actionQueue->GetInvoker());
 
@@ -438,7 +438,7 @@ TEST(TParallelReaderMemoryManagerTest, TestManyHeavyRebalancings)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 200'000,
-            .MaxInitialReaderReservedMemory = 200'000
+            .MaxInitialReaderReservedMemory = 200'000,
         },
         actionQueue->GetInvoker());
 
@@ -480,7 +480,7 @@ TEST(TParallelReaderMemoryManagerTest, TestDynamicReservedMemory)
     auto memoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 200,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -524,7 +524,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagersTree)
     auto mm11 = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 6,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 
@@ -598,7 +598,7 @@ TEST(TParallelReaderMemoryManagerTest, TParallelReaderMemoryManagerTestFinalize)
     auto mm11 = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = 10,
-            .MaxInitialReaderReservedMemory = 0
+            .MaxInitialReaderReservedMemory = 0,
         },
         actionQueue->GetInvoker());
 

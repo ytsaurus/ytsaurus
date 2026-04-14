@@ -216,7 +216,7 @@ public:
                     replicationCardId,
                     TMigratedReplicationCardEntry{
                         .Destination = cellId,
-                        .When = now
+                        .When = now,
                     });
             }
         }

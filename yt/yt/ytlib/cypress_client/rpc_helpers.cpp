@@ -107,10 +107,10 @@ void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const TStr
     header->SetExtension(TSequoiaExt::target_node_effective_acl, effectiveAcl);
 }
 
-std::optional<TYsonString> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
+std::optional<TStringBuf> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
 {
     return header.HasExtension(TSequoiaExt::target_node_effective_acl)
-        ? std::make_optional<TYsonString>(header.GetExtension(TSequoiaExt::target_node_effective_acl))
+        ? std::make_optional<TStringBuf>(header.GetExtension(TSequoiaExt::target_node_effective_acl))
         : std::nullopt;
 }
 

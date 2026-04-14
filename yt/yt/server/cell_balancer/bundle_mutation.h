@@ -76,15 +76,7 @@ constexpr auto operator<=>(const T& lhs, const TBundleMutation<TMutation>& rhs);
 template <class TMutation>
 struct THash<NYT::NCellBalancer::TBundleMutation<TMutation>>
 {
-    std::size_t operator()(const NYT::NCellBalancer::TBundleMutation<TMutation>& object) const
-    {
-        using NYT::HashCombine;
-
-        size_t result = 0;
-        HashCombine(result, object.Mutation);
-        HashCombine(result, object.BundleName);
-        return result;
-    }
+    std::size_t operator()(const NYT::NCellBalancer::TBundleMutation<TMutation>& object) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,49 @@
+{
+    NUM_MASTERS = 1;
+    NUM_CYPRESS_PROXIES = 1;
+    NUM_NODES = 3;
+    NUM_SCHEDULERS = 0;
+    NUM_CONTROLLER_AGENTS = 0;
+    NUM_REMOTE_CLUSTERS = 3;
+    DELTA_MASTER_CONFIG = {
+        object_service = {
+            timeout_backoff_lead_time = 100;
+        };
+    };
+    DELTA_DRIVER_CONFIG = {
+        transaction_manager = {
+            ping_batcher = {
+                enable = %true;
+                batch_size = 2;
+                batch_period = 1000;
+            };
+        };
+    };
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        dynamic_config_manager = {
+            update_period = 1000;
+        };
+        ban_service = {
+            enable = %false;
+            cache_refresh_period = 1000;
+            cross_cluster_replicated_state = {
+                replicas = [
+                    {
+                        cluster_name = "remote_0";
+                        state_directory = "//tmp/banned_users";
+                    };
+                    {
+                        cluster_name = "remote_1";
+                        state_directory = "//tmp/banned_users";
+                    };
+                    {
+                        cluster_name = "remote_2";
+                        state_directory = "//tmp/banned_users";
+                    };
+                ];
+            };
+        };
+    };
+    DRIVER_BACKEND = native;
+    NUM_RPC_PROXIES = 1;
+}

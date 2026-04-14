@@ -41,7 +41,8 @@ protected:
     {
         i64 RowCount = 0;
         i64 DataWeight = 0;
-        std::vector<TSliceExpectation> SliceExpectations;
+        std::vector<TSliceExpectation> PrimarySliceExpectations;
+        std::vector<TSliceExpectation> ForeignSliceExpectations;
     };
 
     struct TFlushExpectations
@@ -132,20 +133,32 @@ protected:
         job.Finalize();
 
         EXPECT_EQ(job.GetRowCount(), expectations.RowCount);
-        EXPECT_EQ(job.GetSliceCount(), std::ssize(expectations.SliceExpectations));
+        EXPECT_EQ(
+            job.GetSliceCount(),
+            std::ssize(expectations.PrimarySliceExpectations) +
+            std::ssize(expectations.ForeignSliceExpectations));
         EXPECT_EQ(job.GetDataWeight(), expectations.DataWeight);
 
         const auto& stripes = job.GetStripeList()->Stripes();
-        ASSERT_EQ(std::ssize(stripes), 1);
+        ASSERT_EQ(
+            std::ssize(stripes),
+            !expectations.PrimarySliceExpectations.empty() +
+            !expectations.ForeignSliceExpectations.empty());
 
-        const auto& dataSlices = stripes[0]->DataSlices();
-        ASSERT_EQ(std::ssize(dataSlices), std::ssize(expectations.SliceExpectations));
+        for (const auto& stripe : stripes) {
+            const auto& sliceExpectations = stripe->IsForeign()
+                ? expectations.ForeignSliceExpectations
+                : expectations.PrimarySliceExpectations;
 
-        for (int i = 0; i < std::ssize(expectations.SliceExpectations); ++i) {
-            YT_VERIFY(std::ssize(dataSlices[i]->ChunkSlices) == 1);
-            ASSERT_EQ(dataSlices[i]->ChunkSlices[0]->GetInputChunk()->GetChunkId(), TChunkId(expectations.SliceExpectations[i].ChunkId, 0));
-            ASSERT_EQ(dataSlices[i]->LowerLimit().KeyBound, expectations.SliceExpectations[i].LowerBound);
-            ASSERT_EQ(dataSlices[i]->UpperLimit().KeyBound, expectations.SliceExpectations[i].UpperBound);
+            const auto& dataSlices = stripe->DataSlices();
+            ASSERT_EQ(std::ssize(dataSlices), std::ssize(sliceExpectations));
+
+            for (int i = 0; i < std::ssize(sliceExpectations); ++i) {
+                YT_VERIFY(std::ssize(dataSlices[i]->ChunkSlices) == 1);
+                ASSERT_EQ(dataSlices[i]->ChunkSlices[0]->GetInputChunk()->GetChunkId(), TChunkId(sliceExpectations[i].ChunkId, 0));
+                ASSERT_EQ(dataSlices[i]->LowerLimit().KeyBound, sliceExpectations[i].LowerBound);
+                ASSERT_EQ(dataSlices[i]->UpperLimit().KeyBound, sliceExpectations[i].UpperBound);
+            }
         }
     }
 
@@ -209,7 +222,7 @@ TEST_F(TSortedStagingAreaTest, SingleJobWithMultipleSlices)
     ValidateJob(preparedJobs.front(), {
         .RowCount = 200,
         .DataWeight = 2000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {0}), BuildBound("<", {5}), /*chunkId*/ 1},  // S1 bounds.
             {BuildBound(">=", {0}), BuildBound("<=", {2}), /*chunkId*/ 2},  // S2 bounds.
         },
@@ -263,7 +276,7 @@ TEST_F(TSortedStagingAreaTest, TwoPromotions)
     ValidateJob(preparedJobs[0], {
         .RowCount = 200,
         .DataWeight = 2000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {0}), BuildBound("<=", {3}), /*chunkId*/ 1},  // S1 portion in J1.
             {BuildBound(">=", {0}), BuildBound("<=", {3}), /*chunkId*/ 2},   // S2 in J1.
         },
@@ -273,7 +286,7 @@ TEST_F(TSortedStagingAreaTest, TwoPromotions)
     ValidateJob(preparedJobs[1], {
         .RowCount = 100,
         .DataWeight = 1000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">", {3}), BuildBound("<", {5}), /*chunkId*/ 1},  // S1 portion in J2.
         },
     });
@@ -327,7 +340,7 @@ TEST_F(TSortedStagingAreaTest, MultipleJobsOverSingleSlice)
     ValidateJob(preparedJobs[0], {
         .RowCount = 100,
         .DataWeight = 1000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {0}), BuildBound("<=", {2}), /*chunkId*/ 1},
         },
     });
@@ -336,7 +349,7 @@ TEST_F(TSortedStagingAreaTest, MultipleJobsOverSingleSlice)
     ValidateJob(preparedJobs[1], {
         .RowCount = 100,
         .DataWeight = 1000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">", {2}), BuildBound("<", {5}), /*chunkId*/ 1},
         },
     });
@@ -345,7 +358,7 @@ TEST_F(TSortedStagingAreaTest, MultipleJobsOverSingleSlice)
     ValidateJob(preparedJobs[2], {
         .RowCount = 100,
         .DataWeight = 1000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {5}), BuildBound("<=", {5}), /*chunkId*/ 1},
         },
     });
@@ -379,10 +392,14 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
 
     StagingArea_->PromoteUpperBound(BuildBound("<", {0}));
 
+    const int primaryTable = 0;
+    const int foreignTable = 1;
+
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(1),
         BuildBound(">=", {0}),
-        BuildBound("<", {2})),
+        BuildBound("<", {2}),
+        primaryTable),
         ESliceType::Buffer);
 
     EXPECT_TRUE(StagingArea_->GetForeignResourceVector().IsZero());
@@ -390,7 +407,8 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(2),
         BuildBound(">=", {1}),
-        BuildBound("<=", {5})),
+        BuildBound("<=", {5}),
+        foreignTable),
         ESliceType::Foreign);
 
     EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0, /*CDS*/ 500));
@@ -412,7 +430,8 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(3),
         BuildBound(">=", {4}),
-        BuildBound("<", {5})),
+        BuildBound("<", {5}),
+        primaryTable),
         ESliceType::Buffer);
 
     auto preparedJobs = FinishAndValidateStatistics({.ExpectedJobCount = 2, .ExpectedDataSliceCount = 4});
@@ -420,8 +439,10 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
     ValidateJob(preparedJobs[0], {
         .RowCount = 200,
         .DataWeight = 2000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {0}), BuildBound("<", {2}), /*chunkId*/ 1},
+        },
+        .ForeignSliceExpectations = {
             {BuildBound(">=", {1}), BuildBound("<", {2}), /*chunkId*/ 2},
         },
     });
@@ -429,8 +450,10 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
     ValidateJob(preparedJobs[1], {
         .RowCount = 200,
         .DataWeight = 2000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {4}), BuildBound("<", {5}), /*chunkId*/ 3},
+        },
+        .ForeignSliceExpectations = {
             {BuildBound(">=", {4}), BuildBound("<", {5}), /*chunkId*/ 2},
         },
     });
@@ -450,25 +473,29 @@ TEST_F(TSortedStagingAreaTest, ForeignResourceVectorTracksAddAndTrimOnFlush)
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(/*chunkId*/ 11, /*dataWeight*/ 700, /*rowCount*/ 100, /*compressedDataSize*/ 100),
         BuildBound(">=", {-10}),
-        BuildBound("<=", {-5})),
+        BuildBound("<=", {-5}),
+        /*tableIndex*/ 0),
         ESliceType::Foreign); // F1
 
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(/*chunkId*/ 12, /*dataWeight*/ 800, /*rowCount*/ 100, /*compressedDataSize*/ 200),
         BuildBound(">=", {-3}),
-        BuildBound("<", {0})),
+        BuildBound("<", {0}),
+        /*tableIndex*/ 0),
         ESliceType::Foreign); // F2
 
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(/*chunkId*/ 13, /*dataWeight*/ 500, /*rowCount*/ 100, /*compressedDataSize*/ 300),
         BuildBound(">=", {-1}),
-        BuildBound("<=", {0})),
+        BuildBound("<=", {0}),
+        /*tableIndex*/ 0),
         ESliceType::Foreign); // F_touch
 
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(/*chunkId*/ 14, /*dataWeight*/ 600,  /*rowCount*/ 100, /*compressedDataSize*/ 400),
         BuildBound(">=", {1}),
-        BuildBound("<=", {5})),
+        BuildBound("<=", {5}),
+        /*tableIndex*/ 0),
         ESliceType::Foreign); // F_right
 
     EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 4, /*DW*/ 2600, /*PDW*/ 0, /*CDS*/ 1000));
@@ -477,7 +504,8 @@ TEST_F(TSortedStagingAreaTest, ForeignResourceVectorTracksAddAndTrimOnFlush)
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(/*chunkId*/ 21, /*dataWeight*/ 1000, /*rowCount*/ 100, /*compressedDataSize*/ 500),
         BuildBound(">=", {0}),
-        BuildBound("<", {5})),
+        BuildBound("<", {5}),
+        /*tableIndex*/ 1),
         ESliceType::Buffer);
 
     // Move buffer to main, set upper bound, and flush. This triggers trimming of foreign slices,
@@ -547,7 +575,7 @@ TEST_F(TSortedStagingAreaTest, SolidsOnly)
     ValidateJob(preparedJobs[0], {
         .RowCount = 100,
         .DataWeight = 1000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">", {0}), BuildBound("<", {2}), /*chunkId*/ 1},
         },
     });
@@ -555,7 +583,7 @@ TEST_F(TSortedStagingAreaTest, SolidsOnly)
     ValidateJob(preparedJobs[1], {
         .RowCount = 100,
         .DataWeight = 1000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">", {0}), BuildBound("<=", {3}), /*chunkId*/ 2},
         },
     });
@@ -563,7 +591,7 @@ TEST_F(TSortedStagingAreaTest, SolidsOnly)
     ValidateJob(preparedJobs[2], {
         .RowCount = 200,
         .DataWeight = 2000,
-        .SliceExpectations = {
+        .PrimarySliceExpectations = {
             {BuildBound(">=", {2}), BuildBound("<=", {5}), /*chunkId*/ 3},
             {BuildBound(">=", {2}), BuildBound("<", {4}), /*chunkId*/ 4},
         },

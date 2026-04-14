@@ -1,9 +1,12 @@
 #include "bootstrap.h"
 
+#include "bundle_controller_connector.h"
 #include "bundle_dynamic_config_manager.h"
+#include "config.h"
 #include "master_connector.h"
 #include "private.h"
-#include "config.h"
+#include "security_manager.h"
+#include "tablet_cell_snapshot_validator.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -11,8 +14,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/node/tablet_node/config.h>
-#include <yt/yt/server/node/tablet_node/security_manager.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -23,6 +24,8 @@
 #include <yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.h>
 #include <yt/yt/server/lib/hydra/dry_run/public.h>
 #include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 
@@ -140,16 +143,15 @@ public:
 
         // Cycles are fine for bootstrap.
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         TransactionLeaseTrackerThreadPool_ = CreateTransactionLeaseTrackerThreadPool(
             "TxTracker",
             GetConfig()->CellarNode->TransactionLeaseTracker);
 
-        // TODO(gritukan): Move TSecurityManager from Tablet Node.
-        ResourceLimitsManager_ = New<NTabletNode::TSecurityManager>(GetConfig()->TabletNode->SecurityManager, this);
+        ResourceLimitsManager_ = CreateResourceLimitsManager(GetConfig()->TabletNode->SecurityManager, this);
 
         // COMPAT(savrus)
         auto getCellarManagerConfig = [&] {
@@ -183,9 +185,9 @@ public:
         };
 
         if (GetConfig()->EnableFairThrottler) {
-            ChangelogOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+            ChangelogOutThrottler_ = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::ChangelogOut));
-            SnapshotOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+            SnapshotOutThrottler_ = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::SnapshotOut));
         } else {
             ChangelogOutThrottler_ = GetUnlimitedThrottler();
@@ -197,8 +199,11 @@ public:
 
         MasterConnector_ = CreateMasterConnector(this);
 
+        BundleControllerConnector_ = New<TBundleControllerConnector>(this);
+
         CellarManager_->Initialize();
         MasterConnector_->Initialize();
+        BundleControllerConnector_->Initialize();
     }
 
     void Run() override
@@ -224,6 +229,11 @@ public:
         return MasterConnector_;
     }
 
+    const TBundleControllerConnectorPtr& GetBundleControllerConnector() const override
+    {
+        return BundleControllerConnector_;
+    }
+
     void ScheduleCellarHeartbeat() const override
     {
         if (!IsConnected()) {
@@ -243,7 +253,7 @@ public:
         BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpMode, checkInvariants)
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -252,7 +262,7 @@ public:
         BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -261,7 +271,7 @@ public:
         BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -270,7 +280,7 @@ public:
         BIND(&TBootstrap::DoFinishDryRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -293,6 +303,8 @@ private:
     ICellarManagerPtr CellarManager_;
 
     IMasterConnectorPtr MasterConnector_;
+
+    TBundleControllerConnectorPtr BundleControllerConnector_;
 
     ICellarOccupantPtr DryRunOccupant_;
 
@@ -318,7 +330,7 @@ private:
             tabletCellBundle,
             clockClusterTag);
 
-        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId, tabletCellBundle, clockClusterTag);
+        DryRunOccupant_ = CreateFakeOccupant(this, cellId, tabletCellBundle, clockClusterTag);
     }
 
     void DoLoadSnapshot(
@@ -390,11 +402,15 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureCellarManager(bundleConfig, newConfig);
+
+        GetBundleControllerConnector()->OnDynamicConfigChanged(
+            oldConfig->CellarNode->BundleControllerConnector,
+            newConfig->CellarNode->BundleControllerConnector);
     }
 
     void OnBundleDynamicConfigChanged(

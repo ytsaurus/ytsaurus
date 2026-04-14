@@ -11,6 +11,7 @@ PEERDIR(
     contrib/ydb/library/login/hashes_checker
     contrib/ydb/library/login/protos
     contrib/ydb/library/login/password_checker
+    contrib/ydb/library/login/sasl
 )
 
 SRCS(
@@ -25,8 +26,9 @@ RECURSE_FOR_TESTS(
 )
 
 RECURSE(
-    hashes_checker
-    password_checker
     account_lockout
     cache
+    hashes_checker
+    password_checker
+    sasl
 )

@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
 
     TOpts opts;
 
-    TString mode;
+    std::string mode;
     opts.AddLongOption("mode", "")
         .RequiredArgument("MODE")
         .StoreResult(&mode);

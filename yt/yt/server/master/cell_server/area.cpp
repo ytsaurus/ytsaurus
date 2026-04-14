@@ -24,7 +24,7 @@ std::string TArea::GetCapitalizedObjectName() const
 
 TYPath TArea::GetObjectPath() const
 {
-    return Format("//sys/areas/%v", GetName());
+    return Format("//sys/areas/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TArea::Save(NCellMaster::TSaveContext& context) const

@@ -27,12 +27,13 @@ struct TShellOptions
     std::vector<TString> Environment;
     std::optional<TString> Bashrc;
     std::optional<TString> MessageOfTheDay;
+    std::vector<NContainers::TBind> Binds;
     TDuration InactivityTimeout;
     std::optional<TString> Command;
     TString ContainerName;
     TGuid Id;
     int Index;
-    TString ContainerUser;
+    std::string ContainerUser;
     bool EnablePorto = false;
     bool EnableJobShellSeccopm = true;
 };
@@ -65,7 +66,8 @@ DEFINE_REFCOUNTED_TYPE(IShell)
 
 IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr portoExecutor,
-    std::unique_ptr<TShellOptions> options);
+    std::unique_ptr<TShellOptions> options,
+    bool isSubcontainer);
 
 IShellPtr CreateShell(std::unique_ptr<TShellOptions> options);
 

@@ -199,12 +199,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
         if (!chunkFragmentReader) {
             chunkFragmentReader = CreateChunkFragmentReader(
                 config,
-                perClusterChunkReaderHost->Client,
-                CreateTrivialNodeStatusDirectory(),
-                GetNullBlockCache(),
-                /*profiler*/ {},
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
-                /*throttlerProvider*/ {});
+                perClusterChunkReaderHost,
+                /*profiler*/ {});
         }
 
         auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
@@ -468,7 +464,10 @@ public:
         // Read time is accounted from our own read timer (reacall that multi reader manager deals with chunk readers
         // while Read() is a table reader level methdd).
         auto statistics = MultiReaderManager_->GetTimingStatistics();
-        statistics.ReadTime = ReadTimer_.GetElapsedTime();
+        {
+            auto guard = Guard(ReadTimerLock_);
+            statistics.ReadTime = ReadTimer_.GetElapsedTime();
+        }
         statistics.IdleTime -= statistics.ReadTime;
         return statistics;
     }
@@ -512,6 +511,7 @@ private:
     std::atomic<bool> Finished_ = false;
 
     TWallTimer ReadTimer_ = TWallTimer(false /*active */);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReadTimerLock_);
 
     void OnReaderSwitched();
 };
@@ -543,9 +543,9 @@ TSchemalessMultiChunkReader::~TSchemalessMultiChunkReader()
 
 IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOptions& options)
 {
-    auto readGuard = TTimerGuard<TWallTimer>(&ReadTimer_);
+    auto readGuard = TTimerGuard<TWallTimer>(&ReadTimer_, &ReadTimerLock_);
 
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().GetOrCrash().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
     }
 
@@ -611,7 +611,7 @@ void TSchemalessMultiChunkReader::Interrupt()
 
 void TSchemalessMultiChunkReader::SkipCurrentReader()
 {
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().GetOrCrash().IsOK()) {
         return;
     }
 
@@ -674,7 +674,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -724,7 +724,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -1201,7 +1201,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto omitFromUserColumns = std::move(timestampOnlyColumns);
 
-    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tableSchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(*tableSchema);
     if (auto insertedNestedKeyColumns = GetMissingNestedKeyColumnsIfNeeded(columnFilter, nestedSchema);
         !insertedNestedKeyColumns.empty())
     {
@@ -1267,7 +1267,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -1450,7 +1450,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
         timestampColumnMapping,
-        NRowMerger::GetNestedColumnsSchema(versionedReadSchema));
+        NRowMerger::GetNestedColumnsSchema(*versionedReadSchema));
 
     auto schemafulReader = NRowMerger::CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
@@ -1538,12 +1538,8 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
 
             auto chunkFragmentReader = CreateChunkFragmentReader(
                 config,
-                chunkReaderHost->Client,
-                CreateTrivialNodeStatusDirectory(),
-                GetNullBlockCache(),
-                /*profiler*/ {},
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
-                /*throttlerProvider*/ {});
+                chunkReaderHost,
+                /*profiler*/ {});
             auto dictionaryCompressionFactory = CreateSimpleDictionaryCompressionFactory(
                 chunkFragmentReader,
                 config,
@@ -1567,7 +1563,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             return factory(
                 config,
                 options,
-                CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
+                New<TMultiChunkReaderHost>(std::move(chunkReaderHost)),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 /*hintKeyPrefixes*/ std::nullopt,

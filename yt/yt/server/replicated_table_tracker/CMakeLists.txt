@@ -23,6 +23,8 @@ target_compile_options(yt-server-replicated_table_tracker PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-replicated_table_tracker PUBLIC

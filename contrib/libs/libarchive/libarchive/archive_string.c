@@ -772,7 +772,7 @@ archive_string_append_from_wcs_in_codepage(struct archive_string *as,
 			int r;
 
 			defchar_used = 0;
-			if (to_cp == CP_UTF8 || sc == NULL)
+			if (to_cp == CP_UTF8)
 				dp = NULL;
 			else
 				dp = &defchar_used;
@@ -1873,6 +1873,9 @@ archive_string_conversion_free(struct archive *a)
 const char *
 archive_string_conversion_charset_name(struct archive_string_conv *sc)
 {
+	if (sc == NULL) {
+		return "current locale";
+	}
 	if (sc->flag & SCONV_TO_CHARSET)
 		return (sc->to_charset);
 	else
@@ -3573,7 +3576,7 @@ win_strncat_from_utf16(struct archive_string *as, const void *_p, size_t bytes,
 
 	if (sc->to_cp == CP_C_LOCALE) {
 		/*
-		 * "C" locale special process.
+		 * "C" locale special processing.
 		 */
 		u16 = _p;
 		ll = 0;
@@ -3690,7 +3693,7 @@ win_strncat_to_utf16(struct archive_string *as16, const void *_p,
 	avail = as16->buffer_length - 2;
 	if (sc->from_cp == CP_C_LOCALE) {
 		/*
-		 * "C" locale special process.
+		 * "C" locale special processing.
 		 */
 		count = 0;
 		while (count < length && *s) {
@@ -4123,7 +4126,12 @@ archive_mstring_get_mbs_l(struct archive *a, struct archive_mstring *aes,
 	 * character-set. */
 	if ((aes->aes_set & AES_SET_MBS) == 0) {
 		const char *pm; /* unused */
-		archive_mstring_get_mbs(a, aes, &pm); /* ignore errors, we'll handle it later */
+		if (archive_mstring_get_mbs(a, aes, &pm) != 0) {
+			/* We have another form, but failed to convert it to
+			 * the native locale.  Transitively, we've failed to
+			 * convert it to the specified character set. */
+			ret = -1;
+		}
 	}
 	/* If we already have an MBS form, use it to be translated to
 	 * specified character-set. */
@@ -4141,6 +4149,8 @@ archive_mstring_get_mbs_l(struct archive *a, struct archive_mstring *aes,
 		if (length != NULL)
 			*length = aes->aes_mbs_in_locale.length;
 	} else {
+		/* Either we have no string in any form,
+		 * or conversion failed and set 'ret != 0'.  */
 		*p = NULL;
 		if (length != NULL)
 			*length = 0;

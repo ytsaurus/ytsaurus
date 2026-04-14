@@ -16,6 +16,11 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EScanOrder,
+    ((Unordered) (0))
+    ((Ordered)   (1))
+);
+
 DEFINE_ENUM(EExpressionKind,
     ((None)                    (0))
     ((Literal)                 (1))
@@ -228,7 +233,7 @@ struct TCompositeMemberAccessorPath
     void AppendTupleItem(TTupleItemIndexAccessor index);
     void Reserve(int length);
 
-    bool operator == (const TCompositeMemberAccessorPath& other) const = default;
+    bool operator==(const TCompositeMemberAccessorPath& other) const = default;
 };
 
 struct TCompositeMemberAccessorExpression
@@ -268,6 +273,8 @@ struct TSubqueryExpression
     : public TExpression
 {
     TNamedItemList FromExpressions;
+
+    std::vector<TConstJoinClausePtr> JoinClauses;
 
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
@@ -345,12 +352,6 @@ struct TMappedSchema
     TTableSchemaPtr GetRenamedSchema() const;
 };
 
-struct TSelfEquation
-{
-    TConstExpressionPtr Expression;
-    bool Evaluated;
-};
-
 struct TJoinClause
     : public TRefCounted
 {
@@ -361,7 +362,7 @@ struct TJoinClause
     TConstExpressionPtr Predicate;
 
     std::vector<TConstExpressionPtr> ForeignEquations;
-    std::vector<TSelfEquation> SelfEquations;
+    std::vector<TConstExpressionPtr> SelfEquations;
 
     size_t CommonKeyPrefix = 0;
     size_t ForeignKeyPrefix = 0;
@@ -379,7 +380,10 @@ struct TJoinClause
 
     TConstGroupClausePtr GroupClause;
 
+    bool RequireSyncReplica = true;
+
     TJoinClause() = default;
+
     TJoinClause(const TJoinClause& other);
 
     TTableSchemaPtr GetRenamedSchema() const;
@@ -471,7 +475,7 @@ struct TBaseQuery
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered(bool allowUnorderedGroupByWithLimit) const;
+    EScanOrder GetScanOrder(bool allowUnorderedGroupByWithLimit) const;
 
     bool IsPrefetching() const;
 

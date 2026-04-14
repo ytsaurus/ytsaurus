@@ -8,7 +8,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
@@ -50,6 +50,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
@@ -141,10 +142,11 @@ public:
     MOCK_METHOD(void, UnsubscribeReconfigured, (const TCallback<TReconfiguredSignature>& newConfig), (override));
 
 public:
-    explicit TTestConnection(
+    TTestConnection(
         NRpc::IChannelFactoryPtr channelFactory,
         NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
         IInvokerPtr invoker,
         INodeMemoryTrackerPtr nodeMemoryTracker);
 
@@ -166,15 +168,14 @@ public:
     MOCK_METHOD(NHiveClient::TClusterDirectoryPtr, GetClusterDirectory, (), (const, override));
     MOCK_METHOD(const NHiveClient::IClusterDirectorySynchronizerPtr&, GetClusterDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::TMediumDirectorySynchronizerPtr&, GetMediumDirectorySynchronizer, (), (override));
-    MOCK_METHOD(const NNodeTrackerClient::INodeDirectorySynchronizerPtr&, GetNodeDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::IChunkReplicaCachePtr&, GetChunkReplicaCache, (), (override));
     MOCK_METHOD((std::pair<NApi::NNative::IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellId, (NObjectClient::TCellId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
-    MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCardIdOrThrow, (NChaosClient::TReplicationCardId, NHydra::EPeerKind), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByObjectIdOrThrow, (NChaosClient::TChaosObjectId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, FindQueueAgentChannel, (TStringBuf), (const, override));
-    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
+    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManagerOrThrow, (), (const, override));
     MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
@@ -224,15 +225,20 @@ public:
     const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
+    const NNodeTrackerClient::INodeStatusDirectoryPtr& GetNodeStatusDirectory() override;
+    const NNodeTrackerClient::INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override;
 
     const NRpc::IChannelPtr& GetSchedulerChannel() override;
     const NRpc::IChannelPtr& GetBundleControllerChannel() override;
+    const NRpc::IChannelPtr& GetTabletBalancerChannel() override;
+    const NRpc::IChannelPtr& GetCypressProxyChannel() override;
 
     const NTransactionClient::IClockManagerPtr& GetClockManager() override;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() override;
 
     const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
+
 
     NRpc::IChannelPtr FindMasterChannel(
         NApi::EMasterChannelKind kind,
@@ -257,8 +263,12 @@ private:
     const IInvokerPtr Invoker_;
     const INodeMemoryTrackerPtr NodeMemoryTracker_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const NNodeTrackerClient::INodeStatusDirectoryPtr NodeStatusDirectory_;
+    const NNodeTrackerClient::INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     const NRpc::IChannelPtr SchedulerChannel_;
     const NRpc::IChannelPtr BundleControllerChannel_;
+    const NRpc::IChannelPtr TabletBalancerChannel_;
+    const NRpc::IChannelPtr CypressProxyChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TDownedCellTrackerPtr DownedCellTracker_;
@@ -274,6 +284,7 @@ TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     IInvokerPtr invoker,
     INodeMemoryTrackerPtr nodeMemoryTracker);
 

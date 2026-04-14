@@ -67,6 +67,12 @@ https://bugs.python.org/issue46090). Summary of breaking internal changes:
 #    define GREENLET_PY314 0
 #endif
 
+#if PY_VERSION_HEX >= 0x30F0000
+#    define GREENLET_PY315 1
+#else
+#    define GREENLET_PY315 0
+#endif
+
 #ifndef Py_SET_REFCNT
 /* Py_REFCNT and Py_SIZE macros are converted to functions
 https://bugs.python.org/issue39573 */

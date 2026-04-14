@@ -1404,8 +1404,31 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     }
 }
 
-void TChunkReplicator::OnNodeDisposed(TNode* node)
+void TChunkReplicator::OnNodeDisposedOrRestarted(TNode* node)
 {
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    auto unlockChunks = [&] (const auto& chunkIds) {
+        for (auto chunkId : chunkIds) {
+            EraseOrCrash(RemovalLockedChunkIds_, chunkId);
+
+            if (auto* chunk = chunkManager->FindChunk(chunkId); IsObjectAlive(chunk)) {
+                ScheduleChunkRefresh(chunk);
+            }
+
+            YT_LOG_DEBUG("Unlocked removing replicas for chunk on node unregistration"
+                " (ChunkId: %v, NodeAddress: %v)",
+                chunkId,
+                node->GetDefaultAddress());
+        }
+    };
+
+    unlockChunks(node->RemovalJobScheduledChunkIds());
+    node->RemovalJobScheduledChunkIds().clear();
+
+    unlockChunks(GetValues(node->AwaitingHeartbeatChunkIds()));
+    node->AwaitingHeartbeatChunkIds().clear();
+
     for (auto location : node->ChunkLocations()) {
         YT_VERIFY(location->ChunkSealQueue().empty());
         YT_VERIFY(location->ChunkRemovalQueue().empty());
@@ -1433,27 +1456,6 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
             }
         }
     }
-
-    auto unlockChunks = [&] (const auto& chunkIds) {
-        for (auto chunkId : chunkIds) {
-            EraseOrCrash(RemovalLockedChunkIds_, chunkId);
-
-            if (auto* chunk = chunkManager->FindChunk(chunkId); IsObjectAlive(chunk)) {
-                ScheduleChunkRefresh(chunk);
-            }
-
-            YT_LOG_DEBUG("Unlocked removing replicas for chunk on node unregistration"
-                " (ChunkId: %v, NodeAddress: %v)",
-                chunkId,
-                node->GetDefaultAddress());
-        }
-    };
-
-    unlockChunks(node->RemovalJobScheduledChunkIds());
-    node->RemovalJobScheduledChunkIds().clear();
-
-    unlockChunks(GetValues(node->AwaitingHeartbeatChunkIds()));
-    node->AwaitingHeartbeatChunkIds().clear();
 }
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
@@ -2142,7 +2144,9 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                         medium->AsDomestic(),
                         nodeId,
                         replicas);
-
+                    YT_LOG_TRACE("Misschedule reason when scheduling a job (ChunkId: %v, Reason: %v)",
+                        chunkIdWithIndex,
+                        misscheduleReason);
                     if (misscheduleReason == EMisscheduleReason::None) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
@@ -2450,6 +2454,8 @@ void TChunkReplicator::RefreshChunk(
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto wasLostVital = LostVitalChunks_.contains(chunk);
+
+    YT_LOG_TRACE("Refreshing chunk (ChunkId: %v)", chunkId);
 
     chunk->OnRefresh();
 
@@ -2866,6 +2872,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         return;
     }
 
+    if (!chunk->IsConfirmed()) {
+        return;
+    }
+
     // Slow path.
     auto adjustedDelay = delay
         ? std::make_optional(DurationToCpuDuration(*delay))
@@ -2936,7 +2946,7 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
 
 void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
-    YT_LOG_DEBUG("Scheduling global chunk refresh");
+    YT_LOG_INFO("Scheduling global chunk refresh");
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         if (IsShardActive(shardIndex)) {
@@ -2972,11 +2982,15 @@ void TChunkReplicator::OnRefresh()
         THashMap<TChunkId, int> chunkIdToErrorCount;
         while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
             ++(*totalCount);
-            auto [chunk, errorCount] = scanner->DequeueChunk();
+            auto [chunk, errorCount] = scanner->DequeueChunk(deadline);
             if (!IsObjectAlive(chunk)) {
                 continue;
             }
             if (!chunk->IsConfirmed()) {
+                continue;
+            }
+            if (config->DelayRecentlyConfirmedChunksRefresh && chunkManager->IsChunkRecentlyConfirmed(chunk->GetId())) {
+                scanner->EnqueueChunk({chunk, errorCount}, DurationToCpuDuration(config->ReplicaApproveTimeout));
                 continue;
             }
 
@@ -3985,11 +3999,6 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
         newConfig->EnableChunkRefresh,
         &TChunkReplicator::ScheduleGlobalChunkRefresh,
         "Chunk refresh");
-    updateToggle(
-        &SequoiaRefreshEnabled_,
-        newConfig->SequoiaChunkReplicas->EnableSequoiaChunkRefresh,
-        &TChunkReplicator::ScheduleGlobalChunkRefresh,
-        "Sequoia chunk refresh");
     updateToggle(
         &RequisitionUpdateEnabled_,
         newConfig->EnableChunkRequisitionUpdate,

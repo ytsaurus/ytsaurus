@@ -1,3 +1,6 @@
+-- Computes average, maximum, and minimum prices per nomenclature_id.
+-- Demonstrates multiple aggregations in one query with rounding for readability.
+
 SELECT
     p.nomenclature_id
    ,Math::Round(avg(p.price), -2) as avg_price

@@ -39,7 +39,7 @@ public:
 public:
     using TChaosObjectBase::TChaosObjectBase;
 
-    bool IsNormal() const override;
+    bool IsNormalState() const override;
     bool IsRoot() const;
 
     void Save(TSaveContext& context) const;

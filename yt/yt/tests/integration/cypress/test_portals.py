@@ -51,7 +51,6 @@ class TestPortals(YTEnvSetup):
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
     NUM_SCHEDULERS = 1
 
     MASTER_CELL_DESCRIPTORS = {
@@ -1330,6 +1329,14 @@ class TestPortals(YTEnvSetup):
         assert "allow" == check_permission("cat", "write", table)["action"]
         assert "deny" == check_permission("rat", "read", table)["action"]
 
+        node = portal_exit + "/n"
+        set(node, 42)
+        set(portal_entrance + "/@acl", [make_ace("allow", "dog", "write", "immediate_descendants_only")])
+        set(portal_entrance + "/@inherit_acl", False)
+        wait(lambda: not get(f"{portal_exit}/@inherit_acl"))
+        assert "allow" == check_permission("dog", "write", node)["action"]
+        assert "deny" == check_permission("cat", "write", node)["action"]
+
     @authors("kvk1920")
     def test_empty_annotation(self):
         remove("//sys/@config/cypress_manager/graft_synchronization_period")
@@ -1514,7 +1521,6 @@ class TestCrossCellCopy(YTEnvSetup):
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["cypress_node_host", "chunk_host"]},
@@ -1629,7 +1635,7 @@ class TestCrossCellCopy(YTEnvSetup):
         attributes = get(f"{path}/@", tx=tx)
         if attributes["type"] == "table":
             attributes["schema"] = get(f"{path}/@schema", tx=tx)
-
+        attributes.pop("sequoia_acl", None)
         return attributes
 
     def _validate_attribute_consistency_for_node(self, src_path, dst_path, tx):
@@ -2191,17 +2197,8 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(dst_path)
 
     @authors("h0pless")
-    @pytest.mark.parametrize("enable_inheritance,use_tx", [
-        (False, False),
-        (True, False),
-        (True, True),
-        # The permutation (False, True) does not test anything meaningful, it's
-        # fine to just skip it.
-    ])
-    def test_inheritable_attributes(self, enable_inheritance, use_tx):
-        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA and not enable_inheritance:
-            pytest.skip()
-
+    @pytest.mark.parametrize("use_tx", [False, True])
+    def test_inheritable_attributes(self, use_tx):
         #                                                 portal_exit               attribute = A
         # starting_node         attribute = NONE          `-- starting_node         attribute = NONE
         # |-- map_node          attribute = B                 |-- map_node          attribute = B
@@ -2212,7 +2209,6 @@ class TestCrossCellCopy(YTEnvSetup):
 
         # For the sake of simplicity I used "chunk_merger_mode". Later this test can be expanded.
         attribute_not_found = "Attribute \"chunk_merger_mode\" is not found"
-        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", enable_inheritance)
 
         src_path = f"{self.SRC}/starting_node"
         dst_parent = self.DST
@@ -2265,11 +2261,11 @@ class TestCrossCellCopy(YTEnvSetup):
         assert get(f"{dst_path}/map_node/@chunk_merger_mode", tx=tx) == B
         assert get(f"{dst_path}/map_node/table_keep_b/@chunk_merger_mode", tx=tx) == B
         # These might change, depending on config.
-        expected_value = B if enable_inheritance else C
+        expected_value = B
         assert get(f"{dst_path}/map_node/table_c_to_b/@chunk_merger_mode", tx=tx) == expected_value
-        expected_value = A if enable_inheritance else C
+        expected_value = A
         assert get(f"{dst_path}/table_c_to_a/@chunk_merger_mode", tx=tx) == expected_value
-        expected_value = A if enable_inheritance else "none"
+        expected_value = A
         assert get(f"{dst_path}/table_none_to_a/@chunk_merger_mode", tx=tx) == expected_value
 
     @authors("h0pless")

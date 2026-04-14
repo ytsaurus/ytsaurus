@@ -96,6 +96,7 @@ SET(ORIG_SOURCES
     mkql_pickle.cpp
     mkql_prepend.cpp
     mkql_queue.cpp
+    mkql_window_frames_collector_params_deserializer.cpp
     mkql_random.cpp
     mkql_range.cpp
     mkql_reduce.cpp
@@ -138,6 +139,8 @@ SET(ORIG_SOURCES
     mkql_wide_filter.cpp
     mkql_wide_map.cpp
     mkql_wide_top_sort.cpp
+    mkql_window_range_pg_caller.cpp
+    mkql_window_range_pg_caller.h
     mkql_withcontext.cpp
     mkql_zip.cpp
 )

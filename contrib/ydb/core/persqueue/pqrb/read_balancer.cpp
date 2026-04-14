@@ -134,12 +134,15 @@ void TPersQueueReadBalancer::InitDone(const TActorContext &ctx) {
 
     StartPartitionIdForWrite = NextPartitionIdForWrite = rand() % TotalGroups;
 
-    TStringBuilder s;
-    s << "BALANCER INIT DONE for " << Topic << ": ";
-    for (auto& p : PartitionsInfo) {
-        s << "(" << p.first << ", " << p.second.TabletId << ") ";
-    }
-    PQ_LOG_D(s);
+    auto getInitLog = [&]() {
+        TStringBuilder s;
+        s << "BALANCER INIT DONE for " << Topic << ": ";
+        for (auto& p : PartitionsInfo) {
+            s << "(" << p.first << ", " << p.second.TabletId << ") ";
+        }
+        return s;
+    };
+    PQ_LOG_D(getInitLog());
 
     for (auto &ev : UpdateEvents) {
         ctx.Send(ctx.SelfID, ev.Release());
@@ -267,18 +270,7 @@ void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvUpdateBalancerConfig::TPtr 
     }
 
     PartitionGraph = MakePartitionGraph(record);
-
-    auto oldConsumers = std::move(Consumers);
-    Consumers.clear();
-    for (auto& consumer : TabletConfig.GetConsumers()) {
-        auto it = oldConsumers.find(consumer.GetName());
-        if (it != oldConsumers.end()) {
-            Consumers[consumer.GetName()] = std::move(it->second);
-        } else {
-            Consumers.insert(std::make_pair(consumer.GetName(), TConsumerInfo{}));
-        }
-    }
-
+    UpdateActivePartitions();
 
     std::vector<std::pair<ui64, TTabletInfo>> newTablets;
     std::vector<std::pair<ui32, ui32>> newGroups;
@@ -356,6 +348,7 @@ void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvUpdateBalancerConfig::TPtr 
     PartitionsInfo = std::unordered_map<ui32, TPartitionInfo>(partitionsInfo.rbegin(), partitionsInfo.rend());
 
     Balancer->UpdateConfig(newPartitionsIds, deletedPartitions, ctx);
+    MLPBalancer->UpdateConfig(newPartitionsIds);
 
     Execute(new TTxWrite(this, std::move(deletedPartitions), std::move(newPartitions), std::move(newTablets), std::move(newGroups), std::move(reallocatedTablets)), ctx);
 
@@ -440,7 +433,9 @@ void TPersQueueReadBalancer::RequestTabletIfNeeded(const ui64 tabletId, const TA
 {
     TActorId pipeClient = GetPipeClient(tabletId, ctx);
 
-    NTabletPipe::SendData(ctx, pipeClient, new TEvPQ::TEvSubDomainStatus(SubDomainOutOfSpace));
+    if (SchemeShardId != tabletId) {
+        NTabletPipe::SendData(ctx, pipeClient, new TEvPQ::TEvSubDomainStatus(SubDomainOutOfSpace));
+    }
 
     auto it = StatsRequestTracker.Cookies.find(tabletId);
     if (!pipeReconnected || it != StatsRequestTracker.Cookies.end()) {
@@ -469,6 +464,9 @@ void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvStatusResponse::TPtr& ev, c
 
     StatsRequestTracker.Cookies.erase(tabletId);
 
+    Balancer->Handle(ev, ctx);
+    MLPBalancer->Handle(ev, ctx);
+
     for (auto& partRes : *record.MutablePartResult()) {
         ui32 partitionId = partRes.GetPartition();
         if (!PartitionsInfo.contains(partitionId)) {
@@ -488,11 +486,12 @@ void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvStatusResponse::TPtr& ev, c
         TopicMetricsHandler->Handle(std::move(partRes));
     }
 
-    Balancer->Handle(ev, ctx);
-
     if (StatsRequestTracker.Cookies.empty()) {
+        StatsRequestTracker.StatsReceived = true;
+
         CheckStat(ctx);
         Balancer->ProcessPendingStats(ctx);
+        ProcessPendingMLPGetPartitionRequests(ctx);
     }
 }
 
@@ -585,7 +584,7 @@ void TPersQueueReadBalancer::GetStat(const TActorContext& ctx) {
     // TEvStatsWakeup must processed before next TEvWakeup, which send next status request to TPersQueue
     const auto& config = AppData(ctx)->PQConfig;
     auto wakeupInterval = std::max<ui64>(config.GetBalancerWakeupIntervalSec(), 1);
-    auto stateWakeupInterval = std::max<ui64>(config.GetBalancerWakeupIntervalSec(), 1);
+    auto stateWakeupInterval = std::max<ui64>(config.GetBalancerStatsWakeupIntervalSec(), 1);
     ui64 delayMs = std::min(stateWakeupInterval * 1000, wakeupInterval * 500);
     if (0 < delayMs) {
         Schedule(TDuration::MilliSeconds(delayMs), new TEvPQ::TEvStatsWakeup(++StatsRequestTracker.Round));
@@ -775,6 +774,15 @@ void TPersQueueReadBalancer::Handle(TEvTxProxySchemeCache::TEvWatchNotifyUpdated
     }
 }
 
+void TPersQueueReadBalancer::UpdateActivePartitions() {
+    ActivePartitions.clear();
+    for (const auto& partition : TabletConfig.GetAllPartitions()) {
+        if (partition.GetStatus() == NKikimrPQ::ETopicPartitionStatus::Active) {
+            ActivePartitions.push_back(partition.GetPartitionId());
+        }
+    }
+}
+
 
 //
 // Balancing
@@ -782,6 +790,7 @@ void TPersQueueReadBalancer::Handle(TEvTxProxySchemeCache::TEvWatchNotifyUpdated
 
 void TPersQueueReadBalancer::Handle(TEvPQ::TEvReadingPartitionStatusRequest::TPtr& ev, const TActorContext& ctx) {
     Balancer->Handle(ev, ctx);
+    MLPBalancer->Handle(ev, ctx);
 }
 
 void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvReadingPartitionStartedRequest::TPtr& ev, const TActorContext& ctx) {
@@ -827,6 +836,12 @@ void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvRegisterReadSession::TPtr& 
 void TPersQueueReadBalancer::Handle(TEvPersQueue::TEvGetReadSessionsInfo::TPtr& ev, const TActorContext& ctx)
 {
     Balancer->Handle(ev, ctx);
+}
+
+void TPersQueueReadBalancer::Handle(TEvPQ::TEvMLPConsumerStatus::TPtr& ev)
+{
+    PQ_LOG_D("Handle TEvPQ::TEvMLPConsumerStatus " << ev->Get()->Record.ShortDebugString());
+    MLPBalancer->Handle(ev);
 }
 
 
@@ -907,7 +922,23 @@ void TPersQueueReadBalancer::BroadcastPartitionError(const TString& message, con
 }
 
 void TPersQueueReadBalancer::Handle(TEvPQ::TEvMLPGetPartitionRequest::TPtr& ev) {
-    MLPBalancer->Handle(ev);
+    if (StatsRequestTracker.StatsReceived) {
+        return MLPBalancer->Handle(ev);
+    }
+
+    PendingMLPGetPartitionRequests.push_back(std::move(ev));
+}
+
+void TPersQueueReadBalancer::ProcessPendingMLPGetPartitionRequests(const TActorContext&) {
+    while (!PendingMLPGetPartitionRequests.empty()) {
+        auto ev = std::move(PendingMLPGetPartitionRequests.front());
+        PendingMLPGetPartitionRequests.pop_front();
+        MLPBalancer->Handle(ev);
+    }
+
+    if (!PendingMLPGetPartitionRequests.empty()) {
+        std::exchange(PendingMLPGetPartitionRequests, {});
+    }
 }
 
 STFUNC(TPersQueueReadBalancer::StateInit) {
@@ -924,6 +955,8 @@ STFUNC(TPersQueueReadBalancer::StateInit) {
         HFunc(NSchemeShard::TEvSchemeShard::TEvSubDomainPathIdFound, Handle);
         HFunc(TEvTxProxySchemeCache::TEvWatchNotifyUpdated, Handle);
         HFunc(TEvPersQueue::TEvGetPartitionsLocation, HandleOnInit);
+        // MLP
+        hFunc(TEvPQ::TEvMLPConsumerStatus, Handle);
         // From kafka
         HFunc(TEvPersQueue::TEvBalancingSubscribe, Handle);
         HFunc(TEvPersQueue::TEvBalancingUnsubscribe, Handle);
@@ -970,6 +1003,7 @@ STFUNC(TPersQueueReadBalancer::StateWork) {
         HFunc(TEvPQ::TEvMirrorTopicDescription, Handle);
         // MLP
         hFunc(TEvPQ::TEvMLPGetPartitionRequest, Handle);
+        hFunc(TEvPQ::TEvMLPConsumerStatus, Handle);
         default:
             HandleDefaultEvents(ev, SelfId());
             break;

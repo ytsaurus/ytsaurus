@@ -18,7 +18,6 @@
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/yt/ytlib/query_client/executor.h>
-#include <yt/yt/ytlib/query_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -54,6 +53,8 @@
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
+
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 
 #include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
 
@@ -136,6 +137,9 @@ public:
     NApi::IPrerequisitePtr AttachPrerequisite(
         NObjectClient::TObjectId prerequisiteId,
         const TPrerequisiteAttachOptions& options) override;
+
+    TFuture<NYson::TYsonString> GetConnectionOrchidValue(
+        const NApi::TGetConnectionOrchidValueOptions& options = {}) override;
 
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
@@ -706,6 +710,12 @@ public: \
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, shellName, parameters, options))
+    IMPLEMENT_METHOD(NConcurrency::IAsyncZeroCopyInputStreamPtr, RunJobShellCommand, (
+        NScheduler::TJobId jobId,
+        const std::optional<std::string>& shellName,
+        const std::string& command,
+        const TRunJobShellCommandOptions& options),
+        (jobId, shellName, command, options))
     IMPLEMENT_METHOD(void, AbortJob, (
         NScheduler::TJobId jobId,
         const TAbortJobOptions& options),
@@ -739,6 +749,9 @@ public: \
         (cellId, options))
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
+        (options))
+    IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
+        const TResetDynamicallyPropagatedMasterCellsOptions& options),
         (options))
     IMPLEMENT_METHOD(void, DiscombobulateNonvotingPeers, (
         NObjectClient::TCellId cellId,
@@ -791,6 +804,19 @@ public: \
         NChaosClient::TChaosLeaseId chaosLeaseId,
         const TChaosLeaseAttachOptions& options = {}),
         (chaosLeaseId, options))
+
+    IMPLEMENT_METHOD(void, SetUserBanned, (
+        const std::string& user,
+        bool isBanned,
+        const TSetUserBannedOptions& options = {}),
+        (user, isBanned, options))
+    IMPLEMENT_METHOD(bool, GetUserBanned, (
+        const std::string& user,
+        const TGetUserBannedOptions& options = {}),
+        (user, options))
+    IMPLEMENT_METHOD(std::vector<std::string>, ListBannedUsers, (
+        const TListBannedUsersOptions& options = {}),
+        (options))
 
     IMPLEMENT_METHOD(void, MigrateReplicationCards, (
         NObjectClient::TCellId chaosCellId,
@@ -980,7 +1006,7 @@ public: \
         (pipelinePath, viewPath, options))
     IMPLEMENT_METHOD(TFlowExecuteResult, FlowExecute, (
         const NYPath::TYPath& pipelinePath,
-        const TString& command,
+        const std::string& command,
         const NYson::TYsonString& argument,
         const TFlowExecuteOptions& options),
         (pipelinePath, command, argument, options))
@@ -1008,6 +1034,11 @@ public: \
         NHydra::TCellId cordiantorCellId,
         const TForsakeChaosCoordinatorOptions& options),
         (chaosCellId, cordiantorCellId, options))
+    IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
+        NHydra::TCellId chaosCellId,
+        NHydra::TCellId destinationCellId,
+        const TRemoveChaosCellMailboxOptions& options),
+        (chaosCellId, destinationCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TSignedShuffleHandlePtr& signedShuffleHandle,
@@ -1081,7 +1112,7 @@ private:
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
-    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
+    const NTableClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NTableClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);
@@ -1254,6 +1285,10 @@ private:
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
+    std::vector<TTabletInfo> DoGetTabletInfosImpl(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options);
 
     template <class TReq>
     void ExecuteTabletServiceRequest(
@@ -1293,6 +1328,14 @@ private:
         const TPullQueueOptions& options,
         bool checkPermissions);
 
+    NQueueClient::IQueueRowsetPtr DoPullQueueImplOnce(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options,
+        bool checkPermissions);
+
     IUnversionedRowsetPtr DoPullQueueViaSelectRows(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
@@ -1318,8 +1361,8 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
-    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
-        NChaosClient::TReplicationCardId replicationCardId,
+    NRpc::IChannelPtr GetChaosChannelByObjectIdOrThrow(
+        NChaosClient::TChaosObjectId chaosObjectId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //
@@ -1605,9 +1648,9 @@ private:
     // Flow
     //
 
-    TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+    std::string DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
-    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const TString& address);
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const std::string& address);
 
     void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };

@@ -18,7 +18,7 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EExistenceResult, i8,
+DEFINE_ENUM(EExistenceResult,
     ((Available)   (0))
     ((Absent)      (1))
     ((NonExistent) (2))
@@ -100,6 +100,10 @@ struct IChaosManager
         NChaosClient::NProto::TReqForsakeCoordinator,
         NChaosClient::NProto::TRspForsakeCoordinator
     >>;
+    using TCtxRemoveCellMailboxPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqRemoveCellMailbox,
+        NChaosClient::NProto::TRspRemoveCellMailbox
+    >>;
 
     virtual void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) = 0;
     virtual void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) = 0;
@@ -117,6 +121,7 @@ struct IChaosManager
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
 
     virtual void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) = 0;
+    virtual void RemoveCellMailbox(const TCtxRemoveCellMailboxPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() const = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) const = 0;
@@ -148,14 +153,7 @@ struct IChaosManager
 
     virtual void RevokeShortcuts(
         TRange<TChaosObjectBase*> chaosObjects,
-        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt) = 0;
-
-    void RevokeShortcut(
-        TChaosObjectBase* chaosObject,
-        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt)
-    {
-        RevokeShortcuts(TRange(&chaosObject, 1), suspendedChaosCellId);
-    }
+        NElection::TCellId suspendedChaosCellId = NElection::NullCellId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

@@ -21,6 +21,8 @@ target_compile_options(yt-cpp-mapreduce-tests-native-misc_core_http PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-cpp-mapreduce-tests-native-misc_core_http PUBLIC
@@ -57,6 +59,7 @@ target_sources(yt-cpp-mapreduce-tests-native-misc_core_http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/cypress_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/distributed_table_api.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/file_cache_replication_factor.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/file_io.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/format_attribute.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/lock.cpp

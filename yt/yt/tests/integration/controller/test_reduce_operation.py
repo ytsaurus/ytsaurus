@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, parametrize_external
+from yt_env_setup import YTEnvSetup, is_asan_build, parametrize_external
 
 from yt_commands import (
     authors, print_debug, raises_yt_error, set_nodes_banned, update_controller_agent_config, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
@@ -17,9 +17,10 @@ import yt.yson as yson
 
 import pytest
 
-import itertools
-import time
 import binascii
+import itertools
+import random
+import time
 
 
 ##################################################################
@@ -50,6 +51,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 "spec_template": {
                     "use_new_sorted_pool": False,
                 },
+                "min_slice_data_weight": 1,
             },
         }
     }
@@ -923,8 +925,8 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
-    @authors("faucct")
-    def test_distributed_reduce(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_reduce(self):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 
@@ -945,16 +947,16 @@ echo {v = 2} >&7
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
-                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo secondary; fi',
+                command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo slave; fi',
                 reduce_by=["key"],
-                spec={"reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "job_count": 1},
+                spec={"reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             )
         op = reduce(
             in_="//tmp/in",
             out="//tmp/out",
-            command=with_breakpoint('if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then BREAKPOINT; cat; echo primary>&2; else echo secondary>&2; fi'),
+            command=with_breakpoint('if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then BREAKPOINT; cat; echo master>&2; else echo slave>&2; fi'),
             reduce_by=["key"],
-            spec={"reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "job_count": 1},
+            spec={"reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             track=False,
         )
         wait_breakpoint(job_count=1)
@@ -966,8 +968,8 @@ echo {v = 2} >&7
         stderrs_bytes = {op.read_stderr(job_id).decode() for job_id in job_ids}
 
         assert stderrs_bytes == {
-            "primary\n",
-            "secondary\n",
+            "master\n",
+            "slave\n",
         }
 
         assert not get("//tmp/out/@sorted")
@@ -3244,6 +3246,68 @@ for line in sys.stdin:
         finally:
             set_nodes_banned(table_nodes, False)
 
+    @authors("apollo1321")
+    def test_slicing_with_high_columnar_selectivity_factor(self):
+        """
+        This test ensures that controller agent actually applies selectivity factors
+        for data slices return from data node GetChunkSlices method. If selectivity
+        factors are not applied, sorted chunk pool builder will build more jobs than
+        needed.
+        """
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        })
+
+        write_table(
+            "<append=%true>//tmp/t_in",
+            [
+                {"key": 1, "value": "a" * 10000},
+                {"key": 2, "value": "b" * 10000},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t_in",
+            [
+                {"key": 3, "value": "a" * 10000},
+                {"key": 4, "value": "b" * 10000},
+            ]
+        )
+
+        create("table", "//tmp/t_out", attributes={
+            "schema": [
+                {"name": "key", "type": "string", "sort_order": "ascending"},
+            ],
+        })
+
+        op = reduce(
+            command="cat",
+            in_="//tmp/t_in{key}",
+            out="//tmp/t_out",
+            reduce_by=["key"],
+            spec={
+                "job_count": 1,
+                "input_table_columnar_statistics": {
+                    "mode": "from_nodes",
+                    "enable": True,
+                },
+                "use_columnar_statistics": True,
+                "reducer": {"format": "dsv"},
+            }
+        )
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == 1
+        assert read_table("//tmp/t_out") == [
+            {"key": "1"},
+            {"key": "2"},
+            {"key": "3"},
+            {"key": "4"},
+        ]
+
 
 ##################################################################
 
@@ -3489,3 +3553,128 @@ class TestReduceJobSizeAdjuster(YTEnvSetup):
 
         # 1 primary row + 1 foreign row == 2
         assert all(int(row["lines"]) == 2 for row in counts)
+
+    @authors("coteeq")
+    @pytest.mark.timeout(180)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    def test_interrupted_adjusted(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [
+                {"name": "index", "type": "int64", "sort_order": "ascending"},
+                {"name": "payload", "type": "string"},
+            ]},
+        )
+
+        # We need random to make chunk pool schedule jobs from the middle.
+        # If we schedule jobs left-to-right, the probability of the misadjusment is much lower.
+        payload_size = (800, 1000)
+        seed = random.randint(0, 2**16)
+        print_debug(f"Seed: {seed}")
+        rng = random.Random(seed)
+
+        def rows(*indices):
+            return [{"index": i, "payload": rng.randint(payload_size[0], payload_size[1]) * "x"} for i in indices]
+
+        for indices in itertools.batched(range(1000), n=50):
+            write_table("<append=%true>//tmp/in", rows(*indices))
+
+        ranges = [
+            "{lower_limit={key=[%s]};upper_limit={key=[%s]}}" % (range[0], range[-1] + 1)
+            for range in itertools.batched(range(1000), n=100)
+        ]
+
+        # Shuffle ranges to increase misadjustment probability.
+        rng.shuffle(ranges)
+
+        from textwrap import dedent
+        reducer = dedent(
+            """
+                import json
+                from sys import stdin
+                prev_index = None
+                for line in stdin:
+                    row = json.loads(line)
+                    assert prev_index is None or prev_index < row["index"]
+                    prev_index = row["index"]
+                    print(json.dumps(row))
+            """
+        )
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.encode("utf-8"))
+
+        op = reduce(
+            track=False,
+            in_=[
+                f"<ranges=[{';'.join(ranges)}]>//tmp/in",
+            ],
+            out="<create=%true>//tmp/t_output",
+            file="//tmp/reducer.py",
+            command="python3 -u reducer.py",
+            ordered=True,
+            reduce_by="index",
+            spec={
+                "data_size_per_job": 10_000,
+                "reducer": {"format": "json"},
+                "resource_limits": {"user_slots": 3},
+                "force_allow_job_interruption": True,
+                "force_job_size_adjuster": True,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 50},
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+            }
+        )
+
+        op.wait_for_state("running")
+
+        def get_and_print_progress():
+            try:
+                progress = get(
+                    op.get_path() + "/@brief_progress/jobs",
+                    verbose=False
+                )
+            except YtError as e:
+                if e.contains_code(500):
+                    return None
+                else:
+                    raise
+
+            print_debug("Progress: ", (", ".join(f"{category}={count}" for category, count in progress.items())))
+            return progress
+
+        while op.get_state() == "running":
+            progress = get_and_print_progress()
+            if not progress:
+                continue
+
+            # No point in interrupting final jobs. They are not going to be adjusted anyway.
+            if progress["pending"] <= 5:
+                break
+
+            progress = op.build_progress()
+            jobs = op.get_running_jobs(verbose=False)
+            if len(jobs) >= 1:
+                job_id = next(iter(jobs))
+                try:
+                    time.sleep(1.5)  # Wait a bit until job starts reading.
+                    op.interrupt_job(job_id, raise_on_failed_interruption=False)
+                    print_debug(f"Successfully interrupted {job_id}")
+                except YtError:
+                    print_debug(f"Failed to interrupt {job_id}")
+                    pass
+
+        op.track()
+
+        # Otherwise payload shows up in diff
+        def strip_payload(rows):
+            return [
+                {"index": row["index"]}
+                for row in rows
+            ]
+
+        actual = strip_payload(read_table("//tmp/t_output", verbose=False))
+        expected = strip_payload(rows(*range(1000)))
+        assert sorted_dicts(actual) == sorted_dicts(expected)

@@ -31,6 +31,8 @@ target_compile_options(yt-library-profiling PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-library-profiling PUBLIC
@@ -42,6 +44,7 @@ target_link_libraries(yt-library-profiling PUBLIC
   cpp-yt-compact_containers
   cpp-yt-string
   cpp-yt-memory
+  cpp-yt-threading
 )
 
 target_sources(yt-library-profiling PRIVATE

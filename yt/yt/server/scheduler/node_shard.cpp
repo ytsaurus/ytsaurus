@@ -181,13 +181,8 @@ TNodeShardGlobalSensors::TNodeShardGlobalSensors(TNodeShard* nodeShard)
         return NodeShard_->GetTotalNodeCount();
     });
 
-    for (auto reason : TEnumTraitsImpl<EUnutilizedResourceReason>::GetDomainValues()) {
-        UnutilizedResourcesCounterByReason_[reason].Init(
-            globalProfiler
-                .WithPrefix("/unutilized_node_resources")
-                .WithTag("reason", FormatEnum(reason)),
-            EMetricType::Counter);
-    }
+    UnutilizedResourcesProducer_ = New<TBufferedProducer>();
+    globalProfiler.AddProducer("/unutilized_node_resources", UnutilizedResourcesProducer_);
 }
 
 void TNodeShardGlobalSensors::UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value)
@@ -277,6 +272,10 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::SubmitAllocationsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitAllocationsToStrategyPeriod))
+    , UpdateUnutilizedResourcesSensorsExecutor_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TNodeShard::UpdateUnutilizedResourcesSensors, MakeWeak(this)),
+        Config_->UnutilizedResourcesSensorsUpdatePeriod))
 { }
 
 int TNodeShard::GetId() const
@@ -295,8 +294,10 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
     Config_ = config;
 
+    RemoveOutdatedScheduleAllocationEntryExecutor_->SetPeriod(config->ScheduleAllocationEntryCheckPeriod);
     SubmitAllocationsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitAllocationsToStrategyPeriod);
     CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
+    UpdateUnutilizedResourcesSensorsExecutor_->SetPeriod(config->UnutilizedResourcesSensorsUpdatePeriod);
     ResourceStatisticsByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
@@ -320,6 +321,8 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultP
 
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitAllocationsToStrategyExecutor_->Start();
+    UpdateUnutilizedResourcesSensorsExecutor_->Start();
+    RemoveOutdatedScheduleAllocationEntryExecutor_->Start();
 
     return CancelableInvoker_;
 }
@@ -354,6 +357,9 @@ void TNodeShard::DoCleanup()
     CancelableInvoker_.Reset();
 
     YT_UNUSED_FUTURE(CachedExecNodeDescriptorsRefresher_->Stop());
+    YT_UNUSED_FUTURE(UpdateUnutilizedResourcesSensorsExecutor_->Stop());
+    YT_UNUSED_FUTURE(RemoveOutdatedScheduleAllocationEntryExecutor_->Stop());
+    YT_UNUSED_FUTURE(SubmitAllocationsToStrategyExecutor_->Stop());
 
     for (const auto& [nodeId, node] : IdToNode_) {
         TLeaseManager::CloseLease(node->GetRegistrationLease());
@@ -765,14 +771,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     context->SetResponseInfo(
-        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v, SendRegisteredControllerAgents: %v",
+        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, "
+        "IsThrottling: %v, SendRegisteredControllerAgents: %v, NodeFreeResources: %v",
         Id_,
         nodeId,
         descriptor.GetDefaultAddress(),
         node->GetSchedulingHeartbeatComplexity(),
         ConcurrentHeartbeatComplexity_.load(),
         isThrottlingActive,
-        shouldSendRegisteredControllerAgents);
+        shouldSendRegisteredControllerAgents,
+        schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
@@ -1529,17 +1537,35 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime)
 {
     auto previousPreemptibleProgressStartTime = allocation->GetPreemptibleProgressStartTime();
-    YT_VERIFY(previousPreemptibleProgressStartTime < newPreemptibleProgressStartTime);
+    YT_VERIFY(!previousPreemptibleProgressStartTime.has_value() ||
+        previousPreemptibleProgressStartTime < newPreemptibleProgressStartTime);
 
     allocation->SetPreemptibleProgressStartTime(newPreemptibleProgressStartTime);
 
     if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
-        // We do not consider exact preemptible progress start time in strategy.
         YT_LOG_DEBUG("Preemptible progress reset (AllocationId: %v)", allocation->GetId());
         auto& allocationToSubmitToStrategy = AddAllocationUpdateToSubmitToStrategy(
             allocation,
             operationState);
-        allocationToSubmitToStrategy.ResetPreemptibleProgress = true;
+        allocationToSubmitToStrategy.PreemptibleProgressStartTime = newPreemptibleProgressStartTime;
+    }
+}
+
+void TNodeShard::UpdateCumulativeUnutilizedResources(
+    const EUnutilizedResourceReason reason,
+    const TJobResources& resources,
+    const TCompactVector<NProfiling::TTag, 2>& tags)
+{
+    auto& cumulativeResources = CumulativeUnutilizedResources_[reason];
+    auto it = std::find_if(
+        cumulativeResources.begin(),
+        cumulativeResources.end(),
+        [&] (const auto& entry) { return entry.first == tags; });
+
+    if (it != cumulativeResources.end()) {
+        it->second += resources;
+    } else {
+        cumulativeResources.emplace_back(std::move(tags), resources);
     }
 }
 
@@ -1552,6 +1578,7 @@ NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
 
     if (inserted) {
         allocationToSubmitToStrategy = NStrategy::TAllocationUpdate{
+            .NodeId = allocation->GetNode()->GetId(),
             .OperationId = allocation->GetOperationId(),
             .AllocationId = allocation->GetId(),
             .TreeId = allocation->GetTreeId(),
@@ -2355,10 +2382,13 @@ void TNodeShard::OnAllocationAborted(
 void TNodeShard::SubmitAllocationsToStrategy()
 {
     YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
-        if (!AllocationsToSubmitToStrategy_.empty()) {
+        THashMap<TAllocationId, NStrategy::TAllocationUpdate> allocationsToSubmit;
+        std::swap(allocationsToSubmit, AllocationsToSubmitToStrategy_);
+
+        if (!allocationsToSubmit.empty()) {
             THashSet<TAllocationId> allocationsToPostpone;
             THashMap<TAllocationId, EAbortReason> allocationsToAbort;
-            auto allocationUpdates = GetValues(AllocationsToSubmitToStrategy_);
+            auto allocationUpdates = GetValues(allocationsToSubmit);
             ManagerHost_->GetStrategy()->ProcessAllocationUpdates(
                 allocationUpdates,
                 &allocationsToPostpone,
@@ -2370,25 +2400,48 @@ void TNodeShard::SubmitAllocationsToStrategy()
                 AbortAllocation(allocationId, error, abortReason);
             }
 
-            // TODO(eshcherbin): Remove |allocationsToRemove| and inline allocation removal in this loop?
-            std::vector<std::pair<TOperationId, TAllocationId>> allocationsToRemove;
-            for (const auto& allocation : allocationUpdates) {
-                if (!allocationsToPostpone.contains(allocation.AllocationId)) {
-                    allocationsToRemove.emplace_back(allocation.OperationId, allocation.AllocationId);
-                }
+            for (const auto& allocationId : allocationsToPostpone) {
+                AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationsToSubmit[allocationId]));
             }
 
-            for (const auto& [operationId, allocationId] : allocationsToRemove) {
-                auto* operationState = FindOperationState(operationId);
-                if (operationState) {
-                    operationState->AllocationsToSubmitToStrategy.erase(allocationId);
+            for (const auto& allocation : allocationUpdates) {
+                if (allocationsToPostpone.contains(allocation.AllocationId)) {
+                    continue;
                 }
 
-                EraseOrCrash(AllocationsToSubmitToStrategy_, allocationId);
+                if (auto* operationState = FindOperationState(allocation.OperationId)) {
+                    operationState->AllocationsToSubmitToStrategy.erase(allocation.AllocationId);
+                }
             }
         }
         SubmitToStrategyAllocationCount_.store(size(AllocationsToSubmitToStrategy_));
     }
+}
+
+void TNodeShard::UpdateUnutilizedResourcesSensors()
+{
+    if (!GlobalSensors_) {
+        return;
+    }
+
+    TSensorBuffer buffer;
+    for (auto reason : TEnumTraits<EUnutilizedResourceReason>::GetDomainValues()) {
+        auto it = CumulativeUnutilizedResources_.find(reason);
+        if (it == CumulativeUnutilizedResources_.end()) {
+            continue;
+        }
+
+        TWithTagGuard reasonTagGuard(&buffer, "reason", FormatEnum(reason));
+        for (const auto& [tags, resources] : it->second) {
+            TWithTagGuard tagsGuard(&buffer);
+            for (const auto& tag : tags) {
+                tagsGuard.AddTag(tag);
+            }
+            ProfileResources(&buffer, resources, "", NProfiling::EMetricType::Counter);
+        }
+    }
+
+    GlobalSensors_->UnutilizedResourcesProducer()->Update(std::move(buffer));
 }
 
 void TNodeShard::SetAllocationState(const TAllocationPtr& allocation, const EAllocationState state)
@@ -2455,7 +2508,8 @@ void TNodeShard::UpdateUnutilizedResourceCounters(
         if (unutilizedResources[reason]) {
             auto unutilizedVolume = unutilizedResources[reason].value() * secondsSinceLastUpdate;
             if (GlobalSensors_) {
-                GlobalSensors_->UnutilizedResourcesCounterByReason()[reason].Update(
+                UpdateCumulativeUnutilizedResources(
+                    reason,
                     unutilizedVolume,
                     {
                         {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},

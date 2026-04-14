@@ -135,7 +135,7 @@ int GetNodeCount(const TGroupNodePtr& node)
     return node->GetChildCount();
 }
 
-TString GetNodePathDiagnostic(const TGroupNodePtr& node)
+std::string GetNodePathDiagnostic(const TGroupNodePtr& node)
 {
     const auto& path = node->GetPath();
     return path.empty() ? "root node" : Format("node %v", path);

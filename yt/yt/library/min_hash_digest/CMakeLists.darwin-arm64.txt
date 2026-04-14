@@ -24,6 +24,7 @@ target_link_libraries(yt-library-min_hash_digest PUBLIC
 )
 
 target_sources(yt-library-min_hash_digest PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/min_hash_digest/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/min_hash_digest/min_hash_digest.cpp
 )
 

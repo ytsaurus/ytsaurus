@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +28,7 @@ public:
 private:
     IBootstrap* Bootstrap_;
     const NLogging::TLogger Logger;
-    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
+    TAtomicIntrusivePtr<NChunkClient::TMediumDirectory> MediumDirectory_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectoryManager)

@@ -189,6 +189,27 @@ green_clear(PyGreenlet* self)
 static int
 _green_dealloc_kill_started_non_main_greenlet(BorrowedGreenlet self)
 {
+    // During interpreter finalization, we cannot safely throw GreenletExit
+    // into the greenlet. Doing so calls g_switch(), which performs a stack
+    // switch and runs Python code via _PyEval_EvalFrameDefault. On Python
+    // < 3.11, executing Python code in a partially-torn-down interpreter
+    // leads to SIGSEGV (greenlet 3.x) or SIGABRT (greenlet 2.x).
+    //
+    // Python 3.11+ restructured interpreter finalization internals (frame
+    // representation, data stack management, recursion tracking) so that
+    // g_switch() during finalization is safe. On older Pythons, we simply
+    // mark the greenlet dead without throwing, which avoids the crash at
+    // the cost of not running any cleanup code inside the greenlet.
+    //
+    // See: https://github.com/python-greenlet/greenlet/issues/411
+    //      https://github.com/python-greenlet/greenlet/issues/351
+#if !GREENLET_PY311
+    if (_Py_IsFinalizing()) {
+        self->murder_in_place();
+        return 1;
+    }
+#endif
+
     /* Hacks hacks hacks copied from instance_dealloc() */
     /* Temporarily resurrect the greenlet. */
     assert(self.REFCNT() == 0);
@@ -741,7 +762,30 @@ PyTypeObject PyGreenlet_Type = {
     .tp_alloc=PyType_GenericAlloc,                  /* tp_alloc */
     .tp_new=(newfunc)green_new,                          /* tp_new */
     .tp_free=PyObject_GC_Del,                   /* tp_free */
+#ifndef Py_GIL_DISABLED
+/*
+  We may have been handling this wrong all along.
+
+  It shows as a problem with the GIL disabled. In builds of 3.14 with
+  assertions enabled, we break the garbage collector if we *ever*
+  return false from this function. The docs say this is to distinguish
+  some objects that are collectable vs some that are not, specifically
+  giving the example of PyTypeObject as the only place this is done,
+  where it distinguishes between static types like this one (allocated
+  by the C runtime at load time) and dynamic heap types (created at
+  runtime as objects). With the GIL disabled, all allocations that are
+  potentially collectable go in the mimalloc heap, and the collector
+  asserts that tp_is_gc() is true for them as it walks through the
+  heap object by object. Since we set the Py_TPFLAGS_HAS_GC bit, we
+  are always allocated in that mimalloc heap, so we must always be
+  collectable.
+
+  XXX: TODO: Could this be responsible for some apparent leaks, even
+  on GIL builds, at least in 3.14? See if we can catch an assertion
+  failure in the GC on regular 3.14 as well.
+ */
     .tp_is_gc=(inquiry)green_is_gc,         /* tp_is_gc */
+#endif
 };
 
 #endif

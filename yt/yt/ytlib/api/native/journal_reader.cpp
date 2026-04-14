@@ -216,7 +216,7 @@ private:
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,
                     New<TRemoteReaderOptions>(),
-                    TChunkReaderHost::FromClient(Client_),
+                    New<TChunkReaderHost>(Client_),
                     chunkId,
                     codecId,
                     std::move(replicas));

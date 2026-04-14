@@ -1,6 +1,8 @@
 #include "sequoia_tree_visitor.h"
 
-#include "private.h"
+#include "helpers.h"
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -12,11 +14,51 @@ namespace NYT::NCypressProxy {
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NServer;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit auto Logger = CypressProxyLogger;
+namespace {
+
+bool IsAncestor(const TCypressNodeDescriptor& maybeAncestor, const TCypressNodeDescriptor& child)
+{
+    return IsAncestorPath(maybeAncestor.Path, child.Path);
+}
+
+} // namespace
+
+TSequoiaTreeTraverser::TSequoiaTreeTraverser(INodeVisitor<TCypressNodeDescriptor>* visitor)
+    : Visitor_(visitor)
+{ }
+
+void TSequoiaTreeTraverser::Walk(const TCypressNodeDescriptor& node)
+{
+    if (SkippedRoot_.has_value() && IsAncestor(*SkippedRoot_, node)) {
+        return;
+    }
+    SkippedRoot_.reset();
+
+    while (!Trace_.empty() && !IsAncestor(Trace_.back(), node)) {
+        Visitor_->OnNodeExited(Trace_.back());
+        Trace_.pop_back();
+    }
+
+    if (!Visitor_->ShouldVisit(node)) {
+        SkippedRoot_ = node;
+        return;
+    }
+
+    Visitor_->OnNodeEntered(node);
+    Trace_.push_back(node);
+}
+
+void TSequoiaTreeTraverser::Finish() &&
+{
+    for (const auto& node : Trace_ | std::views::reverse) {
+        Visitor_->OnNodeExited(node);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,14 +90,14 @@ public:
         NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
         int maxAllowedNodeDepth,
-        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-        const THashMap<TNodeId, INodePtr>& nodesWithAttributes)
+        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>* nodeIdToChildren,
+        const TNodeIdToAttributes* nodesWithAttributes)
         : Consumer_(consumer)
         , AttributeFilter_(attributeFilter)
         , MaxAllowedNodeDepth_(maxAllowedNodeDepth)
-        , NodeIdToChildren_(std::move(nodeIdToChildren))
-        , CalculateOpaqueness_(attributeFilter.AdmitsKeySlow({"opaque"}))
-        , NodesWithAttributes_(std::move(nodesWithAttributes))
+        , NodeIdToChildren_(nodeIdToChildren)
+        , NodesWithAttributes_(nodesWithAttributes)
+        , CalculateOpaqueness_(attributeFilter.AdmitsKeySlow({EInternedAttributeKey::Opaque.Unintern()}))
     { }
 
     void Visit(TNodeId rootId)
@@ -67,62 +109,64 @@ private:
     NYson::IAsyncYsonConsumer* const Consumer_;
     const TAttributeFilter AttributeFilter_;
     const int MaxAllowedNodeDepth_;
-    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>> NodeIdToChildren_;
+    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>* const NodeIdToChildren_;
+    const TNodeIdToAttributes* const NodesWithAttributes_;
     const bool CalculateOpaqueness_;
-
-    THashMap<TNodeId, INodePtr> NodesWithAttributes_;
 
     void VisitAny(TNodeId nodeId, int currentNodeDepth, std::optional<TStringBuf> itemKey)
     {
         ++currentNodeDepth;
 
-        bool keyWritten = false;
-        auto maybeWriteKey = [&] {
-            if (!keyWritten && itemKey) {
-                keyWritten = true;
+        auto maybeWriteKey = [&, written = false] () mutable {
+            if (!std::exchange(written, true) && itemKey) {
                 Consumer_->OnKeyedItem(*itemKey);
             }
         };
 
-        if (!NodeIdToChildren_.contains(nodeId)) {
+        // TODO(danilalexeev): YT-26733. Introduce mapping: nodeId -> access denied.
+        if (!NodeIdToChildren_->contains(nodeId)) {
             // Access denied.
             maybeWriteKey();
             VisitEntity(nodeId);
             return;
         }
 
+        auto nodeType = TypeFromId(nodeId);
+
         if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
-            auto nodeIter = NodesWithAttributes_.find(nodeId);
-            if (nodeIter == NodesWithAttributes_.end() && !CalculateOpaqueness_) {
-                // NodesWithAttributes_ come from attribute fetcher, and the
-                // contract is that it may silently omit some nodes (due to a
-                // race between listing the subtree via dyntable and actually
-                // fetching attributes via master). It will never omit the
-                // target (i.e. root) node, though.
+            const auto& attributes = GetOrCrash(*NodesWithAttributes_, nodeId);
 
-                if (currentNodeDepth == 1) {
-                    // This is a bug. If the root hasn't been fetched due to the
-                    // aforementioned race, the whole request should've failed
-                    // with a retriable error, and we shouldn't have gotten here.
-                    YT_LOG_ALERT_AND_THROW("Cannot fetch attributes for node %v", nodeId);
-                }
+            auto node = NYT::Visit(attributes,
+                [&] (const INodePtr& node) -> std::optional<INodePtr> {
+                    return node;
+                },
+                [&] (const IAttributeDictionaryPtr& attributes) -> std::optional<INodePtr> {
+                    // TODO(danilalexeev): YT-26172. Do not copy attributes.
+                    auto node = CreateEphemeralNodeFactory()->CreateEntity();
+                    node->MutableAttributes()->MergeFrom(*attributes);
+                    return std::move(node);
+                },
+                [&] (TMissingNodeTag) -> std::optional<INodePtr> {
+                    YT_VERIFY(currentNodeDepth > 1);
+                    return {};
+                });
 
-                // Silently omit the node.
-                return;
+            if (!node) {
+                return; // Omit the node.
             }
 
-            MaybeOverrideAttributes(nodeId, currentNodeDepth);
-
-            nodeIter = NodesWithAttributes_.find(nodeId);
-            if (nodeIter != NodesWithAttributes_.end()) {
-                maybeWriteKey();
-                nodeIter->second->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
+            // TODO(danilalexeev): YT-26733. Introduce mapping: nodeId -> is opaque.
+            if (CalculateOpaqueness_ && IsSequoiaCompositeNodeType(nodeType)) {
+                auto opaque = currentNodeDepth == MaxAllowedNodeDepth_;
+                (*node)->MutableAttributes()->Set(EInternedAttributeKey::Opaque.Unintern(), opaque);
             }
+
+            maybeWriteKey();
+            (*node)->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
         }
 
         maybeWriteKey();
 
-        auto nodeType = TypeFromId(nodeId);
         switch (nodeType) {
             case EObjectType::StringNode:
             case EObjectType::Int64Node:
@@ -143,47 +187,32 @@ private:
         }
     }
 
-    void MaybeOverrideAttributes(TNodeId nodeId, int currentNodeDepth)
-    {
-        if (!CalculateOpaqueness_) {
-            return;
-        }
-
-        auto nodeType = TypeFromId(nodeId);
-        if (nodeType != EObjectType::Scion && nodeType != EObjectType::SequoiaMapNode) {
-            return;
-        }
-
-        auto emptyNode = ConvertToNode(NYson::TYsonString(TString("{}")));
-        auto [it, _] = NodesWithAttributes_.insert({nodeId, std::move(emptyNode)});
-
-        auto shouldAppearOpaque = currentNodeDepth == MaxAllowedNodeDepth_;
-        it->second->MutableAttributes()->Set("opaque", shouldAppearOpaque);
-    }
-
     void VisitScalar(TNodeId nodeId)
     {
+        const auto& attributes = GetOrCrash(*NodesWithAttributes_, nodeId);
+        const auto* node = std::get_if<INodePtr>(&attributes);
+        YT_VERIFY(node);
+
         auto nodeType = TypeFromId(nodeId);
-        auto node = GetOrCrash(NodesWithAttributes_, nodeId);
         switch (nodeType) {
             case EObjectType::StringNode:
-                Consumer_->OnStringScalar(node->AsString()->GetValue());
+                Consumer_->OnStringScalar((*node)->AsString()->GetValue());
                 break;
 
             case EObjectType::Int64Node:
-                Consumer_->OnInt64Scalar(node->AsInt64()->GetValue());
+                Consumer_->OnInt64Scalar((*node)->AsInt64()->GetValue());
                 break;
 
             case EObjectType::Uint64Node:
-                Consumer_->OnUint64Scalar(node->AsUint64()->GetValue());
+                Consumer_->OnUint64Scalar((*node)->AsUint64()->GetValue());
                 break;
 
             case EObjectType::DoubleNode:
-                Consumer_->OnDoubleScalar(node->AsDouble()->GetValue());
+                Consumer_->OnDoubleScalar((*node)->AsDouble()->GetValue());
                 break;
 
             case EObjectType::BooleanNode:
-                Consumer_->OnBooleanScalar(node->AsBoolean()->GetValue());
+                Consumer_->OnBooleanScalar((*node)->AsBoolean()->GetValue());
                 break;
 
             default:
@@ -198,7 +227,7 @@ private:
 
     void VisitMap(TNodeId nodeId, int currentNodeDepth)
     {
-        const auto& children = GetOrCrash(NodeIdToChildren_, nodeId);
+        const auto& children = GetOrCrash(*NodeIdToChildren_, nodeId);
         if (currentNodeDepth == MaxAllowedNodeDepth_) {
             Consumer_->OnEntity();
             return;
@@ -217,35 +246,17 @@ private:
 void VisitSequoiaTree(
     TNodeId rootId,
     int maxAllowedNodeDepth,
-    NYson::IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter,
-    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const THashMap<TNodeId, INodePtr>& nodesWithAttributes)
-{
-    NYson::TAsyncYsonConsumerAdapter adapter(consumer);
-    VisitSequoiaTree(
-        rootId,
-        maxAllowedNodeDepth,
-        &adapter,
-        attributeFilter,
-        std::move(nodeIdToChildren),
-        std::move(nodesWithAttributes));
-}
-
-void VisitSequoiaTree(
-    TNodeId rootId,
-    int maxAllowedNodeDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const THashMap<TNodeId, INodePtr>& nodesWithAttributes)
+    const TNodeIdToAttributes& nodesWithAttributes)
 {
     TSequoiaTreeVisitor treeVisitor(
         consumer,
         attributeFilter,
         maxAllowedNodeDepth,
-        std::move(nodeIdToChildren),
-        std::move(nodesWithAttributes));
+        &nodeIdToChildren,
+        &nodesWithAttributes);
     treeVisitor.Visit(rootId);
 }
 

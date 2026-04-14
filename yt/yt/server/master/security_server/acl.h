@@ -171,6 +171,8 @@ public:
 
     operator bool() const;
 
+    TAccessControlDescriptor* Underlying();
+
 private:
     TAccessControlDescriptor* Underlying_;
     ISecurityManager* SecurityManager_;

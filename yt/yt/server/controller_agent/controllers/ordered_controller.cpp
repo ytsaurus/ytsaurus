@@ -1,16 +1,16 @@
 #include "ordered_controller.h"
 
+#include "helpers.h"
 #include "job_info.h"
 #include "job_memory.h"
-#include "helpers.h"
 #include "operation_controller_detail.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
+#include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/controller_agent/operation.h>
-#include <yt/yt/server/controller_agent/config.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
@@ -21,31 +21,31 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
-
-#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/library/query/base/query.h>
+
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/table_upload_options.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/check_schema_compatibility.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
@@ -924,7 +924,7 @@ private:
     TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
     {
         auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
-        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        options.JobSizeAdjusterConfig = Config_->EnableOrderedMapJobSizeAdjustment ? Options_->JobSizeAdjuster : nullptr;
         return options;
     }
 

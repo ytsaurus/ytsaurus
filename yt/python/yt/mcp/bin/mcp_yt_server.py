@@ -5,7 +5,7 @@ from yt.mcp.lib.tools.get_attributes import GetAttributes
 from yt.mcp.lib.tools.check_is_paths_exists import CheckIsPathsExists
 from yt.mcp.lib.tools.admin import GetProxy
 from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
-from yt.mcp.lib.tools.common_cypress import CommonCypress
+from yt.mcp.lib.tools.common_client import CommonCypress
 
 import argparse
 import itertools
@@ -55,7 +55,7 @@ def main():
             GetAttributes(),
             # check_is_paths_exists
             CheckIsPathsExists(),
-            # common_cypress
+            # common_client
             CommonCypress(),
         ],
         "account": [

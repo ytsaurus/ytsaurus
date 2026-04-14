@@ -8,6 +8,7 @@
 #include "scheduling_heartbeat_context.h"
 #include "scheduling_segment_manager.h"
 #include "scheduling_policy.h"
+#include "attributes_list.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/public.h>
 
@@ -37,7 +38,8 @@ using TNonOwningAllocationSet = THashSet<TAllocation*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicAttributesList;
+struct TDynamicAttributes;
+using TDynamicAttributesList = TAttributesList<TDynamicAttributes>;
 
 // NB(eschcherbin): It would be more correct to design this class as an interface
 // with two implementations (simple and with heap), but this would introduce
@@ -96,18 +98,6 @@ struct TDynamicAttributes
     std::optional<TSchedulableChildSet> SchedulableChildSet;
     // Index of this element in its parent's schedulable child set.
     int SchedulableChildSetIndex = InvalidSchedulableChildSetIndex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicAttributesList final
-    : public std::vector<TDynamicAttributes>
-{
-public:
-    explicit TDynamicAttributesList(int size = 0);
-
-    TDynamicAttributes& AttributesOf(const TPoolTreeElement* element);
-    const TDynamicAttributes& AttributesOf(const TPoolTreeElement* element) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,7 +215,7 @@ struct TSchedulingStageProfilingCounters
     NProfiling::TCounter UselessPrescheduleAllocationCount;
     NProfiling::TEventTimer PrescheduleAllocationTime;
     NProfiling::TEventTimer TotalControllerScheduleAllocationTime;
-    NProfiling::TTimeGauge ControllerScheduleAllocationTime;
+    NProfiling::TEventTimer ControllerScheduleAllocationTime;
     NProfiling::TEventTimer ExecControllerScheduleAllocationTime;
     NProfiling::TEventTimer StrategyScheduleAllocationTime;
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
@@ -260,7 +250,7 @@ struct TAllocationWithPreemptionInfo
     EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
     TPoolTreeOperationElement* OperationElement;
 
-    bool operator ==(const TAllocationWithPreemptionInfo& other) const = default;
+    bool operator==(const TAllocationWithPreemptionInfo& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*spec*/);
@@ -273,7 +263,7 @@ using TAllocationWithPreemptionInfoSetMap = THashMap<int, TAllocationWithPreempt
 template <>
 struct THash<NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo>
 {
-    inline size_t operator ()(const NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
+    inline size_t operator()(const NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
     {
         return THash<NYT::NScheduler::TAllocationPtr>()(allocationInfo.Allocation);
     }
@@ -341,7 +331,8 @@ public:
     void PreemptAllocation(
         const TAllocationPtr& allocation,
         TPoolTreeOperationElement* element,
-        EAllocationPreemptionReason preemptionReason) const;
+        EAllocationPreemptionReason preemptionReason,
+        bool commitPreemptedResourceUsage = false) const;
 
     TNonOwningOperationElementList ExtractBadPackingOperations();
 
@@ -600,19 +591,10 @@ public:
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) const override;
-    bool ProcessAllocationUpdate(
+    TProcessAllocationUpdateResult ProcessAllocationUpdate(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         TPoolTreeOperationElement* element,
-        TAllocationId allocationId,
-        const TJobResources& allocationResources,
-        bool resetPreemptibleProgress,
-        const std::optional<std::string>& allocationDataCenter,
-        const std::optional<std::string>& allocationInfinibandCluster,
-        std::optional<EAbortReason>* maybeAbortReason) const override;
-    bool ProcessFinishedAllocation(
-        const TPoolTreeSnapshotPtr& treeSnapshot,
-        TPoolTreeOperationElement* element,
-        TAllocationId allocationId) const override;
+        const TAllocationUpdate& allocationUpdate) override;
 
     //! Diagnostics.
     void BuildSchedulingAttributesStringForNode(

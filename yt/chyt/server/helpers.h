@@ -6,11 +6,14 @@
 
 #include <yt/chyt/server/protos/clickhouse_service.pb.h>
 
+#include <yt/yt/library/tz_types/tz_types.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/ypath/public.h>
 
@@ -26,11 +29,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path);
+template <NYT::NTableClient::ESimpleLogicalValueType LogicalType>
+using TTzIntegerType = NYT::NTableClient::TUnderlyingTimestampIntegerType<NYT::NTableClient::TUnderlyingTzType<LogicalType>>;
+
+template <NTableClient::ESimpleLogicalValueType LogicalType>
+TTzIntegerType<LogicalType> GetTimestampFromTzString(std::string_view tzString);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<NYPath::TYPath, NHydra::TRevision>& path);
+
+void FromProto(std::pair<NYPath::TYPath, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,11 +49,14 @@ namespace NClickHouseServer {
 
 TGuid ToGuid(DB::UUID uuid);
 
+//! Register a new user in CH AccessControl and grant them all the necessary permissions.
+//! This is suitable for internal CHYT users. For real users, it is preferable to use THost::PrepareClickHouseUser.
 void RegisterNewUser(
     DB::AccessControl& accessControl,
     const std::string& userName,
     const std::vector<TString>& userDefinedDatabaseNames = {},
-    bool allowSqlUdfManagement = false);
+    bool allowSqlUdfManagement = false,
+    bool allowGlobalDictionaryAccess = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,3 +151,7 @@ void PrintTo(const Field& field, ::std::ostream* os);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

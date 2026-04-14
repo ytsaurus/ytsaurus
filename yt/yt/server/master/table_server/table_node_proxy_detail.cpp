@@ -64,8 +64,9 @@
 
 #include <yt/yt/library/query/secondary_index/schema.h>
 
-#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 #include <yt/yt/client/chaos_client/helpers.h>
+#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -90,6 +91,7 @@ namespace NYT::NTableServer {
 
 using namespace NApi;
 using namespace NChaosClient;
+using namespace NChaosServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
@@ -131,7 +133,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         auto* table = GetThisImpl();
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
-        } else if (securityManager->HasColumnarAce(Object_, user)) {
+        } else if (securityManager->HasColumnarAce(Object_)) {
             // If the object lacks a columnar ACE, column-level permissions
             // are skipped during the permission check.
             const auto& tableManager = Bootstrap_->GetTableManager();
@@ -160,25 +162,24 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         }
 
         if (checkOptions.Columns) {
-            for (size_t index = 0; index < checkOptions.Columns->size(); ++index) {
-                const auto& column = (*checkOptions.Columns)[index];
-                const auto& result = (*checkResponse.Columns)[index];
-                if (result.Action == ESecurityAction::Deny) {
-                    if (context->OmitInaccessibleColumns) {
-                        if (!context->OmittedInaccessibleColumns) {
-                            context->OmittedInaccessibleColumns.emplace();
-                        }
-                        context->OmittedInaccessibleColumns->push_back(column);
-                    } else {
-                        TPermissionCheckTarget target;
-                        target.ObjectId = Object_->GetId();
-                        target.Column = column;
-                        securityManager->LogAndThrowAuthorizationError(
-                            target,
-                            user,
-                            EPermission::Read,
-                            result);
+            for (const auto& [column, result] : Zip(*checkOptions.Columns, *checkResponse.Columns)) {
+                if (result.Action != ESecurityAction::Deny) {
+                    continue;
+                }
+                if (context->OmitInaccessibleColumns) {
+                    if (!context->OmittedInaccessibleColumns) {
+                        context->OmittedInaccessibleColumns.emplace();
                     }
+                    context->OmittedInaccessibleColumns->push_back(column);
+                } else {
+                    TPermissionCheckTarget target;
+                    target.ObjectId = Object_->GetId();
+                    target.Column = column;
+                    securityManager->LogAndThrowAuthorizationError(
+                        target,
+                        user,
+                        EPermission::Read,
+                        result);
                 }
             }
         }
@@ -221,7 +222,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
-        .SetPresent(!isDynamic));
+        .SetPresent(!isDynamic && !ShouldHideRowCount()));
     // TODO(savrus) remove "unmerged_row_count" in 20.0
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnmergedRowCount)
         .SetPresent(isDynamic && isSorted));
@@ -295,6 +296,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTimes)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic && trunkTable->GetReplicationCardId())
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
@@ -503,7 +508,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::RowCount:
-            if (isDynamic) {
+            if (isDynamic || ShouldHideRowCount()) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -1130,8 +1135,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                                 .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
                                     fluent.Item("predicate").Value(*secondaryIndex->Predicate());
                                 })
-                                .DoIf(secondaryIndex->UnfoldedColumn().has_value(), [&] (TFluentMap fluent) {
-                                    fluent.Item("unfolded_column").Value(*secondaryIndex->UnfoldedColumn());
+                                .DoIf(secondaryIndex->UnfoldedColumns().has_value(), [&] (TFluentMap fluent) {
+                                    fluent.Item("unfolded_columns").DoMap([&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("table_column").Value(secondaryIndex->UnfoldedColumns()->TableColumn)
+                                            .Item("index_column").Value(secondaryIndex->UnfoldedColumns()->IndexColumn);
+                                    });
                                 })
                                 .DoIf(secondaryIndex->EvaluatedColumnsSchema().operator bool(), [&] (TFluentMap fluent) {
                                     fluent.Item("evaluated_columns_schema").Value(*secondaryIndex->EvaluatedColumnsSchema());
@@ -1256,11 +1265,11 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::ConstrainedSchema: {
-            if (table->Constraints().empty()) {
+            if (table->GetConstraints().empty()) {
                 return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
             }
             return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
-                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                .Apply(BIND([columnToConstraint = table->GetConstraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
                     auto tableSchema = heavySchemaOrError.ValueOrThrow();
                     TConstrainedTableSchema schema(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit);
                     return ConvertToYsonString(schema);
@@ -1268,11 +1277,11 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::Constraints: {
-            if (table->Constraints().empty()) {
+            if (table->GetConstraints().empty()) {
                 return MakeFuture(ConvertToYsonString(TColumnNameToConstraintMap()));
             }
             return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
-                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                .Apply(BIND([columnToConstraint = table->GetConstraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
                     auto tableSchema = heavySchemaOrError.ValueOrThrow();
                     return ConvertToYsonString(MakeColumnNameToConstraintMap(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit));
                 }));
@@ -1300,6 +1309,14 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                 break;
             }
             return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+        }
+
+        case EInternedAttributeKey::ReplicationLagTimes: {
+            if (isExternal) {
+                break;
+            }
+
+            return GetReplicationLagTimesAsync(*table, Bootstrap_->GetClusterConnection());
         }
 
         default:
@@ -2053,6 +2070,38 @@ IAttributeDictionary* TTableNodeProxy::MutableCustomAttributesOrNull()
         [&] { return TBase::MutableCustomAttributesOrNull(); }).Get();
 }
 
+void TTableNodeProxy::ValidatePermission(
+    NObjectServer::TObject* object,
+    NYTree::EPermission permission)
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto successfulValidationResult = securityManager->ValidatePermission(object, permission);
+    YT_LOG_ALERT_IF(
+        CachedHasRowLevelAce_ && *CachedHasRowLevelAce_ != successfulValidationResult.HasRowLevelAce,
+        "Cached row-level ACE presence info differs from the recently computed one (CachedHasRowLevelAce: %v, NewHasRowLevelAce: %v)",
+        *CachedHasRowLevelAce_,
+        successfulValidationResult.HasRowLevelAce);
+    CachedHasRowLevelAce_ = successfulValidationResult.HasRowLevelAce;
+}
+
+void TTableNodeProxy::RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context)
+{
+    auto* table = GetThisImpl();
+    if (table->GetHunkStorage() && !request->force()) {
+        THROW_ERROR_EXCEPTION("Cannot remove table %v that is linked to hunk storage",
+            table->GetId());
+    }
+
+    TBase::RemoveSelf(request, response, context);
+}
+
+bool TTableNodeProxy::ShouldHideRowCount() const
+{
+    // NB(coteeq): CachedHasRowLevelAce_ may be null if we did not check permissions for the subject.
+    // This may happen if the subject is a superuser.
+    return CachedHasRowLevelAce_.value_or(false);
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)
 {
     DeclareMutating();
@@ -2118,8 +2167,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
-        if (const auto& unfoldedColumn = index->UnfoldedColumn()) {
-            ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
+        if (const auto& unfoldedColumns = index->UnfoldedColumns()) {
+            auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
+            ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
+            ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
         if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {
@@ -2146,6 +2197,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->mutable_hunk_storage_id(), hunkStorage->GetId());
     }
 
+    context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+        response->tablets_size(),
+        response->tablet_cells_size(),
+        response->replicas_size(),
+        response->indices_size());
+
     context->Reply();
 }
 
@@ -2156,12 +2213,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     struct TAlterTableOptions
     {
         TCompactTableSchemaPtr Schema;
-        // NB: Constants are handled differently in table creation and alteration operations due to differences in schema formats representations:
+        // NB: Constants are handled differently in table creation and table schema alter operations due to differences in schema formats representations:
         // When table is created schema is passed as YSON and when table is altered schema is passed as TTableSchemaExt.
         // Addition of constants into TTableSchemaExt is undesirable, because schemas are currently stored as wire TTableSchemaExt
         // on the master's side and it is not acceptable to have constrained schemas there.
         // Therefore on table creation constrained schema validation is performed on the master's side.
-        // And on alteration it is partially performed on the client.
+        // And on table schema alter it is partially performed on the client.
         std::optional<TColumnNameToConstraintMap> ColumnToConstraint;
         std::optional<bool> Dynamic;
         std::optional<TTableReplicaId> UpstreamReplicaId;
@@ -2209,7 +2266,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     auto maxSchemaMemoryUsageToLog = dynamicConfig->MaxSchemaMemoryUsageToLog;
 
     if (options.ColumnToConstraint && !dynamicConfig->EnableColumnConstraintsForTables) {
-        THROW_ERROR_EXCEPTION("Alteration of tables with column constraints is prohibited by system administrator");
+        THROW_ERROR_EXCEPTION("Table schema alter of tables with column constraints is prohibited by system administrator");
     }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
@@ -2418,7 +2475,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         if (table->IsDynamic()) {
             if (auto index = table->GetIndexTo()) {
-                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
                 auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
@@ -2426,11 +2483,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     *newTableSchema,
                     index->Predicate(),
                     index->EvaluatedColumnsSchema(),
-                    index->UnfoldedColumn());
+                    index->UnfoldedColumns());
             }
 
             for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
-                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
                 auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
@@ -2438,7 +2495,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     *indexTableSchema,
                     index->Predicate(),
                     index->EvaluatedColumnsSchema(),
-                    index->UnfoldedColumn());
+                    index->UnfoldedColumns());
             }
         }
 
@@ -2469,15 +2526,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 std::move(*options.ColumnToConstraint),
                 config->TableManager->ColumnToConstraintLogLimit);
         }
-        ValidateConstrainedSchemaAlteration(
+        ValidateConstrainedTableSchemaAlter(
             *oldTableSchema,
             *newTableSchema,
-            table->Constraints(),
-            effectiveConstraints ? *effectiveConstraints : table->Constraints(),
+            table->GetConstraints(),
+            effectiveConstraints ? *effectiveConstraints : table->GetConstraints(),
             table->IsEmpty());
 
         if (effectiveConstraints) {
-            table->Constraints() = std::move(*effectiveConstraints);
+            table->SetConstraints(std::move(*effectiveConstraints));
         }
     }
 
@@ -2498,12 +2555,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (schemaReceived || options.SchemaModification) {
         auto setCorrespondingTableSchema = [] (
             TTableNode* table,
-            const TCompactTableSchemaPtr& schema,
+            TCompactTableSchemaPtr schema,
             const TAlterTableOptions& options,
             const auto& tableManager)
         {
             if (table->IsNative()) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(schema, table);
+                return tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), table);
             }
 
             YT_VERIFY(!options.Schema);
@@ -2512,7 +2569,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             return existingSchema;
         };
 
-        resultingSchema = setCorrespondingTableSchema(table, schema, options, tableManager);
+        resultingSchema = setCorrespondingTableSchema(table, std::move(schema), options, tableManager);
 
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }

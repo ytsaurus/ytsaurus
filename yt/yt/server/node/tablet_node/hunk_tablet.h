@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "hunk_tablet_profiling.h"
 #include "object_detail.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -29,6 +30,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
+    DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, HunkStoragePath);
 
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, MasterAvenueEndpointId);
 
@@ -40,18 +42,24 @@ public:
     DEFINE_BYREF_RO_PROPERTY(THashSet<THunkStorePtr>, AllocatedStores);
     DEFINE_BYREF_RO_PROPERTY(THashSet<THunkStorePtr>, PassiveStores);
 
+    DEFINE_BYREF_RO_PROPERTY(THunkTabletProfilerPtr, Profiler, THunkTabletProfiler::GetDisabled());
+
 public:
     THunkTablet(
         IHunkTabletHostPtr host,
-        TTabletId tabletId);
+        TTabletId tabletId,
+        NYPath::TYPath hunkStoragePath);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    void OnAfterSnapshotLoaded();
 
     TFuture<std::vector<NJournalClient::TJournalHunkDescriptor>> WriteHunks(
         std::vector<TSharedRef> payloads);
 
     void Reconfigure(const THunkStorageSettings& settings);
+    void ConfigureProfiler();
 
     THunkStorePtr FindStore(TStoreId storeId);
     THunkStorePtr GetStore(TStoreId storeId);
@@ -88,6 +96,8 @@ public:
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
 
     int GetWriteLockCount() const;
+
+    void RecomputeLockingTabletCount() const;
 
     const NLogging::TLogger& GetLogger() const;
 

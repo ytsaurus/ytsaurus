@@ -1,29 +1,28 @@
 #pragma once
 
-#include "artifact_cache.h"
+#include "artifact_description.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
 #include "helpers.h"
 #include "job_info.h"
-#include "public.h"
+#include "preparation_options.h"
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/job_report.h>
 #include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
+#include <yt/yt/server/lib/exec_node/public.h>
 
-#include <yt/yt/server/lib/misc/job_report.h>
+#include <yt/yt/server/lib/controller_agent/network_project.h>
 
 #include <yt/yt/server/lib/job_agent/public.h>
 #include <yt/yt/server/lib/job_agent/structs.h>
 
+#include <yt/yt/server/lib/misc/job_report.h>
+
 #include <yt/yt/server/lib/scheduler/structs.h>
-
-#include <yt/yt/server/lib/controller_agent/network_project.h>
-
-#include <yt/yt/client/api/client.h>
 
 #include <yt/yt/ytlib/job_prober_client/public.h>
 
@@ -31,7 +30,10 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/library/containers/public.h>
+
 #include <yt/yt/library/containers/cri/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -46,21 +48,6 @@ DEFINE_ENUM(EGpuCheckType,
     (Preliminary)
     (Extra)
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TArtifactDescription
-{
-    ESandboxKind SandboxKind;
-    TString Name;
-    bool Executable;
-    bool BypassArtifactCache;
-    bool CopyFile;
-    TArtifactKey Key;
-    TArtifactPtr Artifact;
-    bool AccessedViaBind = false;
-    bool AccessedViaVirtualSandbox = false;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +72,8 @@ public:
         NControllerAgent::NProto::TJobSpec&& jobSpec,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap,
-        const TJobCommonConfigPtr& commonConfig);
+        const TJobCommonConfigPtr& commonConfig,
+        TJobFSSecretaryPtr fsSecretary);
 
     ~TJob();
 
@@ -208,6 +196,7 @@ public:
 
     void HandleJobReport(NExecNode::TNodeJobReport&& jobReport);
 
+    // NB(bystrovserg): Should be called only at the end of job as it clears input_node_directory.
     void ReportSpec();
 
     void ReportStderr();
@@ -216,11 +205,15 @@ public:
 
     void ReportProfile();
 
+    // Report statistics if enough time has passed since last report.
+    void TryReportStatistics();
+
     NYson::TYsonString BuildArchiveFeatures() const;
 
     void SetHasJobTrace(bool value);
+    void SetHasGpuCheckStderr(bool value);
 
-    void AbortJobAfterInterruptionCallFailed(const std::exception& ex);
+    void AbortJobAfterInterruptionCallFailed(TError internalError);
 
     void DoInterrupt(
         TDuration timeout,
@@ -250,6 +243,7 @@ public:
 
     void OnJobInterruptionTimeout(
         NScheduler::EInterruptionReason interruptionReason,
+        TDuration interruptionTimeout,
         const std::optional<TString>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
@@ -314,7 +308,6 @@ private:
 
     const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
-    const bool RootVolumeDiskQuotaEnabled_;
     //! Restrict places allowed for porto volumes and layers.
     const bool RestrictPortoPlace_;
 
@@ -325,8 +318,8 @@ private:
     THashSet<TString> RequestedMonitoringSensors_;
 
     // Used to terminate artifacts downloading in case of cancelation.
-    TFuture<void> ArtifactsFuture_ = VoidFuture;
-    TFuture<void> WorkspaceBuildingFuture_ = VoidFuture;
+    TFuture<void> ArtifactsFuture_ = OKFuture;
+    TFuture<void> WorkspaceBuildingFuture_ = OKFuture;
 
     double Progress_ = 0.0;
     i64 StderrSize_ = 0;
@@ -348,7 +341,10 @@ private:
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
     std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;
+    //! Last time statistics were sent to controller agent.
     TInstant StatisticsLastSendTime_ = TInstant::Now();
+    //! Last time statistics were reported to operations archive.
+    TInstant StatisticsLastArchiveReportTime_ = TInstant::Now();
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
@@ -369,14 +365,17 @@ private:
     std::optional<TInstant> PrepareRootVolumeStartTime_;
     std::optional<TInstant> PrepareRootVolumeFinishTime_;
 
-    std::optional<TInstant> PrepareTmpfsVolumesStartTime_;
-    std::optional<TInstant> PrepareTmpfsVolumesFinishTime_;
+    std::optional<TInstant> PrepareNonRootVolumesStartTime_;
+    std::optional<TInstant> PrepareNonRootVolumesFinishTime_;
 
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime_;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime_;
 
-    std::optional<TInstant> LinkTmpfsVolumesStartTime_;
-    std::optional<TInstant> LinkTmpfsVolumesFinishTime_;
+    std::optional<TInstant> LinkVolumesStartTime_;
+    std::optional<TInstant> LinkVolumesFinishTime_;
+
+    std::optional<TInstant> ValidateRootFSStartTime_;
+    std::optional<TInstant> ValidateRootFSFinishTime_;
 
     std::optional<TInstant> PreliminaryGpuCheckStartTime_;
     std::optional<TInstant> PreliminaryGpuCheckFinishTime_;
@@ -389,35 +388,16 @@ private:
     int SetupCommandCount_ = 0;
 
     std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
-    std::vector<TTmpfsVolumeResult> TmpfsVolumes_;
 
     std::atomic<bool> UseJobInputCache_ = false;
 
     NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
-    std::vector<TArtifactDescription> Artifacts_;
-    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys_;
-    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
-    std::optional<TString> DockerImage_;
-    std::optional<TString> DockerImageId_;
-
-    std::optional<TVirtualSandboxData> VirtualSandboxData_;
-
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
-
-    //! NBD export ids used by the job.
-    THashSet<TString> NbdExportIds_;
-
-    //! Artifact name -> index of the artifact in #Artifacts_ list.
-    THashMap<TString, int> UserArtifactNameToIndex_;
-
-    IVolumePtr RootVolume_;
-    IVolumePtr GpuCheckVolume_;
-
     bool IsGpuRequested_;
 
     EJobState JobState_ = EJobState::Waiting;
-    EJobPhase JobPhase_ = EJobPhase::Created;
+    // NB(pogorelov): We change job phase only from job thread.
+    std::atomic<EJobPhase> JobPhase_ = EJobPhase::Created;
 
     NServer::TJobEvents JobEvents_;
 
@@ -464,13 +444,14 @@ private:
 
     const IJobInputCachePtr JobInputCache_;
 
+    TJobFSSecretaryPtr FSSecretary_;
+
     bool HasJobTrace_ = false;
+    bool HasGpuCheckStderr_ = false;
 
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
-
-    void OnResourcesAcquired() noexcept;
 
     // Helpers.
 
@@ -503,6 +484,10 @@ private:
 
     void ValidateJobPhase(EJobPhase expectedPhase) const;
 
+    //! Remove heavy fields (e.g. input_node_directory) from the job spec.
+    //! Can be called only at the end of the job.
+    void TrimJobSpec();
+
     // Event handlers.
     void OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError);
 
@@ -518,7 +503,7 @@ private:
 
     bool IsFullHostGpuJob() const;
 
-    void RunWithWorkspaceBuilder();
+    void PrepareWorkspace();
 
     IUserSlotPtr GetUserSlot() const;
     std::vector<TGpuSlotPtr> GetGpuSlots() const;
@@ -554,7 +539,8 @@ private:
 
     // Finalization.
     void Cleanup();
-    void TryCleanupNbdExports();
+
+    void UnsubscribeJobFromNbdDevices();
 
     // Preparation.
     std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> PrepareNodeDirectory();
@@ -565,16 +551,6 @@ private:
     std::vector<NContainers::TBind> GetRootFSBinds();
 
     TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
-
-    bool CanBeAccessedViaBind(const TArtifactDescription& artifact) const;
-    bool CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact) const;
-
-    // Build artifacts.
-    void InitializeArtifacts();
-
-    void InitializeSandboxNbdRootVolumeData();
-
-    THashSet<TString> InitializeNbdExportIds();
 
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 
@@ -662,7 +638,8 @@ TJobPtr CreateJob(
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
-    const TJobCommonConfigPtr& commonConfig);
+    const TJobCommonConfigPtr& commonConfig,
+    TJobFSSecretaryPtr fsSecretary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

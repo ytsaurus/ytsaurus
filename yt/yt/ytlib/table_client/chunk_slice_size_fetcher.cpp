@@ -98,7 +98,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     ToProto(req->mutable_name_table(), nameTable);
 
     if (req->chunk_requests_size() == 0) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return req->Invoke().Apply(

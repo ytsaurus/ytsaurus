@@ -18,8 +18,8 @@ struct ILocalHydraJanitor
 DEFINE_REFCOUNTED_TYPE(ILocalHydraJanitor)
 
 ILocalHydraJanitorPtr CreateLocalHydraJanitor(
-    TString snapshotPath,
-    TString changelogPath,
+    std::string snapshotPath,
+    std::string changelogPath,
     TLocalHydraJanitorConfigPtr config,
     IInvokerPtr ioInvoker);
 

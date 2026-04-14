@@ -70,6 +70,8 @@ const THashSet<ui32> DYNAMIC_KINDS({
     (ui32)NKikimrConsole::TConfigItem::HealthCheckConfigItem,
     (ui32)NKikimrConsole::TConfigItem::WorkloadManagerConfigItem,
     (ui32)NKikimrConsole::TConfigItem::BlockstoreConfigItem,
+    (ui32)NKikimrConsole::TConfigItem::StatisticsConfigItem,
+    (ui32)NKikimrConsole::TConfigItem::TliConfigItem,
 });
 
 const THashSet<ui32> NON_YAML_KINDS({
@@ -926,10 +928,6 @@ public:
         return Config;
     }
 
-    bool HasMainYamlConfig() const override {
-        return !MainYamlConfig.empty();
-    }
-
     TMap<ui64, TString> GetVolatileYamlConfigs() const override {
         return VolatileYamlConfigs;
     }
@@ -942,7 +940,7 @@ public:
         return DatabaseYamlConfig;
     }
 
-    const TString& GetStorageYamlConfig() const override {
+    const std::optional<TString>& GetStorageYamlConfig() const override {
         return StorageYamlConfig;
     }
 
@@ -950,15 +948,19 @@ public:
         return SourceAddress;
     }
 
-    const TString& GetMainYamlConfig() const override {
+    const std::optional<TString>& GetMainYamlConfig() const override {
         return MainYamlConfig;
     }
 
+    bool IsTransient() const override {
+        return false;
+    }
+
     NKikimrConfig::TAppConfig Config;
-    TString MainYamlConfig;
+    std::optional<TString> MainYamlConfig;
     TMap<ui64, TString> VolatileYamlConfigs;
     TString DatabaseYamlConfig;
-    TString StorageYamlConfig;
+    std::optional<TString> StorageYamlConfig;
     TString SourceAddress;
 };
 
@@ -990,7 +992,9 @@ try {
     
     switch (configSource) {
         case EConfigSource::SeedNodes:
-            configs->StorageYamlConfig = StartupStorageYaml;
+            if (StartupStorageYaml) {
+                configs->StorageYamlConfig = StartupStorageYaml;
+            }
             {
                 auto configClient = std::make_unique<TConfigClientMock>();
                 configClient->SavedResult = configs;

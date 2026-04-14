@@ -406,15 +406,13 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
         create_user("u1")
-        # NB: unique clique alias is used here because scheduler's restart
-        # somehow break the clique instance so reusing of this clique alias in
-        # other tests is impossible. DO NOT REUSE THIS ALIAS.
-        with Clique(1, config_patch=patch, alias="*ch_alias_unique_13") as clique:
+
+        with Clique(1, config_patch=patch) as clique:
             acl = [make_ace("allow", "u1", "use")]
-            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias_unique_13/principal/@acl", acl)
+            yt_set(f"//sys/access_control_object_namespaces/chyt/{clique.alias}/principal/@acl", acl)
             # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
             yt_set(
-                "//sys/strawberry/chyt/ch_alias_unique_13/@strawberry_persistent_state",
+                f"//sys/strawberry/chyt/{clique.alias}/@strawberry_persistent_state",
                 {
                     "yt_operation_id": clique.op.id,
                     "yt_operation_state": "running",
@@ -426,6 +424,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query_via_proxy("select 1", user="u2")
+
+            # Before exiting clique, wait for the operation to complete revive and materializing processes
+            # caused by restarting the scheduler to tear down the test properly.
+            clique.op.wait_for_job_revival_finished()
+            wait(lambda: clique.op.get_state() == "running")
 
     @authors("barykinni")
     def test_legacy_endpoint(self):

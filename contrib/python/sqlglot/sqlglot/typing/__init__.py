@@ -30,8 +30,6 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.ArraySize,
             exp.CountIf,
             exp.Int64,
-            exp.Length,
-            exp.UnixDate,
             exp.UnixSeconds,
             exp.UnixMicros,
             exp.UnixMillis,
@@ -47,11 +45,17 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     **{
         expr_type: {"returns": exp.DataType.Type.BOOLEAN}
         for expr_type in {
+            exp.All,
+            exp.Any,
+            exp.ArrayContains,
             exp.Between,
             exp.Boolean,
             exp.Contains,
             exp.EndsWith,
+            exp.Exists,
             exp.In,
+            exp.IsInf,
+            exp.IsNan,
             exp.LogicalAnd,
             exp.LogicalOr,
             exp.RegexpLike,
@@ -84,9 +88,21 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     **{
         expr_type: {"returns": exp.DataType.Type.DOUBLE}
         for expr_type in {
+            exp.Asin,
+            exp.Asinh,
+            exp.Acos,
+            exp.Acosh,
             exp.ApproxQuantile,
+            exp.Atan,
+            exp.Atanh,
             exp.Avg,
+            exp.Cbrt,
+            exp.Cos,
+            exp.Cosh,
+            exp.Cot,
+            exp.Degrees,
             exp.Exp,
+            exp.Kurtosis,
             exp.Ln,
             exp.Log,
             exp.Pi,
@@ -95,10 +111,15 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.Radians,
             exp.Round,
             exp.SafeDivide,
+            exp.Sin,
+            exp.Sinh,
             exp.Sqrt,
             exp.Stddev,
             exp.StddevPop,
             exp.StddevSamp,
+            exp.Rand,
+            exp.Tan,
+            exp.Tanh,
             exp.ToDouble,
             exp.Variance,
             exp.VariancePop,
@@ -109,16 +130,25 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         expr_type: {"returns": exp.DataType.Type.INT}
         for expr_type in {
             exp.Ascii,
+            exp.BitLength,
             exp.Ceil,
             exp.DatetimeDiff,
+            exp.DayOfMonth,
+            exp.DayOfWeek,
+            exp.DayOfYear,
+            exp.Getbit,
+            exp.Hour,
             exp.TimestampDiff,
             exp.TimeDiff,
             exp.Unicode,
             exp.DateToDi,
             exp.Levenshtein,
+            exp.Length,
             exp.Sign,
             exp.StrPosition,
             exp.TsOrDiToDi,
+            exp.Quarter,
+            exp.UnixDate,
         }
     },
     **{
@@ -141,6 +171,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         expr_type: {"returns": exp.DataType.Type.TIME}
         for expr_type in {
             exp.CurrentTime,
+            exp.Localtime,
             exp.Time,
             exp.TimeAdd,
             exp.TimeSub,
@@ -164,12 +195,8 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         expr_type: {"returns": exp.DataType.Type.TINYINT}
         for expr_type in {
             exp.Day,
-            exp.DayOfMonth,
-            exp.DayOfWeek,
             exp.DayOfWeekIso,
-            exp.DayOfYear,
             exp.Month,
-            exp.Quarter,
             exp.Week,
             exp.WeekOfYear,
             exp.Year,
@@ -184,11 +211,20 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.Concat,
             exp.ConcatWs,
             exp.Chr,
+            exp.CurrentCatalog,
+            exp.CurrentSchema,
+            exp.CurrentVersion,
+            exp.CurrentUser,
+            exp.Dayname,
             exp.DateToDateStr,
             exp.DPipe,
             exp.GroupConcat,
             exp.Initcap,
             exp.Lower,
+            exp.MD5,
+            exp.Monthname,
+            exp.SHA,
+            exp.SHA2,
             exp.Substring,
             exp.String,
             exp.TimeToStr,
@@ -196,10 +232,14 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.Trim,
             exp.ToBase32,
             exp.ToBase64,
+            exp.Translate,
             exp.TsOrDsToDateStr,
             exp.UnixToStr,
             exp.UnixToTimeStr,
             exp.Upper,
+            exp.RawString,
+            exp.SessionUser,
+            exp.Space,
         }
     },
     **{
@@ -211,7 +251,10 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.ArrayReverse,
             exp.ArraySlice,
             exp.Filter,
+            exp.HavingMax,
             exp.LastValue,
+            exp.Limit,
+            exp.Order,
             exp.SortArray,
             exp.Window,
         }
@@ -234,13 +277,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.ArrayLast,
         }
     },
-    **{
-        expr_type: {"returns": exp.DataType.Type.UNKNOWN}
-        for expr_type in {
-            exp.Anonymous,
-            exp.Slice,
-        }
-    },
+    exp.Anonymous: {"annotator": lambda self, e: self._set_type(e, self.schema.get_udf_type(e))},
     **{
         expr_type: {"annotator": lambda self, e: self._annotate_timeunit(e)}
         for expr_type in {
@@ -266,7 +303,11 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     exp.Array: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions", array=True)},
     exp.ArrayAgg: {"annotator": lambda self, e: self._annotate_by_args(e, "this", array=True)},
     exp.Bracket: {"annotator": lambda self, e: self._annotate_bracket(e)},
-    exp.Case: {"annotator": lambda self, e: self._annotate_by_args(e, "default", "ifs")},
+    exp.Case: {
+        "annotator": lambda self, e: self._annotate_by_args(
+            e, *[if_expr.args["true"] for if_expr in e.args["ifs"]], "default"
+        )
+    },
     exp.Count: {
         "annotator": lambda self, e: self._set_type(
             e, exp.DataType.Type.BIGINT if e.args.get("big_int") else exp.DataType.Type.INT
@@ -283,6 +324,12 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     exp.Dot: {"annotator": lambda self, e: self._annotate_dot(e)},
     exp.Explode: {"annotator": lambda self, e: self._annotate_explode(e)},
     exp.Extract: {"annotator": lambda self, e: self._annotate_extract(e)},
+    exp.HexString: {
+        "annotator": lambda self, e: self._set_type(
+            e,
+            exp.DataType.Type.BIGINT if e.args.get("is_integer") else exp.DataType.Type.BINARY,
+        )
+    },
     exp.GenerateSeries: {
         "annotator": lambda self, e: self._annotate_by_args(e, "start", "end", "step", array=True)
     },
@@ -309,4 +356,5 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     },
     exp.ToMap: {"annotator": lambda self, e: self._annotate_to_map(e)},
     exp.Unnest: {"annotator": lambda self, e: self._annotate_unnest(e)},
+    exp.Subquery: {"annotator": lambda self, e: self._annotate_subquery(e)},
 }

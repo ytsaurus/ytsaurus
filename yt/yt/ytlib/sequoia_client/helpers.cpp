@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yt/yt/client/tablet_client/public.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -102,6 +102,16 @@ TYPath ValidateAndMakeYPath(TRawYPath&& path)
         }
     }
     return std::move(path.Underlying());
+}
+
+TFingerprint GetObjectIdFingerprint(NObjectClient::TObjectId id)
+{
+    std::array<char, MaxGuidStringSize> idBuffer;
+    auto* bufferEnd = WriteGuidToBuffer(idBuffer.data(), id);
+    TStringBuf idStr(idBuffer.begin(), bufferEnd);
+    auto value = NTableClient::MakeUnversionedStringValue(idStr);
+    // NB: This is the way QL farm_hash UDF works, even for a single argument.
+    return GetFarmFingerprint(TRange(&value, &value + 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,7 @@ import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
 import "yt/ytlib/chunk_client/proto/chunk_writer_statistics.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
 
@@ -56,6 +57,7 @@ message TReqStartChunk
     optional bool disable_send_blocks = 9 [default = false];
     optional bool use_probe_put_blocks = 10 [default = false];
     optional bool preallocate_disk_space = 11 [default = false];
+    optional bool use_direct_io = 12 [default = false];
 }
 
 message TRspStartChunk
@@ -63,6 +65,7 @@ message TRspStartChunk
     // COMPAT(kvk1920): Make this field required.
     optional NYT.NProto.TGuid location_uuid = 1;
     optional bool use_probe_put_blocks = 2 [default = false];
+    optional uint32 location_index = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,8 +76,8 @@ message TReqFinishChunk
     optional TChunkMeta chunk_meta = 2;
     optional int32 block_count = 3;
     optional bool ignore_missing_session = 5 [default = false];
-    // If this option is true, block_count must be specified.
-    optional bool truncate_extra_blocks = 6;
+
+    reserved 6;
 }
 
 message TRspFinishChunk
@@ -242,6 +245,8 @@ message TReqProbeBlockSet
     repeated int32 block_indexes = 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
     optional uint64 ally_replicas_revision = 4;
+    optional bool enable_p2p = 5 [default = true];
+    optional bool fetch_node_descriptors = 6 [default = false];
 }
 
 message TRspProbeBlockSet
@@ -255,6 +260,7 @@ message TRspProbeBlockSet
     required int64 disk_queue_size = 6;
     repeated TProbeBlockSetBlockInfo cached_blocks = 8;
     optional int32 medium_index = 9;
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,6 +280,8 @@ message TReqGetBlockSet
     optional NYT.NProto.TGuid read_session_id = 12;
 
     optional uint64 ally_replicas_revision = 13;
+    optional bool enable_p2p = 14 [default = true];
+    optional bool fetch_node_descriptors = 15 [default = false];
 
     reserved 3, 4, 9;
 }
@@ -282,6 +290,7 @@ message TRspGetBlockSet
 {
     repeated TPeerDescriptor peer_descriptors = 1;
     optional TAllyReplicasInfo ally_replicas = 11;
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 12;
     required bool has_complete_chunk = 3;
     required bool net_throttling = 5;
     required int64 net_queue_size = 6;
@@ -327,6 +336,9 @@ message TReqGetChunkFragmentSet
     required NYT.NProto.TGuid read_session_id = 1;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool use_direct_io = 4;
+
+    optional bool read_and_cache_whole_blocks = 5;
+    optional int32 block_count_to_precache = 6;
 
     message TSubrequest
     {

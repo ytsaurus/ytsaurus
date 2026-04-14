@@ -2,7 +2,6 @@
 #include "shell.h"
 #include "private.h"
 #include "config.h"
-#include "yt/yt/core/misc/error.h"
 
 #include <yt/yt/library/containers/instance.h>
 
@@ -17,6 +16,8 @@
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/ytlib/shell/public.h>
 
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/api/client.h>
@@ -353,7 +354,7 @@ public:
         }
 #endif
 
-        return CreatePortoShell(PortoExecutor_, std::move(options));
+        return CreatePortoShell(PortoExecutor_, std::move(options), !jobShellDescriptor.Subcontainer.empty());
     }
 
 
@@ -383,9 +384,10 @@ private:
 
             THashMap<TString, TString> volumeProperties;
             volumeProperties["backend"] = "bind";
+            volumeProperties["read_only"] = "true";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
-            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
+            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(std::string(toolDirectory), volumeProperties));
             THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell");
         }
     }
@@ -435,6 +437,7 @@ public:
             shell->Terminate(error);
         }
         IdToShell_.clear();
+        IndexToShell_.clear();
     }
 };
 

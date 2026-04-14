@@ -21,7 +21,7 @@ struct TSubprocessResult
 class TSubprocess
 {
 public:
-    explicit TSubprocess(TString path, bool copyEnv = true);
+    explicit TSubprocess(std::string path, bool copyEnv = true);
 
     static TSubprocess CreateCurrentProcessSpawner();
 
@@ -34,19 +34,19 @@ public:
 
     void Kill(int signal);
 
-    TString GetCommandLine() const;
+    std::string GetCommandLine() const;
 
     TProcessBasePtr GetProcess() const;
 
 private:
-    const TString Path_;
+    const std::string Path_;
 
     const TProcessBasePtr Process_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunSubprocess(const std::vector<TString>& cmd);
+void RunSubprocess(const std::vector<std::string>& cmd);
 
 ////////////////////////////////////////////////////////////////////////////////
 

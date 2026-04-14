@@ -92,7 +92,7 @@ public:
             *locationStatistics = location->GetSlotLocationStatistics();
 
             // Slot location statistics might be not computed yet, so we set medium index separately.
-            locationStatistics->set_medium_index(location->GetMediumDescriptor().Index);
+            locationStatistics->set_medium_index(location->GetMediumDescriptor()->GetIndex());
         }
 
         if (auto buildInfo = Bootstrap_->GetJobController()->GetBuildInfo()) {
@@ -175,9 +175,7 @@ private:
         auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
         auto future = std::move(futureIt->second);
         CellTagToHeartbeatRspFuture_.erase(futureIt);
-        YT_VERIFY(future.IsSet());
-
-        return future.Get();
+        return future.GetOrCrash();
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

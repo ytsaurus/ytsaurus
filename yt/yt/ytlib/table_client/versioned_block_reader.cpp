@@ -183,7 +183,7 @@ void TSimpleVersionedBlockParser::ReadKeyValue(
     int rowIndex) const
 {
     bool isNull = KeyNullFlags_[rowIndex * ChunkKeyColumnCount_ + id];
-    if (Y_UNLIKELY(isNull)) {
+    if (isNull) [[unlikely]] {
         value->Type = EValueType::Null;
         return;
     }
@@ -474,7 +474,7 @@ void TIndexedVersionedRowParser::ReadKeyValue(
     const char** rowData) const
 {
     bool isNull = KeyNullFlags_[id];
-    if (Y_UNLIKELY(isNull)) {
+    if (isNull) [[unlikely]] {
         value->Type = EValueType::Null;
         return;
     }
@@ -660,8 +660,8 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
     const NProto::TDataBlockMeta& blockMeta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<bool>& hunkColumnFlags,
-    const std::vector<NTableClient::THunkChunkMeta>& hunkChunkMetas,
-    const std::vector<NTableClient::THunkChunkRef>& hunkChunkRefs,
+    const std::vector<NTableClient::THunkChunkMeta>* hunkChunkMetas,
+    const std::vector<NTableClient::THunkChunkRef>* hunkChunkRefs,
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,

@@ -161,11 +161,7 @@ private:
 
     void PrepareContext()
     {
-        RegisterNewUser(
-            Host_->GetContext()->getAccessControl(),
-            User_,
-            Host_->GetUserDefinedDatabaseNames(),
-            Host_->HasUserDefinedSqlObjectStorage());
+        Host_->PrepareClickHouseUser(User_);
 
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);

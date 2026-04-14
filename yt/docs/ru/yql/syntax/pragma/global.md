@@ -56,7 +56,8 @@ SELECT * FROM test;
 | --- | --- |
 | Флаг | false |
 
-`EACH` использует [TablePathPrefix](#table-path-prefix) для каждого элемента списка.
+
+`EACH`/`PARTITION_LIST` используют [TablePathPrefix](#table-path-prefix) для каждого элемента списка.
 
 ## Warning {#warning}
 
@@ -141,9 +142,9 @@ SELECT * FROM test;
 | Флаг | false |
 
 Если флаг установлен, то [JOIN](../join.md) будет требовать строгого совпадения типов ключей.
-По умолчанию JOIN предварительно конвертирует ключи к общему типу, что может быть нежелательно с точки зрения производительности.
+По умолчанию `JOIN` предварительно конвертирует ключи к общему типу, что может быть нежелательно с точки зрения производительности.
 
-StrictJoinKeyTypes является [scoped](#pragmascope) настройкой.
+`StrictJoinKeyTypes` является [scoped](#pragmascope) настройкой.
 
 
 ## AnsiInForEmptyOrNullableItemsCollections
@@ -166,7 +167,7 @@ StrictJoinKeyTypes является [scoped](#pragmascope) настройкой.
 | --- | --- |
 | Флаг | false |
 
-Приводит поведение RANK/DENSE_RANK в соответствие со стандартом при наличии опциональных типов в ключах сортировки окна или в аргументе этих оконных функций. А именно:
+Приводит поведение `RANK`/`DENSE_RANK` в соответствие со стандартом при наличии опциональных типов в ключах сортировки окна или в аргументе этих оконных функций. А именно:
 
 * типом результата всегда является Uint64, а не Uint64?;
 * null-ы в ключах считаются равными друг другу (текущая реализация возвращает NULL).
@@ -181,7 +182,7 @@ StrictJoinKeyTypes является [scoped](#pragmascope) настройкой.
 
 Приводит неявное задание рамки окна при наличии [ORDER BY](../select/order_by.md) в соответствие со стандартом.
 
-Если AnsiCurrentRow не установлен, то окно `(ORDER BY key)` эквивалентно `(ORDER BY key ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`. Стандарт же требует, чтобы такое окно вело себя как `(ORDER BY key RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`.
+Если `AnsiCurrentRow` не установлен, то окно `(ORDER BY key)` эквивалентно `(ORDER BY key ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`. Стандарт же требует, чтобы такое окно вело себя как `(ORDER BY key RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`.
 
 Разница состоит в трактовке `CURRENT ROW`. В режиме `ROWS` `CURRENT ROW` трактуется буквально – текущая строка в партиции.
 А в режиме `RANGE` конец рамки `CURRENT ROW` означает "последняя строка в партиции с ключом сортировки, равным текущей строке".
@@ -250,13 +251,26 @@ StrictJoinKeyTypes является [scoped](#pragmascope) настройкой.
 
 `WarnUntypedStringLiterals` является [scoped](#pragmascope) настройкой.
 
+## SimplePg
+
+`SimplePg`/`DisableSimplePg`
+
+| Тип значения | По умолчанию |
+| --- | --- |
+| Флаг | false |
+
+При включенном режиме в глобальное пространство функций импортируются все функции из модуля [SimplePg](../../udf/list/simple_pg.md).
+При выключенном режиме для вызова этих функций требуется префикс `SimplePg::`.
+
+`SimplePg` является [scoped](#pragmascope) настройкой.
+
 ## AllowDotInAlias
 
 | Тип значения | По умолчанию |
 | --- | --- |
 | Флаг | false |
 
-Разрешить использовать точку в именах результирующих колонок. По умолчанию отключено, т. к. дальнейшее использование таких колонок в JOIN полностью не реализовано.
+Разрешить использовать точку в именах результирующих колонок. По умолчанию отключено, т. к. дальнейшее использование таких колонок в `JOIN` полностью не реализовано.
 
 ## WarnUnnamedColumns
 

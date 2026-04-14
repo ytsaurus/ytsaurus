@@ -11,8 +11,8 @@ from yt.wrapper.schema import RowIterator, OutputRow
 
 @yt.wrapper.yt_dataclass
 class ValueRow:
-    # Можно указывать точный тип, который соответствует типу в таблице.
-    # Обычный int в данном случае -- то же самое.
+    # You can specify the exact type that corresponds to the type in the table.
+    # Regular int is the same thing.
     value: schema.Int64
 
 
@@ -34,7 +34,7 @@ class Mapper(yt.wrapper.TypedJob):
 
         sum = 0
         for row, context in rows.with_context():
-            # Номер входной таблицы хранится в context-е.
+            # The input table index is stored in the context.
             input_table_index = context.get_table_index()
             if input_table_index == 0:
                 sum += row.value
@@ -43,13 +43,12 @@ class Mapper(yt.wrapper.TypedJob):
             output_row = SumRow(sum=sum)
             output_table_index = sum % 2
 
-            # Для указания номера выходной таблицы нужно использовать
-            # класс OutputRow.
+            # Use the `OutputRow` class to specify the output table index.
             yield OutputRow(output_row, table_index=output_table_index)
 
 
 class Reducer(yt.wrapper.TypedJob):
-    # Пример получения row_index в reducer с помощью context.
+    # Example: how to get the row index into the reducer using the context.
     def __call__(self, rows: RowIterator[ValueRow]) -> typing.Iterable[RowIndexRow]:
         for row, context in rows.with_context():
             yield RowIndexRow(row_index=context.get_row_index())
@@ -74,8 +73,8 @@ def main():
     client.remove(output1, force=True)
     client.remove(output2, force=True)
 
-    # Пример запуска маппера, который будет использовать OutputRow
-    # для выбора выходной таблицы.
+    # Example: how to run a mapper that will use `OutputRow`
+    # to select the output table.
     client.run_map(
         Mapper(),
         inputs,

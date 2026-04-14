@@ -25,6 +25,7 @@ PY_SRCS(
     yt_dashboards/cluster_resources.py
     yt_dashboards/flow/__init__.py
     yt_dashboards/flow/common.py
+    yt_dashboards/flow/companion_manager.py
     yt_dashboards/flow/computation.py
     yt_dashboards/flow/controller.py
     yt_dashboards/flow/diagnostics.py
@@ -38,17 +39,21 @@ PY_SRCS(
     yt_dashboards/key_filter.py
     yt_dashboards/lsm.py
     yt_dashboards/master.py
+    yt_dashboards/cypress_proxies.py
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_pool.py
     yt_dashboards/scheduler_operation.py
     yt_dashboards/jobs_monitor.py
     yt_dashboards/exe_nodes.py
     yt_dashboards/data_nodes.py
+    yt_dashboards/data_node_local.py
+    yt_dashboards/queue_agent.py
     yt_dashboards/queue_and_consumer_metrics.py
     yt_dashboards/user_load.py
     yt_dashboards/common/__init__.py
     yt_dashboards/common/postprocessors.py
     yt_dashboards/common/runner.py
+    yt_dashboards/common/queue_agent.py
     yt_dashboards/common/sensors.py
 )
 
@@ -56,13 +61,13 @@ IF (OPENSOURCE)
     PY_SRCS(
         TOP_LEVEL
         yt_dashboards/common/opensource_settings.py
-        yt_dashboards/yandex_constants.py
+        yt_dashboards/constants.py
     )
 ELSE()
     PY_SRCS(
         TOP_LEVEL
         yt_dashboards/common/settings.py
-        yt_dashboards/constants.py
+        yt_dashboards/yandex_constants.py
     )
 ENDIF()
 

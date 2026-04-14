@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/config.h>
+
 #include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -173,6 +175,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
     registrar.Parameter("connection_name", &TThis::ConnectionName)
         .Alias("name")
         .Default("default");
+    registrar.Parameter("region", &TThis::Region)
+        .Default();
     registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
         .DefaultNew();
 }
@@ -217,6 +221,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("bundle_controller", &TThis::BundleController)
+        .DefaultNew();
+    registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
@@ -393,6 +399,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_abort_job_timeout",
         &TThis::DefaultAbortJobTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("default_ban_request_timeout",
+        &TThis::DefaultBanRequestTimeout)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
@@ -529,14 +538,11 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_adaptive_ordered_schemaful_reader", &TThis::DisableAdaptiveOrderedSchemafulReader)
         .Default(false);
 
-    registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
+    registrar.Parameter("allow_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
         .Default(true);
-
-    registrar.Parameter("allow_unaliased_secondary_index", &TThis::AllowUnaliasedSecondaryIndex)
-        .Default(false);
 
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
@@ -559,9 +565,18 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
         .Default(false);
 
+    registrar.Parameter("enable_reshard_with_slicing_by_default", &TThis::EnableReshardWithSlicingByDefault)
+        .Default(true);
+
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
         .Default(2'500)
         .GreaterThan(0);
+
+    registrar.Parameter("check_operation_base_aco", &TThis::CheckOperationBaseAco)
+        .Default(false);
+
+    registrar.Parameter("operation_base_aco_name", &TThis::OperationBaseAcoName)
+        .Default("base_aco");
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

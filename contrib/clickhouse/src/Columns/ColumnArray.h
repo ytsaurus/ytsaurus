@@ -80,6 +80,7 @@ public:
     void insertData(const char * pos, size_t length) override;
     StringRef serializeValueIntoArena(size_t n, Arena & arena, char const *& begin) const override;
     char * serializeValueIntoMemory(size_t, char * memory) const override;
+    std::optional<size_t> getSerializedValueSize(size_t n) const override;
     const char * deserializeAndInsertFromArena(const char * pos) override;
     const char * skipSerializedInArena(const char * pos) const override;
     void updateHashWithValue(size_t n, SipHash & hash) const override;
@@ -210,6 +211,8 @@ public:
 
     bool hasDynamicStructure() const override { return getData().hasDynamicStructure(); }
     void takeDynamicStructureFromSourceColumns(const Columns & source_columns) override;
+    void takeDynamicStructureFromColumn(const ColumnPtr & source_column) override;
+    void fixDynamicStructure() override { data->fixDynamicStructure(); }
 
     bool dynamicStructureEquals(const IColumn & rhs) const override
     {

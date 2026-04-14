@@ -37,6 +37,8 @@ target_compile_options(server-lib-cell_server PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(server-lib-cell_server PUBLIC

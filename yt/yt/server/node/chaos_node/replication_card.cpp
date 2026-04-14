@@ -32,7 +32,7 @@ TReplicationCard::TReplicationCard(TObjectId id)
     , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
-bool TReplicationCard::IsNormal() const
+bool TReplicationCard::IsNormalState() const
 {
     return State_ == EReplicationCardState::Normal;
 }

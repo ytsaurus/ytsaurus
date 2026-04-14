@@ -16,13 +16,9 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/tablet_node/helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-
-#include <yt/yt/server/node/tablet_node/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -53,15 +49,17 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/scheduler.h>
-#include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/library/undumpable/ref.h>
 
@@ -108,7 +106,7 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         totalSize);
 
     auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
-    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, buffer);
+    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, MarkUndumpable(buffer));
 
     i64 offset = 0;
 
@@ -116,7 +114,7 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         // Slice the untracked and mutable buffer to avoid const_cast.
         auto slice = TMutableRef(buffer).Slice(offset, offset + block.Data.Size());
         ::memcpy(slice.Begin(), block.Data.Begin(), block.Data.Size());
-        block.Data = MarkUndumpable(trackedBuffer.Slice(offset, offset + block.Data.Size()));
+        block.Data = trackedBuffer.Slice(offset, offset + block.Data.Size());
         offset += block.Data.Size();
     }
 }
@@ -227,8 +225,7 @@ public:
         const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND_NO_PROPAGATE(&TInMemoryManager::ScanSlot, MakeWeak(this)));
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
@@ -304,11 +301,11 @@ private:
 
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
     {
-        const auto& staticConfig = Bootstrap_->GetConfig()->TabletNode->InMemoryManager;
-        auto config = staticConfig->ApplyDynamic(newNodeConfig->TabletNode->InMemoryManager);
+        const auto& staticConfig = Bootstrap_->GetTabletNodeConfig()->InMemoryManager;
+        auto config = staticConfig->ApplyDynamic(newNodeConfig->InMemoryManager);
         Config_.Store(config);
 
         PreloadSemaphore_->SetTotal(config->MaxConcurrentPreloads);
@@ -937,7 +934,7 @@ private:
 
     std::vector<TNodePtr> Nodes_;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
     std::atomic<bool> Sending_ = false;
     std::atomic<bool> Dropped_ = false;
 
@@ -1117,7 +1114,7 @@ public:
 
     TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 };
 

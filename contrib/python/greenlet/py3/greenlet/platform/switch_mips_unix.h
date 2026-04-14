@@ -16,6 +16,7 @@
 
 #define REGS_TO_SAVE "$16", "$17", "$18", "$19", "$20", "$21", "$22", \
        "$23", "$30"
+__attribute__((nomips16))
 static int
 slp_switch(void)
 {
@@ -33,9 +34,9 @@ slp_switch(void)
         SLP_SAVE_STATE(stackref, stsizediff);
         __asm__ __volatile__ (
 #ifdef __mips64
-            "daddu $29, %0\n"
+            "daddu $29, $29, %0\n"
 #else
-            "addu $29, %0\n"
+            "addu $29, $29, %0\n"
 #endif
             : /* no outputs */
             : "r" (stsizediff)

@@ -771,7 +771,7 @@ class TestIoEngine(YTEnvSetup):
         content2 = [{"a": i} for i in range(100, 200)]
 
         def seed_counter(node, path):
-            return profiler_factory().at_node(node).counter(name=path, tags={"location_type": "store"})
+            return profiler_factory().at_node(node).counter(name=path, tags={"location_type": "store", "medium": "default", "disk_family": "UNKNOWN"})
 
         self._set_io_engine({"default": "fair_share_thread_pool"})
         self._wait_for_io_engine_enabled("fair_share_thread_pool")

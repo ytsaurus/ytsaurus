@@ -3,10 +3,10 @@
 #include <{{h_path}}>
 
 #include <yt/yt/client/table_client/record_codegen_cpp.h>
+{%- if cpp_verbatim %}
 
-{% if cpp_verbatim %}
 {{cpp_verbatim}}
-{% endif %}
+{%- endif %}
 
 namespace {{namespace}} {
 
@@ -14,8 +14,8 @@ using namespace NTableClient;
 using namespace NTableClient::NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
+{%- for type in types %}
 
-{% for type in types %}
 {{type.type_name}}IdMapping::{{type.type_name}}IdMapping(const TNameTablePtr& nameTable)
 {%- if not type.sorted %}
 {%- endif -%}
@@ -95,39 +95,46 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
 {%- endif %}
             ,
 {%- endfor %}
-        }))
+{%- if type.add_empty_field %}
+        TColumnSchema("$empty", ESimpleLogicalValueType::Int64),
+{%- endif %}
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ {% if type.sorted -%} true {%- else -%} false {%- endif %}))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , IdMapping_(NameTable_)
     , PartialIdMapping_(NameTable_)
-    , PrimaryTableSchema_(New<TTableSchema>(std::vector{
-{% for field in type.fields -%}
-        TColumnSchema(
-            "{{field.column_name}}",
-    {%- if field.column_type_v3 is none %}
-            ESimpleLogicalValueType::{{field.column_type}}
-    {%- else %}
-            FromRecordCodegenTypeV3({{field.get_type_v3_string()}})
-    {%- endif -%}
-        )
+    , PrimaryTableSchema_(New<TTableSchema>(
+        std::vector{
+{%- for field in type.fields %}
+            TColumnSchema(
+                "{{field.column_name}}",
+{%- if field.column_type_v3 is none %}
+                ESimpleLogicalValueType::{{field.column_type}})
+{%- else %}
+                FromRecordCodegenTypeV3({{field.get_type_v3_string()}}))
+{%- endif %}
 {%- if field.sort_order %}
-            .SetSortOrder(ESortOrder::{{field.sort_order}})
+                .SetSortOrder(ESortOrder::{{field.sort_order}})
 {%- endif %}
 {%- if field.lock %}
-            .SetLock("{{field.lock}}")
+                .SetLock("{{field.lock}}")
 {%- endif %}
 {%- if field.required is not none %}
-            .SetRequired({{"true" if field.required else "false"}})
+                .SetRequired({{"true" if field.required else "false"}})
 {%- endif %}
 {%- if field.aggregate is not none %}
-            .SetAggregate("{{field.aggregate}}")
+                .SetAggregate("{{field.aggregate}}")
 {%- endif %}
 {%- if field.expression is not none %}
-            .SetExpression("{{field.expression}}")
-{%- endif -%}
-,
+                .SetExpression("{{field.expression}}")
+{%- endif %},
 {%- endfor %}
+{%- if type.add_empty_field %}
+            TColumnSchema("$empty", ESimpleLogicalValueType::Int64),
+{%- endif %}
         })
-{% if type.sorted -%}
+{%- if type.sorted %}
             ->SetUniqueKeys(true)
 {%- endif %})
 { }
@@ -167,32 +174,31 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     EValueFlags flags) const
 {
     std::array values{
-{% if not type.sorted -%}
+{%- if not type.sorted %}
         ToUnversionedValue(
             TabletIndex,
             rowBuffer,
             GetColumnIdOrThrow(idMapping.TabletIndex, TabletIndexColumnName)),
 {%- endif %}
-{% for field in type.fields if field.sort_order and field.expression is none -%}
+{%- for field in type.fields if field.sort_order and field.expression is none %}
         {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}(
             Key.{{field.cpp_name}},
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
+            GetColumnIdOrThrow(
+                idMapping.{{field.cpp_name}},
+                TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
 {%- for field in type.fields if not field.sort_order and field.expression is none %}
         {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}(
             {{field.cpp_name}},
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.{{field.cpp_name}},
-            TStringBuf("{{field.column_name}}")),
-            {% if field.aggregate %}
-                flags & NYT::NTableClient::EValueFlags::Aggregate
-            {% else %}
-                flags & NYT::NTableClient::EValueFlags::None
-            {% endif %}
-            ),
+            GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}")),
+            {{"flags & NYT::NTableClient::EValueFlags::Aggregate" if field.aggregate else "flags & NYT::NTableClient::EValueFlags::None"}}),
 {%- endfor %}
     };
+{%- if type.add_empty_field %}
+    Y_UNUSED(flags);
+{%- endif %}
     return rowBuffer->CaptureRow(TRange(values), /*captureValues*/ false);
 }
 
@@ -201,38 +207,38 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const {{type.type_name}}PartialIdMapping& idMapping)
 {
     {{type.type_name}} result;
+{%- if not type.sorted %}
 
-{% if not type.sorted %}
     if (auto id = idMapping.TabletIndex) {
         ValidateRowValueCount(row, *id);
         FromUnversionedValue(&result.TabletIndex, row[*id]);
     }
+
     if (auto id = idMapping.RowIndex) {
         ValidateRowValueCount(row, *id);
         FromUnversionedValue(&result.RowIndex, row[*id]);
     }
-{% endif %}
-
+{%- endif %}
 {%- for field in type.fields if field.expression is none %}
+
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
         try {
-{% if field.sort_order %}
+{%- if field.sort_order %}
             FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
-{% else %}
+{%- else %}
             FromUnversionedValue(&result.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
-{% endif %}
+{%- endif %}
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "{{field.column_name}}")
                 << ex;
         }
     }
-    {%- if field.required -%}
-    else {
+{%- if field.required %} else {
         THROW_ERROR_EXCEPTION("No such column %Qv", "{{field.column_name}}");
     }
-    {% endif %}
+{%- endif %}
 {%- endfor %}
 
     return result;
@@ -263,19 +269,16 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 {%- for field in type.fields if not field.sort_order and not field.expression %}
     if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
         builder.AddValue(
-            {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}
-            (*{{field.cpp_name}},
-            rowBuffer,
-            *idMapping.{{field.cpp_name}},
-            {% if field.aggregate %}
-                flags & NYT::NTableClient::EValueFlags::Aggregate
-            {% else %}
-                flags & NYT::NTableClient::EValueFlags::None
-            {% endif %}
-        ));
+            {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}(
+                *{{field.cpp_name}},
+                rowBuffer,
+                *idMapping.{{field.cpp_name}},
+                {{"flags & NYT::NTableClient::EValueFlags::Aggregate" if field.aggregate else "flags & NYT::NTableClient::EValueFlags::None"}}));
     }
 {%- endfor %}
-
+{%- if type.add_empty_field %}
+    Y_UNUSED(flags);
+{%- endif %}
     return rowBuffer->CaptureRow(builder.GetRow(), /*captureValues*/ false);
 }
 
@@ -284,7 +287,8 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     const {{type.type_name}}PartialIdMapping& idMapping)
 {
     {{type.type_name}}Partial result;
-{% if not type.sorted -%}
+{%- if not type.sorted %}
+
     if (auto id = idMapping.TabletIndex) {
         ValidateRowValueCount(row, *id);
         try {
@@ -294,6 +298,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
                 << ex;
         }
     }
+
     if (auto id = idMapping.RowIndex) {
         ValidateRowValueCount(row, *id);
         try {
@@ -305,15 +310,16 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     }
 {%- endif %}
 {%- for field in type.fields if not field.expression %}
+
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
         try {
 {%- if field.sort_order %}
             FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[id]);
-{% else %}
+{%- else %}
             FromUnversionedValue(&result.{{field.cpp_name}}, row[id]);
-{% endif %}
+{%- endif %}
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "{{field.column_name}}")
                 << ex;
@@ -323,8 +329,8 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 
     return result;
 }
+{%- endfor %}
 
-{% endfor %}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace {{namespace}}

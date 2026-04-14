@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "object_detail.h"
+#include "compaction_hint_controllers.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -56,7 +57,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, NextPivotKey);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<ISortedStorePtr>, Stores);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<ISortedStorePtr>, Stores);
 
     // NB: These are transient.
     DECLARE_BYVAL_RW_PROPERTY(EPartitionState, State);
@@ -71,6 +72,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TLegacyOwningKey>, PivotKeysForImmediateSplit);
 
+    DEFINE_BYREF_RW_PROPERTY(TPartitionCompactionHints, CompactionHints);
+
 public:
     TPartition(
         TTablet* tablet,
@@ -78,6 +81,8 @@ public:
         int index,
         TLegacyOwningKey pivotKey = TLegacyOwningKey(),
         TLegacyOwningKey nextPivotKey = TLegacyOwningKey());
+
+    ~TPartition();
 
     void CheckedSetState(EPartitionState oldState, EPartitionState newState);
 
@@ -106,6 +111,9 @@ public:
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
+    void AddStore(const ISortedStorePtr& store);
+    void RemoveStore(const ISortedStorePtr& store);
+
 private:
     EPartitionState State_ = EPartitionState::Normal;
 
@@ -123,7 +131,6 @@ class TPartitionIdFormatter
 {
 public:
     void operator()(TStringBuilderBase* builder, const std::unique_ptr<TPartition>& partition) const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

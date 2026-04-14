@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "compaction_hint_controllers.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -15,14 +16,9 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "table_puller.h"
-#include "tablet_manager.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
-#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -71,6 +67,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
@@ -142,6 +139,74 @@ void ValidateTabletMounted(TTablet* tablet)
             << TErrorAttribute("tablet_id", tablet->GetId())
             << TErrorAttribute("table_path", tablet->GetTablePath())
             << TErrorAttribute("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
+    }
+}
+
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp)
+{
+    YT_VERIFY(
+        tablet->GetCommitOrdering() == ECommitOrdering::Strong,
+        "Table MUST have strong commit ordering to check stores boundaries by timestamp");
+
+    const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+    if (storeRowIndexMap.empty()) {
+        // No stores.
+        return;
+    }
+
+    auto it = storeRowIndexMap.upper_bound(trimmedRowCount);
+    if (it == storeRowIndexMap.begin()) {
+        // trimmedRowCount is before the first store start row index, nothing to trim.
+        return;
+    }
+
+    auto storeIt = it;
+    --storeIt;
+
+    // Check that we are not trimming more than the table size.
+    if (it == storeRowIndexMap.end()) {
+        if (i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            trimmedRowCount > storeStartingRowIndex + storeIt->second->GetRowCount())
+        {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("timestamp", timestamp)
+                << TErrorAttribute("last_store_starting_row_index", storeStartingRowIndex)
+                << TErrorAttribute("last_store_row_count", storeIt->second->GetRowCount());
+        }
+    }
+
+    // Last store could be empty and have min_timestamp == MaxTimestamp, so check the last non-empty one
+    // it should have valid timestamp.
+    if (storeIt->second->GetMinTimestamp() == MaxTimestamp) {
+        // Check for trim row count mismatch.
+        if (storeIt == storeRowIndexMap.begin()) {
+            i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            if (trimmedRowCount != storeStartingRowIndex) {
+                THROW_ERROR_EXCEPTION(
+                    "Could not fully trim tablet since trimmed row count is greater than current row count")
+                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                    << TErrorAttribute("store_starting_row_index", storeStartingRowIndex);
+            }
+
+            // The only remaining store is empty and it's a full trim.
+            return;
+        }
+
+        --storeIt;
+    }
+
+    if (const auto& store = storeIt->second;
+        timestamp < store->GetMinTimestamp() ||
+        (trimmedRowCount > store->GetStartingRowIndex() && timestamp < store->GetMaxTimestamp()))
+    {
+        THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+            << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
+            << TErrorAttribute("timestamp", timestamp)
+            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp());
     }
 }
 
@@ -350,14 +415,13 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
 
         if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             TTabletRedirectionHint hint;
-
-            hint.PreviousMountRevision = MountRevision;
-            hint.MountRevision = siblingMountRevision;
-            hint.CellId = siblingCellId;
+            hint.SmoothMovementRedirectionHint.OldMountRevision = MountRevision;
+            hint.SmoothMovementRedirectionHint.NewMountRevision = siblingMountRevision;
+            hint.SmoothMovementRedirectionHint.CellId = siblingCellId;
 
             auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId);
             if (cellDescriptor) {
-                hint.CellDescriptor = ConvertToNode(cellDescriptor);
+                hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
             } else {
                 YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
                     LoggingTag);
@@ -373,15 +437,34 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
 
-            // Not a YT_VERIFY since the violation of this condition is not critical
-            // and should not fail the process.
-            YT_ASSERT(smoothMovementData.IsActiveServant.load());
+            // NB: Violation of this condition is not critical and will not cause any
+            // read anomalies though should be examined.
+            YT_LOG_ALERT_UNLESS(
+                smoothMovementData.IsActiveServant.load(),
+                "Tablet servant is not active after waiting for servant activation future is completed (%v)",
+                    LoggingTag);
         }
 
         if (!smoothMovementData.IsActiveServant.load()) {
             THROW_ERROR error;
         }
     }
+}
+
+void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()
+{
+    if (!ReshardRedirectionHint) {
+        return;
+    }
+
+    TTabletRedirectionHint hint;
+    hint.ReshardRedirectionHint = ReshardRedirectionHint;
+
+    THROW_ERROR_EXCEPTION(
+        NTabletClient::EErrorCode::TabletResharded,
+        "Tablet was resharded")
+        << TErrorAttribute("tablet_id", TabletId)
+        << TErrorAttribute("redirection_hint", hint);
 }
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
@@ -755,6 +838,11 @@ void TSmoothMovementData::Persist(const TPersistenceContext& context)
     Persist(context, SiblingMountRevision_);
     Persist(context, SiblingAvenueEndpointId_);
     Persist(context, CommonDynamicStoreIds_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothMovementOrdered) {
+        Persist(context, StoreRowCountOverride_);
+    }
 }
 
 void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const
@@ -805,7 +893,8 @@ TTablet::TTablet(
     TTimestamp retainedTimestamp,
     i64 cumulativeDataWeight,
     ETabletTransactionSerializationType serializationType,
-    TInstant mountTime)
+    TInstant mountTime,
+    TTimestamp conflictHorizonTimestamp)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , MountTime_(mountTime)
@@ -821,6 +910,8 @@ TTablet::TTablet(
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(settings.MountConfig->EnableLookupHashTable ? settings.MountConfig->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(retainedTimestamp)
+    , PersistentConflictHorizonTimestamp_(conflictHorizonTimestamp)
+    , TransientConflictHorizonTimestamp_(conflictHorizonTimestamp)
     , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , SerializationType_(serializationType)
     , Context_(context)
@@ -865,7 +956,14 @@ const TTableSettings& TTablet::GetSettings() const
 
 void TTablet::SetSettings(TTableSettings settings)
 {
+    auto oldMountConfig = Settings_.MountConfig;
     Settings_ = std::move(settings);
+
+    if (IsPhysicallySorted()) {
+        for (const auto& partition : PartitionList_) {
+            partition->CompactionHints().OnMountConfigUpdated(partition.get(), oldMountConfig);
+        }
+    }
 }
 
 const IStoreManagerPtr& TTablet::GetStoreManager() const
@@ -925,6 +1023,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
     Save(context, UpstreamReplicaId_);
+    Save(context, OriginatorTablets_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -932,6 +1031,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, RuntimeData_->LastWriteTimestamp);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
+    Save(context, PersistentConflictHorizonTimestamp_);
     Save(context, CumulativeDataWeight_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
@@ -1026,6 +1126,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
     Load(context, UpstreamReplicaId_);
+    // COMPAT(atalmenev)
+    if (context.GetVersion() >= ETabletReign::SaveOriginatorTabletsAfterReshard) {
+        Load(context, OriginatorTablets_);
+    }
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -1033,6 +1137,13 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->LastWriteTimestamp);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= ETabletReign::AddConflictHorizon) {
+        Load(context, PersistentConflictHorizonTimestamp_);
+        TransientConflictHorizonTimestamp_ = PersistentConflictHorizonTimestamp_;
+    }
+
     Load(context, CumulativeDataWeight_);
 
     for (auto& [_, replicaInfo] : Replicas_) {
@@ -1106,9 +1217,6 @@ void TTablet::Load(TLoadContext& context)
                 partitionId,
                 index);
             Load(context, *partition);
-            for (const auto& store : partition->Stores()) {
-                store->SetPartition(partition.get());
-            }
             return partition;
         }
     };
@@ -1439,13 +1547,14 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
     mergedPartition->SetAllowedSplitTime(TInstant::Now() + splitDelay);
 
     std::vector<TLegacyKey> mergedSampleKeys;
-    auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+    auto nodeMemoryTracker = TryGetNodeMemoryUsageTracker();
     auto rowBuffer = New<TRowBuffer>(
         TSampleKeyListTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
         nodeMemoryTracker
-            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
-            : nullptr);
+            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
+            : nullptr,
+        /*allowMemoryOvercommit*/ true);
 
     std::vector<TLegacyOwningKey> immediateSplitKeys;
     int immediateSplitKeyCount = 0;
@@ -1473,8 +1582,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
 
         for (const auto& store : existingPartition->Stores()) {
             YT_VERIFY(store->GetPartition() == existingPartition.get());
-            store->SetPartition(mergedPartition.get());
-            InsertOrCrash(mergedPartition->Stores(), store);
+            mergedPartition->AddStore(store);
         }
     }
 
@@ -1543,13 +1651,14 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         YT_VERIFY(sampleKeyIndex >= std::ssize(existingSampleKeys) || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
 
         std::vector<TLegacyKey> sampleKeys;
-        auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+        auto nodeMemoryTracker = TryGetNodeMemoryUsageTracker();
         auto rowBuffer = New<TRowBuffer>(
             TSampleKeyListTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
             nodeMemoryTracker
-                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
-                : nullptr);
+                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
+                : nullptr,
+            /*allowMemoryOvercommit*/ true);
 
         while (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
             sampleKeys.push_back(rowBuffer->CaptureRow(existingSampleKeys[sampleKeyIndex]));
@@ -1602,8 +1711,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
     for (const auto& store : existingPartition->Stores()) {
         YT_VERIFY(store->GetPartition() == existingPartition.get());
         auto* newPartition = GetContainingPartition(store);
-        store->SetPartition(newPartition);
-        InsertOrCrash(newPartition->Stores(), store);
+        newPartition->AddStore(store);
     }
 
     StructuredLogger_->OnPartitionSplit(
@@ -1668,8 +1776,7 @@ void TTablet::AddStore(IStorePtr store, bool onFlush, TPartitionId partitionIdHi
                 ? GetEden()
                 : GetContainingPartition(sortedStore);
         YT_VERIFY(partition);
-        InsertOrCrash(partition->Stores(), sortedStore);
-        sortedStore->SetPartition(partition);
+        partition->AddStore(sortedStore);
         UpdateOverlappingStoreCount();
 
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
@@ -1697,8 +1804,7 @@ void TTablet::RemoveStore(IStorePtr store)
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = sortedStore->GetPartition();
-        EraseOrCrash(partition->Stores(), sortedStore);
-        sortedStore->SetPartition(nullptr);
+        partition->RemoveStore(sortedStore);
         UpdateOverlappingStoreCount();
 
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
@@ -2116,6 +2222,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->CustomRuntimeData = CustomRuntimeData_;
 
+    snapshot->TabletSizeMetrics = TabletSizeMetrics_;
+
     return snapshot;
 }
 
@@ -2216,8 +2324,6 @@ void TTablet::Initialize()
         Id_,
         TableId_,
         TablePath_);
-
-    HunkLockManager_->Initialize();
 }
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
@@ -2259,7 +2365,7 @@ void TTablet::InvalidateChunkReaders()
 {
     for (const auto& [_, store] : StoreIdMap_) {
         if (store->IsChunk()) {
-            store->AsChunk()->InvalidateCachedReaders(Settings_);
+            store->AsChunk()->InvalidateCachedReaders(Settings_.StoreReaderConfig);
         }
     }
 }
@@ -2294,7 +2400,7 @@ void TTablet::ReconfigureCompressionDictionaries()
 
 void TTablet::ReconfigureProfiling()
 {
-    TableProfiler_ = CreateTableProfiler(
+    TableProfiler_ = TTabletProfilerManager::Get()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
@@ -2340,7 +2446,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("tablet_stores_update"),
             "tablet_stores_update",
-            EDistributedThrottlerMode::Precise,
+            ETabletDistributedThrottlerKind::StoresUpdate,
             TabletStoresUpdateThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ true);
 
@@ -2350,7 +2456,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("lookup"),
             "lookup",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Lookup,
             LookupThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
     YT_VERIFY(
@@ -2363,7 +2469,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("select"),
             "select",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Select,
             SelectThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2373,7 +2479,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("compaction_read"),
             "compaction_read",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::CompactionRead,
             CompactionReadThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2383,7 +2489,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("write"),
             "write",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Write,
             WriteThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2601,6 +2707,34 @@ void TTablet::UpdateUnflushedTimestamp() const
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
+void TTablet::AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp)
+{
+    YT_VERIFY(TransientConflictHorizonTimestamp_ <= PersistentConflictHorizonTimestamp_);
+
+    PersistentConflictHorizonTimestamp_ = std::max(PersistentConflictHorizonTimestamp_, timestamp);
+}
+
+void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp)
+{
+    YT_VERIFY(TransientConflictHorizonTimestamp_ <= PersistentConflictHorizonTimestamp_);
+
+    // NB: This verify assumes that store's max timestamp provided to PersistentConflictHorizonTimestamp_
+    // in the past by flusher cannot be exceeded until unleashed backing store is released.
+    YT_LOG_FATAL_IF(timestamp > PersistentConflictHorizonTimestamp_,
+        "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp "
+        "(NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
+        timestamp,
+        TransientConflictHorizonTimestamp_,
+        PersistentConflictHorizonTimestamp_);
+
+    TransientConflictHorizonTimestamp_ = std::max(TransientConflictHorizonTimestamp_, timestamp);
+}
+
+void TTablet::ResetTransientConflictHorizonTimestamp()
+{
+    AdvanceTransientConflictHorizonTimestamp(PersistentConflictHorizonTimestamp_);
+}
+
 bool TTablet::IsActiveServant() const
 {
     if (SmoothMovementData().GetRole() == ESmoothMovementRole::None) {
@@ -2633,11 +2767,19 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     auto* replicatableContent = request->mutable_replicatable_content();
     replicatableContent->set_trimmed_row_count(GetTrimmedRowCount());
     replicatableContent->set_retained_timestamp(RetainedTimestamp_);
+    if (IsPhysicallySorted()) {
+        replicatableContent->set_conflict_horizon_timestamp(PersistentConflictHorizonTimestamp_);
+    }
+
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
     if (CustomRuntimeData_) {
         replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
+    for (auto reason : TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues()) {
+        request->add_reserved_dynamic_store_id_count(
+            ReservedDynamicStoreIdCount_[reason]);
+    }
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2647,6 +2789,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
             replicatableContent->mutable_replication_progress(),
             *replicationProgress);
     }
+
+    ToProto(replicatableContent->mutable_originator_tablets(), OriginatorTablets_);
 
     auto* chaosData = request->mutable_chaos_data();
     chaosData->set_replication_era(RuntimeData()->ReplicationEra.load());
@@ -2721,13 +2865,38 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     const auto& replicatableContent = request->replicatable_content();
     SetTrimmedRowCount(replicatableContent.trimmed_row_count());
     RetainedTimestamp_ = replicatableContent.retained_timestamp();
+
+    if (replicatableContent.has_conflict_horizon_timestamp()) {
+        PersistentConflictHorizonTimestamp_ = replicatableContent.conflict_horizon_timestamp();
+        TransientConflictHorizonTimestamp_ = PersistentConflictHorizonTimestamp_;
+    }
+
     CumulativeDataWeight_ = replicatableContent.cumulative_data_weight();
 
     CustomRuntimeData_ = replicatableContent.has_custom_runtime_data()
         ? TYsonString(replicatableContent.custom_runtime_data())
         : TYsonString();
 
+    FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
+
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
+    for (auto [index, count] : Enumerate(request->reserved_dynamic_store_id_count())) {
+        if (count == 0) {
+            continue;
+        }
+
+        auto reason = static_cast<EDynamicStoreIdReservationReason>(index);
+        if (TEnumTraits<EDynamicStoreIdReservationReason>::IsKnownValue(reason)) {
+            ReservedDynamicStoreIdCount_[reason] = count;
+        } else {
+            YT_LOG_ALERT("Replicated content concains nonzero reserved "
+                "dynamic store count with unknown reason "
+                "(%v, Reason: %v, Count: %v)",
+                GetLoggingTag(),
+                reason,
+                count);
+        }
+    }
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
@@ -2954,7 +3123,7 @@ void TTablet::ThrottleTabletStoresUpdate(
 
     auto asyncResult = throttler->Throttle(1);
     auto result = asyncResult.IsSet()
-        ? asyncResult.Get()
+        ? asyncResult.GetOrCrash()
         : WaitFor(asyncResult);
     result.ThrowOnError();
 
@@ -3051,7 +3220,7 @@ void TTablet::UpdateUnmergedRowCount()
     }
 }
 
-TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
+TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp() const
 {
     YT_VERIFY(!TableSchema_->IsSorted());
 
@@ -3187,7 +3356,7 @@ void TTablet::BuildHeavyHittersOrchidYson(TRowHeavyHittersPtr heavyHitters, NYTr
         statisticsSorted.end(),
         [] (const auto& lhs, const auto &rhs) { return lhs.second > rhs.second; });
 
-    for (auto& [key, ratio] : statisticsSorted) {
+    for (const auto& [key, ratio] : statisticsSorted) {
         fluent
             .Item()
                 .BeginMap()
@@ -3215,6 +3384,8 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
         .Item("overlapping_store_count").Value(GetOverlappingStoreCount())
         .Item("dynamic_store_count").Value(GetDynamicStoreCount())
         .Item("retained_timestamp").Value(GetRetainedTimestamp())
+        .Item("persistent_conflict_horizon_timestamp").Value(GetPersistentConflictHorizonTimestamp())
+        .Item("transient_conflict_horizon_timestamp").Value(GetTransientConflictHorizonTimestamp())
         .Item("last_periodic_rotation_time").Value(storeManager->GetLastPeriodicRotationTime())
         .Item("in_flight_user_mutation_count").Value(GetInFlightUserMutationCount())
         .Item("in_flight_replicator_mutation_count").Value(GetInFlightReplicatorMutationCount())
@@ -3355,14 +3526,10 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
             })
         .Item("lookup_heavy_hitters")
             .BeginMap()
-                .Item("row_count")
-                .DoList(
-                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount)
-                )
-                .Item("data_weight")
-                .DoList(
-                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight)
-                )
+                .Item("row_count").DoList(
+                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount))
+                .Item("data_weight").DoList(
+                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight))
             .EndMap();
 }
 
@@ -3373,9 +3540,51 @@ void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
     ReconfigureRowCache(slot);
 }
 
-INodeMemoryTrackerPtr TTablet::MaybeGetNodeMemoryUsageTracker() const
+INodeMemoryTrackerPtr TTablet::TryGetNodeMemoryUsageTracker() const
 {
     return Context_ ? Context_->GetNodeMemoryUsageTracker() : nullptr;
+}
+
+void TTablet::OnDynamicConfigChanged(
+    const ITabletSlotPtr& slot,
+    const TTabletNodeDynamicConfigPtr& oldConfig,
+    const TTabletNodeDynamicConfigPtr& newConfig)
+{
+    for (const auto& [_, store] : StoreIdMap_) {
+        store->OnDynamicConfigChanged(oldConfig, newConfig);
+    }
+
+    ReconfigureChunkFragmentReader(slot);
+}
+
+NHydra::EPeerState TTablet::GetAutomatonState() const
+{
+    return Context_->GetAutomatonState();
+}
+
+IInvokerPtr TTablet::GetStorageHeavyInvoker() const
+{
+    return Context_->GetStorageHeavyInvoker();
+}
+
+NApi::NNative::IClientPtr TTablet::GetClient() const
+{
+    return Context_->GetClient();
+}
+
+IChunkReplicaCachePtr TTablet::GetChunkReplicaCache() const
+{
+    return Context_->GetChunkReplicaCache();
+}
+
+const TCompactionHintFetcherPtr& TTablet::GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const
+{
+    return Context_->GetCompactionHintFetcher(kind);
+}
+
+TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* TTablet::GetMinHashDigestCache() const
+{
+    return Context_->GetMinHashDigestCache();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3413,10 +3622,10 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
 ////////////////////////////////////////////////////////////////////////////////
 
 IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    auto mediumThrottlersConfig = nodeDynamicConfig->MediumThrottlers;
     if (!mediumThrottlersConfig->EnableBlobThrottling) {
         return GetUnlimitedThrottler();
     }
@@ -3425,10 +3634,10 @@ IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
 }
 
 IThroughputThrottlerPtr GetBlobMediumReadThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    auto mediumThrottlersConfig = nodeDynamicConfig->MediumThrottlers;
     if (!mediumThrottlersConfig->EnableBlobThrottling) {
         return GetUnlimitedThrottler();
     }

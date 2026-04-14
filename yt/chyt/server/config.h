@@ -51,7 +51,23 @@ public:
 
     bool EnableComplexNullConverison;
 
-    static TCompositeSettingsPtr Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison = true);
+    //! Defines how CHYT works with LC types:
+    //! * None - doesn't convert any column to LC;
+    //! * StringOnly - converts columns with string-like types (string, utf, json);
+    //! * All - converts all columns to LC if possible;
+    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
+    ELowCardinalityMode LowCardinalityMode;
+
+    //! Special setting for FromStatistics LowCardinalityMode.
+    ui64 LowCardinalityThreshold;
+
+    //! Columns that match this regexp are converted to LC.
+    NRe2::TRe2Ptr LowCardinalityRegExp;
+
+    static TCompositeSettingsPtr Create(
+        bool convertUnsupportedTypesToString,
+        bool enableComplexNullConverison = true,
+        ELowCardinalityMode lowCardinalityMode = ELowCardinalityMode::None);
 
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
@@ -91,9 +107,6 @@ class TTestingSettings
     : public NYTree::TYsonStruct
 {
 public:
-    bool EnableKeyConditionFiltering;
-    bool MakeUpperBoundInclusive;
-
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
     i64 SubqueryAllocationSize;
@@ -103,13 +116,12 @@ public:
     //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
     int LocalCliqueSize;
 
-    bool CheckChytBanned;
-
     std::optional<NYPath::TYPath> ChunkSpecFetcherBreakpoint;
     std::optional<NYPath::TYPath> InputStreamFactoryBreakpoint;
     std::optional<NYPath::TYPath> ConcatTableRangeBreakpoint;
     std::optional<NYPath::TYPath> ListDirsBreakpoint;
     std::optional<NYPath::TYPath> SourceGenerateCallBreakpoint;
+    std::optional<NYPath::TYPath> DropTableBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 
@@ -253,7 +265,7 @@ public:
 
     //! CH estimates total execution time by linearly extrapolating the current read rate.
     //! Since read throughput can vary, this estimate may be inaccurate and lead to false positive errors.
-    bool DisableReadingTimeEstimation;
+    bool DisableReadTimeEstimation;
 
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
@@ -274,6 +286,8 @@ public:
     ETypeMismatchMode TypeMismatchMode;
     //! Disable user-friendly check when there are no columns present in every input table.
     bool AllowEmptySchemaIntersection;
+    //! It helps to skip nodes for which the attribute could not be fetched.
+    bool IgnoreFetchErrors;
     //! Limit for number of tables in concat. If exceeded, the error is thrown.
     int MaxTables;
 
@@ -359,6 +373,9 @@ class TQuerySettings
     : public NYTree::TYsonStruct
 {
 public:
+    bool EnableKeyConditionFiltering;
+    bool MakeUpperBoundInclusive;
+
     bool EnableColumnarRead;
 
     bool EnableComputedColumnDeduction;
@@ -396,6 +413,8 @@ public:
     NApi::TSerializableMasterReadOptionsPtr FetchChunksReadOptions;
 
     TPrewhereSettingsPtr Prewhere;
+
+    EStorageConflictResolveMode StorageConflictResolveMode;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 
@@ -592,6 +611,7 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig)
 struct TUserDefinedSqlObjectsStorageConfig
     : public NYTree::TYsonStruct
 {
+    // TODO(buyval01): Migrate the configuration to enable it, if present.
     bool Enabled;
     NYPath::TYPath Path;
     TDuration UpdatePeriod;
@@ -609,8 +629,7 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 struct TDictionaryRepositoryConfig
     : public NYTree::TYsonStruct
 {
-    bool Enabled;
-    NYPath::TYPath Path;
+    NYPath::TYPath RootPath;
 
     REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
 
@@ -618,6 +637,20 @@ struct TDictionaryRepositoryConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
+
+struct TDictionaryAccessControlConfig
+    : public NYTree::TYsonStruct
+{
+    TAsyncExpiringCacheConfigPtr CacheConfig;
+
+    TDuration CollectLoadedDictionariesPeriod;
+
+    REGISTER_YSON_STRUCT(TDictionaryAccessControlConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryAccessControlConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -686,6 +719,8 @@ struct TYtConfig
     //! Clique size for better profiling.
     int CliqueInstanceCount;
 
+    bool CheckChytBanned;
+
     TSlruCacheConfigPtr ClientCache;
 
     THashSet<TString> UserAgentBlacklist;
@@ -712,6 +747,9 @@ struct TYtConfig
 
     //! Config for cache which is used for getting table's attributes, like id, schema, external_cell_tag, etc.
     NObjectClient::TObjectAttributeCacheConfigPtr TableAttributeCache;
+
+    //! Config for cache which is used for getting table's schema by schema_id attribute.
+    TSlruCacheConfigPtr TableSchemaCache;
 
     //! Config for cache which is used for WHERE to PREWHERE optimizator.
     NTableClient::TTableColumnarStatisticsCacheConfigPtr TableColumnarStatisticsCache;
@@ -750,10 +788,20 @@ struct TYtConfig
 
     TDictionaryRepositoryConfigPtr DictionaryRepository;
 
+    TDictionaryAccessControlConfigPtr DictionaryAccessControl;
+
     TSystemLogTableExportersConfigPtr SystemLogTableExporters;
 
     bool EnableHttpHeaderLog;
     NRe2::TRe2Ptr HttpHeaderBlacklist;
+
+    //! By default, CHYT gets the table schema along with the rest of the attributes.
+    //! This option allows you to separate the schema fetch from the attribute fetch
+    //! by requesting the schema_id, which is later used to get the schema.
+    //! In a special case, this is an additional request to construct a TTable object,
+    //! but for scenarios with concatTables over directories with a large number of tables
+    //! with the same schemas, we will be able to fetch only unique ones.
+    bool EnableSchemaIdFetching;
 
     REGISTER_YSON_STRUCT(TYtConfig);
 
@@ -785,8 +833,10 @@ DEFINE_REFCOUNTED_TYPE(TLauncherConfig)
 // | <================== #MaxServerMemoryUsage ==================> | <========== (ClickHouseWatermark) ==========> |
 // | #Reader | #UncompressedBlockCache + | (CH Memory + Footprint) |                       | #WatchdogOomWatermark |
 // |         | #CompressedBlockCache +   |            | <============== #WatchdogOomWindowWatermark =============> |
-// |         | #ClientBlockMetaCache     |
+// |         | #ClientBlockMetaCache +   |            |                                                            |
+// |         | #TableSchemaCache +       |            |                                                            |
 //                                                         ^              ^                     ^                  ^
+//                                                         |              |                     |                  |
 // If min rss over 15 min window resides in this __________|              |                     |                  |
 // range, instance performs graceful self-interruption.                   |                     |                  |
 //                                                                        |                     |                  |
@@ -802,6 +852,7 @@ struct TMemoryConfig
     : public NYTree::TYsonStruct
 {
     std::optional<i64> Reader;
+    std::optional<i64> TableSchemaCache;
     std::optional<i64> UncompressedBlockCache;
     std::optional<i64> CompressedBlockCache;
     std::optional<i64> ChunkMetaCache;

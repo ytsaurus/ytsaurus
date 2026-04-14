@@ -8,9 +8,62 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.14**" %}
+
+**Release date:** 2026-03-25
+
+
+#### Features:
+- Support optional `expressionBuilderVersion` in `SelectRowsRequest` [1736128d2d5b83f9881112d71e5b203bdd3c65d0]
+- Add `GetCurrentUser` method [b5f3560971dc1eafe530180df21d7f8eefd91d8b]
+- Support non-optional list elements in Entity from table schema [4635b29bb95c2bfe2f2b4f66fb6f6e45d8c7adb4]
+- Support listener for tracking bytes received by the client [e7c49e711236d3dcf81c27c9877f72deb17fce40]
+
+#### Fixes:
+- Fixed repeated fields accumulation in `TableAttachmentProtobufReader` [3d58a41edb1bdfe62533f9ad8c253f2f992cb5ba]
+- Fixed `CheckPermission` column parameters to allow nulls, since it was failing at API side with "Cannot specify columns for full_read permission check" [b87a0ade9bf289f89f91b02bb996e00fd3b90b13]
+- Added `MessageLite` support for `TiType` column definition and `EntitySkiffSerializer` [2675dd884e8779457856c68870c72646533c8c18]
+
+{% endcut %}
+
+
+{% cut "**1.2.13**" %}
+
+**Release date:** 2026-02-16
+
+
+#### Features:
+- Support `Short` in `YTreeBuilder`.
+- Add `findByCode` to `YTsaurusErrorCode`.
+
+#### Fixes:
+- Fix empty attachment size (1 instead of 0).
+- Optimize `ColumnValueType` internal representation for performance (replace `Map` with `Array`).
+- Pre-compute column type and wire type in `ColumnSchema`.
+
+{% endcut %}
+
+
+{% cut "**1.2.12**" %}
+
+**Release date:** 2025-12-11
+
+
+#### Features
+* Add methods lookupRowsV2, versionedLookupRowsV2 and multiLookupRowsV2 with partial result support.
+* Support 'omit\_inaccessible\_rows' flag in read\_table and read\_table\_partition API calls.
+
+#### Fixes
+* Make query statistics aggregates public.
+* Update log4j and log4j-slf4j versions in order to fix vulnerability in log4j.
+
+{% endcut %}
+
+
 {% cut "**1.2.11**" %}
 
 **Release date:** 2025-10-23
+
 
 #### Features
 * Add `execute` method to `MultiYTsaurusClient`.

@@ -21,6 +21,8 @@ target_compile_options(server-node-cellar_node PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-node-cellar_node PUBLIC
@@ -32,8 +34,11 @@ target_link_libraries(server-node-cellar_node PUBLIC
 
 target_sources(server-node-cellar_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/bundle_controller_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/security_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/tablet_cell_snapshot_validator.cpp
 )
 

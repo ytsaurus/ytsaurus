@@ -5,15 +5,16 @@ import typing as t
 from sqlglot import exp, transforms
 from sqlglot.dialects.dialect import (
     binary_from_function,
+    bracket_to_element_at_sql,
     build_formatted_time,
     is_parse_json,
     pivot_column_names,
     rename_func,
-    trim_sql,
     unit_to_str,
 )
 from sqlglot.dialects.hive import Hive
-from sqlglot.helper import seq_get
+from sqlglot.helper import ensure_list, seq_get
+from sqlglot.parser import build_trim
 from sqlglot.tokens import TokenType
 from sqlglot.transforms import (
     preprocess,
@@ -139,7 +140,6 @@ class Spark2(Hive):
         FUNCTIONS = {
             **Hive.Parser.FUNCTIONS,
             "AGGREGATE": exp.Reduce.from_arg_list,
-            "APPROX_PERCENTILE": exp.ApproxQuantile.from_arg_list,
             "BOOLEAN": _build_as_cast("boolean"),
             "DATE": _build_as_cast("date"),
             "DATE_TRUNC": lambda args: exp.TimestampTrunc(
@@ -149,6 +149,12 @@ class Spark2(Hive):
             "DAYOFWEEK": lambda args: exp.DayOfWeek(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
             "DAYOFYEAR": lambda args: exp.DayOfYear(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
             "DOUBLE": _build_as_cast("double"),
+            "ELEMENT_AT": lambda args: exp.Bracket(
+                this=seq_get(args, 0),
+                expressions=ensure_list(seq_get(args, 1)),
+                offset=1,
+                safe=False,
+            ),
             "FLOAT": _build_as_cast("float"),
             "FORMAT_STRING": exp.Format.from_arg_list,
             "FROM_UTC_TIMESTAMP": lambda args, dialect: exp.AtTimeZone(
@@ -159,9 +165,11 @@ class Spark2(Hive):
                 ),
                 zone=seq_get(args, 1),
             ),
+            "LTRIM": lambda args: build_trim(args, reverse_args=True),
             "INT": _build_as_cast("int"),
             "MAP_FROM_ARRAYS": exp.Map.from_arg_list,
             "RLIKE": exp.RegexpLike.from_arg_list,
+            "RTRIM": lambda args: build_trim(args, is_left=False, reverse_args=True),
             "SHIFTLEFT": binary_from_function(exp.BitwiseLeftShift),
             "SHIFTRIGHT": binary_from_function(exp.BitwiseRightShift),
             "STRING": _build_as_cast("string"),
@@ -187,6 +195,7 @@ class Spark2(Hive):
 
         FUNCTION_PARSERS = {
             **Hive.Parser.FUNCTION_PARSERS,
+            "APPROX_PERCENTILE": lambda self: self._parse_quantile_function(exp.ApproxQuantile),
             "BROADCAST": lambda self: self._parse_join_hint("BROADCAST"),
             "BROADCASTJOIN": lambda self: self._parse_join_hint("BROADCASTJOIN"),
             "MAPJOIN": lambda self: self._parse_join_hint("MAPJOIN"),
@@ -198,8 +207,10 @@ class Spark2(Hive):
         }
 
         def _parse_drop_column(self) -> t.Optional[exp.Drop | exp.Command]:
-            return self._match_text_seq("DROP", "COLUMNS") and self.expression(
-                exp.Drop, this=self._parse_schema(), kind="COLUMNS"
+            return (
+                self.expression(exp.Drop, this=self._parse_schema(), kind="COLUMNS")
+                if self._match_text_seq("DROP", "COLUMNS")
+                else None
             )
 
         def _pivot_column_names(self, aggregations: t.List[exp.Expression]) -> t.List[str]:
@@ -288,7 +299,6 @@ class Spark2(Hive):
             exp.StrToDate: _str_to_date,
             exp.StrToTime: lambda self, e: self.func("TO_TIMESTAMP", e.this, self.format_time(e)),
             exp.TimestampTrunc: lambda self, e: self.func("DATE_TRUNC", unit_to_str(e), e.this),
-            exp.Trim: trim_sql,
             exp.UnixToTime: _unix_to_time_sql,
             exp.VariancePop: rename_func("VAR_POP"),
             exp.WeekOfYear: rename_func("WEEKOFYEAR"),
@@ -344,3 +354,9 @@ class Spark2(Hive):
 
         def renamecolumn_sql(self, expression: exp.RenameColumn) -> str:
             return super(Hive.Generator, self).renamecolumn_sql(expression)
+
+        def bracket_sql(self, expression: exp.Bracket) -> str:
+            if expression.args.get("safe") is False:
+                return bracket_to_element_at_sql(self, expression)
+
+            return super().bracket_sql(expression)

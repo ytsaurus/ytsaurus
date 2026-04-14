@@ -64,7 +64,7 @@ Each node has its own attributes responsible for access control. Therefore, its 
 
 ### Time attributes { #time_attributes }
 
-The `creation_time` attribute stores the node create time. The `modification_time` attribute stores the time of the last update of the node and node attribute. `modification_time` does not track child node updates, that is, `modification_time` for `map_node` does not change if there are changes somewhere deep in the tree.
+The `creation_time` attribute stores the node create time. The `modification_time` attribute stores the time of the last update of the node, node user attribute or some node system attribute. `modification_time` does not track child node updates, that is, `modification_time` for `map_node` does not change if there are changes somewhere deep in the tree.
 
 When a node is created and every time a node is modified, the system updates its `revision` attribute. It stores a non-negative integer. The revision number is guaranteed to increase in a strictly monotonous manner over time. You can use revisions to verify that a node has not updated. `revision` updates together with `modification_time`.
 

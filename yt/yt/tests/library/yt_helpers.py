@@ -6,10 +6,13 @@ import yt.yson as yson
 
 from yt.wrapper import YtClient
 
+import builtins
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from dateutil import parser
 from dateutil.tz import tzlocal
+from fnmatch import fnmatchcase
 
 import inspect
 import json
@@ -323,3 +326,131 @@ def wait_and_get_controller_incarnation(agent: str):
 
     wait(check)
     return incarnation_id
+
+
+class MissingField:
+    pass
+
+
+MissingFieldSentinelValue = MissingField()
+
+
+@dataclass
+class ObjectDiff:
+    diff_left: any
+    diff_right: any
+
+    def __post_init__(self):
+        if isinstance(self.diff_left, dict) and isinstance(self.diff_right, dict):
+            assert self.diff_left.keys() == self.diff_right.keys(), "Dict diff should have the same keys, since missing values are represented by MissingFieldSentinelValue"
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return format(self, "")
+
+    def __format__(self, format_spec):
+        left_name = "left"
+        right_name = "right"
+
+        if format_spec:
+            left_name, right_name = format_spec.split(",")
+
+        return self.get_diff_message(left_name=left_name, right_name=right_name)
+
+    def __bool__(self):
+        return self.diff_left != self.diff_right
+
+    def get_diff_message(self, left_name="left", right_name="right"):
+        return self._get_diff_message(self.diff_left, self.diff_right, left_name, right_name, top_level_diff=True)
+
+    @classmethod
+    def _get_diff_message(cls, diff_left, diff_right, left_name, right_name, top_level_diff):
+        if not isinstance(diff_left, dict) or not isinstance(diff_right, dict):
+            return {f"{left_name}_value": diff_left, f"{right_name}_value": diff_right}
+
+        left_unique_fields = {key for key in diff_right.keys() if key is MissingFieldSentinelValue}
+        right_unique_fields = {key for key in diff_left.keys() if key is MissingFieldSentinelValue}
+
+        # XXX(apachee): Good enough for one line diff message, but this might (or should) be improved.
+
+        diff_obj = {}
+
+        if left_unique_fields:
+            diff_obj[f"{left_name}_unique_fields"] = left_unique_fields
+        if right_unique_fields:
+            diff_obj[f"{right_name}_unique_fields"] = right_unique_fields
+
+        common_fields = diff_left.keys() - left_unique_fields - right_unique_fields
+
+        diff_obj["recursive_diff"] = {key: cls._get_diff_message(diff_left[key], diff_right[key], left_name, right_name, top_level_diff=False) for key in common_fields}
+
+        return str(diff_obj)
+
+
+def calculate_object_diff(obj1, obj2) -> ObjectDiff:
+    """
+    Recursively calculate the difference between two objects.
+
+    Returns:
+        ObjectDiff: object difference representation. Casting to bool will return True if objects are different, False if they are equal.
+    """
+
+    if not isinstance(obj1, dict) or not isinstance(obj2, dict):
+        return ObjectDiff(diff_left=obj1, diff_right=obj2)
+    assert isinstance(obj1, dict) and isinstance(obj2, dict)
+
+    keys = builtins.set(obj1.keys()) | builtins.set(obj2.keys())
+    diff_left = {}
+    diff_right = {}
+    for key in keys:
+        diff = calculate_object_diff(obj1.get(key, MissingFieldSentinelValue), obj2.get(key, MissingFieldSentinelValue))
+        diff_l = diff.diff_left
+        diff_r = diff.diff_right
+        assert diff_l is not MissingFieldSentinelValue or diff_r is not MissingFieldSentinelValue, f"Incorrectly calculating diff of key {key!r}, which is absent in both objects"
+        if diff_l != diff_r:
+            diff_left[key] = diff_l
+            diff_right[key] = diff_r
+    return ObjectDiff(diff_left=diff_left, diff_right=diff_right)
+
+
+def validate_operation_statistics_descriptions(statistics):
+    descriptions = get("//sys/scheduler/orchid/scheduler/supported_features/operation_statistics_descriptions")
+    pattern_statistics = [statistic_path for statistic_path in descriptions if "*" in statistic_path]
+
+    def _walk_statistics(statistics, base_path=""):
+        # TODO(khlebnikov): Handle v1 aggregates.
+        for name, value in statistics.items():
+            path = f"{base_path}/{name}" if base_path else name
+            if isinstance(value, dict):
+                if "count" in value:
+                    yield None, path, value
+                else:
+                    yield from _walk_statistics(value, path)
+            elif isinstance(value, list):
+                for group in value:
+                    yield group["tags"], path, group["summary"]
+
+    reported = builtins.set()
+    for _, path, _ in _walk_statistics(statistics):
+        reported.add(path)
+
+    def _check_statistic(path):
+        if path.startswith("custom/"):
+            return True
+        if path in descriptions:
+            return True
+        for pattern in pattern_statistics:
+            if fnmatchcase(path, pattern):
+                return True
+        return False
+
+    undescribed = builtins.set()
+    for path in reported:
+        if path.startswith("custom/"):
+            continue
+        if not _check_statistic(path):
+            undescribed.add(path)
+
+    assert not undescribed, f"Undescribed operation statistics: {undescribed}"

@@ -133,7 +133,7 @@ The value can't fit in `Number`.
 
 #### Text* {#text*}
 
-`Text` is a string type. Maximum strings length in a cell is `32,768`.
+`Text` is a string type. Maximum strings length in a cell is `32,767`.
 
 In {{product-name}}, a string may be longer: up to `128 * 10^6`. Long strings are truncated.
 

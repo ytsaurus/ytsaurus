@@ -21,6 +21,8 @@ target_link_libraries(yt-yt-library-min_hash_digest-unittests PUBLIC
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
+  yt-yt-client
+  yt-library-min_hash_digest
 )
 
 target_allocator(yt-yt-library-min_hash_digest-unittests

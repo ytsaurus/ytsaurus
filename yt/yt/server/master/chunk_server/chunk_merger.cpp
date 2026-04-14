@@ -340,7 +340,7 @@ private:
     i64 CurrentCompressedDataSize_ = 0;
 
     TChunkListId LastChunkListId_;
-    int JobsForLastChunkList_ = 0;
+    int LastChunkListJobCount_ = 0;
     // This is never decremented, since traverser and visitor are for one-time use.
     int ChunkListsWithJobs_ = 0;
 
@@ -475,21 +475,6 @@ private:
     {
         const auto& config = GetDynamicConfig();
 
-        // TODO(cherepashka): profile
-        if (ChunkListsWithJobs_ >= config->MaxChunkListCountPerMergeSession) {
-            YT_LOG_DEBUG("Cannot plan any more jobs as we reached max chunk list count per merge session");
-            return false;
-        }
-
-        if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
-            YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit "
-                "(ChunkListId: %v, JobsForLastChunkList: %v, MaxJobsPerChunkList: %v)",
-                LastChunkListId_,
-                JobsForLastChunkList_,
-                config->MaxJobsPerChunkList);
-            return false;
-        }
-
         if (CurrentJobMode_ == EChunkMergerMode::Shallow && !SatisfiesShallowMergeCriteria(chunk)) {
             return false;
         }
@@ -521,7 +506,7 @@ private:
         mergerCriteria.AssignNotNull(accountCriteria);
 
         auto satisfiedCriteriaCount = 0;
-        const auto targetSatisfiedCriteriaCount = 8;
+        const auto targetSatisfiedCriteriaCount = 10;
 
         auto& statistics = TraversalStatistics_.ViolatedCriteriaStatistics;
         auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto formattedArguments) {
@@ -540,6 +525,23 @@ private:
         };
 
         incrementSatisfiedOrViolatedCriteriaCount(
+            ChunkListsWithJobs_ < config->MaxChunkListCountPerMergeSession,
+            statistics.MaxChunkListCountPerMergeSessionViolatedCriteria,
+            "ChunkListsWithJobsCountPerMergeSession",
+            Format("CurrentChunkListsWithJobsCount: %v, MaxChunkListWithJobsCountPerMergeSession: %v",
+                ChunkListsWithJobs_,
+                config->MaxChunkListCountPerMergeSession));
+
+        incrementSatisfiedOrViolatedCriteriaCount(
+            parent->GetId() != LastChunkListId_ || LastChunkListJobCount_ < config->MaxJobsPerChunkList,
+            statistics.MaxJobsPerChunkListViolatedCriteria,
+            "JobCountPerChunkList",
+            Format("LastChunkListId: %v, LastChunkListJobCount: %v, MaxJobsPerChunkList: %v",
+                LastChunkListId_,
+                LastChunkListJobCount_,
+                config->MaxJobsPerChunkList));
+
+        incrementSatisfiedOrViolatedCriteriaCount(
             std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
             statistics.MaxChunkCountViolatedCriteria,
             "ChunkCount",
@@ -553,7 +555,7 @@ private:
             "ChunkMetaSize",
             Format("ChunkMetaSize: %v, MaxChunkMetaSize: %v",
                 chunk->ChunkMeta()->GetExtensionsByteSize(),
-                config->MaxChunkMetaSize));
+                mergerCriteria.MaxChunkMetaSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
@@ -632,10 +634,10 @@ private:
         }
 
         if (LastChunkListId_ == ParentChunkListId_) {
-            ++JobsForLastChunkList_;
+            ++LastChunkListJobCount_;
         } else {
             LastChunkListId_ = ParentChunkListId_;
-            JobsForLastChunkList_ = 1;
+            LastChunkListJobCount_ = 1;
             ++ChunkListsWithJobs_;
         }
 
@@ -859,20 +861,21 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
             continue;
         }
         TWithTagGuard tagGuard(buffer, "account", account->GetName());
-        buffer->AddGauge("/chunk_merger/chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
-        buffer->AddGauge("/chunk_merger/chunk_replacements_failed", statistics.ChunkReplacementsFailed);
-        buffer->AddGauge("/chunk_merger/chunk_count_saving", statistics.ChunkCountSaving);
+        buffer->AddCounter("/chunk_merger/chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
+        buffer->AddCounter("/chunk_merger/chunk_replacements_failed", statistics.ChunkReplacementsFailed);
+        buffer->AddCounter("/chunk_merger/chunk_count_saving", statistics.ChunkCountSaving);
 
         const auto& violatedCriteria = statistics.ViolatedCriteria;
-        buffer->AddGauge("/chunk_merger/max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_chunk_meta_size_violated_criteria", violatedCriteria.MaxChunkMetaSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
-        buffer->AddGauge("/chunk_merger/max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_chunk_meta_size_violated_criteria", violatedCriteria.MaxChunkMetaSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_chunk_list_count_per_merge_session_violated_criteria", violatedCriteria.MaxChunkListCountPerMergeSessionViolatedCriteria);
+        buffer->AddCounter("/chunk_merger/max_jobs_per_chunk_list_violated_criteria", violatedCriteria.MaxJobsPerChunkListViolatedCriteria);
     }
-    AccountToChunkMergerStatistics_.clear();
 
     buffer->AddCounter("/chunk_merger/sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 
@@ -946,6 +949,22 @@ void TChunkMerger::OnJobAborted(const TMergeJobPtr& job)
 void TChunkMerger::OnJobFailed(const TMergeJobPtr& job)
 {
     OnJobFinished(job);
+}
+
+void TChunkMerger::TweakTraversalInfoAfterRebalance(
+    TChunkList* rootChunkList,
+    TChunkTreeBalancer::TRebalanceStatistics rebalanceStatistics)
+{
+    if (!GetDynamicConfig()->TweakTraversalInfoAfterRebalance) {
+        return;
+    }
+
+    for (auto owningNodes : {rootChunkList->TrunkOwningNodes(), rootChunkList->BranchedOwningNodes()}) {
+        for (auto owningNode : owningNodes) {
+            auto& chunkCount = owningNode->ChunkMergerTraversalInfo().ChunkCount;
+            chunkCount = std::min(chunkCount, rebalanceStatistics.UntouchedPrefixChunkCount);
+        }
+    }
 }
 
 void TChunkMerger::OnLeaderActive()
@@ -1156,7 +1175,7 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
 
     if (backoff == maxBackoffPeriod) {
         if (rescheduleIteration + 1 > GetDynamicConfig()->MaxAllowedBackoffReschedulingsPerSession) {
-            YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
+            YT_LOG_DEBUG("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
                 nodeId,
                 rescheduleIteration,
                 accountId);
@@ -1238,7 +1257,7 @@ void TChunkMerger::RegisterPermanentlyFailedSessionTransient(TObjectId nodeId, T
 
     SessionsAwaitingFinalization_.push({
         .NodeId = nodeId,
-        .Result = EMergeSessionResult::PermanentFailure
+        .Result = EMergeSessionResult::PermanentFailure,
     });
 
     YT_LOG_DEBUG("Starting new permanently failed merge job session (NodeId: %v, AccountId: %v)",
@@ -1924,17 +1943,33 @@ void TChunkMerger::ValidateStatistics(
     const TChunkOwnerDataStatistics& oldStatistics,
     const TChunkOwnerDataStatistics& newStatistics)
 {
-    YT_LOG_ALERT_IF(oldStatistics.RowCount != newStatistics.RowCount,
-        "Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
-        nodeId,
-        oldStatistics.RowCount,
-        newStatistics.RowCount);
-
-    YT_LOG_ALERT_IF(oldStatistics.DataWeight != newStatistics.DataWeight,
-        "Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
-        nodeId,
-        oldStatistics.DataWeight,
-        newStatistics.DataWeight);
+    if (oldStatistics.RowCount != newStatistics.RowCount) {
+        if (oldStatistics.RowCount < 0) {
+            YT_LOG_INFO("Fixed invalid row count (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
+                nodeId,
+                oldStatistics.RowCount,
+                newStatistics.RowCount);    
+        } else {
+            YT_LOG_ALERT("Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
+                nodeId,
+                oldStatistics.RowCount,
+                newStatistics.RowCount);
+        }
+    }
+    
+    if (oldStatistics.DataWeight != newStatistics.DataWeight) {
+        if (oldStatistics.DataWeight < 0) {
+            YT_LOG_INFO("Fixed invalid data weight (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
+                nodeId,
+                oldStatistics.DataWeight,
+                newStatistics.DataWeight);    
+        } else {
+            YT_LOG_ALERT("Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
+                nodeId,
+                oldStatistics.DataWeight,
+                newStatistics.DataWeight);
+        }
+    }
 }
 
 void TChunkMerger::RemoveNodeFromRescheduleMaps(TAccountId accountId, NCypressClient::TNodeId nodeId)

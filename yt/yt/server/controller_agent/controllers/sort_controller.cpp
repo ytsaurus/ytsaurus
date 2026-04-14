@@ -336,21 +336,73 @@ public:
 
     std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
     {
-        if (GetFastIntermediateMediumLimit() > 0 && !SwitchedToSlowIntermediateMedium_) {
-            auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
-            return {OutputTransaction_, medium};
-        } else {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (GetFastIntermediateMediumLimit() == 0) {
             return {nullptr, {}};
         }
+
+        NApi::ITransactionPtr transaction;
+        {
+            auto guard = Guard(OutputTransactionLock_);
+            if (SwitchedToSlowIntermediateMedium_ || SwitchIntermediateMediumScheduled_) {
+                return {nullptr, {}};
+            }
+            transaction = OutputTransaction_;
+        }
+
+        if (!transaction) {
+            return {nullptr, {}};
+        }
+
+        auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
+        return {transaction, medium};
     }
 
     void UpdateIntermediateMediumUsage(i64 usage) override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto fastIntermediateMediumLimit = GetFastIntermediateMediumLimit();
 
-        if (!GetIntermediateMediumTransaction().first || usage < fastIntermediateMediumLimit) {
+        NApi::ITransactionPtr outputTransaction;
+        {
+            auto guard = Guard(OutputTransactionLock_);
+            if (SwitchedToSlowIntermediateMedium_ ||
+                SwitchIntermediateMediumScheduled_ ||
+                fastIntermediateMediumLimit == 0 ||
+                !OutputTransaction_ ||
+                usage < fastIntermediateMediumLimit)
+            {
+                return;
+            }
+            SwitchIntermediateMediumScheduled_ = true;
+            outputTransaction = OutputTransaction_;
+        }
+
+        // Dispatch the actual task mutation to the controller invoker so it does not
+        // race with SetStreamDescriptors running on JobSpecBuildInvoker. The flag is
+        // set inside DoSwitchIntermediateMedium after the mutation completes, ensuring
+        // snapshot consistency.
+        BIND(&TSortControllerBase::DoSwitchIntermediateMedium, MakeWeak(this), usage, fastIntermediateMediumLimit, outputTransaction->GetId())
+            .Via(GetCancelableInvoker())
+            .Run();
+    }
+
+private:
+    TSortOperationSpecBasePtr Spec_;
+
+    void DoSwitchIntermediateMedium(i64 usage, i64 fastIntermediateMediumLimit, TTransactionId transactionId)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+        // Multiple dispatches may be queued if UpdateIntermediateMediumUsage fires
+        // repeatedly before this callback completes. Skip if the first one already finished.
+        if (SwitchedToSlowIntermediateMedium_) {
             return;
         }
+
+        TForbidContextSwitchGuard contextSwitchGuard;
 
         for (const auto& partitionTask : PartitionTasks_) {
             partitionTask->SwitchIntermediateMedium();
@@ -362,18 +414,18 @@ public:
             IntermediateSortTask_->SwitchIntermediateMedium();
         }
 
-        YT_LOG_DEBUG("Switching from the fast intermediate medium to the slow one "
+        YT_LOG_DEBUG("Switched from the fast intermediate medium to the slow one "
             "(FastMediumUsage: %v, FastMediumLimit: %v, UsageToLimitRatio: %v, TransactionId: %v)",
             usage,
             fastIntermediateMediumLimit,
             static_cast<double>(usage) / fastIntermediateMediumLimit,
-            OutputTransaction_->GetId());
+            transactionId);
 
-        SwitchedToSlowIntermediateMedium_ = true;
+        // Set the flag only after all task descriptors are updated so that a snapshot
+        // taken with this flag true is guaranteed to have consistent task state.
+        auto guard = Guard(OutputTransactionLock_);
+        YT_VERIFY(!std::exchange(SwitchedToSlowIntermediateMedium_, true));
     }
-
-private:
-    TSortOperationSpecBasePtr Spec_;
 
 protected:
     TSortOperationOptionsBasePtr Options_;
@@ -424,7 +476,7 @@ protected:
 
     int PartitionTreeDepth_ = 0;
 
-    // Expected number of partitions before merging.
+    // Expected number of final partitions before merging.
     // Actual count (UnorderedFinalPartitions_.size()) may be lower when merging is enabled.
     int ExpectedPartitionCount_ = 0;
 
@@ -484,8 +536,18 @@ protected:
 
     TSortedMergeTaskPtr SortedMergeTask_;
 
-    //! True if the operation has switched to the slow intermediate medium (HDD) after producing
-    //! more intermediate data than the limit for the fast intermediate medium (SSD).
+    //! True once DoSwitchIntermediateMedium has been dispatched to the controller invoker.
+    //! Protected by OutputTransactionLock_. Prevents unbounded growth of the callback
+    //! queue when UpdateIntermediateMediumUsage fires repeatedly before the dispatch runs.
+    //! NB: not persisted — resets to false on revive, so UpdateIntermediateMediumUsage
+    //! will naturally re-dispatch if the switch did not complete before the snapshot.
+    bool SwitchIntermediateMediumScheduled_ = false;
+
+    //! True once DoSwitchIntermediateMedium has completed and all task MediumName fields
+    //! have been updated to the slow intermediate medium. Protected by OutputTransactionLock_.
+    //! Persisted: if set in a snapshot, tasks are already consistent with the slow medium.
+    //! NB: set only inside DoSwitchIntermediateMedium (controller invoker), so a snapshot
+    //! with this flag true is guaranteed to have consistent task descriptors.
     bool SwitchedToSlowIntermediateMedium_ = false;
 
     TEnumIndexedArray<EPartitionDispatchDecision, int> PartitionsDispatchStatistics_;
@@ -535,7 +597,7 @@ protected:
                 DataBalancer_ = New<TDataBalancer>(
                     Controller_->Options_->DataBalancer,
                     totalDataWeight,
-                    Controller_->GetOnlineExecNodeDescriptors(),
+                    Controller_->GetOnlineSuitableExecNodeDescriptors(),
                     Logger);
             }
 
@@ -593,7 +655,7 @@ protected:
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
-                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineExecNodeDescriptors());
+                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineSuitableExecNodeDescriptors());
             }
         }
 
@@ -880,7 +942,7 @@ protected:
             TSortControllerBase* controller,
             std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
             std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
-            bool isFinalSort)
+            std::optional<bool> isFinalSort)
             : TTask(controller, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
             , Controller_(controller)
             , IsFinalSort_(isFinalSort)
@@ -895,8 +957,7 @@ protected:
 
         void SetupJobCounters()
         {
-            // Cannot move it to ctor since GetJobCounter is a virtual function.
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 GetJobCounter()->AddParent(Controller_->FinalSortJobCounter_);
             } else {
                 GetJobCounter()->AddParent(Controller_->IntermediateSortJobCounter_);
@@ -923,7 +984,7 @@ protected:
 
         EJobType GetJobType() const override
         {
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 return Controller_->GetFinalSortJobType();
             } else {
                 return Controller_->GetIntermediateSortJobType();
@@ -941,7 +1002,7 @@ protected:
             const TChunkStripePtr& stripe,
             const TOutputStreamDescriptorPtr& descriptor) override
         {
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
             }
@@ -969,16 +1030,19 @@ protected:
 
         bool IsFinal() const
         {
-            return IsFinalSort_;
+            YT_VERIFY(IsFinalSort_.has_value());
+            return *IsFinalSort_;
         }
 
     protected:
+        TSortControllerBase* Controller_ = nullptr;
+
         TExtendedJobResources GetNeededResourcesForChunkStripe(const TChunkStripeStatistics& stat) const
         {
             if (Controller_->SimpleSortTask_) {
                 return Controller_->GetSimpleSortResources(stat);
             } else {
-                return Controller_->GetPartitionSortResources(IsFinalSort_, stat);
+                return Controller_->GetPartitionSortResources(IsFinal(), stat);
             }
         }
 
@@ -995,7 +1059,7 @@ protected:
         {
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 jobSpec->CopyFrom(Controller_->FinalSortJobSpecTemplate_);
             } else {
                 jobSpec->CopyFrom(Controller_->IntermediateSortJobSpecTemplate_);
@@ -1010,7 +1074,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 Controller_->AccountRows(jobSummary);
 
                 RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
@@ -1051,7 +1115,7 @@ protected:
 
             Controller_->CheckMergeStartThreshold();
 
-            if (!IsFinalSort_) {
+            if (!IsFinal()) {
                 Controller_->UpdateTask(Controller_->SortedMergeTask_.Get());
             }
 
@@ -1072,7 +1136,7 @@ protected:
         {
             TTask::OnTaskCompleted();
 
-            if (!IsFinalSort_) {
+            if (!IsFinal()) {
                 Controller_->SortedMergeTask_->FinishInput();
                 Controller_->UpdateMergeTasks();
                 Controller_->ValidateMergeDataSliceLimit();
@@ -1086,16 +1150,13 @@ protected:
 
         void SetIsFinalSort(bool isFinalSort)
         {
+            YT_VERIFY(!IsFinalSort_.has_value());
             IsFinalSort_ = isFinalSort;
         }
 
-    protected:
-        TSortControllerBase* Controller_ = nullptr;
-
-        bool IsFinalSort_ = false;
-
     private:
         int CurrentInputStreamIndex_ = 0;
+        std::optional<bool> IsFinalSort_;
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortTaskBase, 0x184a5af8);
     };
@@ -1125,7 +1186,7 @@ protected:
         TDuration GetLocalityTimeout() const override
         {
             // Locality for one-job partition is not important.
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 return TDuration::Zero();
             }
 
@@ -1164,7 +1225,7 @@ protected:
 
         TUserJobSpecPtr GetUserJobSpec() const override
         {
-            return Controller_->GetSortUserJobSpec(IsFinalSort_);
+            return Controller_->GetSortUserJobSpec(IsFinal());
         }
 
         TInputChunkMappingPtr GetChunkMapping() const override
@@ -1191,7 +1252,7 @@ protected:
 
         bool IsActive() const override
         {
-            return Controller_->SortStartThresholdReached_ || IsFinalSort_;
+            return Controller_->SortStartThresholdReached_ || IsFinal();
         }
 
         bool HasInputLocality() const final
@@ -1246,7 +1307,7 @@ protected:
                     *jobSummary.TotalInputDataStatistics);
             }
 
-            if (!IsFinalSort_) {
+            if (!IsFinal()) {
                 auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
                 const auto& partition = Controller_->UnorderedFinalPartitions_[partitionIndex];
                 if (partition->ChunkPoolOutput()->IsCompleted()) {
@@ -1265,7 +1326,7 @@ protected:
         {
             TSortTaskBase::OnTaskCompleted();
 
-            if (IsFinalSort_)  {
+            if (IsFinal())  {
                 for (const auto& partition : Partitions_) {
                     Controller_->OnFinalPartitionCompleted(partition);
                 }
@@ -1285,18 +1346,22 @@ protected:
 
         TSimpleSortTask(
             TSortControllerBase* controller,
-            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
             IJobSizeConstraintsPtr jobSizeConstraints)
             : TSortTaskBase(
                 controller,
-                std::move(outputStreamDescriptors),
+                /*outputStreamDescriptors*/ {},
                 /*inputStreamDescriptors*/ {},
-                /*isFinalSort*/ true)
+                /*isFinalSort*/ std::nullopt)
             , ChunkPool_(CreateUnorderedChunkPool(
                 TUnorderedChunkPoolOptions{
                     .JobSizeConstraints = std::move(jobSizeConstraints),
                     .RowBuffer = controller->RowBuffer_,
                     .Logger = Logger().WithTag("Name: SimpleSort"),
+                    // Build the first job from finished input to reliably determine the total job count.
+                    // This prevents incorrect strategy selection caused by the unordered chunk pool's
+                    // unpredictable behavior, which could otherwise cause job count estimates to
+                    // fluctuate between 1 and 2, leading to choosing final sort vs sorted merge incorrectly.
+                    .BuildFirstJobOnFinishedInput = true,
                 },
                 controller->GetInputStreamDirectory()))
         {
@@ -1331,20 +1396,9 @@ protected:
 
             YT_VERIFY(std::ssize(Controller_->UnorderedFinalPartitions_) == 1);
             Controller_->SortedMergeTask_->Finalize();
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 ++Controller_->CompletedPartitionCount_;
             }
-        }
-
-        // TODO(max42, gritukan): this is a dirty way add sorted merge when we
-        // finally understand that it is needed. Re-write this.
-        void OnSortedMergeNeeded()
-        {
-            GetJobCounter()->RemoveParent(Controller_->FinalSortJobCounter_);
-            GetJobCounter()->AddParent(Controller_->IntermediateSortJobCounter_);
-
-            SetIsFinalSort(false);
-            OutputStreamDescriptors_ = {Controller_->GetSortedMergeStreamDescriptor()};
         }
 
         IChunkPoolOutput::TCookie ExtractCookieForAllocation(
@@ -1357,6 +1411,13 @@ protected:
                 YT_VERIFY(GetChunkPoolOutput()->GetJobCounter()->GetTotal() > 1);
             }
             return cookie;
+        }
+
+        void SetIsFinalSort(bool isFinalSort, std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors)
+        {
+            TSortTaskBase::SetIsFinalSort(isFinalSort);
+            YT_VERIFY(OutputStreamDescriptors_.empty());
+            OutputStreamDescriptors_ = std::move(outputStreamDescriptors);
         }
 
     private:
@@ -1819,10 +1880,10 @@ protected:
 
         if (Spec_->PartitionCount.has_value()) {
             return std::nullopt;
-        } else if (Spec_->PartitionDataWeight.has_value()) {
-            return *Spec_->PartitionDataWeight;
+        } else if (Spec_->PartitionDataWeightForMerging.has_value()) {
+            return Spec_->PartitionDataWeightForMerging;
         } else {
-            return Spec_->DataWeightPerShuffleJob;
+            return std::min(Options_->DefaultPartitionDataWeightForMerging, Spec_->DataWeightPerShuffleJob);
         }
     }
 
@@ -1850,9 +1911,10 @@ protected:
             return MergeChunkPoolOutputs(
                 std::move(physicalPartitionsToMerge),
                 Logger().WithTag(
-                    "Name: PartitionsMerger[%v][%v]",
+                    "Name: PartitionsMerger[%v][%v][%v]",
                     intermediatePartition->GetLevel(),
-                    intermediatePartition->GetIndex()));
+                    intermediatePartition->GetIndex(),
+                    physicalPartitionIndices[0]));
         }();
 
         bool isManiac = std::ssize(physicalPartitionIndices) == 1 &&
@@ -1891,9 +1953,10 @@ protected:
             return;
         }
 
-        YT_VERIFY(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
-            return intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
-        }));
+        for (int physicalPartitionIndex : physicalPartitionIndices) {
+            bool wasInserted = intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
+            YT_VERIFY(wasInserted);
+        }
 
         auto finalPartition = New<TFinalPartition>(
             PartitionTreeDepth_,
@@ -1950,8 +2013,9 @@ protected:
         // NB(apollo1321): The greedy algorithm is optimal for sequential bin packing,
         // where partitions order must be preserved. However, for hash-based partitioning,
         // we can reorder partitions to achieve better packing.
-        i64 groupDataWeight = 0;
-        i64 groupDataSliceCount = 0;
+        i64 accumulatedDataWeight = 0;
+        i64 accumulatedDataSliceCount = 0;
+        i64 accumulatedRowCount = 0;
         TCompactVector<int, 1> physicalPartitionIndices;
 
         auto endCurrentMerging = [&] {
@@ -1961,8 +2025,9 @@ protected:
 
             TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices, isAllDataCollected);
 
-            groupDataWeight = 0;
-            groupDataSliceCount = 0;
+            accumulatedDataWeight = 0;
+            accumulatedDataSliceCount = 0;
+            accumulatedRowCount = 0;
             physicalPartitionIndices.clear();
         };
 
@@ -1970,31 +2035,46 @@ protected:
 
         for (int physicalPartitionIndex : std::views::iota(0, partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
-                endCurrentMerging();
+                // There is no need to end current merging for hash-based partitioning.
+                if (partition->PhysicalChildPartitionsBounds().has_value()) {
+                    endCurrentMerging();
+                }
                 continue;
             }
 
             auto chunkPoolOutput = partition->ShuffleChunkPool()->GetOutput(physicalPartitionIndex);
             i64 dataWeight = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
             i64 dataSliceCount = chunkPoolOutput->GetDataSliceCounter()->GetTotal();
+            i64 rowCount = chunkPoolOutput->GetRowCounter()->GetTotal();
 
             if (!Spec_->EnableFinalPartitionsMerging ||
                 !isAllDataCollected ||
-                groupDataWeight + dataWeight > *partitionDataWeightForMerging)
+                IsPartitionOversized(
+                    accumulatedDataWeight + dataWeight,
+                    accumulatedRowCount + rowCount,
+                    accumulatedDataSliceCount + dataSliceCount,
+                    *partitionDataWeightForMerging,
+                    Spec_->MaxChunkSlicePerShuffleJob))
             {
                 endCurrentMerging();
             }
 
             physicalPartitionIndices.push_back(physicalPartitionIndex);
-            groupDataWeight += dataWeight;
-            groupDataSliceCount += dataSliceCount;
+            accumulatedDataWeight += dataWeight;
+            accumulatedDataSliceCount += dataSliceCount;
+            accumulatedRowCount += rowCount;
         }
 
         endCurrentMerging();
     }
 
-    void OnPartitionProcessedByJobs(TIntermediatePartitionPtr partition)
+    void OnPartitionProcessedByJobs(TWeakPtr<TIntermediatePartition> weakPartition)
     {
+        auto partition = weakPartition.Lock();
+        if (!partition) {
+            return;
+        }
+
         YT_VERIFY(partition->IsAllDataCollected());
 
         YT_LOG_DEBUG(
@@ -2046,7 +2126,7 @@ protected:
             partition->ChunkPoolOutput()->SubscribeCompleted(BIND(
                 &TSortControllerBase::OnPartitionProcessedByJobs,
                 MakeWeak(this),
-                partition));
+                MakeWeak(partition)));
         }
     }
 
@@ -2093,12 +2173,12 @@ protected:
 
     void PrepareSortedMergeTask()
     {
-        auto SortedMergeInputStreamDescriptors = BuildInputStreamDescriptorsFromOutputStreamDescriptors(
+        auto sortedMergeInputStreamDescriptors = BuildInputStreamDescriptorsFromOutputStreamDescriptors(
             SimpleSortTask_
             ? SimpleSortTask_->GetOutputStreamDescriptors()
             : IntermediateSortTask_->GetOutputStreamDescriptors());
 
-        SortedMergeTask_->SetInputStreamDescriptors(SortedMergeInputStreamDescriptors);
+        SortedMergeTask_->SetInputStreamDescriptors(sortedMergeInputStreamDescriptors);
         RegisterTask(SortedMergeTask_);
         SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         SortedMergeTask_->RegisterInGraph();
@@ -2157,7 +2237,7 @@ protected:
 
         YT_LOG_DEBUG("Examining online nodes");
 
-        const auto& nodeDescriptors = GetOnlineExecNodeDescriptors();
+        const auto& nodeDescriptors = GetOnlineSuitableExecNodeDescriptors();
         TJobResources maxResourceLimits;
         double maxIOWeight = 0;
         for (const auto& [nodeId, descriptor] : nodeDescriptors) {
@@ -2565,7 +2645,7 @@ protected:
         int lo = 0;
 
         for (int i = 0; i < bucketCount; ++i) {
-            int hi = static_cast<int>((i + 1) * partitionCount / bucketCount);
+            int hi = (i + 1) * partitionCount / bucketCount;
 
             i64 totalSum = 0;
             i64 runningSum = 0;
@@ -3066,6 +3146,9 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, UnorderedFinalPartitions_);
     PHOENIX_REGISTER_FIELD(46, UnprocessedPhysicalPartitionsCount_);
 
+    PHOENIX_REGISTER_FIELD(47, PartitionsDispatchStatistics_,
+        .SinceVersion(ESnapshotVersion::FixPartitionsDispatchStatistics));
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (!this_->SimpleSortTask_) {
             this_->SetupPartitioningCompletedCallbacks();
@@ -3089,7 +3172,7 @@ void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->DataBalancer_) {
-            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineExecNodeDescriptors());
+            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineSuitableExecNodeDescriptors());
         }
     });
 }
@@ -3426,16 +3509,13 @@ private:
 
         SimpleSortTask_ = New<TSimpleSortTask>(
             this,
-            /*outputStreamDescriptors*/ GetFinalStreamDescriptors(),
             jobSizeConstraints);
 
-        SimpleSortTask_->SetupJobCounters();
         RegisterTask(SimpleSortTask_);
 
-        SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         ProcessInputs(SimpleSortTask_, jobSizeConstraints);
 
-        FinishTaskInput(SimpleSortTask_);
+        SimpleSortTask_->FinishInput();
 
         auto decision = SimpleSortTask_->GetChunkPoolOutput()->GetJobCounter()->GetTotal() <= 1
             ? EPartitionDispatchDecision::SortInSingleJob
@@ -3458,10 +3538,16 @@ private:
 
         if (decision == EPartitionDispatchDecision::IntermediateSortAndMerge) {
             SortedMergeTask_->RegisterPartition(partition);
-            // TODO(apollo1321): Remove this dirty hack.
-            SimpleSortTask_->OnSortedMergeNeeded();
+
+            SimpleSortTask_->SetIsFinalSort(false, {GetSortedMergeStreamDescriptor()});
+            SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
+        } else {
+            SimpleSortTask_->SetIsFinalSort(true, GetFinalStreamDescriptors());
         }
 
+        SimpleSortTask_->SetupJobCounters();
+
+        SimpleSortTask_->RegisterInGraph(TDataFlowGraph::SourceDescriptor);
         UpdateTask(SimpleSortTask_.Get());
     }
 
@@ -4681,6 +4767,8 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
+        // TODO(apollo1321): Current memory estimation is not correct for multilevel shuffle.
+        // It should account for the number of output partitions for a given job.
         i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,

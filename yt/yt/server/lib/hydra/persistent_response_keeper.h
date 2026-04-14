@@ -11,7 +11,6 @@ namespace NYT::NHydra {
 struct IPersistentResponseKeeper
     : public NRpc::IResponseKeeper
 {
-public:
     virtual void Evict(TDuration expirationTime, int maxResponseCountPerEvictionPass, i64 maxResponsesSpace) = 0;
 
     virtual void Clear() = 0;

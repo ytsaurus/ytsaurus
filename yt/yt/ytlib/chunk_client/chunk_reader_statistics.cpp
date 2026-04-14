@@ -82,6 +82,18 @@ void TChunkReaderStatistics::AddFrom(const TChunkReaderStatisticsPtr& from)
         fieldName.fetch_add(from->fieldName.load(std::memory_order::relaxed), std::memory_order::relaxed);
     ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX)
     #undef XX
+
+    {
+        auto value = from->MaxBlockSize.load(std::memory_order_relaxed);
+        auto prevValue = MaxBlockSize.load(std::memory_order_relaxed);
+        while (
+            value > prevValue &&
+            !MaxBlockSize.compare_exchange_weak(
+                prevValue,
+                value,
+                std::memory_order_relaxed))
+        { }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,6 +217,10 @@ void TChunkReaderStatisticsCounters::Increment(
     const TChunkReaderStatisticsPtr& chunkReaderStatistics,
     bool failed)
 {
+    if (!chunkReaderStatistics) {
+        return;
+    }
+
     DataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed));
     DataBlocksReadFromDisk_.Increment(chunkReaderStatistics->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
     DataIORequests_.Increment(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));

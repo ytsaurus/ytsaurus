@@ -61,6 +61,11 @@ Runtime::Context::~Context()
 
 Compartment* Runtime::getCompartment(const Context* context) { return context->compartment; }
 
+void Runtime::setCheckStackDepthCallback(Context* context, void (*callback)())
+{
+	context->setCheckStackDepthCallback(callback);
+}
+
 Context* Runtime::cloneContext(const Context* context, Compartment* newCompartment)
 {
 	// Create a new context and initialize its runtime data with the values from the source context.
@@ -70,6 +75,7 @@ Context* Runtime::cloneContext(const Context* context, Compartment* newCompartme
 		memcpy(clonedContext->runtimeData->mutableGlobals,
 			   context->runtimeData->mutableGlobals,
 			   maxMutableGlobals * sizeof(IR::UntaggedValue));
+		clonedContext->checkStackDepthCallback = context->checkStackDepthCallback;
 	}
 	return clonedContext;
 }

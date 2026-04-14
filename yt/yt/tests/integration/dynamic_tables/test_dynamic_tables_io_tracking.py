@@ -210,6 +210,14 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         sync_create_cells(1)
         self._create_sorted_table("//tmp/table")
         self._prefer_remote_replicas("//tmp/table")
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "max_concurrent_compactions": 1,
+                    "max_concurrent_partitionings": 1,
+                }
+            }
+        })
         set("//tmp/table/@enable_compaction_and_partitioning", False)
         set("//tmp/table/@max_partition_data_size", 640)
         set("//tmp/table/@desired_partition_data_size", 512)
@@ -241,7 +249,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         new_chunk_ids = [store["chunk_id"] for store in end_partitioning_events[0]["stores_to_add"]]
 
         # Check io log.
-        read_events = self.wait_for_raw_events(count=len(old_chunk_ids), from_barrier=from_barrier, check_event_count=True,
+        read_events = self.wait_for_raw_events(count=len(old_chunk_ids), from_barrier=from_barrier, check_event_count=False,
                                                filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
         write_events = self.wait_for_raw_events(count=len(new_chunk_ids), from_barrier=from_barrier, check_event_count=True,
                                                 filter=lambda event: event.get("data_node_method@") == "FinishChunk")
@@ -276,7 +284,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
                                                filter=lambda event: event.get("data_node_method@") == "GetBlockRange")
         self._check_events(read_events, category="preload", allowed_chunk_ids=(chunk_id, ))
 
-    @authors("tea-mur")
+    @authors("tea-mur", "akozhikhov")
     def test_dictionary_builder(self):
         def _wait_dictionaries_built(path, previous_hunk_chunk_count):
             # One dictionary hunk chunk for each of two policies.
@@ -298,7 +306,12 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
         # Build dictionary.
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        set("//tmp/table/@mount_config/value_dictionary_compression", {"enable": True})
+        set("//tmp/table/@mount_config/value_dictionary_compression", {
+            "enable": True,
+            "column_dictionary_size": 256,
+            "max_processed_chunk_count": 2,
+            "backoff_period": 1000,
+        })
         remount_table("//tmp/table")
         _wait_dictionaries_built("//tmp/table", 1)
 
@@ -312,8 +325,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
 class TestReplicatedTableIOTracking(TestDynamicTableIOTrackingBase, TestReplicatedDynamicTablesBase):
     def setup_method(self, method):
-        super(TestReplicatedDynamicTablesBase, self).setup_method(method)
-        super(TestDynamicTableIOTrackingBase, self).setup_method(method)
+        super(TestReplicatedTableIOTracking, self).setup_method(method)
 
     @authors("tea-mur")
     def test_replication(self):
@@ -357,8 +369,7 @@ class TestChaosTableIOTracking(TestDynamicTableIOTrackingBase, ChaosTestBase):
     }
 
     def setup_method(self, method):
-        super(ChaosTestBase, self).setup_method(method)
-        super(TestDynamicTableIOTrackingBase, self).setup_method(method)
+        super(TestChaosTableIOTracking, self).setup_method(method)
 
     @authors("tea-mur")
     def test_pull(self):

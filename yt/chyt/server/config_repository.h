@@ -9,7 +9,8 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDictionaryConfigRepository(
-    const std::vector<TDictionaryConfigPtr>& dictionaries);
+    const std::vector<TDictionaryConfigPtr>& dictionaries,
+    const TString& defaultDatabase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

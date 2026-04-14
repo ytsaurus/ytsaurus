@@ -4,10 +4,12 @@ items:
 - { name: Выражения,                    href: expressions.md }
 - { name: ACTION,                       href: action.md }
 - { name: CREATE TABLE,                 href: create_table.md } #include: { mode: link, path: create_table/toc_i.yaml } }
+- { name: CREATE VIEW,                  href: create_view.md }
 - { name: COMMIT,                       href: commit.md }
 # Пока в QT не поддерживается: - { name: DECLARE,  href: declare.md }
 - { name: DISCARD,                      href: discard.md }
 - { name: DROP TABLE,                   href: drop_table.md }
+- { name: DROP VIEW,                    href: drop_view.md }
 - { name: GROUP BY,                     href: group_by.md }
 - { name: EXPORT и IMPORT,              href: export_import.md }
 - { name: FLATTEN,                      href: flatten.md }

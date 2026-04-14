@@ -36,6 +36,30 @@ void ThrowUponNodeThrottlerOverdraft(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStoresAndBounds
+{
+    std::vector<ISortedStorePtr> Stores;
+    std::vector<TSharedRange<NTableClient::TRowRange>> BoundsPerStore;
+};
+
+TStoresAndBounds GetStoresAndBounds(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    int partitionIndex,
+    TSharedRange<NTableClient::TRowRange> bounds);
+
+NTableClient::ISchemafulUnversionedReaderPtr DoCreateScanReader(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const TColumnFilter& columnFilter,
+    const TStoresAndBounds& storesAndBounds,
+    NTransactionClient::TReadTimestampRange timestampRange,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    std::optional<EWorkloadCategory> workloadCategory,
+    NTableClient::TTimestampReadOptions timestampReadOptions,
+    bool mergeVersionedRows);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPartitionBounds
 {
     std::vector<NTableClient::TRowRange> Bounds;
@@ -140,7 +164,7 @@ NTableClient::IVersionedReaderPtr CreateCompactionTabletReader(
 std::unique_ptr<NRowMerger::TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
     NTableClient::TRowBufferPtr rowBuffer,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TColumnFilter& columnFilter,
+    const TColumnFilter& latestTimestampColumnFilter,
     TTimestamp retentionTimestamp,
     const NTableClient::TTimestampReadOptions& timestampReadOptions);
 

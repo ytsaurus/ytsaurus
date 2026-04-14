@@ -383,8 +383,10 @@ archive_read_support_format_cab(struct archive *_a)
 	    NULL,
 	    NULL);
 
-	if (r != ARCHIVE_OK)
+	if (r != ARCHIVE_OK) {
+		archive_wstring_free(&cab->ws);
 		free(cab);
+	}
 	return (ARCHIVE_OK);
 }
 
@@ -2813,7 +2815,7 @@ lzx_decode_blocks(struct lzx_stream *strm, int last)
 					      lzx_br_bits(&bre, mt_max_bits));
 					lzx_br_consume(&bre, mt_bitlen[c]);
 				}
-				if (c > UCHAR_MAX)
+				if ((unsigned int)c > UCHAR_MAX)
 					break;
 				/*
 				 * 'c' is exactly literal code.

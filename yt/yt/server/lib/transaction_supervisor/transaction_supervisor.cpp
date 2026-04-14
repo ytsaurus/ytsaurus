@@ -31,6 +31,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/connection.h>
@@ -62,6 +63,7 @@ using namespace NObjectClient;
 using namespace NRpc::NProto;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -263,8 +265,19 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Config_->EnableWaitUntilPreparedTransactionsFinished) {
-            return VoidFuture;
+            return OKFuture;
         }
+
+        auto delayed = [&] (TFuture<void> future) {
+            std::optional<TDuration> delay = DynamicStronglyOrderedTransactionBarrierDelay_.Load();
+            if (!delay) {
+                delay = Config_->Testing->PreparedTransactionsBarrierDelay;
+            }
+
+            return delay
+                ? AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)})
+                : future;
+        };
 
         auto guard = Guard(SequencerLock_);
 
@@ -272,14 +285,14 @@ public:
             YT_LOG_DEBUG(
                 "No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)",
                 NextStronglyOrderedTransactionSequenceNumber_);
-            return VoidFuture;
+            return delayed(OKFuture);
         }
 
         auto lastStronglyOrderedTransactionSequenceNumber = NextStronglyOrderedTransactionSequenceNumber_ - 1;
         auto it = Barriers_.find(lastStronglyOrderedTransactionSequenceNumber);
         if (it != Barriers_.end()) {
             YT_LOG_DEBUG("Barrier already exists (NextStronglyOrderedTransactionSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-            return it->second.Promise.ToFuture().ToUncancelable();
+            return delayed(it->second.Promise.ToFuture().ToUncancelable());
         }
 
         YT_LOG_DEBUG("Creating barrier (NextStronglyOrderedTxSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
@@ -287,7 +300,7 @@ public:
             Barriers_,
             lastStronglyOrderedTransactionSequenceNumber,
             TBarrier(NewPromise<void>(), GetInstant()));
-        return it->second.Promise.ToFuture().ToUncancelable();
+        return delayed(it->second.Promise.ToFuture().ToUncancelable());
     }
 
     TTimestamp GetLastCoordinatorCommitTimestamp() override
@@ -307,6 +320,8 @@ public:
 
     void OnProfiling(TSensorBuffer* buffer) override
     {
+        auto guard = Guard(SequencerLock_);
+
         buffer->AddGauge("/transaction_supervisor/prepared_strongly_ordered_transaction_count", PreparedTransactionsTimestamps_.size());
 
         buffer->AddGauge("/transaction_supervisor/ready_to_commit_strongly_ordered_transaction_count", ReadyToCommitTransactions_.size());
@@ -317,6 +332,14 @@ public:
             barrierWaitTime = GetInstant() - Barriers_.begin()->second.CreationTime;
         }
         buffer->AddGauge("/transaction_supervisor/barrier_wait_time", barrierWaitTime.SecondsFloat());
+    }
+
+    void SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(
+        std::optional<TDuration> delay) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        DynamicStronglyOrderedTransactionBarrierDelay_.Store(delay);
     }
 
 private:
@@ -331,6 +354,8 @@ private:
     const IAuthenticatorPtr Authenticator_;
 
     const NLogging::TLogger Logger;
+
+    TAtomicObject<std::optional<TDuration>> DynamicStronglyOrderedTransactionBarrierDelay_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SequencerLock_);
 
@@ -900,7 +925,15 @@ private:
             auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
             auto stronglyOrdered = request->strongly_ordered();
 
+            // COMPAT(tea-mur): It should be safe to remove prerequisite transactions from tx supervisor after 26.1 (YT-27547)
             auto  prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
+
+            // Actually there may be prerequisites in the case of old CA (see r18873063) or tablet txs from old proxies
+            YT_LOG_ALERT_UNLESS(
+                prerequisiteTransactionIds.empty(),
+                "Unexpected prerequisite transactions (TransactionId: %v, PrerequisiteTransactionIds: %v)",
+                transactionId,
+                prerequisiteTransactionIds);
 
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
@@ -955,7 +988,7 @@ private:
                 /*cellIdsToSyncWith*/ {});
 
             TFuture<TSharedRefArray> asyncResponseMessage;
-            if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+            if (readyEvent.IsSet() && readyEvent.GetOrCrash().IsOK()) {
                 // Most likely path.
                 asyncResponseMessage = owner->CoordinatorCommitTransaction(
                     transactionId,
@@ -1159,7 +1192,7 @@ private:
                 YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
             };
 
-            if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+            if (readyEvent.IsSet() && readyEvent.GetOrCrash().IsOK()) {
                 callback();
             } else {
                 readyEvent.Subscribe(BIND([callback = BIND(std::move(callback)), context, invoker = owner->EpochAutomatonInvoker_] (const TError& error) {
@@ -1452,12 +1485,11 @@ private:
             auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
 
             TTransactionPrepareOptions options{
-                // Technically true.
                 .Persistent = false,
-                .LatePrepare = true,
+                .LatePrepare = true, // Technically true.
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = SelfClockClusterTag_,
-                .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds()
+                .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds(),
             };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
@@ -1589,7 +1621,7 @@ private:
             YT_VERIFY(TryParseResponseHeader(message, &header));
             return header.has_error()
                 ? MakeFuture<void>(FromProto<TError>(header.error()))
-                : VoidFuture;
+                : OKFuture;
         }));
     }
 
@@ -3331,6 +3363,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
+                case ECommitState::ReadyToCommit:
                     YT_LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),

@@ -45,6 +45,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -161,10 +162,10 @@ public:
 
     void SetUp() override
     {
-        BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
+        WaitFor(BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
             .AsyncVia(TestQueue_->GetInvoker())
-            .Run()
-            .Get();
+            .Run())
+            .ThrowOnError();
     }
 
     void DoSetUp()
@@ -204,7 +205,8 @@ public:
             /*retainedTimestamp*/ NullTimestamp,
             /*cumulativeDataWeight*/ 0,
             /*serializationType*/ ETabletTransactionSerializationType::Coarse,
-            TInstant::Now());
+            /*mountTime*/ TInstant::Now(),
+            /*conflictHorizonTimestamp*/ MinTimestamp);
         Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
         auto storeManager = CreateStoreManager(Tablet_.get());
@@ -382,6 +384,8 @@ protected:
     {
         NChunkClient::TClientChunkReadOptions result;
         result.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+
+        result.InitialQueryKind = EInitialQueryKind::LookupRows;
         return result;
     }
 };

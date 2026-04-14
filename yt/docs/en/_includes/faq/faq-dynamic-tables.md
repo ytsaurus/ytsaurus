@@ -18,7 +18,12 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 ------
 #### **Q: When querying a dynamic table, I get the "Maximum block size limit violated" error.** {#block-size-limit}
 
-**A:** The query involves a dynamic table once converted from a static table. The `block_size` parameter was not specified. If you receive an error like this, make sure you follow all the instructions from the [section](../../user-guide/dynamic-tables/mapreduce.md) about converting a static table into a dynamic table. If block size is large, you need to increase `max_unversioned_block_size` to 32 MB and re-mount the table. This can happen, if the table's cells store large binary data that are stored in a single block in their entirety.
+**A:** The query involves a dynamic table once converted from a static table. The `block_size` parameter was not specified. If you receive an error like this, make sure you follow all the instructions from the [section](#convert_table) about converting a static table into a dynamic table. If block size is large, you need to increase `max_unversioned_block_size` to 32 MB and re-mount the table. This can happen, if the table's cells store large binary data that are stored in a single block in their entirety.
+
+------
+#### **Q: When mounting a dynamic table, I get the error "Cannot mount tablet ... since chunk ... has too large row or value size", "Cannot mount tablet ... since it has chunks with too large block size", "Cannot mount tablet ... since it has too large chunks"** {#cannot-mount-large-chunks}
+
+**A:** The error usually occurs due to incorrect settings during the converting of a static table to a dynamic one. Make sure you have followed all the instructions from the [conversion section](#convert_table).
 
 ------
 #### **Q: When querying a dynamic table, I get the "Too many overlapping stores in tablet" error.** {#overlapping-stores-tablet}
@@ -138,6 +143,15 @@ In some scenarios, weakening [guarantees](../../user-guide/dynamic-tables/transa
 **A:** This error occurs when reading from a replicated or chaotic table if there is no replica to read from. The replica must meet the following criteria:
 1. It must contain fairly recent data. If a timestamp is specified when reading, the replica must contain data up to that timestamp. If a timestamp is not specified, reads must be made from an *actually synchronous* replica: a one that has `mode=sync` and definitely contains older data. For more information, see [guarantees of replicated dynamic tables](../../user-guide/dynamic-tables/replicated-dynamic-tables#garantii).
 2. It must be a working replica. If the client has recently got an error from a replica, next time it will try to access a different replica. The replicas you cannot read data from are listed in the `banned_replicas` attribute of the error in question.
+
+---
+#### **Q: When reading from a dynamic table, I get the error 'Timestamp ... is less than tablet ... retained timestamp'** {#retained-timestamp}
+
+**A:** The error occurs when requesting data that may have been deleted by compaction. Check that the `min_data_ttl` of the table is bigger than the expected lifespan of user transactions.
+
+For more information about compaction settings, see the section [Deleting old data](../../user-guide/dynamic-tables/sorted-dynamic-tables#remove_old_data).
+
+---
 
 ---
 #### **Q: When attempting to execute RemoteCopy, I get the "Chunk view cannot be copied to remote cluster" error.** {#chunk-view-cannot-be-remote-copied}

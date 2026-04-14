@@ -1,13 +1,13 @@
 #pragma once
 
 #include "chunk_pool.h"
-#include "private.h"
 #include "job_manager.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
@@ -75,10 +75,10 @@ private:
     //! All the input cookies that provided data that forms this job.
     std::vector<IChunkPoolInput::TCookie> InputCookies_;
 
-    //! Maps pair of <stream_index, range_index> into corresponding stripe.
-    THashMap<std::pair<int, int>, TChunkStripePtr> StripeMap_;
+    //! Maps stream index into corresponding stripe.
+    THashMap<int, TChunkStripePtr> StripeMap_;
 
-    const TChunkStripePtr& GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary);
+    const TChunkStripePtr& GetStripe(int streamIndex, bool isStripePrimary);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,8 +125,6 @@ public:
     // Used if we know which cookie we want to extract.
     void ExtractCookie(IChunkPoolOutput::TCookie cookie);
 
-    std::vector<NChunkClient::TLegacyDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
-
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie) const;
@@ -165,7 +163,7 @@ private:
     public:
         explicit TStripeListComparator(TNewJobManager* owner);
 
-        bool operator ()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
+        bool operator()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
     private:
         TNewJobManager* Owner_;
     };

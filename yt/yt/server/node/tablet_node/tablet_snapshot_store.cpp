@@ -3,13 +3,9 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "private.h"
-#include "security_manager.h"
 #include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
-
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
@@ -118,6 +114,8 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         TTimestamp timestamp) override
     {
+        tabletSnapshot->MaybeReplyWithReshardRedirectionHint();
+
         tabletSnapshot->ValidateServantIsActive(
             Bootstrap_
                 ->GetClient()
@@ -153,7 +151,6 @@ public:
             bundleName = slot->GetTabletCellBundleName();
         } else {
             const auto& occupant = Bootstrap_
-                ->GetCellarNodeBootstrap()
                 ->GetCellarManager()
                 ->GetCellar(NCellarClient::ECellarType::Tablet)
                 ->FindOccupant(tabletSnapshot->CellId);
@@ -176,7 +173,7 @@ public:
 
     void ValidateUserNotBanned(const std::string& userName) override
     {
-        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->UserBan;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->UserBan;
         auto failureProbability = dynamicConfig->FailureProbability;
         if (!failureProbability) {
             return;
@@ -653,21 +650,15 @@ public:
     void ValidateTabletAccess(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         NTransactionClient::TTimestamp /*timestamp*/) override
-    {
-        return;
-    }
+    { }
 
     void ValidateBundleNotBanned(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         const ITabletSlotPtr& /*slot*/) override
-    {
-        return;
-    }
+    { }
 
     void ValidateUserNotBanned(const std::string& /*userName*/) override
-    {
-        return;
-    }
+    { }
 
     void RegisterTabletSnapshot(
         const ITabletSlotPtr& /*slot*/,

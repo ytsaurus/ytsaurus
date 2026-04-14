@@ -225,7 +225,7 @@ public:
         int zeroPosition;
         for (zeroPosition = startPosition; StateBuffer_[zeroPosition]; ++zeroPosition);
         WriteToStderr("*** Query registry state ***\n");
-        WriteToStderr(&StateBuffer_[startPosition], zeroPosition - startPosition);
+        WriteToStderr(TStringBuf(&StateBuffer_[startPosition], zeroPosition - startPosition));
         WriteToStderr("\n");
     }
 

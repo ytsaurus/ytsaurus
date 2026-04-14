@@ -18,9 +18,6 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
@@ -60,7 +57,6 @@ namespace NYT::NTabletNode {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NClusterNode;
 using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -167,19 +163,15 @@ public:
             chunkSpec.set_striped_erasure(owner->IsStripedErasure());
             *chunkSpec.mutable_chunk_meta() = owner->GetChunkMeta();
             CachedWeakChunk_.Reset();
-            auto nodeStatusDirectory = Bootstrap_
-                ? Bootstrap_->GetHintManager()
-                : nullptr;
 
             auto chunkReaderHost = New<TChunkReaderHost>(
                 Client_,
                 LocalNodeDescriptor_,
                 std::move(blockCache),
                 /*chunkMetaCache*/ nullptr,
-                std::move(nodeStatusDirectory),
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
+                /*rpsThrottler*/ nullptr,
+                /*mediumThrottler*/ nullptr,
                 /*trafficMeter*/ nullptr);
 
             // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
@@ -203,8 +195,7 @@ public:
                 return GetUnlimitedThrottler();
             }
 
-            const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-            return GetBlobMediumReadThrottler(dynamicConfigManager, tabletSnapshot);
+            return GetBlobMediumReadThrottler(Bootstrap_->GetTabletNodeDynamicConfig(), tabletSnapshot);
         };
 
         auto createRemoteReaderAdapter = [&] {
@@ -217,7 +208,7 @@ public:
                 owner->GetChunkId(),
                 ChunkReader_,
                 std::move(bandwidthThrottler),
-                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*rpsThrottler*/ nullptr,
                 getBlobMediumReadThrottler());
             backendReaders.OffloadingReader = dynamic_cast<IOffloadingReader*>(backendReaders.ChunkReader.Get());
             backendReaders.ReaderConfig = ReaderConfig_;
@@ -225,6 +216,8 @@ public:
             CachedRemoteReaderAdapters_.emplace(
                 workloadCategory,
                 std::move(backendReaders));
+
+            YT_LOG_DEBUG("Remote chunk reader adapter created and cached (WorkloadCategory: %v)", workloadCategory);
         };
 
         auto now = NProfiling::GetCpuInstant();
@@ -345,9 +338,7 @@ public:
         CachedReadersLocal_ = false;
         CachedWeakChunk_.Reset();
 
-        if (config) {
-            SetReaderConfig(config);
-        }
+        SetReaderConfig(config);
     }
 
     TTabletStoreReaderConfigPtr GetReaderConfig() override
@@ -374,9 +365,12 @@ private:
 
     void SetReaderConfig(const TTabletStoreReaderConfigPtr& readerConfig)
     {
-        ReaderConfig_ = CloneYsonStruct(readerConfig);
-        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetDynamicConfigManager()
-            ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
+        if (readerConfig) {
+            ReaderConfig_ = CloneYsonStruct(readerConfig);
+        }
+        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
+            ->EnableCollocatedDatNodeThrottling;
+        ReaderConfig_->Postprocess();
     }
 
     static bool IsLocalChunkValid(const IChunkPtr& chunk)
@@ -580,6 +574,11 @@ TTabletId TStoreBase::GetTabletId() const
 {
     return TabletId_;
 }
+
+void TStoreBase::OnDynamicConfigChanged(
+    const TTabletNodeDynamicConfigPtr& /*oldConfig*/,
+    const TTabletNodeDynamicConfigPtr& /*newConfig*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -860,7 +859,7 @@ bool TMinHashDigestBlockIndex::IsFound()
 
 int TMinHashDigestBlockIndex::GetBlockIndex()
 {
-    YT_VERIFY(BlockIndex_ >= 0);
+    YT_VERIFY(IsFound());
     return BlockIndex_;
 }
 
@@ -1110,33 +1109,43 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
 TBackendReaders TChunkStoreBase::GetBackendReaders(
     std::optional<EWorkloadCategory> workloadCategory)
 {
+    if (CachedReadersInvalidationNeeded_) {
+        if (CachedReadersInvalidationNeeded_.exchange(false)) {
+            InvalidateCachedReaders(/*config*/ nullptr);
+        }
+    }
+
     return BackendReadersHolder_->GetBackendReaders(this, workloadCategory);
 }
 
 TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 {
+    if (CachedReadersInvalidationNeeded_) {
+        if (CachedReadersInvalidationNeeded_.exchange(false)) {
+            InvalidateCachedReaders(/*config*/ nullptr);
+        }
+    }
+
     return BackendReadersHolder_->GetReaderConfig();
 }
 
-void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
+void TChunkStoreBase::InvalidateCachedReaders(const TTabletStoreReaderConfigPtr& storeReaderConfig)
 {
-    {
-        auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
-        auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
-        // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
-        guard.Release();
-    }
-
-    BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(settings.StoreReaderConfig);
+    BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(storeReaderConfig);
 }
 
 TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
-    bool prepareColumnarMeta)
+    bool prepareColumnarMeta,
+    bool compressBlockLastKeys)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
     if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
+        if (entry->GetKey().CompressedBlockLastKeys != compressBlockLastKeys) {
+            return nullptr;
+        }
+
         const auto& meta = entry->Meta();
         if (prepareColumnarMeta || !meta->IsColumnarMetaPrepared()) {
             const auto& chunkMetaManager = Context_->GetVersionedChunkMetaManager();
@@ -1151,7 +1160,8 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
 TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMeta(
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
-    bool prepareColumnarMeta)
+    bool prepareColumnarMeta,
+    bool compressBlockLastKeys)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1163,7 +1173,8 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
         Schema_,
         chunkReadOptions,
         MiscExt_.meta_size(),
-        prepareColumnarMeta)
+        prepareColumnarMeta,
+        compressBlockLastKeys)
         .Apply(BIND([
             =,
             this,
@@ -1188,6 +1199,15 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
             return meta;
         })
         .AsyncVia(GetCurrentInvoker()));
+}
+
+void TChunkStoreBase::OnDynamicConfigChanged(
+    const TTabletNodeDynamicConfigPtr& oldConfig,
+    const TTabletNodeDynamicConfigPtr& newConfig)
+{
+    TStoreBase::OnDynamicConfigChanged(oldConfig, newConfig);
+
+    CachedReadersInvalidationNeeded_.store(true);
 }
 
 const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const

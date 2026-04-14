@@ -36,7 +36,10 @@ struct IPrepareCallbacks
     virtual TFuture<TDataSplit> GetInitialSplit(const NYPath::TYPath& path) = 0;
 
     //! Fetches externally defined functions.
-    virtual void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) = 0;
+    virtual void FetchFunctions(
+        TRange<std::string> names,
+        const TTypeInferrerMapPtr& typeInferrers,
+        NCodegen::EExecutionBackend executionBackend) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

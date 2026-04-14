@@ -260,7 +260,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
         requestTraceContext->SetRecorded();
         requestTraceContext->AddTag("node_id", nodeId);
 
-        static const TString SchedulerConnectorTracingUserName = "scheduler_connector";
+        static const std::string SchedulerConnectorTracingUserName = "scheduler_connector";
         TracingSampler_->SampleTraceContext(SchedulerConnectorTracingUserName, requestTraceContext);
     }
 

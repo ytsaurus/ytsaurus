@@ -366,20 +366,20 @@ class TestGetJob(_TestGetJobCommon):
                     "master": {
                         "job_count": 1,
                         "command": ":",
-                        "distributed_job_options": {"factor": 2},
+                        "collective_options": {"size": 2},
                     },
                 },
             },
         )
         wait(lambda: len(op.list_jobs()) == 2)
-        main, replica = sorted(
-            [{"id": job, **get_job(op.id, job, attributes=["distributed_group_job_index", "distributed_group_main_job_id"])} for job in op.list_jobs()],
-            key=lambda job: job["distributed_group_job_index"],
+        master, slave = sorted(
+            [{"id": job, **get_job(op.id, job, attributes=["collective_member_rank", "collective_id"])} for job in op.list_jobs()],
+            key=lambda job: job["collective_member_rank"],
         )
-        assert main["distributed_group_main_job_id"] == main["id"]
-        assert main["distributed_group_job_index"] == 0
-        assert replica["distributed_group_main_job_id"] == main["id"]
-        assert replica["distributed_group_job_index"] == 1
+        assert master["collective_id"] == master["id"]
+        assert master["collective_member_rank"] == 0
+        assert slave["collective_id"] == master["id"]
+        assert slave["collective_member_rank"] == 1
 
     @authors("omgronny")
     def test_abort_vanished_jobs_in_archive(self):

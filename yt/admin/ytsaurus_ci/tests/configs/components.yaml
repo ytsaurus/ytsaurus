@@ -1,0 +1,26 @@
+operator:
+  requirements: configs/compat-operator.yaml
+  origins:
+    dev:
+      repo: ytsaurus
+      container: ytop-chart-nightly
+      image_tag: '^[\d\.]+-dev-(?P<commit_hash>\w+)$'
+    test:
+      repo: ytsaurus
+      container: ytop-chart-release
+      image_tag: '{{ version }}'
+    special:
+      repo: ytsaurus
+      container: special-container
+      image_tag: '{{ version }}'
+ytsaurus:
+  requirements: configs/compat-ytsaurus.yaml
+  origins:
+    dev:
+      repo: "ytsaurus"
+      container: ytsaurus-nightly
+      image_tag: '^dev-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+    test:
+      repo: "ytsaurus"
+      container: ytsaurus-release
+      image_tag: '{{ version }}'

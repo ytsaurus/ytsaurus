@@ -16,36 +16,34 @@ class Position:
 
 @yt.wrapper.yt_dataclass
 class Ride:
-    # Мы используем типы из yt.wrapper.schema, когда хотим подсказать,
-    # как правильно выводить тип для данной колонки в схеме.
+    # We use types from `yt.wrapper.schema` when we want to indicate
+    # as hints for column type in schema to infer column type.
     id: schema.Uint64
 
-    # Для составных типов используются типы из модуля typing.
-    # А в python версии >= 3.9 можно писать прямо list[Position].
+    # Use types from typing module for composite types.
+    # Write `list[Position]` in python version >= 3.9
     track: typing.List[Position]
 
-    # OtherColumns позволяет несхематизированно читать и писать произвольные
-    # колонки. Указание подобного поля делает выводимую схему нестрогой.
+    # `OtherColumns` allows to read and write random columns in a non-schematic way.
+    # When such field is specified than output schema becames no strict.
     other: schema.OtherColumns = None
 
 
-# Поддерживается наследование.
+# Inheritance is supported.
 @yt.wrapper.yt_dataclass
 class TaxiRide(Ride):
-    # Для многих полей имеет смысл использовать typing.Optional.
-    # С помощью синтаксиса `= ...` вы можете указывать для поля
-    # значение по умолчанию.
-    # Обратите внимание: поля со значением по умолчанию должны идти в конце.
+    # Using of `typing.Optional` can be recommended for many fields.
+    # Use syntax `= ...` to specify default value for the field.
+    # NB: fields with default values should be put to the end.
     cost: typing.Optional[int] = None
 
-    # Специальные типы из yt.wrapper.schema позволяют
-    # задать поле, в котором хранится произвольный
-    # валидный yson.
+    # Specific types of `yt.wrapper.schema` allow
+    # setting a field storing random valid yson.
     info: typing.Optional[schema.YsonBytes] = None
 
 
 def main():
-    # You need to set up cluster address in YT_PROXY environment variable.
+    # You should set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
         raise RuntimeError("Environment variable YT_PROXY is empty")
@@ -61,20 +59,20 @@ def main():
             Position(lat=8.0, lon=10.0),
         ],
         cost=550,
-        # В YsonBytes поле может лежать любой валидный YSON.
+        # Any valid Yson can be stored in the YsonBytes field.
         info=schema.YsonBytes(b'["Some";"useful";"info"]'),
     )
 
-    # Просто пишем данные в таблицу, схема выведется автоматически.
+    # Just write data to the table and the schema will be inferred automatically
     client.write_table_structured(table, TaxiRide, [taxi_ride])
 
-    # Читать таблицу не обязательно с помощью того же класса,
-    # единственное требование ­— это совместимость схемы и датакласса.
+    # You don't need reading the table using the same class
+    # just be sure that the schema and the dataclass are compatible.
     row_iterator = client.read_table_structured(table, Ride)
 
     print("*** First read ***")
     for taxi_ride in row_iterator:
-        # Датаклассы поддерживают человекочитаемый __str__.
+        # Dataclasses can be used with a human-readable `__str__`.
         print("  {}".format(taxi_ride))
 
     ride = Ride(
@@ -83,21 +81,21 @@ def main():
             Position(lat=14.0, lon=12.0),
             Position(lat=14.0, lon=13.0),
         ],
-        # OtherColumns конструируется от байтовой YSON-строки с мапой
-        # или просто от словаря.
+        # `OtherColumns` is constructed from a byte YSON string with a map
+        # or simply from a dictionary.
         other=schema.OtherColumns({"cost": 340}),
     )
 
-    # Писать таблицу тоже можно с помощью другого класса.
+    # You can write to the table using another class also.
     table_with_append = yt.wrapper.TablePath(table, append=True)
     client.write_table_structured(table_with_append, Ride, [ride])
 
-    # Прочитаем, что у нас получилось.
+    # Reading the results.
     print("\n*** Second read ***")
     for taxi_ride in client.read_table_structured(table, TaxiRide):
         print("  {}".format(taxi_ride))
 
-    # Или выведем датакласс автоматически.
+    # Or you can infer the datalcass automatically.
     print("\n*** Third read ***")
     for taxi_ride_auto in client.read_table_structured(table):
         print("  {}".format(taxi_ride_auto))

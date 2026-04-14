@@ -4,6 +4,7 @@
 #include "clickhouse_service_proxy.h"
 #include "config.h"
 #include "custom_data_types.h"
+#include "dictionary_access_control.h"
 #include "dictionary_source.h"
 #include "health_checker.h"
 #include "helpers.h"
@@ -15,6 +16,7 @@
 #include "storage_system_clique.h"
 #include "storage_system_log_table_exporter.h"
 #include "table_functions.h"
+#include "table_schema_cache.h"
 #include "user_defined_sql_objects_storage.h"
 #include "yt_database.h"
 #include "yt_directory_database.h"
@@ -55,10 +57,12 @@
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils.h>
+#include <Common/ThreadStatus.h>
+
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
-#include <IO/HTTPCommon.h>
 
+#include <IO/HTTPCommon.h>
 
 #include <util/system/env.h>
 
@@ -137,6 +141,12 @@ public:
         , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
+        TableAttributesToFetch_ = TableAttributesToFetch;
+        auto schemeAttribute = Config_->EnableSchemaIdFetching
+            ? TableSchemaIdAttribute
+            : TableSchemaAttribute;
+        TableAttributesToFetch_.push_back(schemeAttribute);
+
         InitializeClients();
         InitializeCaches();
         InitializeReaderMemoryManager();
@@ -170,8 +180,12 @@ public:
             default:
                 YT_ABORT();
         }
-        if (Config_->DictionaryRepository->Enabled) {
+        if (Config_->DictionaryRepository) {
             CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(CreateClient(ChytSqlObjectsUserName), Config_->DictionaryRepository);
+        }
+
+        if (Config_->DictionaryAccessControl) {
+            DictionaryAccessControl_ = CreateDictionaryAccessControl(PermissionCache_, Config_->DictionaryAccessControl, FetcherInvoker_);
         }
 
         ClickHouseYtProfiler().AddFuncGauge(
@@ -243,6 +257,8 @@ public:
 
         YT_VERIFY(getContext());
 
+        DB::MainThreadStatus::getInstance();
+
         if (Config_->ControlInvokerChecker->Enabled) {
             ControlInvokerChecker_->Start();
         }
@@ -252,6 +268,10 @@ public:
 
         GossipExecutor_->Start();
         HealthChecker_->Start();
+
+        if (Config_->DictionaryAccessControl) {
+            DictionaryAccessControl_->Start(getContext());
+        }
 
         CreateOrchidNode();
         StartDiscovery();
@@ -302,15 +322,15 @@ public:
         std::vector<TError> errors;
         std::vector<THost::TRowLevelAcl> rowLevelAclPerTable(validationResults.size());
         for (size_t index = 0; index < validationResults.size(); ++index) {
-            const auto& validationResult = validationResults[index];
+            const auto& resultOrError = validationResults[index];
 
-            if (!validationResult.IsOK()) {
-                errors.push_back(validationResult
+            if (!resultOrError.IsOK()) {
+                errors.push_back(resultOrError
                     << TErrorAttribute("path", paths[index])
                     << TErrorAttribute("permission", "read")
                     << TErrorAttribute("columns", paths[index].GetColumns()));
             } else {
-                rowLevelAclPerTable[index] = validationResult.Value().RowLevelAcl;
+                rowLevelAclPerTable[index] = resultOrError.Value().RowLevelAcl;
             }
         }
         if (!errors.empty()) {
@@ -364,6 +384,11 @@ public:
                 }
                 return results;
             }));
+    }
+
+    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const
+    {
+        return TableAttributesToFetch_;
     }
 
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
@@ -472,6 +497,11 @@ public:
         }
     }
 
+    const TTableSchemaCachePtr& GetTableSchemaCache() const
+    {
+        return TableSchemaCache_;
+    }
+
     const TObjectAttributeCachePtr& GetObjectAttributeCache() const
     {
         return TableAttributeCache_;
@@ -556,7 +586,7 @@ public:
         QueryRegistry_->WriteStateToStderr();
         WriteToStderr("*** Current query id (possible reason of failure): ");
         const auto& queryId = DB::CurrentThread::getQueryId();
-        WriteToStderr(queryId.data(), queryId.size());
+        WriteToStderr(queryId);
         WriteToStderr(" ***\n");
 
         if (DB::CurrentThread::isInitialized()) {
@@ -565,12 +595,12 @@ public:
             if (context) {
                 const auto* queryContext = GetQueryContext(context);
                 WriteToStderr("*** Current user: ");
-                WriteToStderr(queryContext->User.data(), queryContext->User.size());
+                WriteToStderr(queryContext->User);
                 WriteToStderr(" ***\n");
 
                 if (queryContext->InitialQuery) {
                     WriteToStderr("*** Begin of the initial query ***\n");
-                    WriteToStderr(queryContext->InitialQuery->data(), queryContext->InitialQuery->size());
+                    WriteToStderr(*queryContext->InitialQuery);
                     WriteToStderr("\n*** End of the initial query ***\n");
                 } else {
                     WriteToStderr("*** Initial query is missing ***\n");
@@ -579,7 +609,7 @@ public:
                 if (auto status = context->getProcessListElement()) {
                     const auto& info = status->getInfo();
                     WriteToStderr("*** Begin of the context query ***\n");
-                    WriteToStderr(info.query.data(), info.query.size());
+                    WriteToStderr(info.query);
                     WriteToStderr("\n*** End of the context query ***\n");
                 } else {
                     WriteToStderr("*** Query is not in the process list ***\n");
@@ -602,7 +632,12 @@ public:
         return RootClient_;
     }
 
-    NApi::NNative::IClientPtr CreateClient(const TString& user) const
+    NApi::NNative::IClientPtr GetDictionariesClient() const
+    {
+        return DictionaryAccessControl_ ? DictionariesClient_ : RootClient_;
+    }
+
+    NApi::NNative::IClientPtr CreateClient(const std::string& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
@@ -727,7 +762,7 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
+                NNet::BuildServiceAddress(attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.RemoveSqlObject();
@@ -741,12 +776,12 @@ public:
             .ThrowOnError();
     }
 
-    void ReloadDictionaryGlobally(const std::string& dictionaryName) const
+    void ReloadDictionaryGlobally(const std::string& configPath) const
     {
-        YT_LOG_DEBUG("Reloading dictionary on all instances (DictionaryName: %v)", dictionaryName);
+        YT_LOG_DEBUG("Reloading dictionary on all instances (ConfigPath: %v)", configPath);
 
         const auto& externalDictionariesLoader = GetContext()->getExternalDictionariesLoader();
-        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, dictionaryName);
+        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, configPath);
 
         auto instances = Discovery_->List();
         using TResponse = NRpc::TTypedClientResponse<TRspReloadDictionary>::TResult;
@@ -760,11 +795,11 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
+                NNet::BuildServiceAddress(attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.ReloadDictionary();
-            req->set_dictionary_name(dictionaryName);
+            req->set_config_path(configPath);
 
             futures.push_back(req->Invoke());
         }
@@ -773,8 +808,24 @@ public:
             .ThrowOnError();
     }
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository() {
+    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository()
+    {
         return CypressDictionaryConfigRepository_;
+    }
+
+    void PrepareClickHouseUser(const std::string& userName)
+    {
+        auto context = getContext();
+        RegisterNewUser(
+            context->getAccessControl(),
+            userName,
+            GetUserDefinedDatabaseNames(),
+            HasUserDefinedSqlObjectStorage(),
+            DictionaryAccessControl_ == nullptr);
+
+        if (DictionaryAccessControl_) {
+            DictionaryAccessControl_->SyncUserAccessRights(userName);
+        }
     }
 
 private:
@@ -798,12 +849,16 @@ private:
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
+    NApi::NNative::IClientPtr DictionariesClient_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
+    TTableSchemaCachePtr TableSchemaCache_;
+
+    std::vector<std::string> TableAttributesToFetch_;
 
     IDiscoveryPtr Discovery_;
     int InstanceCookie_;
@@ -816,6 +871,7 @@ private:
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
     TCypressDictionaryConfigRepositoryPtr CypressDictionaryConfigRepository_;
+    IDictionaryAccessControlPtr DictionaryAccessControl_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -835,13 +891,14 @@ private:
 
         ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
-        auto getClientForUser = [&] (const TString& user) {
+        auto getClientForUser = [&] (const std::string& user) {
             auto identity = NRpc::TAuthenticationIdentity(user);
             auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
             return ClientCache_->Get(identity, options);
         };
         RootClient_ = getClientForUser(Config_->User);
         CacheClient_ = getClientForUser(CacheUserName);
+        DictionariesClient_ = getClientForUser(DictionariesUserName);
     }
 
     void InitializeCaches()
@@ -853,7 +910,7 @@ private:
 
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
-            TableAttributesToFetch,
+            TableAttributesToFetch_,
             Connection_,
             ControlInvoker_,
             Logger(),
@@ -865,6 +922,12 @@ private:
             FetcherInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/table_columnar_statistics_cache"));
+
+        if (Config_->EnableSchemaIdFetching) {
+            TableSchemaCache_ = New<TTableSchemaCache>(
+                Config_->TableSchemaCache,
+                ClickHouseYtProfiler().WithPrefix("/table_schema_cache"));
+        }
     }
 
     void InitializeReaderMemoryManager()
@@ -1068,6 +1131,7 @@ private:
             SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
         RegisterDataTypeTimestamp();
+        RegisterTzDataTypes();
     }
 };
 
@@ -1120,6 +1184,11 @@ TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> THost::Prelimi
     return Impl_->PreliminaryCheckPermissions(paths, user);
 }
 
+const std::vector<std::string>& THost::GetObjectAttributeNamesToFetch() const
+{
+    return Impl_->GetObjectAttributeNamesToFetch();
+}
+
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(
     const std::vector<NYPath::TYPath>& paths,
     const IClientPtr& client)
@@ -1138,6 +1207,11 @@ void THost::InvalidateCachedObjectAttributesGlobally(
     TDuration timeout)
 {
     Impl_->InvalidateCachedObjectAttributesGlobally(paths, mode, timeout);
+}
+
+const TTableSchemaCachePtr& THost::GetTableSchemaCache() const
+{
+    return Impl_->GetTableSchemaCache();
 }
 
 const TObjectAttributeCachePtr& THost::GetObjectAttributeCache() const
@@ -1205,7 +1279,12 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
     return Impl_->GetRootClient();
 }
 
-NApi::NNative::IClientPtr THost::CreateClient(const TString& user) const
+NApi::NNative::IClientPtr THost::GetDictionariesClient() const
+{
+    return Impl_->GetDictionariesClient();
+}
+
+NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
 }
@@ -1298,13 +1377,18 @@ void THost::RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::T
     Impl_->RemoveSqlObjectOnOtherInstances(objectName, revision);
 }
 
-void THost::ReloadDictionaryGlobally(const std::string& dictionaryName) const
+void THost::ReloadDictionaryGlobally(const std::string& configPath) const
 {
-    Impl_->ReloadDictionaryGlobally(dictionaryName);
+    Impl_->ReloadDictionaryGlobally(configPath);
 }
 
 TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepository() {
     return Impl_->GetCypressDictionaryConfigRepository();
+}
+
+void THost::PrepareClickHouseUser(const std::string& userName)
+{
+    Impl_->PrepareClickHouseUser(userName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

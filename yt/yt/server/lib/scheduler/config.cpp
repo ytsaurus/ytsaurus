@@ -520,6 +520,20 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("sparsify_fair_share_profiling", &TThis::SparsifyFairShareProfiling)
         .Default(false);
 
+    registrar.Parameter("per_pool_starvation_interval_bounds", &TThis::PerPoolStarvationIntervalBounds)
+        .Default({
+            TDuration::Seconds(1),
+            TDuration::Minutes(1),
+            TDuration::Minutes(5),
+            TDuration::Minutes(10),
+            TDuration::Minutes(15),
+            TDuration::Minutes(30),
+            TDuration::Minutes(60),
+        });
+
+    registrar.Parameter("enable_detailed_starvation_logs", &TThis::EnableDetailedStarvationLogs)
+        .Default(false);
+
     registrar.Parameter("enable_limiting_ancestor_check", &TThis::EnableLimitingAncestorCheck)
         .Default(true);
 
@@ -671,8 +685,19 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
         .Default(true);
 
+    registrar.Parameter("use_precommit_for_preemption", &TThis::UsePrecommitForPreemption)
+        .Default(false);
+
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
         .DefaultNew();
+
+    registrar.Parameter("policy_kind", &TThis::PolicyKind)
+        .Default(EPolicyKind::Classic);
+
+    registrar.Parameter("enable_absolute_fair_share_starvation_tolerance", &TThis::EnableAbsoluteFairShareStarvationTolerance)
+        .Default(false);
+    registrar.Parameter("consider_allocation_on_fair_share_bound_preemptible", &TThis::ConsiderAllocationOnFairShareBoundPreemptible)
+        .Default(false);
 
     registrar.Parameter("enable_preliminary_resource_limits_check", &TThis::EnablePreliminaryResourceLimitsCheck)
         .Default(true);
@@ -1329,7 +1354,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(65);
+        .Default(66);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
@@ -1345,6 +1370,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_actions_allowed_for_pool_managers", &TThis::OperationActionsAllowedForPoolManagers)
         .Default();
+
+    registrar.Parameter("unutilized_resources_sensors_update_period", &TThis::UnutilizedResourcesSensorsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 
     registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;

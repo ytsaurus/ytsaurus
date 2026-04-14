@@ -55,17 +55,17 @@ public:
 
         TTableTraverser traverser(
             queryContext->Client(),
-            *queryContext->Settings->CypressReadOptions,
+            *queryContext->SessionSettings->CypressReadOptions,
             queryContext->Host->GetConfig()->ShowTables->Roots,
             filterByTableName);
 
         std::vector<std::string> tableNames = traverser.GetTables();
 
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             ConvertToPaths(tableNames),
             /*skipUnsuitableNodes*/ true,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         DB::Tables resultingsTargets;

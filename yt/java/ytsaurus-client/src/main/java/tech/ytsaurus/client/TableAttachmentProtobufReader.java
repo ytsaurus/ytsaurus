@@ -28,6 +28,7 @@ public class TableAttachmentProtobufReader<T extends Message> extends TableAttac
         try {
             while (!input.isAtEnd()) {
                 int messageSize = input.readFixed32();
+                messageBuilder.clear();
                 deserializedMessages.add(
                         castToType(messageBuilder
                                 .mergeFrom(input.readRawBytes(messageSize))

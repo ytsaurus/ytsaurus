@@ -160,6 +160,8 @@ message TSubqueryExpression
     optional TExpression where_clause = 2;
     optional TGroupClause group_clause = 3;
     optional TProjectClause project_clause = 6;
+
+    repeated TJoinClause join_clauses = 7;
 }
 
 message TNamedItem
@@ -185,8 +187,7 @@ message TAggregateItem
 message TSelfEquation
 {
     required TExpression expression = 1;
-    // COMPAT(sabdenovch): This field is deprecated and is always false.
-    required bool evaluated = 2;
+    reserved 2; // deprecated
 }
 
 message TJoinClause
@@ -215,6 +216,8 @@ message TJoinClause
     repeated TExpression array_expressions = 16;
 
     optional TGroupClause group_clause = 17;
+
+    optional bool require_sync_replica = 18 [default = true];
 }
 
 message TGroupClause

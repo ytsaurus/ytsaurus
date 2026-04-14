@@ -1,8 +1,8 @@
 #include "gpu_manager.h"
 
 #include "bootstrap.h"
-#include "private.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -11,15 +11,15 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 #include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/library/gpu/config.h>
 
@@ -217,7 +217,7 @@ void TGpuManager::Initialize()
             descriptor.DeviceIndex,
             TGpuInfo{
                 .UpdateTime = now,
-                .Index = descriptor.DeviceIndex
+                .Index = descriptor.DeviceIndex,
             });
     }
 

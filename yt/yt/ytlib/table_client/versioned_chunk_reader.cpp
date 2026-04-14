@@ -41,6 +41,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <library/cpp/yt/memory/atomic.h>
+
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
@@ -125,7 +127,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return ReadyEvent();
+        return InternalGetReadyEvent();
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -144,8 +146,8 @@ protected:
 
     TChunkedMemoryPool MemoryPool_;
 
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 };
 
 TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
@@ -216,10 +218,14 @@ public:
             schemaIdMapping)
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , Ranges_(std::move(ranges))
+        , SessionInvoker_(std::move(sessionInvoker))
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == TBlockReader::ChunkFormat);
+    }
 
-        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), sessionInvoker));
+    void InitializeRefCounted()
+    {
+        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), SessionInvoker_));
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -305,8 +311,9 @@ public:
             }
         }
 
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, rowCount);
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
+
         if (KeyFilterStatistics_ && falsePositiveRangeCount > 0) {
             KeyFilterStatistics_->FalsePositiveEntryCount.fetch_add(falsePositiveRangeCount, std::memory_order::relaxed);
         }
@@ -319,8 +326,10 @@ private:
     using TBlockReaderAdapter<TBlockReader>::BlockReader_;
 
     TKeyFilterStatisticsPtr KeyFilterStatistics_;
+    const TSharedRange<TRowRange> Ranges_;
+    const IInvokerPtr SessionInvoker_;
+
     std::vector<size_t> BlockIndexes_;
-    TSharedRange<TRowRange> Ranges_;
     int NextBlockIndex_ = 0;
     int RangeIndex_ = 0;
     bool IsLastRangeEmpty_ = true;
@@ -419,9 +428,9 @@ private:
             KeyColumnCount_,
             CommonKeyPrefix_);
 
-        YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+        YT_VERIFY(CurrentBlock_);
         ResetBlockReader(
-            CurrentBlock_.Get().ValueOrThrow().Data,
+            CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
             ChunkMeta_,
             KeyColumnCount_,
             KeyComparer_,
@@ -478,6 +487,9 @@ public:
             produceAllVersions,
             schemaIdMapping)
         , Keys_(keys)
+    { }
+
+    void InitializeRefCounted()
     {
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
@@ -559,8 +571,8 @@ public:
             }
         }
 
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, rowCount);
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -642,7 +654,7 @@ private:
     void InitNextBlock() override
     {
         ResetBlockReader(
-            CurrentBlock_.Get().ValueOrThrow().Data,
+            CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
             ChunkMeta_,
             KeyColumnCount_,
             KeyComparer_,
@@ -748,7 +760,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
 protected:
@@ -756,8 +768,8 @@ protected:
     const TTimestamp Timestamp_;
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
 
     std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
     std::vector<IVersionedColumnReader*> ValueColumnReaders_;
@@ -1108,6 +1120,7 @@ public:
             schemaIdMapping,
             timestamp,
             memoryManagerHolder)
+        , SessionInvoker_(std::move(sessionInvoker))
         , RowBuilder_(
             chunkMeta,
             sortOrders.Size(),
@@ -1132,9 +1145,12 @@ public:
 
         InitLowerRowIndex();
         InitUpperRowIndex();
+    }
 
+    void InitializeRefCounted()
+    {
         if (LowerRowIndex_ < HardUpperRowIndex_) {
-            InitBlockFetcher(std::move(sessionInvoker));
+            InitBlockFetcher(SessionInvoker_);
             SetReadyEvent(RequestFirstBlocks());
         } else {
             Initialized_ = true;
@@ -1221,14 +1237,16 @@ public:
         }
 
         for (auto row : rows) {
-            RowCount_ += static_cast<bool>(row);
-            DataWeight_ += GetDataWeight(row);
+            SingleWriterFetchAdd(RowCount_, row ? 1L : 0L);
+            SingleWriterFetchAdd(DataWeight_, GetDataWeight(row));
         }
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
 private:
+    const IInvokerPtr SessionInvoker_;
+
     bool Initialized_ = false;
     bool Completed_ = false;
 
@@ -1470,7 +1488,10 @@ public:
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         Initialize();
+    }
 
+    void InitializeRefCounted()
+    {
         SetReadyEvent(RequestFirstBlocks());
     }
 
@@ -1530,8 +1551,8 @@ public:
         }
 
         for (auto row : rows) {
-            RowCount_ += static_cast<bool>(row);
-            DataWeight_ += GetDataWeight(row);
+            SingleWriterFetchAdd(RowCount_, row ? 1L : 0L);
+            SingleWriterFetchAdd(DataWeight_, GetDataWeight(row));
         }
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));

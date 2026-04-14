@@ -54,7 +54,7 @@ public:
     {
         YT_VERIFY(readOptions.MaxRowsPerRead > 0);
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.GetOrCrash().IsOK()) {
             return CreateEmptyVersionedRowBatch();
         }
 
@@ -140,7 +140,7 @@ private:
     void DoOpen()
     {
         if (LookupKeys_.Empty()) {
-            ReadyEvent_ = VoidFuture;
+            ReadyEvent_ = OKFuture;
             return;
         }
 

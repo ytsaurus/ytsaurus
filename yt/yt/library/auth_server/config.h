@@ -25,6 +25,8 @@ struct TAuthCacheConfig
     TDuration CacheTtl;
     //! Time between last access time and entry eviction.
     TDuration OptimisticCacheTtl;
+    //! Jitter factor for #OptimisticCacheTtl.
+    double OptimisticCacheTtlJitter;
     //! Time between last update time and entry update for error entries.
     TDuration ErrorTtl;
 
@@ -514,13 +516,12 @@ struct TYCAuthenticatorConfig
 
     bool CheckUserExists;
     bool CreateUserIfNotExists;
+    bool AddUserToGroups;
 
     std::vector<std::string> DefaultUserTags;
 
     bool RetryAllServerErrors;
     std::vector<int> RetryStatusCodes;
-
-    std::string AuthenticateLoginField;
 
     REGISTER_YSON_STRUCT(TYCAuthenticatorConfig);
 

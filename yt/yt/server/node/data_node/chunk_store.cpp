@@ -15,8 +15,6 @@
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/yt/library/random/discrete_distribution.h>
-
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -198,13 +196,15 @@ void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
         return;
     }
 
-    if (!DynamicConfig_) {
+    auto dynamicConfig = DynamicConfig_.Acquire();
+
+    if (!dynamicConfig) {
         return;
     }
 
     const auto& staticLocationConfig = storeLocation->GetStaticConfig();
-    auto it = DynamicConfig_->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
-    auto locationConfig = it == DynamicConfig_->StoreLocationConfigPerMedium.end()
+    auto it = dynamicConfig->StoreLocationConfigPerMedium.find(storeLocation->GetMediumName());
+    auto locationConfig = it == dynamicConfig->StoreLocationConfigPerMedium.end()
         ? staticLocationConfig
         : staticLocationConfig->ApplyDynamic(it->second);
     storeLocation->Reconfigure(locationConfig);
@@ -277,11 +277,11 @@ void TChunkStore::RegisterNewChunk(
 
         // NB: This is multimap.
         ChunkMap_.emplace(chunk->GetId(), entry);
+
+        OnChunkRegistered(chunk);
     }
 
     lockedChunkGuard.Release();
-
-    OnChunkRegistered(chunk);
 }
 
 TChunkStore::TChunkEntry TChunkStore::DoFindExistingChunk(const IChunkPtr& chunk) const
@@ -325,15 +325,15 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
             itRange.second,
             [&] (const auto& lhs, const auto& rhs) {
                 return
-                    lhs.second.Chunk->GetLocation()->GetMediumDescriptor().Priority <
-                    rhs.second.Chunk->GetLocation()->GetMediumDescriptor().Priority;
+                    lhs.second.Chunk->GetLocation()->GetMediumDescriptor()->GetPriority() <
+                    rhs.second.Chunk->GetLocation()->GetMediumDescriptor()->GetPriority();
             });
 
         return resultIt->second.Chunk;
     }
 
     for (auto it = itRange.first; it != itRange.second; ++it) {
-        if (it->second.Chunk->GetLocation()->GetMediumDescriptor().Index == mediumIndex) {
+        if (it->second.Chunk->GetLocation()->GetMediumDescriptor()->GetIndex() == mediumIndex) {
             return it->second.Chunk;
         }
     }
@@ -365,7 +365,7 @@ TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(const IChunkPtr& oldChunk, c
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
     YT_ASSERT(oldChunk->GetId() == newChunk->GetId());
-    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor().Index == newChunk->GetLocation()->GetMediumDescriptor().Index);
+    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor()->GetIndex() == newChunk->GetLocation()->GetMediumDescriptor()->GetIndex());
 
     auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
     YT_VERIFY(itRange.first != itRange.second);
@@ -499,9 +499,8 @@ void TChunkStore::FinishChunkRegistration(const IChunkPtr& chunk)
     {
         auto guard = WriterGuard(ChunkMapLock_);
         ChunkMap_.emplace(chunk->GetId(), chunkEntry);
+        OnChunkRegistered(chunk);
     }
-
-    OnChunkRegistered(chunk);
 }
 
 void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex)
@@ -522,6 +521,7 @@ void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int ol
 void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     auto diskSpace = chunk->GetInfo().disk_space();
 
@@ -532,17 +532,21 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
+            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, DiskSpace: %v)",
                 chunk->GetId(),
                 location->GetId(),
+                location->GetUuid(),
+                location->GetIndex(),
                 diskSpace);
             break;
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
-            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, Version: %v, Sealed: %v, Active: %v)",
+            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, Version: %v, Sealed: %v, Active: %v)",
                 chunk->GetId(),
                 location->GetId(),
+                location->GetUuid(),
+                location->GetIndex(),
                 chunk->GetVersion(),
                 chunk->GetInfo().sealed(),
                 chunk->IsActive());
@@ -585,11 +589,11 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
         }
 
         newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
+
+        location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
+
+        ChunkAdded_.Fire(chunk);
     }
-
-    location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
-
-    ChunkAdded_.Fire(chunk);
 }
 
 void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
@@ -614,16 +618,19 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         if (!chunkEntry.Chunk) {
             return;
         }
+
+        location->UpdateChunkCount(-1);
+        location->UpdateUsedSpace(-chunkEntry.DiskSpace);
+
+        ChunkRemoved_.Fire(chunk);
     }
 
-    location->UpdateChunkCount(-1);
-    location->UpdateUsedSpace(-chunkEntry.DiskSpace);
-
-    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         chunk->GetId(),
-        location->GetId());
+        location->GetId(),
+        location->GetUuid(),
+        location->GetIndex());
 
-    ChunkRemoved_.Fire(chunk);
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
@@ -648,9 +655,9 @@ void TChunkStore::SetChunkLocationIndexes(const NChunkClient::NProto::TLocationI
 
         if (location) {
             location->SetIndex(index);
-            YT_LOG_INFO("Setting index for location (LocationUuid: %v, Index: %v)", uuid, index);
+            YT_LOG_INFO("Setting index for location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
         } else {
-            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, Index: %v)", uuid, index);
+            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
         }
     }
 
@@ -674,10 +681,17 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
     TChunkDescriptor descriptor(chunkId);
     auto chunk = CreateFromDescriptor(location, descriptor);
 
-    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         chunkId,
-        location->GetId());
-    ChunkRemoved_.Fire(chunk);
+        location->GetId(),
+        location->GetUuid(),
+        location->GetIndex());
+
+    {
+        auto guard = ReaderGuard(ChunkMapLock_);
+        ChunkRemoved_.Fire(chunk);
+    }
+
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
@@ -763,7 +777,15 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
 
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
 {
+    auto guard = ReaderGuard(ChunkMapLock_);
+    return GetPerLocationChunksUnsafe(std::move(guard));
+}
+
+TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
+    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> /*guard*/)
+{
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     // TODO(danilalexeev): Initialize once for class instance.
     THashMap<TChunkLocationUuid, TStoreLocationPtr> locations;
@@ -775,7 +797,6 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
         EmplaceOrCrash(result, location, std::vector<IChunkPtr>());
     }
 
-    auto guard = ReaderGuard(ChunkMapLock_);
     for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
         const auto& chunk = chunkEntry.Chunk;
         const auto& location = GetOrCrash(locations, chunk->GetLocation()->GetUuid());
@@ -784,7 +805,7 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
     return result;
 }
 
-void TChunkStore::CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const
+void TChunkStore::CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::TCellTag>& masterCellTags) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -803,10 +824,14 @@ void TChunkStore::CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellT
     int totalInvalidChunkCount = 0;
     for (auto [cellTag, count] : invalidCellTagToChunkCount) {
         totalInvalidChunkCount += count;
-        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)", cellTag, count);
+        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)",
+            cellTag,
+            count);
     }
 
-    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)", invalidCellTagToChunkCount.size(), totalInvalidChunkCount);
+    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)",
+        invalidCellTagToChunkCount.size(),
+        totalInvalidChunkCount);
 }
 
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
@@ -843,7 +868,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
-        if (location->GetMediumDescriptor().Index != sessionId.MediumIndex) {
+        if (location->GetMediumDescriptor()->GetIndex() != sessionId.MediumIndex) {
             continue;
         }
 
@@ -915,10 +940,21 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         }
 
-        if (options.PlacementId || ShouldChooseLocationBasedOnIOWeight()) {
+        if (options.PlacementId) {
             candidateIndices.push_back(index);
         } else {
-            int count = location->GetSessionCount();
+            int count;
+            auto ioWeight = location->GetIOWeight();
+            if (ShouldChooseLocationBasedOnIOWeight()) {
+                if (ioWeight > 0) {
+                    // To schedule sessions on locations with bigger io_weight, when there are only locations with zero sessions.
+                    count = static_cast<int>((location->GetSessionCount() + 1) / ioWeight);
+                } else {
+                    count = std::numeric_limits<int>::max();
+                }
+            } else {
+                count = location->GetSessionCount();
+            }
             if (count < minCount) {
                 candidateIndices.clear();
                 minCount = count;
@@ -958,37 +994,19 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         } while (std::find(candidateIndices.begin(), candidateIndices.end(), currentIndex) == candidateIndices.end());
         location = Locations_[currentIndex];
-        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             options.PlacementId,
             sessionId,
-            location->GetId());
-    } else if (ShouldChooseLocationBasedOnIOWeight()) {
-        std::vector<double> weights;
-        std::vector<int> sessionCounts;
-        weights.reserve(candidateIndices.size());
-        sessionCounts.reserve(candidateIndices.size());
-        for (int index : candidateIndices) {
-            auto ioWeight = Locations_[index]->GetIOWeight();
-            auto sessionCount = Locations_[index]->GetSessionCount();
-            auto sessionCountLimit = Locations_[index]->GetSessionCountLimit();
-            weights.push_back(ioWeight * (sessionCountLimit - sessionCount) * 1. / sessionCountLimit);
-            sessionCounts.push_back(Locations_[index]->GetSessionCount());
-        }
-
-        YT_LOG_DEBUG("Choosing random location based on IO weights (CandidateIndices: %v, Weights: %v, SessionCounts: %v)",
-            candidateIndices,
-            weights,
-            sessionCounts);
-
-        location = Locations_[candidateIndices[DiscreteDistribution(std::move(weights))]];
-        YT_LOG_DEBUG("Random location is chosen for chunk based on IO weights (ChunkId: %v, LocationId: %v)",
-            sessionId,
-            location->GetId());
+            location->GetId(),
+            location->GetUuid(),
+            location->GetIndex());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
-        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             sessionId,
-            location->GetId());
+            location->GetId(),
+            location->GetUuid(),
+            location->GetIndex());
     }
 
     auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);
@@ -1090,23 +1108,33 @@ void TChunkStore::OnProfiling()
 
 bool TChunkStore::ShouldPublishDisabledLocations()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
         : Config_->PublishDisabledLocations;
 }
 
 bool TChunkStore::ShouldChooseLocationBasedOnIOWeight()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
         : Config_->ChooseLocationBasedOnIOWeight;
 }
 
 bool TChunkStore::ShouldSkipWriteThrottlingLocations()
 {
-    return DynamicConfig_
-        ? DynamicConfig_->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
         : Config_->SkipWriteThrottlingLocations;
+}
+
+NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapReaderLock()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ReaderGuard(ChunkMapLock_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

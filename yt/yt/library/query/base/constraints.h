@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "vector_over_memory_chunk_provider.h"
 
 #include <yt/yt/library/query/engine_api/public.h>
+
+#include <yt/yt/library/query/misc/allocator.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -27,11 +28,11 @@ extern TValueBound MaxBound;
 
 constexpr ui32 SentinelColumnId = std::numeric_limits<ui32>::max();
 
-bool operator < (const TValueBound& lhs, const TValueBound& rhs);
+bool operator<(const TValueBound& lhs, const TValueBound& rhs);
 
-bool operator <= (const TValueBound& lhs, const TValueBound& rhs);
+bool operator<=(const TValueBound& lhs, const TValueBound& rhs);
 
-bool operator == (const TValueBound& lhs, const TValueBound& rhs);
+bool operator==(const TValueBound& lhs, const TValueBound& rhs);
 
 bool TestValue(TValue value, const TValueBound& lower, const TValueBound& upper);
 
@@ -81,8 +82,10 @@ struct TColumnConstraint
     bool IsUniversal() const;
 };
 
+using TColumnConstraintsBase = std::vector<TConstraint, TAllocatorOverChunkProvider<TConstraint>>;
+
 struct TColumnConstraints
-    : public TVectorOverMemoryChunkProvider<TConstraint>
+    : public TColumnConstraintsBase
 {
     TColumnConstraints(
         TRefCountedTypeCookie cookie,

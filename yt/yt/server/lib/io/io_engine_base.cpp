@@ -198,7 +198,7 @@ TRequestCounterGuard::TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, 
     }
 }
 
-TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other)
+TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
@@ -208,7 +208,7 @@ TRequestCounterGuard::~TRequestCounterGuard()
     Release();
 }
 
-TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other)
+TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other) noexcept
 {
     if (this != &other) {
         Release();
@@ -471,6 +471,25 @@ int TIOEngineBase::GetLockOp(ELockFileMode mode)
     }
 }
 
+TSharedMutableRef TIOEngineBase::AllocateWriteBlob(
+    i64 size,
+    i64 directIoBlockSize)
+{
+    TSharedMutableRef hugePageBlob;
+    if (HugePageManager_ && HugePageManager_->IsEnabled() && HugePageManager_->GetHugePageBlobSize() >= size) {
+        auto hugePageBlobReservingResult = HugePageManager_->ReserveHugePageBlob();
+        if (hugePageBlobReservingResult.IsOK()) {
+            hugePageBlob = hugePageBlobReservingResult.Value();
+        } else {
+            YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
+            return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
+        }
+    } else {
+        return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
+    }
+    return hugePageBlob;
+}
+
 TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
 {
     TSharedMutableRef hugePageBlob;
@@ -576,6 +595,14 @@ void TIOEngineBase::InitProfilerSensors()
         return SicknessCounter_.load();
     });
 
+    Profiler.AddFuncCounter("/inflight_write_request_count", MakeStrong(this), [this] {
+        return GetInFlightWriteRequestCount();
+    });
+
+    Profiler.AddFuncCounter("/inflight_read_request_count", MakeStrong(this), [this] {
+        return GetInFlightReadRequestCount();
+    });
+
     Sensors_->WrittenBytesCounter = Profiler.Counter("/written_bytes");
     Sensors_->ReadBytesCounter = Profiler.Counter("/read_bytes");
 
@@ -648,4 +675,3 @@ i64 GetPaddedSize(i64 offset, i64 size, i64 alignment)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-

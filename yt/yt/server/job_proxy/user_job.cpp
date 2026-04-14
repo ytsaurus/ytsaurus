@@ -1,17 +1,17 @@
 #include "user_job.h"
 
 #include "asan_warning_filter.h"
-#include "private.h"
+#include "core_watcher.h"
+#include "environment.h"
 #include "job_detail.h"
+#include "memory_tracker.h"
+#include "private.h"
 #include "stderr_writer.h"
+#include "tmpfs_manager.h"
+#include "trace_consumer.h"
+#include "trace_event_processor.h"
 #include "user_job_synchronizer_service.h"
 #include "user_job_write_controller.h"
-#include "memory_tracker.h"
-#include "tmpfs_manager.h"
-#include "environment.h"
-#include "core_watcher.h"
-#include "trace_event_processor.h"
-#include "trace_consumer.h"
 
 #ifdef __linux__
 #include <yt/yt/library/containers/instance.h>
@@ -20,25 +20,24 @@
 
 #include <yt/yt/server/job_proxy/public.h>
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-
 #include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
+#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
+#include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 
 #include <yt/yt/server/lib/shell/shell_manager.h>
 
-#include <yt/yt/server/lib/user_job/config.h>
-
 #include <yt/yt/server/exec/user_job_synchronizer.h>
 
+#include <yt/yt/server/lib/user_job/config.h>
+
 #include <yt/yt/server/tools/proc.h>
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/signaler.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -57,32 +56,32 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/library/process/process.h>
 #include <yt/yt/library/process/subprocess.h>
 
-#include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/base/public.h>
-
 #include <yt/yt/library/query/engine_api/evaluator.h>
+
+#include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/client/formats/parser.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
@@ -170,9 +169,9 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString CreateNamedPipePath()
+static std::string CreateNamedPipePath()
 {
-    const TString& name = CreateGuidAsString();
+    std::string name = CreateGuidAsString();
     return GetRealPath(CombinePaths("./pipes", name));
 }
 
@@ -527,7 +526,8 @@ public:
             artifactPath);
 
         auto onError = [&] (const TError& error) {
-            Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
+            // TODO(dgolear): Switch to std::string.
+            Host_->OnArtifactPreparationFailed(artifactName, TString(artifactPath), error);
         };
 
         try {
@@ -542,7 +542,8 @@ public:
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
             artifactFile.Flock(LOCK_EX);
 
-            Host_->PrepareArtifact(artifactName, pipePath);
+            // TODO(dgolear): Switch to std::string.
+            Host_->PrepareArtifact(artifactName, TString(pipePath));
 
             // Now pipe is opened and O_NONBLOCK is not required anymore.
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
@@ -552,6 +553,10 @@ public:
             }
 
             YT_LOG_INFO("Materializing artifact");
+
+            if (Config_->TestingConfig->HaltWhenMaterializingArtifact) {
+                Sleep(TDuration::Max());
+            }
 
             constexpr ssize_t SpliceCopyBlockSize = 16_MB;
             Splice(pipeFile, artifactFile, SpliceCopyBlockSize);
@@ -619,7 +624,7 @@ private:
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 
-    TString InputPipePath_;
+    std::string InputPipePath_;
 
     std::optional<int> UserId_;
 
@@ -704,6 +709,8 @@ private:
     i64 PageFaultLimitOverflowCount_ = 0;
 
     std::atomic<TInstant> LastProgressSaveTime_ = TInstant::Zero();
+
+    THashMap<pid_t, int> OomScoreAdjs_;
 
     TFuture<void> SpawnUserProcess()
     {
@@ -1185,8 +1192,8 @@ private:
 
         if (deliveryFencedMode == EDeliveryFencedMode::New) {
             if (!DeliveryFencedWriteEnabled) {
-                YT_LOG_DEBUG("Delivery fenced write is disabled, fail job");
-                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled on the node");
+                YT_LOG_INFO("Delivery fenced write is disabled, fail job");
+                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled");
             }
         }
 
@@ -1445,6 +1452,8 @@ private:
             SetEnvironmentVariable("YT_FIRST_OUTPUT_TABLE_FD", ToString(jobFirstOutputTableFD));
         }
 
+        SetEnvironmentVariable("YT_NODE_HOST", Host_->GetLocalHostName());
+
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
         for (const auto& variable : environment) {
             SetEnvironmentVariable(variable);
@@ -1522,7 +1531,9 @@ private:
         result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
         for (const auto& writer : writers) {
             result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
-                    writer->GetTimeToFirstBatch());
+                writer->GetTimeToFirstBatch());
+            result.WriterTimingStatistics.emplace_back(
+                writer->GetTimingStatistics());
         }
 
         for (const auto& writeBlocksOptions : UserJobWriteController_->GetOutputWriteBlocksOptions()) {
@@ -1828,7 +1839,7 @@ private:
             // Actually, ExecutorInfo_ must be non-null at this point, since it is
             // explicitly set a few lines before. We still keep the condition as a
             // defensive measure from possible future code changes.
-            YT_LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare executor");
+            YT_LOG_ERROR(JobErrorPromise_.GetOrCrash(), "Failed to prepare executor");
             return;
         }
         YT_LOG_INFO("Start actions finished (UserProcessPid: %v)", ExecutorInfo_->ProcessPid);
@@ -1917,6 +1928,11 @@ private:
                 << TErrorAttribute("processes", processesStatistics);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
+        }
+
+        if (UserJobSpec_.has_memory_reserve() && Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
+            int targetOomScore = memoryUsage > UserJobSpec_.memory_reserve() ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
+            SetOomScoreAdj(targetOomScore);
         }
 
         Host_->SetUserJobMemoryUsage(memoryUsage);
@@ -2073,6 +2089,65 @@ private:
             return time;
         } else {
             return std::nullopt;
+        }
+    }
+
+    void SetOomScoreAdj(int score)
+    {
+        // We have two possible approaches here: either mark only the root process for an oom kill
+        // or mark them all.
+        //
+        // The downsides of the former approach are that root processes are not representative of
+        // the job's memory consumption, and might not contain enough memory in themselves to
+        // satisfy the oom killer as there's generally no guarantee that its children would be
+        // reaped immediately after the parent, so it might potentially move on to reap innocent jobs.
+        //
+        // The downside of the latter approach is that killing a child within a job leaves it in an
+        // undefined state which is generally undesirable. It could be mitigated by setting
+        // memory.oom.group if cgroup v2 is available, or by monitoring for oom kills and finishing
+        // off any job that had one.
+        //
+        // Here, we go with the latter approach.
+
+        // TODO(dann239): Set memory.oom.group if cgroup v2 is available.
+        // TODO(dann239): Monitor for oom kills and finish off any job that had one.
+
+        std::vector<pid_t> pids;
+
+        if (auto maybePid = UserJobEnvironment_->GetJobRootPid()) {
+            pids.push_back(*maybePid);
+        }
+        for (auto pid : UserJobEnvironment_->GetJobPids()) {
+            pids.push_back(pid);
+        }
+
+        const THashMap<pid_t, int> oldOomScoreAdjs = std::move(OomScoreAdjs_);
+        OomScoreAdjs_.clear();
+
+        for (auto pid : pids) {
+            if (auto it = oldOomScoreAdjs.find(pid); it != oldOomScoreAdjs.end() && it->second == score) {
+                OomScoreAdjs_[pid] = score;
+                continue;
+            }
+
+            YT_LOG_DEBUG(
+                "Changing oom_score_adj of a user job process (Pid: %v, OomScoreAdj: %v)",
+                pid,
+                score);
+
+            auto config = New<TChangeOomScoreAdjAsRootConfig>();
+            config->Pid = pid;
+            config->Score = score;
+
+            try {
+                RunTool<TChangeOomScoreAdjAsRootTool>(config);
+                OomScoreAdjs_[pid] = score;
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(
+                    ex,
+                    "Failed to set oom_score_adj of a user job process (Pid: %v)",
+                    pid);
+            }
         }
     }
 };

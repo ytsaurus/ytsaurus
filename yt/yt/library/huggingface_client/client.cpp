@@ -15,7 +15,8 @@
 
 namespace NYT::NHuggingface {
 
-using namespace NYT::NHttp;
+using namespace NConcurrency;
+using namespace NHttp;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,11 +26,13 @@ const TString DefaultHuggingfaceUrl = "https://huggingface.co";
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
 
 NHttp::IClientPtr CreateHttpClient(
-    NConcurrency::IPollerPtr poller,
-    int maxRedirectCount)
+    IPollerPtr poller,
+    int maxRedirectCount,
+    bool allowHttp)
 {
-    auto httpsConfig = NYT::New<NYT::NHttps::TClientConfig>();
+    auto httpsConfig = New<NHttps::TClientConfig>();
     httpsConfig->MaxRedirectCount = maxRedirectCount;
+    httpsConfig->AllowHttp = allowHttp;
     return NHttps::CreateClient(httpsConfig, poller);
 }
 
@@ -39,11 +42,14 @@ NHttp::IClientPtr CreateHttpClient(
 
 THuggingfaceClient::THuggingfaceClient(
     const std::optional<std::string>& token,
-    NConcurrency::IPollerPtr poller,
+    IPollerPtr poller,
     const std::optional<TString>& urlOverride)
     : Url_(urlOverride.value_or(DefaultHuggingfaceUrl))
     , Token_(token)
-    , Client_(CreateHttpClient(std::move(poller), MaxRedirectCount))
+    , Client_(CreateHttpClient(
+        std::move(poller),
+        MaxRedirectCount,
+        /*allowHttp*/ Url_.StartsWith("http://")))
 { }
 
 std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& subset, const TString& split)
@@ -55,7 +61,7 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
 
     auto url = Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, subset, split);
     YT_LOG_INFO("Getting parquet file list (Url: %v)", url);
-    auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
+    auto response = WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 
     if (response->GetStatusCode() != EStatusCode::OK) {
@@ -73,14 +79,14 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
     return result;
 }
 
-NConcurrency::IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const TString& url)
+IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const std::string& url)
 {
     auto headers = New<THeaders>();
     if (Token_) {
         headers->Set("Authorization", "Bearer " + *Token_);
     }
 
-    auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
+    auto response = WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 
     if (response->GetStatusCode() != EStatusCode::OK) {

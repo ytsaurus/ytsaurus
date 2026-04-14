@@ -107,7 +107,9 @@ public:
 
     void RegisterAllocation(TStartedAllocationInfo allocationInfo) override;
     void RegisterJob(TStartedJobInfo jobInfo) override;
-    void Revive(std::vector<TStartedAllocationInfo> allocations) override;
+    void Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended) override;
+    void SuspendOperation() override;
+    void ResumeOperation() override;
     void ReleaseJobs(std::vector<TJobToRelease> jobs) override;
     void AbortJob(
         TJobId jobId,

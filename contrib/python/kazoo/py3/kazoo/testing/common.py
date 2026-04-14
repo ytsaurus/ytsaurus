@@ -49,7 +49,7 @@ def debug(sig, frame):
     d.update(frame.f_locals)
 
     i = code.InteractiveConsole(d)
-    message = "Signal recieved : entering python shell.\nTraceback:\n"
+    message = "Signal received : entering python shell.\nTraceback:\n"
     message += "".join(traceback.format_stack(frame))
     i.interact(message)
 

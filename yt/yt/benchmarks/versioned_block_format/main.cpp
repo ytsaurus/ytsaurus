@@ -52,13 +52,6 @@ DEFINE_ENUM(EReaderMode,
     (SkipToKey)
 );
 
-struct TBenchmarkOptions
-{
-    bool Validate = false;
-
-    TString SchemaName;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMiscOptions

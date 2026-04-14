@@ -313,6 +313,15 @@ private:
         Save(context, Decommission_);
     }
 
+    void Clear() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::Clear();
+
+        LeaseMap_.Clear();
+    }
+
     void OnLeaderActive() override
     {
         YT_VERIFY(!LeaseRemovalExecutor_);
@@ -702,7 +711,7 @@ private:
         std::vector<TLeaseId> leaseIdsToRemove;
         for (auto leaseId : LeaseIdsToRemove_) {
             leaseIdsToRemove.push_back(leaseId);
-            if (std::ssize(leaseIdsToRemove) > Config_->MaxLeasesPerRemoval) {
+            if (std::ssize(leaseIdsToRemove) >= Config_->MaxLeasesPerRemoval) {
                 break;
             }
         }

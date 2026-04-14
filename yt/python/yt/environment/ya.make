@@ -17,6 +17,7 @@ ELSE()
 
         contrib/python/six
         contrib/python/zstandard
+        library/python/port_manager
     )
 
     PY_SRCS(

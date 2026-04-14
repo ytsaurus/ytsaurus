@@ -18,6 +18,7 @@ void TOutcomingMessage::Save(TStreamSaveContext& context) const
     Save(context, SerializedMessage->Type);
     Save(context, SerializedMessage->Data);
     Save(context, Time);
+    Save(context, Reign);
 }
 
 void TOutcomingMessage::Load(TStreamLoadContext& context)
@@ -27,8 +28,13 @@ void TOutcomingMessage::Load(TStreamLoadContext& context)
     SerializedMessage = New<TSerializedMessage>();
     Load(context, SerializedMessage->Type);
     Load(context, SerializedMessage->Data);
+    // COMPAT(danilalexeev)
     if (context.GetVersion() >= 7) {
         Load(context, Time);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 8) {
+        Load(context, Reign);
     }
 }
 

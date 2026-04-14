@@ -1,5 +1,5 @@
 # dialects/postgresql/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -983,8 +983,13 @@ to the PostgreSQL dialect.
 Covering Indexes
 ^^^^^^^^^^^^^^^^
 
-The ``postgresql_include`` option renders INCLUDE(colname) for the given
-string names::
+A covering index includes additional columns that are not part of the index key
+but are stored in the index, allowing PostgreSQL to satisfy queries using only
+the index without accessing the table (an "index-only scan").   This is
+indicated on the index using the ``INCLUDE`` clause.  The
+``postgresql_include`` option for :class:`.Index` (as well as
+:class:`.UniqueConstraint`) renders ``INCLUDE(colname)`` for the given string
+names::
 
     Index("my_index", table.c.x, postgresql_include=["y"])
 
@@ -994,9 +999,11 @@ Note that this feature requires PostgreSQL 11 or later.
 
 .. seealso::
 
-  :ref:`postgresql_constraint_options`
+  :ref:`postgresql_constraint_options_include` - the same feature implemented
+  for :class:`.UniqueConstraint`
 
-.. versionadded:: 1.4
+.. versionadded:: 1.4 - support for covering indexes with :class:`.Index`.
+   support for :class:`.UniqueConstraint` was in 2.0.41
 
 .. _postgresql_partial_indexes:
 
@@ -1170,20 +1177,44 @@ PostgreSQL Table Options
 ------------------------
 
 Several options for CREATE TABLE are supported directly by the PostgreSQL
-dialect in conjunction with the :class:`_schema.Table` construct:
+dialect in conjunction with the :class:`_schema.Table` construct, listed in
+the following sections.
 
-* ``INHERITS``::
+.. seealso::
+
+    `PostgreSQL CREATE TABLE options
+    <https://www.postgresql.org/docs/current/static/sql-createtable.html>`_ -
+    in the PostgreSQL documentation.
+
+``INHERITS``
+^^^^^^^^^^^^
+
+Specifies one or more parent tables from which this table inherits columns and
+constraints, enabling table inheritance hierarchies in PostgreSQL.
+
+::
 
     Table("some_table", metadata, ..., postgresql_inherits="some_supertable")
 
     Table("some_table", metadata, ..., postgresql_inherits=("t1", "t2", ...))
 
-* ``ON COMMIT``::
+``ON COMMIT``
+^^^^^^^^^^^^^
+
+Controls the behavior of temporary tables at transaction commit, with options
+to preserve rows, delete rows, or drop the table.
+
+::
 
     Table("some_table", metadata, ..., postgresql_on_commit="PRESERVE ROWS")
 
-*
-  ``PARTITION BY``::
+``PARTITION BY``
+^^^^^^^^^^^^^^^^
+
+Declares the table as a partitioned table using the specified partitioning
+strategy (RANGE, LIST, or HASH) on the given column(s).
+
+::
 
     Table(
         "some_table",
@@ -1192,141 +1223,171 @@ dialect in conjunction with the :class:`_schema.Table` construct:
         postgresql_partition_by="LIST (part_column)",
     )
 
-  .. versionadded:: 1.2.6
+``TABLESPACE``
+^^^^^^^^^^^^^^
 
-*
-  ``TABLESPACE``::
+Specifies the tablespace where the table will be stored, allowing control over
+the physical location of table data on disk.
+
+::
 
     Table("some_table", metadata, ..., postgresql_tablespace="some_tablespace")
 
-  The above option is also available on the :class:`.Index` construct.
+The above option is also available on the :class:`.Index` construct.
 
-*
-  ``USING``::
+``USING``
+^^^^^^^^^
+
+Specifies the table access method to use for storing table data, such as
+``heap`` (the default) or other custom access methods.
+
+::
 
     Table("some_table", metadata, ..., postgresql_using="heap")
 
-  .. versionadded:: 2.0.26
+.. versionadded:: 2.0.26
 
-* ``WITH OIDS``::
+``WITH OIDS``
+^^^^^^^^^^^^^
+
+Enables the legacy OID (object identifier) system column for the table, which
+assigns a unique identifier to each row.
+
+::
 
     Table("some_table", metadata, ..., postgresql_with_oids=True)
 
-* ``WITHOUT OIDS``::
+``WITHOUT OIDS``
+^^^^^^^^^^^^^^^^
+
+Explicitly disables the OID system column for the table (the default behavior
+in modern PostgreSQL versions).
+
+::
 
     Table("some_table", metadata, ..., postgresql_with_oids=False)
-
-.. seealso::
-
-    `PostgreSQL CREATE TABLE options
-    <https://www.postgresql.org/docs/current/static/sql-createtable.html>`_ -
-    in the PostgreSQL documentation.
 
 .. _postgresql_constraint_options:
 
 PostgreSQL Constraint Options
 -----------------------------
 
-The following option(s) are supported by the PostgreSQL dialect in conjunction
-with selected constraint constructs:
+The following sections indicate options which are supported by the PostgreSQL
+dialect in conjunction with selected constraint constructs.
 
-* ``NOT VALID``:  This option applies towards CHECK and FOREIGN KEY constraints
-  when the constraint is being added to an existing table via ALTER TABLE,
-  and has the effect that existing rows are not scanned during the ALTER
-  operation against the constraint being added.
 
-  When using a SQL migration tool such as `Alembic <https://alembic.sqlalchemy.org>`_
-  that renders ALTER TABLE constructs, the ``postgresql_not_valid`` argument
-  may be specified as an additional keyword argument within the operation
-  that creates the constraint, as in the following Alembic example::
+``NOT VALID``
+^^^^^^^^^^^^^
 
-        def update():
-            op.create_foreign_key(
-                "fk_user_address",
-                "address",
-                "user",
-                ["user_id"],
-                ["id"],
-                postgresql_not_valid=True,
-            )
+Allows a constraint to be added without validating existing rows, improving
+performance when adding constraints to large tables. This option applies
+towards CHECK and FOREIGN KEY constraints when the constraint is being added
+to an existing table via ALTER TABLE, and has the effect that existing rows
+are not scanned during the ALTER operation against the constraint being added.
 
-  The keyword is ultimately accepted directly by the
-  :class:`_schema.CheckConstraint`, :class:`_schema.ForeignKeyConstraint`
-  and :class:`_schema.ForeignKey` constructs; when using a tool like
-  Alembic, dialect-specific keyword arguments are passed through to
-  these constructs from the migration operation directives::
+When using a SQL migration tool such as `Alembic <https://alembic.sqlalchemy.org>`_
+that renders ALTER TABLE constructs, the ``postgresql_not_valid`` argument
+may be specified as an additional keyword argument within the operation
+that creates the constraint, as in the following Alembic example::
 
-       CheckConstraint("some_field IS NOT NULL", postgresql_not_valid=True)
+      def update():
+          op.create_foreign_key(
+              "fk_user_address",
+              "address",
+              "user",
+              ["user_id"],
+              ["id"],
+              postgresql_not_valid=True,
+          )
 
-       ForeignKeyConstraint(
-           ["some_id"], ["some_table.some_id"], postgresql_not_valid=True
-       )
+The keyword is ultimately accepted directly by the
+:class:`_schema.CheckConstraint`, :class:`_schema.ForeignKeyConstraint`
+and :class:`_schema.ForeignKey` constructs; when using a tool like
+Alembic, dialect-specific keyword arguments are passed through to
+these constructs from the migration operation directives::
 
-  .. versionadded:: 1.4.32
+     CheckConstraint("some_field IS NOT NULL", postgresql_not_valid=True)
 
-  .. seealso::
+     ForeignKeyConstraint(
+         ["some_id"], ["some_table.some_id"], postgresql_not_valid=True
+     )
 
-      `PostgreSQL ALTER TABLE options
-      <https://www.postgresql.org/docs/current/static/sql-altertable.html>`_ -
-      in the PostgreSQL documentation.
+.. versionadded:: 1.4.32
 
-* ``INCLUDE``:  This option adds one or more columns as a "payload" to the
-  unique index created automatically by PostgreSQL for the constraint.
-  For example, the following table definition::
+.. seealso::
 
-      Table(
-          "mytable",
-          metadata,
-          Column("id", Integer, nullable=False),
-          Column("value", Integer, nullable=False),
-          UniqueConstraint("id", postgresql_include=["value"]),
+    `PostgreSQL ALTER TABLE options
+    <https://www.postgresql.org/docs/current/static/sql-altertable.html>`_ -
+    in the PostgreSQL documentation.
+
+.. _postgresql_constraint_options_include:
+
+``INCLUDE``
+^^^^^^^^^^^
+
+This keyword is applicable to both a ``UNIQUE`` constraint as well as an
+``INDEX``. The ``postgresql_include`` option available for
+:class:`.UniqueConstraint` as well as :class:`.Index` creates a covering index
+by including additional columns in the underlying index without making them
+part of the key constraint. This option adds one or more columns as a "payload"
+to the index created automatically by PostgreSQL for the constraint. For
+example, the following table definition::
+
+    Table(
+        "mytable",
+        metadata,
+        Column("id", Integer, nullable=False),
+        Column("value", Integer, nullable=False),
+        UniqueConstraint("id", postgresql_include=["value"]),
+    )
+
+would produce the DDL statement
+
+.. sourcecode:: sql
+
+     CREATE TABLE mytable (
+         id INTEGER NOT NULL,
+         value INTEGER NOT NULL,
+         UNIQUE (id) INCLUDE (value)
       )
 
-  would produce the DDL statement
+Note that this feature requires PostgreSQL 11 or later.
 
-  .. sourcecode:: sql
+.. versionadded:: 2.0.41 - added support for ``postgresql_include`` to
+   :class:`.UniqueConstraint`, to complement the existing feature in
+   :class:`.Index`.
 
-       CREATE TABLE mytable (
-           id INTEGER NOT NULL,
-           value INTEGER NOT NULL,
-           UNIQUE (id) INCLUDE (value)
-        )
+.. seealso::
 
-  Note that this feature requires PostgreSQL 11 or later.
+    :ref:`postgresql_covering_indexes` - background on ``postgresql_include``
+    for the :class:`.Index` construct.
 
-  .. versionadded:: 2.0.41
 
-  .. seealso::
+Column list with foreign key ``ON DELETE SET`` actions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-      :ref:`postgresql_covering_indexes`
+Allows selective column updates when a foreign key action is triggered, limiting
+which columns are set to NULL or DEFAULT upon deletion of a referenced row.
+This applies to :class:`.ForeignKey` and :class:`.ForeignKeyConstraint`, the
+:paramref:`.ForeignKey.ondelete` parameter will accept on the PostgreSQL
+backend only a string list of column names inside parenthesis, following the
+``SET NULL`` or ``SET DEFAULT`` phrases, which will limit the set of columns
+that are subject to the action::
 
-  .. seealso::
+      fktable = Table(
+          "fktable",
+          metadata,
+          Column("tid", Integer),
+          Column("id", Integer),
+          Column("fk_id_del_set_null", Integer),
+          ForeignKeyConstraint(
+              columns=["tid", "fk_id_del_set_null"],
+              refcolumns=[pktable.c.tid, pktable.c.id],
+              ondelete="SET NULL (fk_id_del_set_null)",
+          ),
+      )
 
-      `PostgreSQL CREATE TABLE options
-      <https://www.postgresql.org/docs/current/static/sql-createtable.html>`_ -
-      in the PostgreSQL documentation.
-
-* Column list with foreign key ``ON DELETE SET`` actions:  This applies to
-  :class:`.ForeignKey` and :class:`.ForeignKeyConstraint`, the :paramref:`.ForeignKey.ondelete`
-  parameter will accept on the PostgreSQL backend only a string list of column
-  names inside parenthesis, following the ``SET NULL`` or ``SET DEFAULT``
-  phrases, which will limit the set of columns that are subject to the
-  action::
-
-        fktable = Table(
-            "fktable",
-            metadata,
-            Column("tid", Integer),
-            Column("id", Integer),
-            Column("fk_id_del_set_null", Integer),
-            ForeignKeyConstraint(
-                columns=["tid", "fk_id_del_set_null"],
-                refcolumns=[pktable.c.tid, pktable.c.id],
-                ondelete="SET NULL (fk_id_del_set_null)",
-            ),
-        )
-
-  .. versionadded:: 2.0.40
+.. versionadded:: 2.0.40
 
 
 .. _postgresql_table_valued_overview:
@@ -1611,6 +1672,7 @@ from ...sql import coercions
 from ...sql import compiler
 from ...sql import elements
 from ...sql import expression
+from ...sql import functions
 from ...sql import roles
 from ...sql import sqltypes
 from ...sql import util as sql_util
@@ -1885,10 +1947,14 @@ class PGCompiler(compiler.SQLCompiler):
             and isinstance(binary.left.type, _json.JSONB)
             and self.dialect._supports_jsonb_subscripting
         ):
+            left = binary.left
+            if isinstance(left, (functions.FunctionElement, elements.Cast)):
+                left = elements.Grouping(left)
+
             # for pg14+JSONB use subscript notation: col['key'] instead
             # of col -> 'key'
             return "%s[%s]" % (
-                self.process(binary.left, **kw),
+                self.process(left, **kw),
                 self.process(binary.right, **kw),
             )
         else:
@@ -2129,10 +2195,11 @@ class PGCompiler(compiler.SQLCompiler):
                 for c in clause.inferred_target_elements
             )
             if clause.inferred_target_whereclause is not None:
+                whereclause_kw = dict(kw)
+                whereclause_kw.update(include_table=False, use_schema=False)
                 target_text += " WHERE %s" % self.process(
                     clause.inferred_target_whereclause,
-                    include_table=False,
-                    use_schema=False,
+                    **whereclause_kw,
                 )
         else:
             target_text = ""
@@ -2159,6 +2226,8 @@ class PGCompiler(compiler.SQLCompiler):
 
         insert_statement = self.stack[-1]["selectable"]
         cols = insert_statement.table.c
+        set_kw = dict(kw)
+        set_kw.update(use_schema=False)
         for c in cols:
             col_key = c.key
 
@@ -2181,7 +2250,9 @@ class PGCompiler(compiler.SQLCompiler):
                 ):
                     value = value._clone()
                     value.type = c.type
-            value_text = self.process(value.self_group(), use_schema=False)
+            value_text = self.process(
+                value.self_group(), is_upsert_set=True, **set_kw
+            )
 
             key_text = self.preparer.quote(c.name)
             action_set_ops.append("%s = %s" % (key_text, value_text))
@@ -2204,14 +2275,17 @@ class PGCompiler(compiler.SQLCompiler):
                 )
                 value_text = self.process(
                     coercions.expect(roles.ExpressionElementRole, v),
-                    use_schema=False,
+                    is_upsert_set=True,
+                    **set_kw,
                 )
                 action_set_ops.append("%s = %s" % (key_text, value_text))
 
         action_text = ", ".join(action_set_ops)
         if clause.update_whereclause is not None:
+            where_kw = dict(kw)
+            where_kw.update(include_table=True, use_schema=False)
             action_text += " WHERE %s" % self.process(
-                clause.update_whereclause, include_table=True, use_schema=False
+                clause.update_whereclause, **where_kw
             )
 
         return "ON CONFLICT %s DO UPDATE SET %s" % (target_text, action_text)
@@ -2352,13 +2426,19 @@ class PGDDLCompiler(compiler.DDLCompiler):
         return text
 
     def visit_primary_key_constraint(self, constraint, **kw):
-        text = super().visit_primary_key_constraint(constraint)
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_primary_key_body(constraint, **kw)
         text += self._define_include(constraint)
+        text += self.define_constraint_deferrability(constraint)
         return text
 
     def visit_unique_constraint(self, constraint, **kw):
-        text = super().visit_unique_constraint(constraint)
+        if len(constraint) == 0:
+            return ""
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_unique_body(constraint, **kw)
         text += self._define_include(constraint)
+        text += self.define_constraint_deferrability(constraint)
         return text
 
     @util.memoized_property
@@ -2961,8 +3041,8 @@ class PGInspector(reflection.Inspector):
             * nullable - Indicates if this domain can be ``NULL``.
             * default - The default value of the domain or ``None`` if the
               domain has no default.
-            * constraints - A list of dict wit the constraint defined by this
-              domain. Each element constaints two keys: ``name`` of the
+            * constraints - A list of dict with the constraint defined by this
+              domain. Each element contains two keys: ``name`` of the
               constraint and ``check`` with the constraint text.
 
         :param schema: schema name.  If None, the default schema
@@ -3775,6 +3855,32 @@ class PGDialect(default.DefaultDialect):
             .scalar_subquery()
             .label("default")
         )
+
+        # get the name of the collate when it's different from the default one
+        collate = sql.case(
+            (
+                sql.and_(
+                    pg_catalog.pg_attribute.c.attcollation != 0,
+                    select(pg_catalog.pg_type.c.typcollation)
+                    .where(
+                        pg_catalog.pg_type.c.oid
+                        == pg_catalog.pg_attribute.c.atttypid,
+                    )
+                    .correlate(pg_catalog.pg_attribute)
+                    .scalar_subquery()
+                    != pg_catalog.pg_attribute.c.attcollation,
+                ),
+                select(pg_catalog.pg_collation.c.collname)
+                .where(
+                    pg_catalog.pg_collation.c.oid
+                    == pg_catalog.pg_attribute.c.attcollation
+                )
+                .correlate(pg_catalog.pg_attribute)
+                .scalar_subquery(),
+            ),
+            else_=sql.null(),
+        ).label("collation")
+
         relkinds = self._kind_to_relkinds(kind)
         query = (
             select(
@@ -3789,6 +3895,7 @@ class PGDialect(default.DefaultDialect):
                 pg_catalog.pg_description.c.description.label("comment"),
                 generated,
                 identity,
+                collate,
             )
             .select_from(pg_catalog.pg_class)
             # NOTE: postgresql support table with no user column, meaning
@@ -3867,6 +3974,7 @@ class PGDialect(default.DefaultDialect):
         domains: Dict[str, ReflectedDomain],
         enums: Dict[str, ReflectedEnum],
         type_description: str,
+        collation: Optional[str],
     ) -> sqltypes.TypeEngine[Any]:
         """
         Attempts to reconstruct a column type defined in ischema_names based
@@ -3967,6 +4075,7 @@ class PGDialect(default.DefaultDialect):
                     domains,
                     enums,
                     type_description="DOMAIN '%s'" % domain["name"],
+                    collation=domain["collation"],
                 )
                 args = (domain["name"], data_type)
 
@@ -3999,6 +4108,9 @@ class PGDialect(default.DefaultDialect):
             )
             return sqltypes.NULLTYPE
 
+        if collation is not None:
+            kwargs["collation"] = collation
+
         data_type = schema_type(*args, **kwargs)
         if array_dim >= 1:
             # postgres does not preserve dimensionality or size of array types.
@@ -4017,11 +4129,14 @@ class PGDialect(default.DefaultDialect):
                 continue
             table_cols = columns[(schema, row_dict["table_name"])]
 
+            collation = row_dict["collation"]
+
             coltype = self._reflect_type(
                 row_dict["format_type"],
                 domains,
                 enums,
                 type_description="column '%s'" % row_dict["name"],
+                collation=collation,
             )
 
             default = row_dict["default"]
@@ -4032,7 +4147,7 @@ class PGDialect(default.DefaultDialect):
             if isinstance(coltype, DOMAIN):
                 if not default:
                     # domain can override the default value but
-                    # cant set it to None
+                    # can't set it to None
                     if coltype.default is not None:
                         default = coltype.default
 
@@ -4185,7 +4300,7 @@ class PGDialect(default.DefaultDialect):
                 # a sequential scan of pg_attribute.
                 # The condition in the con_sq subquery is not actually needed
                 # in pg15, but it may be needed in older versions. Keeping it
-                # does not seems to have any inpact in any case.
+                # does not seems to have any impact in any case.
                 con_sq.c.conrelid.in_(bindparam("oids"))
             )
             .subquery("attr")
@@ -4392,20 +4507,64 @@ class PGDialect(default.DefaultDialect):
     @util.memoized_property
     def _fk_regex_pattern(self):
         # optionally quoted token
-        qtoken = '(?:"[^"]+"|[A-Za-z0-9_]+?)'
+        qtoken = r'(?:"[^"]+"|[\w]+?)'
 
         # https://www.postgresql.org/docs/current/static/sql-createtable.html
         return re.compile(
             r"FOREIGN KEY \((.*?)\) "
             rf"REFERENCES (?:({qtoken})\.)?({qtoken})\(((?:{qtoken}(?: *, *)?)+)\)"  # noqa: E501
             r"[\s]?(MATCH (FULL|PARTIAL|SIMPLE)+)?"
-            r"[\s]?(ON UPDATE "
-            r"(CASCADE|RESTRICT|NO ACTION|SET NULL|SET DEFAULT)+)?"
-            r"[\s]?(ON DELETE "
+            r"[\s]?(?:ON (UPDATE|DELETE) "
+            r"(CASCADE|RESTRICT|NO ACTION|"
+            r"SET (?:NULL|DEFAULT)(?:\s\(.+\))?)+)?"
+            r"[\s]?(?:ON (UPDATE|DELETE) "
             r"(CASCADE|RESTRICT|NO ACTION|"
             r"SET (?:NULL|DEFAULT)(?:\s\(.+\))?)+)?"
             r"[\s]?(DEFERRABLE|NOT DEFERRABLE)?"
             r"[\s]?(INITIALLY (DEFERRED|IMMEDIATE)+)?"
+        )
+
+    def _parse_fk(self, condef):
+        FK_REGEX = self._fk_regex_pattern
+        m = re.search(FK_REGEX, condef).groups()
+
+        (
+            constrained_columns,
+            referred_schema,
+            referred_table,
+            referred_columns,
+            _,
+            match,
+            upddelkey1,
+            upddelval1,
+            upddelkey2,
+            upddelval2,
+            deferrable,
+            _,
+            initially,
+        ) = m
+
+        onupdate = (
+            upddelval1
+            if upddelkey1 == "UPDATE"
+            else upddelval2 if upddelkey2 == "UPDATE" else None
+        )
+        ondelete = (
+            upddelval1
+            if upddelkey1 == "DELETE"
+            else upddelval2 if upddelkey2 == "DELETE" else None
+        )
+
+        return (
+            constrained_columns,
+            referred_schema,
+            referred_table,
+            referred_columns,
+            match,
+            onupdate,
+            ondelete,
+            deferrable,
+            initially,
         )
 
     def get_multi_foreign_keys(
@@ -4424,8 +4583,6 @@ class PGDialect(default.DefaultDialect):
         query = self._foreing_key_query(schema, has_filter_names, scope, kind)
         result = connection.execute(query, params)
 
-        FK_REGEX = self._fk_regex_pattern
-
         fkeys = defaultdict(list)
         default = ReflectionDefaults.foreign_keys
         for table_name, conname, condef, conschema, comment in result:
@@ -4435,23 +4592,18 @@ class PGDialect(default.DefaultDialect):
                 fkeys[(schema, table_name)] = default()
                 continue
             table_fks = fkeys[(schema, table_name)]
-            m = re.search(FK_REGEX, condef).groups()
 
             (
                 constrained_columns,
                 referred_schema,
                 referred_table,
                 referred_columns,
-                _,
                 match,
-                _,
                 onupdate,
-                _,
                 ondelete,
                 deferrable,
-                _,
                 initially,
-            ) = m
+            ) = self._parse_fk(condef)
 
             if deferrable is not None:
                 deferrable = True if deferrable == "DEFERRABLE" else False
@@ -4862,7 +5014,7 @@ class PGDialect(default.DefaultDialect):
         default = ReflectionDefaults.unique_constraints
         for table_name, cols, con_name, comment, options in result:
             # ensure a list is created for each table. leave it empty if
-            # the table has no unique cosntraint
+            # the table has no unique constraint
             if con_name is None:
                 uniques[(schema, table_name)] = default()
                 continue

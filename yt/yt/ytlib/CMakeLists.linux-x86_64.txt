@@ -50,6 +50,8 @@ target_compile_options(yt-yt-ytlib PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-yt-ytlib PUBLIC
@@ -88,11 +90,13 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-client-federated
   yt-client-logging
   yt-library-formats
   yt-library-orchid
   library-profiling-solomon
   yt-library-program
+  yt-library-s3
   yt-library-row_merger
   library-query-base
   library-query-engine
@@ -113,7 +117,9 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
@@ -181,6 +187,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_partition_cookie.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/proto/tablet_balancer_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
@@ -211,6 +218,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_admin_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_authentication_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_ban_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cypress_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_distributed_table_impl.cpp
@@ -248,6 +256,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pick_replica_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pool_weight_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/queue_producer_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/register_transaction_actions_request_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
@@ -283,16 +292,17 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/protobuf_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_object_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_residency_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/master_cache_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_updates_batcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher.cpp
@@ -310,6 +320,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_host.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_replica_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_scraper.cpp
@@ -343,6 +354,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/legacy_data_slice.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_tracked_deferred_chunk_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_writer.cpp
@@ -424,6 +436,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/compressed_block_last_keys.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/memory_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/prepared_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/rowset_builder.cpp
@@ -450,14 +463,15 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/session_coordinator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/tracked_memory_chunk_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/queue_consumer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/queue_producer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager_new.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/cluster_name.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
@@ -536,6 +550,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_layout.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_level_security.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/rows_digest.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
@@ -567,6 +582,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_reader_adapter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_digest.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/balancing_request.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/bulk_insert_locking.cpp
@@ -588,7 +606,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.cpp
@@ -619,12 +637,13 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/acls.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
@@ -655,11 +674,14 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h
@@ -727,6 +749,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_balancer_client/proto/tablet_balancer_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
@@ -900,10 +923,10 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.h
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.yaml
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
@@ -917,11 +940,11 @@ add_custom_command(
   -m
   yt_record_codegen.bin
   --input
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.yaml
   --output-root
   ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_nodes.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )
@@ -1762,6 +1785,36 @@ add_custom_command(
   yt/yt/ytlib/queue_client/public.h
 )
 
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
+  COMMAND
+  ${Python3_EXECUTABLE}
+  -B
+  -m
+  yt_record_codegen.bin
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
+  --output-include
+  yt/yt/core/yson/string.h
+  --output-include
+  yt/yt/ytlib/queue_client/public.h
+)
+
 target_proto_outs(yt-yt-ytlib
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
@@ -1790,6 +1843,8 @@ target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(yt-yt-ytlib.global PUBLIC
@@ -1828,11 +1883,13 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-client-federated
   yt-client-logging
   yt-library-formats
   yt-library-orchid
   library-profiling-solomon
   yt-library-program
+  yt-library-s3
   yt-library-row_merger
   library-query-base
   library-query-engine

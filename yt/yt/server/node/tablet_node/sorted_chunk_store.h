@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "store_detail.h"
-#include "compaction_hint_fetcher.h"
+#include "compaction_hint_controllers.h"
 
 #include <yt/yt/server/lib/lsm/store.h>
 
@@ -23,25 +23,13 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCompactionHints
-{
-    TCompactionHint<EChunkViewSizeStatus> ChunkViewSize;
-    TCompactionHint<NLsm::TRowDigestUpcomingCompactionInfo> RowDigest;
-    TCompactionHint<TMinHashDigestPtr> MinHashDigest;
-};
-
-void Serialize(
-    const TCompactionHints& compactionHints,
-    NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSortedChunkStore
     : public TChunkStoreBase
     , public TSortedStoreBase
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(TCompactionHints, CompactionHints);
+    DEFINE_BYREF_RW_PROPERTY(TCompactionHintFetchPipelines, CompactionHintFetchPipelines);
+    DEFINE_BYREF_RW_PROPERTY(TStoreCompactionHints, CompactionHints);
 
 public:
     TSortedChunkStore(
@@ -59,6 +47,7 @@ public:
 
     // IStore implementation.
     EStoreType GetType() const override;
+    void SetStoreState(EStoreState state) override;
 
     TSortedChunkStorePtr AsSortedChunk() override;
 

@@ -73,7 +73,7 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
  *  so the query can be executed using index without loss of rows, which are not present in the index.
  */
 bool IntrospectFilterForDefinedReference(
-    NQueryClient::NAst::TExpressionPtr filterExpression,
+    const NQueryClient::NAst::TExpressionPtr filterExpression,
     const NQueryClient::NAst::TReference& reference,
     bool allowValueRange);
 
@@ -83,7 +83,7 @@ bool IntrospectFilterForDefinedReference(
  *
  *  Use case: prevent query execution on cluster if the number of values in an "IN" clause exceeds a certain limit.
  */
-int IntrospectFilterInValueCount(NQueryClient::NAst::TExpressionPtr filterExpression);
+int IntrospectFilterInValueCount(const NQueryClient::NAst::TExpressionPtr filterExpression);
 
 //! Searches for attribute references in #filterQuery, e.g. expressions
 /*! of the form `[attributePath]`.
@@ -95,7 +95,7 @@ void ExtractFilterAttributeReferences(
     std::function<void(NYPath::TYPathBuf)> inserter);
 
 void ExtractFilterAttributeReferences(
-    NQueryClient::NAst::TExpressionPtr filterExpression,
+    const NQueryClient::NAst::TExpressionPtr filterExpression,
     std::function<void(NYPath::TYPathBuf)> inserter);
 
 ////////////////////////////////////////////////////////////////////////////////

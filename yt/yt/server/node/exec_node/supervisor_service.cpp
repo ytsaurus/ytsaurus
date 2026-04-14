@@ -5,15 +5,15 @@
 #include "job_controller.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
-
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 #include <yt/yt/server/node/job_agent/public.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/public.h>
@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NExecNode {
@@ -51,6 +53,7 @@ using namespace NObjectClient;
 using NChunkClient::NProto::TDataStatistics;
 using namespace NScheduler;
 using namespace NSignature;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,6 +266,8 @@ private:
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
             job->SetStatistics(ysonStatistics);
+
+            // NB(bystrovserg): Always report statistics when job is finished.
             jobReport.SetStatistics(job->GetStatistics());
         }
 
@@ -347,6 +352,7 @@ private:
             if (request->has_last_progress_save_time()) {
                 job->SetLastProgressSaveTime(FromProto<TInstant>(request->last_progress_save_time()));
             }
+            job->TryReportStatistics();
         }
 
         context->Reply();
@@ -443,7 +449,9 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto payload = FromProto<std::string>(request->payload());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v", jobId, payload.size());
+        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
+            jobId,
+            payload.size());
 
         auto signature = Bootstrap_->GetSignatureGenerator()->Sign(std::move(payload));
 
@@ -458,7 +466,9 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto signature = FromProto<TSignaturePtr>(request->signature());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v", jobId, signature->Payload().size());
+        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
+            jobId,
+            signature->Payload().size());
 
         bool isValid = WaitFor(Bootstrap_->GetSignatureValidator()->Validate(signature))
             .ValueOrThrow();

@@ -14,18 +14,16 @@
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/yt/core/concurrency/lease_manager.h>
-
 #include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -296,14 +294,14 @@ public:
                                 .Item(ToString(runningJob->JobId)).BeginMap()
                                     .Item("stage").Value(
                                         runningJob->Confirmed
-                                        ? "running"
-                                        : "waiting_for_confirmation")
+                                        ? FormatEnum(EJobStage::Running)
+                                        : WaitingForConfirmationJobStage)
                                 .EndMap();
                         }
 
                         for (const auto& [jobId, finishedJobInfo] : allocation->GetFinishedJobs()) {
                             fluent.Item(ToString(jobId)).BeginMap()
-                                .Item("stage").Value("finished")
+                                .Item("stage").Value(FormatEnum(EJobStage::Finished))
                             .EndMap();
                         }
                     })
@@ -426,7 +424,11 @@ public:
         if (const auto* allocation = nodeJobs.FindAllocation(jobId)) {
             std::optional<TString> jobStageString;
             if (allocation->HasRunningJob(jobId)) {
-                jobStageString = allocation->GetRunningJob()->Confirmed ? FormatEnum(EJobStage::Running) : "waiting_for_confirmation";
+                if (allocation->GetRunningJob()->Confirmed) {
+                    jobStageString = FormatEnum(EJobStage::Running);
+                } else {
+                    jobStageString = WaitingForConfirmationJobStage;
+                }
             } else if (allocation->GetFinishedJobs().contains(jobId)) {
                 jobStageString = FormatEnum(EJobStage::Finished);
             }
@@ -444,7 +446,7 @@ public:
             jobToAbortIt != std::end(nodeJobs.JobsToAbort))
         {
             jobYson = BuildYsonStringFluently().BeginMap()
-                    .Item("stage").Value("aborting")
+                    .Item("stage").Value(AbortingJobStage)
                     .Item("abort_reason").Value(jobToAbortIt->second.AbortReason)
                     .Item("request_new_job").Value(jobToAbortIt->second.RequestNewJob)
                     .Item("node_address").Value(nodeAddress)
@@ -454,7 +456,7 @@ public:
             jobToReleaseIt != std::end(nodeJobs.JobsToRelease))
         {
             jobYson = BuildYsonStringFluently().BeginMap()
-                    .Item("stage").Value("releasing")
+                    .Item("stage").Value(ReleasingJobStage)
                     .Item("release_flags").Value(ToString(jobToReleaseIt->second))
                     .Item("node_address").Value(nodeAddress)
                     .Item("allocation_id").Value(AllocationIdFromJobId(jobId))
@@ -527,11 +529,13 @@ public:
 
         auto producer = TYsonProducer(BIND([
             jobsReady = operationInfo.JobsReady,
+            suspended = operationInfo.Suspended,
             operationId,
             jobTracker = JobTracker_
         ] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer).BeginMap()
                 .Item("jobs_ready").Value(jobsReady)
+                .Item("suspended").Value(suspended)
                 .Item("allocations").Do([&] (TFluentAny innerFluent) {
                     const auto& operationIt = jobTracker->RegisteredOperations_.find(operationId);
 
@@ -1071,8 +1075,10 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             (*clusterToNetworkBandwidthAvailability)[TClusterName(clusterName)] = availability.is_available();
         }
 
-        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v)",
-            *clusterToNetworkBandwidthAvailability);
+        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v, NodeId: %v, NodeAddress: %v)",
+            *clusterToNetworkBandwidthAvailability,
+            nodeId,
+            nodeDescriptor.GetDefaultAddress());
     }
 
     ProfileHeartbeatRequest(request);
@@ -1309,6 +1315,12 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
             YT_LOG_INFO("Operation jobs are not ready yet, skip settle job request");
 
             THROW_ERROR_EXCEPTION("Operation %v jobs are not ready yet", operationId);
+        }
+
+        if (operationInfo.Suspended) {
+            YT_LOG_INFO("Operation is suspended, skip SettleJob request");
+
+            THROW_ERROR_EXCEPTION("Operation %v is suspended", operationId);
         }
 
         SettleJobRequestGuard.SetStage(ESettleJobRequestStage::WaitingForController);
@@ -2317,7 +2329,7 @@ bool TJobTracker::HandleRunningJobInfo(
     ToProto(
         response->add_jobs_to_store(),
         TJobToStore{
-            .JobId = jobId
+            .JobId = jobId,
         });
 
     allocation.FinishRunningJob();
@@ -2604,9 +2616,57 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
         /*confirmed*/ true);
 }
 
+void TJobTracker::DoSuspendOperation(TOperationId operationId)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    auto operationIt = RegisteredOperations_.find(operationId);
+    if (operationIt == std::end(RegisteredOperations_)) {
+        YT_LOG_DEBUG(
+            "Suspend requested for operation that is not registered in job tracker, ignored (OperationId: %v)",
+            operationId);
+        return;
+    }
+
+    auto& operationInfo = operationIt->second;
+    bool wasSuspended = operationInfo.Suspended;
+    operationInfo.Suspended = true;
+
+    if (wasSuspended) {
+        YT_LOG_WARNING("Suspending operation already suspended in job tracker (OperationId: %v)", operationId);
+        return;
+    }
+    YT_LOG_DEBUG("Operation suspended in job tracker (OperationId: %v)", operationId);
+}
+
+void TJobTracker::DoResumeOperation(TOperationId operationId)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    auto operationIt = RegisteredOperations_.find(operationId);
+    if (operationIt == std::end(RegisteredOperations_)) {
+        YT_LOG_DEBUG(
+            "Resume requested for operation that is not registered in job tracker, ignored (OperationId: %v)",
+            operationId);
+        return;
+    }
+
+    auto& operationInfo = operationIt->second;
+
+    bool wasSuspended = operationInfo.Suspended;
+    operationInfo.Suspended = false;
+
+    if (!wasSuspended) {
+        YT_LOG_WARNING("Resuming operation not suspended in job tracker (OperationId: %v)", operationId);
+        return;
+    }
+    YT_LOG_DEBUG("Operation resumed in job tracker (OperationId: %v)", operationId);
+}
+
 void TJobTracker::DoRevive(
     TOperationId operationId,
-    std::vector<TStartedAllocationInfo> allocations)
+    std::vector<TStartedAllocationInfo> allocations,
+    bool suspended)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2615,6 +2675,7 @@ void TJobTracker::DoRevive(
     auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
 
     operationInfo.JobsReady = true;
+    operationInfo.Suspended = suspended;
 
     {
         int loggingJobSampleMaxSize = Config_->LoggingJobSampleSize;
@@ -2636,7 +2697,7 @@ void TJobTracker::DoRevive(
 
     for (auto& allocationInfo : allocations) {
         auto nodeId = NodeIdFromAllocationId(allocationInfo.AllocationId);
-        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /* comesFromRevival */ true).Jobs;
+        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /*comesFromRevival*/ true).Jobs;
 
         auto allocationIt = EmplaceOrCrash(
             nodeJobs.Allocations,
@@ -3799,7 +3860,7 @@ void TJobTrackerOperationHandler::RegisterJob(TStartedJobInfo jobInfo)
         OperationId_));
 }
 
-void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> allocations)
+void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -3809,7 +3870,32 @@ void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> all
         &TJobTracker::DoRevive,
         MakeStrong(JobTracker_),
         OperationId_,
-        std::move(allocations)));
+        std::move(allocations),
+        suspended));
+}
+
+void TJobTrackerOperationHandler::SuspendOperation()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
+
+    CancelableInvoker_->Invoke(BIND(
+        &TJobTracker::DoSuspendOperation,
+        MakeStrong(JobTracker_),
+        OperationId_));
+}
+
+void TJobTrackerOperationHandler::ResumeOperation()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = TCurrentTraceContextGuard(TraceContext_);
+
+    CancelableInvoker_->Invoke(BIND(
+        &TJobTracker::DoResumeOperation,
+        MakeStrong(JobTracker_),
+        OperationId_));
 }
 
 void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)

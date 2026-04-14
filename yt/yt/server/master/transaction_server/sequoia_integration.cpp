@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
 
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
+
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/connection.h>
@@ -28,7 +30,9 @@ namespace {
 const auto CreateStartTransactionResponse = BIND_NO_PROPAGATE([] (TTransactionId transactionId) {
     NProto::TRspStartCypressTransaction rsp;
     ToProto(rsp.mutable_id(), transactionId);
-    return CreateResponseMessage(rsp);
+    return std::pair(
+        CreateResponseMessage(rsp),
+        std::string(Format("TransactionId: %v", transactionId)));
 });
 
 const auto CreateAbortTransactionResponse = BIND_NO_PROPAGATE([] () {
@@ -43,14 +47,16 @@ void StartCypressTransactionInSequoiaAndReply(
     TBootstrap* bootstrap,
     const ITransactionManager::TCtxStartCypressTransactionPtr& context)
 {
-    context->ReplyFrom(StartCypressTransaction(
-        bootstrap
-            ->GetSequoiaConnection()
-            ->CreateClient(context->GetAuthenticationIdentity()),
-        bootstrap->GetCellId(),
-        &context->Request(),
-        TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
+    context->ReplyAndLogFrom(
+        /*incremental*/ false,
+        StartCypressTransaction(
+            bootstrap
+                ->GetSequoiaConnection()
+                ->CreateClient(context->GetAuthenticationIdentity()),
+            bootstrap->GetCellId(),
+            &context->Request(),
+            TDispatcher::Get()->GetHeavyInvoker(),
+            TransactionServerLogger())
         .Apply(CreateStartTransactionResponse));
 }
 
@@ -148,22 +154,28 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
 
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
-    std::vector<TTransactionId> transactionIds)
+    std::vector<TTransactionId> transactionIds,
+    std::unique_ptr<NProto::TReqReturnBoomerang> boomerang)
 {
-    return ReplicateCypressTransactions(
+    return ReplicateCypressTransactionsToCell(
         bootstrap
             ->GetSequoiaConnection()
             ->CreateClient(GetRootAuthenticationIdentity()),
         std::move(transactionIds),
-        {bootstrap->GetCellTag()},
         bootstrap->GetCellId(),
+        std::move(boomerang),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger())
         .Apply(BIND([hydraManager = bootstrap->GetHydraFacade()->GetHydraManager()] {
             // NB: |sequoiaTransaction->Commit()| is set when Sequoia tx is
-            // committed on leader (and probably some of followers). Since we
+            // prepared on leader (and probably some of followers). Since we
             // want to know when replicated tx is actually available on _this_
             // peer sync with leader is needed.
+            // Note that waiting for strongly ordered tx barrier isn't needed
+            // here because Sequoia transaction is coordinated by current cell:
+            // thanks to late prepare mode after transaction is prepared on
+            // coordinator its effects can be immediately observed on
+            // coordinator.
             return hydraManager->SyncWithLeader();
         }));
 }

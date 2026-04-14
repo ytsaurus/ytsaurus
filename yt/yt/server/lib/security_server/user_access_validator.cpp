@@ -36,7 +36,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NNative::IConnectionPtr connection,
         TLogger logger)
-        : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
+        : TAsyncExpiringCache(std::move(config), GetInvoker(), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
         , Client_(Connection_->CreateNativeClient(NNative::TClientOptions::Root()))
@@ -47,8 +47,10 @@ private:
     const TLogger Logger;
     const NNative::IClientPtr Client_;
 
-    THashMap<std::string, NNative::IClientPtr> RemoteClientMap_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RemoteClientMapLock_);
+    static IInvokerPtr GetInvoker()
+    {
+        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
+    }
 
     TFuture<void> DoGet(const TUserBanCacheKey& cacheKey, bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -65,26 +67,26 @@ private:
         // Check user on local cluster first.
         futures.push_back(Get(TUserBanCacheKey(user, std::nullopt)));
 
-        // If remote multiproxy target specified check its ban status as well.
+        auto multiproxyClientFuture = NNative::InsistentGetRemoteConnection(
+            Connection_,
+            *cluster,
+            NNative::EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync)
+            .Apply(BIND([cluster=*cluster] (const TErrorOr<NNative::IConnectionPtr>& connectionOrError) {
+                if (connectionOrError.IsOK()) {
+                    auto connection = connectionOrError.Value();
+                    auto client = connection->CreateNativeClient(NNative::TClientOptions::Root());
+                    return client;
+                } else {
+                    THROW_ERROR_EXCEPTION("Cannot resolve multiproxy target cluster %Qv", cluster)
+                        << connectionOrError;
+                }
+            }));
 
-        NNative::IClientPtr remoteClient;
-        try {
-            auto guard = Guard(RemoteClientMapLock_);
+        auto remoteBan = multiproxyClientFuture.Apply(BIND([this_ = MakeStrong(this), user=user] (const NNative::IClientPtr& client) {
+            return this_->CheckUser(client, user);
+        }));
 
-            auto it = RemoteClientMap_.find(*cluster);
-            if (it == RemoteClientMap_.end()) {
-                auto remoteClusterConnection = Connection_->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
-                remoteClient = remoteClusterConnection->CreateNativeClient(NNative::TClientOptions::Root());
-                RemoteClientMap_.emplace(*cluster, remoteClient);
-            } else {
-                remoteClient = it->second;
-            }
-        } catch (const std::exception& ex) {
-            auto error = TError("Cannot resolve multiproxy target cluster")
-                << ex;
-            return MakeFuture<void>(error);
-        }
-        futures.push_back(CheckUser(remoteClient, user));
+        futures.push_back(std::move(remoteBan));
 
         return AllSucceeded(std::move(futures));
     }
@@ -95,6 +97,7 @@ private:
         options.ReadFrom = EMasterChannelKind::Cache;
         options.SuppressUpstreamSync = true;
         options.SuppressTransactionCoordinatorSync = true;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
         auto clusterName = client->GetNativeConnection()->GetStaticConfig()->ClusterName;
         return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
             BIND([user, clusterName, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
@@ -148,6 +151,11 @@ public:
     void ValidateUser(const std::string& user, const std::optional<std::string>& cluster) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto result = UserCache_->Find({user, cluster});
+        if (result) {
+            result->ThrowOnError();
+        }
 
         WaitForFast(UserCache_->Get({user, cluster}))
             .ThrowOnError();

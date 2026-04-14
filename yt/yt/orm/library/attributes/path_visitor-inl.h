@@ -20,7 +20,7 @@ enum class EPathVisitorParamClass
     Vector,
     Map,
     Node,
-    Other
+    Other,
 };
 
 template <typename TVisitParam>
@@ -91,10 +91,10 @@ template <typename TSelf>
 template <typename TVisitParam>
 void TPathVisitor<TSelf>::Visit(TVisitParam&& target, NYPath::TYPathBuf path)
 {
-    auto pathCodicil = TErrorCodicils::Guard("path", [this] () -> std::string {
+    auto pathCodicil = TErrorCodicils::MakeGuard("path", [this] () -> std::string {
         return std::string(Self()->Tokenizer_.GetPath());
     });
-    auto positionCodicil = TErrorCodicils::Guard("position", [this] () -> std::string {
+    auto positionCodicil = TErrorCodicils::MakeGuard("position", [this] () -> std::string {
         return std::string(Self()->CurrentPath_.GetPath());
     });
 
@@ -241,9 +241,9 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
     }
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
-        "Unexpected vector relative path specifier at %v (producing an index of %v)",
-        Self()->GetTokenizerPrefix(),
-        index);
+        "Unexpected vector relative path specifier")
+        << TErrorAttribute("relative_index", Self()->GetTokenizerPrefix())
+        << TErrorAttribute("computed_index", index);
 }
 
 template <typename TSelf>

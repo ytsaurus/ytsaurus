@@ -23,6 +23,8 @@ target_compile_options(lib-chunk_pools-mock PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(lib-chunk_pools-mock PUBLIC

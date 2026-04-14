@@ -65,6 +65,9 @@ class TestGrafting(YTEnvSetup):
         assert get("//tmp/r/@type") == "scion"
         assert get("//tmp/r/@rootstock_id") == rootstock_id
 
+        expected_acl = get("//tmp/r&/@effective_acl")
+        assert get("//tmp/r/@effective_acl") == expected_acl
+
         assert exists(f"//sys/rootstocks/{rootstock_id}")
         assert exists(f"//sys/scions/{scion_id}")
 
@@ -304,6 +307,16 @@ class TestSequoiaSymlinks(YTEnvSetup):
         remove("//cypress/t2")
         assert get("//cypress/l1&/@broken")
         assert get("//tmp/l2&/@broken")
+
+    @authors("danilalexeev")
+    def test_copy_link(self):
+        link("//cypress", "//cypress/m1/l1", recursive=True)
+        copy("//cypress/m1", "//tmp/m1")
+        assert get("//tmp/m1/l1/@path") == "//cypress"
+        link("//tmp", "//tmp/m1/l2")
+        copy("//tmp/m1", "//cypress/m2")
+        assert get("//cypress/m2/l2/@path") == "//tmp"
+        assert get("//cypress/m2/l1/@path") == "//cypress"
 
     @authors("cherepashka", "danilalexeev")
     def test_user(self):

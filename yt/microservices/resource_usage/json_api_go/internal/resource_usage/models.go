@@ -6,6 +6,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type Item map[string]any
@@ -53,15 +54,16 @@ type TableReaderMemoryStatus struct {
 }
 
 type ResourceUsageTable struct {
-	Timestamp            int64
-	SnapshotID           int64
-	Path                 ypath.YPath
-	l                    log.Structured
-	Proxy                string
-	ExcludedFields       []string
-	ClusterSchemaCache   *lru.LRU[ypath.YPath, *schema.Schema]
-	ClusterFeaturesCache *lru.LRU[ypath.YPath, *ResourceUsageTableFeatures]
-	TokenEnvVariable     string
+	Timestamp                   int64
+	SnapshotID                  int64
+	Path                        ypath.YPath
+	l                           log.Structured
+	Proxy                       string
+	ExcludedFields              []string
+	ClusterSchemaCache          *lru.LRU[ypath.YPath, *schema.Schema]
+	ClusterFeaturesCache        *lru.LRU[ypath.YPath, *ResourceUsageTableFeatures]
+	TokenEnvVariable            string
+	ContinuationTokenSerializer *ytmsvc.CryptoSerializer[ContinuationToken]
 }
 
 type TimestampSelector struct {
@@ -75,9 +77,10 @@ type ResourceUsageTableFeatures struct {
 }
 
 type ResourceUsage struct {
-	l    log.Structured
-	conf *Config
-	data *Data
+	l                           log.Structured
+	conf                        *Config
+	data                        *Data
+	continuationTokenSerializer *ytmsvc.CryptoSerializer[ContinuationToken]
 }
 
 type Config struct {
@@ -95,12 +98,13 @@ type Data struct {
 }
 
 type Cluster struct {
-	ResourceUsageTables []*ResourceUsageTable
-	SchemasCache        *lru.LRU[ypath.YPath, *schema.Schema]
-	FeaturesCache       *lru.LRU[ypath.YPath, *ResourceUsageTableFeatures]
-	l                   log.Structured
-	Config              *ClusterConfig
-	TokenEnvVariable    string
+	ResourceUsageTables         []*ResourceUsageTable
+	SchemasCache                *lru.LRU[ypath.YPath, *schema.Schema]
+	FeaturesCache               *lru.LRU[ypath.YPath, *ResourceUsageTableFeatures]
+	l                           log.Structured
+	Config                      *ClusterConfig
+	TokenEnvVariable            string
+	ContinuationTokenSerializer *ytmsvc.CryptoSerializer[ContinuationToken]
 }
 
 type ClusterConfig struct {

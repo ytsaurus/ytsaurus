@@ -93,7 +93,7 @@ public:
         IInvokerPtr workerInvoker,
         const NNodeTrackerClient::TAddressMap& localAddresses)
         : TServiceBase(
-            workerInvoker,
+            std::move(workerInvoker),
             GetDescriptor(),
             RpcProxyLogger())
         , Config_(std::move(config))
@@ -160,7 +160,7 @@ private:
     const std::optional<TString> GrpcProxyPath_;
     TCompactVector<ICypressRegistrarPtr, 2> CypressRegistrars_;
 
-    TInstant LastSuccessTimestamp_ = Now();
+    std::atomic<TInstant> LastSuccessTimestamp_ = Now();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProxySpinLock_);
 
@@ -230,7 +230,7 @@ private:
             descriptors.push_back({
                 .Addresses = grpcProxyAddressMap,
                 .CypressPath = *GrpcProxyPath_,
-                .IsGrpc = true
+                .IsGrpc = true,
             });
         }
 
@@ -273,7 +273,7 @@ private:
 
     bool IsAvailable() const
     {
-        return Now() - LastSuccessTimestamp_ < Config_->DiscoveryService->AvailabilityPeriod;
+        return Now() - LastSuccessTimestamp_.load() < Config_->DiscoveryService->AvailabilityPeriod;
     }
 
     void OnPeriodicEvent(void (TDiscoveryService::*action)())
@@ -329,7 +329,7 @@ private:
                 << ex;
         }
 
-        LastSuccessTimestamp_ = Now();
+        LastSuccessTimestamp_.store(Now());
         if (ProxyCoordinator_->SetAvailableState(true)) {
             YT_LOG_INFO("Connectivity restored");
         }

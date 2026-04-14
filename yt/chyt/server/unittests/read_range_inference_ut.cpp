@@ -229,7 +229,7 @@ TEST_P(TQueryTreeConverterTest, Simple)
     DB::QueryAnalysisPass queryAnalysisPass(tableNode);
     queryAnalysisPass.run(queryTree, context);
 
-    auto expr = ConvertToConstExpression(schema, std::move(queryTree));
+    auto expr = ConvertToConstExpression(std::move(queryTree), schema, compositeSettings);
     ASSERT_TRUE(expr != nullptr);
 
     EXPECT_TRUE(Equal(expr, expected))
@@ -326,6 +326,12 @@ INSTANTIATE_TEST_SUITE_P(
                     MakeReferenceExpression("key")}),
                 MakeRows("1; 2; 3")),
             "key in (1, 2, 3)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    MakeReferenceExpression("key")}),
+                MakeRows("1; 2; 3")),
+            "key in [1, 2, 3]"),
         std::tuple<TConstExpressionPtr, const char*>(
             New<TInExpression>(
                 std::initializer_list<TConstExpressionPtr>({

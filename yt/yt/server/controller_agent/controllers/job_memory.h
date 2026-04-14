@@ -39,14 +39,15 @@ public:
     i64 GetReservedMemoryForJobProxyWithEstimatedBuffer() const;
     double GetRelativeDifference() const;
 
-    std::strong_ordering operator <=> (const TOverrunTableWriteBufferMemoryInfo& other) const;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    std::strong_ordering operator<=>(const TOverrunTableWriteBufferMemoryInfo& other) const;
 
 private:
     TJobId JobId_;
     i64 ReservedMemoryForJobProxyWithFixedBuffer_ = 0;
     i64 ReservedMemoryForJobProxyWithEstimatedBuffer_ = 0;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TOverrunTableWriteBufferMemoryInfo, 0x91e6b3f8);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,6 +17,10 @@ namespace NYT::NClickHouseServer {
 DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
     TRange<DB::UInt8> filterHint);
+DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    bool insideOptional);
 DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
 DB::MutableColumnPtr ConvertDoubleYTColumnToCHColumn(
@@ -26,6 +30,14 @@ DB::MutableColumnPtr ConvertFloatYTColumnToCHColumn(
 DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
     NTableClient::ESimpleLogicalValueType type);
+DB::MutableColumnPtr ConvertTzYTColumnToCHColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    NTableClient::ESimpleLogicalValueType type);
+DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    NTableClient::ESimpleLogicalValueType type,
+    bool insideOptional);
 DB::MutableColumnPtr ConvertNullYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
 DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(
@@ -38,8 +50,11 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
 // Reduces filter column to size of dictionary in dictionary or rle encoding,
 // to filter unique values wihout materialization when distinct read optimization is used.
 void ReduceFilterToDistinct(
-    DB::IColumn::Filter& filter,
+    DB::IColumn::Filter* filter,
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
+// Gets values column from dict or rle encoded column for distinct read optimization.
+const NTableClient::IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn* ytColumn);
 
 ////////////////////////////////////////////////////////////////////////////////
 

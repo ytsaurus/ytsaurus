@@ -72,15 +72,21 @@ class YTToolBase:
         pass
 
     def helper_process_common_exception(self, ex: Exception, raise_exception=True):
+        self.runner._logger.error(type(ex))
         self.runner._logger.error(ex)
         result = None
         if isinstance(ex, yt.errors.YtResponseError):
-            if ex.is_resolve_error():
+            if isinstance(ex, yt.errors.YtResolveError):
                 result = "Given path does not exists on cluster"
+            elif isinstance(ex, yt.errors.YtAuthenticationError):
+                result = "Authentication error"
             elif ex.is_access_denied():
                 result = "Access denied"
             else:
                 result = _pretty_format_messages(ex)
+        elif isinstance(ex, yt.errors.YtTokenError):
+            result = "Authentication error (wrong token)"
+
         if raise_exception:
             if result:
                 raise RuntimeError(result)

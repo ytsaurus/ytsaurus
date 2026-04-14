@@ -635,7 +635,9 @@ def check_hunk_media():
         ],
         hunk_primary_medium="m1",
         hunk_media={"m1": {"replication_factor": 5, "data_parts_only": False}})
-    create("hunk_storage", "//tmp/h")
+    create("hunk_storage", "//tmp/h", attributes={
+        "scan_backoff_period": 1000,
+    })
     set("//tmp/t_medium/@hunk_storage_node", "//tmp/h")
 
     yield

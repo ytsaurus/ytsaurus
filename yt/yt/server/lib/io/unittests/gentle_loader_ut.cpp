@@ -6,8 +6,10 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/nonblocking_queue.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/fs.h>
@@ -366,7 +368,7 @@ protected:
         std::vector<i64> result;
 
         for (int index = 0; index < roundsCount; ++index) {
-            auto roundResult = queue->Dequeue().Get()
+            auto roundResult = WaitForFast(queue->Dequeue())
                 .ValueOrThrow();
             result.push_back(roundResult);
             YT_LOG_INFO("Next congested step (Index: %v, IOPS: %v)",

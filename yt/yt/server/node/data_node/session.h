@@ -92,6 +92,7 @@ struct TSessionOptions
     bool DisableSendBlocks = false;
     bool UseProbePutBlocks = false;
     bool PreallocateDiskSpace = false;
+    bool UseDirectIo = false;
     std::optional<i64> MinLocationAvailableSpace;
     std::optional<i64> NbdChunkSize;
     std::optional<NNbd::EFilesystemType> NbdChunkFsType;
@@ -167,8 +168,7 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) = 0;
+        std::optional<int> blockCount) = 0;
 
     //! Checks is probe put blocks should be used.
     virtual bool ShouldUseProbePutBlocks() const = 0;

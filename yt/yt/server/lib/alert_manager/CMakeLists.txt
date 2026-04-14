@@ -23,6 +23,8 @@ target_compile_options(server-lib-alert_manager PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(server-lib-alert_manager PUBLIC

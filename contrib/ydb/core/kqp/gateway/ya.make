@@ -10,6 +10,8 @@ PEERDIR(
     contrib/ydb/core/actorlib_impl
     contrib/ydb/core/base
     contrib/ydb/core/kqp/common
+    contrib/ydb/core/kqp/federated_query
+    contrib/ydb/core/kqp/federated_query/actors
     contrib/ydb/core/kqp/gateway/actors
     contrib/ydb/core/kqp/gateway/behaviour/external_data_source
     contrib/ydb/core/kqp/gateway/behaviour/resource_pool

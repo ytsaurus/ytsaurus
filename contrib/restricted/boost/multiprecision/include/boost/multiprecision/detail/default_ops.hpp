@@ -499,7 +499,7 @@ inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if< !std::is_same<T, U>::va
    T t;
    t = number<T>::canonical_value(u);
    return t;
-}
+} // LCOV_EXCL_LINE
 template <class T>
 inline BOOST_MP_CXX14_CONSTEXPR const T& make_T(const T& t)
 {
@@ -1803,6 +1803,7 @@ BOOST_MP_CXX14_CONSTEXPR void eval_karatsuba_sqrt(Backend& result, const Backend
    result = s;
 }
 
+#ifndef BOOST_MP_NO_CONSTEXPR_DETECTION
 template <class B>
 void BOOST_MP_CXX14_CONSTEXPR eval_integer_sqrt_bitwise(B& s, B& r, const B& x)
 {
@@ -1860,6 +1861,7 @@ void BOOST_MP_CXX14_CONSTEXPR eval_integer_sqrt_bitwise(B& s, B& r, const B& x)
       --g;
    } while (g >= 0);
 }
+#endif // !BOOST_MP_NO_CONSTEXPR_DETECTION
 
 template <class Backend>
 BOOST_MP_CXX14_CONSTEXPR void eval_integer_sqrt(Backend& result, Backend& r, const Backend& x)
@@ -1868,7 +1870,8 @@ BOOST_MP_CXX14_CONSTEXPR void eval_integer_sqrt(Backend& result, Backend& r, con
    // recursive Karatsuba sqrt can cause issues in constexpr context:
    if (BOOST_MP_IS_CONST_EVALUATED(result.size()))
       return eval_integer_sqrt_bitwise(result, r, x);
-#endif
+#endif // !BOOST_MP_NO_CONSTEXPR_DETECTION
+
    using small_uint = typename std::tuple_element<0, typename Backend::unsigned_types>::type;
 
    constexpr small_uint zero = 0u;
@@ -2623,7 +2626,7 @@ template <class tag, class A1, class A2, class A3, class A4>
 inline BOOST_MP_CXX14_CONSTEXPR typename multiprecision::detail::expression<tag, A1, A2, A3, A4>::result_type erf BOOST_PREVENT_MACRO_SUBSTITUTION(const multiprecision::detail::expression<tag, A1, A2, A3, A4>& arg)
 {
    using value_type = typename multiprecision::detail::expression<tag, A1, A2, A3, A4>::result_type;
-   detail::scoped_default_precision<value_type>                                          precision_guard(arg);
+   detail::scoped_default_precision<value_type> precision_guard(arg);
    return erf(value_type(arg));
 }
 template <class Backend, multiprecision::expression_template_option ExpressionTemplates>
@@ -3867,7 +3870,7 @@ conj(const number<Backend, et_off>& arg)
    using default_ops::eval_conj;
    eval_conj(result.backend(), arg.backend());
    return result;
-}
+} // LCOV_EXCL_LINE
 
 template <class tag, class A1, class A2, class A3, class A4>
 inline BOOST_MP_CXX14_CONSTEXPR detail::expression<

@@ -36,25 +36,11 @@ static TString RandomBytes()
     return TString((const char*)&value, sizeof(value));
 }
 
-#define INSTANTIATE_NODE_READER_TESTS(test) \
-    TEST(TableIo, test ## _Yson_NonStrict) \
-    { \
-        TConfigSaverGuard configGuard; \
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson; \
-        test(false); \
-    } \
-    TEST(TableIo, test ## _Yson_Strict) \
-    { \
-        TConfigSaverGuard configGuard; \
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson; \
-        test(true); \
-    } \
-    TEST(TableIo, test ## _Skiff) \
-    { \
-        TConfigSaverGuard configGuard; \
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff; \
-        test(true); \
-    }
+struct TNodeReaderParam
+{
+    ENodeReaderFormat Format;
+    bool StrictSchema;
+};
 
 TRichYPath CreatePath(const TYPath& workingDir, bool strictSchema)
 {
@@ -67,6 +53,10 @@ TRichYPath CreatePath(const TYPath& workingDir, bool strictSchema)
     }
     return path;
 }
+
+class TTableNodeReaderTest
+    : public ::testing::TestWithParam<TNodeReaderParam>
+{ };
 
 void Simple(bool strictSchema)
 {
@@ -86,7 +76,16 @@ void Simple(bool strictSchema)
     reader->Next();
     EXPECT_TRUE(!reader->IsValid());
 }
-INSTANTIATE_NODE_READER_TESTS(Simple)
+
+TEST_P(TTableNodeReaderTest, Simple)
+{
+    const auto& param = GetParam();
+
+    TConfigSaverGuard configGuard;
+    TConfig::Get()->NodeReaderFormat = param.Format;
+
+    Simple(param.StrictSchema);
+}
 
 void NonEmptyColumns(bool strictSchema)
 {
@@ -209,7 +208,16 @@ void Move(bool strictSchema)
     reader->Next();
     EXPECT_TRUE(!reader->IsValid());
 }
-INSTANTIATE_NODE_READER_TESTS(Move)
+
+TEST_P(TTableNodeReaderTest, Move)
+{
+    const auto& param = GetParam();
+
+    TConfigSaverGuard configGuard;
+    TConfig::Get()->NodeReaderFormat = param.Format;
+
+    Move(param.StrictSchema);
+}
 
 void ReadUncanonicalPath(bool strictSchema)
 {
@@ -251,7 +259,16 @@ void ReadUncanonicalPath(bool strictSchema)
     };
     EXPECT_EQ(actual, expected);
 }
-INSTANTIATE_NODE_READER_TESTS(ReadUncanonicalPath)
+
+TEST_P(TTableNodeReaderTest, ReadUncanonicalPath)
+{
+    const auto& param = GetParam();
+
+    TConfigSaverGuard configGuard;
+    TConfig::Get()->NodeReaderFormat = param.Format;
+
+    ReadUncanonicalPath(param.StrictSchema);
+}
 
 void ReadMultipleRangesNode(bool strictSchema)
 {
@@ -338,9 +355,24 @@ void ReadMultipleRangesNode(bool strictSchema)
     EXPECT_EQ(actualRowIndices, expectedRowIndices);
     EXPECT_EQ(actualRangeIndices, expectedRangeIndices);
 }
-INSTANTIATE_NODE_READER_TESTS(ReadMultipleRangesNode)
 
-#undef INSTANTIATE_NODE_READER_TESTS
+TEST_P(TTableNodeReaderTest, ReadMultipleRangesNode)
+{
+    const auto& param = GetParam();
+
+    TConfigSaverGuard configGuard;
+    TConfig::Get()->NodeReaderFormat = param.Format;
+
+    ReadMultipleRangesNode(param.StrictSchema);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    NodeReader,
+    TTableNodeReaderTest,
+    ::testing::Values(
+        TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ false),
+        TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ true),
+        TNodeReaderParam(ENodeReaderFormat::Skiff, /*StrictSchema*/ true)));
 
 // TODO(levysotsky): Enable this test when packages are updated.
 void Descending()
@@ -1837,3 +1869,60 @@ TEST(StreamReaders, Yson)
 
     EXPECT_TRUE(!reader->IsValid());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTablePartitionNodeReaderTest
+    : public ::testing::TestWithParam<TNodeReaderParam>
+{ };
+
+void SimplePartition(bool strictSchema)
+{
+    static auto partitionCount = 1;
+    static auto options = TGetTablePartitionsOptions()
+        .PartitionMode(ETablePartitionMode::Ordered)
+        .DataWeightPerPartition(1)
+        .MaxPartitionCount(partitionCount)
+        .EnableCookies(true);
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = CreatePath(workingDir, strictSchema);
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+        writer->Finish();
+    }
+
+    auto cookies = client->GetTablePartitions({path}, options);
+    EXPECT_EQ(std::ssize(cookies.Partitions), partitionCount);
+
+    auto cookie = cookies.Partitions[0].Cookie;
+    EXPECT_TRUE(cookie);
+
+    auto reader = client->CreateTablePartitionReader<TNode>(*cookie);
+
+    EXPECT_TRUE(reader->IsValid());
+    EXPECT_EQ(reader->GetRow(), TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+    reader->Next();
+    EXPECT_TRUE(!reader->IsValid());
+}
+
+TEST_P(TTablePartitionNodeReaderTest, SimplePartition)
+{
+    const auto& param = GetParam();
+
+    TConfigSaverGuard configGuard;
+    TConfig::Get()->NodeReaderFormat = param.Format;
+
+    SimplePartition(param.StrictSchema);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    NodePartitionReader,
+    TTablePartitionNodeReaderTest,
+    ::testing::Values(
+        TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ false),
+        TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ true),
+        TNodeReaderParam(ENodeReaderFormat::Skiff, /*StrictSchema*/ true)));

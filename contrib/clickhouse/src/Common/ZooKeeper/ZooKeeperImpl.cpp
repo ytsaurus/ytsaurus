@@ -346,7 +346,7 @@ void ZooKeeper::flushWriteBuffer()
 void ZooKeeper::cancelWriteBuffer() noexcept
 {
     if (compressed_out)
-         compressed_out->cancel();
+        compressed_out->cancel();
     if (out)
         out->cancel();
 }
@@ -580,7 +580,6 @@ void ZooKeeper::connect(
                     throw;
                 }
 
-                connected = true;
                 if (use_compression)
                 {
                     compressed_in.emplace(*in);
@@ -588,6 +587,8 @@ void ZooKeeper::connect(
                 }
 
                 original_index.store(node.original_index);
+
+                connected = true;
                 break;
             }
             catch (...)
@@ -784,6 +785,15 @@ void ZooKeeper::sendThread()
                     /// After we popped element from the queue, we must register callbacks (even in the case when expired == true right now),
                     ///  because they must not be lost (callbacks must be called because the user will wait for them).
 
+                    if (info.watch)
+                        info.request->has_watch = true;
+
+                    if (info.request->add_root_path)
+                        info.request->addRootPath(args.chroot);
+
+                    /// Insert into operations AFTER mutating the request (has_watch, addRootPath)
+                    /// to avoid a data race: receiveThread reads from operations concurrently,
+                    /// and the request object is shared via shared_ptr.
                     if (info.request->xid != close_xid)
                     {
                         CurrentMetrics::add(CurrentMetrics::ZooKeeperRequest);
@@ -791,18 +801,10 @@ void ZooKeeper::sendThread()
                         operations[info.request->xid] = info;
                     }
 
-                    if (info.watch)
-                    {
-                        info.request->has_watch = true;
-                    }
-
                     if (requests_queue.isFinished())
                     {
                         break;
                     }
-
-                    if (info.request->add_root_path)
-                        info.request->addRootPath(args.chroot);
 
                     info.request->probably_sent = true;
                     info.request->write(getWriteBuffer(), use_xid_64);

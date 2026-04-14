@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.7.0)
+VERSION(v0.7.1)
 
 SRCS(
     signal.go
@@ -39,6 +39,13 @@ IF (OS_ANDROID)
     )
 
     GO_TEST_SRCS(signal_linux_test.go)
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        signal_unix.go
+        signal_unsupported.go
+    )
 ENDIF()
 
 END()

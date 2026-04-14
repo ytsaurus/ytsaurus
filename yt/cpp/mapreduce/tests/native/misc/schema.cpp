@@ -99,7 +99,7 @@ TEST(Schema, DeletedColumn) {
 
     auto updatedSchema = TTableSchema()
                 .AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true))
-                .AddColumn(TColumnSchema().StableName("data").Deleted(true));
+                .AddDeletedColumn(TDeletedColumnSchema().StableName("data"));
 
     TAlterTableOptions alterOptions;
     alterOptions.Schema(updatedSchema);

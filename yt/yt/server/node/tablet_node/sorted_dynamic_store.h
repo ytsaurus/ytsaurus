@@ -54,7 +54,16 @@ public:
         TTimestamp ReadTimestamp;
     };
 
-    using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, TConflictInfo conflictInfo, TDuration timeout)>;
+    struct TRowBlockedWaitingResult
+    {
+        // Transaction id the timeout happend during waiting on blocked row if any.
+        TTransactionId TransactionId = {};
+    };
+
+    using TRowBlockedHandler = TCallback<TRowBlockedWaitingResult(
+        TSortedDynamicRow row,
+        TConflictInfo conflictInfo,
+        TDuration timeout)>;
 
     //! Sets the handler that is being invoked when read request faces a blocked row.
     void SetRowBlockedHandler(TRowBlockedHandler handler);
@@ -64,7 +73,7 @@ public:
 
     //! Checks if a given #row has any locks from #lockMask with prepared timestamp
     //! less than #timestamp. If so, raises |RowBlocked| signal and loops.
-    void WaitOnBlockedRow(
+    TDuration WaitOnBlockedRow(
         TSortedDynamicRow row,
         TLockMask lockMask,
         TTimestamp timestamp);
@@ -191,8 +200,9 @@ public:
     void SetBackupCheckpointTimestamp(TTimestamp timestamp) override;
 
     // Passive dynamic stores loaded from snapshot can be flushed in arbitrary order.
-    // Their flush index is null.
-    DEFINE_BYVAL_RW_PROPERTY(ui32, FlushIndex, 0);
+    // Their flush index is zero.
+    ui32 GetFlushIndex() const;
+    void SetFlushIndex(ui32 value);
 
     bool IsMergeRowsOnFlushAllowed() const;
 
@@ -260,6 +270,8 @@ private:
 
     i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;
+
+    std::atomic<ui32> FlushIndex_ = 0;
 
     bool MergeRowsOnFlushAllowed_ = true;
 

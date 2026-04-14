@@ -92,12 +92,6 @@ public:
 
     void Initialize() override
     {
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
-        transactionManager->RegisterTransactionActionHandlers<TReqCopySynchronizablePortalAttributes>({
-            .Prepare = BIND_NO_PROPAGATE(&TPortalManager::HydraCopySynchronizablePortalAttributes, Unretained(this)),
-        });
-
         SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
             BIND(&TPortalManager::OnSynchronizePortalExits, MakeWeak(this)));
@@ -159,9 +153,8 @@ public:
                 GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->MutableAttributes());
                 ToProto(portalExitInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
 
-                auto effectiveAcl = securityManager->GetEffectiveAcl(node);
-                auto serializedEffectiveAcl = ConvertToYsonString(effectiveAcl).ToString();
-                portalExitInfo->set_effective_acl(serializedEffectiveAcl);
+                auto inheritedAcl = securityManager->GetEffectiveAcl(node, /*skipFirstObject*/ true);
+                portalExitInfo->set_inherited_acl(ToProto(ConvertToYsonString(inheritedAcl)));
 
                 portalExitInfo->set_direct_acl(ToProto(ConvertToYsonString(node->Acd().Acl())));
 
@@ -196,14 +189,14 @@ public:
         auto path = cypressManager->GetNodePath(trunkNode, transaction);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto effectiveAcl = securityManager->GetEffectiveAcl(trunkNode);
+        auto inheritedAcl = securityManager->GetEffectiveAcl(trunkNode, /*skipFirstObject*/ true);
         auto effectiveAnnotation = GetEffectiveAnnotation(node);
 
         NProto::TReqCreatePortalExit request;
         ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
         ToProto(request.mutable_account_id(), trunkNode->Account()->GetId());
         request.set_path(path);
-        request.set_effective_acl(ToProto(ConvertToYsonString(effectiveAcl)));
+        request.set_inherited_acl(ToProto(ConvertToYsonString(inheritedAcl)));
         request.set_direct_acl(ToProto(ConvertToYsonString(trunkNode->Acd().Acl())));
         request.set_inherit_acl(trunkNode->Acd().Inherit());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
@@ -362,45 +355,6 @@ private:
         return owner;
     }
 
-    void HydraCopySynchronizablePortalAttributes(
-        TTransaction* transaction,
-        TReqCopySynchronizablePortalAttributes* request,
-        const TTransactionPrepareOptions& prepareOptions)
-    {
-        YT_VERIFY(prepareOptions.Persistent);
-
-        auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
-        auto destinationNodeId = FromProto<TNodeId>(request->destination_node_id());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId));
-        auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
-        if (!sourceNode || !destinationNode) {
-            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist "
-                "(TransactionId: %v, SourceNodeId: %v, DestinationNodeId: %v)",
-                sourceNode ? "destination" : "source",
-                transaction->GetId(),
-                sourceNodeId,
-                destinationNodeId);
-            return;
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto sourceAcd = securityManager->GetAcd(sourceNode);
-        {
-            auto destinationAcd = securityManager->GetAcd(destinationNode).AsMutable();
-            destinationAcd->SetEntries(sourceAcd->Acl());
-            destinationAcd->SetOwner(sourceAcd->GetOwner());
-            destinationAcd->SetInherit(sourceAcd->Inherit());
-        }
-
-        if (auto annotation = sourceNode->TryGetAnnotation()) {
-            destinationNode->SetAnnotation(std::move(*annotation));
-        } else {
-            destinationNode->RemoveAnnotation();
-        }
-    }
-
     void HydraSynchronizePortalExit(NProto::TReqSynchronizePortalExits* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -424,8 +378,8 @@ private:
                 inheritableAttributes->MergeFrom(*attributesDict);
 
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
-                auto effectiveAcl = DeserializeAclOrAlert(
-                    ConvertToNode(TYsonString(portalExitInfo.effective_acl())),
+                auto inheritedAcl = DeserializeAclOrAlert(
+                    ConvertToNode(TYsonString(portalExitInfo.inherited_acl())),
                     securityManager);
                 auto directAcl = DeserializeAclOrAlert(
                     ConvertToNode(TYsonString(portalExitInfo.direct_acl())),
@@ -447,12 +401,20 @@ private:
 
                 // NB: Fields of exitNode are updated after protobuf parsing in order to avoid partial updating.
                 exitNode->EffectiveInheritableAttributes().emplace(inheritableAttributes->Attributes().ToPersistent());
-
-                exitNode->Acd().SetEntries(effectiveAcl);
-                exitNode->Acd().SetInherit(portalExitInfo.inherit_acl());
-                exitNode->Acd().SetOwner(owner);
-
                 exitNode->DirectAcd().SetEntries(directAcl);
+
+                auto effectiveAcl = std::move(directAcl);
+                effectiveAcl.Entries.insert(
+                    effectiveAcl.Entries.end(),
+                    std::make_move_iterator(inheritedAcl.Entries.begin()),
+                    std::make_move_iterator(inheritedAcl.Entries.end()));
+
+                {
+                    auto acd = securityManager->GetAcd(exitNode).AsMutable();
+                    acd->SetEntries(effectiveAcl);
+                    acd->SetInherit(portalExitInfo.inherit_acl());
+                    acd->SetOwner(owner);
+                }
 
                 if (effectiveAnnotationInfo) {
                     exitNode->SetAnnotation(std::move(effectiveAnnotationInfo->Annotation));
@@ -501,14 +463,12 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountOrThrow(accountId, /*activeLifeStageOnly*/ true);
 
-        auto effectiveAcl = DeserializeAclOrAlert(
-            ConvertToNode(TYsonString(request->effective_acl())),
+        auto inheritedAcl = DeserializeAclOrAlert(
+            ConvertToNode(TYsonString(request->inherited_acl())),
             securityManager);
-        auto directAcl = request->has_direct_acl()
-            ? std::optional(DeserializeAclOrAlert(
-                ConvertToNode(TYsonString(request->direct_acl())),
-                securityManager))
-            : std::nullopt;
+        auto directAcl = DeserializeAclOrAlert(
+            ConvertToNode(TYsonString(request->direct_acl())),
+            securityManager);
 
         auto explicitAttributes = FromProto(request->explicit_node_attributes());
         auto inheritedAttributes = FromProto(request->inherited_node_attributes());
@@ -568,11 +528,18 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(node);
 
-        node->Acd().SetEntries(effectiveAcl);
-        node->Acd().SetInherit(request->inherit_acl());
+        node->DirectAcd().SetEntries(directAcl);
 
-        if (directAcl) {
-            node->DirectAcd().SetEntries(*directAcl);
+        auto effectiveAcl = std::move(directAcl);
+        effectiveAcl.Entries.insert(
+            effectiveAcl.Entries.end(),
+            std::make_move_iterator(inheritedAcl.Entries.begin()),
+            std::make_move_iterator(inheritedAcl.Entries.end()));
+
+        {
+            auto acd = securityManager->GetAcd(node).AsMutable();
+            acd->SetEntries(effectiveAcl);
+            acd->SetInherit(request->inherit_acl());
         }
 
         if (auto ownerName = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Owner.Unintern())) {
@@ -591,9 +558,7 @@ private:
                 exitNodeId);
         }
 
-        if (!GetDynamicConfig()->DisableCypressNodeReachability) {
-            node->SetReachable(true);
-        }
+        node->SetReachable(true);
 
         if (effectiveAnnotation) {
             node->SetAnnotation(*effectiveAnnotation);
@@ -662,14 +627,14 @@ private:
 
         auto* exitNode = node->As<TPortalExitNode>();
         if (exitNode->GetRemovalStarted()) {
-            YT_LOG_DEBUG("Attempt to remove a portal exit node for which removal is already started (EntranceNodeId: %v)",
+            YT_LOG_DEBUG("Attempt to remove a portal exit node for which removal is already started (ExitNodeId: %v)",
                 exitNodeId);
             return;
         }
 
         exitNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG("Portal exit removal started (EntranceNodeId: %v)",
+        YT_LOG_DEBUG("Portal exit removal started (ExitNodeId: %v)",
             exitNodeId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

@@ -51,14 +51,14 @@ void TFixedPointNumber<U, P>::SetUnderlyingValue(U value)
 }
 
 template <typename U, int P>
-TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator += (const TFixedPointNumber& rhs)
+TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator+=(const TFixedPointNumber& rhs)
 {
     Value_ += rhs.Value_;
     return *this;
 }
 
 template <typename U, int P>
-TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator -= (const TFixedPointNumber<U, P>& rhs)
+TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator-=(const TFixedPointNumber<U, P>& rhs)
 {
     Value_ -= rhs.Value_;
     return *this;
@@ -66,7 +66,7 @@ TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator -= (const TFixedPoint
 
 template <typename U, int P>
 template <typename T>
-TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator *= (const T& value)
+TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator*=(const T& value)
 {
     Value_ *= value;
     return *this;
@@ -74,14 +74,14 @@ TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator *= (const T& value)
 
 template <typename U, int P>
 template <typename T>
-TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator /= (const T& value)
+TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator/=(const T& value)
 {
     Value_ /= value;
     return *this;
 }
 
 template <typename U, int P>
-TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator *= (const double& value)
+TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator*=(const double& value)
 {
     Value_ = std::round(Value_ * value);
     return *this;

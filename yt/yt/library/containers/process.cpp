@@ -117,9 +117,9 @@ THashMap<TString, TString> TPortoProcess::DecomposeEnv() const
     return result;
 }
 
-static TString CreateStdIONamedPipePath()
+static std::string CreateStdIONamedPipePath()
 {
-    const TString name = ToString(TGuid::Create());
+    const std::string name = ToString(TGuid::Create());
     return NFS::GetRealPath(NFS::CombinePaths("/tmp", name));
 }
 

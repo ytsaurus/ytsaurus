@@ -190,9 +190,9 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        if (RowCount_ == 0) {
+        if (RowCount_.load(std::memory_order_relaxed) == 0) {
             // Empty chunk.
-            return VoidFuture;
+            return OKFuture;
         }
 
         return BIND(&TUnversionedChunkWriterBase::DoClose, MakeStrong(this))
@@ -234,7 +234,7 @@ public:
     TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
-        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_row_count(RowCount_.load(std::memory_order_relaxed));
         return dataStatistics;
     }
 
@@ -255,7 +255,7 @@ public:
 
     i64 GetDataWeight() const override
     {
-        return DataWeight_;
+        return DataWeight_.load(std::memory_order_relaxed);
     }
 
     std::optional<TRowsDigest> GetDigest() const override
@@ -277,8 +277,8 @@ protected:
     const i64 BlockSize_;
     const i64 BufferSize_;
 
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
+    std::atomic<i64> RowCount_ = 0;
+    std::atomic<i64> DataWeight_ = 0;
     i64 DataWeightSinceLastBlockFlush_ = 0;
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
@@ -339,8 +339,9 @@ protected:
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
         miscExt.set_unique_keys(Schema_->IsUniqueKeys());
-        miscExt.set_row_count(RowCount_);
-        miscExt.set_data_weight(DataWeight_);
+        miscExt.set_row_count(RowCount_.load(std::memory_order_relaxed));
+        miscExt.set_data_weight(DataWeight_.load(std::memory_order_relaxed));
+        miscExt.set_is_compatible_with_dynamic_table_constraints(IsCompatibleWithDynamicTableConstraints_);
 
         if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
             miscExt.set_min_timestamp(ChunkTimestamps_.MinTimestamp);
@@ -438,15 +439,28 @@ protected:
         int keyColumnCount = IsSorted() ? Schema_->GetKeyColumnCount() : 0;
 
         for (int index = 0; index < keyColumnCount; ++index) {
-            weight += NTableClient::GetDataWeight(row[index]);
+            auto valueWeight = NTableClient::GetDataWeight(row[index]);
+            if (valueWeight > MaxStringValueLength) {
+                IsCompatibleWithDynamicTableConstraints_ = false;
+            }
+            weight += valueWeight;
         }
         ValidateKeyWeight(weight, Config_, Options_);
 
         for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
-            weight += NTableClient::GetDataWeight(row[index]);
+            auto valueWeight = NTableClient::GetDataWeight(row[index]);
+            if (valueWeight > MaxStringValueLength) {
+                IsCompatibleWithDynamicTableConstraints_ = false;
+            }
+            weight += valueWeight;
         }
+
+        if (weight > MaxClientVersionedRowDataWeight) {
+            IsCompatibleWithDynamicTableConstraints_ = false;
+        }
+
         ValidateRowWeight(weight, Config_, Options_);
-        DataWeight_ += weight;
+        DataWeight_.fetch_add(weight, std::memory_order_relaxed);
         DataWeightSinceLastBlockFlush_ += weight;
 
         return weight;
@@ -466,6 +480,7 @@ private:
     i64 SamplesExtSize_ = 0;
 
     TColumnarStatistics ColumnarStatistics_;
+    bool IsCompatibleWithDynamicTableConstraints_ = true;
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
@@ -583,7 +598,7 @@ public:
 
         for (auto row : rows) {
             UpdateDataWeight(row);
-            ++RowCount_;
+            i64 rowCount = RowCount_.fetch_add(1, std::memory_order_relaxed) + 1;
             BlockWriter_->WriteRow(row);
 
             if (BlockWriter_->GetBlockSize() >= BlockSize_ ||
@@ -591,7 +606,7 @@ public:
             {
                 DataWeightSinceLastBlockFlush_ = 0;
                 auto block = BlockWriter_->FlushBlock();
-                block.Meta.set_chunk_row_count(RowCount_);
+                block.Meta.set_chunk_row_count(rowCount);
                 RegisterBlock(block, row);
                 BlockWriter_ = std::make_unique<THorizontalBlockWriter>(Schema_, Options_->MemoryUsageTracker);
             }
@@ -618,7 +633,7 @@ private:
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
-            block.Meta.set_chunk_row_count(RowCount_);
+            block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order_relaxed));
             RegisterBlock(block, LastKey_.Get());
         }
 
@@ -724,7 +739,7 @@ public:
                 columnWriter->WriteUnversionedValues(range);
             }
 
-            RowCount_ += range.Size();
+            RowCount_.fetch_add(range.Size(), std::memory_order_relaxed);
 
             startRowIndex = rowIndex;
 
@@ -807,8 +822,8 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         DataWeightSinceLastBlockFlush_ = 0;
-        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_);
-        block.Meta.set_chunk_row_count(RowCount_);
+        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_.load(std::memory_order_relaxed));
+        block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order_relaxed));
         RegisterBlock(block, lastRow);
     }
 
@@ -926,11 +941,12 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        RowCount_ += block.Meta.row_count();
-        block.Meta.set_chunk_row_count(RowCount_);
+        i64 blockRowCount = block.Meta.row_count();
+        i64 rowCount = RowCount_.fetch_add(blockRowCount, std::memory_order_relaxed) + blockRowCount;
+        block.Meta.set_chunk_row_count(rowCount);
 
         // For partition chunks we may assume that data weight is equal to uncompressed data size.
-        DataWeight_ += block.Meta.uncompressed_size();
+        DataWeight_.fetch_add(block.Meta.uncompressed_size(), std::memory_order_relaxed);
 
         PartitionsExt_.set_row_counts(
             block.Meta.partition_index(),
@@ -1050,7 +1066,7 @@ public:
             TChunkedMemoryPool::DefaultStartChunkSize,
             Options_->MemoryUsageTracker,
             /*allowMemoryOvercommit*/ true))
-        , RowsDigestComputer_(NameTable_)
+        , RowsDigestBuilder_(NameTable_)
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
@@ -1212,7 +1228,7 @@ protected:
             EvaluateSkynetColumns(mutableRow, rowIndex + 1 == rows.Size());
 
             if (Options_->ComputeDigest) {
-                RowsDigestComputer_.ProcessRow(row);
+                RowsDigestBuilder_.ProcessRow(row);
             }
 
             result.push_back(mutableRow);
@@ -1242,14 +1258,14 @@ private:
     TCompactVector<i64, TypicalColumnCount> IdValidationMarks_;
     i64 CurrentIdValidationMark_ = 1;
 
-    TRowsDigestComputer RowsDigestComputer_;
+    TRowsDigestBuilder RowsDigestBuilder_;
 
     std::optional<TRowsDigest> GetDigest() const override
     {
         if (!Options_->ComputeDigest) {
             return std::nullopt;
         }
-        return RowsDigestComputer_.GetDigest();
+        return RowsDigestBuilder_.GetDigest();
     }
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)
@@ -1472,7 +1488,7 @@ public:
             writeBlocksOptions = std::move(writeBlocksOptions),
             partitionCount,
             dataSink
-        ] (IChunkWriterPtr underlyingWriter){
+        ] (IChunkWriterPtr underlyingWriter) {
             return New<TPartitionChunkWriter>(
                 config,
                 options,
@@ -1488,7 +1504,7 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         if (!Error_.IsOK()) {
             return false;
@@ -1666,7 +1682,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    auto writer = New<TPartitionMultiChunkWriter>(
+    return New<TPartitionMultiChunkWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -1683,10 +1699,6 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(blockCache),
         dataSink,
         std::move(writeBlocksOptions));
-
-    writer->Init();
-
-    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1733,7 +1745,7 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
@@ -1820,7 +1832,7 @@ public:
 
     bool Write(TRange<TUnversionedRow> rows) override
     {
-        YT_VERIFY(!SwitchingSession_);
+        YT_VERIFY(!SwitchingSession_.load());
 
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
@@ -2192,7 +2204,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TCallback<void(TKey, TKey)> boundaryKeysProcessor)
 {
     auto createSuitableSchemalessMultiChunkWriter = [&] <class TWriter> (auto createChunkWriter) {
-        auto writer = New<TWriter>(
+        return New<TWriter>(
             std::move(config),
             std::move(options),
             std::move(client),
@@ -2209,10 +2221,6 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             std::move(throttler),
             std::move(blockCache),
             std::move(boundaryKeysProcessor));
-
-        writer->Init();
-
-        return writer;
     };
 
     switch (options->VersionedWriteOptions.WriteMode) {

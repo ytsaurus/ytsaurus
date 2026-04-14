@@ -1,40 +1,43 @@
 package dockercfg
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"os/exec"
 	"runtime"
 	"strings"
 )
 
-// This is used by the docker CLI in casses where an oauth identity token is used.
-// In that case the username is stored litterally as `<token>`
-// When fetching the credentials we check for this value to determine if
+// This is used by the docker CLI in cases where an oauth identity token is used.
+// In that case the username is stored literally as `<token>`
+// When fetching the credentials we check for this value to determine if.
 const tokenUsername = "<token>"
 
 // GetRegistryCredentials gets registry credentials for the passed in registry host.
 //
-// This will use `LoadDefaultConfig` to read registry auth details from the config.
+// This will use [LoadDefaultConfig] to read registry auth details from the config.
 // If the config doesn't exist, it will attempt to load registry credentials using the default credential helper for the platform.
 func GetRegistryCredentials(hostname string) (string, string, error) {
 	cfg, err := LoadDefaultConfig()
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", "", err
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", "", fmt.Errorf("load default config: %w", err)
 		}
+
 		return GetCredentialsFromHelper("", hostname)
 	}
+
 	return cfg.GetRegistryCredentials(hostname)
 }
 
 // ResolveRegistryHost can be used to transform a docker registry host name into what is used for the docker config/cred helpers
 //
 // This is useful for using with containerd authorizers.
-// Natrually this only transforms docker hub URLs.
+// Naturally this only transforms docker hub URLs.
 func ResolveRegistryHost(host string) string {
 	switch host {
 	case "index.docker.io", "docker.io", "https://index.docker.io/v1/", "registry-1.docker.io":
@@ -43,9 +46,9 @@ func ResolveRegistryHost(host string) string {
 	return host
 }
 
-// GetRegistryCredentials gets credentials, if any, for the provided hostname
+// GetRegistryCredentials gets credentials, if any, for the provided hostname.
 //
-// Hostnames should already be resolved using `ResolveRegistryAuth`
+// Hostnames should already be resolved using [ResolveRegistryHost].
 //
 // If the returned username string is empty, the password is an identity token.
 func (c *Config) GetRegistryCredentials(hostname string) (string, string, error) {
@@ -55,7 +58,14 @@ func (c *Config) GetRegistryCredentials(hostname string) (string, string, error)
 	}
 
 	if c.CredentialsStore != "" {
-		return GetCredentialsFromHelper(c.CredentialsStore, hostname)
+		username, password, err := GetCredentialsFromHelper(c.CredentialsStore, hostname)
+		if err != nil {
+			return "", "", fmt.Errorf("get credentials from store: %w", err)
+		}
+
+		if username != "" || password != "" {
+			return username, password, nil
+		}
 	}
 
 	auth, ok := c.AuthConfigs[hostname]
@@ -87,78 +97,96 @@ func DecodeBase64Auth(auth AuthConfig) (string, string, error) {
 	decoded := make([]byte, decLen)
 	n, err := base64.StdEncoding.Decode(decoded, []byte(auth.Auth))
 	if err != nil {
-		return "", "", fmt.Errorf("error decoding auth from file: %w", err)
+		return "", "", fmt.Errorf("decode auth: %w", err)
 	}
 
-	if n > decLen {
-		return "", "", fmt.Errorf("decoded value is longer than expected length, expected: %d, actual: %d", decLen, n)
+	decoded = decoded[:n]
+
+	const sep = ":"
+	user, pass, found := strings.Cut(string(decoded), sep)
+	if !found {
+		return "", "", fmt.Errorf("invalid auth: missing %q separator", sep)
 	}
 
-	split := strings.SplitN(string(decoded), ":", 2)
-	if len(split) != 2 {
-		return "", "", errors.New("invalid auth string")
-	}
-
-	return split[0], strings.Trim(split[1], "\x00"), nil
+	return user, pass, nil
 }
 
-// Errors from credential helpers
+// Errors from credential helpers.
 var (
 	ErrCredentialsNotFound         = errors.New("credentials not found in native keychain")
 	ErrCredentialsMissingServerURL = errors.New("no credentials server URL")
 )
 
+//nolint:gochecknoglobals // These are used to mock exec in tests.
+var (
+	// execLookPath is a variable that can be used to mock exec.LookPath in tests.
+	execLookPath = exec.LookPath
+	// execCommand is a variable that can be used to mock exec.Command in tests.
+	execCommand = exec.Command
+)
+
 // GetCredentialsFromHelper attempts to lookup credentials from the passed in docker credential helper.
 //
-// The credential helpoer should just be the suffix name (no "docker-credential-").
+// The credential helper should just be the suffix name (no "docker-credential-").
 // If the passed in helper program is empty this will look up the default helper for the platform.
 //
 // If the credentials are not found, no error is returned, only empty credentials.
 //
-// Hostnames should already be resolved using `ResolveRegistryAuth`
+// Hostnames should already be resolved using [ResolveRegistryHost]
 //
 // If the username string is empty, the password string is an identity token.
 func GetCredentialsFromHelper(helper, hostname string) (string, string, error) {
 	if helper == "" {
-		helper = getCredentialHelper()
-	}
-	if helper == "" {
-		return "", "", nil
+		helper, helperErr := getCredentialHelper()
+		if helperErr != nil {
+			return "", "", fmt.Errorf("get credential helper: %w", helperErr)
+		}
+
+		if helper == "" {
+			return "", "", nil
+		}
 	}
 
-	p, err := exec.LookPath("docker-credential-" + helper)
+	helper = "docker-credential-" + helper
+	p, err := execLookPath(helper)
 	if err != nil {
+		if !errors.Is(err, exec.ErrNotFound) {
+			return "", "", fmt.Errorf("look up %q: %w", helper, err)
+		}
+
 		return "", "", nil
 	}
 
-	cmd := exec.Command(p, "get")
+	var outBuf, errBuf bytes.Buffer
+	cmd := execCommand(p, "get")
 	cmd.Stdin = strings.NewReader(hostname)
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
 
-	b, err := cmd.Output()
-	if err != nil {
-		s := strings.TrimSpace(string(b))
-
-		switch s {
+	if err = cmd.Run(); err != nil {
+		out := strings.TrimSpace(outBuf.String())
+		switch out {
 		case ErrCredentialsNotFound.Error():
 			return "", "", nil
 		case ErrCredentialsMissingServerURL.Error():
-			return "", "", errors.New(s)
+			return "", "", ErrCredentialsMissingServerURL
 		default:
+			return "", "", fmt.Errorf("execute %q stdout: %q stderr: %q: %w",
+				helper, out, strings.TrimSpace(errBuf.String()), err,
+			)
 		}
-
-		return "", "", err
 	}
 
 	var creds struct {
-		Username string
-		Secret   string
+		Username string `json:"Username"`
+		Secret   string `json:"Secret"`
 	}
 
-	if err := json.Unmarshal(b, &creds); err != nil {
-		return "", "", err
+	if err = json.Unmarshal(outBuf.Bytes(), &creds); err != nil {
+		return "", "", fmt.Errorf("unmarshal credentials from: %q: %w", helper, err)
 	}
 
-	// When tokenUsername is used, the output is an identity token and the username is garbage
+	// When tokenUsername is used, the output is an identity token and the username is garbage.
 	if creds.Username == tokenUsername {
 		creds.Username = ""
 	}
@@ -167,18 +195,21 @@ func GetCredentialsFromHelper(helper, hostname string) (string, string, error) {
 }
 
 // getCredentialHelper gets the default credential helper name for the current platform.
-func getCredentialHelper() string {
+func getCredentialHelper() (string, error) {
 	switch runtime.GOOS {
 	case "linux":
-		if _, err := exec.LookPath("pass"); err == nil {
-			return "pass"
+		if _, err := exec.LookPath("pass"); err != nil {
+			if errors.Is(err, exec.ErrNotFound) {
+				return "secretservice", nil
+			}
+			return "", fmt.Errorf(`look up "pass": %w`, err)
 		}
-		return "secretservice"
+		return "pass", nil
 	case "darwin":
-		return "osxkeychain"
+		return "osxkeychain", nil
 	case "windows":
-		return "wincred"
+		return "wincred", nil
 	default:
-		return ""
+		return "", nil
 	}
 }

@@ -105,7 +105,7 @@ struct THuggingfaceConfig
 
 struct TS3Config
 {
-    TString Url;
+    std::string Url;
     TString Region;
     TString Bucket;
 
@@ -146,7 +146,6 @@ NS3::IClientPtr CreateS3Client(
 
     clientConfig->Url = std::move(s3Config.Url);
     clientConfig->Region = std::move(s3Config.Region);
-    clientConfig->Bucket = std::move(s3Config.Bucket);
 
     auto sslConfig = NYT::New<NYT::NCrypto::TSslContextConfig>();
     sslConfig->InsecureSkipVerify = true;
@@ -1034,7 +1033,7 @@ void ImportFilesFromSource(
 
 void ImportFilesFromS3(
     const TString& proxy,
-    const TString& url,
+    const std::string& url,
     const TString& region,
     const TString& bucket,
     const TString& prefix,
@@ -1106,7 +1105,7 @@ void ImportFilesFromHuggingface(
         networkProject,
         TSourceConfig{
             .HuggingfaceConfig = THuggingfaceConfig{
-                .UrlOverride = urlOverride
+                .UrlOverride = urlOverride,
             },
             .Format = format,
         },

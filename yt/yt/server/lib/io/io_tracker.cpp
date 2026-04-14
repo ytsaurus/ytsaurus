@@ -73,7 +73,7 @@ struct TSortedIOTagList
         return TSortedIOTagList{std::move(srcTags)};
     }
 
-    bool operator == (const TSortedIOTagList& other) const
+    bool operator==(const TSortedIOTagList& other) const
     {
         return Tags == other.Tags;
     }
@@ -84,7 +84,7 @@ struct TAggregateTagsKey
     TSortedIOTagList InlineTags;
     std::optional<TSortedIOTagList> NestedTags;
 
-    bool operator == (const TAggregateTagsKey& other) const
+    bool operator==(const TAggregateTagsKey& other) const
     {
         return InlineTags == other.InlineTags && NestedTags == other.NestedTags;
     }
@@ -408,7 +408,7 @@ public:
         , EventsProcessed_(Profiler_.Counter("/events_processed"))
     { }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         // NB. Passing MakeStrong here causes a memory leak because of cyclic reference. But it doesn't bother
         // us since this class is used as a singleton and is not intended to be destroyed.
@@ -569,9 +569,7 @@ void IIOTracker::Enqueue(TIOCounters counters, THashMap<std::string, std::string
 
 IIOTrackerPtr CreateIOTracker(TIOTrackerConfigPtr config)
 {
-    auto tracker = New<TIOTracker>(std::move(config));
-    tracker->Initialize();
-    return tracker;
+    return New<TIOTracker>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

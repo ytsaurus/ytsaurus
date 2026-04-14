@@ -8,12 +8,39 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECompatTableSchemaMode,
+    ((Weak)      (0))
+    ((Strong)    (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NTableClient::TColumnStableNameToConstraintMap& TSchemafulNode::GetConstraints() const
+{
+    static const NTableClient::TColumnStableNameToConstraintMap EmptyColumnStableNameToConstraintMap;
+    if (!Constraints_) {
+        return EmptyColumnStableNameToConstraintMap;
+    }
+
+    return *Constraints_;
+}
+
+void TSchemafulNode::SetConstraints(NTableClient::TColumnStableNameToConstraintMap constraints)
+{
+    if (constraints.empty()) {
+        Constraints_.reset();
+    } else {
+        Constraints_ = std::make_unique<NTableClient::TColumnStableNameToConstraintMap>(std::move(constraints));
+    }
+}
+
 void TSchemafulNode::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 
     Save(context, Schema_);
     Save(context, SchemaMode_);
+    Save(context, GetConstraints());
 }
 
 void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
@@ -21,12 +48,21 @@ void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Schema_);
-    Load(context, SchemaMode_);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+        SchemaMode_ = CheckedEnumCast<NTableClient::ETableSchemaMode>(Load<ECompatTableSchemaMode>(context));
+    } else {
+        Load(context, SchemaMode_);
+    }
     // COMPAT(theevilbird)
     if (context.GetVersion() >= NCellMaster::EMasterReign::AddSchemaRevision &&
         context.GetVersion() < NCellMaster::EMasterReign::RemoveSchemaRevision) {
         NHydra::TRevision tmpRevision;
         Load(context, tmpRevision);
+    }
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >=  NCellMaster::EMasterReign::AddConstraintsIntoMasterSnapshot) {
+        SetConstraints(Load<NTableClient::TColumnStableNameToConstraintMap>(context));
     }
 }
 

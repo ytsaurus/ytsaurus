@@ -27,6 +27,8 @@ target_compile_options(library-query-unittests INTERFACE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(library-query-unittests INTERFACE
@@ -62,6 +64,8 @@ target_compile_options(library-query-unittests.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_include_directories(library-query-unittests.global PRIVATE

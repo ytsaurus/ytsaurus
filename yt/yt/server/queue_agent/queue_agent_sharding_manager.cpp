@@ -1,5 +1,7 @@
 #include "queue_agent_sharding_manager.h"
+
 #include "config.h"
+#include "pass_profiler.h"
 
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
@@ -68,6 +70,7 @@ public:
             ControlInvoker_,
             BIND(&TQueueAgentShardingManager::Pass, MakeWeak(this)),
             DynamicConfig_.Acquire()->PassPeriod))
+        , PassProfiler_(profiler.WithPrefix("/queue_agent_sharding_manager"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgentShardingManager::BuildOrchid, MakeWeak(this)))
             ->Via(ControlInvoker_))
         , SyncBannedQueueAgentInstancesFrequency_(CalculateSyncBannedQueueAgentInstancesFrequency(*DynamicConfig_.Acquire()))
@@ -114,6 +117,7 @@ private:
     const TYPath DynamicStateRoot_;
     const TGauge BannedGauge_;
     const TPeriodicExecutorPtr PassExecutor_;
+    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
     std::atomic<bool> Active_ = false;
@@ -145,6 +149,7 @@ private:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
+        PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
         try {
             GuardedPass();
@@ -157,9 +162,11 @@ private:
                 "Error performing queue agent manager pass",
                 /*tags*/ {},
                 ex));
+            PassProfiler_.OnError();
         }
 
         AlertCollector_->PublishAlerts();
+        PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
     }
 
     //! Uses FarmFingerprint as a deterministic (both platform and time-agnostic) hash.
@@ -173,11 +180,11 @@ private:
 
     //! Picks host using rendezvous hashing.
     //! The probability of host reassignment in case of any small host set changes is low.
-    static std::string PickHost(const TCrossClusterReference& object, const std::vector<TMemberInfo>& queueAgents)
+    static std::string PickHost(const TGenericObjectPath& object, const std::vector<TMemberInfo>& queueAgents)
     {
         YT_VERIFY(!queueAgents.empty());
 
-        auto objectHash = FarmHashCombine(0, {object.Cluster, object.Path});
+        auto objectHash = FarmHashCombine(0, {object.GetCluster().value(), object.GetPath()});
 
         auto getCombinedHash = [objectHash] (const TMemberInfo& queueAgent) {
             return FarmHashCombine(objectHash, {queueAgent.Id});
@@ -305,9 +312,9 @@ private:
         WaitFor(AllSucceeded(futures))
             .ThrowOnError();
 
-        const auto& queueRows = asyncQueueRows.Get().Value();
-        const auto& consumerRows = asyncConsumerRows.Get().Value();
-        const auto& objectMappingRows = asyncObjectMappingRows.Get().Value();
+        const auto& queueRows = asyncQueueRows.GetOrCrash().Value();
+        const auto& consumerRows = asyncConsumerRows.GetOrCrash().Value();
+        const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
         YT_LOG_DEBUG(
             "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, ObjectMappingRowCount: %v)",
@@ -317,12 +324,12 @@ private:
 
         // Map all objects to their responsible queue agents via rendezvous hashing.
 
-        THashSet<TCrossClusterReference> allObjects;
+        THashSet<TGenericObjectPath> allObjects;
         for (const auto& queueRow : queueRows) {
-            allObjects.insert(queueRow.Ref);
+            allObjects.emplace(queueRow.Path);
         }
         for (const auto& consumerRow : consumerRows) {
-            allObjects.insert(consumerRow.Ref);
+            allObjects.insert(consumerRow.Path);
         }
 
         auto currentMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);

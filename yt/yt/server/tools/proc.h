@@ -170,7 +170,7 @@ struct TChownChmodTool
 struct TGetDirectorySizesAsRootConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> Paths;
+    std::vector<std::string> Paths;
     bool IgnoreUnavailableFiles;
     bool DeduplicateByINodes;
     bool CheckDeviceId;
@@ -185,6 +185,28 @@ DEFINE_REFCOUNTED_TYPE(TGetDirectorySizesAsRootConfig)
 struct TGetDirectorySizesAsRootTool
 {
     std::vector<i64> operator()(const TGetDirectorySizesAsRootConfigPtr& config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGetTotalDirectoriesSizeAsRootConfig
+    : public TGetDirectorySizesAsRootConfig
+{
+    REGISTER_YSON_STRUCT(TGetTotalDirectoriesSizeAsRootConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGetTotalDirectoriesSizeAsRootConfig)
+
+//! Get total size of directories.
+//! If #DeduplicateByINodes is set multiple directories are processed with shared
+//! inode deduplication.
+//! If #CheckDeviceId is set all seed directories must come from the same device.
+//! Only files that reside on the seed device are considered during traversal.
+struct TGetTotalDirectoriesSizeAsRootTool
+{
+    i64 operator()(const TGetDirectorySizesAsRootConfigPtr& config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,6 +315,27 @@ DEFINE_REFCOUNTED_TYPE(TMkFsConfig)
 struct TMkFsAsRootTool
 {
     void operator()(const TMkFsConfigPtr& config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChangeOomScoreAdjAsRootConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    pid_t Pid;
+    int Score;
+
+    REGISTER_YSON_STRUCT(TChangeOomScoreAdjAsRootConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChangeOomScoreAdjAsRootConfig)
+
+struct TChangeOomScoreAdjAsRootTool
+{
+    void operator()(const TChangeOomScoreAdjAsRootConfigPtr& config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -100,7 +100,7 @@ public:
                 << TErrorAttribute("node_path", NodePath_)
                 << TErrorAttribute("target_version", TargetVersion_);
             Acquired_.Set(std::move(exceededError));
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto checkVersion = [this, this_ = MakeStrong(this)] (TYsonString&& rsp) {
@@ -108,7 +108,7 @@ public:
             auto version = ExtractVersion(node);
             if (version >= TargetVersion_) {
                 Acquired_.Set(ELockAcquisionState::Outdated);
-                return VoidFuture;
+                return OKFuture;
             }
 
             return LockEntry_->CheckLockState()
@@ -229,6 +229,11 @@ public:
             .Apply(BIND(std::move(enqueueIfNotAcquired)).AsyncVia(LockWaiterInvoker_));
     }
 
+    void SetLockCheckPeriod(TDuration duration) override
+    {
+        CheckLocksExecutor_->SetPeriod(duration);
+    }
+
 private:
     THashMap<TLockId, TIntrusivePtr<TWaitingLockEntry>> LockEntries_;
     THashMap<TLockId, TFuture<void>> RunningChecks_;
@@ -252,7 +257,7 @@ private:
                     runningCheck->second.Cancel(TError("Exceeded lock check time"));
                     YT_LOG_DEBUG("Exceeded lock check time (LockId: %v)", lockId);
                 } else {
-                    const auto& checkResult = runningCheck->second.Get();
+                    const auto& checkResult = runningCheck->second.GetOrCrash();
                     if (!checkResult.IsOK()) {
                         YT_LOG_DEBUG(checkResult, "Lock check failed (LockId: %v)", lockId);
                     }

@@ -157,6 +157,14 @@ func WithVolumeMount(volume string) testcontainers.CustomizeRequestOption {
 	}
 }
 
+func WithOperationsArchive() testcontainers.CustomizeRequestOption {
+	return func(req *testcontainers.GenericContainerRequest) error {
+		req.Cmd = append(req.Cmd, "--init-operations-archive")
+
+		return nil
+	}
+}
+
 func getAvailablePort() (int, error) {
 	address, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:0", "0.0.0.0"))
 	if err != nil {

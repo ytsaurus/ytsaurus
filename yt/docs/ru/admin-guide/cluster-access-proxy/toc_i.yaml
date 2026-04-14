@@ -1,0 +1,6 @@
+items:
+- { name: Обзор,                               href: index.md }
+- { name: Решение проблемы сетевой изоляции,   href: network-isolation.md }
+- { name: Разделение трафика,                  href: manage-traffic.md }
+- { name: Настройка доступа к SPYT,            href: spyt.md }
+- { name: FAQ,                                 href: faq.md }

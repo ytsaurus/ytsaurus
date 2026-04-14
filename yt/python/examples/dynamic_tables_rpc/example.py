@@ -7,11 +7,11 @@ import os
 
 
 def main():
-    # You need to set up cluster address in YT_PROXY environment variable.
+    # Set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
         raise RuntimeError("Environment variable YT_PROXY is empty")
-    # Создаём rpc-клиент.
+    # Create an RPC-client.
     client = yt.wrapper.YtClient(cluster, config={"backend": "rpc"})
 
     schema = [
@@ -22,20 +22,20 @@ def main():
     table = "//tmp/{}-pytutorial-dynamic-tables-rpc".format(getpass.getuser())
     client.create("table", table, force=True, attributes={"schema": schema, "dynamic": True})
 
-    # Монтируем свежесозданную динамическую таблицу и добавляем в неё строку.
+    # Mounting new dynamic table and adding row into it.
     client.mount_table(table, sync=True)
     client.insert_rows(table, [{"x": 0, "y": 99}])
 
-    # Создаём таблетную транзакцию для транзакционной работы с таблицей.
+    # Create a tablet transaction for transactional work with the table.
     with client.Transaction(type="tablet"):
-        # Получаем строку с данным ключом
+        # Get the row with the given key
         rows = list(client.lookup_rows(table, [{"x": 0}]))
         if len(rows) == 1 and rows[0]["y"] <= 100:
             rows[0]["y"] += 1
-            # Обновляем строку.
+            # Update the row.
             client.insert_rows(table, rows)
 
-    # Выбираем все строки из таблицы и печатаем их.
+    # Select all rows from the table and print them.
     print(list(client.select_rows("* from [{}]".format(table))))
 
 

@@ -74,7 +74,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<NApi::NNative::IConnection> connection,
         NNodeTrackerClient::INodeChannelFactoryPtr channelFactory)
-        : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        : TAsyncExpiringCache(std::move(config), NRpc::TDispatcher::Get()->GetHeavyInvoker())
         , Connection_(std::move(connection))
         , ChannelFactory_(std::move(channelFactory))
     { }

@@ -53,14 +53,13 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("allow_bypass_master_resolve", &TThis::AllowBypassMasterResolve)
         .Default(false);
-    registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
-        .Default(false);
 
     registrar.Parameter("distributed_throttler", &TThis::DistributedThrottler)
         .DefaultNew();
 
     registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
-        .Default(true);
+        .Default(false);
+
     registrar.Parameter("default_per_user_read_request_weight_throttler", &TThis::DefaultPerUserReadRequestWeightThrottler)
         .DefaultNew();
     registrar.Parameter("default_per_user_write_request_weight_throttler", &TThis::DefaultPerUserWriteRequestWeightThrottler)
@@ -71,6 +70,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_fast_path_prerequisite_transaction_check", &TThis::EnableFastPathPrerequisiteTransactionCheck)
         .Default(true);
+
+    registrar.Parameter("request_rate_limit_factor", &TThis::RequestRateLimitFactor)
+        .Default(10);
 
     registrar.Postprocessor([] (TThis* config) {
         THROW_ERROR_EXCEPTION_IF(
@@ -86,6 +88,28 @@ void TSequoiaResponseKeeperDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBanServiceDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("use_in_object_service", &TThis::UseInObjectService)
+        .Default(false);
+    registrar.Parameter("cache_refresh_period", &TThis::CacheRefreshPeriod)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("cross_cluster_replicated_state", &TThis::CrossClusterReplicatedState)
+        .Default();
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->UseInObjectService && !config->Enable,
+            "Ban service must be enabled for usage");
+        THROW_ERROR_EXCEPTION_IF(
+            config->Enable && !config->CrossClusterReplicatedState,
+            "\"cross_cluster_replicated_state\" must be configured for enabled ban service");
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,10 +130,15 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
+    registrar.Parameter("ban_service", &TThis::BanService)
+        .DefaultNew();
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(DefaultThreadPoolSize);
     registrar.Parameter("default_get_response_size_limit", &TThis::DefaultGetResponseSizeLimit)
         .Default(1'000);
+    registrar.Parameter("select_subtree_rows_limit", &TThis::SelectSubtreeRowsLimit)
+       .GreaterThanOrEqual(100)
+       .Default(1'000'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,10 +3,13 @@
 #include "bootstrap.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/server/node/exec_node/job_controller.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -25,7 +28,9 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <util/datetime/base.h>
+
 #include <util/generic/ymath.h>
+
 #include <util/system/fstat.h>
 
 namespace NYT::NExecNode {
@@ -178,7 +183,7 @@ private:
         }
     }
 
-    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const TString& shardingDirPath) noexcept
+    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const std::string& shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
             .WithTag("ShardingDirPath: %v", shardingDirPath);
@@ -197,7 +202,7 @@ private:
 
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
-            auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(jobDirPath).MTime);
+            auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(TString(jobDirPath)).MTime);
             auto removeJobDirectory = BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), Passed(std::move(jobDirPath)));
             if (jobLogsDirModificationTime + logsStoragePeriod <= currentTime) {
                 Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));

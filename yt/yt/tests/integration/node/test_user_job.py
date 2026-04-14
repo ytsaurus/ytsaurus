@@ -24,6 +24,9 @@ from yt_commands import (
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
     get_supported_erasure_codecs)
 
+from yt_operations_archive_helpers import get_job_from_archive
+
+from yt_io_tracking_base import TestIOTrackingBase
 
 import subprocess
 
@@ -31,7 +34,9 @@ import yt_error_codes
 
 from yt_driver_bindings import Driver
 
-from yt_helpers import profiler_factory, is_uring_supported, is_uring_disabled
+from yt_helpers import (
+    profiler_factory, is_uring_supported, is_uring_disabled, validate_operation_statistics_descriptions
+)
 
 import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
@@ -44,6 +49,7 @@ from flaky import flaky
 
 from copy import deepcopy
 
+import hashlib
 import pytest
 import time
 import datetime
@@ -634,50 +640,6 @@ time.sleep(10)
                 },
             )
 
-        with pytest.raises(YtError):
-            map(
-                command="cat",
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={
-                    "mapper": {
-                        "tmpfs_volumes": [
-                            {
-                                "path": "tmpfs",
-                                "size": 1024 * 1024,
-                            },
-                            {
-                                "path": "tmpfs/inner",
-                                "size": 1024 * 1024,
-                            },
-                        ]
-                    },
-                    "max_failed_job_count": 1,
-                },
-            )
-
-        with pytest.raises(YtError):
-            map(
-                command="cat",
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                spec={
-                    "mapper": {
-                        "tmpfs_volumes": [
-                            {
-                                "path": "tmpfs/fake_inner/../",
-                                "size": 1024 * 1024,
-                            },
-                            {
-                                "path": "tmpfs/inner",
-                                "size": 1024 * 1024,
-                            },
-                        ]
-                    },
-                    "max_failed_job_count": 1,
-                },
-            )
-
     @authors("ignat")
     def test_multiple_tmpfs_volumes_with_common_prefix(self):
         create("table", "//tmp/t_input")
@@ -985,7 +947,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_tmpfs": False}}}
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"enable_tmpfs": False}}
 
     @authors("ignat")
     def test_simple(self):
@@ -994,7 +956,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+            command="[ -d tmpfs ] || echo -n 'Success' >&2",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -1009,7 +971,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         assert len(job_ids) == 1
         content = op.read_stderr(job_ids[0]).decode("ascii")
         words = content.strip().split()
-        assert ["file", "content"] == words
+        assert ["Success"] == words
 
 
 ##################################################################
@@ -1211,6 +1173,55 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # In tests we crash if slot location is disabled.
         # Thus, if this test passed successfully, location was not disabled.
 
+    @authors("yuryalekseev")
+    def test_insufficient_tmpfs_for_files(self):
+        """
+        Test that map operation fails when tmpfs size is insufficient
+        for copying files from file_paths with copy_files=true.
+
+        This test verifies the fix for the issue where files were copied
+        to tmpfs without checking if there's enough space, potentially
+        causing slot location to be disabled.
+        """
+        # Create input and output tables
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        # Create a file that's larger than the tmpfs we'll allocate.
+        # File size: 20 MB
+        file_size = 20 * 1024 * 1024
+        create("file", "//tmp/large_file")
+        write_file("//tmp/large_file", b"A" * file_size)
+
+        # Try to run map operation with tmpfs size smaller than the file size.
+        # The operation should fail with TmpfsOverflow error.
+        tmpfs_size = file_size // 2
+
+        with raises_yt_error(yt_error_codes.TmpfsOverflow):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "copy_files": True,
+                        "file_paths": ["//tmp/large_file"],
+                        "tmpfs_path": ".",
+                        "tmpfs_size": tmpfs_size,
+                    },
+                    "max_failed_job_count": 1,
+                }
+            )
+
+        # Verify that no slot location was disabled.
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+            for alert in alerts:
+                assert "disabled" not in alert.get("message", "").lower(), \
+                    f"Found disabled location alert on node {node}: {alert['message']}"
+
     @authors("gritukan")
     @pytest.mark.parametrize("bypass_artifact_cache", [False, True])
     def test_lost_artifact(self, bypass_artifact_cache):
@@ -1265,6 +1276,98 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
 
 ##################################################################
+
+class TestSpliceArtifact(TestIOTrackingBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "enable_async_artifact_copy": True,
+                },
+            },
+        },
+    }
+
+    @staticmethod
+    def _prepare_big_script():
+        data = make_random_string(32) * int(2 ** 20)
+        hash_ = hashlib.sha256(data.encode()).hexdigest()
+
+        script = (
+f"""
+import hashlib
+data = '{data}'
+assert hashlib.sha256(data.encode()).hexdigest() == '{hash_}'
+"""  # noqa
+        ).encode()
+
+        exec(script)
+        return script
+
+    @authors("dann239")
+    def test_splice_big_artifact(self):
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", self._prepare_big_script())
+
+        vanilla(
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "python3 script.py",
+                        "file_paths": ["<copy_file=%true>//tmp/script.py"],
+                    },
+                },
+            }
+        )
+
+    @authors("dann239")
+    def test_stuck_artifact_materializing(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "halt_when_materializing_artifact": True,
+                        },
+                    },
+                    "job_common": {
+                        "job_prepare_time_limit": 5000,
+                    },
+                },
+            },
+        })
+
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+        write_file("//tmp/script.py", self._prepare_big_script())
+
+        from_barrier = self.write_log_barrier(self.get_node_address())
+
+        with pytest.raises(YtError):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "task": {
+                            "job_count": 1,
+                            "command": "python3 script.py",
+                            "file_paths": ["<copy_file=%true>//tmp/script.py"],
+                        },
+                    },
+                },
+            )
+
+        raw_events = self.wait_for_raw_events(
+            count=2,
+            from_barrier=from_barrier,
+            filter=lambda event: event["job_io_kind@"] == 'artifact_copy',
+        )
+
+        # One pipe's worth of data was transferred.
+        assert all(event['bytes'] == 65536 for event in raw_events)
 
 
 class TestUserJobIsolation(YTEnvSetup):
@@ -1519,6 +1622,79 @@ class TestUserJobIsolation(YTEnvSetup):
 
         release_breakpoint()
         op.track()
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_no_alert_when_below_limit(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1000")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+
+        alerts = ls(op.get_path() + "/@alerts")
+        assert "high_job_thread_count" not in alerts
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("formula", ["1", "cpu", "cpu * 5"])
+    def test_high_job_thread_count_alert(self, formula):
+        update_controller_agent_config("max_job_thread_count_formula", formula)
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        assert "Some jobs have too many threads" in alert["message"]
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_attributes(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+
+        alerts = ls(op.get_path() + "/@alerts")
+        assert alerts == ["high_job_thread_count"]
+
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        inner_errors = alert["inner_errors"]
+        assert len(inner_errors) == 1
+
+        inner_error = inner_errors[0]
+        assert "Jobs exceed thread count limit" in inner_error["message"]
+        assert "job_id" in inner_error["attributes"]
+        assert inner_error["attributes"]["thread_count"] >= 32
+
+    @authors("pogorelov")
+    def test_high_job_thread_count_alert_multiple_tasks(self):
+        update_controller_agent_config("max_job_thread_count_formula", "1")
+
+        cmd = "for i in $(seq 1 32); do nohup sleep 1 & done; wait"
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {"job_count": 1, "command": cmd},
+                    "task_b": {"job_count": 1, "command": cmd},
+                },
+                "max_failed_job_count": 1,
+            },
+            track=True,
+        )
+
+        wait(lambda: "high_job_thread_count" in ls(op.get_path() + "/@alerts"))
+
+        alert = get(op.get_path() + "/@alerts/high_job_thread_count")
+        inner_errors = alert["inner_errors"]
+        assert len(inner_errors) == 2
+
+        task_names = {e["attributes"]["task"] for e in inner_errors}
+        assert task_names == {"task_a", "task_b"}
 
 
 class TestFixedUser(YTEnvSetup):
@@ -1782,6 +1958,27 @@ class TestJobStderr(YTEnvSetup):
         # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
         # that is last one.
         check_all_stderrs(op, b"stderr\n", 11)
+
+    @authors("pogorelov")
+    def test_node_host_env_var(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo $YT_NODE_HOST >&2",
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        node_host = op.read_stderr(job_ids[0]).strip().decode("ascii")
+        print_debug("YT_NODE_HOST = ", node_host)
+        assert node_host != ""
+
+        cluster_nodes = ls("//sys/cluster_nodes")
+        assert any(node_host in node for node in cluster_nodes)
 
 
 class TestJobStderrMulticell(TestJobStderr):
@@ -2534,6 +2731,7 @@ class TestUserJobMonitoring(YTEnvSetup):
                 "testing": {
                     "test_resource": True,
                     "test_gpu_count": 8,
+                    "test_utilization_gpu_rate": 0.5,
                 },
             },
         },
@@ -2968,11 +3166,9 @@ class TestUserJobMonitoring(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-    @authors("omgronny")
-    def test_has_monitoring_before_start(self):
-        op = run_test_vanilla(
-            "for (( c=1; c>0; c++ )); do : ; done",
-            job_count=1,
+    @authors("severovv")
+    def test_zero_monitoring_before_start(self):
+        op = run_sleeping_vanilla(
             spec={
                 "job_testing_options": {
                     "delay_before_run_job_proxy": 1000000,
@@ -2981,7 +3177,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             task_patch={
                 "monitoring": {
                     "enable": True,
-                    "sensor_names": ["cpu/user", "gpu/utilization_power"]
+                    "sensor_names": ["cpu/user", "gpu/utilization_gpu", "gpu/utilization_power"]
                 },
                 "gpu_limit": 1,
                 "enable_gpu_layers": False,
@@ -3005,6 +3201,10 @@ class TestUserJobMonitoring(YTEnvSetup):
             postprocessor=float) == 0)
         wait(lambda: profiler.get(
             "user_job/gpu/utilization_power",
+            {"job_descriptor": descriptor, "gpu_slot": "0"},
+            postprocessor=float) == 0)
+        wait(lambda: profiler.get(
+            "user_job/gpu/utilization_gpu",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
             postprocessor=float) == 0)
 
@@ -3042,7 +3242,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: profiler.get(
             "user_job/gpu/utilization_gpu",
             {"job_descriptor": descriptor, "gpu_slot": "0"},
-            postprocessor=float) == 0)
+            postprocessor=float) == 0.5)
         assert profiler.get(
             "user_job/cpu/user",
             {"job_descriptor": descriptor},
@@ -4219,6 +4419,8 @@ class TestGpuStatistics(YTEnvSetup):
             job_type="task",
         ))
 
+        validate_operation_statistics_descriptions(op.get_statistics())
+
 
 ##################################################################
 
@@ -4245,7 +4447,11 @@ class TestCriJobStatistics(YTEnvSetup):
             },
         )
 
-        assert op.get_statistics()["job"]["memory"]["rss"][0]["summary"]["max"] > 200 * 1000 * 1000
+        statistics = op.get_statistics()
+
+        validate_operation_statistics_descriptions(statistics)
+
+        assert extract_statistic_v2(statistics, "job.memory.rss", summary_type="max") > 200 * 1000 * 1000
 
 
 ##################################################################
@@ -4639,6 +4845,8 @@ class TestJobStatistics(YTEnvSetup):
 
         statistics = op.get_statistics()
 
+        validate_operation_statistics_descriptions(statistics)
+
         def get_statistics(key, output):
             return extract_statistic_v2(statistics, f"chunk_writer_statistics.{output}.{key}")
 
@@ -4751,6 +4959,117 @@ class TestUserJobDebugOptions(YTEnvSetup):
 
 ##################################################################
 
+@authors("bystrovserg")
+class TestStatisticsReportingPeriod(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestStatisticsReportingPeriod, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    def test_large_statistics_reporting_period(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "statistics_reporting_period": 600000,  # 10 minutes
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+
+        initial_job = get_job_from_archive(op.id, job_id)
+        initial_statistics = initial_job.get("statistics")
+
+        # Wait some time to check statistics does not update on heartbeat.
+        time.sleep(3.0)
+
+        current_job = get_job_from_archive(op.id, job_id)
+        current_statistics = current_job.get("statistics")
+
+        assert initial_statistics == current_statistics, \
+            "Statistics should be the same because of large statistics_reporting_period"
+
+        release_breakpoint()
+        op.track()
+
+        @wait_no_assert
+        def check_final_statistics():
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            final_statistics = job.get("statistics")
+            assert final_statistics is not None, "Final statistics must be reported"
+            assert final_statistics != initial_statistics, "Final statistics should differ from initial statistics"
+
+    def test_statistics_reporting_period(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "statistics_reporting_period": 100,
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        (job_id,) = wait_breakpoint()
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+        initial_job = get_job_from_archive(op.id, job_id)
+        initial_statistics = initial_job.get("statistics")
+        time.sleep(1.0)
+
+        @wait_no_assert
+        def check_statistics_updated():
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            statistics = job.get("statistics")
+            assert statistics is not None, "Statistics must be reported"
+            assert statistics != initial_statistics, "Statistics should differ from initial statistics"
+
+        release_breakpoint()
+        op.track()
+
+
+##################################################################
+
 
 class TestClosingStdoutSimple(YTEnvSetup):
     NUM_MASTERS = 1
@@ -4804,3 +5123,23 @@ class TestClosingStdoutPorto(TestClosingStdoutSimple):
 
 class TestClosingStdoutCri(TestClosingStdoutSimple):
     JOB_ENVIRONMENT_TYPE = "cri"
+
+
+@pytest.mark.enabled_multidaemon
+class TestDeletingConfigFile(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("pavook")
+    def test_executor_config_gets_truncated(self):
+        op = run_test_vanilla(
+            command=with_breakpoint("echo \"$HOME\" >&2; BREAKPOINT"),
+        )
+
+        job_id = wait_breakpoint()[0]
+        sandbox_path = op.read_stderr(job_id).decode("utf-8").strip()
+        slot_path = os.path.dirname(sandbox_path)
+        print_debug(f"Looking for config files in {slot_path}...")
+        with open(os.path.join(slot_path, "executor_config.yson")) as f:
+            assert len(f.read()) == 0

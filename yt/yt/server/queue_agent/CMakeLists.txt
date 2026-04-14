@@ -25,6 +25,8 @@ target_compile_options(yt-server-queue_agent PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-queue_agent PUBLIC
@@ -55,15 +57,19 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/cypress_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/object.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/pass_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter_old.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_exporter_profile_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_export_manager.cpp
 )
 

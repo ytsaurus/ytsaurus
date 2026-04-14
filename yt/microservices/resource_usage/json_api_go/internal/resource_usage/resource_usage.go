@@ -3,6 +3,7 @@ package resourceusage
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,14 +12,28 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
-func NewResourceUsage(c *Config, l log.Structured) *ResourceUsage {
-	return &ResourceUsage{
-		conf: c,
-		l:    l,
-		data: &Data{ServedClusters: map[string]*Cluster{}},
+const (
+	continuationTokenSecretEnvVariable = "CRYPTO_SECRET"
+)
+
+func NewResourceUsage(c *Config, l log.Structured) (*ResourceUsage, error) {
+	secret := os.Getenv(continuationTokenSecretEnvVariable)
+	if secret == "" {
+		return nil, fmt.Errorf("env variable %s is empty", continuationTokenSecretEnvVariable)
 	}
+	continuationTokenSerializer, err := ytmsvc.NewCryptoSerializer[ContinuationToken](secret)
+	if err != nil {
+		return nil, fmt.Errorf("error creating token serializer: %w", err)
+	}
+	return &ResourceUsage{
+		conf:                        c,
+		l:                           l,
+		data:                        &Data{ServedClusters: map[string]*Cluster{}},
+		continuationTokenSerializer: continuationTokenSerializer,
+	}, nil
 }
 
 func (ru *ResourceUsage) GetCluster(ctx context.Context, cluster string) (*Cluster, error) {
@@ -68,12 +83,13 @@ func (ru *ResourceUsage) newCluster(clusterConfig *ClusterConfig) *Cluster {
 		clusterConfig.ExcludedFields = ru.conf.ExcludedFields
 	}
 	return &Cluster{
-		Config:              clusterConfig,
-		ResourceUsageTables: []*ResourceUsageTable{},
-		l:                   clusterLogger,
-		SchemasCache:        lru.NewLRU[ypath.YPath, *schema.Schema](100*1024, nil, 0),
-		FeaturesCache:       lru.NewLRU[ypath.YPath, *ResourceUsageTableFeatures](100*1024, nil, 0),
-		TokenEnvVariable:    ru.conf.TokenEnvVariable,
+		Config:                      clusterConfig,
+		ResourceUsageTables:         []*ResourceUsageTable{},
+		l:                           clusterLogger,
+		SchemasCache:                lru.NewLRU[ypath.YPath, *schema.Schema](100*1024, nil, 0),
+		FeaturesCache:               lru.NewLRU[ypath.YPath, *ResourceUsageTableFeatures](100*1024, nil, 0),
+		TokenEnvVariable:            ru.conf.TokenEnvVariable,
+		ContinuationTokenSerializer: ru.continuationTokenSerializer,
 	}
 }
 

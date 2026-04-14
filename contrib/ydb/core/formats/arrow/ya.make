@@ -8,14 +8,15 @@ PEERDIR(
     contrib/libs/apache/arrow
     contrib/ydb/core/scheme
     contrib/ydb/core/formats/arrow/accessor
-    contrib/ydb/core/formats/arrow/serializer
     contrib/ydb/core/formats/arrow/dictionary
-    contrib/ydb/core/formats/arrow/transformer
+    contrib/ydb/core/formats/arrow/hash
+    contrib/ydb/core/formats/arrow/printer
     contrib/ydb/core/formats/arrow/reader
     contrib/ydb/core/formats/arrow/rows
     contrib/ydb/core/formats/arrow/save_load
+    contrib/ydb/core/formats/arrow/serializer
     contrib/ydb/core/formats/arrow/splitter
-    contrib/ydb/core/formats/arrow/hash
+    contrib/ydb/core/formats/arrow/transformer
     contrib/ydb/library/actors/core
     contrib/ydb/library/arrow_kernels
     yql/essentials/types/binary_json

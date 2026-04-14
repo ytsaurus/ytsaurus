@@ -1,5 +1,5 @@
 # testing/suite/test_cte.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -20,7 +20,7 @@ from ... import values
 
 
 class CTETest(fixtures.TablesTest):
-    __backend__ = True
+    __sparse_driver_backend__ = True
     __requires__ = ("ctes",)
 
     run_inserts = "each"

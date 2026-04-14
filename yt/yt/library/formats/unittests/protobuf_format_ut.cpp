@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/json/json_parser.h>
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -1180,8 +1182,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationString)
         }).Get()
     }));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput si(result);
@@ -1242,8 +1243,7 @@ TEST(TProtobufFormatTest, TestWriteEnumerationInt)
             New<TControlAttributesConfig>(),
             0);
         Y_UNUSED(writer->Write({row}));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput si(result);
@@ -1358,8 +1358,7 @@ TEST(TProtobufFormatTest, TestWriteZeroColumns)
     }));
     EXPECT_EQ(true, writer->Write({MakeRow(nameTable, { }).Get()}));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     ASSERT_EQ(result, "\0\0\0\0\0\0\0\0"sv);
@@ -1413,8 +1412,7 @@ TEST(TProtobufFormatTest, TestTabletIndex)
         }).Get(),
     }));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput si(result);
@@ -2057,8 +2055,7 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
     EXPECT_EQ(true, writer->Write(rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput input(result);
@@ -2347,8 +2344,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
     EXPECT_EQ(true, writer->Write(rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput input(result);
@@ -3101,8 +3097,7 @@ TEST_P(TProtobufFormatSeveralTables, Write)
         EXPECT_EQ(true, writer->Write({builder.GetRow()}));
     }
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput input(result);
@@ -3670,6 +3665,55 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
         }));
 }
 
+TEST(TProtobufFormatTest, TestEmbeddedSecondTableBug)
+{
+    auto nameTable = New<TNameTable>();
+
+    TString data;
+    TStringOutput resultStream(data);
+
+    auto controlAttributesConfig = New<TControlAttributesConfig>();
+    controlAttributesConfig->EnableTableIndex = true;
+    controlAttributesConfig->EnableEndOfStream = true;
+
+    auto protoWriter = CreateWriterForProtobuf(
+        MakeProtobufFormatConfig({TNoEmbeddedKeyValue::descriptor(), TEmbeddedKeyValue::descriptor()}),
+        std::vector<TTableSchemaPtr>(2, New<TTableSchema>()),
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        controlAttributesConfig,
+        0);
+
+    EXPECT_EQ(true, protoWriter->Write(
+        std::vector<TUnversionedRow>{
+            NNamedValue::MakeRow(nameTable, {
+                {TableIndexColumnName, 1},
+                {"key", "foo"},
+                {"value", "bar"},
+            }),
+        }));
+
+    WaitFor(protoWriter->Close())
+        .ThrowOnError();
+
+    std::vector<std::string> result;
+    auto parser = TLenvalParser(data);
+    while (auto item = parser.Next()) {
+        TEmbeddedKeyValue message;
+        bool parsed = message.ParseFromString(item->RowData);
+        EXPECT_TRUE(parsed);
+        result.push_back(message.ShortUtf8DebugString());
+    }
+
+    EXPECT_EQ(
+        result,
+        std::vector<std::string>({
+            "key: \"foo\" embedded_value { value: \"bar\" }"
+        }));
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TProtobufFormatAllFieldsParameter = std::tuple<int, EProtoFormatType>;
@@ -3830,8 +3874,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     std::vector<TUnversionedRow> rows(rowCount, row);
     EXPECT_EQ(true, writer->Write(rows));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput input(result);
@@ -4189,7 +4232,7 @@ TMessage WriteRow(
         New<TControlAttributesConfig>(),
         0);
     Y_UNUSED(writer->Write(std::vector<TUnversionedRow>{row}));
-    writer->Close().Get().ThrowOnError();
+    WaitForFast(writer->Close()).ThrowOnError();
 
     TStringInput input(result);
     TLenvalParser lenvalParser(&input);

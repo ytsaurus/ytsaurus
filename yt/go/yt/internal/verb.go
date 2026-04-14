@@ -22,11 +22,12 @@ const (
 	VerbWriteTable Verb = "write_table"
 	VerbReadTable  Verb = "read_table"
 
-	VerbListOperations Verb = "list_operations"
-	VerbStartOperation Verb = "start_operation"
-	VerbGetOperation   Verb = "get_operation"
-	VerbListJobs       Verb = "list_jobs"
-	VerbGetJobStderr   Verb = "get_job_stderr"
+	VerbListOperations      Verb = "list_operations"
+	VerbStartOperation      Verb = "start_operation"
+	VerbGetOperation        Verb = "get_operation"
+	VerbListJobs            Verb = "list_jobs"
+	VerbGetJobStderr        Verb = "get_job_stderr"
+	VerbListOperationEvents Verb = "list_operation_events"
 
 	VerbStartTransaction  Verb = "start_transaction"
 	VerbPingTransaction   Verb = "ping_transaction"
@@ -120,7 +121,7 @@ func (v Verb) IsHeavy() bool {
 
 func (v Verb) volatile() bool {
 	switch v {
-	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache, VerbListJobs, VerbGetJobStderr, VerbListOperations:
+	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache, VerbListJobs, VerbGetJobStderr, VerbListOperationEvents, VerbListOperations:
 		return false
 
 	case VerbLocateSkynetShare:

@@ -120,7 +120,7 @@ spec:
 | `coreImage`         | `string`        | Образ для основных серверных компонент, например, `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`. |
 | `uiImage`         | `string` | Образ для UI, например, `ghcr.io/ytsaurus/ui:stable`. |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Секреты, необходимые для скачивания образов из private registry. Подробности можно узнать [по ссылке](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
-| `configOverrides`  | `optional<LocalObjectReference>` | Конфигмапа для переопределения генерируемых статических конфигов. Нужно использовать только в редких случаях. |
+| `configOverrides`  | `optional<LocalObjectReference>` | Конфигмапа для переопределения генерируемых статических конфигов. Подробности см. в разделе [Переопределение конфигурации](../../admin-guide/config-overrides.md). |
 | `adminCredentials` | `optional<LocalObjectReference>` | Секрет с логином/паролем для админского аккаунта. |
 | `isManaged`         | `bool` | Флаг, позволяющий отключить все действия оператора над данным кластером, чтобы совершить с кластерам ручные действия при необходимости. |
 | `ephemeralCluster` | `bool` | Флаг позволяющий отключить antiaffinity contraints. Cтоит использовать только в сценариях тестовых кластеров и если в k8s-кластере нод меньше, чем количество мастер-серверов. |
@@ -191,6 +191,36 @@ spec:
 ## Локации
 
 Рекомендации по разметке дисков и конфигурации локаций собраны на отдельной [странице](../../admin-guide/locations.md).
+
+## Pod anti-affinity {#anti-affinity}
+
+Для продакшн-кластеров важно настроить правило [pod anti-affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity) &mdash; чтобы обеспечить высокую доступность за счёт распределения подов по разным узлам Kubernetes-кластера. Это предотвращает запуск нескольких экземпляров одной компоненты на одном узле, что могло бы привести к нарушению работы сервиса при отказе этого узла.
+
+### Настройка {#anti-affinity-setup}
+
+Anti-affinity настраивается с помощью стандартного поля Kubernetes `affinity` в спецификации компоненты. Рекомендуемый паттерн использует `podAntiAffinity` с `requiredDuringSchedulingIgnoredDuringExecution` для обеспечения строгого разделения подов.
+
+Пример настройки для таблетных нод:
+
+```yaml
+tabletNodes:
+  - instanceCount: 3
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+            - key: yt_component
+              operator: In
+              values:
+              - "ytdemo-yt-tablet-node"
+          topologyKey: "kubernetes.io/hostname"
+```
+
+В этой конфигурации:
+- Лейбл `yt_component` идентифицирует поды одного типа компоненты.
+- Формат значения: `<cluster-name>-yt-<component-type>`. Например, `ytdemo-yt-tablet-node` для кластера с именем `ytdemo`.
+- `topologyKey: "kubernetes.io/hostname"` обеспечивает распределение подов по разным узлам.
 
 ## Среда исполнения операций {#job-environment}
 

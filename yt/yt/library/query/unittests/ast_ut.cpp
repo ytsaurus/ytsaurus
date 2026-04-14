@@ -39,6 +39,13 @@ protected:
             << source << " -> " << formattedSource;
     }
 
+    void TestConcise(TStringBuf source, TStringBuf expected)
+    {
+        auto parsedSource = ParseSource(source, EParseMode::Query);
+        auto concise = FormatQueryConcise(std::get<NAst::TQuery>(parsedSource->AstHead.Ast));
+        EXPECT_EQ(expected, concise);
+    }
+
     std::string ParseAndFormat(TStringBuf source)
     {
         auto parsedSource = ParseSource(source, EParseMode::Query);
@@ -201,6 +208,17 @@ TEST_F(TAstFormatTest, Query)
     EXPECT_NE(
         ParseAndFormat("* from t1 left join t2 with hint \"{require_sync_replica=%false;}\" using x"),
         ParseAndFormat("* from t1 left join t2 using x"));
+}
+
+TEST_F(TAstFormatTest, Concise)
+{
+    TestConcise("* from t where a = \"0123456789abcdef\"", "* FROM t WHERE (a)=(\"0123456789abcdef\")");
+    TestConcise("* from t where a = \"0123456789abcdefg\"", "* FROM t WHERE (a)=(\"01234567 ..[17]\")");
+    TestConcise("a, b, c from t", "a, b, c FROM t");
+    TestConcise("a, b, c, d from t", "a, b ..[4] FROM t");
+    TestConcise("* from t where (a, b, c, d) > (1, 2, 3, 4)", "* FROM t WHERE (a, b ..[4])>(1, 2 ..[4])");
+    TestConcise("* from t group by a, b, c, d", "* FROM t GROUP BY a, b ..[4]");
+    TestConcise("* from t array join a as a1, b as b2, c as c3, d as d4", "* FROM t ARRAY JOIN a AS a1, b AS b2 ..[4]");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

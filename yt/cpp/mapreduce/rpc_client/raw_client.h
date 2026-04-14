@@ -1,5 +1,7 @@
 #pragma once
 
+#include "client_impl.h"
+
 #include <yt/cpp/mapreduce/http/context.h>
 
 #include <yt/cpp/mapreduce/interface/client_method_options.h>
@@ -16,7 +18,7 @@ class TRpcRawClient
 {
 public:
     TRpcRawClient(
-        NApi::IClientPtr client,
+        TApiClients clients,
         const TConfigPtr& config);
 
     // Cypress
@@ -292,12 +294,12 @@ public:
     std::unique_ptr<IInputStream> ReadTable(
         const TTransactionId& transactionId,
         const TRichYPath& path,
-        const TMaybe<TFormat>& format,
+        const TFormat& format,
         const TTableReaderOptions& options = {}) override;
 
     std::unique_ptr<IInputStream> ReadTablePartition(
         const TString& cookie,
-        const TMaybe<TFormat>& format,
+        const TFormat& format,
         const TTablePartitionReaderOptions& options = {}) override;
 
     std::unique_ptr<IInputStream> ReadBlobTable(
@@ -411,7 +413,7 @@ public:
     IRawClientPtr Clone(const TClientContext& context) override;
 
 private:
-    const NApi::IClientPtr Client_;
+    const TApiClients Clients_;
     const TConfigPtr Config_;
 };
 

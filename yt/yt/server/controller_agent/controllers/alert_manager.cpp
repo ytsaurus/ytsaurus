@@ -5,8 +5,6 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
-
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NConcurrency;
@@ -28,7 +26,7 @@ public:
         , Logger(Host_->GetLogger())
         , AnalyzeExecutor_(New<TPeriodicExecutor>(
             Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
-            BIND(&TAlertManager::Analyze, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TAlertManager::Analyze, MakeWeak(this)),
             Config_->Period))
     { }
 
@@ -56,6 +54,7 @@ public:
         AnalyzeControllerQueues();
         AnalyzeInvalidatedJobs();
         AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration();
+        AnalyzeJobsThreadCount();
     }
 
 private:
@@ -79,6 +78,9 @@ private:
     };
 
     THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+
+    //! Last fingerprint from host; refresh alert only when violating task set or formula changes.
+    int LastHighJobThreadCountAlertFingerprint_ = 0;
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TStatisticPath>& usageStatistics,
@@ -156,7 +158,7 @@ private:
     {
         struct TMemoryInfo
         {
-            absl::flat_hash_map<std::string, std::optional<i64>> MaxTmpfsUsage;
+            THashMap<std::string, std::optional<i64>> MaxTmpfsUsage;
             std::optional<i64> MaxMemoryUsage;
             i64 MemoryReserve = 0;
 
@@ -194,10 +196,7 @@ private:
                     jobState,
                     task->GetVertexDescriptor());
                 if (summary) {
-                    if (!memoryInfo.MaxMemoryUsage) {
-                        memoryInfo.MaxMemoryUsage = 0;
-                    }
-                    memoryInfo.MaxMemoryUsage = std::max(*memoryInfo.MaxMemoryUsage, summary->GetMax());
+                    memoryInfo.MaxMemoryUsage = std::max(memoryInfo.MaxMemoryUsage.value_or(0), summary->GetMax());
                 }
             }
 
@@ -210,15 +209,14 @@ private:
                 }
             }
 
-            int countOfTmpfs = 0;
+            int tmpfsCount = 0;
             for (const auto& [_, volume] : userJobSpec->Volumes) {
-                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
-                    ++countOfTmpfs;
+                if (IsDiskRequestTmpfs(volume->DiskRequest)) {
+                    ++tmpfsCount;
                 }
             }
 
-
-            YT_VERIFY(countOfTmpfs == std::ssize(maxUsedTmpfsSizes));
+            YT_VERIFY(tmpfsCount == std::ssize(maxUsedTmpfsSizes));
             YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
         }
 
@@ -235,9 +233,7 @@ private:
                 i64 memoryUsage = *memoryInfo.MaxMemoryUsage;
 
                 for (const auto& [name, maxTmpfsUsage] : memoryInfo.MaxTmpfsUsage) {
-                    if (maxTmpfsUsage) {
-                        memoryUsage += *maxTmpfsUsage;
-                    }
+                    memoryUsage += maxTmpfsUsage.value_or(0);
                 }
 
                 auto memoryUsageRatio = static_cast<double>(memoryUsage) / memoryInfo.MemoryReserve;
@@ -277,7 +273,7 @@ private:
             }
 
             for (const auto& [name, volume] : jobSpec->Volumes) {
-                if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
+                if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
                     continue;
                 }
 
@@ -843,6 +839,25 @@ private:
                 EOperationAlertType::UnavailableNetworkBandwidthToClusters,
                 error);
         }
+    }
+
+    void AnalyzeJobsThreadCount()
+    {
+        const auto fingerprint = Host_->GetHighJobThreadCountAlertFingerprint();
+        if (fingerprint == LastHighJobThreadCountAlertFingerprint_) {
+            return;
+        }
+        LastHighJobThreadCountAlertFingerprint_ = fingerprint;
+
+        const auto& formula = Host_->GetConfig()->MaxJobThreadCountFormula;
+        if (formula.IsEmpty()) {
+            Host_->SetOperationAlert(EOperationAlertType::HighJobThreadCount, TError{});
+            return;
+        }
+
+        Host_->SetOperationAlert(
+            EOperationAlertType::HighJobThreadCount,
+            Host_->BuildHighJobThreadCountAlert());
     }
 
     PHOENIX_DECLARE_FRIEND();

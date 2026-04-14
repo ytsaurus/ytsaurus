@@ -45,62 +45,114 @@ static void ValidateCellTags(const auto& perCell)
 
 void TUserRequestLimitsOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("default", &TThis::Default)
+    registrar.Parameter("clusterwide", &TThis::Clusterwide_)
         .GreaterThan(0)
         .Default(100);
-    registrar.Parameter("per_cell", &TThis::PerCell)
+    registrar.Parameter("default", &TThis::Default_)
+        .GreaterThan(0)
+        .Default(100);
+    registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
-        ValidateCellTags(config->PerCell);
+        ValidateCellTags(config->PerCell_);
     });
 }
 
-void TUserRequestLimitsOptions::SetValue(TCellTag cellTag, std::optional<int> value)
+void TUserRequestLimitsOptions::SetClusterwide(std::optional<int> value)
 {
-    if (cellTag == InvalidCellTag) {
-        Default = value;
+    Clusterwide_ = value;
+}
+
+std::optional<int> TUserRequestLimitsOptions::GetClusterwide() const
+{
+    return Clusterwide_;
+}
+
+void TUserRequestLimitsOptions::SetCellDefault(std::optional<int> value)
+{
+    Default_ = value;
+}
+
+std::optional<int> TUserRequestLimitsOptions::GetCellDefault() const
+{
+    return Default_;
+}
+
+void TUserRequestLimitsOptions::SetForCell(TCellTag cellTag, std::optional<int> value)
+{
+    YT_ASSERT(MinValidCellTag <= cellTag && cellTag <= MaxValidCellTag);
+
+    if (value) {
+        PerCell_[cellTag] = *value;
     } else {
-        YT_VERIFY(value);
-        PerCell[cellTag] = *value;
+        PerCell_.erase(cellTag);
     }
 }
 
-std::optional<int> TUserRequestLimitsOptions::GetValue(TCellTag cellTag) const
+std::optional<int> TUserRequestLimitsOptions::GetForCell(TCellTag cellTag) const
 {
-    if (auto it = PerCell.find(cellTag)) {
-        return it->second;
-    }
-    return Default;
+    return PerCell_.Value(cellTag, Default_);
+}
+
+const THashMap<NObjectServer::TCellTag, int>& TUserRequestLimitsOptions::PerCell() const
+{
+    return PerCell_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("default", &TThis::Default)
+    registrar.Parameter("clusterwide", &TThis::Clusterwide_)
         .GreaterThan(0)
         .Default(100);
-    registrar.Parameter("per_cell", &TThis::PerCell)
+    registrar.Parameter("default", &TThis::Default_)
+        .GreaterThan(0)
+        .Default(100);
+    registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
-        ValidateCellTags(config->PerCell);
+        ValidateCellTags(config->PerCell_);
     });
 }
 
-void TUserQueueSizeLimitsOptions::SetValue(TCellTag cellTag, int value)
+void TUserQueueSizeLimitsOptions::SetClusterwide(int value)
 {
-    if (cellTag == InvalidCellTag) {
-        Default = value;
-    } else {
-        PerCell[cellTag] = value;
-    }
+    Clusterwide_ = value;
 }
 
-int TUserQueueSizeLimitsOptions::GetValue(TCellTag cellTag) const
+int TUserQueueSizeLimitsOptions::GetClusterwide() const
 {
-    return PerCell.Value(cellTag, Default);
+    return Clusterwide_;
+}
+
+void TUserQueueSizeLimitsOptions::SetCellDefault(int value)
+{
+    Default_ = value;
+}
+
+int TUserQueueSizeLimitsOptions::GetCellDefault() const
+{
+    return Default_;
+}
+
+void TUserQueueSizeLimitsOptions::SetForCell(TCellTag cellTag, int value)
+{
+    YT_ASSERT(MinValidCellTag <= cellTag && cellTag <= MaxValidCellTag);
+
+    PerCell_[cellTag] = value;
+}
+
+int TUserQueueSizeLimitsOptions::GetForCell(TCellTag cellTag) const
+{
+    return PerCell_.Value(cellTag, Default_);
+}
+
+const THashMap<NObjectServer::TCellTag, int>& TUserQueueSizeLimitsOptions::PerCell() const
+{
+    return PerCell_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +214,9 @@ void TUserRequestLimitsConfig::Register(TRegistrar registrar)
 
 void TSerializableUserRequestLimitsOptions::Register(TRegistrar registrar)
 {
+    registrar.Parameter("clusterwide", &TThis::Clusterwide_)
+        .GreaterThan(0)
+        .Default(100);
     registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
@@ -175,8 +230,9 @@ TSerializableUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::
 {
     auto result = New<TSerializableUserRequestLimitsOptions>();
 
-    result->Default_ = options->Default;
-    result->PerCell_ = CellTagMapToCellNameMap(options->PerCell, multicellManager);
+    result->Clusterwide_ = options->GetClusterwide();
+    result->Default_ = options->GetCellDefault();
+    result->PerCell_ = CellTagMapToCellNameMap(options->PerCell(), multicellManager);
 
     return result;
 }
@@ -185,8 +241,11 @@ TUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::ToLimitsOrTh
     const IMulticellManagerPtr& multicellManager) const
 {
     auto result = New<TUserRequestLimitsOptions>();
-    result->Default = Default_;
-    result->PerCell = CellNameMapToCellTagMapOrThrow(PerCell_, multicellManager);
+    result->SetClusterwide(Clusterwide_);
+    result->SetCellDefault(Default_);
+    for (auto [cellTag, limit] : CellNameMapToCellTagMapOrThrow(PerCell_, multicellManager)) {
+        result->SetForCell(cellTag, limit);
+    }
     return result;
 }
 
@@ -194,6 +253,9 @@ TUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::ToLimitsOrTh
 
 void TSerializableUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 {
+    registrar.Parameter("clusterwide", &TThis::Clusterwide_)
+        .GreaterThan(0)
+        .Default(100);
     registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
@@ -207,8 +269,9 @@ TSerializableUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptio
 {
     auto result = New<TSerializableUserQueueSizeLimitsOptions>();
 
-    result->Default_ = options->Default;
-    result->PerCell_ = CellTagMapToCellNameMap(options->PerCell, multicellManager);
+    result->Clusterwide_ = options->GetClusterwide();
+    result->Default_ = options->GetCellDefault();
+    result->PerCell_ = CellTagMapToCellNameMap(options->PerCell(), multicellManager);
 
     return result;
 }
@@ -217,8 +280,11 @@ TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimits
     const IMulticellManagerPtr& multicellManager) const
 {
     auto result = New<TUserQueueSizeLimitsOptions>();
-    result->Default = Default_;
-    result->PerCell = CellNameMapToCellTagMapOrThrow(PerCell_, multicellManager);
+    result->SetClusterwide(Clusterwide_);
+    result->SetCellDefault(Default_);
+    for (auto [cellTag, limit] : CellNameMapToCellTagMapOrThrow(PerCell_, multicellManager)) {
+        result->SetForCell(cellTag, limit);
+    }
     return result;
 }
 
@@ -322,7 +388,7 @@ std::string TUser::GetCapitalizedObjectName() const
 
 TYPath TUser::GetObjectPath() const
 {
-    return Format("//sys/users/%v", GetName());
+    return Format("//sys/users/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TUser::Save(TSaveContext& context) const
@@ -413,7 +479,7 @@ void TUser::Charge(const TUserWorkload& workload)
     auto cellTag = NObjectServer::GetBootstrap()->GetCellTag();
 
     auto updateLimitGauge = [&] (const TUserRequestLimitsOptionsPtr& limitOptions, NProfiling::TGauge* gauge) {
-        if (auto optionalLimit = limitOptions->GetValue(cellTag)) {
+        if (auto optionalLimit = limitOptions->GetForCell(cellTag)) {
             gauge->Update(*optionalLimit);
         }
     };
@@ -501,44 +567,60 @@ void TUser::SetRequestRateThrottler(
 
 std::optional<int> TUser::GetRequestRateLimit(EUserWorkloadType type, NObjectServer::TCellTag cellTag) const
 {
-    switch (type) {
-        case EUserWorkloadType::Read:
-            return ObjectServiceRequestLimits_->ReadRequestRateLimits->GetValue(cellTag);
-        case EUserWorkloadType::Write:
-            return ObjectServiceRequestLimits_->WriteRequestRateLimits->GetValue(cellTag);
-        default:
-            YT_ABORT();
-    }
+    return cellTag == InvalidCellTag
+        ? RequestRateLimitsForWorkloadType(type).GetCellDefault()
+        : RequestRateLimitsForWorkloadType(type).GetForCell(cellTag);
 }
 
 void TUser::SetRequestRateLimit(std::optional<int> limit, EUserWorkloadType type, NObjectServer::TCellTag cellTag)
 {
-    switch (type) {
-        case EUserWorkloadType::Read:
-            ObjectServiceRequestLimits_->ReadRequestRateLimits->SetValue(cellTag, limit);
-            break;
-        case EUserWorkloadType::Write:
-            ObjectServiceRequestLimits_->WriteRequestRateLimits->SetValue(cellTag, limit);
-            break;
-        default:
-            YT_ABORT();
-    }
+    return cellTag == InvalidCellTag
+        ? RequestRateLimitsForWorkloadType(type).SetCellDefault(limit)
+        : RequestRateLimitsForWorkloadType(type).SetForCell(cellTag, limit);
 }
 
 int TUser::GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag) const
 {
-    return ObjectServiceRequestLimits_->RequestQueueSizeLimits->GetValue(cellTag);
+    return cellTag == InvalidCellTag
+        ? ObjectServiceRequestLimits_->RequestQueueSizeLimits->GetCellDefault()
+        : ObjectServiceRequestLimits_->RequestQueueSizeLimits->GetForCell(cellTag);
 }
 
 void TUser::SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag)
 {
-    ObjectServiceRequestLimits_->RequestQueueSizeLimits->SetValue(cellTag, limit);
+    return cellTag == InvalidCellTag
+        ? ObjectServiceRequestLimits_->RequestQueueSizeLimits->SetCellDefault(limit)
+        : ObjectServiceRequestLimits_->RequestQueueSizeLimits->SetForCell(cellTag, limit);
 }
 
 void TUser::UpdatePasswordRevision()
 {
     auto* hydraContext = NHydra::GetCurrentHydraContext();
     PasswordRevision_ = hydraContext->GetVersion().ToRevision();
+}
+
+const TUserRequestLimitsOptions& TUser::RequestRateLimitsForWorkloadType(EUserWorkloadType type) const
+{
+    switch (type) {
+        case EUserWorkloadType::Read:
+            return *ObjectServiceRequestLimits_->ReadRequestRateLimits;
+        case EUserWorkloadType::Write:
+            return *ObjectServiceRequestLimits_->WriteRequestRateLimits;
+        default:
+            YT_ABORT();
+    }
+}
+
+TUserRequestLimitsOptions& TUser::RequestRateLimitsForWorkloadType(EUserWorkloadType type)
+{
+    switch (type) {
+        case EUserWorkloadType::Read:
+            return *ObjectServiceRequestLimits_->ReadRequestRateLimits;
+        case EUserWorkloadType::Write:
+            return *ObjectServiceRequestLimits_->WriteRequestRateLimits;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,7 +11,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowsDigestComputer::TRowsDigestComputer(TNameTablePtr nameTable)
+TRowsDigestBuilder::TRowsDigestBuilder(TNameTablePtr nameTable)
     : NameTable_(std::move(nameTable))
     , HasherState_(XXH3_createState())
 {
@@ -25,12 +25,12 @@ TRowsDigestComputer::TRowsDigestComputer(TNameTablePtr nameTable)
     ValueIdToValueIndexInRow_.reserve(PreAllocateSize);
 }
 
-TRowsDigestComputer::~TRowsDigestComputer()
+TRowsDigestBuilder::~TRowsDigestBuilder()
 {
     XXH3_freeState(static_cast<XXH3_state_t*>(HasherState_));
 }
 
-void TRowsDigestComputer::RegisterColumn(ui16 columnNameId) noexcept
+void TRowsDigestBuilder::RegisterColumn(ui16 columnNameId) noexcept
 {
     // The [[likely]]/[[unlikely]] hints provide 1-5% speed improvements. See rows_digest_bench.cpp.
     if (columnNameId >= std::ssize(IsColumnNameIdAdded_)) [[unlikely]] {
@@ -58,7 +58,7 @@ void TRowsDigestComputer::RegisterColumn(ui16 columnNameId) noexcept
     SortedColumns_.insert(it, newColumn);
 }
 
-void TRowsDigestComputer::ProcessRow(TUnversionedRow row) noexcept
+void TRowsDigestBuilder::ProcessRow(TUnversionedRow row) noexcept
 {
     for (const auto& value : row) {
         RegisterColumn(value.Id);
@@ -79,7 +79,7 @@ void TRowsDigestComputer::ProcessRow(TUnversionedRow row) noexcept
     }
 }
 
-void TRowsDigestComputer::AppendValue(ui64 nameHash, TUnversionedValue value) noexcept
+void TRowsDigestBuilder::AppendValue(ui64 nameHash, TUnversionedValue value) noexcept
 {
     switch (value.Type) {
         case EValueType::Int64:
@@ -122,7 +122,7 @@ void TRowsDigestComputer::AppendValue(ui64 nameHash, TUnversionedValue value) no
     }
 }
 
-void TRowsDigestComputer::AppendToHash(const auto&... args) noexcept
+void TRowsDigestBuilder::AppendToHash(const auto&... args) noexcept
 {
     constexpr ui32 Size = (sizeof(args) + ...);
 
@@ -138,7 +138,7 @@ void TRowsDigestComputer::AppendToHash(const auto&... args) noexcept
     BatchOffset_ += Size;
 }
 
-void TRowsDigestComputer::FlushBatch() const noexcept
+void TRowsDigestBuilder::FlushBatch() const noexcept
 {
     if (BatchOffset_ > 0) {
         XXH3_64bits_update(static_cast<XXH3_state_t*>(HasherState_), BatchBuffer_.data(), BatchOffset_);
@@ -146,18 +146,18 @@ void TRowsDigestComputer::FlushBatch() const noexcept
     }
 }
 
-TRowsDigest TRowsDigestComputer::GetDigest() const noexcept
+TRowsDigest TRowsDigestBuilder::GetDigest() const noexcept
 {
     FlushBatch();
     return TRowsDigest(XXH3_64bits_digest(static_cast<XXH3_state_t*>(HasherState_)));
 }
 
-bool TRowsDigestComputer::TColumnInfo::operator<(const TColumnInfo& other) const noexcept
+bool TRowsDigestBuilder::TColumnInfo::operator<(const TColumnInfo& other) const noexcept
 {
     return Name < other.Name;
 }
 
-TRowsDigestComputer::TColumnInfo::TColumnInfo(TStringBuf name, ui64 nameHash, ui16 columnNameId) noexcept
+TRowsDigestBuilder::TColumnInfo::TColumnInfo(TStringBuf name, ui64 nameHash, ui16 columnNameId) noexcept
     : Name(name)
     , NameHash(nameHash)
     , ColumnNameId(columnNameId)

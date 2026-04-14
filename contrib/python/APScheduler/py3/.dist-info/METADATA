@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: APScheduler
-Version: 3.11.1
+Version: 3.11.2
 Summary: In-process task scheduler with Cron-like capabilities
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License: MIT
@@ -47,6 +47,7 @@ Requires-Dist: kazoo; extra == "zookeeper"
 Provides-Extra: test
 Requires-Dist: APScheduler[etcd,mongodb,redis,rethinkdb,sqlalchemy,tornado,zookeeper]; extra == "test"
 Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-timeout; extra == "test"
 Requires-Dist: anyio>=4.5.2; extra == "test"
 Requires-Dist: PySide6; (platform_python_implementation == "CPython" and python_version < "3.14") and extra == "test"
 Requires-Dist: gevent; python_version < "3.14" and extra == "test"

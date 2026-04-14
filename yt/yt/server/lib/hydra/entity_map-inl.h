@@ -219,6 +219,23 @@ TValue* TMutableEntityMap<TValue>::Insert(const TKey& key, std::unique_ptr<TValu
 }
 
 template <class TValue>
+std::pair<TValue*, bool> TMutableEntityMap<TValue>::TryInsert(const TKey& key, std::unique_ptr<TValue> valueHolder)
+{
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
+
+    auto* value = valueHolder.get();
+
+    if (auto [it, inserted] = this->Map_.emplace(key, value); inserted) {
+        valueHolder.release();
+        value->SetDynamicData(AllocateDynamicData());
+        return {value, true};
+    } else {
+        // NB: not releasing value from valueHolder.
+        return {it->second, false};
+    }
+}
+
+template <class TValue>
 void TMutableEntityMap<TValue>::Remove(const TKey& key)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
@@ -357,7 +374,7 @@ void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
         }
 
         AllSucceeded(std::move(futures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     } else {
         SaveIterators_.reserve(this->Map_.size());
@@ -456,7 +473,7 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
             return false;
         }
         batchFutures[batchIndexToWaitFor]
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         --batchesRunning;
 
@@ -485,7 +502,10 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
-    this->Clear();
+    // Make sure Clear() has been called beforehand.
+    YT_VERIFY(this->Map_.empty());
+    YT_VERIFY(this->DynamicDataPool_.GetSize() == 0);
+    YT_VERIFY(!this->FirstSpareDynamicData_);
 
     TStreamLoadContextScopeGuard scopeGuard(context, Format("keys:%v", this->GetTypeName()));
 
@@ -647,7 +667,7 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
             return false;
         }
         batchFutures[batchIndexToWaitFor]
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
         --batchesRunning;
         ++batchIndexToWaitFor;

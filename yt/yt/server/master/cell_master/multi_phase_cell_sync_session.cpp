@@ -4,7 +4,11 @@
 #include "bootstrap.h"
 #include "multicell_manager.h"
 
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+
 #include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -22,32 +26,59 @@ TMultiPhaseCellSyncSession::TMultiPhaseCellSyncSession(
     , Logger(std::move(logger))
 { }
 
-void TMultiPhaseCellSyncSession::SetSyncWithUpstream(bool syncWithUpstream)
+void TMultiPhaseCellSyncSession::ScheduleSyncWithUpstream()
 {
-    SyncWithUpstream_ = syncWithUpstream;
+    if (SyncWithUpstream_ == ESyncRequest::DontNeed) {
+        SyncWithUpstream_ = ESyncRequest::Need;
+    }
+}
+
+void TMultiPhaseCellSyncSession::ScheduleSyncWithSequoiaTransactions()
+{
+    if (SyncWithSequoiaTransactions_ == ESyncRequest::DontNeed) {
+        SyncWithSequoiaTransactions_ = ESyncRequest::Need;
+    }
+}
+
+TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, TFuture<void> additionalFuture)
+{
+    std::vector<TFuture<void>> additionalFutures;
+    if (additionalFuture) {
+        additionalFutures.push_back(std::move(additionalFuture));
+    }
+    return Sync(cellTags, std::move(additionalFutures));
 }
 
 TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std::vector<TFuture<void>> additionalFutures)
 {
-    YT_ASSERT(std::find(additionalFutures.begin(), additionalFutures.end(), TFuture<void>()) == additionalFutures.end());
-
-    ++PhaseNumber_;
-
-    auto syncWithUpstream = SyncWithUpstream_ && PhaseNumber_ == 1;
+    YT_ASSERT(std::ranges::find(additionalFutures, TFuture<void>()) == additionalFutures.end());
 
     auto& syncFutures = additionalFutures; // Just a better name.
-    syncFutures.reserve(syncFutures.size() + cellTags.size() + (syncWithUpstream ? 1 : 0));
+    syncFutures.reserve(cellTags.size()
+        + additionalFutures.size()
+        + (SyncWithUpstream_ == ESyncRequest::Need ? 1 : 0)
+        + (SyncWithSequoiaTransactions_ == ESyncRequest::Need ? 1 : 0));
 
     auto addAsyncResult = [&] (TFuture<void> future) {
-        if (!future.IsSet() || !future.Get().IsOK()) {
+        if (!future.IsSet() || !future.GetOrCrash().IsOK()) {
             syncFutures.push_back(std::move(future));
         }
     };
 
+    if (SyncWithSequoiaTransactions_ == ESyncRequest::Need) {
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        addAsyncResult(hydraManager->SyncWithLeader().Apply(BIND([transactionSupervisor] {
+            return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+        })));
+        SyncWithSequoiaTransactions_ = ESyncRequest::Done;
+    }
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-    if (syncWithUpstream) {
+    if (SyncWithUpstream_ == ESyncRequest::Need) {
         addAsyncResult(multicellManager->SyncWithUpstream());
+        SyncWithUpstream_ = ESyncRequest::Done;
     }
 
     const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -63,22 +94,13 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
     }
 
     if (syncFutures.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells (CellTags: %v)",
         syncCellTags);
 
     return AllSucceeded(std::move(syncFutures));
-}
-
-TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, TFuture<void> additionalFuture)
-{
-    YT_ASSERT(additionalFuture);
-
-    std::vector<TFuture<void>> additionalFutures;
-    additionalFutures.push_back(std::move(additionalFuture));
-    return Sync(cellTags, std::move(additionalFutures));
 }
 
 bool TMultiPhaseCellSyncSession::RegisterCellToSyncWith(TCellTag cellTag)
@@ -94,7 +116,7 @@ bool TMultiPhaseCellSyncSession::RegisterCellToSyncWith(TCellTag cellTag)
         return false;
     }
 
-    if (SyncWithUpstream_ &&
+    if (SyncWithUpstream_ != ESyncRequest::DontNeed &&
         multicellManager->IsSecondaryMaster() && cellTag == multicellManager->GetPrimaryCellTag())
     {
         // IHydraManager::SyncWithUpstream will take care of this.

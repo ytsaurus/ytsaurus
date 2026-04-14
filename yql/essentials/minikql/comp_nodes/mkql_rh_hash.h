@@ -9,6 +9,7 @@
 #include <span>
 
 #include <yql/essentials/minikql/mkql_rh_hash_utils.h>
+#include <yql/essentials/utils/is_pod.h>
 #include <yql/essentials/utils/prefetch.h>
 
 #include <util/digest/city.h>
@@ -16,8 +17,7 @@
 
 #define MKQL_RH_HASH_MOVE_API_TO_NEW_VERSION
 
-namespace NKikimr {
-namespace NMiniKQL {
+namespace NKikimr::NMiniKQL {
 
 template <class TKey>
 struct TRobinHoodDefaultSettings {
@@ -48,6 +48,9 @@ constexpr ui32 PrefetchBatchSize = 64;
 template <typename TKey, typename TEqual, typename THash, typename TAllocator, typename TDeriv, bool CacheHash>
 class TRobinHoodHashBase {
 public:
+    static_assert(sizeof(TKey) <= sizeof(void*) * 4, "Key must be small enough for passing by value inside unaligned api.");
+    static_assert(NYql::IsPod<TKey>, "Expected POD value type");
+
     using iterator = char*;
     using const_iterator = const char*;
 
@@ -66,7 +69,7 @@ protected:
             , Hash(0)
         {
         }
-        TPSLStorageImpl(const ui64 hash)
+        explicit TPSLStorageImpl(const ui64 hash)
             : Distance(0)
             , Hash(hash)
         {
@@ -81,7 +84,7 @@ public:
             : Distance(-1)
         {
         }
-        TPSLStorageImpl(const ui64 /*hash*/)
+        explicit TPSLStorageImpl(const ui64 /*hash*/)
             : Distance(0)
         {
         }
@@ -376,7 +379,8 @@ private:
     Y_NO_INLINE void Grow() {
         auto newCapacity = Capacity_ * CalculateRHHashTableGrowFactor(Capacity_);
         auto newCapacityShift = 64 - MostSignificantBit(newCapacity);
-        char *newData, *newDataEnd;
+        char* newData;
+        char* newDataEnd;
         Allocate(newCapacity, newData, newDataEnd);
         Y_DEFER {
             Allocator_.deallocate(newData, newDataEnd - newData);
@@ -548,6 +552,8 @@ public:
     using TBase = TRobinHoodHashBase<TKey, TEqual, THash, TAllocator, TSelf, TSettings::CacheHash>;
     using TPayloadStore = TPayload;
 
+    static_assert(NYql::IsPod<TPayload>, "Expected POD value type");
+
     explicit TRobinHoodHashFixedMap(ui64 initialCapacity = 1u << 8)
         : TBase(initialCapacity, THash(), TEqual())
     {
@@ -647,5 +653,4 @@ public:
     }
 };
 
-} // namespace NMiniKQL
-} // namespace NKikimr
+} // namespace NKikimr::NMiniKQL

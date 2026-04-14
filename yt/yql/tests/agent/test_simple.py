@@ -1,8 +1,10 @@
 from common import TestQueriesYqlBase
 
+import yql.library.langver.python as langver
+
 from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
-from yt_commands import (authors, create, create_user, sync_mount_table,
+from yt_commands import (authors, create, create_user, sync_mount_table, get_driver,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
                          get_operation, issue_token, create_group)
@@ -410,7 +412,7 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 16
     CLASS_TEST_LIMIT = 30 * 60
     NUM_YQL_AGENTS = 1
 
@@ -495,11 +497,10 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
 
     def _dyn_config_expect_error(self, yql_agent, dyn_config, expected_error):
         create("table", "//tmp/t", attributes={
-            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+            "schema": [{"name": "a", "type": "int64"}]
         })
-        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        rows = [{"a": 42}]
         write_table("//tmp/t", rows)
-        self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, dyn_config)
         with raises_yt_error(expected_error):
@@ -517,7 +518,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("lucius")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_yql_agent_broken_dyn_config_without_address(self, query_tracker, yql_agent):
         self._dyn_config_expect_error(
             yql_agent,
@@ -556,7 +557,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
         )
 
     @authors("lucius")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_yql_agent_broken_dyn_config_wrong_settings(self, query_tracker, yql_agent):
         self._dyn_config_expect_error(
             yql_agent,
@@ -752,6 +753,33 @@ class TestYqlPlugin(TestQueriesYqlSimpleBase):
         """, [rows, [{"a": 42, "c": "test"}]])
 
 
+class TestMultipleRefResults(TestQueriesYqlSimpleBase):
+    @authors("mpereskokova")
+    def test_multiple_ref_results(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t", rows)
+
+        query = self.start_query("yql", """
+            pragma RefSelect;
+            select * from (select * from `//tmp/t` limit 1)
+            union all
+            select * from (select * from `//tmp/t` limit 1)
+        """)
+
+        query.track()
+        query_info = query.get()
+        assert query_info["result_count"] == 1
+
+        assert_items_equal(query.read_result(0), [{"a": 42}, {"a": 42}])
+        result_info = query.get_result(0)
+        assert_full_result(result_info)
+        assert len(result_info["full_result"]) == 2
+
+
 class TestDefaultCluster(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
@@ -832,7 +860,7 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgent(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 16
 
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
@@ -877,6 +905,21 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
             ],
         )
 
+    @authors("a-romanov")
+    @pytest.mark.timeout(180)
+    def test_files_from_folder(self, query_tracker, yql_agent):
+        create("file", "//tmp/first_file")
+        write_file("//tmp/first_file", b"eerste")
+
+        create("map_node", "//tmp/dir")
+        create("file", "//tmp/dir/second_file")
+        write_file("//tmp/dir/second_file", b"twede")
+
+        self._test_simple_query("""
+            pragma folder("tt", "yt://{}/tmp");
+            select FileContent("tt/first_file") as first, FileContent("tt/dir/second_file") as second;
+        """.format(self.Env.get_http_proxy_address()), [{'first': 'eerste', 'second': 'twede'}])
+
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):
         instances = ls("//sys/yql_agent/instances")
@@ -889,7 +932,7 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
             assert gateway_config["yt_log_level"] == "YL_DEBUG"
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
-            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
+            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 3
             assert len(gateway_config["default_settings"]) == 61
 
             setting_found = False
@@ -909,11 +952,12 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
 def assert_full_result(query_result):
     assert "full_result" in query_result
     full_result = query_result["full_result"]
-    assert isinstance(full_result, yson.YsonMap)
-    assert "cluster" in full_result
-    assert isinstance(full_result["cluster"], str)
-    assert "table_path" in full_result
-    assert isinstance(full_result["table_path"], str)
+    assert isinstance(full_result, yson.YsonList)
+    assert len(full_result) > 0
+    assert "cluster" in full_result[0]
+    assert isinstance(full_result[0]["cluster"], str)
+    assert "table_path" in full_result[0]
+    assert isinstance(full_result[0]["table_path"], str)
 
 
 class TestQueriesYqlLimitedResult(TestQueriesYqlSimpleBase):
@@ -969,31 +1013,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlSimpleBase):
         # 14 MB
         rows = [{"value": str(i) + ''.join(['a' for _ in range(value_size)])} for i in range(14)]
         write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows, False, True)
-
-        # 15 MB
-        new_rows = [{"value": str(i) + ''.join(['b' for _ in range(value_size)])} for i in range(14, 15)]
-        rows += new_rows
-        write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows, False, True)
-
-        # 16 MB
-        new_rows = [{"value": str(i) + ''.join(['c' for _ in range(value_size)])} for i in range(15, 16)]
-        rows += new_rows
-        write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows[:15], True, True)
-
-        # 17 MB
-        new_rows = [{"value": str(i) + ''.join(['d' for _ in range(value_size)])} for i in range(16, 17)]
-        rows += new_rows
-        write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows[:15], True, True)
-
-        # 22 MB
-        new_rows = [{"value": str(i) + ''.join(['d' for _ in range(value_size)])} for i in range(17, 22)]
-        rows += new_rows
-        write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows[:15], True, True)
+        self._assert_select_result("//tmp/t", rows[:1], True, True)
 
     @authors("aleksandr.gaev")
     @pytest.mark.timeout(360)
@@ -1094,12 +1114,14 @@ class TestQueriesYqlAuth(TestQueriesYqlAuthBase):
 
 
 class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
+    NUM_TEST_PARTITIONS = 8
+
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @pytest.mark.parametrize(
         "secret_node_type", ["document", "string_node", "file"]
     )
-    def test_pragma_auth(self, query_tracker, yql_agent, secret_node_type):
+    def test_secret_with_provided_category(self, query_tracker, yql_agent, secret_node_type):
         def run_query(username):
             token, token_hash = issue_token(username)
 
@@ -1124,6 +1146,200 @@ class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
 
         with raises_yt_error('Access denied for user "denied_user"'):
             run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_trailing_newline(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8') + b'\n')
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_discovered_category_from_attribute(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            set(f"{vault_token_path}/@_yqla_secret_category", b"yt")
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_discovered_category_from_name(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            self._test_simple_query(
+                "pragma yt.auth = 'default_yt'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "default_yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_bad_secret(self, query_tracker, yql_agent):
+        def run_query(username):
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "document", vault_token_path,
+                recursive=True,
+            )
+
+            set(vault_token_path, 42)
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Cannot convert secret value to string'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_conflicting_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            set(f"{vault_token_path}/@_yqla_secret_category", b"yt")
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "non-yt", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Found mismatch between provided and discovered secret categories'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_bad_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            set(f"{vault_token_path}/@_yqla_secret_category", 42)
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Cannot convert secret category to string'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_unsupported_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            self._test_simple_query(
+                "pragma yt.auth = 'default_non_supported_category'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "default_non_supported_category", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Mismatch credential category, expected: yt, but found: non_supported_category'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_not_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Mismatch credential category, expected: yt, but found: '):
+            run_query("allowed_user")
 
 
 class TestQueriesYqlWithSecretProtection(TestQueriesYqlAuthBase):
@@ -1628,7 +1844,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
             {
                 "available_yql_versions": ["2025.01",],
                 "default_yql_ui_version": "2025.01",
-                "supported_features": {"declare_params": True, "yql_runner": True},
+                "supported_features": {"declare_params": True, "yql_runner": True, "multiple_full_results": True},
             }
 
     @authors("kirsiv40")
@@ -1666,6 +1882,81 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
         self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
         self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
         self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBase(TestGetQueryTrackerInfoBase):
+    _RELEASED_YQL_VERSIONS = None
+
+    @classmethod
+    def _get_released_yql_versions(cls):
+        if cls._RELEASED_YQL_VERSIONS is None:
+            max_released = langver.get_max_released()
+            cls._RELEASED_YQL_VERSIONS = [v for v in langver.get_valid() if v <= max_released]
+        return cls._RELEASED_YQL_VERSIONS
+
+    def _check_specific_qt_info(self, qt_info, all_versions):
+        self._check_qt_info(qt_info)
+        expected_yql_versions = langver.get_valid() if all_versions else self._get_released_yql_versions()
+        assert qt_info["engines_info"]["yql"] == \
+            {
+                "available_yql_versions": expected_yql_versions,
+                "default_yql_ui_version": "2025.03",
+                "supported_features": {"declare_params": True, "yql_runner": True, "multiple_full_results": True},
+            }
+
+    def _test_visible_versions(self, all_versions):
+        self._check_specific_qt_info(get_query_tracker_info(), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"]), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}), all_versions)
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionStatic(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    DEFAULT_YQL_UI_VERSION = "2025.03"
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=True)
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionDynamic(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    YQL_AGENT_DYNAMIC_CONFIG = {
+        "default_yql_ui_version": "2025.03",
+        "allow_not_released_yql_versions": False,
+    }
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=False)
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBoth(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    DEFAULT_YQL_UI_VERSION = "2025.01"
+    ALLOW_NOT_RELEASED_YQL_VERSIONS = True
+    YQL_AGENT_DYNAMIC_CONFIG = {
+        "default_yql_ui_version": "2025.03",
+        "allow_not_released_yql_versions": False,
+    }
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=False)
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBothNotReleased(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    DEFAULT_YQL_UI_VERSION = "2025.01"
+    ALLOW_NOT_RELEASED_YQL_VERSIONS = False
+    YQL_AGENT_DYNAMIC_CONFIG = {
+        "default_yql_ui_version": "2025.03",
+        "allow_not_released_yql_versions": True,
+    }
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=True)
 
 
 class TestDeclare(TestQueriesYqlBase):
@@ -1715,6 +2006,36 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInf
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithVisibleYqlVersionStaticRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionStatic):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithVisibleYqlVersionDynamicRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionDynamic):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBothRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionBoth):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
@@ -1860,27 +2181,113 @@ class TestsDDL(TestQueriesYqlSimpleBase):
                }])
 
     def test_simple_create_view(self, query_tracker, yql_agent):
-        pytest.skip('no langver support')
-        self._test_simple_query("create table `//tmp/t` (xyz Text not null);", None)
-        self._test_simple_query("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", None)
-        self._test_simple_query("$p = process `//tmp/v`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'num':Float?>"}])
-        self._test_simple_query_error("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", "already exists.")
+        settings = {"yql_version": "2025.05"}
+        self._test_simple_query("create table `//tmp/t` (xyz Text not null);", None, settings=settings)
+        self._test_simple_query("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", None, settings=settings)
+        self._test_simple_query("$p = process `//tmp/v`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'num':Float?>"}], settings=settings)
+        self._test_simple_query_error("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", "already exists.", settings=settings)
 
     def test_drop_view(self, query_tracker, yql_agent):
-        pytest.skip('no langver support')
-        self._test_simple_query("create view `//tmp/v0` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None)
-        self._test_simple_query("drop view `//tmp/v0`;", None)
-        self._test_simple_query_error("drop view `//tmp/v0`;", "does not exists.")
+        settings = {"yql_version": "2025.05"}
+        self._test_simple_query("create view `//tmp/v0` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None, settings=settings)
+        self._test_simple_query("drop view `//tmp/v0`;", None, settings=settings)
+        self._test_simple_query_error("drop view `//tmp/v0`;", "does not exists.", settings=settings)
 
     def test_wrong_drop(self, query_tracker, yql_agent):
-        pytest.skip('no langver support')
-        self._test_simple_query("create view `//tmp/v1` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None)
-        self._test_simple_query_error("drop table `//tmp/v1`;", 'Drop of "tmp/v1" view can not be done via DROP TABLE statement.')
+        settings = {"yql_version": "2025.05"}
 
-        self._test_simple_query("create table `//tmp/t1` (xyz Text not null);", None)
-        self._test_simple_query_error("drop view `//tmp/t1`;", 'Drop of "tmp/t1" table can not be done via DROP VIEW statement.')
+        self._test_simple_query("create view `//tmp/v1` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None, settings=settings)
+        self._test_simple_query_error("drop table `//tmp/v1`;", 'Drop of "tmp/v1" view can not be done via DROP TABLE statement.', settings=settings)
+
+        self._test_simple_query("create table `//tmp/t1` (xyz Text not null);", None, settings=settings)
+        self._test_simple_query_error("drop view `//tmp/t1`;", 'Drop of "tmp/t1" table can not be done via DROP VIEW statement.', settings=settings)
+
+    def test_create_drop_table_by_exists(self, query_tracker, yql_agent):
+        self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
+        self._test_simple_query("create table if not exists `//tmp/tt00` (xyz Text, abc Int16 not null, uvw Date null);", None)
+        self._test_simple_query("create table if not exists `//tmp/tt00` (abc Text, def Float not null, klm Date null);", None)
+        self._test_simple_query("$p = process `//tmp/tt00`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'abc':Int16,'uvw':Date?,'xyz':Utf8?>"}])
+        self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
+        self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
+        self._test_simple_query_error("select * from `//tmp/tt00`;", "does not exist")
 
 
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):
     YQL_SUBPROCESSES_COUNT = 8
+
+
+@authors("a-romanov")
+class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
+    NUM_REMOTE_CLUSTERS = 1
+    NUM_TEST_PARTITIONS = 3
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "remote_operations": {
+                "remote_0": {"allowed_for_everyone": True}
+            }
+        }
+    }
+
+    def test_two_clusters_without_intersections(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            insert into primary.`//tmp/t_0` select 123 as xyz;
+            insert into remote_0.`//tmp/t_0` select "BlaBla"u as abc;
+        """, None)
+
+        self._test_simple_query("""
+            insert into primary.`//tmp/t_1` select * from primary.`//tmp/t_0`;
+            insert into remote_0.`//tmp/t_1` select * from remote_0.`//tmp/t_0`;
+        """, None)
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t_1`;
+            select * from remote_0.`//tmp/t_1`;
+        """, [[{'xyz': 123}], [{'abc': 'BlaBla'}]])
+
+    def test_two_clusters_intersect(self, query_tracker, yql_agent):
+        attributes = {"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]}
+        create("table", "//tmp/t", attributes=attributes)
+        create("table", "//tmp/t", attributes=attributes, driver=get_driver(cluster="remote_0"))
+
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t", rows)
+        write_table("//tmp/t", rows, driver=get_driver(cluster="remote_0"))
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t`
+            intersect
+            select * from remote_0.`//tmp/t`
+        """, rows)
+
+        rows.extend(rows)
+        self._test_simple_query("""
+            select * from primary.`//tmp/t`
+            union all
+            select * from remote_0.`//tmp/t`
+        """, rows)
+
+    def test_two_clusters_cross_join(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            insert into primary.`//tmp/t0` select 456 as uvw;
+            insert into remote_0.`//tmp/t0` select "dode vis"u as klm;
+        """, None)
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t0` as p
+            cross join remote_0.`//tmp/t0` as r
+        """,  [{'klm': 'dode vis', 'uvw': 456}])
+
+
+@authors("ziganshinmr")
+class TestOperationOptions(TestQueriesYqlBase):
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(180)
+    def test_operation_options(self, query_tracker, yql_agent):
+        query = self.start_query("yql", "select CurrentOperationId() AS op_id, CurrentAuthenticatedUser() AS user")
+        query.track()
+        query_info = query.get()
+
+        expected_result = [{"op_id": query_info["id"], "user": query_info["user"]}]
+        assert query.read_result(0) == expected_result

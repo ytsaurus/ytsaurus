@@ -14,11 +14,18 @@
 
 #include "TGreenlet.hpp"
 
+#ifdef Py_GIL_DISABLED
+#include <atomic>
+#endif
 
-
-// Protected by the GIL. Incremented when we create a main greenlet,
-// in a new thread, decremented when it is destroyed.
+// Incremented when we create a main greenlet, in a new thread, decremented
+// when it is destroyed.
+#ifdef Py_GIL_DISABLED
+static std::atomic<Py_ssize_t> G_TOTAL_MAIN_GREENLETS(0);
+#else
+// Protected by the GIL.
 static Py_ssize_t G_TOTAL_MAIN_GREENLETS;
+#endif
 
 namespace greenlet {
 greenlet::PythonAllocator<MainGreenlet> MainGreenlet::allocator;

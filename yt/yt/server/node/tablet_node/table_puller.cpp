@@ -1,4 +1,5 @@
 #include "table_puller.h"
+#include "table_puller_helpers.h"
 
 #include "alien_cluster_client_cache.h"
 #include "alien_cluster_client_cache_base.h"
@@ -73,87 +74,8 @@ DEFINE_ENUM(EPullerErrorKind,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int TabletRowsPerRead = 1000;
+static constexpr int TabletRowsPerRead = 1000;
 static const TString PullerErrorKindAttribute = "puller_error_kind";
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBannedReplicaTracker
-{
-public:
-    struct TBanInfo
-    {
-        int Counter;
-        TError LastError;
-    };
-
-    explicit TBannedReplicaTracker(NLogging::TLogger logger, std::optional<int> replicaBanDuration)
-        : Logger(std::move(logger))
-        , ReplicaBanDuration_(replicaBanDuration)
-    { }
-
-    bool IsReplicaBanned(TReplicaId replicaId)
-    {
-        auto it = BannedReplicas_.find(replicaId);
-        bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
-
-        YT_LOG_TRACE("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
-            replicaId,
-            result);
-
-        return result;
-    }
-
-    void BanReplica(TReplicaId replicaId, TError error)
-    {
-        BannedReplicas_[replicaId] = TBanInfo{ReplicaBanDuration_.value_or(std::size(BannedReplicas_)), std::move(error)};
-
-        YT_LOG_DEBUG("Banned replica tracker has banned replica (ReplicaId: %v, ReplicasSize: %v)",
-            replicaId,
-            BannedReplicas_.size());
-    }
-
-    void SyncReplicas(const TReplicationCardPtr& replicationCard)
-    {
-        auto replicaIds = GetKeys(BannedReplicas_);
-        for (auto replicaId : replicaIds) {
-            if (!replicationCard->Replicas.contains(replicaId)) {
-                EraseOrCrash(BannedReplicas_, replicaId);
-            }
-        }
-
-        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-            if (!BannedReplicas_.contains(replicaId) &&
-                replicaInfo.ContentType == ETableReplicaContentType::Queue &&
-                IsReplicaEnabled(replicaInfo.State))
-            {
-                InsertOrCrash(BannedReplicas_, std::pair(replicaId, TBanInfo{0, TError()}));
-            }
-        }
-
-        DecreaseCounters();
-    }
-
-    const THashMap<TReplicaId, TBanInfo>& GetBannedReplicas() const
-    {
-        return BannedReplicas_;
-    }
-
-private:
-    const NLogging::TLogger Logger;
-    const std::optional<int> ReplicaBanDuration_;
-
-    THashMap<TReplicaId, TBanInfo> BannedReplicas_;
-
-    void DecreaseCounters()
-    {
-        for (auto& [_, info] : BannedReplicas_) {
-            if (info.Counter > 0) {
-                --info.Counter;
-            }
-        }
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,8 +118,14 @@ public:
     }
 
 private:
-    inline static const NNative::IClientPtr NullClient = nullptr;
+    inline static constinit NNative::IClientPtr NullClient = nullptr;
     const IAlienClusterClientCachePtr Underlying_;
+};
+
+struct TThrottlingTimes
+{
+    TDuration ThrottleTime;
+    TDuration RelativeThrottleTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,6 +170,7 @@ public:
         , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationCount)
+        , QueueReplicaSelector_(Logger, BannedReplicaTracker_, MountConfig_->TablePullerStronglyPreferLocalQueue)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }
@@ -305,15 +234,12 @@ private:
 
     IChaosAgentPtr ChaosAgent_;
     TBannedReplicaTracker BannedReplicaTracker_;
+    TQueueReplicaSelector QueueReplicaSelector_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
-    TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
     TPerFiberClusterClientCache ReplicatorClientCache_;
-    TReplicaId LastPulledFromReplicaId_;
 
     TFuture<void> FiberFuture_;
-
-    using TReplicaOrError = TErrorOr<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp>>;
 
     void FiberMain()
     {
@@ -477,7 +403,7 @@ private:
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
-                LastPulledFromReplicaId_ = NullObjectId;
+                QueueReplicaSelector_.ResetLastPulledFromReplicaId();
                 return;
             }
 
@@ -493,7 +419,8 @@ private:
 
             if (auto newProgress = MaybeAdvanceReplicationProgress(selfReplica, replicationProgress)) {
                 if (!IsReplicationProgressGreaterOrEqual(*newProgress, LastReplicationProgressAdvance_)) {
-                    YT_LOG_ALERT("Trying to advance replication progress behind last attempt (LastReplicationProgress: %v, NewReplicationProgress: %v)",
+                    YT_LOG_ALERT("Trying to advance replication progress behind last attempt "
+                        "(LastReplicationProgress: %v, NewReplicationProgress: %v)",
                         LastReplicationProgressAdvance_,
                         newProgress);
                 }
@@ -514,11 +441,12 @@ private:
                     LastReplicationProgressAdvance_ = std::move(*newProgress);
                 }
 
-                LastPulledFromReplicaId_ = NullObjectId;
+                QueueReplicaSelector_.ResetLastPulledFromReplicaId();
             } else {
                 BannedReplicaTracker_.SyncReplicas(replicationCard);
                 DoPullRows(
                     tabletSnapshot,
+                    snapshotEra,
                     replicationCard,
                     selfReplica,
                     replicationProgress);
@@ -526,7 +454,7 @@ private:
 
             UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
         } catch (const std::exception& ex) {
-            LastPulledFromReplicaId_ = NullObjectId;
+            QueueReplicaSelector_.ResetLastPulledFromReplicaId();
             auto error = TError(ex);
             YT_LOG_ERROR(error, "Error pulling rows, backing off");
             if (tabletSnapshot) {
@@ -542,186 +470,67 @@ private:
         }
     }
 
-    TReplicaOrError PickQueueReplica(
+    TThrottlingTimes DoThrottle(
+        TReplicationEra snapshotEra,
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TReplicationCardPtr& replicationCard,
-        const TRefCountedReplicationProgressPtr& replicationProgress,
-        TReplicaId lastPulledFromReplicaId,
-        TInstant now)
+        const TReplicationProgress& replicationProgress,
+        const TReplicaInfo& selfReplica,
+        const TTablePullerCounters& counters)
     {
-        // If our progress is less than any queue replica progress, pull from that replica.
-        // Otherwise pull from sync replica of oldest era corresponding to our progress.
+        TThrottlingTimes throttlingTimes;
 
-        YT_LOG_DEBUG("Pick replica to pull from");
-
-        auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
-        if (!selfReplica) {
-            return TError("Will not pull rows since replication card does not contain us");
+        auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
+        if(oldestTimestamp < selfReplica.History.back().Timestamp) {
+            YT_LOG_DEBUG("Skipping replication throttling because replica is not in its last era");
+            return throttlingTimes;
         }
 
-        if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, selfReplica->ReplicationProgress)) {
-            constexpr auto message = "Will not pull rows since actual replication progress is behind replication card replica progress";
+        auto throttleFuture = Throttler_->Throttle(1);
+        if (throttleFuture.IsSet()) {
+            throttleFuture.GetOrCrash().ThrowOnError();
+        } else {
+            auto timerGuard = TEventTimerGuard(counters.ThrottleTime);
+            YT_LOG_DEBUG("Started waiting for replication throttling");
 
-            // TODO(ponasenko-rs): Remove alerts after testing period.
-            if (now >= NextPermittedTimeForProgressBehindAlert_) {
-                YT_LOG_ALERT("%s (ReplicationProgress: %v, ReplicaInfo: %v)",
-                    message,
-                    static_cast<TReplicationProgress>(*replicationProgress),
-                    *selfReplica);
-                NextPermittedTimeForProgressBehindAlert_ = now + TDuration::Days(1);
+            WaitFor(throttleFuture)
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Finished waiting for replication throttling");
+            throttlingTimes.ThrottleTime = timerGuard.GetElapsedTime();
+        }
+
+        // Skip relative throttler on era change because it can throttle for quite a long time
+        // on tables with rare commits and cause long write downtimes.
+        auto futureReplicationEra = ChaosAgent_->GetFutureEra(snapshotEra, tabletSnapshot);
+        if (!futureReplicationEra.IsSet()) {
+            auto throttleFuture = RelativeThrottler_->Throttle();
+            if (auto optionalError = throttleFuture.TryGet()) {
+                optionalError->ThrowOnError();
+            } else {
+                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
+                TEventTimerGuard timerGuard(counters.RelativeThrottlerThrottleTime);
+
+                YT_LOG_DEBUG("Started waiting for relative replication throttling");
+
+                WaitFor(AnySet(std::vector{throttleFuture, futureReplicationEra}))
+                    .ThrowOnError();
+                throttlingTimes.RelativeThrottleTime = timerGuard.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
+                    throttlingTimes.RelativeThrottleTime);
             }
-
-            return TError(message)
-                << TErrorAttribute("replication_progress", static_cast<TReplicationProgress>(*replicationProgress))
-                << TErrorAttribute("replica_info", *selfReplica);
         }
 
-        auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
-        auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
-        if (historyItemIndex == -1) {
-            return TError("Will not pull rows since replica history does not cover replication progress")
-                << TErrorAttribute("oldest_timestamp", oldestTimestamp)
-                << TErrorAttribute("history", selfReplica->History);
+        if (futureReplicationEra.IsSet()) {
+            YT_LOG_DEBUG("Throttling canceled because replication era changed");
         }
 
-        YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
-        const auto& historyItem = selfReplica->History[historyItemIndex];
-        if (historyItem.IsSync()) {
-            return TError("Will not pull rows since oldest progress timestamp corresponds to sync history item")
-                << TErrorAttribute("oldest_timestamp", oldestTimestamp)
-                << TErrorAttribute("history_item", historyItem);
-        }
-
-        if (!IsReplicaAsync(selfReplica->Mode)) {
-            YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
-                selfReplica->Mode);
-            // NB: Allow this since sync replica could be catching up.
-        }
-
-        auto chooseReplica = [&] (const auto& candidates) {
-            const auto& selfClusterName = selfReplica->ClusterName;
-            for (const auto& candidate : candidates) {
-                if (std::get<1>(candidate)->ClusterName == selfClusterName) {
-                    return candidate;
-                }
-            }
-
-            return candidates[RandomNumber(candidates.size())];
-        };
-
-        auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
-            std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
-            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
-                    continue;
-                }
-
-                if (replicaInfo.ContentType != ETableReplicaContentType::Queue ||
-                    !IsReplicaEnabled(replicaInfo.State) ||
-                    replicaInfo.FindHistoryItemIndex(oldestTimestamp) == -1)
-                {
-                    continue;
-                }
-
-                if (selfReplica->ContentType == ETableReplicaContentType::Data) {
-                    if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress)) {
-                        if (replicaId == lastPulledFromReplicaId) {
-                            return {replicaId, &replicaInfo};
-                        }
-
-                        candidates.emplace_back(replicaId, &replicaInfo);
-                    }
-                } else {
-                    YT_VERIFY(selfReplica->ContentType == ETableReplicaContentType::Queue);
-                    auto replicaOldestTimestamp = GetReplicationProgressMinTimestamp(
-                        replicaInfo.ReplicationProgress,
-                        replicationProgress->Segments[0].LowerKey,
-                        replicationProgress->UpperKey);
-                    if (replicaOldestTimestamp > oldestTimestamp) {
-                        if (replicaId == lastPulledFromReplicaId) {
-                            return {replicaId, &replicaInfo};
-                        }
-
-                        candidates.emplace_back(replicaId, &replicaInfo);
-                    }
-                }
-            }
-
-            if (!candidates.empty()) {
-                return chooseReplica(candidates);
-            }
-
-            return {};
-        };
-
-        auto findSyncQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
-            std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp>> candidates;
-            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
-                    continue;
-                }
-
-                if (replicaInfo.ContentType != ETableReplicaContentType::Queue || !IsReplicaEnabled(replicaInfo.State)) {
-                    continue;
-                }
-
-                auto historyItemIndex = replicaInfo.FindHistoryItemIndex(oldestTimestamp);
-                if (historyItemIndex == -1) {
-                    continue;
-                }
-
-                const auto& historyItem = replicaInfo.History[historyItemIndex];
-                if (!historyItem.IsSync()) {
-                    continue;
-                }
-
-                YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
-                    replicaId,
-                    historyItem);
-
-                // Pull from (past) sync replica until it changed mode or we became sync.
-                // AsyncToSync -> SyncToAsync transition is possible, so check the previous state
-                // when in SyncToAsync mode
-                auto upperTimestamp = NullTimestamp;
-                if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
-                    upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
-                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State, selfReplica->History)) {
-                    upperTimestamp = selfReplica->History.back().Timestamp;
-                }
-
-                if (replicaId == lastPulledFromReplicaId) {
-                    return {replicaId, &replicaInfo, upperTimestamp};
-                }
-
-                candidates.emplace_back(replicaId, &replicaInfo, upperTimestamp);
-            }
-
-            if (!candidates.empty()) {
-                return chooseReplica(candidates);
-            }
-
-            return {};
-        };
-
-        if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(); queueReplica) {
-            YT_LOG_DEBUG("Pull rows from fresh replica (ReplicaId: %v)",
-                queueReplicaId);
-            return std::tuple{queueReplicaId, queueReplica, NullTimestamp};
-        }
-
-        if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(); queueReplicaInfo) {
-            YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %v, UpperTimestamp: %v)",
-                queueReplicaId,
-                oldestTimestamp,
-                upperTimestamp);
-            return std::tuple{queueReplicaId, queueReplicaInfo, upperTimestamp};
-        }
-
-        return TError("Will not pull rows since no in-sync queue found");
+        return throttlingTimes;
     }
 
     void DoPullRows(
         const TTabletSnapshotPtr& tabletSnapshot,
+        TReplicationEra snapshotEra,
         const TReplicationCardPtr& replicationCard,
         const TReplicaInfo* selfReplica,
         const TRefCountedReplicationProgressPtr& replicationProgress)
@@ -737,49 +546,19 @@ private:
         }
 
         auto reservingTracker = CreateReservingMemoryUsageTracker(MemoryTracker_, counters->MemoryUsage);
-        TDuration throttleTime;
-        {
-            auto throttleFuture = Throttler_->Throttle(1);
-            if (throttleFuture.IsSet()) {
-                throttleFuture.Get().ThrowOnError();
-            } else {
-                auto timerGuard = TEventTimerGuard(counters->ThrottleTime);
-                YT_LOG_DEBUG("Started waiting for replication throttling");
 
-                WaitFor(throttleFuture)
-                    .ThrowOnError();
-
-                YT_LOG_DEBUG("Finished waiting for replication throttling");
-                throttleTime = timerGuard.GetElapsedTime();
-            }
-        }
-
-        TDuration relativeThrottleTime;
-        {
-            auto throttleFuture = RelativeThrottler_->Throttle();
-            if (throttleFuture.IsSet()) {
-                throttleFuture.Get().ThrowOnError();
-            } else {
-                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
-                TEventTimerGuard timerGuard(counters->RelativeThrottlerThrottleTime);
-
-                YT_LOG_DEBUG("Started waiting for relative replication throttling");
-
-                WaitFor(throttleFuture)
-                    .ThrowOnError();
-                relativeThrottleTime = timerGuard.GetElapsedTime();
-
-                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
-                    relativeThrottleTime);
-            }
-        }
+        auto throttlingTimes = DoThrottle(
+            snapshotEra,
+            tabletSnapshot,
+            *replicationProgress,
+            *selfReplica,
+            *counters);
 
         auto now = TInstant::Now();
-        auto queueReplicaOrError = PickQueueReplica(
-            tabletSnapshot,
+        auto queueReplicaOrError = QueueReplicaSelector_.PickQueueReplica(
+            tabletSnapshot->UpstreamReplicaId,
             replicationCard,
-            replicationProgress,
-            LastPulledFromReplicaId_,
+            *replicationProgress,
             now);
 
         if (!queueReplicaOrError.IsOK()) {
@@ -794,11 +573,16 @@ private:
             .ValueOrThrow();
         YT_VERIFY(queueReplicaId);
         YT_VERIFY(queueReplicaInfo);
-        LastPulledFromReplicaId_ = queueReplicaId;
 
         try {
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
+
+            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
+                *replicationProgress,
+                PivotKey_.Get(),
+                NextPivotKey_.Get());
+
             TPullRowsResult result;
             {
                 TEventTimerGuard timerGuard(counters->PullRowsTime);
@@ -808,6 +592,11 @@ private:
                     THROW_ERROR_EXCEPTION("Queue replica cluster %Qv is not known", clusterName)
                         << HardErrorAttribute;
                 }
+
+                auto maxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(
+                    now,
+                    currentBatchFirstTimestamp,
+                    MountConfig_->ReplicationTickPeriod);
 
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
@@ -821,15 +610,16 @@ private:
                 options.SelfTabletId = TabletId_;
                 // TODO(osidorkin): Reduce MaxTransactionCommitInstant if there is a big difference between
                 // ReplicationProgressMinTimestamp and now ReplicationProgressMaxTimestamp.
-                options.MaxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(now);
+                options.MaxTransactionCommitInstant = maxTransactionCommitInstant;
 
                 YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
-                    "ReplicationRowIndexes: %v, UpperTimestamp: %v)",
+                    "ReplicationRowIndexes: %v, UpperTimestamp: %v, MaxTransactionCommitInstant: %v)",
                     clusterName,
                     replicaPath,
                     options.ReplicationProgress,
                     options.StartReplicationRowIndexes,
-                    upperTimestamp);
+                    upperTimestamp,
+                    maxTransactionCommitInstant);
 
                 result = WaitFor(alienClient->PullRows(replicaPath, options))
                     .ValueOrThrow();
@@ -857,16 +647,11 @@ private:
                 dataWeight,
                 progress,
                 endReplicationRowIndexes,
-                throttleTime,
-                relativeThrottleTime);
+                throttlingTimes.ThrottleTime,
+                throttlingTimes.RelativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
-            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
-                *replicationProgress,
-                PivotKey_.Get(),
-                NextPivotKey_.Get());
-            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(
-                progress);
+            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
             RelativeThrottler_->OnReplicationBatchProcessed(
                 currentBatchFirstTimestamp,
                 newReplicationTimestamp);
@@ -881,7 +666,8 @@ private:
                         : row.DeleteTimestamps()[0];
                     auto progressTimestamp = FindReplicationProgressTimestampForKey(*replicationProgress, row.Keys());
                     if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
+                        YT_LOG_ALERT("Received inappropriate row timestamp in pull rows response "
+                            "(RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
                             progressTimestamp,
                             row,
@@ -909,8 +695,8 @@ private:
 
                 for (auto row : unversionedRows) {
                     if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
-                        YT_LOG_ALERT("Could not identify timestamp column in pulled row. "
-                            "Timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
+                        YT_LOG_ALERT("Could not identify timestamp column in pulled row, "
+                            "timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
                             row,
                             *timestampColumnIndex);
                     }
@@ -1062,12 +848,14 @@ private:
                 PivotKey_.Get(),
                 NextPivotKey_.Get());
 
-            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %v, HistoryMinTimestamp: %v)",
+            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode "
+                "(ReplicationCardMinProgressTimestamp: %v, HistoryMinTimestamp: %v)",
                 progressTimestamp,
                 historyTimestamp);
 
             if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
-                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
+                YT_LOG_DEBUG("Advance replication progress to first history item "
+                    "(ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
                     static_cast<TReplicationProgress>(*progress),
                     selfReplica,
                     historyTimestamp);
@@ -1077,7 +865,8 @@ private:
                     historyTimestamp);
             }
 
-            YT_LOG_DEBUG("Checking that replication card contains further progress (ReplicationProgress: %v, Replica: %v)",
+            YT_LOG_DEBUG("Checking that replication card contains further progress "
+                "(ReplicationProgress: %v, Replica: %v)",
                 static_cast<TReplicationProgress>(*progress),
                 selfReplica);
 
@@ -1093,13 +882,15 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
-        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestamp: %v, HistoryItemIndex: %v)",
+        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping "
+            "(ReplicaMode: %v, OldestTimestamp: %v, HistoryItemIndex: %v)",
             ETabletWriteMode::Pull,
             oldestTimestamp,
             historyItemIndex);
 
         if (historyItemIndex == -1) {
-            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
+            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress "
+                "(ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
                 static_cast<TReplicationProgress>(*progress),
                 *selfReplica,
                 oldestTimestamp);
@@ -1107,7 +898,8 @@ private:
             if (selfReplica->History[historyItemIndex].IsSync()) {
                 ++historyItemIndex;
                 if (historyItemIndex >= std::ssize(selfReplica->History)) {
-                    YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
+                    YT_LOG_DEBUG("Will not advance replication progress to the next era "
+                        "because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
                         historyItemIndex,
                         *selfReplica);
                     return {};

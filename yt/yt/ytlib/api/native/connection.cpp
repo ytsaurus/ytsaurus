@@ -20,7 +20,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
@@ -61,6 +61,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
@@ -75,6 +76,8 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
+
+#include <yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
@@ -243,6 +246,7 @@ public:
         , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
+        , NodeStatusDirectory_(CreateNodeStatusDirectory(Logger))
         // NB(pavook): we can't hurt anybody by generating fake signatures.
         , SignatureGenerator_(Options_.SignatureGenerator
             ? Options_.SignatureGenerator
@@ -276,11 +280,8 @@ public:
             config->TvmId,
             Options_.TvmService);
 
-        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
-            StaticConfig_,
-            Options_,
-            ChannelFactory_,
-            Logger);
+        InitializeConnectionDirectories();
+
         MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
@@ -306,13 +307,23 @@ public:
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
 
+        TabletBalancerChannel_ = NTabletBalancerClient::CreateTabletBalancerChannel(
+            config->TabletBalancer,
+            ChannelFactory_,
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower),
+            GetNetworks());
+
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
-            config->QueueAgent->QueueConsumerRegistrationManager,
-            this,
-            GetInvoker(),
-            Profiler_.WithPrefix("/queue_consumer_registration_manager"),
-            Logger);
+
+        if (Options_.CreateQueueConsumerRegistrationManager) {
+            QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
+                config->QueueAgent->QueueConsumerRegistrationManager,
+                MakeWeak(this),
+                GetClusterName(),
+                GetInvoker(),
+                Profiler_.WithPrefix("/queue_consumer_registration_manager"),
+                Logger);
+        }
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
@@ -331,33 +342,15 @@ public:
             MakeWeak(this),
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
-        auto clusterDirectoryOptions = Options_;
-        clusterDirectoryOptions.SignatureGenerator =
-            New<NSignature::TProvidedSignatureGenerator>(
-                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
-                    if (auto this_ = weakThis.Lock()) {
-                        return this_->GetSignatureGenerator();
-                    }
-                    return GetDummySignatureGenerator();
-                }));
-        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
             ClusterDirectory_);
 
-        MediumDirectory_ = New<TMediumDirectory>();
         MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
             config->MediumDirectorySynchronizer,
             this,
             MediumDirectory_);
-
-        CellDirectory_ = NHiveClient::CreateCellDirectory(
-            config->CellDirectory,
-            ChannelFactory_,
-            GetClusterDirectory(),
-            GetNetworks(),
-            Logger);
         ConfigureMasterCells();
 
         CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
@@ -384,7 +377,7 @@ public:
             Options_.ChaosResidencyCacheMode,
             Logger);
 
-        ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
+        ChaosObjectChannelFactory_ = CreateChaosObjectChannelFactory(
             CellDirectory_,
             ChaosResidencyCache_,
             ChaosCellDirectorySynchronizer_,
@@ -440,7 +433,6 @@ public:
             this,
             Logger);
 
-        NodeDirectory_ = New<TNodeDirectory>();
         NodeDirectorySynchronizer_ = CreateNodeDirectorySynchronizer(
             MakeStrong(this),
             NodeDirectory_);
@@ -692,6 +684,11 @@ public:
         return kind;
     }
 
+    const IChannelPtr& GetCypressProxyChannel() override
+    {
+        return CypressProxyChannel_;
+    }
+
     const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
@@ -700,6 +697,11 @@ public:
     const IChannelPtr& GetBundleControllerChannel() override
     {
         return BundleControllerChannel_;
+    }
+
+    const IChannelPtr& GetTabletBalancerChannel() override
+    {
+        return TabletBalancerChannel_;
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -712,14 +714,16 @@ public:
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellTag, peerKind));
     }
 
-    IChannelPtr GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    IChannelPtr GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind) override
     {
-        if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
-            THROW_ERROR_EXCEPTION("Malformed replication card id %v",
-                replicationCardId);
+        if (TypeFromId(chaosObjectId) != EObjectType::ReplicationCard &&
+            TypeFromId(chaosObjectId) != EObjectType::ChaosLease)
+        {
+            THROW_ERROR_EXCEPTION("Malformed chaos object id %v",
+                chaosObjectId);
         }
 
-        return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
+        return WrapChaosChannel(ChaosObjectChannelFactory_->CreateChannel(chaosObjectId, peerKind));
     }
 
     IChannelPtr FindQueueAgentChannel(TStringBuf stage) const override
@@ -731,8 +735,11 @@ public:
         return it->second;
     }
 
-    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const override
     {
+        if (!QueueConsumerRegistrationManager_) {
+            THROW_ERROR_EXCEPTION("Queue consumer registration manager is not configured for this connection");
+        }
         return QueueConsumerRegistrationManager_;
     }
 
@@ -819,6 +826,11 @@ public:
     const INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
     {
         return NodeDirectorySynchronizer_;
+    }
+
+    const INodeStatusDirectoryPtr& GetNodeStatusDirectory() override
+    {
+        return NodeStatusDirectory_;
     }
 
     const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() override
@@ -933,8 +945,10 @@ public:
     {
         Terminated_ = true;
 
-        QueueConsumerRegistrationManager_->Clear();
-        QueueConsumerRegistrationManager_->StopSync();
+        if (QueueConsumerRegistrationManager_) {
+            QueueConsumerRegistrationManager_->Clear();
+            QueueConsumerRegistrationManager_->StopSync();
+        }
 
         ClusterDirectory_->Clear();
         ClusterDirectoryOverride_.Store(nullptr);
@@ -997,8 +1011,11 @@ public:
         DownedCellTracker_->Reconfigure(dynamicConfig->DownedCellTracker);
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
-        TimestampProvider_->Reconfigure(
-            GetTimestampProviderStaticConfig()->ApplyDynamic(dynamicConfig->TimestampProvider));
+        if (dynamicConfig->TimestampProvider) {
+            TimestampProvider_->Reconfigure(
+                GetTimestampProviderStaticConfig()->ApplyDynamic(dynamicConfig->TimestampProvider));
+        }
+
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
@@ -1059,6 +1076,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     IChannelPtr BundleControllerChannel_;
+    IChannelPtr TabletBalancerChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
@@ -1091,12 +1109,14 @@ private:
     TNodeDirectoryPtr NodeDirectory_;
     INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
+
     IChunkReplicaCachePtr ChunkReplicaCache_;
 
     IThreadPoolPtr ConnectionThreadPool_;
 
     IChaosResidencyCachePtr ChaosResidencyCache_;
-    IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
+    IChaosObjectChannelFactoryPtr ChaosObjectChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
 
     TServerAddressPoolPtr DiscoveryServerAddressPool_;
@@ -1156,7 +1176,14 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do([this] (TFluentAny fluent) {
+                    if (!QueueConsumerRegistrationManager_) {
+                        fluent.Entity();
+                        return;
+                    }
+
+                    QueueConsumerRegistrationManager_->BuildOrchid(fluent);
+                })
             .EndMap();
     }
 
@@ -1183,6 +1210,45 @@ private:
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
             CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+    }
+
+    void InitializeConnectionDirectories()
+    {
+        auto config = Config_.Acquire();
+
+        auto clusterDirectoryOptions = Options_;
+        clusterDirectoryOptions.SignatureGenerator =
+            New<NSignature::TProvidedSignatureGenerator>(
+                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        return this_->GetSignatureGenerator();
+                    }
+                    return GetDummySignatureGenerator();
+                }));
+
+        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
+        // TODO(apachee): Fix this for multi proxies.
+        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
+        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
+
+        MediumDirectory_ = New<TMediumDirectory>();
+
+        CellDirectory_ = NHiveClient::CreateCellDirectory(
+            config->CellDirectory,
+            ChannelFactory_,
+            GetClusterDirectory(),
+            GetNetworks(),
+            Logger);
+
+        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
+            StaticConfig_,
+            Options_,
+            ChannelFactory_,
+            CellDirectory_,
+            Logger);
+
+        NodeDirectory_ = New<TNodeDirectory>();
     }
 
     void InitializeCypressProxyChannel()
@@ -1481,7 +1547,7 @@ TStickyGroupSizeCache::TKey::operator size_t() const
     return result;
 }
 
-bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
+bool TStickyGroupSizeCache::TKey::operator==(const TKey& other) const
 {
     return
         Key == other.Key &&

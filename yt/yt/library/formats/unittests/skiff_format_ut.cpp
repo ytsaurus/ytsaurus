@@ -30,11 +30,13 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT {
 
 namespace {
 
+using namespace NConcurrency;
 using namespace NFormats;
 using namespace NNamedValue;
 using namespace NSkiff;
@@ -378,8 +380,7 @@ std::string TableToSkiff(
             {"value", value}
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto result = resultStream.Str();
@@ -517,7 +518,7 @@ void TestAllWireTypes(bool useSchema)
             }).Get(),
         });
         if (!isWriterReady) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
 
         Y_UNUSED(writer->Write({
@@ -540,8 +541,7 @@ void TestAllWireTypes(bool useSchema)
             }).Get()
         }));
 
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
@@ -673,8 +673,7 @@ TEST_P(TSkiffYsonWireTypeP, Test)
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {{"column", value}})
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     auto actualSkiffData = actualSkiffDataStream.Str();
@@ -714,7 +713,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
 
         auto write = [&] (TUnversionedRow row) {
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                WaitForFast(writer->GetReadyEvent()).ThrowOnError();
             }
         };
 
@@ -795,8 +794,7 @@ TEST(TSkiffWriterTest, TestYsonWireType)
             }).Get(),
         });
 
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
@@ -1042,8 +1040,7 @@ TEST_P(TSkiffFormatSmallIntP, Test)
     Y_UNUSED(writer->Write({
         MakeRow(nameTable, {{"column", value}})
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
     EXPECT_EQ(actualSkiffData.Str(), expectedSkiffData);
 
@@ -1076,8 +1073,7 @@ TEST(TSkiffWriterTest, TestBadSmallIntegers)
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {{"column", std::move(value)}})
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         return result.Str();
     };
@@ -1260,7 +1256,7 @@ TEST_P(TSkiffFormatUuidTestP, Test)
     }
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
     Y_UNUSED(skiffWriter->Write(TRange(nonOwningRows)));
-    skiffWriter->Close().Get().ThrowOnError();
+    WaitForFast(skiffWriter->Close()).ThrowOnError();
     ASSERT_EQ(result.Str(), skiffString);
 
     TCollectingValueConsumer rowCollector(nameTable);
@@ -1287,7 +1283,7 @@ TEST(TSkiffFormatUuidTest, TestError)
     Y_UNUSED(skiffWriter->Write({
         MakeRow(nameTable, {{"uuid", nullptr}}),
     }));
-    EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().Get().ThrowOnError(),
+    EXPECT_THROW_WITH_SUBSTRING(WaitForFast(skiffWriter->Close()).ThrowOnError(),
         "Unexpected type");
 }
 
@@ -1331,7 +1327,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
             }).Get(),
         });
         if (!isReady) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
         // Row 1
         Y_UNUSED(writer->Write({
@@ -1340,8 +1336,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
                 {"opt_null", EValueType::Composite, "[#]"},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
@@ -1379,7 +1374,7 @@ TEST(TSkiffWriterTest, TestRearrange)
 
         auto write = [&] (TUnversionedRow row) {
             if (!writer->Write({row})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                WaitForFast(writer->GetReadyEvent()).ThrowOnError();
             }
         };
 
@@ -1404,8 +1399,7 @@ TEST(TSkiffWriterTest, TestRearrange)
             {"number", 3},
         }).Get());
 
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
     }
 
@@ -1457,8 +1451,7 @@ TEST(TSkiffWriterTest, TestMissingRequiredField)
                 {"number", 1},
             }).Get()
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1483,7 +1476,7 @@ TEST(TSkiffWriterTest, TestSparse)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1515,8 +1508,7 @@ TEST(TSkiffWriterTest, TestSparse)
         {TableIndexColumnName, 0},
     }).Get());
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(result);
@@ -1576,8 +1568,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
                 {"unknown_column", "four"},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1598,8 +1589,7 @@ TEST(TSkiffWriterTest, TestMissingFields)
                 {"unknown_column", "four"},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const std::exception& e) {
@@ -1624,7 +1614,7 @@ TEST(TSkiffWriterTest, TestOtherColumns)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1645,8 +1635,7 @@ TEST(TSkiffWriterTest, TestOtherColumns)
         {TableIndexColumnName, 0},
         {"other_string_column", "bar"},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -1691,7 +1680,7 @@ TEST(TSkiffWriterTest, TestKeySwitch)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1710,8 +1699,7 @@ TEST(TSkiffWriterTest, TestKeySwitch)
         {"value", "two"},
         {TableIndexColumnName, 0},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -1751,7 +1739,7 @@ TEST(TSkiffWriterTest, TestEndOfStream)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -1765,8 +1753,7 @@ TEST(TSkiffWriterTest, TestEndOfStream)
         {"value", "one"},
         {TableIndexColumnName, 0},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -1842,11 +1829,10 @@ TEST(TSkiffWriterTest, TestRowRangeIndex)
 
         for (const auto& row : rows) {
             if (!writer->Write({generateUnversionedRow(row, nameTable)})) {
-                writer->GetReadyEvent().Get().ThrowOnError();
+                WaitForFast(writer->GetReadyEvent()).ThrowOnError();
             }
         }
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         return HexEncode(resultStream.Str());
@@ -2003,8 +1989,7 @@ TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
                 {std::string(columnName), 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2060,8 +2045,7 @@ TEST(TSkiffWriterTest, TestComplexType)
                 {TableIndexColumnName, 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2143,8 +2127,7 @@ TEST(TSkiffWriterTest, TestTzTime)
             {"timestamp64Column", timestamp64ValueString},
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2201,8 +2184,7 @@ TEST(TSkiffWriterTest, TestTimezoneString)
             {"dateColumn", dateValueString}
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2248,8 +2230,7 @@ TEST(TSkiffWriterTest, TestRemainingRowBytes)
             {"data", dataValue2},
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2327,8 +2308,7 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
                 {TableIndexColumnName, 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2373,8 +2353,7 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
                 {TableIndexColumnName, 0},
             }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput resultInput(resultStream.Str());
@@ -2425,8 +2404,7 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
             {TableIndexColumnName, 0},
         }).Get(),
     }));
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -2491,8 +2469,7 @@ TEST(TSkiffWriterTest, TestMissingComplexColumn)
             }).Get(),
             MakeRow(nameTable, { }).Get(),
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         EXPECT_EQ(HexEncode(resultStream.Str()), "0000" "00" "0000" "00" "0000" "00");
@@ -2536,7 +2513,7 @@ TEST(TSkiffWriterTest, TestSkippedFields)
                 }).Get()
             }))
         {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
@@ -2546,8 +2523,7 @@ TEST(TSkiffWriterTest, TestSkippedFields)
                 {"double", 2.5},
             }).Get()
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput resultInput(result);
@@ -2600,15 +2576,14 @@ TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
                 }).Get()
             }))
         {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
         Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {RangeIndexColumnName, 5},
             }).Get()
         }));
-        writer->Close()
-            .Get()
+        WaitForFast(writer->Close())
             .ThrowOnError();
 
         TStringInput resultInput(result);
@@ -2642,7 +2617,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
 
     auto write = [&] (TUnversionedRow row) {
         if (!writer->Write({row})) {
-            writer->GetReadyEvent().Get().ThrowOnError();
+            WaitForFast(writer->GetReadyEvent()).ThrowOnError();
         }
     };
 
@@ -2664,8 +2639,7 @@ TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
         {"value1", 2},
         {TableIndexColumnName, 0},
     }).Get());
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());
@@ -3448,8 +3422,7 @@ TEST(TSkiffFormatTest, ComplexTzType)
         }).Get(),
     }));
 
-    writer->Close()
-        .Get()
+    WaitForFast(writer->Close())
         .ThrowOnError();
 
     TStringInput resultInput(resultStream.Str());

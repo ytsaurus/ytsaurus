@@ -27,10 +27,10 @@ struct TCypressShardAccountStatistics
 
 void Serialize(const TCypressShardAccountStatistics& statistics, NYson::IYsonConsumer* consumer);
 
-TCypressShardAccountStatistics& operator +=(
+TCypressShardAccountStatistics& operator+=(
     TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs);
-TCypressShardAccountStatistics operator +(
+TCypressShardAccountStatistics operator+(
     const TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs);
 

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/client/misc/public.h>
 
 #include <yt/yt/core/misc/ema_counter.h>
@@ -26,6 +28,7 @@ struct TPerformanceCountersEma
     }};
 
     void UpdateEma();
+    void Merge(const TEmaCounter<i64>& other);
 };
 
 static_assert(sizeof(TEmaCounter<i64>) >= 64 - 8, "Consider adding alignment in TPerformanceCountersEma to avoid false sharing.");
@@ -41,8 +44,13 @@ struct TChunkReaderPerformanceCounters
     TPerformanceCountersEma StaticChunkRowLookup;
     TPerformanceCountersEma StaticChunkRowLookupDataWeight;
     TPerformanceCountersEma StaticHunkChunkRowLookupDataWeight;
+    TPerformanceCountersEma UserDataBytesTransmitted;
+    TPerformanceCountersEma SystemDataBytesTransmitted;
 
-    void IncrementHunkDataWeight(EPerformanceCountedRequestType requestType, i64 value, EWorkloadCategory workloadCategory);
+    void IncrementHunkDataWeight(EInitialQueryKind initialQueryKind, i64 value, EWorkloadCategory workloadCategory);
+    void Increment(
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool isSystemWorkload);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -65,6 +73,8 @@ struct TTabletPerformanceCounters
     TPerformanceCountersEma WriteError;
     TPerformanceCountersEma LookupCpuTime;
     TPerformanceCountersEma SelectCpuTime;
+
+    bool Initialized = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
@@ -75,13 +85,13 @@ IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type);
+    EInitialQueryKind initialQueryKind);
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type);
+    EInitialQueryKind initialQueryKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

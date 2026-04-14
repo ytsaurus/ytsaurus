@@ -1,5 +1,6 @@
 #include "chunk_tree_balancer.h"
 #include "chunk_list.h"
+#include "chunk_owner_base.h"
 #include "chunk_manager.h"
 #include "config.h"
 
@@ -50,7 +51,7 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerM
     return false;
 }
 
-void TChunkTreeBalancer::Rebalance(TChunkList* root)
+TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkList* root)
 {
     YT_VERIFY(root->GetKind() == EChunkListKind::Static);
 
@@ -59,12 +60,12 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     // Special case: no chunks in the chunk tree.
     if (oldStatistics.ChunkCount == 0) {
         Callbacks_->ClearChunkList(root);
-        return;
+        return {};
     }
 
     // Construct new children list.
     std::vector<TChunkTreeRawPtr> newChildren;
-    AppendChunkTree(&newChildren, root);
+    auto result = AppendChunkTree(&newChildren, root);
     YT_VERIFY(!newChildren.empty());
     YT_VERIFY(newChildren.front() != root);
 
@@ -114,9 +115,11 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     // The root is the exception: it's contents may, of course, change.
     // Luckily, rebalancing occurs immediately after scheduling a requisition
     // update, which does not start the actual traversal immediately.
+
+    return result;
 }
 
-void TChunkTreeBalancer::AppendChunkTree(
+TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::AppendChunkTree(
     std::vector<TChunkTreeRawPtr>* children,
     TChunkTree* root)
 {
@@ -139,6 +142,9 @@ void TChunkTreeBalancer::AppendChunkTree(
         int Index;
     };
 
+    TRebalanceStatistics result;
+    bool prefixTouched = false;
+
     std::stack<TEntry> stack;
     stack.push(TEntry(root, 0));
 
@@ -158,13 +164,23 @@ void TChunkTreeBalancer::AppendChunkTree(
                 continue;
             }
         } else {
-            AppendChild(children, currentChunkTree);
+            auto childAppended = AppendChild(children, currentChunkTree);
+            if (!prefixTouched && childAppended) {
+                auto chunkCount = currentChunkTree->GetType() == EObjectType::ChunkList ?
+                    currentChunkTree->AsChunkList()->Statistics().ChunkCount :
+                    1;
+                result.UntouchedPrefixChunkCount += chunkCount;
+            } else {
+                prefixTouched = true;
+            }
         }
         stack.pop();
     }
+
+    return result;
 }
 
-void TChunkTreeBalancer::AppendChild(
+bool TChunkTreeBalancer::AppendChild(
     std::vector<TChunkTreeRawPtr>* children,
     TChunkTree* child)
 {
@@ -197,7 +213,7 @@ void TChunkTreeBalancer::AppendChild(
                 Callbacks_->FlushObjectUnrefs();
                 YT_VERIFY(Callbacks_->GetObjectRefCounter(chunkList) > 0);
                 children->push_back(child);
-                return;
+                return true;
             }
         }
 
@@ -208,6 +224,7 @@ void TChunkTreeBalancer::AppendChild(
 
     // Merge!
     MergeChunkTrees(children, child);
+    return false;
 }
 
 void TChunkTreeBalancer::MergeChunkTrees(

@@ -67,7 +67,7 @@ public:
 
     TCGValue(TCGValue&& other) noexcept;
 
-    TCGValue& operator=(TCGValue&& other);
+    TCGValue& operator=(TCGValue&& other) noexcept;
 
     TCGValue&& Steal();
 
@@ -276,7 +276,7 @@ public:
 
     Value* GetExecutionContext() const;
 
-    TCodegenConsumer& operator[] (size_t index) const;
+    TCodegenConsumer& operator[](size_t index) const;
 
 protected:
     Value* const ExecutionContext_;

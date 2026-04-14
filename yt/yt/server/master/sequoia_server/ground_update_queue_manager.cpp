@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -189,11 +191,18 @@ public:
         queueState.Records.push_back(std::move(record));
     }
 
+    i64 GetLastRecordSequenceNumber(EGroundUpdateQueue queue) const override
+    {
+        const auto& queueState = QueueStates_[queue];
+        // Turns into -1 if no records were ever enqueued, seems OK.
+        return queueState.NextRecordSequenceNumber - 1;
+    }
+
     TFuture<void> Sync(EGroundUpdateQueue queue) override
     {
         auto& queueState = QueueStates_[queue];
         if (queueState.Records.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto& syncPromise = queueState.Records.back().SyncPromise;
@@ -227,20 +236,21 @@ private:
 
         if (queueRecords.empty()) {
             auto error = TError("There are no updates to flush");
-            YT_LOG_ALERT(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
         if (queueRecords.front().SequenceNumber != request->start_sequence_number()) {
             auto error = TError("First record sequence number %v is different from requested sequence number %v",
                 queueRecords.front().SequenceNumber,
                 request->start_sequence_number());
-            YT_LOG_ALERT(error);
+            YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
         if (queueRecords.back().SequenceNumber < request->end_sequence_number()) {
             auto error = TError("Last queue sequence number %v is less than requested sequence number %v",
                 queueRecords.back().SequenceNumber,
                 request->end_sequence_number());
+            // This is still alert, looks weird.
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
@@ -293,6 +303,12 @@ private:
             startSequenceNumber,
             endSequenceNumber,
             recordCount);
+
+        // I don't like it here.
+        if (queue == EGroundUpdateQueue::Sequoia) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->DrainGroundUpdateQueueManagerSequenceNumber(endSequenceNumber);
+        }
     }
 
     void HydraAbortFlushTableUpdateQueue(
@@ -369,7 +385,7 @@ private:
                 auto& queueState = QueueStates_[queue];
 
                 if (!queueState.IsFlushNeeded()) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 const auto& config = GetDynamicConfig();

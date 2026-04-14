@@ -52,7 +52,7 @@ struct TTableKey
     TRevision Revision;
 };
 
-bool operator == (const TTableKey& lhs, const TTableKey& rhs)
+bool operator==(const TTableKey& lhs, const TTableKey& rhs)
 {
     return lhs.ObjectId == rhs.ObjectId;
 }

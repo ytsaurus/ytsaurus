@@ -124,7 +124,7 @@ void TTransaction::Load(TLoadContext& context)
         Load(context, ExternalizerTablets_);
     } else {
         if (auto tabletId = Load<TTabletId>(context)) {
-            ExternalizerTablets_ = {{tabletId, {tabletId}}};
+            ExternalizerTablets_ = {{tabletId, {TTransactionExternalizationToken(tabletId)}}};
         }
     }
 
@@ -257,11 +257,24 @@ TExternalizedTransaction::TExternalizedTransaction(TTransactionId id, TTransacti
     : TTransaction(id)
 {
     ExternalizationToken_ = token;
-};
+}
 
 TExternalizedTransaction::TExternalizedTransaction(TExternalizedTransactionId id)
     : TExternalizedTransaction(id.first, id.second)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString FormatTransactionId(
+    TTransactionId transactionId,
+    TTransactionExternalizationToken externalizationToken)
+{
+    if (externalizationToken) {
+        return Format("%v@%v", transactionId, externalizationToken);
+    } else {
+        return ToString(transactionId);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

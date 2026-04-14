@@ -24,6 +24,10 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = TableClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 THashTableChunkIndexMeta::THashTableChunkIndexMeta(const TTableSchemaPtr& schema)
     : IndexedBlockFormatDetail(schema)
 { }
@@ -62,9 +66,10 @@ i64 TXorFilterMeta::GetMemoryUsage() const
 
 TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
     bool prepareColumnarMeta,
+    bool compressBlockLastKeys,
     const IMemoryUsageTrackerPtr& memoryTracker,
     const NChunkClient::NProto::TChunkMeta& chunkMeta)
-    : TColumnarChunkMeta(chunkMeta)
+    : TColumnarChunkMeta(chunkMeta, compressBlockLastKeys)
     , ColumnarMetaPrepared_(prepareColumnarMeta && ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
 {
     if (ChunkType_ != EChunkType::Table) {
@@ -84,16 +89,14 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
             ChunkFormat_);
     }
 
-
     if (auto optionalSystemBlockMetaExt = FindProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
-        ParseHashTableChunkIndexMeta(*optionalSystemBlockMetaExt);
-        ParseXorFilterMeta(*optionalSystemBlockMetaExt);
-        ParseMinHashDigestMeta(*optionalSystemBlockMetaExt);
+        ParseSystemBlocksMeta(*optionalSystemBlockMetaExt);
     }
 
     if (ColumnarMetaPrepared_) {
         GetPreparedChunkMeta();
-        ClearColumnMeta();
+        ColumnMeta_.Reset();
+        DataBlockMeta_.Reset();
     }
 
     // Do not keep large columnar statistics
@@ -113,6 +116,19 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 {
     return New<TCachedVersionedChunkMeta>(
         prepareColumnarMeta,
+        /*compressBlockLastKeys*/ false,
+        memoryTracker,
+        *chunkMeta);
+}
+
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys(
+    bool prepareColumnarMeta,
+    const IMemoryUsageTrackerPtr& memoryTracker,
+    const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta)
+{
+    return New<TCachedVersionedChunkMeta>(
+        prepareColumnarMeta,
+        /*compressBlockLastKeys*/ true,
         memoryTracker,
         *chunkMeta);
 }
@@ -205,41 +221,20 @@ const TXorFilterMeta* TCachedVersionedChunkMeta::FindXorFilterByLength(int keyPr
     return &(--it)->second;
 }
 
-void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
-    const TSystemBlockMetaExt& systemBlockMetaExt)
+void TCachedVersionedChunkMeta::ParseSystemBlocksMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt)
 {
-    std::vector<std::pair<int, THashTableChunkIndexSystemBlockMeta>> blockMetas;
+    std::vector<std::pair<int, THashTableChunkIndexSystemBlockMeta>> hashTableChunkIndexBlockMetas;
 
-    for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
-        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
+    for (int systemBlockIndex = 0; systemBlockIndex < systemBlockMetaExt.system_blocks_size(); ++systemBlockIndex) {
+        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(systemBlockIndex);
+        int blockIndex = DataBlockMeta()->data_blocks_size() + systemBlockIndex;
+
         if (systemBlockMeta.HasExtension(THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext)) {
-            blockMetas.emplace_back(
-                DataBlockMeta()->data_blocks_size() + blockIndex,
+            hashTableChunkIndexBlockMetas.emplace_back(
+                blockIndex,
                 systemBlockMeta.GetExtension(
                     THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext));
-        }
-    }
-
-    if (blockMetas.empty()) {
-        return;
-    }
-
-    HashTableChunkIndexMeta_.emplace(ChunkSchema_);
-    HashTableChunkIndexMeta_->BlockMetas.reserve(blockMetas.size());
-    for (const auto& [blockIndex, blockMeta] : blockMetas) {
-        HashTableChunkIndexMeta_->BlockMetas.emplace_back(
-            blockIndex,
-            HashTableChunkIndexMeta_->IndexedBlockFormatDetail,
-            blockMeta);
-    }
-}
-
-void TCachedVersionedChunkMeta::ParseXorFilterMeta(
-    const TSystemBlockMetaExt& systemBlockMetaExt)
-{
-    for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
-        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
-        if (systemBlockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
+        } else if (systemBlockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
             auto xorFilterBlockExt = systemBlockMeta.GetExtension(
                 TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext);
 
@@ -250,21 +245,30 @@ void TCachedVersionedChunkMeta::ParseXorFilterMeta(
             auto& xorFilterMeta = XorFilterMetaByLength_[keyPrefixLength];
             xorFilterMeta.KeyPrefixLength = keyPrefixLength;
             xorFilterMeta.BlockMetas.emplace_back(
-                DataBlockMeta()->data_blocks_size() + blockIndex,
+                blockIndex,
                 xorFilterBlockExt);
+        } else if (systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
+            if (MinHashDigestBlockIndex_) {
+                YT_LOG_ALERT("There are two blocks with min hash digest (FirstBlockIndex: %v, SecondBlockIndex: %v)",
+                    *MinHashDigestBlockIndex_,
+                    blockIndex);
+            }
+
+            MinHashDigestBlockIndex_ = blockIndex;
         }
     }
-}
 
-void TCachedVersionedChunkMeta::ParseMinHashDigestMeta(
-    const TSystemBlockMetaExt& systemBlockMetaExt)
-{
-    for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
-        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
-        if (systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
-            MinHashDigestBlockIndex_ = DataBlockMeta()->data_blocks_size() + blockIndex;
-            break;
-        }
+    if (hashTableChunkIndexBlockMetas.empty()) {
+        return;
+    }
+
+    HashTableChunkIndexMeta_.emplace(ChunkSchema_);
+    HashTableChunkIndexMeta_->BlockMetas.reserve(hashTableChunkIndexBlockMetas.size());
+    for (const auto& [blockIndex, blockMeta] : hashTableChunkIndexBlockMetas) {
+        HashTableChunkIndexMeta_->BlockMetas.emplace_back(
+            blockIndex,
+            HashTableChunkIndexMeta_->IndexedBlockFormatDetail,
+            blockMeta);
     }
 }
 

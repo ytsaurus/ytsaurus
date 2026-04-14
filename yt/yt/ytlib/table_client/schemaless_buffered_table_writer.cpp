@@ -75,7 +75,7 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Close() override

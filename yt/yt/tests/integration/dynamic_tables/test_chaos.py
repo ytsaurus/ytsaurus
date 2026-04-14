@@ -1,6 +1,6 @@
-from yt_chaos_test_base import ChaosTestBase, MAX_KEY, map_in_parallel
+from yt_chaos_test_base import ChaosTestBase, MAX_KEY
 
-from yt_dynamic_tables_base import SmoothMovementHelper
+from yt_dynamic_tables_base import SmoothMovementHelper, map_in_parallel
 
 from yt_env_setup import (
     Restarter,
@@ -57,26 +57,15 @@ class TestChaos(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
-    DELTA_RPC_PROXY_CONFIG = {
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
-            "chaos_residency_cache": {
-                "enable_client_mode" : True,
-            },
         },
     }
 
     DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
-        },
         "chaos_node": {
             "replication_card_automaton_cache_expiration_time": 100
         },
@@ -100,10 +89,6 @@ class TestChaos(ChaosTestBase):
 
     def setup_method(self, method):
         super(TestChaos, self).setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
         native_config = deepcopy(self.Env.configs["driver"])
         native_config["connection_type"] = "native"
@@ -303,8 +288,33 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
         ]
-        self._create_chaos_tables(cell_id, replicas)
+        card_id, _ = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
         _, _, remote_driver1 = self._get_drivers()
+
+        reshard_table("//tmp/t", [[], [1]])
+        reshard_table("//tmp/r1", [[], [1]], driver=remote_driver1)
+        self._mount_replicas(replicas)
+        self._sync_replication_era(card_id, replicas)
+
+        def _check_lag_properties(path: str, mode: str, cluster_name: str):
+            driver = get_driver(cluster=cluster_name)
+            get_result = get(f"{path}/@", attributes=["tablets", "replication_lag_times"], driver=driver)
+
+            tablets = get_result["tablets"]
+            lag_times = get_result["replication_lag_times"]
+            assert len(tablets) == len(lag_times)
+
+            for lag_time, tablet in zip(lag_times, tablets):
+                assert lag_time["tablet_id"] == tablet["tablet_id"]
+                assert lag_time["replication_mode"] == mode
+
+                if mode == "sync":
+                    assert lag_time["replication_lag_time"] == 0
+                else:
+                    assert lag_time["replication_lag_time"] >= 0
+
+        for replica in replicas:
+            _check_lag_properties(replica["replica_path"], replica["mode"], replica["cluster_name"])
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)
@@ -4373,6 +4383,10 @@ class TestChaos(ChaosTestBase):
                             raise err
                 wait(_do)
 
+        for proxy in ls("//sys/rpc_proxies"):
+            orchid_path = "cluster_connection/dynamic_config/enable_read_from_async_replicas"
+            assert get(f"//sys/rpc_proxies/{proxy}/orchid/{orchid_path}")
+
         values, keys = _create_expected_data(schemas[0])
         wait(lambda: lookup_rows("//tmp/rd", keys, driver=remote_driver0) == values)
         _check(lambda: _filter(lookup_rows("//tmp/rd", keys, timestamp=ts, replica_consistency="sync", driver=remote_driver0), schema1) == values)
@@ -4853,26 +4867,15 @@ class TestChaosSpecial(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
-    DELTA_RPC_PROXY_CONFIG = {
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "enable_read_from_async_replicas": True,
-            "chaos_residency_cache": {
-                "enable_client_mode" : True,
-            },
         },
     }
 
     DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
-        },
         "chaos_node": {
             "replication_card_automaton_cache_expiration_time": 100
         },
@@ -5234,6 +5237,18 @@ class TestChaosRpcProxy(TestChaos):
                     with raises_yt_error("No working in-sync replicas found for table //tmp/crt"):
                         lookup_rows("//tmp/crt", keys, timestamp=timestamp)
 
+    @authors("osidorkin")
+    def test_dynconfig_rewinded_correctly(self):
+        def check_property(expected_value : bool):
+            for proxy in ls("//sys/rpc_proxies"):
+                orchid_path = "cluster_connection/dynamic_config/enable_read_from_async_replicas"
+                assert get(f"//sys/rpc_proxies/{proxy}/orchid/{orchid_path}") == expected_value
+
+        check_property(True)
+        with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", False):
+            check_property(False)
+        check_property(True)
+
 
 ##################################################################
 
@@ -5246,23 +5261,12 @@ class TestChaosNativeProxy(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     DELTA_MASTER_CACHE_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
                 "use_has_chaos_object": True,
-            },
-        },
-    }
-
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
             },
         },
     }
@@ -5474,14 +5478,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         },
     }
 
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
-        },
-    }
-
     DELTA_RPC_DRIVER_CONFIG = {
         "table_mount_cache": {
             "expire_after_successful_update_time": 0,
@@ -5492,11 +5488,8 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         },
     }
 
-    DELTA_RPC_PROXY_CONFIG = {
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {
         "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5511,9 +5504,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
-            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5540,13 +5530,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             },
         },
     }
-
-    def setup_method(self, method):
-        super().setup_method(method)
-
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        for driver in self._get_drivers():
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
     @authors("osidorkin")
     def test_multitable_transactions(self):
@@ -6046,11 +6029,27 @@ class TestChaosMetaCluster(ChaosTestBase):
             for cell_id, driver in drivers.items()
         }
 
+        def retry_enabled_cell(func):
+            for _ in range(5):
+                try:
+                    func()
+                except YtError as e:
+                    if not e.contains_code(yt_error_codes.ChaosCellIsNotEnabled):
+                        raise e
+
         def get_chaos_lease_manager_state(cell_id):
             state_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/internal/state"
             return get(state_path, driver=drivers[cell_id])
 
-        def get_chaos_lease(cell_id, lease_id):
+        def is_chaos_manager_suspended(cell_id):
+            suspended_path = f"{orchids_paths[cell_id]}/chaos_manager/internal/suspended"
+            return get(suspended_path, driver=drivers[cell_id])
+
+        def is_chaos_coordinator_suspended(cell_id):
+            suspended_path = f"{orchids_paths[cell_id]}/coordinator_manager/internal/suspended"
+            return get(suspended_path, driver=drivers[cell_id])
+
+        def get_chaos_lease_from_orchid(cell_id, lease_id):
             lease_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/chaos_leases/{lease_id}"
             return get(lease_path, driver=drivers[cell_id])
 
@@ -6064,22 +6063,41 @@ class TestChaosMetaCluster(ChaosTestBase):
             assert get_chaos_lease_manager_state(enabled_cell) == "enabled"
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "disabled")
 
-            lease_id = create_chaos_lease(enabled_cell)
-            assert get_chaos_lease(enabled_cell, lease_id)["state"] == "normal"
-            with pytest.raises(YtError):
-                assert get_chaos_lease(disabled_cell, lease_id)
+            # Make sure chaos cell allows to repeatedly disable chaos lease manager, even when chaos manager is not suspended
+            suspend_chaos_cells([disabled_cell])
+            wait(lambda: is_chaos_manager_suspended(disabled_cell))
+            wait(lambda: is_chaos_coordinator_suspended(disabled_cell))
 
-            with pytest.raises(YtError):
-                assert suspend_chaos_cells([disabled_cell])
+            lease_ids = [create_chaos_lease(enabled_cell, attributes={"timeout": 30000})]
+            lease_ids.append(create_chaos_lease(enabled_cell, attributes={"timeout": 30000, "parent_id": lease_ids[0]}))
+            lease_ids.append(create_chaos_lease(enabled_cell, attributes={"timeout": 30000, "parent_id": lease_ids[0]}))
 
+            for lease_id in lease_ids:
+                assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
+                ping_chaos_lease(lease_id)
+
+            for lease_id in lease_ids:
+                with pytest.raises(YtError):
+                    get_chaos_lease_from_orchid(disabled_cell, lease_id)
+
+            resume_chaos_cells([disabled_cell])
             suspend_chaos_cells([enabled_cell])
 
             wait(lambda: get_chaos_lease_manager_state(enabled_cell) == "disabled")
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "enabled")
+            wait(lambda: is_chaos_manager_suspended(enabled_cell))
+            wait(lambda: is_chaos_coordinator_suspended(enabled_cell))
+            wait(lambda: not is_chaos_manager_suspended(disabled_cell))
 
-            wait(lambda: get_chaos_lease(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
-            with pytest.raises(YtError):
-                assert get_chaos_lease(enabled_cell, lease_id)
+            for lease_id in lease_ids:
+                wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
+
+            for lease_id in lease_ids:
+                with pytest.raises(YtError):
+                    get_chaos_lease_from_orchid(enabled_cell, lease_id)
+
+                retry_enabled_cell(lambda: get(f"#{lease_id}"))
+                retry_enabled_cell(lambda: ping_chaos_lease(lease_id))
 
         check_suspend(alpha_cell, beta_cell)
         check_suspend(beta_cell, alpha_cell)
@@ -6587,6 +6605,75 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         insert_rows("//tmp/crt", values)
         wait(lambda: lookup_rows("//tmp/q0", [{"key": 0}]) == values)
 
+    @authors("osidorkin")
+    def test_remove_cell_mailbox(self):
+        cluster_names = self.get_cluster_names()
+        peer_cluster_names = [cluster_names[0]]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names)
+        driver0 = self._get_drivers()[0]
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        sorted_schema = self._get_schemas_by_name(["sorted_simple"])[0]
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": sorted_schema})
+
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+        cell_id2 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=sorted_schema)
+
+        self._sync_replication_era(card_id)
+
+        def _get_replication_card(cell, card_id, driver):
+            peer = get(f"//sys/chaos_cells/{cell}/@peers/0/address", driver=driver)
+            return get(
+                f"//sys/cluster_nodes/{peer}/orchid/chaos_cells/{cell}/chaos_manager/replication_cards/{card_id}",
+                driver=driver
+            )
+
+        replication_card = _get_replication_card(cell_id, card_id, driver0)
+        assert len(replication_card["coordinators"]) == 3
+        assert cell_id1 in replication_card["coordinators"]
+
+        migrate_replication_cards(cell_id, [card_id], destination_cell_id=cell_id2)
+
+        self._sync_replication_era(card_id)
+        wait(lambda: len(_get_replication_card(cell_id2, card_id, driver0)["coordinators"]) == 3)
+
+        execute_command(
+            "remove_chaos_cell_mailbox",
+            parameters={
+                "chaos_cell_id": cell_id2,
+                "destination_cell_id": cell_id
+            }
+        )
+
+        execute_command(
+            "remove_chaos_cell_mailbox",
+            parameters={
+                "chaos_cell_id": cell_id,
+                "destination_cell_id": cell_id2
+            }
+        )
+
+        migrate_replication_cards(cell_id2, [card_id], destination_cell_id=cell_id)
+
+        self._sync_replication_era(card_id)
+        wait(lambda: len(_get_replication_card(cell_id, card_id, driver0)["coordinators"]) == 3)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/crt", values)
+        wait(lambda: lookup_rows("//tmp/q0", [{"key": 0}]) == values)
 
 ##################################################################
 
@@ -6599,8 +6686,9 @@ class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
 
 ##################################################################
 
-
 class ChaosClockBase(ChaosTestBase):
+    SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG = False
+
     NUM_REMOTE_CLUSTERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
     USE_PRIMARY_CLOCKS = False
@@ -6739,8 +6827,8 @@ class TestChaosClock(ChaosClockBase):
         else:
             for replica in replicas:
                 with raises_yt_error(
-                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
-                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source."
+                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source"
                 ):
                     sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
 
@@ -6915,6 +7003,8 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 
 @pytest.mark.enabled_multidaemon
 class TestChaosSingleCluster(ChaosTestBase):
+    SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG = False
+
     ENABLE_MULTIDAEMON = True
 
     NUM_REMOTE_CLUSTERS = 0
@@ -6972,23 +7062,12 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     DELTA_MASTER_CACHE_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
                 "use_has_chaos_object": True,
-            },
-        },
-    }
-
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "enable_client_mode": True,
             },
         },
     }
@@ -7019,6 +7098,7 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
             alter_table_replica(replica_ids[replica_index], replica_path=new_path)
             replicas[replica_index]["replica_path"] = new_path
             sync_mount_table(new_path)
+        self._sync_replication_era(card_id, replicas)
 
         values2 = [{"key": 2, "value": "2"}]
         insert_rows(replicas[0]["replica_path"], values2)
@@ -7157,7 +7237,6 @@ class TestChaosSmoothMovement(ChaosTestBase):
         rows = []
 
         def _insert_row():
-            nonlocal rows
             row = {"key": len(rows), "value": str(len(rows))}
             rows.append(row)
             insert_rows("//tmp/t", [row])
@@ -7173,3 +7252,65 @@ class TestChaosSmoothMovement(ChaosTestBase):
             h.wait_for_action()
 
         wait(lambda: are_items_equal(select_rows("* from [//tmp/t]"), rows))
+
+    @authors("ifsmirnov")
+    def test_move_queue(self):
+        chaos_cell_id = self._sync_create_chaos_bundle_and_cell()
+        sync_create_cells(3)
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(chaos_cell_id, replicas)
+
+        rows = [{"key": i, "value": str(i)} for i in range(30)]
+        next_row_index = 0
+
+        def _insert():
+            nonlocal next_row_index
+
+            left = next_row_index
+            next_row_index += 1
+            right = next_row_index
+
+            for i in range(left, right):
+                tx = start_transaction(type="tablet")
+                insert_rows("//tmp/t1", [rows[i]], tx=tx)
+                commit_transaction(tx)
+                time.sleep(0.2)
+            wait(lambda: are_items_equal(select_rows("* from [//tmp/t1]"), rows[:right]))
+            wait(lambda: are_items_equal(select_rows("* from [//tmp/t2]"), rows[:right]))
+
+        ht1 = SmoothMovementHelper("//tmp/t1")
+        ht2 = SmoothMovementHelper("//tmp/t2")
+        hq1 = SmoothMovementHelper("//tmp/q1")
+        hq2 = SmoothMovementHelper("//tmp/q2")
+
+        hq1.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")  # q2
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="async")  # q1
+        _insert()
+        hq2.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="sync")  # q1
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="async")  # q2
+        _insert()
+        ht1.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")  # t2
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="async")  # t1
+        _insert()
+        ht2.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")  # q2
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="async")  # q1
+        _insert()
+        ht1.finish()
+        hq1.finish()
+        hq2.finish()
+        ht2.finish()
+        _insert()

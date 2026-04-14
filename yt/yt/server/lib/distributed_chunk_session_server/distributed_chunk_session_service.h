@@ -11,7 +11,6 @@ namespace NYT::NDistributedChunkSessionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateDistributedChunkSessionService(
-    TDistributedChunkSessionServiceConfigPtr config,
     IInvokerPtr invoker,
     NApi::NNative::IConnectionPtr connection);
 

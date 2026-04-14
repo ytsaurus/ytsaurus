@@ -162,6 +162,7 @@ public:
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;
 
+    void ValidateBeginUpload(const TBeginUploadContext& context) override;
     void BeginUpload(const TBeginUploadContext& context) override;
 
     void EndUpload(const TEndUploadContext& context) override;
@@ -238,7 +239,7 @@ private:
 
 DEFINE_MASTER_OBJECT_TYPE(TTableNode)
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 680);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 656);
 
 ////////////////////////////////////////////////////////////////////////////////
 

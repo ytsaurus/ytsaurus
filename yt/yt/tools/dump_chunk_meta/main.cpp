@@ -7,6 +7,7 @@
 
 #include <yt/yt/library/program/program.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTools::NDumpChunkMeta {
@@ -51,8 +52,7 @@ private:
             Cout << "ID: " << ToString(reader->GetChunkId()) << Endl;
         }
 
-        auto chunkMeta = reader->GetMeta(/*options*/ {})
-            .Get()
+        auto chunkMeta = NConcurrency::WaitFor(reader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
 
         Cout << "Type: " << ToString(FromProto<EChunkType>(chunkMeta->type())) << Endl;

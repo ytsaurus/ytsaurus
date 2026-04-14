@@ -6,9 +6,9 @@ LICENSE(BSD-3-Clause)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(7.1.8)
+VERSION(7.2.0)
 
-ORIGINAL_SOURCE(mirror://sourceforge/cxx/CXX/PyCXX%20V7.1.8/pycxx-7.1.8.tar.gz)
+ORIGINAL_SOURCE(mirror://sourceforge/cxx/CXX/PyCXX%20V7.2.0/pycxx-7.2.0.tar.gz)
 
 ADDINCL(
     contrib/libs/pycxx

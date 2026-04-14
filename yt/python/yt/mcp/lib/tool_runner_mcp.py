@@ -30,8 +30,8 @@ class YTToolRunnerMCP:
             return self._PUBLIC_CLUSTERS
 
     def helper_get_yt_client(self, cluster, request_context: Context) -> yt.YtClient:
-        if self._token:
-            yt_client = yt.YtClient(cluster, token=self._token)
+        if self._yt_token:
+            yt_client = yt.YtClient(cluster, token=self._yt_token)
         else:
             yt_client = yt.YtClient(cluster)
         return yt_client
@@ -40,7 +40,7 @@ class YTToolRunnerMCP:
         self._name = name or "YTMCPServer"
         self._tools: List["yt_mcp.lib.tools.helpers.YTToolBase"] = []
         self._logger = logging.getLogger(__name__)
-        self._token = None
+        self._yt_token = None
 
     def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"], variants: List[Dict[str, Any]] = None):
         for tool in tools:

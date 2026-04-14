@@ -1236,7 +1236,7 @@ private:
                         .Engine = NoEngineFilterString,
                         .User = NoUserFilterString,
                         .MinusStartTime = minusStartTime,
-                        .QueryId = queryId
+                        .QueryId = queryId,
                     },
                     .OccurrenceCount = parsedToken.Occurrences,
                 };

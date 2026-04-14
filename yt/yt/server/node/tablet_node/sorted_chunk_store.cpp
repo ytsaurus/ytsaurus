@@ -7,9 +7,6 @@
 #include "tablet.h"
 #include "transaction.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/node/query_agent/config.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -80,25 +77,11 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 using namespace NApi;
 using namespace NDataNode;
-using namespace NClusterNode;
 using namespace NQueryAgent;
 using namespace NQueryClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(
-    const TCompactionHints& compactionHints,
-    NYson::IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("chunk_view_size").Value(compactionHints.ChunkViewSize)
-            .Item("row_digest").Value(compactionHints.RowDigest)
-        .EndMap();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,14 +116,14 @@ public:
     TFuture<void> GetReadyEvent() const override
     {
         if (SkipBefore_ > 0) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (!SkippingAfter_) {
             return UnderlyingReader_->GetReadyEvent();
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsFetchingCompleted() const override
@@ -339,27 +322,112 @@ void TSortedChunkStore::Initialize()
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
 
+    // Pick the strongest of the three inclusive lower bounds (chunk min key,
+    // chunk view, or tablet pivot key).
     MinKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.min());
     const auto& chunkViewLowerBound = ReadRange_.Front().first;
     if (chunkViewLowerBound && chunkViewLowerBound > MinKey_) {
         MinKey_ = TLegacyOwningKey(chunkViewLowerBound);
     }
+    if (auto pivotKey = Tablet_->GetPivotKey(); pivotKey > MinKey_) {
+        MinKey_ = TLegacyOwningKey(pivotKey);
+    }
     MinKey_ = WidenKey(MinKey_, KeyColumnCount_);
 
+    // Pick the strongest of the two exclusive upper bounds (next tablet pivot key
+    // or chunk view).
+    auto exclusiveUpperBound = Tablet_->GetNextPivotKey();
+    if (const auto& chunkViewUpperBound = ReadRange_.Front().second;
+        chunkViewUpperBound && chunkViewUpperBound < exclusiveUpperBound)
+    {
+        exclusiveUpperBound = TLegacyOwningKey(chunkViewUpperBound);
+    }
+
     UpperBoundKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.max());
-    const auto& chunkViewUpperBound = ReadRange_.Front().second;
-    if (chunkViewUpperBound && chunkViewUpperBound <= UpperBoundKey_) {
-        UpperBoundKey_ = TLegacyOwningKey(chunkViewUpperBound);
+
+    // Compare exclusive upper bound with the inclusive one (induced from the chunk).
+    bool upperBoundIsExclusive;
+    if (exclusiveUpperBound <= UpperBoundKey_) {
+        UpperBoundKey_ = std::move(exclusiveUpperBound);
+        upperBoundIsExclusive = true;
     } else {
         UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
+        upperBoundIsExclusive = false;
     }
 
     ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
+
+    CompactionHints_.Initialize(this);
+
+    if (UpperBoundKey_ < MinKey_) {
+        // This may happen in a rare case when actual bounds look like
+        // [ [x], [x, #] ) and table schema is wider than the upper key.
+        // Lower bound is inclusive and widened. Upper bound is exclusive
+        // and not widened. Effectively the range is empty, but technically
+        // the inequality fails in the unexpected way.
+        // Here we assert that it is indeed the exact case and mitigate it
+        // by widening the upper bound appropriately.
+        // See YT-27034.
+        //
+        // NB: This is a temporary hack until TKeyBound is adopted here.
+        int prefixLength = std::min(MinKey_.GetCount(), UpperBoundKey_.GetCount());
+
+        auto onFailure = [&] {
+            YT_LOG_ALERT("Sorted chunk store has invalid key bounds "
+                "(ChunkId: %v, MinKey: %v, UpperBoundKey: %v)",
+                GetChunkId(),
+                MinKey_,
+                UpperBoundKey_);
+        };
+
+        if (!upperBoundIsExclusive) {
+            onFailure();
+            return;
+        }
+
+        if (UpperBoundKey_.GetCount() != prefixLength) {
+            onFailure();
+            return;
+        }
+
+        if (CompareRows(MinKey_, UpperBoundKey_, prefixLength) != 0) {
+            onFailure();
+            return;
+        }
+
+        for (auto it = MinKey_.Begin() + prefixLength; it != MinKey_.End(); ++it) {
+            if (it->Type != EValueType::Null) {
+                onFailure();
+                return;
+            }
+        }
+
+        for (auto it : UpperBoundKey_.Elements()) {
+            if (IsSentinelType(it.Type)) {
+                onFailure();
+                return;
+            }
+        }
+
+        UpperBoundKey_ = WidenKey(UpperBoundKey_, KeyColumnCount_);
+        YT_VERIFY(UpperBoundKey_ == MinKey_);
+
+        ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
+    }
 }
 
 EStoreType TSortedChunkStore::GetType() const
 {
     return EStoreType::SortedChunk;
+}
+
+void TSortedChunkStore::SetStoreState(EStoreState state)
+{
+    auto oldState = StoreState_;
+
+    TChunkStoreBase::SetStoreState(state);
+
+    Partition_->CompactionHints().OnStoreStateChanged(Partition_, this, oldState);
 }
 
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
@@ -375,6 +443,7 @@ void TSortedChunkStore::DoBuildOrchidYson(TFluentMap fluent)
         .Item("min_key").Value(GetMinKey())
         .Item("upper_bound_key").Value(GetUpperBoundKey())
         .Item("max_clip_timestamp").Value(MaxClipTimestamp_)
+        .Item("compaction_hint_fetch_pipelines").Value(CompactionHintFetchPipelines_)
         .Item("compaction_hints").Value(CompactionHints_);
 }
 
@@ -424,15 +493,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp = std::min(timestamp, MaxClipTimestamp_);
     }
 
-    auto tabletBounds = MakeSingletonRowRange(tabletSnapshot->PivotKey, tabletSnapshot->NextPivotKey);
-    auto lowerClipBound = std::max(tabletBounds.Front().first, ClippingRange_.Front().first);
-    auto upperClipBound = std::min(tabletBounds.Front().second, ClippingRange_.Front().second);
-
     ranges = NColumnarChunkFormat::ClipRanges(
         ranges,
-        lowerClipBound,
-        upperClipBound,
-        MakeSharedRangeHolder(ClippingRange_.GetHolder(), tabletBounds.GetHolder()));
+        ClippingRange_.Front().first,
+        ClippingRange_.Front().second,
+        ClippingRange_.GetHolder());
 
     // Fast lane:
     // - ranges do not intersect with chunk view;
@@ -453,7 +518,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             underlyingReader,
             PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            EPerformanceCountedRequestType::Read);
+            chunkReadOptions.InitialQueryKind);
     };
 
     // Fast lane: check for in-memory reads.
@@ -492,12 +557,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions.MemoryUsageTracker);
     }
 
-    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true);
+    bool compressBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys;
+
+    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true, compressBlockLastKeys);
     if (!chunkMeta) {
         chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
             backendReaders.ChunkReader,
             chunkReadOptions,
-            /*prepareColumnMeta*/ true))
+            /*prepareColumnMeta*/ true,
+            compressBlockLastKeys))
             .ValueOrThrow();
     }
 
@@ -552,7 +620,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // timestamp resetting adapter.
     return wrapReaderWithPerformanceCounting(
         CreateVersionedChunkReader(
-        Context_->GetColumnEvaluatorCache(),
+            Context_->GetColumnEvaluatorCache(),
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState,
@@ -618,8 +686,14 @@ public:
     TSortedChunkStoreVersionedReader(
         IStoreContextPtr context,
         int skippedBefore,
-        int skippedAfter,
-        TSortedChunkStore* const chunk,
+        int skippedAfter)
+        : Context_(std::move(context))
+        , SkippedBefore_(skippedBefore)
+        , SkippedAfter_(skippedAfter)
+    { }
+
+    void Initialize(
+        TSortedChunkStore* chunk,
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
@@ -627,9 +701,6 @@ public:
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory)
-        : Context_(std::move(context))
-        , SkippedBefore_(skippedBefore)
-        , SkippedAfter_(skippedAfter)
     {
         InitializationFuture_ = InitializeUnderlyingReader(
             chunk,
@@ -728,7 +799,7 @@ private:
                     columnFilter,
                     chunkReadOptions),
                 chunkReadOptions);
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Check for backing store.
@@ -744,7 +815,7 @@ private:
                 chunkReadOptions,
                 /*workloadCategory*/ std::nullopt);
             UnderlyingReaderInitialized_.store(true);
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto backendReaders = chunk->GetBackendReaders(workloadCategory);
@@ -762,10 +833,12 @@ private:
                 produceAllVersions,
                 chunk,
                 std::move(keys));
-            return VoidFuture;
+            return OKFuture;
         }
 
-        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true)) {
+        bool compressBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys;
+
+        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true, compressBlockLastKeys)) {
             return OnGotChunkMeta(
                 chunk,
                 tabletSnapshot,
@@ -780,7 +853,8 @@ private:
             return chunk->GetCachedVersionedChunkMeta(
                 backendReaders.ChunkReader,
                 chunkReadOptions,
-                /*prepareColumnMeta*/ true)
+                /*prepareColumnMeta*/ true,
+                compressBlockLastKeys)
                 .AsUnique().Apply(BIND([
                     =,
                     this,
@@ -852,7 +926,7 @@ private:
                 chunkReadOptions,
                 std::move(backendReaders),
                 std::move(chunkMeta));
-            return VoidFuture;
+            return OKFuture;
         }
 
         return filteringResultFuture.AsUnique().Apply(BIND([
@@ -1026,7 +1100,7 @@ private:
             .Timestamp = timestamp,
             .ProduceAllVersions = produceAllVersions,
             .OverrideTimestamp = chunk->OverrideTimestamp_,
-            .EnableHashChunkIndex = tabletSnapshot->Settings.MountConfig->EnableHashChunkIndexForLookup
+            .EnableHashChunkIndex = tabletSnapshot->Settings.MountConfig->EnableHashChunkIndexForLookup,
         });
         MaybeWrapUnderlyingReader(
             chunk,
@@ -1070,7 +1144,7 @@ private:
             std::move(underlyingReader),
             chunk->PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            chunkReaderOptions.RequestType);
+            chunkReaderOptions.InitialQueryKind);
         UnderlyingReaderInitialized_.store(true);
     }
 };
@@ -1123,7 +1197,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     chunkReadOptions),
                 PerformanceCounters_,
                 NTableClient::EDataSource::ChunkStore,
-                chunkReadOptions.RequestType);
+                chunkReadOptions.InitialQueryKind);
         }
 
         // Check for backing store.
@@ -1142,10 +1216,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         }
     }
 
-    return New<TSortedChunkStoreVersionedReader>(
+    auto reader = New<TSortedChunkStoreVersionedReader>(
         Context_,
         skippedBefore,
-        skippedAfter,
+        skippedAfter);
+    reader->Initialize(
         this,
         tabletSnapshot,
         std::move(filteredKeys),
@@ -1154,6 +1229,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         columnFilter,
         chunkReadOptions,
         workloadCategory);
+    return reader;
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
@@ -1675,4 +1751,3 @@ TSharedRange<TLegacyKey> FilterKeysByReadRange(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

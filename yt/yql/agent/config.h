@@ -32,7 +32,10 @@ struct TYqlAgentConfig
     int IssueTokenAttempts;
 
     int YqlThreadCount;
+
     std::optional<std::string> MaxSupportedYqlVersion;
+    std::optional<std::string> DefaultYqlUIVersion;
+    std::optional<bool> AllowNotReleasedYqlVersions;
 
     std::vector<std::string> InsecureSecretPathSubjects;
 
@@ -53,6 +56,9 @@ struct TYqlAgentDynamicConfig
 
     //! Fields from NYql::TGatewaysConfig with snake case keys.
     NYTree::INodePtr GatewaysConfig;
+
+    std::optional<std::string> DefaultYqlUIVersion;
+    std::optional<bool> AllowNotReleasedYqlVersions;
 
     REGISTER_YSON_STRUCT(TYqlAgentDynamicConfig);
 

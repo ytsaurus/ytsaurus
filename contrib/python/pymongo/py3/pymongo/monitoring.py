@@ -4,7 +4,7 @@
 # may not use this file except in compliance with the License.  You
 # may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,6 +19,9 @@
 .. attention:: Starting in PyMongo 3.11, the monitoring classes outlined below
     are included in the PyMongo distribution under the
     :mod:`~pymongo.event_loggers` submodule.
+
+.. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
+
 
 Use :func:`register` to register global listeners for specific events.
 Listeners must inherit from one of the abstract classes below and implement
@@ -125,6 +128,9 @@ Connection monitoring and pooling events are also available. For example::
         def pool_created(self, event):
             logging.info("[pool {0.address}] pool created".format(event))
 
+        def pool_ready(self, event):
+            logging.info("[pool {0.address}] pool is ready".format(event))
+
         def pool_cleared(self, event):
             logging.info("[pool {0.address}] pool cleared".format(event))
 
@@ -132,15 +138,15 @@ Connection monitoring and pooling events are also available. For example::
             logging.info("[pool {0.address}] pool closed".format(event))
 
         def connection_created(self, event):
-            logging.info("[pool {0.address}][conn #{0.connection_id}] "
+            logging.info("[pool {0.address}][connection #{0.connection_id}] "
                          "connection created".format(event))
 
         def connection_ready(self, event):
-            logging.info("[pool {0.address}][conn #{0.connection_id}] "
+            logging.info("[pool {0.address}][connection #{0.connection_id}] "
                          "connection setup succeeded".format(event))
 
         def connection_closed(self, event):
-            logging.info("[pool {0.address}][conn #{0.connection_id}] "
+            logging.info("[pool {0.address}][connection #{0.connection_id}] "
                          "connection closed, reason: "
                          "{0.reason}".format(event))
 
@@ -153,11 +159,11 @@ Connection monitoring and pooling events are also available. For example::
                          "failed, reason: {0.reason}".format(event))
 
         def connection_checked_out(self, event):
-            logging.info("[pool {0.address}][conn #{0.connection_id}] "
+            logging.info("[pool {0.address}][connection #{0.connection_id}] "
                          "connection checked out of pool".format(event))
 
         def connection_checked_in(self, event):
-            logging.info("[pool {0.address}][conn #{0.connection_id}] "
+            logging.info("[pool {0.address}][connection #{0.connection_id}] "
                          "connection checked into pool".format(event))
 
 
@@ -180,14 +186,26 @@ will not add that listener to existing client instances.
   handler first.
 """
 
-from collections import namedtuple
+from __future__ import annotations
 
-from bson.py3compat import abc
-from pymongo.hello_compat import HelloCompat
-from pymongo.helpers import _handle_exception
+import datetime
+from collections import abc, namedtuple
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
+
+from bson.objectid import ObjectId
+from pymongo.hello import Hello, HelloCompat
+from pymongo.helpers_shared import _SENSITIVE_COMMANDS, _handle_exception
+from pymongo.typings import _Address, _DocumentOut
+
+if TYPE_CHECKING:
+    from datetime import timedelta
+
+    from pymongo.server_description import ServerDescription
+    from pymongo.topology_description import TopologyDescription
+
 
 _Listeners = namedtuple(
-    "Listeners",
+    "_Listeners",
     (
         "command_listeners",
         "server_listeners",
@@ -200,7 +218,7 @@ _Listeners = namedtuple(
 _LISTENERS = _Listeners([], [], [], [], [])
 
 
-class _EventListener(object):
+class _EventListener:
     """Abstract base class for all event listeners."""
 
 
@@ -211,27 +229,24 @@ class CommandListener(_EventListener):
     and `CommandFailedEvent`.
     """
 
-    def started(self, event):
+    def started(self, event: CommandStartedEvent) -> None:
         """Abstract method to handle a `CommandStartedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`CommandStartedEvent`.
+        :param event: An instance of :class:`CommandStartedEvent`.
         """
         raise NotImplementedError
 
-    def succeeded(self, event):
+    def succeeded(self, event: CommandSucceededEvent) -> None:
         """Abstract method to handle a `CommandSucceededEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`CommandSucceededEvent`.
+        :param event: An instance of :class:`CommandSucceededEvent`.
         """
         raise NotImplementedError
 
-    def failed(self, event):
+    def failed(self, event: CommandFailedEvent) -> None:
         """Abstract method to handle a `CommandFailedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`CommandFailedEvent`.
+        :param event: An instance of :class:`CommandFailedEvent`.
         """
         raise NotImplementedError
 
@@ -252,105 +267,106 @@ class ConnectionPoolListener(_EventListener):
     .. versionadded:: 3.9
     """
 
-    def pool_created(self, event):
+    def pool_created(self, event: PoolCreatedEvent) -> None:
         """Abstract method to handle a :class:`PoolCreatedEvent`.
 
-        Emitted when a Connection Pool is created.
+        Emitted when a connection Pool is created.
 
-        :Parameters:
-          - `event`: An instance of :class:`PoolCreatedEvent`.
+        :param event: An instance of :class:`PoolCreatedEvent`.
         """
         raise NotImplementedError
 
-    def pool_cleared(self, event):
+    def pool_ready(self, event: PoolReadyEvent) -> None:
+        """Abstract method to handle a :class:`PoolReadyEvent`.
+
+        Emitted when a connection Pool is marked ready.
+
+        :param event: An instance of :class:`PoolReadyEvent`.
+
+        .. versionadded:: 4.0
+        """
+        raise NotImplementedError
+
+    def pool_cleared(self, event: PoolClearedEvent) -> None:
         """Abstract method to handle a `PoolClearedEvent`.
 
-        Emitted when a Connection Pool is cleared.
+        Emitted when a connection Pool is cleared.
 
-        :Parameters:
-          - `event`: An instance of :class:`PoolClearedEvent`.
+        :param event: An instance of :class:`PoolClearedEvent`.
         """
         raise NotImplementedError
 
-    def pool_closed(self, event):
+    def pool_closed(self, event: PoolClosedEvent) -> None:
         """Abstract method to handle a `PoolClosedEvent`.
 
-        Emitted when a Connection Pool is closed.
+        Emitted when a connection Pool is closed.
 
-        :Parameters:
-          - `event`: An instance of :class:`PoolClosedEvent`.
+        :param event: An instance of :class:`PoolClosedEvent`.
         """
         raise NotImplementedError
 
-    def connection_created(self, event):
+    def connection_created(self, event: ConnectionCreatedEvent) -> None:
         """Abstract method to handle a :class:`ConnectionCreatedEvent`.
 
-        Emitted when a Connection Pool creates a Connection object.
+        Emitted when a connection Pool creates a Connection object.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionCreatedEvent`.
+        :param event: An instance of :class:`ConnectionCreatedEvent`.
         """
         raise NotImplementedError
 
-    def connection_ready(self, event):
+    def connection_ready(self, event: ConnectionReadyEvent) -> None:
         """Abstract method to handle a :class:`ConnectionReadyEvent`.
 
-        Emitted when a Connection has finished its setup, and is now ready to
+        Emitted when a connection has finished its setup, and is now ready to
         use.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionReadyEvent`.
+        :param event: An instance of :class:`ConnectionReadyEvent`.
         """
         raise NotImplementedError
 
-    def connection_closed(self, event):
+    def connection_closed(self, event: ConnectionClosedEvent) -> None:
         """Abstract method to handle a :class:`ConnectionClosedEvent`.
 
-        Emitted when a Connection Pool closes a Connection.
+        Emitted when a connection Pool closes a connection.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionClosedEvent`.
+        :param event: An instance of :class:`ConnectionClosedEvent`.
         """
         raise NotImplementedError
 
-    def connection_check_out_started(self, event):
+    def connection_check_out_started(self, event: ConnectionCheckOutStartedEvent) -> None:
         """Abstract method to handle a :class:`ConnectionCheckOutStartedEvent`.
 
         Emitted when the driver starts attempting to check out a connection.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionCheckOutStartedEvent`.
+        :param event: An instance of :class:`ConnectionCheckOutStartedEvent`.
         """
         raise NotImplementedError
 
-    def connection_check_out_failed(self, event):
+    def connection_check_out_failed(self, event: ConnectionCheckOutFailedEvent) -> None:
         """Abstract method to handle a :class:`ConnectionCheckOutFailedEvent`.
 
         Emitted when the driver's attempt to check out a connection fails.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionCheckOutFailedEvent`.
+        :param event: An instance of :class:`ConnectionCheckOutFailedEvent`.
         """
         raise NotImplementedError
 
-    def connection_checked_out(self, event):
+    def connection_checked_out(self, event: ConnectionCheckedOutEvent) -> None:
         """Abstract method to handle a :class:`ConnectionCheckedOutEvent`.
 
-        Emitted when the driver successfully checks out a Connection.
+        Emitted when the driver successfully checks out a connection.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionCheckedOutEvent`.
+        :param event: An instance of :class:`ConnectionCheckedOutEvent`.
         """
         raise NotImplementedError
 
-    def connection_checked_in(self, event):
+    def connection_checked_in(self, event: ConnectionCheckedInEvent) -> None:
         """Abstract method to handle a :class:`ConnectionCheckedInEvent`.
 
-        Emitted when the driver checks in a Connection back to the Connection
+        Emitted when the driver checks in a connection back to the connection
         Pool.
 
-        :Parameters:
-          - `event`: An instance of :class:`ConnectionCheckedInEvent`.
+        :param event: An instance of :class:`ConnectionCheckedInEvent`.
         """
         raise NotImplementedError
 
@@ -364,27 +380,24 @@ class ServerHeartbeatListener(_EventListener):
     .. versionadded:: 3.3
     """
 
-    def started(self, event):
+    def started(self, event: ServerHeartbeatStartedEvent) -> None:
         """Abstract method to handle a `ServerHeartbeatStartedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`ServerHeartbeatStartedEvent`.
+        :param event: An instance of :class:`ServerHeartbeatStartedEvent`.
         """
         raise NotImplementedError
 
-    def succeeded(self, event):
+    def succeeded(self, event: ServerHeartbeatSucceededEvent) -> None:
         """Abstract method to handle a `ServerHeartbeatSucceededEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`ServerHeartbeatSucceededEvent`.
+        :param event: An instance of :class:`ServerHeartbeatSucceededEvent`.
         """
         raise NotImplementedError
 
-    def failed(self, event):
+    def failed(self, event: ServerHeartbeatFailedEvent) -> None:
         """Abstract method to handle a `ServerHeartbeatFailedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`ServerHeartbeatFailedEvent`.
+        :param event: An instance of :class:`ServerHeartbeatFailedEvent`.
         """
         raise NotImplementedError
 
@@ -397,27 +410,24 @@ class TopologyListener(_EventListener):
     .. versionadded:: 3.3
     """
 
-    def opened(self, event):
+    def opened(self, event: TopologyOpenedEvent) -> None:
         """Abstract method to handle a `TopologyOpenedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`TopologyOpenedEvent`.
+        :param event: An instance of :class:`TopologyOpenedEvent`.
         """
         raise NotImplementedError
 
-    def description_changed(self, event):
+    def description_changed(self, event: TopologyDescriptionChangedEvent) -> None:
         """Abstract method to handle a `TopologyDescriptionChangedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`TopologyDescriptionChangedEvent`.
+        :param event: An instance of :class:`TopologyDescriptionChangedEvent`.
         """
         raise NotImplementedError
 
-    def closed(self, event):
+    def closed(self, event: TopologyClosedEvent) -> None:
         """Abstract method to handle a `TopologyClosedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`TopologyClosedEvent`.
+        :param event: An instance of :class:`TopologyClosedEvent`.
         """
         raise NotImplementedError
 
@@ -430,65 +440,65 @@ class ServerListener(_EventListener):
     .. versionadded:: 3.3
     """
 
-    def opened(self, event):
+    def opened(self, event: ServerOpeningEvent) -> None:
         """Abstract method to handle a `ServerOpeningEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`ServerOpeningEvent`.
+        :param event: An instance of :class:`ServerOpeningEvent`.
         """
         raise NotImplementedError
 
-    def description_changed(self, event):
+    def description_changed(self, event: ServerDescriptionChangedEvent) -> None:
         """Abstract method to handle a `ServerDescriptionChangedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`ServerDescriptionChangedEvent`.
+        :param event: An instance of :class:`ServerDescriptionChangedEvent`.
         """
         raise NotImplementedError
 
-    def closed(self, event):
+    def closed(self, event: ServerClosedEvent) -> None:
         """Abstract method to handle a `ServerClosedEvent`.
 
-        :Parameters:
-          - `event`: An instance of :class:`ServerClosedEvent`.
+        :param event: An instance of :class:`ServerClosedEvent`.
         """
         raise NotImplementedError
 
 
-def _to_micros(dur):
+def _to_micros(dur: timedelta) -> int:
     """Convert duration 'dur' to microseconds."""
     return int(dur.total_seconds() * 10e5)
 
 
-def _validate_event_listeners(option, listeners):
+def _validate_event_listeners(
+    option: str, listeners: Sequence[_EventListeners]
+) -> Sequence[_EventListeners]:
     """Validate event listeners"""
     if not isinstance(listeners, abc.Sequence):
-        raise TypeError("%s must be a list or tuple" % (option,))
+        raise TypeError(f"{option} must be a list or tuple, not {type(listeners)}")
     for listener in listeners:
         if not isinstance(listener, _EventListener):
             raise TypeError(
-                "Listeners for %s must be either a "
+                f"Listeners for {option} must be either a "
                 "CommandListener, ServerHeartbeatListener, "
                 "ServerListener, TopologyListener, or "
-                "ConnectionPoolListener." % (option,)
+                "ConnectionPoolListener,"
+                f"not {type(listener)}"
             )
     return listeners
 
 
-def register(listener):
+def register(listener: _EventListener) -> None:
     """Register a global event listener.
 
-    :Parameters:
-      - `listener`: A subclasses of :class:`CommandListener`,
+    :param listener: A subclasses of :class:`CommandListener`,
         :class:`ServerHeartbeatListener`, :class:`ServerListener`,
         :class:`TopologyListener`, or :class:`ConnectionPoolListener`.
     """
     if not isinstance(listener, _EventListener):
         raise TypeError(
-            "Listeners for %s must be either a "
+            f"Listeners for {listener} must be either a "
             "CommandListener, ServerHeartbeatListener, "
             "ServerListener, TopologyListener, or "
-            "ConnectionPoolListener." % (listener,)
+            "ConnectionPoolListener,"
+            f"not {type(listener)}"
         )
     if isinstance(listener, CommandListener):
         _LISTENERS.command_listeners.append(listener)
@@ -502,27 +512,9 @@ def register(listener):
         _LISTENERS.cmap_listeners.append(listener)
 
 
-# Note - to avoid bugs from forgetting which if these is all lowercase and
-# which are camelCase, and at the same time avoid having to add a test for
-# every command, use all lowercase here and test against command_name.lower().
-_SENSITIVE_COMMANDS = set(
-    [
-        "authenticate",
-        "saslstart",
-        "saslcontinue",
-        "getnonce",
-        "createuser",
-        "updateuser",
-        "copydbgetnonce",
-        "copydbsaslstart",
-        "copydb",
-    ]
-)
-
-
 # The "hello" command is also deemed sensitive when attempting speculative
 # authentication.
-def _is_speculative_authenticate(command_name, doc):
+def _is_speculative_authenticate(command_name: str, doc: Mapping[str, Any]) -> bool:
     if (
         command_name.lower() in ("hello", HelloCompat.LEGACY_CMD)
         and "speculativeAuthenticate" in doc
@@ -531,35 +523,54 @@ def _is_speculative_authenticate(command_name, doc):
     return False
 
 
-class _CommandEvent(object):
+class _CommandEvent:
     """Base class for command events."""
 
-    __slots__ = ("__cmd_name", "__rqst_id", "__conn_id", "__op_id", "__service_id")
+    __slots__ = (
+        "__cmd_name",
+        "__rqst_id",
+        "__conn_id",
+        "__op_id",
+        "__service_id",
+        "__db",
+        "__server_conn_id",
+    )
 
-    def __init__(self, command_name, request_id, connection_id, operation_id, service_id=None):
+    def __init__(
+        self,
+        command_name: str,
+        request_id: int,
+        connection_id: _Address,
+        operation_id: Optional[int],
+        service_id: Optional[ObjectId] = None,
+        database_name: str = "",
+        server_connection_id: Optional[int] = None,
+    ) -> None:
         self.__cmd_name = command_name
         self.__rqst_id = request_id
         self.__conn_id = connection_id
         self.__op_id = operation_id
         self.__service_id = service_id
+        self.__db = database_name
+        self.__server_conn_id = server_connection_id
 
     @property
-    def command_name(self):
+    def command_name(self) -> str:
         """The command name."""
         return self.__cmd_name
 
     @property
-    def request_id(self):
+    def request_id(self) -> int:
         """The request id for this operation."""
         return self.__rqst_id
 
     @property
-    def connection_id(self):
+    def connection_id(self) -> _Address:
         """The address (host, port) of the server this command was sent to."""
         return self.__conn_id
 
     @property
-    def service_id(self):
+    def service_id(self) -> Optional[ObjectId]:
         """The service_id this command was sent to, or ``None``.
 
         .. versionadded:: 3.12
@@ -567,202 +578,253 @@ class _CommandEvent(object):
         return self.__service_id
 
     @property
-    def operation_id(self):
+    def operation_id(self) -> Optional[int]:
         """An id for this series of events or None."""
         return self.__op_id
+
+    @property
+    def database_name(self) -> str:
+        """The database_name this command was sent to, or ``""``.
+
+        .. versionadded:: 4.6
+        """
+        return self.__db
+
+    @property
+    def server_connection_id(self) -> Optional[int]:
+        """The server-side connection id for the connection this command was sent on, or ``None``.
+
+        .. versionadded:: 4.7
+        """
+        return self.__server_conn_id
 
 
 class CommandStartedEvent(_CommandEvent):
     """Event published when a command starts.
 
-    :Parameters:
-      - `command`: The command document.
-      - `database_name`: The name of the database this command was run against.
-      - `request_id`: The request id for this operation.
-      - `connection_id`: The address (host, port) of the server this command
+    :param command: The command document.
+    :param database_name: The name of the database this command was run against.
+    :param request_id: The request id for this operation.
+    :param connection_id: The address (host, port) of the server this command
         was sent to.
-      - `operation_id`: An optional identifier for a series of related events.
-      - `service_id`: The service_id this command was sent to, or ``None``.
+    :param operation_id: An optional identifier for a series of related events.
+    :param service_id: The service_id this command was sent to, or ``None``.
     """
 
-    __slots__ = ("__cmd", "__db")
+    __slots__ = ("__cmd",)
 
     def __init__(
-        self, command, database_name, request_id, connection_id, operation_id, service_id=None
-    ):
+        self,
+        command: _DocumentOut,
+        database_name: str,
+        request_id: int,
+        connection_id: _Address,
+        operation_id: Optional[int],
+        service_id: Optional[ObjectId] = None,
+        server_connection_id: Optional[int] = None,
+    ) -> None:
         if not command:
-            raise ValueError("%r is not a valid command" % (command,))
+            raise ValueError(f"{command!r} is not a valid command")
         # Command name must be first key.
         command_name = next(iter(command))
-        super(CommandStartedEvent, self).__init__(
-            command_name, request_id, connection_id, operation_id, service_id=service_id
+        super().__init__(
+            command_name,
+            request_id,
+            connection_id,
+            operation_id,
+            service_id=service_id,
+            database_name=database_name,
+            server_connection_id=server_connection_id,
         )
-        cmd_name, cmd_doc = command_name.lower(), command[command_name]
+        cmd_name = command_name.lower()
         if cmd_name in _SENSITIVE_COMMANDS or _is_speculative_authenticate(cmd_name, command):
-            self.__cmd = {}
+            self.__cmd: _DocumentOut = {}
         else:
             self.__cmd = command
-        self.__db = database_name
 
     @property
-    def command(self):
+    def command(self) -> _DocumentOut:
         """The command document."""
         return self.__cmd
 
     @property
-    def database_name(self):
+    def database_name(self) -> str:
         """The name of the database this command was run against."""
-        return self.__db
+        return super().database_name
 
-    def __repr__(self):
-        return ("<%s %s db: %r, command: %r, operation_id: %s, " "service_id: %s>") % (
+    def __repr__(self) -> str:
+        return (
+            "<{} {} db: {!r}, command: {!r}, operation_id: {}, service_id: {}, server_connection_id: {}>"
+        ).format(
             self.__class__.__name__,
             self.connection_id,
             self.database_name,
             self.command_name,
             self.operation_id,
             self.service_id,
+            self.server_connection_id,
         )
 
 
 class CommandSucceededEvent(_CommandEvent):
     """Event published when a command succeeds.
 
-    :Parameters:
-      - `duration`: The command duration as a datetime.timedelta.
-      - `reply`: The server reply document.
-      - `command_name`: The command name.
-      - `request_id`: The request id for this operation.
-      - `connection_id`: The address (host, port) of the server this command
+    :param duration: The command duration as a datetime.timedelta.
+    :param reply: The server reply document.
+    :param command_name: The command name.
+    :param request_id: The request id for this operation.
+    :param connection_id: The address (host, port) of the server this command
         was sent to.
-      - `operation_id`: An optional identifier for a series of related events.
-      - `service_id`: The service_id this command was sent to, or ``None``.
+    :param operation_id: An optional identifier for a series of related events.
+    :param service_id: The service_id this command was sent to, or ``None``.
+    :param database_name: The database this command was sent to, or ``""``.
     """
 
     __slots__ = ("__duration_micros", "__reply")
 
     def __init__(
         self,
-        duration,
-        reply,
-        command_name,
-        request_id,
-        connection_id,
-        operation_id,
-        service_id=None,
-    ):
-        super(CommandSucceededEvent, self).__init__(
-            command_name, request_id, connection_id, operation_id, service_id=service_id
+        duration: datetime.timedelta,
+        reply: _DocumentOut,
+        command_name: str,
+        request_id: int,
+        connection_id: _Address,
+        operation_id: Optional[int],
+        service_id: Optional[ObjectId] = None,
+        database_name: str = "",
+        server_connection_id: Optional[int] = None,
+    ) -> None:
+        super().__init__(
+            command_name,
+            request_id,
+            connection_id,
+            operation_id,
+            service_id=service_id,
+            database_name=database_name,
+            server_connection_id=server_connection_id,
         )
         self.__duration_micros = _to_micros(duration)
         cmd_name = command_name.lower()
         if cmd_name in _SENSITIVE_COMMANDS or _is_speculative_authenticate(cmd_name, reply):
-            self.__reply = {}
+            self.__reply: _DocumentOut = {}
         else:
             self.__reply = reply
 
     @property
-    def duration_micros(self):
+    def duration_micros(self) -> int:
         """The duration of this operation in microseconds."""
         return self.__duration_micros
 
     @property
-    def reply(self):
+    def reply(self) -> _DocumentOut:
         """The server failure document for this operation."""
         return self.__reply
 
-    def __repr__(self):
-        return ("<%s %s command: %r, operation_id: %s, duration_micros: %s, " "service_id: %s>") % (
+    def __repr__(self) -> str:
+        return (
+            "<{} {} db: {!r}, command: {!r}, operation_id: {}, duration_micros: {}, service_id: {}, server_connection_id: {}>"
+        ).format(
             self.__class__.__name__,
             self.connection_id,
+            self.database_name,
             self.command_name,
             self.operation_id,
             self.duration_micros,
             self.service_id,
+            self.server_connection_id,
         )
 
 
 class CommandFailedEvent(_CommandEvent):
     """Event published when a command fails.
 
-    :Parameters:
-      - `duration`: The command duration as a datetime.timedelta.
-      - `failure`: The server reply document.
-      - `command_name`: The command name.
-      - `request_id`: The request id for this operation.
-      - `connection_id`: The address (host, port) of the server this command
+    :param duration: The command duration as a datetime.timedelta.
+    :param failure: The server reply document.
+    :param command_name: The command name.
+    :param request_id: The request id for this operation.
+    :param connection_id: The address (host, port) of the server this command
         was sent to.
-      - `operation_id`: An optional identifier for a series of related events.
-      - `service_id`: The service_id this command was sent to, or ``None``.
+    :param operation_id: An optional identifier for a series of related events.
+    :param service_id: The service_id this command was sent to, or ``None``.
+    :param database_name: The database this command was sent to, or ``""``.
     """
 
     __slots__ = ("__duration_micros", "__failure")
 
     def __init__(
         self,
-        duration,
-        failure,
-        command_name,
-        request_id,
-        connection_id,
-        operation_id,
-        service_id=None,
-    ):
-        super(CommandFailedEvent, self).__init__(
-            command_name, request_id, connection_id, operation_id, service_id=service_id
+        duration: datetime.timedelta,
+        failure: _DocumentOut,
+        command_name: str,
+        request_id: int,
+        connection_id: _Address,
+        operation_id: Optional[int],
+        service_id: Optional[ObjectId] = None,
+        database_name: str = "",
+        server_connection_id: Optional[int] = None,
+    ) -> None:
+        super().__init__(
+            command_name,
+            request_id,
+            connection_id,
+            operation_id,
+            service_id=service_id,
+            database_name=database_name,
+            server_connection_id=server_connection_id,
         )
         self.__duration_micros = _to_micros(duration)
         self.__failure = failure
 
     @property
-    def duration_micros(self):
+    def duration_micros(self) -> int:
         """The duration of this operation in microseconds."""
         return self.__duration_micros
 
     @property
-    def failure(self):
+    def failure(self) -> _DocumentOut:
         """The server failure document for this operation."""
         return self.__failure
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
-            "<%s %s command: %r, operation_id: %s, duration_micros: %s, "
-            "failure: %r, service_id: %s>"
-        ) % (
+            "<{} {} db: {!r}, command: {!r}, operation_id: {}, duration_micros: {}, "
+            "failure: {!r}, service_id: {}, server_connection_id: {}>"
+        ).format(
             self.__class__.__name__,
             self.connection_id,
+            self.database_name,
             self.command_name,
             self.operation_id,
             self.duration_micros,
             self.failure,
             self.service_id,
+            self.server_connection_id,
         )
 
 
-class _PoolEvent(object):
+class _PoolEvent:
     """Base class for pool events."""
 
     __slots__ = ("__address",)
 
-    def __init__(self, address):
+    def __init__(self, address: _Address) -> None:
         self.__address = address
 
     @property
-    def address(self):
+    def address(self) -> _Address:
         """The address (host, port) pair of the server the pool is attempting
         to connect to.
         """
         return self.__address
 
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.__address)
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.__address!r})"
 
 
 class PoolCreatedEvent(_PoolEvent):
     """Published when a Connection Pool is created.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this Pool is
+    :param address: The address (host, port) pair of the server this Pool is
        attempting to connect to.
 
     .. versionadded:: 3.9
@@ -770,38 +832,56 @@ class PoolCreatedEvent(_PoolEvent):
 
     __slots__ = ("__options",)
 
-    def __init__(self, address, options):
-        super(PoolCreatedEvent, self).__init__(address)
+    def __init__(self, address: _Address, options: dict[str, Any]) -> None:
+        super().__init__(address)
         self.__options = options
 
     @property
-    def options(self):
+    def options(self) -> dict[str, Any]:
         """Any non-default pool options that were set on this Connection Pool."""
         return self.__options
 
-    def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.address, self.__options)
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.address!r}, {self.__options!r})"
+
+
+class PoolReadyEvent(_PoolEvent):
+    """Published when a Connection Pool is marked ready.
+
+    :param address: The address (host, port) pair of the server this Pool is
+       attempting to connect to.
+
+    .. versionadded:: 4.0
+    """
+
+    __slots__ = ()
 
 
 class PoolClearedEvent(_PoolEvent):
     """Published when a Connection Pool is cleared.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this Pool is
+    :param address: The address (host, port) pair of the server this Pool is
        attempting to connect to.
-     - `service_id`: The service_id this command was sent to, or ``None``.
+    :param service_id: The service_id this command was sent to, or ``None``.
+    :param interrupt_connections: True if all active connections were interrupted by the Pool during clearing.
 
     .. versionadded:: 3.9
     """
 
-    __slots__ = ("__service_id",)
+    __slots__ = ("__service_id", "__interrupt_connections")
 
-    def __init__(self, address, service_id=None):
-        super(PoolClearedEvent, self).__init__(address)
+    def __init__(
+        self,
+        address: _Address,
+        service_id: Optional[ObjectId] = None,
+        interrupt_connections: bool = False,
+    ) -> None:
+        super().__init__(address)
         self.__service_id = service_id
+        self.__interrupt_connections = interrupt_connections
 
     @property
-    def service_id(self):
+    def service_id(self) -> Optional[ObjectId]:
         """Connections with this service_id are cleared.
 
         When service_id is ``None``, all connections in the pool are cleared.
@@ -810,15 +890,22 @@ class PoolClearedEvent(_PoolEvent):
         """
         return self.__service_id
 
-    def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.address, self.__service_id)
+    @property
+    def interrupt_connections(self) -> bool:
+        """If True, active connections are interrupted during clearing.
+
+        .. versionadded:: 4.7
+        """
+        return self.__interrupt_connections
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.address!r}, {self.__service_id!r}, {self.__interrupt_connections!r})"
 
 
 class PoolClosedEvent(_PoolEvent):
     """Published when a Connection Pool is closed.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this Pool is
+    :param address: The address (host, port) pair of the server this Pool is
        attempting to connect to.
 
     .. versionadded:: 3.9
@@ -827,7 +914,7 @@ class PoolClosedEvent(_PoolEvent):
     __slots__ = ()
 
 
-class ConnectionClosedReason(object):
+class ConnectionClosedReason:
     """An enum that defines values for `reason` on a
     :class:`ConnectionClosedEvent`.
 
@@ -848,7 +935,7 @@ class ConnectionClosedReason(object):
     """The pool was closed, making the connection no longer valid."""
 
 
-class ConnectionCheckOutFailedReason(object):
+class ConnectionCheckOutFailedReason:
     """An enum that defines values for `reason` on a
     :class:`ConnectionCheckOutFailedEvent`.
 
@@ -867,41 +954,73 @@ class ConnectionCheckOutFailedReason(object):
     """
 
 
-class _ConnectionEvent(object):
-    """Private base class for some connection events."""
+class _ConnectionEvent:
+    """Private base class for connection events."""
 
-    __slots__ = ("__address", "__connection_id")
+    __slots__ = ("__address",)
 
-    def __init__(self, address, connection_id):
+    def __init__(self, address: _Address) -> None:
         self.__address = address
-        self.__connection_id = connection_id
 
     @property
-    def address(self):
+    def address(self) -> _Address:
         """The address (host, port) pair of the server this connection is
         attempting to connect to.
         """
         return self.__address
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.__address!r})"
+
+
+class _ConnectionIdEvent(_ConnectionEvent):
+    """Private base class for connection events with an id."""
+
+    __slots__ = ("__connection_id",)
+
+    def __init__(self, address: _Address, connection_id: int) -> None:
+        super().__init__(address)
+        self.__connection_id = connection_id
+
     @property
-    def connection_id(self):
-        """The ID of the Connection."""
+    def connection_id(self) -> int:
+        """The ID of the connection."""
         return self.__connection_id
 
-    def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.__address, self.__connection_id)
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.address!r}, {self.__connection_id!r})"
 
 
-class ConnectionCreatedEvent(_ConnectionEvent):
+class _ConnectionDurationEvent(_ConnectionIdEvent):
+    """Private base class for connection events with a duration."""
+
+    __slots__ = ("__duration",)
+
+    def __init__(self, address: _Address, connection_id: int, duration: Optional[float]) -> None:
+        super().__init__(address, connection_id)
+        self.__duration = duration
+
+    @property
+    def duration(self) -> Optional[float]:
+        """The duration of the connection event.
+
+        .. versionadded:: 4.7
+        """
+        return self.__duration
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.address!r}, {self.connection_id!r}, {self.__duration!r})"
+
+
+class ConnectionCreatedEvent(_ConnectionIdEvent):
     """Published when a Connection Pool creates a Connection object.
 
     NOTE: This connection is not ready for use until the
     :class:`ConnectionReadyEvent` is published.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
-     - `connection_id`: The integer ID of the Connection in this Pool.
+    :param connection_id: The integer ID of the Connection in this Pool.
 
     .. versionadded:: 3.9
     """
@@ -909,13 +1028,12 @@ class ConnectionCreatedEvent(_ConnectionEvent):
     __slots__ = ()
 
 
-class ConnectionReadyEvent(_ConnectionEvent):
+class ConnectionReadyEvent(_ConnectionDurationEvent):
     """Published when a Connection has finished its setup, and is ready to use.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
-     - `connection_id`: The integer ID of the Connection in this Pool.
+    :param connection_id: The integer ID of the Connection in this Pool.
 
     .. versionadded:: 3.9
     """
@@ -923,26 +1041,25 @@ class ConnectionReadyEvent(_ConnectionEvent):
     __slots__ = ()
 
 
-class ConnectionClosedEvent(_ConnectionEvent):
+class ConnectionClosedEvent(_ConnectionIdEvent):
     """Published when a Connection is closed.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
-     - `connection_id`: The integer ID of the Connection in this Pool.
-     - `reason`: A reason explaining why this connection was closed.
+    :param connection_id: The integer ID of the Connection in this Pool.
+    :param reason: A reason explaining why this connection was closed.
 
     .. versionadded:: 3.9
     """
 
     __slots__ = ("__reason",)
 
-    def __init__(self, address, connection_id, reason):
-        super(ConnectionClosedEvent, self).__init__(address, connection_id)
+    def __init__(self, address: _Address, connection_id: int, reason: str):
+        super().__init__(address, connection_id)
         self.__reason = reason
 
     @property
-    def reason(self):
+    def reason(self) -> str:
         """A reason explaining why this connection was closed.
 
         The reason must be one of the strings from the
@@ -950,8 +1067,8 @@ class ConnectionClosedEvent(_ConnectionEvent):
         """
         return self.__reason
 
-    def __repr__(self):
-        return "%s(%r, %r, %r)" % (
+    def __repr__(self) -> str:
+        return "{}({!r}, {!r}, {!r})".format(
             self.__class__.__name__,
             self.address,
             self.connection_id,
@@ -959,58 +1076,36 @@ class ConnectionClosedEvent(_ConnectionEvent):
         )
 
 
-class ConnectionCheckOutStartedEvent(object):
+class ConnectionCheckOutStartedEvent(_ConnectionEvent):
     """Published when the driver starts attempting to check out a connection.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
 
     .. versionadded:: 3.9
     """
 
-    __slots__ = ("__address",)
-
-    def __init__(self, address):
-        self.__address = address
-
-    @property
-    def address(self):
-        """The address (host, port) pair of the server this connection is
-        attempting to connect to.
-        """
-        return self.__address
-
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.__address)
+    __slots__ = ()
 
 
-class ConnectionCheckOutFailedEvent(object):
+class ConnectionCheckOutFailedEvent(_ConnectionDurationEvent):
     """Published when the driver's attempt to check out a connection fails.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
-     - `reason`: A reason explaining why connection check out failed.
+    :param reason: A reason explaining why connection check out failed.
 
     .. versionadded:: 3.9
     """
 
-    __slots__ = ("__address", "__reason")
+    __slots__ = ("__reason",)
 
-    def __init__(self, address, reason):
-        self.__address = address
+    def __init__(self, address: _Address, reason: str, duration: Optional[float]) -> None:
+        super().__init__(address=address, connection_id=0, duration=duration)
         self.__reason = reason
 
     @property
-    def address(self):
-        """The address (host, port) pair of the server this connection is
-        attempting to connect to.
-        """
-        return self.__address
-
-    @property
-    def reason(self):
+    def reason(self) -> str:
         """A reason explaining why connection check out failed.
 
         The reason must be one of the strings from the
@@ -1018,17 +1113,16 @@ class ConnectionCheckOutFailedEvent(object):
         """
         return self.__reason
 
-    def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.__address, self.__reason)
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.address!r}, {self.__reason!r}, {self.duration!r})"
 
 
-class ConnectionCheckedOutEvent(_ConnectionEvent):
-    """Published when the driver successfully checks out a Connection.
+class ConnectionCheckedOutEvent(_ConnectionDurationEvent):
+    """Published when the driver successfully checks out a connection.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
-     - `connection_id`: The integer ID of the Connection in this Pool.
+    :param connection_id: The integer ID of the Connection in this Pool.
 
     .. versionadded:: 3.9
     """
@@ -1036,13 +1130,12 @@ class ConnectionCheckedOutEvent(_ConnectionEvent):
     __slots__ = ()
 
 
-class ConnectionCheckedInEvent(_ConnectionEvent):
+class ConnectionCheckedInEvent(_ConnectionIdEvent):
     """Published when the driver checks in a Connection into the Pool.
 
-    :Parameters:
-     - `address`: The address (host, port) pair of the server this
+    :param address: The address (host, port) pair of the server this
        Connection is attempting to connect to.
-     - `connection_id`: The integer ID of the Connection in this Pool.
+    :param connection_id: The integer ID of the Connection in this Pool.
 
     .. versionadded:: 3.9
     """
@@ -1050,31 +1143,27 @@ class ConnectionCheckedInEvent(_ConnectionEvent):
     __slots__ = ()
 
 
-class _ServerEvent(object):
+class _ServerEvent:
     """Base class for server events."""
 
     __slots__ = ("__server_address", "__topology_id")
 
-    def __init__(self, server_address, topology_id):
+    def __init__(self, server_address: _Address, topology_id: ObjectId) -> None:
         self.__server_address = server_address
         self.__topology_id = topology_id
 
     @property
-    def server_address(self):
+    def server_address(self) -> _Address:
         """The address (host, port) pair of the server"""
         return self.__server_address
 
     @property
-    def topology_id(self):
+    def topology_id(self) -> ObjectId:
         """A unique identifier for the topology this server is a part of."""
         return self.__topology_id
 
-    def __repr__(self):
-        return "<%s %s topology_id: %s>" % (
-            self.__class__.__name__,
-            self.server_address,
-            self.topology_id,
-        )
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {self.server_address} topology_id: {self.topology_id}>"
 
 
 class ServerDescriptionChangedEvent(_ServerEvent):
@@ -1085,25 +1174,32 @@ class ServerDescriptionChangedEvent(_ServerEvent):
 
     __slots__ = ("__previous_description", "__new_description")
 
-    def __init__(self, previous_description, new_description, *args):
-        super(ServerDescriptionChangedEvent, self).__init__(*args)
+    def __init__(
+        self,
+        previous_description: ServerDescription,
+        new_description: ServerDescription,
+        *args: Any,
+    ) -> None:
+        super().__init__(*args)
         self.__previous_description = previous_description
         self.__new_description = new_description
 
     @property
-    def previous_description(self):
+    def previous_description(self) -> ServerDescription:
         """The previous
-        :class:`~pymongo.server_description.ServerDescription`."""
+        :class:`~pymongo.server_description.ServerDescription`.
+        """
         return self.__previous_description
 
     @property
-    def new_description(self):
+    def new_description(self) -> ServerDescription:
         """The new
-        :class:`~pymongo.server_description.ServerDescription`."""
+        :class:`~pymongo.server_description.ServerDescription`.
+        """
         return self.__new_description
 
-    def __repr__(self):
-        return "<%s %s changed from: %s, to: %s>" % (
+    def __repr__(self) -> str:
+        return "<{} {} changed from: {}, to: {}>".format(
             self.__class__.__name__,
             self.server_address,
             self.previous_description,
@@ -1129,21 +1225,21 @@ class ServerClosedEvent(_ServerEvent):
     __slots__ = ()
 
 
-class TopologyEvent(object):
+class TopologyEvent:
     """Base class for topology description events."""
 
-    __slots__ = "__topology_id"
+    __slots__ = ("__topology_id",)
 
-    def __init__(self, topology_id):
+    def __init__(self, topology_id: ObjectId) -> None:
         self.__topology_id = topology_id
 
     @property
-    def topology_id(self):
+    def topology_id(self) -> ObjectId:
         """A unique identifier for the topology this server is a part of."""
         return self.__topology_id
 
-    def __repr__(self):
-        return "<%s topology_id: %s>" % (self.__class__.__name__, self.topology_id)
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} topology_id: {self.topology_id}>"
 
 
 class TopologyDescriptionChangedEvent(TopologyEvent):
@@ -1154,25 +1250,32 @@ class TopologyDescriptionChangedEvent(TopologyEvent):
 
     __slots__ = ("__previous_description", "__new_description")
 
-    def __init__(self, previous_description, new_description, *args):
-        super(TopologyDescriptionChangedEvent, self).__init__(*args)
+    def __init__(
+        self,
+        previous_description: TopologyDescription,
+        new_description: TopologyDescription,
+        *args: Any,
+    ) -> None:
+        super().__init__(*args)
         self.__previous_description = previous_description
         self.__new_description = new_description
 
     @property
-    def previous_description(self):
+    def previous_description(self) -> TopologyDescription:
         """The previous
-        :class:`~pymongo.topology_description.TopologyDescription`."""
+        :class:`~pymongo.topology_description.TopologyDescription`.
+        """
         return self.__previous_description
 
     @property
-    def new_description(self):
+    def new_description(self) -> TopologyDescription:
         """The new
-        :class:`~pymongo.topology_description.TopologyDescription`."""
+        :class:`~pymongo.topology_description.TopologyDescription`.
+        """
         return self.__new_description
 
-    def __repr__(self):
-        return "<%s topology_id: %s changed from: %s, to: %s>" % (
+    def __repr__(self) -> str:
+        return "<{} topology_id: {} changed from: {}, to: {}>".format(
             self.__class__.__name__,
             self.topology_id,
             self.previous_description,
@@ -1198,22 +1301,32 @@ class TopologyClosedEvent(TopologyEvent):
     __slots__ = ()
 
 
-class _ServerHeartbeatEvent(object):
+class _ServerHeartbeatEvent:
     """Base class for server heartbeat events."""
 
-    __slots__ = "__connection_id"
+    __slots__ = ("__connection_id", "__awaited")
 
-    def __init__(self, connection_id):
+    def __init__(self, connection_id: _Address, awaited: bool = False) -> None:
         self.__connection_id = connection_id
+        self.__awaited = awaited
 
     @property
-    def connection_id(self):
+    def connection_id(self) -> _Address:
         """The address (host, port) of the server this heartbeat was sent
-        to."""
+        to.
+        """
         return self.__connection_id
 
-    def __repr__(self):
-        return "<%s %s>" % (self.__class__.__name__, self.connection_id)
+    @property
+    def awaited(self) -> bool:
+        """Whether the heartbeat was issued as an awaitable hello command.
+
+        .. versionadded:: 4.6
+        """
+        return self.__awaited
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {self.connection_id} awaited: {self.awaited}>"
 
 
 class ServerHeartbeatStartedEvent(_ServerHeartbeatEvent):
@@ -1231,41 +1344,43 @@ class ServerHeartbeatSucceededEvent(_ServerHeartbeatEvent):
     .. versionadded:: 3.3
     """
 
-    __slots__ = ("__duration", "__reply", "__awaited")
+    __slots__ = ("__duration", "__reply")
 
-    def __init__(self, duration, reply, connection_id, awaited=False):
-        super(ServerHeartbeatSucceededEvent, self).__init__(connection_id)
+    def __init__(
+        self,
+        duration: float,
+        reply: Hello[dict[str, Any]],
+        connection_id: _Address,
+        awaited: bool = False,
+    ) -> None:
+        super().__init__(connection_id, awaited)
         self.__duration = duration
         self.__reply = reply
-        self.__awaited = awaited
 
     @property
-    def duration(self):
+    def duration(self) -> float:
         """The duration of this heartbeat in microseconds."""
         return self.__duration
 
     @property
-    def reply(self):
-        """An instance of :class:`~pymongo.ismaster.IsMaster`.
-
-        .. warning:: :class:`~pymongo.ismaster.IsMaster` is deprecated.
-          Starting with PyMongo 4.0 this attribute will return an instance
-          of :class:`~pymongo.hello.Hello`, which provides the same API.
-        """
+    def reply(self) -> Hello[dict[str, Any]]:
+        """An instance of :class:`~pymongo.hello.Hello`."""
         return self.__reply
 
     @property
-    def awaited(self):
+    def awaited(self) -> bool:
         """Whether the heartbeat was awaited.
 
         If true, then :meth:`duration` reflects the sum of the round trip time
         to the server and the time that the server waited before sending a
         response.
-        """
-        return self.__awaited
 
-    def __repr__(self):
-        return "<%s %s duration: %s, awaited: %s, reply: %s>" % (
+        .. versionadded:: 3.11
+        """
+        return super().awaited
+
+    def __repr__(self) -> str:
+        return "<{} {} duration: {}, awaited: {}, reply: {}>".format(
             self.__class__.__name__,
             self.connection_id,
             self.duration,
@@ -1281,36 +1396,39 @@ class ServerHeartbeatFailedEvent(_ServerHeartbeatEvent):
     .. versionadded:: 3.3
     """
 
-    __slots__ = ("__duration", "__reply", "__awaited")
+    __slots__ = ("__duration", "__reply")
 
-    def __init__(self, duration, reply, connection_id, awaited=False):
-        super(ServerHeartbeatFailedEvent, self).__init__(connection_id)
+    def __init__(
+        self, duration: float, reply: Exception, connection_id: _Address, awaited: bool = False
+    ) -> None:
+        super().__init__(connection_id, awaited)
         self.__duration = duration
         self.__reply = reply
-        self.__awaited = awaited
 
     @property
-    def duration(self):
+    def duration(self) -> float:
         """The duration of this heartbeat in microseconds."""
         return self.__duration
 
     @property
-    def reply(self):
+    def reply(self) -> Exception:
         """A subclass of :exc:`Exception`."""
         return self.__reply
 
     @property
-    def awaited(self):
+    def awaited(self) -> bool:
         """Whether the heartbeat was awaited.
 
         If true, then :meth:`duration` reflects the sum of the round trip time
         to the server and the time that the server waited before sending a
         response.
-        """
-        return self.__awaited
 
-    def __repr__(self):
-        return "<%s %s duration: %s, awaited: %s, reply: %r>" % (
+        .. versionadded:: 3.11
+        """
+        return super().awaited
+
+    def __repr__(self) -> str:
+        return "<{} {} duration: {}, awaited: {}, reply: {!r}>".format(
             self.__class__.__name__,
             self.connection_id,
             self.duration,
@@ -1319,16 +1437,15 @@ class ServerHeartbeatFailedEvent(_ServerHeartbeatEvent):
         )
 
 
-class _EventListeners(object):
+class _EventListeners:
     """Configure event listeners for a client instance.
 
     Any event listeners registered globally are included by default.
 
-    :Parameters:
-      - `listeners`: A list of event listeners.
+    :param listeners: A list of event listeners.
     """
 
-    def __init__(self, listeners):
+    def __init__(self, listeners: Optional[Sequence[_EventListener]]):
         self.__command_listeners = _LISTENERS.command_listeners[:]
         self.__server_listeners = _LISTENERS.server_listeners[:]
         lst = _LISTENERS.server_heartbeat_listeners
@@ -1354,58 +1471,71 @@ class _EventListeners(object):
         self.__enabled_for_cmap = bool(self.__cmap_listeners)
 
     @property
-    def enabled_for_commands(self):
+    def enabled_for_commands(self) -> bool:
         """Are any CommandListener instances registered?"""
         return self.__enabled_for_commands
 
     @property
-    def enabled_for_server(self):
+    def enabled_for_server(self) -> bool:
         """Are any ServerListener instances registered?"""
         return self.__enabled_for_server
 
     @property
-    def enabled_for_server_heartbeat(self):
+    def enabled_for_server_heartbeat(self) -> bool:
         """Are any ServerHeartbeatListener instances registered?"""
         return self.__enabled_for_server_heartbeat
 
     @property
-    def enabled_for_topology(self):
+    def enabled_for_topology(self) -> bool:
         """Are any TopologyListener instances registered?"""
         return self.__enabled_for_topology
 
     @property
-    def enabled_for_cmap(self):
+    def enabled_for_cmap(self) -> bool:
         """Are any ConnectionPoolListener instances registered?"""
         return self.__enabled_for_cmap
 
-    def event_listeners(self):
+    def event_listeners(self) -> list[_EventListeners]:
         """List of registered event listeners."""
         return (
-            self.__command_listeners +
-            self.__server_heartbeat_listeners +
-            self.__server_listeners +
-            self.__topology_listeners
+            self.__command_listeners
+            + self.__server_heartbeat_listeners
+            + self.__server_listeners
+            + self.__topology_listeners
+            + self.__cmap_listeners
         )
 
     def publish_command_start(
-        self, command, database_name, request_id, connection_id, op_id=None, service_id=None
-    ):
+        self,
+        command: _DocumentOut,
+        database_name: str,
+        request_id: int,
+        connection_id: _Address,
+        server_connection_id: Optional[int],
+        op_id: Optional[int] = None,
+        service_id: Optional[ObjectId] = None,
+    ) -> None:
         """Publish a CommandStartedEvent to all command listeners.
 
-        :Parameters:
-          - `command`: The command document.
-          - `database_name`: The name of the database this command was run
+        :param command: The command document.
+        :param database_name: The name of the database this command was run
             against.
-          - `request_id`: The request id for this operation.
-          - `connection_id`: The address (host, port) of the server this
+        :param request_id: The request id for this operation.
+        :param connection_id: The address (host, port) of the server this
             command was sent to.
-          - `op_id`: The (optional) operation id for this operation.
-          - `service_id`: The service_id this command was sent to, or ``None``.
+        :param op_id: The (optional) operation id for this operation.
+        :param service_id: The service_id this command was sent to, or ``None``.
         """
         if op_id is None:
             op_id = request_id
         event = CommandStartedEvent(
-            command, database_name, request_id, connection_id, op_id, service_id=service_id
+            command,
+            database_name,
+            request_id,
+            connection_id,
+            op_id,
+            service_id=service_id,
+            server_connection_id=server_connection_id,
         )
         for subscriber in self.__command_listeners:
             try:
@@ -1415,27 +1545,29 @@ class _EventListeners(object):
 
     def publish_command_success(
         self,
-        duration,
-        reply,
-        command_name,
-        request_id,
-        connection_id,
-        op_id=None,
-        service_id=None,
-        speculative_hello=False,
-    ):
+        duration: timedelta,
+        reply: _DocumentOut,
+        command_name: str,
+        request_id: int,
+        connection_id: _Address,
+        server_connection_id: Optional[int],
+        op_id: Optional[int] = None,
+        service_id: Optional[ObjectId] = None,
+        speculative_hello: bool = False,
+        database_name: str = "",
+    ) -> None:
         """Publish a CommandSucceededEvent to all command listeners.
 
-        :Parameters:
-          - `duration`: The command duration as a datetime.timedelta.
-          - `reply`: The server reply document.
-          - `command_name`: The command name.
-          - `request_id`: The request id for this operation.
-          - `connection_id`: The address (host, port) of the server this
+        :param duration: The command duration as a datetime.timedelta.
+        :param reply: The server reply document.
+        :param command_name: The command name.
+        :param request_id: The request id for this operation.
+        :param connection_id: The address (host, port) of the server this
             command was sent to.
-          - `op_id`: The (optional) operation id for this operation.
-          - `service_id`: The service_id this command was sent to, or ``None``.
-          - `speculative_hello`: Was the command sent with speculative auth?
+        :param op_id: The (optional) operation id for this operation.
+        :param service_id: The service_id this command was sent to, or ``None``.
+        :param speculative_hello: Was the command sent with speculative auth?
+        :param database_name: The database this command was sent to, or ``""``.
         """
         if op_id is None:
             op_id = request_id
@@ -1444,7 +1576,15 @@ class _EventListeners(object):
             # speculativeAuthenticate.
             reply = {}
         event = CommandSucceededEvent(
-            duration, reply, command_name, request_id, connection_id, op_id, service_id
+            duration,
+            reply,
+            command_name,
+            request_id,
+            connection_id,
+            op_id,
+            service_id,
+            database_name=database_name,
+            server_connection_id=server_connection_id,
         )
         for subscriber in self.__command_listeners:
             try:
@@ -1454,31 +1594,41 @@ class _EventListeners(object):
 
     def publish_command_failure(
         self,
-        duration,
-        failure,
-        command_name,
-        request_id,
-        connection_id,
-        op_id=None,
-        service_id=None,
-    ):
+        duration: timedelta,
+        failure: _DocumentOut,
+        command_name: str,
+        request_id: int,
+        connection_id: _Address,
+        server_connection_id: Optional[int],
+        op_id: Optional[int] = None,
+        service_id: Optional[ObjectId] = None,
+        database_name: str = "",
+    ) -> None:
         """Publish a CommandFailedEvent to all command listeners.
 
-        :Parameters:
-          - `duration`: The command duration as a datetime.timedelta.
-          - `failure`: The server reply document or failure description
+        :param duration: The command duration as a datetime.timedelta.
+        :param failure: The server reply document or failure description
             document.
-          - `command_name`: The command name.
-          - `request_id`: The request id for this operation.
-          - `connection_id`: The address (host, port) of the server this
+        :param command_name: The command name.
+        :param request_id: The request id for this operation.
+        :param connection_id: The address (host, port) of the server this
             command was sent to.
-          - `op_id`: The (optional) operation id for this operation.
-          - `service_id`: The service_id this command was sent to, or ``None``.
+        :param op_id: The (optional) operation id for this operation.
+        :param service_id: The service_id this command was sent to, or ``None``.
+        :param database_name: The database this command was sent to, or ``""``.
         """
         if op_id is None:
             op_id = request_id
         event = CommandFailedEvent(
-            duration, failure, command_name, request_id, connection_id, op_id, service_id=service_id
+            duration,
+            failure,
+            command_name,
+            request_id,
+            connection_id,
+            op_id,
+            service_id=service_id,
+            database_name=database_name,
+            server_connection_id=server_connection_id,
         )
         for subscriber in self.__command_listeners:
             try:
@@ -1486,30 +1636,31 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_server_heartbeat_started(self, connection_id):
+    def publish_server_heartbeat_started(self, connection_id: _Address, awaited: bool) -> None:
         """Publish a ServerHeartbeatStartedEvent to all server heartbeat
         listeners.
 
-        :Parameters:
-         - `connection_id`: The address (host, port) pair of the connection.
+        :param connection_id: The address (host, port) pair of the connection.
+        :param awaited: True if this heartbeat is part of an awaitable hello command.
         """
-        event = ServerHeartbeatStartedEvent(connection_id)
+        event = ServerHeartbeatStartedEvent(connection_id, awaited)
         for subscriber in self.__server_heartbeat_listeners:
             try:
                 subscriber.started(event)
             except Exception:
                 _handle_exception()
 
-    def publish_server_heartbeat_succeeded(self, connection_id, duration, reply, awaited):
+    def publish_server_heartbeat_succeeded(
+        self, connection_id: _Address, duration: float, reply: Hello[dict[str, Any]], awaited: bool
+    ) -> None:
         """Publish a ServerHeartbeatSucceededEvent to all server heartbeat
         listeners.
 
-        :Parameters:
-         - `connection_id`: The address (host, port) pair of the connection.
-         - `duration`: The execution time of the event in the highest possible
+        :param connection_id: The address (host, port) pair of the connection.
+        :param duration: The execution time of the event in the highest possible
             resolution for the platform.
-         - `reply`: The command reply.
-         - `awaited`: True if the response was awaited.
+        :param reply: The command reply.
+        :param awaited: True if the response was awaited.
         """
         event = ServerHeartbeatSucceededEvent(duration, reply, connection_id, awaited)
         for subscriber in self.__server_heartbeat_listeners:
@@ -1518,16 +1669,17 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_server_heartbeat_failed(self, connection_id, duration, reply, awaited):
+    def publish_server_heartbeat_failed(
+        self, connection_id: _Address, duration: float, reply: Exception, awaited: bool
+    ) -> None:
         """Publish a ServerHeartbeatFailedEvent to all server heartbeat
         listeners.
 
-        :Parameters:
-         - `connection_id`: The address (host, port) pair of the connection.
-         - `duration`: The execution time of the event in the highest possible
+        :param connection_id: The address (host, port) pair of the connection.
+        :param duration: The execution time of the event in the highest possible
             resolution for the platform.
-         - `reply`: The command reply.
-         - `awaited`: True if the response was awaited.
+        :param reply: The command reply.
+        :param awaited: True if the response was awaited.
         """
         event = ServerHeartbeatFailedEvent(duration, reply, connection_id, awaited)
         for subscriber in self.__server_heartbeat_listeners:
@@ -1536,12 +1688,11 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_server_opened(self, server_address, topology_id):
+    def publish_server_opened(self, server_address: _Address, topology_id: ObjectId) -> None:
         """Publish a ServerOpeningEvent to all server listeners.
 
-        :Parameters:
-         - `server_address`: The address (host, port) pair of the server.
-         - `topology_id`: A unique identifier for the topology this server
+        :param server_address: The address (host, port) pair of the server.
+        :param topology_id: A unique identifier for the topology this server
            is a part of.
         """
         event = ServerOpeningEvent(server_address, topology_id)
@@ -1551,12 +1702,11 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_server_closed(self, server_address, topology_id):
+    def publish_server_closed(self, server_address: _Address, topology_id: ObjectId) -> None:
         """Publish a ServerClosedEvent to all server listeners.
 
-        :Parameters:
-         - `server_address`: The address (host, port) pair of the server.
-         - `topology_id`: A unique identifier for the topology this server
+        :param server_address: The address (host, port) pair of the server.
+        :param topology_id: A unique identifier for the topology this server
            is a part of.
         """
         event = ServerClosedEvent(server_address, topology_id)
@@ -1567,15 +1717,18 @@ class _EventListeners(object):
                 _handle_exception()
 
     def publish_server_description_changed(
-        self, previous_description, new_description, server_address, topology_id
-    ):
+        self,
+        previous_description: ServerDescription,
+        new_description: ServerDescription,
+        server_address: _Address,
+        topology_id: ObjectId,
+    ) -> None:
         """Publish a ServerDescriptionChangedEvent to all server listeners.
 
-        :Parameters:
-         - `previous_description`: The previous server description.
-         - `server_address`: The address (host, port) pair of the server.
-         - `new_description`: The new server description.
-         - `topology_id`: A unique identifier for the topology this server
+        :param previous_description: The previous server description.
+        :param server_address: The address (host, port) pair of the server.
+        :param new_description: The new server description.
+        :param topology_id: A unique identifier for the topology this server
            is a part of.
         """
         event = ServerDescriptionChangedEvent(
@@ -1587,11 +1740,10 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_topology_opened(self, topology_id):
+    def publish_topology_opened(self, topology_id: ObjectId) -> None:
         """Publish a TopologyOpenedEvent to all topology listeners.
 
-        :Parameters:
-         - `topology_id`: A unique identifier for the topology this server
+        :param topology_id: A unique identifier for the topology this server
            is a part of.
         """
         event = TopologyOpenedEvent(topology_id)
@@ -1601,11 +1753,10 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_topology_closed(self, topology_id):
+    def publish_topology_closed(self, topology_id: ObjectId) -> None:
         """Publish a TopologyClosedEvent to all topology listeners.
 
-        :Parameters:
-         - `topology_id`: A unique identifier for the topology this server
+        :param topology_id: A unique identifier for the topology this server
            is a part of.
         """
         event = TopologyClosedEvent(topology_id)
@@ -1616,14 +1767,16 @@ class _EventListeners(object):
                 _handle_exception()
 
     def publish_topology_description_changed(
-        self, previous_description, new_description, topology_id
-    ):
+        self,
+        previous_description: TopologyDescription,
+        new_description: TopologyDescription,
+        topology_id: ObjectId,
+    ) -> None:
         """Publish a TopologyDescriptionChangedEvent to all topology listeners.
 
-        :Parameters:
-         - `previous_description`: The previous topology description.
-         - `new_description`: The new topology description.
-         - `topology_id`: A unique identifier for the topology this server
+        :param previous_description: The previous topology description.
+        :param new_description: The new topology description.
+        :param topology_id: A unique identifier for the topology this server
            is a part of.
         """
         event = TopologyDescriptionChangedEvent(previous_description, new_description, topology_id)
@@ -1633,7 +1786,7 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_pool_created(self, address, options):
+    def publish_pool_created(self, address: _Address, options: dict[str, Any]) -> None:
         """Publish a :class:`PoolCreatedEvent` to all pool listeners."""
         event = PoolCreatedEvent(address, options)
         for subscriber in self.__cmap_listeners:
@@ -1642,16 +1795,30 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_pool_cleared(self, address, service_id):
+    def publish_pool_ready(self, address: _Address) -> None:
+        """Publish a :class:`PoolReadyEvent` to all pool listeners."""
+        event = PoolReadyEvent(address)
+        for subscriber in self.__cmap_listeners:
+            try:
+                subscriber.pool_ready(event)
+            except Exception:
+                _handle_exception()
+
+    def publish_pool_cleared(
+        self,
+        address: _Address,
+        service_id: Optional[ObjectId],
+        interrupt_connections: bool = False,
+    ) -> None:
         """Publish a :class:`PoolClearedEvent` to all pool listeners."""
-        event = PoolClearedEvent(address, service_id)
+        event = PoolClearedEvent(address, service_id, interrupt_connections)
         for subscriber in self.__cmap_listeners:
             try:
                 subscriber.pool_cleared(event)
             except Exception:
                 _handle_exception()
 
-    def publish_pool_closed(self, address):
+    def publish_pool_closed(self, address: _Address) -> None:
         """Publish a :class:`PoolClosedEvent` to all pool listeners."""
         event = PoolClosedEvent(address)
         for subscriber in self.__cmap_listeners:
@@ -1660,7 +1827,7 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_connection_created(self, address, connection_id):
+    def publish_connection_created(self, address: _Address, connection_id: int) -> None:
         """Publish a :class:`ConnectionCreatedEvent` to all connection
         listeners.
         """
@@ -1671,16 +1838,18 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_connection_ready(self, address, connection_id):
+    def publish_connection_ready(
+        self, address: _Address, connection_id: int, duration: float
+    ) -> None:
         """Publish a :class:`ConnectionReadyEvent` to all connection listeners."""
-        event = ConnectionReadyEvent(address, connection_id)
+        event = ConnectionReadyEvent(address, connection_id, duration)
         for subscriber in self.__cmap_listeners:
             try:
                 subscriber.connection_ready(event)
             except Exception:
                 _handle_exception()
 
-    def publish_connection_closed(self, address, connection_id, reason):
+    def publish_connection_closed(self, address: _Address, connection_id: int, reason: str) -> None:
         """Publish a :class:`ConnectionClosedEvent` to all connection
         listeners.
         """
@@ -1691,7 +1860,7 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_connection_check_out_started(self, address):
+    def publish_connection_check_out_started(self, address: _Address) -> None:
         """Publish a :class:`ConnectionCheckOutStartedEvent` to all connection
         listeners.
         """
@@ -1702,29 +1871,33 @@ class _EventListeners(object):
             except Exception:
                 _handle_exception()
 
-    def publish_connection_check_out_failed(self, address, reason):
+    def publish_connection_check_out_failed(
+        self, address: _Address, reason: str, duration: float
+    ) -> None:
         """Publish a :class:`ConnectionCheckOutFailedEvent` to all connection
         listeners.
         """
-        event = ConnectionCheckOutFailedEvent(address, reason)
+        event = ConnectionCheckOutFailedEvent(address, reason, duration)
         for subscriber in self.__cmap_listeners:
             try:
-                subscriber.connection_check_out_started(event)
+                subscriber.connection_check_out_failed(event)
             except Exception:
                 _handle_exception()
 
-    def publish_connection_checked_out(self, address, connection_id):
+    def publish_connection_checked_out(
+        self, address: _Address, connection_id: int, duration: float
+    ) -> None:
         """Publish a :class:`ConnectionCheckedOutEvent` to all connection
         listeners.
         """
-        event = ConnectionCheckedOutEvent(address, connection_id)
+        event = ConnectionCheckedOutEvent(address, connection_id, duration)
         for subscriber in self.__cmap_listeners:
             try:
                 subscriber.connection_checked_out(event)
             except Exception:
                 _handle_exception()
 
-    def publish_connection_checked_in(self, address, connection_id):
+    def publish_connection_checked_in(self, address: _Address, connection_id: int) -> None:
         """Publish a :class:`ConnectionCheckedInEvent` to all connection
         listeners.
         """
