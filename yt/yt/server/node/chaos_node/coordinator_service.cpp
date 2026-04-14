@@ -18,6 +18,7 @@ namespace NYT::NChaosNode {
 using namespace NRpc;
 using namespace NChaosClient;
 using namespace NHydra;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +45,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForsakeShortcut));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardEra)
             .SetInvoker(Slot_->GetSnapshotStoreReadPoolInvoker()));
@@ -66,6 +68,18 @@ private:
 
         const auto& coordinatorManager = Slot_->GetCoordinatorManager();
         coordinatorManager->ResumeCoordinator(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ForsakeShortcut)
+    {
+        auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
+
+        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
+            chaosObjectId,
+            TypeFromId(chaosObjectId));
+
+        const auto& coordinatorManager = Slot_->GetCoordinatorManager();
+        coordinatorManager->ForsakeShortcut(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RegisterTransactionActions)
