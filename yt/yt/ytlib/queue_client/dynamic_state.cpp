@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NQueueClient {
 
 using namespace NConcurrency;
@@ -308,7 +310,59 @@ TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, NApi::IClientPtr cl
 { }
 
 template <typename TRow, typename TRecordDescriptor>
-TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBuf where) const
+TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup(
+    TRange<TRow> keys,
+    const TLookupRowsOptions& options) const
+{
+    std::vector<TRecordKey> recordKeys;
+    recordKeys.reserve(keys.size());
+    for (const auto& key : keys) {
+        recordKeys.push_back(RecordKeyFromRow(key));
+    }
+
+    auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
+    // NB(apachee): Passing local variable as options is fine, since it is captured by value in the callback.
+    TLookupRowsOptions patchedOptions = options;
+    patchedOptions.KeepMissingRows = true;
+    patchedOptions.AllowMissingKeyColumns = true;
+    return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
+        .ApplyUnique(BIND([patchedOptions] (TUnversionedLookupRowsResult&& rawResult) {
+            if (patchedOptions.EnablePartialResult) {
+                YT_VERIFY(rawResult.UnavailableKeyIndexes.empty());
+            }
+
+            auto optionalRecords = ToOptionalRecords<TRecord>(rawResult.Rowset);
+
+            std::vector<TErrorOr<TRow>> result;
+            result.reserve(optionalRecords.size());
+
+            auto it = rawResult.UnavailableKeyIndexes.begin();
+            for (const auto& [index, recordOrNull] : Enumerate(optionalRecords)) {
+                bool isUnavailable = false;
+                if (it != rawResult.UnavailableKeyIndexes.end() && *it == static_cast<int>(index)) {
+                    isUnavailable = true;
+                    it++;
+                }
+
+                if (recordOrNull) {
+                    YT_VERIFY(!isUnavailable);
+                    result.emplace_back(RowFromRecord(*recordOrNull));
+                } else {
+                    result.emplace_back(
+                        isUnavailable
+                            ? TError("Requested key is currently unavailable")
+                            : TError(EErrorCode::DynamicStateMissingRow, "Requested key does not exist"));
+                }
+            }
+
+            return result;
+        }));
+}
+
+template <typename TRow, typename TRecordDescriptor>
+TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(
+    TStringBuf where,
+    const TSelectRowsOptions& options) const
 {
     TString query = Format("* from [%v] where %v", Path_, where);
 
@@ -316,7 +370,7 @@ TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBu
         "Invoking select query (Query: %v)",
         query);
 
-    return Client_->SelectRows(query)
+    return Client_->SelectRows(query, options)
         .Apply(BIND([&] (const TSelectRowsResult& result) {
             std::vector<TRecord> records = ToRecords<TRecord>(result.Rowset);
 
@@ -343,7 +397,7 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Insert(TR
         .Apply(BIND([records = std::move(records), path = Path_] (const ITransactionPtr& transaction) {
             auto recordsRange = FromRecords(TRange(records));
 
-            transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false});
+            transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
             return transaction->Commit();
         }));
 }
@@ -360,7 +414,7 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Delete(TR
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
         .Apply(BIND([recordKeys = std::move(recordKeys), path = Path_] (const ITransactionPtr& transaction) {
             auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
-            transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false});
+            transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
             return transaction->Commit();
         }));
 }
