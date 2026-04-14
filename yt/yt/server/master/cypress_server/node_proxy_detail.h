@@ -555,6 +555,7 @@ public:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
+    // NB: Used at Cypress Proxies to trace access.
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 
