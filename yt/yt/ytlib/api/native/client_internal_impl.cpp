@@ -6,6 +6,7 @@
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
@@ -380,6 +381,22 @@ void TClient::DoForsakeChaosCoordinator(
     auto req = proxy.ForsakeCoordinator();
 
     ToProto(req->mutable_coordinator_cell_id(), coordinatorCellId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+}
+
+void TClient::DoForsakeChaosShortcut(
+    NHydra::TCellId coordinatorCellId,
+    TChaosObjectId chaosObjectId,
+    const TForsakeChaosShortcutOptions& options)
+{
+    auto cellChannel = Connection_->GetChaosChannelByCellId(coordinatorCellId);
+    auto proxy = TCoordinatorServiceProxy(cellChannel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    auto req = proxy.ForsakeShortcut();
+
+    ToProto(req->mutable_chaos_object_id(), chaosObjectId);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

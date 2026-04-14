@@ -1008,9 +1008,14 @@ public: \
         (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
-        NHydra::TCellId cordiantorCellId,
+        NHydra::TCellId cordinatorCellId,
         const TForsakeChaosCoordinatorOptions& options),
-        (chaosCellId, cordiantorCellId, options))
+        (chaosCellId, cordinatorCellId, options))
+    IMPLEMENT_METHOD(void, ForsakeChaosShortcut, (
+        NHydra::TCellId cordinatorCellId,
+        NChaosClient::TChaosObjectId chaosObjectId,
+        const TForsakeChaosShortcutOptions& options),
+        (cordinatorCellId, chaosObjectId, options))
     IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
         NHydra::TCellId chaosCellId,
         NHydra::TCellId destinationCellId,

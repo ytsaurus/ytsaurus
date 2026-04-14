@@ -16,6 +16,9 @@ using TSuspendCoordinatorContextPtr = TIntrusivePtr<NYT::NRpc::TTypedServiceCont
 using TResumeCoordinatorContextPtr = TIntrusivePtr<NYT::NRpc::TTypedServiceContext<
     NYT::NChaosClient::NProto::TReqResumeCoordinator,
     NYT::NChaosClient::NProto::TRspResumeCoordinator>>;
+using TForsakeShortcutContextPtr = TIntrusivePtr<NYT::NRpc::TTypedServiceContext<
+    NYT::NChaosClient::NProto::TReqForsakeShortcut,
+    NYT::NChaosClient::NProto::TRspForsakeShortcut>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +32,7 @@ public:
 
     virtual void SuspendCoordinator(TSuspendCoordinatorContextPtr context) = 0;
     virtual void ResumeCoordinator(TResumeCoordinatorContextPtr context) = 0;
+    virtual void ForsakeShortcut(TForsakeShortcutContextPtr context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICoordinatorManager)
