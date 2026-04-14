@@ -1,5 +1,6 @@
 RECURSE(
     changelog_surgeon
+    chaos_tools
     cuda_core_dump_injection
     cypress_nbd_server
     data_node_rpc_request
