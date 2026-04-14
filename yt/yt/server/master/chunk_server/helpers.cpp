@@ -1225,20 +1225,34 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
     return mergedChunkViews;
 }
 
-std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
+std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
+    const TChunk* chunk,
+    TRange<TAugmentedStoredChunkReplicaPtr> chunkReplicas)
 {
     if (!chunk->IsJournal()) {
         YT_LOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
-    for (auto replica : chunk->GetStoredReplicaList(/*includeOffline*/ false)) {
+    for (auto replica : chunkReplicas) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
         }
+        auto* location = locationReplica->AsChunkLocationPtr();
+        if (!IsObjectAlive(location)) {
+            YT_LOG_ALERT("Replica from non alive location is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
+                chunk->GetId());
+            continue;
+        }
+        auto node = location->GetNode();
+        if (!IsObjectAlive(node)) {
+            YT_LOG_ALERT("Replica from non alive node is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
+                chunk->GetId());
+            continue;
+        }
         replicas.push_back({
-            locationReplica->AsChunkLocationPtr()->GetNode()->GetDescriptor(),
+            node->GetDescriptor(),
             replica.GetReplicaIndex(),
             replica.GetEffectiveMediumIndex(),
         });

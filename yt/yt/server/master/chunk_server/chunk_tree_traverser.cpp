@@ -1724,7 +1724,7 @@ public:
     TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return chunkManager->GetChunkQuorumInfo(chunk).Apply(
+        return chunkManager->GetChunkQuorumInfoWithReplicaFetch(chunk).Apply(
             BIND([] (const NJournalClient::TChunkQuorumInfo& info) {
                 return TUnsealedChunkStatistics{
                     .FirstOverlayedRowIndex = info.FirstOverlayedRowIndex,
