@@ -26,7 +26,7 @@ require (
 	go.uber.org/zap v1.27.0
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.3
 	go.ytsaurus.tech/library/go/core/buildinfo v0.0.0-20250809130132-fa050e73ac17
-	go.ytsaurus.tech/library/go/core/log v0.0.4
+	go.ytsaurus.tech/library/go/core/log v0.0.5
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.4
 	go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.2
 	go.ytsaurus.tech/library/go/ptr v0.0.2
@@ -76,7 +76,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.2 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shoenig/test v1.7.1 // indirect
