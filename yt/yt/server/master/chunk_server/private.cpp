@@ -34,6 +34,8 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
             return TStringBuf("journal_default");
         case EChunkFormat::HunkDefault:
             return TStringBuf("hunk_default");
+        case EChunkFormat::HunkJournal:
+            return TStringBuf("hunk_journal");
         case EChunkFormat::Unknown:
             return TStringBuf("unknown");
         default:
