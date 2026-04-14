@@ -400,6 +400,8 @@ private:
             ChunkSpecs_.size());
 
         i64 offset = 0;
+        std::vector<TFuture<void>> blocksExtFutures;
+        blocksExtFutures.reserve(ChunkSpecs_.size());
         for (auto& chunkSpec : ChunkSpecs_) {
             Chunks_.push_back({});
             auto& chunk = Chunks_.back();
@@ -446,9 +448,15 @@ private:
             YT_LOG_INFO("Finish creating chunk reader (Chunk: %v)",
                 chunk.Index);
 
+            blocksExtFutures.push_back(
+                GetBlockExt(Chunks_.back()).AsVoid());
+
             offset += miscExt.uncompressed_data_size();
             Size_ += miscExt.uncompressed_data_size();
         }
+
+        WaitFor(AllSucceeded(std::move(blocksExtFutures)))
+            .ThrowOnError();
 
         YT_LOG_INFO("Initialized chunk structs (ChunkSpecCount: %v)",
             ChunkSpecs_.size());
