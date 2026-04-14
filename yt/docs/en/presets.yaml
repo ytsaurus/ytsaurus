@@ -1,4 +1,5 @@
 default:
+    ipa: _wai-tee-saw-ruhs_
 public:
     web-interface: 'web interface'
     lang: en
@@ -11,12 +12,8 @@ public:
     mr-clusters: <cluster-name>
     package-name: ytsaurus-client
     pool-tree: default
-    ipa: _wai-tee-saw-ruhs_
     yt-docs-root: https://ytsaurus.tech/docs/en
     community-tg: https://t.me/ytsaurus
+    cluster-ui: https://<host-root>/<cluster-name>
 
-    yql:
-        udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
-        udf-ivaluebuilder-example-link: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs/examples/structs
-        udf-ivaluebuilder-example: yql/essentials/udfs/examples/structs
 
