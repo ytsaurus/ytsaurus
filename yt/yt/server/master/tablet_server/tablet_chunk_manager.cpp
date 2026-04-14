@@ -539,25 +539,6 @@ public:
         } else if (table->IsSorted() && table->IsPhysicallyLog()) {
             auto comparator = table->GetSchema()->AsCompactTableSchema()->ToComparator();
 
-            std::vector<i64> oldTabletSizes(oldTabletCount);
-            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* mainTabletChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
-                auto tabletStores = EnumerateStoresInChunkTree(mainTabletChunkList);
-                for (auto store : tabletStores) {
-                    if (IsPhysicalChunkType(store->GetType())) {
-                        auto* chunk = store->AsChunk();
-                        oldTabletSizes[index - firstTabletIndex] += chunk->GetCompressedDataSize();
-                    } else {
-                        YT_LOG_ALERT(
-                            "Unexpected store kind encountered during replicated table reshard "
-                            "(TableId: %v, TabletId: %v, ChunkTreeId: %v)",
-                            table->GetId(),
-                            oldTabletIds[index - firstTabletIndex],
-                            store->GetId());
-                    }
-                }
-            }
-
             int relativeNewTabletIndex = 0;
             for (int relativeOldTabletIndex = 0; relativeOldTabletIndex < oldTabletCount; ++relativeOldTabletIndex) {
                 int oldTabletIndex = firstTabletIndex + relativeOldTabletIndex;
@@ -587,12 +568,6 @@ public:
                         ->Children()[oldTabletIndex]->AsChunkList();
                     newTabletChunkLists[EChunkListContentType::Hunk].push_back(
                         chunkManager->CloneTabletChunkList(oldHunkChunkList));
-
-                    auto& originatorTablets = newTablet->OriginatorTablets();
-                    originatorTablets.emplace_back(
-                        oldTabletIds[relativeOldTabletIndex],
-                        oldTabletSizes[relativeOldTabletIndex],
-                        oldTabletSizes[relativeOldTabletIndex]);
 
                     ++relativeNewTabletIndex;
                 }

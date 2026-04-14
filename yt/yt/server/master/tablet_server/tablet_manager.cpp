@@ -4232,24 +4232,34 @@ private:
             oldEdenStoreIds);
 
         if (table->IsReplicated() && table->IsSorted()) {
-            for (auto* newTablet : newTablets) {
-                if (newTablet->OriginatorTablets().empty()) {
-                    continue;
-                }
-                YT_VERIFY(newTablet->OriginatorTablets().size() == 1);
-                auto originatorTabletId = newTablet->OriginatorTablets()[0].TabletId;
+            auto comparator = table->GetSchema()->AsCompactTableSchema()->ToComparator();
+            int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
+            int relativeNewTabletIndex = 0;
+            for (int relativeOldTabletIndex = 0; relativeOldTabletIndex < oldTabletCount; ++relativeOldTabletIndex) {
+                auto originatorTabletId = oldTabletIds[relativeOldTabletIndex];
+                const auto& savedReplicas = GetOrCrash(savedReplicaInfos, originatorTabletId);
+                auto savedTrimmedRowCount = GetOrCrash(savedTrimmedRowCounts, originatorTabletId);
 
-                auto it = savedTrimmedRowCounts.find(originatorTabletId);
-                YT_VERIFY(it != savedTrimmedRowCounts.end());
-                newTablet->SetTrimmedRowCount(it->second);
+                while (relativeNewTabletIndex < std::ssize(newTablets)) {
+                    auto* newTablet = newTablets[relativeNewTabletIndex];
 
-                auto savedIt = savedReplicaInfos.find(originatorTabletId);
-                YT_VERIFY(savedIt != savedReplicaInfos.end());
-                for (auto& [replicaPtr, newInfo] : newTablet->Replicas()) {
-                    auto infoIt = savedIt->second.find(replicaPtr->GetId());
-                    YT_VERIFY(infoIt != savedIt->second.end());
-                    newInfo.SetCommittedReplicationRowIndex(infoIt->second.GetCommittedReplicationRowIndex());
-                    newInfo.SetCurrentReplicationTimestamp(infoIt->second.GetCurrentReplicationTimestamp());
+                    if (relativeOldTabletIndex + 1 < oldTabletCount &&
+                        comparator.CompareKeyBounds(
+                            newTablet->GetPivotKeyBound(),
+                            oldPivotKeyBounds[relativeOldTabletIndex + 1]) >= 0)
+                    {
+                        break;
+                    }
+
+                    newTablet->SetTrimmedRowCount(savedTrimmedRowCount);
+
+                    for (auto& [replicaPtr, newInfo] : newTablet->Replicas()) {
+                        const auto& savedInfo = GetOrCrash(savedReplicas, replicaPtr->GetId());
+                        newInfo.SetCommittedReplicationRowIndex(savedInfo.GetCommittedReplicationRowIndex());
+                        newInfo.SetCurrentReplicationTimestamp(savedInfo.GetCurrentReplicationTimestamp());
+                    }
+
+                    ++relativeNewTabletIndex;
                 }
             }
         }
