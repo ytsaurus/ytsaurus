@@ -270,12 +270,18 @@ TFuture<void> TRWNbdVolume::DoRemove(
     TString nbdDeviceId,
     INbdServerPtr nbdServer)
 {
-    // First, unregister device. At this point device is removed from the
+    // First, unregister device. At this point device is removed from NBD
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, remove volume. At this point all device connections are going
-    // be terminated.
+    // Second, drain device. This rejects new requests and waits for in-flight
+    // requests to complete.
+    auto drainFuture = OKFuture;
+    if (device) {
+        drainFuture = device->Drain();
+    }
+
+    // Fourth, finalize device after volume removal.
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
@@ -288,12 +294,16 @@ TFuture<void> TRWNbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    return DoRemoveVolumeCommon(
-        "RW NBD",
-        std::move(tagSet),
-        std::move(location),
-        std::move(volumeMeta),
-        std::move(postRemovalCleanup));
+    // Third, remove volume. At this point all device connections are going
+    // be terminated.
+    return drainFuture
+        .Apply(BIND(
+            &TRWNbdVolume::DoRemoveVolumeCommon,
+            "RW NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup)));
 }
 
 DEFINE_REFCOUNTED_TYPE(TRWNbdVolume)
@@ -335,12 +345,18 @@ TFuture<void> TRONbdVolume::DoRemove(
     TString nbdDeviceId,
     INbdServerPtr nbdServer)
 {
-    // First, unregister device. At this point device is removed from the
+    // First, unregister device. At this point device is removed from NBD
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, remove volume. At this point all device connections are going
-    // be terminated.
+    // Second, drain device. This rejects new requests and waits for in-flight
+    // requests to complete.
+    auto drainFuture = OKFuture;
+    if (device) {
+        drainFuture = device->Drain();
+    }
+
+    // Fourth, finalize device after volume removal.
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
@@ -353,12 +369,16 @@ TFuture<void> TRONbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    return DoRemoveVolumeCommon(
-        "RO NBD",
-        std::move(tagSet),
-        std::move(location),
-        std::move(volumeMeta),
-        std::move(postRemovalCleanup));
+    // Third, remove volume. At this point all device connections are going
+    // be terminated.
+    return drainFuture
+        .Apply(BIND(
+            &TRWNbdVolume::DoRemoveVolumeCommon,
+            "RO NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup)));
 }
 
 DEFINE_REFCOUNTED_TYPE(TRONbdVolume)

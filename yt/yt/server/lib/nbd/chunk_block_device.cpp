@@ -3,6 +3,7 @@
 #include "chunk_handler.h"
 #include "config.h"
 
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NNbd {
@@ -71,6 +72,20 @@ public:
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
+        // NB. For now causal dependency (i.e. read after write, write after write)
+        // is resolved by making reads and writes serialized.
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+
+        // Reject new requests if draining
+        if (Draining_.load()) {
+            YT_LOG_WARNING("Rejecting read request during drain (Offset: %v, Length: %v, Cookie: %x)",
+                offset,
+                length,
+                options.Cookie);
+            return MakeFuture<TReadResponse>(TError("Device is draining"));
+        }
+
         YT_LOG_DEBUG("Started reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             length,
@@ -85,8 +100,6 @@ public:
             return MakeFuture<TReadResponse>({});
         }
 
-        // NB. For now causal dependancy (i.e. read after write, write after write)
-        // is resolved by making reads and writes serialized (by using WaitFor).
         YT_LOG_DEBUG("Started throttling read from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             length,
@@ -135,6 +148,20 @@ public:
 
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
+        // NB. For now causal dependency (i.e. read after write, write after write)
+        // is resolved by making reads and writes serialized.
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+
+        // Reject new requests if draining
+        if (Draining_.load()) {
+            YT_LOG_WARNING("Rejecting write request during drain (Offset: %v, Length: %v, Cookie: %x)",
+                offset,
+                data.size(),
+                options.Cookie);
+            return MakeFuture<TWriteResponse>(TError("Device is draining"));
+        }
+
         YT_LOG_DEBUG("Started writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
@@ -148,9 +175,6 @@ public:
 
             return MakeFuture<TWriteResponse>({});
         }
-
-        // NB. For now causal dependancy (i.e. read after write, write after write)
-        // is resolved by making reads and writes serialized (by using WaitFor).
 
         YT_LOG_DEBUG("Started throttling write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
@@ -199,17 +223,57 @@ public:
 
     TFuture<void> Flush() override
     {
-        return OKFuture;
+        // Wait for pending requests to finish.
+        return TAsyncLockWriterGuard::Acquire(&Lock_).AsVoid();
+    }
+
+    TFuture<void> Drain() override
+    {
+        YT_LOG_INFO("Draining device");
+
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .AsUnique()
+            .Apply(BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this)
+                ] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& /*guard*/) {
+                    if (Draining_.exchange(true)) {
+                        YT_LOG_DEBUG("Draining is already in progress");
+                        return DrainFuture_;
+                    }
+
+                    // Since we hold the write lock, no other request can be in progress.
+                    DrainFuture_ = OKFuture;
+                    YT_LOG_INFO("Drained device");
+                    return DrainFuture_;
+                }));
     }
 
     TFuture<void> Initialize() override
     {
-        return ChunkHandler_->Initialize();
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .AsUnique()
+            .Apply(BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this)
+                ] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& /*guard*/) {
+                    return ChunkHandler_->Initialize();
+                }));
     }
 
     TFuture<void> Finalize() override
     {
-        return ChunkHandler_->Finalize();
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .AsUnique()
+            .Apply(BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this)
+                ] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& /*guard*/) {
+                    return ChunkHandler_->Finalize();
+                }));
     }
 
 private:
@@ -220,6 +284,11 @@ private:
     const IInvokerPtr Invoker_;
     const TLogger Logger;
     const IChunkHandlerPtr ChunkHandler_;
+
+    //! All operations are serialized by write lock.
+    TAsyncReaderWriterLock Lock_;
+    std::atomic<bool> Draining_ = false;
+    TFuture<void> DrainFuture_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
