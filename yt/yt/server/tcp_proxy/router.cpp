@@ -62,7 +62,7 @@ public:
         RoutingTableUpdateExecutor_->Start();
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TRouter::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeAfterConfigChanged(BIND_NO_PROPAGATE(&TRouter::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:
@@ -267,9 +267,7 @@ private:
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->Router;
     }
 
-    void OnDynamicConfigChanged(
-        const TProxyDynamicConfigPtr& /*oldConfig*/,
-        const TProxyDynamicConfigPtr& /*newConfig*/)
+    void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& /*oldConfig*/)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
