@@ -3059,8 +3059,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         actual = get(write_count_path, driver=self.replica_driver)
         assert actual == total, f"replica writes: {actual} != {total}"
 
-
-
     @authors("akozhikhov")
     @pytest.mark.parametrize("remove_list", [True, False])
     def test_banned_clusters_in_replicator(self, remove_list):
