@@ -835,6 +835,8 @@ protected:
 
         response->set_value(ToProto(result));
 
+        AccessTrackingOptions_.SuppressAccessTracking = true;
+
         MaybeTouchCurrentNode(TYPathProxy::Get, context);
         // Should not throw after this point.
 
@@ -1493,12 +1495,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 
     const auto& stateAttribute = EInternedAttributeKey::State.Unintern();
     auto asyncLockAcquired = waitable
-        ? FetchSingleObject(
+        ? FetchSingleObjectAttributes(
             client,
             TVersionedObjectId{lockId},
             TAttributeFilter({stateAttribute}))
-            .Apply(BIND([&] (const INodePtr& rsp) {
-                return rsp->Attributes().Get<ELockState>(stateAttribute) == ELockState::Acquired;
+            .Apply(BIND([&] (const IAttributeDictionaryPtr& attributes) {
+                return attributes->Get<ELockState>(stateAttribute) == ELockState::Acquired;
             }))
         : MakeFuture(true);
 
@@ -1639,17 +1641,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
 
     const auto& client = SequoiaSession_->GetNativeAuthenticatedClient();
     const auto& accountIdAttribute = EInternedAttributeKey::AccountId.Unintern();
-    auto asyncNode = FetchSingleObject(
+
+    auto asyncAccoundId = FetchSingleObjectAttributes(
         client,
         MakeVersionedNodeId(parentNodeId),
-        TAttributeFilter({accountIdAttribute}));
+        TAttributeFilter({accountIdAttribute}))
+        .Apply(BIND([&] (const IAttributeDictionaryPtr& attributes) {
+            return attributes->Get<TAccountId>(accountIdAttribute);
+        }));
 
-    auto node = WaitFor(asyncNode)
+    auto accountId = WaitFor(asyncAccoundId)
         .ValueOrThrow();
-
-    auto accountId = node
-        ->Attributes()
-        .Get<TAccountId>(accountIdAttribute);
 
     // TODO(h0pless): Maybe create all nodes all the way up to PARENT node? See LockCopyDestination in master.
     // I think both should be done simultaneously to facilitate the transition.
@@ -2268,7 +2270,7 @@ private:
 
         auto acdFetcher = SequoiaSession_->GetAcdFetcher();
         auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
-        auto trivialAcd = TAccessControlDescriptor{};
+        auto validatePermission = fastAction != ESecurityAction::Allow;
 
         struct TNode
         {
@@ -2282,17 +2284,18 @@ private:
 
         TNodeIdToChildDescriptors nodeIdToChildren;
         std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
+        THashSet<TNodeId> opaqueNodeIds;
 
-        int depth = 0;
-        bool subtreeExceedesSizeLimit = false;
         while (!layerToFetch.empty()) {
-            ++depth;
-
-            YT_LOG_TRACE("Fetching next layer (CurrentDepth: %v)", depth);
-
             std::vector<TNode> fetchedParents;
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
             for (auto node : layerToFetch) {
+                if (validatePermission && node.IntermediateResult.GetAction() != ESecurityAction::Allow) {
+                    // Do not put child in the map, marking no access.
+                    continue;
+                }
+                EmplaceDefault(nodeIdToChildren, node.Id);
+
                 if (auto type = TypeFromId(node.Id); IsSequoiaCompositeNodeType(type)) {
                     fetchedParents.push_back(node);
                     asyncLayerChildren.push_back(SequoiaSession_->FetchChildren(node.Id));
@@ -2310,63 +2313,61 @@ private:
             auto layerChildren = WaitFor(AllSucceeded(std::move(asyncLayerChildren)))
                 .ValueOrThrow();
 
-            auto layerChildrenCount = std::accumulate(
-                layerChildren.begin(),
-                layerChildren.end(),
-                i64(0),
-                [&] (i64 totalCount, auto children) {
-                    totalCount += children.size();
-                    return totalCount;
-                });
+            i64 layerChildrenCount = 0;
+            std::vector<TNode> filteredFetchedParents;
+            std::vector<std::vector<TCypressChildDescriptor>> filteredLayerChildren;
 
-            // Root node should not be made opaque, hence depth check.
-            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && depth > 1) {
-                YT_LOG_DEBUG(
-                    "Subtree exceeds size limit (ResponseSubtreeSize: %v, SubtreeDepth: %v "
-                    "NextLayerChildrenCount: %v, ResponseSizeLimit: %v)",
-                    std::ssize(nodeIdToChildren),
-                    depth,
-                    layerChildrenCount,
-                    responseSizeLimit);
+            for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
+                // Root node must never become opaque, enforce minimum depth of 1.
+                // If adding this parent's children would exceed the budget,
+                // mark the parent as opaque and skip its children entirely.
+                if (parent.Id != Id_ &&
+                    !children.empty() &&
+                    std::ssize(nodeIdToChildren) + layerChildrenCount + std::ssize(children) > responseSizeLimit)
+                {
+                    YT_LOG_TRACE(
+                        "Node subtree exceeds size limit, marking as opaque "
+                        "(RootId: %v, ResponseSubtreeSize: %v, NodeId: %v, NodeChildrenCount: %v, "
+                        "CurrentLayerSize: %v, ResponseSizeLimit: %v)",
+                        Id_,
+                        std::ssize(nodeIdToChildren),
+                        parent.Id,
+                        std::ssize(children),
+                        layerChildrenCount,
+                        responseSizeLimit);
+                    opaqueNodeIds.insert(parent.Id);
+                    continue;
+                }
 
-                subtreeExceedesSizeLimit = true;
-                break;
+                layerChildrenCount += std::ssize(children);
+                filteredFetchedParents.push_back(parent);
+                filteredLayerChildren.push_back(std::move(children));
             }
+            std::swap(fetchedParents, filteredFetchedParents);
+            std::swap(layerChildren, filteredLayerChildren);
 
-            auto layerChildrenAcds = acdFetcher->Fetch(layerChildren);
+            auto layerChildrenAcds = validatePermission
+                ? acdFetcher->Fetch(layerChildren)
+                : std::vector<const TAccessControlDescriptor*>{};
             auto childAcdIt = layerChildrenAcds.begin();
 
             std::vector<TNode> nextLayerToFetch;
             YT_VERIFY(std::ssize(fetchedParents) == std::ssize(layerChildren));
             for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
                 for (const auto& child : children) {
-                    const auto* acd = *childAcdIt++;
-                    auto result = parent
-                        .IntermediateResult
-                        .Put(*acd, matchAceSubjectCallback);
-
-                    // TODO(danilalexeev): YT-24575. Do not fetch ACD on superuser's request.
-                    if (fastAction != ESecurityAction::Allow &&
-                        result.GetAction() != ESecurityAction::Allow)
-                    {
-                        // Do not put child in the map, marking no access.
-                        continue;
+                    TIntermediateReadPermissionCheckResult result;
+                    if (validatePermission) {
+                        const auto* acd = *childAcdIt++;
+                        result = parent
+                            .IntermediateResult
+                            .Put(*acd, matchAceSubjectCallback);
                     }
-
-                    EmplaceDefault(nodeIdToChildren, child.ChildId);
                     nextLayerToFetch.emplace_back(child.ChildId, result);
                 }
-
                 nodeIdToChildren[parent.Id] = std::move(children);
             }
-
             YT_VERIFY(childAcdIt == layerChildrenAcds.end());
-            layerToFetch = std::move(nextLayerToFetch);
-        }
-
-        if (!subtreeExceedesSizeLimit) {
-            // TODO(danilalexeev): YT-26733.
-            depth = 0;
+            std::swap(layerToFetch, nextLayerToFetch);
         }
 
         YT_LOG_DEBUG(
@@ -2379,25 +2380,24 @@ private:
         auto attributesFuture = FetchAttributesForGetRequest(
             SequoiaSession_,
             masterAttributeFilter,
-            Id_,
             &nodeIdToChildren,
-            ResolveResult_.NodeAncestry,
-            &scalarNodeIdsToFetchFromMaster);
+            &scalarNodeIdsToFetchFromMaster,
+            ResolveResult_.NodeAncestry);
 
         auto nodesWithAttributes = WaitFor(attributesFuture)
             .ValueOrThrow();
 
         TStringStream stream;
-        auto writer = TYsonWriter(&stream);
+        auto writer = TBufferedBinaryYsonWriter(&stream);
         auto adapter = NYson::TAsyncYsonConsumerAdapter(&writer);
 
         VisitSequoiaTree(
             Id_,
-            depth,
             &adapter,
             fullAttributeFilter,
             nodeIdToChildren,
-            nodesWithAttributes);
+            nodesWithAttributes,
+            opaqueNodeIds);
 
         writer.Flush();
 
@@ -2557,14 +2557,10 @@ private:
 
         ValidatePermissionForThis(EPermission::Read);
 
-        auto acdFetcher = SequoiaSession_->GetAcdFetcher();
-        auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
-
         TAsyncYsonWriter writer;
 
         auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
             .ValueOrThrow();
-        auto childrenAcds = acdFetcher->Fetch({children});
 
         if (limit && std::ssize(children) > limit) {
             children.resize(*limit);
@@ -2577,15 +2573,33 @@ private:
         auto attributesFuture = FetchAttributesForListRequest(
             SequoiaSession_,
             attributeFilter,
-            Id_,
             &children,
             ResolveResult_.NodeAncestry);
 
         auto nodesWithAttributes = WaitFor(attributesFuture)
             .ValueOrThrow();
 
+        auto acdFetcher = SequoiaSession_->GetAcdFetcher();
+        auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
+        auto validatePermission = attributeFilter && !attributeFilter.IsEmpty() && fastAction != ESecurityAction::Allow;
+
+        auto childrenAcds = validatePermission
+            ? acdFetcher->Fetch({children})
+            : std::vector<const TAccessControlDescriptor*>{};
+        auto childAcdIt = childrenAcds.begin();
+
+        auto checkAccessGranted = [&] {
+            if (!validatePermission) {
+                return true;
+            }
+            const auto* acd = *childAcdIt++;
+            return intermediateResult.Put(*acd, matchAceSubjectCallback).GetAction() == ESecurityAction::Allow;
+        };
+
         writer.OnBeginList();
-        for (const auto& [child, acd] : Zip(children, childrenAcds)) {
+
+        for (const auto& child : children) {
+            auto accessGranted = checkAccessGranted();
             if (attributeFilter && !attributeFilter.IsEmpty()) {
                 const auto& attributes = GetOrCrash(nodesWithAttributes, child.ChildId);
                 if (std::holds_alternative<TMissingNodeTag>(attributes)) {
@@ -2594,11 +2608,7 @@ private:
 
                 writer.OnListItem();
 
-                auto action = intermediateResult.Put(*acd, matchAceSubjectCallback).GetAction();
-                // TODO(danilalexeev): YT-24575. Do not fetch ACD on superuser's request.
-                if (fastAction == ESecurityAction::Allow ||
-                    action == ESecurityAction::Allow)
-                {
+                if (accessGranted) {
                     // TODO(danilalexeev): YT-26172. Do not copy attributes.
                     auto node = CreateEphemeralNodeFactory()->CreateEntity();
                     node->MutableAttributes()->MergeFrom(*std::get<IAttributeDictionaryPtr>(attributes));
@@ -2609,6 +2619,8 @@ private:
             }
             writer.OnStringScalar(child.ChildKey);
         }
+        YT_VERIFY(childAcdIt == childrenAcds.end());
+
         writer.OnEndList();
 
         auto result = WaitForFast(writer.Finish())

@@ -65,11 +65,11 @@ void TraverseSequoiaTree(
 
 void VisitSequoiaTree(
     NCypressClient::TNodeId rootId,
-    int maxDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
     const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const TNodeIdToAttributes& nodesWithAttributes);
+    const TNodeIdToAttributes& nodesWithAttributes,
+    const THashSet<NCypressClient::TNodeId>& opaqueNodeIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 
