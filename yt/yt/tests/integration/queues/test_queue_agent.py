@@ -6512,7 +6512,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         assert get(f"{export_table}/@chunk_count") == 2
 
         chunk_format_statistics = get(f"{export_table}/@chunk_format_statistics")
-        assert chunk_format_statistics["journal_default"]["chunk_count"] == 1
+        assert chunk_format_statistics["hunk_journal"]["chunk_count"] == 1
         assert chunk_format_statistics["table_unversioned_columnar"]["chunk_count"] == 1
 
         self.remove_export_destinations([export_dir])

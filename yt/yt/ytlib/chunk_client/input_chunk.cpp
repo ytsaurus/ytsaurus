@@ -144,7 +144,9 @@ bool TInputChunkBase::IsFile() const
 
 bool TInputChunkBase::IsHunk() const
 {
-    return ChunkFormat_ == EChunkFormat::HunkDefault;
+    return
+        ChunkFormat_ == EChunkFormat::HunkDefault ||
+        ChunkFormat_ == EChunkFormat::HunkJournal;
 }
 
 bool TInputChunkBase::IsRowCountMeaningless() const
