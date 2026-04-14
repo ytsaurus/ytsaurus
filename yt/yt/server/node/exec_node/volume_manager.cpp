@@ -2359,12 +2359,18 @@ private:
         TString nbdDeviceId,
         INbdServerPtr nbdServer)
     {
-        // First, unregister device. At this point device is removed from the
+        // First, unregister device. At this point device is removed from NBD
         // server but it remains in existing device connections.
         auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-        // Second, remove volume. At this point all device connections are going
-        // be terminated.
+        // Second, drain device. This rejects new requests and waits for in-flight
+        // requests to complete.
+        auto drainFuture = OKFuture;
+        if (device) {
+            drainFuture = device->Drain();
+        }
+
+        // Fourth, finalize device after volume removal.
         auto postRemovalCleanup = BIND_NO_PROPAGATE(
             [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
                 if (device) {
@@ -2372,18 +2378,21 @@ private:
                     return device->Finalize();
                 } else {
                     YT_LOG_WARNING("Failed to finalize device; unknown device");
-                    return VoidFuture;
+                    return OKFuture;
                 }
-
             })
             .AsyncVia(nbdServer->GetInvoker());
 
-        return DoRemoveVolumeCommon(
-            "RW NBD",
-            std::move(tagSet),
-            std::move(location),
-            std::move(volumeMeta),
-            std::move(postRemovalCleanup));
+        // Third, remove volume. At this point all device connections are going
+        // be terminated.
+        return drainFuture
+            .Apply(BIND(
+                &TRWNbdVolume::DoRemoveVolumeCommon,
+                "RW NBD",
+                std::move(tagSet),
+                std::move(location),
+                std::move(volumeMeta),
+                std::move(postRemovalCleanup)));
     }
 };
 
@@ -2435,12 +2444,18 @@ private:
         TString nbdDeviceId,
         INbdServerPtr nbdServer)
     {
-        // First, unregister device. At this point device is removed from the
+        // First, unregister device. At this point device is removed from NBD
         // server but it remains in existing device connections.
         auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-        // Second, remove volume. At this point all device connections are going
-        // be terminated.
+        // Second, drain device. This rejects new requests and waits for in-flight
+        // requests to complete.
+        auto drainFuture = OKFuture;
+        if (device) {
+            drainFuture = device->Drain();
+        }
+
+        // Fourth, finalize device after volume removal.
         auto postRemovalCleanup = BIND_NO_PROPAGATE(
             [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
                 if (device) {
@@ -2448,17 +2463,21 @@ private:
                     return device->Finalize();
                 } else {
                     YT_LOG_WARNING("Failed to finalize device; unknown device");
-                    return VoidFuture;
+                    return OKFuture;
                 }
             })
             .AsyncVia(nbdServer->GetInvoker());
 
-        return DoRemoveVolumeCommon(
-            "RO NBD",
-            std::move(tagSet),
-            std::move(location),
-            std::move(volumeMeta),
-            std::move(postRemovalCleanup));
+        // Third, remove volume. At this point all device connections are going
+        // be terminated.
+        return drainFuture
+            .Apply(BIND(
+                &TRWNbdVolume::DoRemoveVolumeCommon,
+                "RO NBD",
+                std::move(tagSet),
+                std::move(location),
+                std::move(volumeMeta),
+                std::move(postRemovalCleanup)));
     }
 };
 
@@ -3475,6 +3494,7 @@ private:
                     device
                 ] (const TError& error) {
                     if (!error.IsOK()) {
+                        // Failed to initialize device, finalize it in background.
                         YT_UNUSED_FUTURE(device->Finalize());
                         THROW_ERROR_EXCEPTION("Failed to create RO NBD device")
                             << error;
@@ -3610,8 +3630,13 @@ private:
                 ] (const TErrorOr<TRONbdVolumePtr>& errorOrVolume) {
                     if (!errorOrVolume.IsOK()) {
                         if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
-                            YT_LOG_DEBUG("Finalizing RO NBD device");
-                            YT_UNUSED_FUTURE(device->Finalize());
+                            YT_LOG_DEBUG("Draining and finalizing RO NBD device");
+                            YT_UNUSED_FUTURE(device->Drain()
+                                .Apply(BIND(
+                                    [device] (const TErrorOr<void>&) {
+                                        YT_UNUSED_FUTURE(device->Finalize());
+                                    })
+                                    .AsyncVia(nbdServer->GetInvoker())));
                         } else {
                             YT_LOG_WARNING("Failed to unregister RO NBD device");
                         }
@@ -5041,6 +5066,7 @@ private:
                     device
                 ] (const TError& error) {
                     if (!error.IsOK()) {
+                        // Failed to initialize device, finalize it in background.
                         YT_UNUSED_FUTURE(device->Finalize());
                         THROW_ERROR_EXCEPTION("Failed to create RW NBD device")
                             << error;
@@ -5136,8 +5162,13 @@ private:
                 ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
                     if (!errorOrVolume.IsOK()) {
                         if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
-                            YT_LOG_DEBUG("Finalizing RW NBD device");
-                            YT_UNUSED_FUTURE(device->Finalize());
+                            YT_LOG_DEBUG("Draining and finalizing RW NBD device");
+                            YT_UNUSED_FUTURE(device->Drain()
+                                .Apply(BIND(
+                                    [device] (const TErrorOr<void>&) {
+                                        YT_UNUSED_FUTURE(device->Finalize());
+                                    })
+                                    .AsyncVia(nbdServer->GetInvoker())));
                         } else {
                             YT_LOG_WARNING("Failed to unregister RW NBD device");
                         }

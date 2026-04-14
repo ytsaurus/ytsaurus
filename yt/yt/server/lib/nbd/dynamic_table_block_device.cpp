@@ -510,6 +510,11 @@ public:
         return OKFuture;
     }
 
+    TFuture<void> Drain() override
+    {
+        return OKFuture;
+    }
+
     TFuture<void> Finalize() override
     {
         return OKFuture;
