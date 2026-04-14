@@ -203,6 +203,7 @@ def get_dynamic_master_config():
 
         "sequoia_manager": {
             "enable_async_sequoia_transaction_start": True,
+            "use_shared_write_locks_for_cypress_transactions": False,
         },
 
         "cell_master": {

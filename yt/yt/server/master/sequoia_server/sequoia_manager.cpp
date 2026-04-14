@@ -32,6 +32,8 @@ using namespace NLeaseServer;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
+using namespace NThreading;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -53,6 +55,12 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SequoiaTransactionService)
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::HydraStartTransaction, Unretained(this)));
+    }
+
+    void Initialize() override
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request) override
@@ -134,8 +142,17 @@ public:
         }
     }
 
+    TSequoiaTransactionFeatures GetSequoiaTransactionFeatures() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return SequoiaTransactionFeatures_.Load();
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TAtomicObject<TSequoiaTransactionFeatures> SequoiaTransactionFeatures_;
 
     void ValidateWritePrerequisites(
         TTransactionId sequoiaTransactionId,
@@ -255,6 +272,14 @@ private:
 
         transaction->SetAuthenticationIdentity(std::move(identity));
         transaction->SetTraceContext(TryGetCurrentTraceContext());
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& config = Bootstrap_->GetDynamicConfig()->SequoiaManager;
+        SequoiaTransactionFeatures_.Store(TSequoiaTransactionFeatures{
+            .UseSharedWriteLocksForCypressTransactions = config->UseSharedWriteLocksForCypressTransactions,
+        });
     }
 };
 

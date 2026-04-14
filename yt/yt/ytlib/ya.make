@@ -428,6 +428,7 @@ SRCS(
     sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
+    sequoia_client/transaction_options.cpp
     sequoia_client/write_set.cpp
     sequoia_client/ypath_detail.cpp
 

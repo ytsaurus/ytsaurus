@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/cypress_transaction_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/transaction_options.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -22,6 +23,7 @@ TFuture<NTransactionClient::TTransactionId> StartCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressTransactionClient::NProto::TReqStartTransaction* request,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -35,6 +37,7 @@ TFuture<void> DoomCypressTransaction(
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressClient::TTransactionId transactionId,
     const NTransactionServer::NProto::TTransactionFinishRequest& request,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -50,6 +53,7 @@ TFuture<TSharedRefArray> AbortCypressTransaction(
     bool force,
     NRpc::TMutationId mutationId,
     bool retry,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -59,6 +63,7 @@ TFuture<TSharedRefArray> AbortExpiredCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NTransactionClient::TTransactionId transactionId,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -83,6 +88,7 @@ TFuture<TSharedRefArray> CommitCypressTransaction(
     NTransactionClient::TTimestamp commitTimestamp,
     NRpc::TMutationId mutationId,
     bool retry,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -110,6 +116,7 @@ TFuture<void> ReplicateCypressTransactionsToCell(
     std::vector<NTransactionClient::TTransactionId> transactionIds,
     NObjectClient::TCellId destinationCellId,
     std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -122,6 +129,7 @@ TFuture<void> ReplicateCypressTransactionToCells(
     NTransactionClient::TTransactionId transactionId,
     NObjectClient::TCellTagList destinationCellTags,
     NObjectClient::TCellId transactionCoordinatorCellId,
+    NSequoiaClient::TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
