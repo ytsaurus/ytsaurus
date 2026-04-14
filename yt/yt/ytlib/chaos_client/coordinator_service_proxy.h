@@ -20,6 +20,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ResumeCoordinator);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);
     DEFINE_RPC_PROXY_METHOD(NProto, GetReplicationCardEra);
+    DEFINE_RPC_PROXY_METHOD(NProto, ForsakeShortcut);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
