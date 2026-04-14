@@ -184,6 +184,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tweak_traversal_info_after_rebalance", &TThis::TweakTraversalInfoAfterRebalance)
         .Default(true);
+
+    registrar.Parameter("update_modification_time", &TThis::UpdateModificationTime)
+        .Default(true)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
