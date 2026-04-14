@@ -289,8 +289,11 @@ struct IChunkManager
 
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.
-    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfoWithReplicaFetch(
         TChunk* chunk) = 0;
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+        TChunk* chunk,
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) = 0;
     virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
         TChunkId chunkId,
         bool overlayed,

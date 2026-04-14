@@ -2481,7 +2481,23 @@ public:
         return chunkTree;
     }
 
-    TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(TChunk* chunk) override
+    TFuture<TChunkQuorumInfo> GetChunkQuorumInfoWithReplicaFetch(TChunk* chunk) override
+    {
+        TEphemeralObjectPtr<TChunk> chunkPtr(chunk);
+        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(chunkPtr);
+        if (!replicasOrError.IsOK()) {
+            return MakeFuture<TChunkQuorumInfo>(TError(replicasOrError));
+        }
+        if (!IsObjectAlive(chunkPtr)) {
+            return MakeFuture<TChunkQuorumInfo>(TError("Chunk is dead"));
+        }
+
+        return GetChunkQuorumInfo(chunk, GetChunkReplicaDescriptors(chunk, replicasOrError.Value()));
+    }
+
+    TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(
+        TChunk* chunk,
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) override
     {
         return GetChunkQuorumInfo(
             chunk->GetId(),
@@ -2489,7 +2505,7 @@ public:
             chunk->GetErasureCodec(),
             chunk->GetReadQuorum(),
             chunk->GetReplicaLagLimit(),
-            GetChunkReplicaDescriptors(chunk));
+            replicaDescriptors);
     }
 
     TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(

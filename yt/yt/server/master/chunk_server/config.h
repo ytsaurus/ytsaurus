@@ -654,6 +654,9 @@ struct TDynamicChunkManagerConfig
     //! (where the chunk will be put).
     int MaxRunningReplicationJobsPerTargetNode;
 
+    // Alerts if number of unsuccessful schedule seal job per chunk replica exceeds this value.
+    int MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica;
+
     //! If set to false, fully disables background chunk refresh.
     //! Only use during bulk node restarts to save leaders' CPU.
     //! Don't forget to turn it on afterwards.
@@ -714,6 +717,8 @@ struct TDynamicChunkManagerConfig
     int MaxChunksPerSeal;
     //! Maximum number of chunks that can be sealed concurrently.
     int MaxConcurrentChunkSeals;
+    // Alert if the number of chunk seal attempts reaches that number.
+    int MaxUnsuccessfulSealAttempts;
 
     //! Maximum number of chunks to report per single fetch request.
     int MaxChunksPerFetch;
