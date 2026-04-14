@@ -254,7 +254,7 @@ class Queue:
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=1, backoff=1, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=3, backoff=2, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -332,47 +332,69 @@ class Queue:
             if expected_row["key"] != actual_row["key"]:
                 raise YtError(f"Row with key '{expected_row["key"]}' was expected in the {rows_descr} {table_path} but key '{actual_row["key"]}' was read")
 
-    def run_map(self):
-        logger.info(f"Running map on queue {self.path}")
-        map_result_path = self.path + ".map_result"
+    def run_operations(self, spec):
+        need_to_run_map = random.random() < spec.queue_and_hunk_storage.run_map_probability
+        need_to_run_sort = random.random() < spec.queue_and_hunk_storage.run_sort_probability
+        need_to_run_map_reduce = random.random() < spec.queue_and_hunk_storage.run_map_reduce_probability
+        need_to_run_merge = random.random() < spec.queue_and_hunk_storage.run_merge_probability
 
-        yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path, spec={"job_io": {"control_attributes": {"enable_row_index": True, "enable_tablet_index": True}}})
+        with yt.OperationsTracker() as tracker:
+            if need_to_run_map:
+                logger.info(f"Running map on queue {self.path}")
+                map_result_path = self.path + ".map_result"
+                ordered = random.choice([False, True])
+                map_op = yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path, ordered=ordered, spec={"job_io": {"control_attributes": {"enable_row_index": True, "enable_tablet_index": True}}}, sync=False)
+                tracker.add(map_op)
 
-        yt.run_sort(map_result_path, sort_by=["tablet_index", "row_index"])
-        map_result_rows = list(yt.read_table(map_result_path))
+            if need_to_run_sort:
+                logger.info(f"Running sort on queue {self.path}")
+                sort_result_path = self.path + ".sort_result"
+                sort_op = yt.run_sort(self.path, sort_result_path, sort_by=["key", "value"], sync=False)
+                tracker.add(sort_op)
 
-        expected_rows = self._get_expected_rows()
-        self._check_rows(expected_rows, map_result_rows, map_result_path, "map result")
+            if need_to_run_map_reduce:
+                logger.info(f"Running map-reduce on queue {self.path}")
+                map_reduce_result_path = self.path + ".map_reduce_result"
+                map_reduce_op = yt.run_map_reduce(mapper=None, reducer=simple_reducer, reduce_by=["key"], sort_by=["key"], source_table=self.path, destination_table=map_reduce_result_path, sync=False)
+                tracker.add(map_reduce_op)
 
-
-    def run_sort(self):
-        logger.info(f"Running sort on queue {self.path}")
-        sort_result_path = self.path + ".sort_result"
-
-        yt.run_sort(self.path, sort_result_path, sort_by=["key", "value"])
-
-        sort_result_rows = list(yt.read_table(sort_result_path))
-
-        expected_rows = self._get_expected_rows()
-        expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
-
-        self._check_rows(expected_rows, sort_result_rows, sort_result_path, "sort result")
-
-
-    def run_map_reduce(self):
-        logger.info(f"Running map-reduce on queue {self.path}")
-        map_reduce_result_path = self.path + ".map_reduce_result"
-
-        yt.run_map_reduce(mapper=None, reducer=simple_reducer, reduce_by=["key"], sort_by=["key"], source_table=self.path, destination_table=map_reduce_result_path)
-
-        yt.run_sort(map_reduce_result_path, sort_by=["key", "value"])
-
-        map_reduce_result_rows = list(yt.read_table(map_reduce_result_path))
+            if need_to_run_merge:
+                logger.info(f"Running merge on queue {self.path}")
+                merge_result_path = self.path + ".merge_result"
+                combine_chunks = random.choice([True, False])
+                force_transform = random.choice([True, False])
+                mode = random.choice(["ordered", "unordered"])
+                merge_op = yt.run_merge(self.path, merge_result_path, mode=mode, spec={"combine_chunks": combine_chunks, "force_transform": force_transform}, sync=False)
+                tracker.add(merge_op)
 
         expected_rows = self._get_expected_rows()
-        expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
 
-        self._check_rows(expected_rows, map_reduce_result_rows, map_reduce_result_path, "map-reduce result")
+        if need_to_run_map:
+            logger.info(f"Checking map result for {self.path}")
+            yt.run_sort(map_result_path, sort_by=["tablet_index", "row_index"])
+            map_result_rows = list(yt.read_table(map_result_path))
+            self._check_rows(expected_rows, map_result_rows, map_result_path, "map result")
+
+        if need_to_run_sort:
+            logger.info(f"Checking sort result for {self.path}")
+            sort_result_rows = list(yt.read_table(sort_result_path))
+            expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
+            self._check_rows(expected_rows, sort_result_rows, sort_result_path, "sort result")
+
+        if need_to_run_map_reduce:
+            logger.info(f"Checking map reduce result for {self.path}")
+            yt.run_sort(map_reduce_result_path, sort_by=["key", "value"])
+            map_reduce_result_rows = list(yt.read_table(map_reduce_result_path))
+            expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
+            self._check_rows(expected_rows, map_reduce_result_rows, map_reduce_result_path, "map-reduce result")
+
+
+        if need_to_run_merge:
+            logger.info(f"Checking merge result for {self.path}")
+            yt.run_sort(merge_result_path, sort_by=["key", "value"])
+            merge_result_rows = list(yt.read_table(merge_result_path))
+            expected_rows = sorted(expected_rows, key=lambda x: (x["key"], x["value"]))
+            self._check_rows(expected_rows, merge_result_rows, merge_result_path, "merge result")
 
 
 class HunkStorage:
@@ -569,28 +591,12 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                 _check_read_error(queue, err)
 
 
-    def _map():
+    def _operations():
         for queue in queues.values():
             try:
-                queue.run_map()
+                queue.run_operations(spec)
             except YtError as err:
                 _check_read_error(queue, err)
-
-    def _map_reduce():
-        for queue in queues.values():
-            try:
-                queue.run_map_reduce()
-            except YtError as err:
-                _check_read_error(queue, err)
-
-
-    def _sort():
-        for queue in queues.values():
-            try:
-                queue.run_sort()
-            except YtError as err:
-                _check_read_error(queue, err)
-
 
     def _flush():
         for queue in queues.values():
@@ -686,11 +692,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         for i in range(2):
             _write()
             _flush()
-
-            _map()
-            _map_reduce()
-            _sort()
-
+            _operations()
             _read()
 
         # TODO(nadya73): add alter queue the the static tables and running maps in 25.4.
