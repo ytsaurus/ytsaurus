@@ -180,7 +180,7 @@ void TPullQueueCommand::DoExecute(ICommandContextPtr context)
 
     ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
         BuildYsonMapFragmentFluently(consumer)
-            .Item("start_row_index").Value(result->GetStartOffset());
+            .Item("start_offset").Value(result->GetStartOffset());
     });
 
     auto format = context->GetOutputFormat();
@@ -255,7 +255,7 @@ void TPullQueueConsumerCommand::DoExecute(ICommandContextPtr context)
 
     ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
         BuildYsonMapFragmentFluently(consumer)
-            .Item("start_row_index").Value(result->GetStartOffset());
+            .Item("start_offset").Value(result->GetStartOffset());
     });
 
     auto format = context->GetOutputFormat();
