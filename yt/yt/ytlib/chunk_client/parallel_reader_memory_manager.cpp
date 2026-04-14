@@ -40,25 +40,24 @@ public:
         : Options_(std::move(options))
         , Host_(std::move(host))
         , Invoker_(std::move(invoker))
+        , Logger(ReaderMemoryManagerLogger()
+            .WithTag("ManagerId: %v", Id_))
+        , ProfilingTagList_(std::move(Options_.ProfilingTagList))
+        , Profiler_(
+            Options_.EnableProfiling
+            ? MultiReaderMemoryManagerProfiler.WithSparse()
+            : NProfiling::TProfiler())
+        , ProfilingExecutor_(
+            Options_.EnableProfiling
+            ? New<TPeriodicExecutor>(
+                Invoker_,
+                BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
+                Options_.ProfilingPeriod)
+            : nullptr)
         , TotalReservedMemory_(Options_.TotalReservedMemorySize)
         , RequiredMemoryLowerBound_(Options_.TotalReservedMemorySize)
         , FreeMemory_(Options_.TotalReservedMemorySize)
-        , ProfilingTagList_(std::move(Options_.ProfilingTagList))
-        , ProfilingExecutor_(New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
-            Options_.ProfilingPeriod))
-        , Id_(TGuid::Create())
-        , Logger(ReaderMemoryManagerLogger().WithTag("ManagerId: %v", Id_))
-    { }
-
-    void InitializeRefCounted()
     {
-        if (Options_.EnableProfiling) {
-            ProfilingExecutor_->Start();
-            Profiler_ = MultiReaderMemoryManagerProfiler.WithSparse();
-        }
-
         YT_LOG_DEBUG("Parallel reader memory manager created (TotalReservedMemory: %v, MaxInitialReaderReservedMemory: %v, "
             "ProfilingEnabled: %v, ProfilingPeriod: %v, DetailedLoggingEnabled: %v)",
             TotalReservedMemory_.load(),
@@ -66,6 +65,13 @@ public:
             Options_.EnableProfiling,
             Options_.ProfilingPeriod,
             Options_.EnableDetailedLogging);
+    }
+
+    void InitializeRefCounted()
+    {
+        if (ProfilingExecutor_) {
+            ProfilingExecutor_->Start();
+        }
     }
 
     TChunkReaderMemoryManagerHolderPtr CreateChunkReaderMemoryManager(
@@ -215,9 +221,14 @@ public:
     }
 
 private:
+    const TGuid Id_ = TGuid::Create();
     const TParallelReaderMemoryManagerOptions Options_;
     const TWeakPtr<IReaderMemoryManagerHost> Host_;
     const IInvokerPtr Invoker_;
+    const TLogger Logger;
+    const TTagList ProfilingTagList_;
+    const TProfiler Profiler_;
+    const TPeriodicExecutorPtr ProfilingExecutor_;
 
     std::atomic<int> RebalancingsScheduled_ = 0;
 
@@ -244,6 +255,27 @@ private:
 
     THashMap<TTagList, std::pair<i64, TGauge>> ReservedMemoryByProfilingTags_;
 
+    std::atomic<bool> Finalized_ = false;
+
+    bool Unregistered_ = false;
+
+    //! Memory managers with reserved_memory < required_memory ordered by required_memory - reserved_memory.
+    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithUnsatisfiedMemoryRequirement_;
+
+    //! Sum of required_memory - reserved_memory over all memory managers with reserved_memory < required_memory.
+    i64 RequiredMemoryDeficit_ = 0;
+
+    //! Memory managers with reserved_memory >= required_memory ordered by reserved_memory - required_memory.
+    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithSatisfiedMemoryRequirement_;
+
+    //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
+    //! ordered by desired_memory - reserved_memory.
+    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
+
+    const TPromise<void> FinalizeEvent_ = NewPromise<void>();
+
+    mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
+
     void UpdateReservedMemory(const TTagList& tags, i64 delta)
     {
         if (!Options_.EnableProfiling) {
@@ -263,35 +295,6 @@ private:
         counter += delta;
         gauge.Update(counter);
     }
-
-    std::atomic<bool> Finalized_ = false;
-
-    bool Unregistered_ = false;
-
-    //! Memory managers with reserved_memory < required_memory ordered by required_memory - reserved_memory.
-    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithUnsatisfiedMemoryRequirement_;
-
-    //! Sum of required_memory - reserved_memory over all memory managers with reserved_memory < required_memory.
-    i64 RequiredMemoryDeficit_ = 0;
-
-    //! Memory managers with reserved_memory >= required_memory ordered by reserved_memory - required_memory.
-    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithSatisfiedMemoryRequirement_;
-
-    //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
-    //! ordered by desired_memory - reserved_memory.
-    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
-
-    TPromise<void> FinalizeEvent_ = NewPromise<void>();
-
-    const TTagList ProfilingTagList_;
-    TProfiler Profiler_;
-    const TPeriodicExecutorPtr ProfilingExecutor_;
-
-    const TGuid Id_;
-
-    const TLogger Logger;
-
-    mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
 
     void ScheduleRebalancing()
     {
