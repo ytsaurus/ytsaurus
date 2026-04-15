@@ -295,6 +295,21 @@ message TRspSealChunk
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Marks a journal chunk as sealable and delegates sealing to TChunkSealer,
+// which computes the stats from replicas. Unlike SealChunk, this does not
+// seal the chunk synchronously -- the chunk will be sealed asynchronously
+// by the background sealer.
+message TReqScheduleChunkSeal
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+}
+
+message TRspScheduleChunkSeal
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCreateChunkLists
 {
     required NYT.NProto.TGuid transaction_id = 1;

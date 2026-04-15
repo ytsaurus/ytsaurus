@@ -13,6 +13,9 @@ constinit const auto Logger = ChunkServerLogger;
 
 TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
 {
+    // Update the switch below when adding new EChunkFormat values.
+    static_assert(TEnumTraits<EChunkFormat>::GetDomainSize() == 13);
+
     switch (chunkFormat) {
         case EChunkFormat::FileDefault:
             return TStringBuf("old");
@@ -32,6 +35,8 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
             return TStringBuf("versioned_slim");
         case EChunkFormat::JournalDefault:
             return TStringBuf("journal_default");
+        case EChunkFormat::JournalDistributed:
+            return TStringBuf("journal_distributed");
         case EChunkFormat::HunkDefault:
             return TStringBuf("hunk_default");
         case EChunkFormat::HunkJournal:

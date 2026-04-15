@@ -137,13 +137,16 @@ std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk)
     };
 
     auto parentCount = GetParentCount(chunk);
-    if (parentCount == 0) {
-        THROW_ERROR_EXCEPTION("Journal chunk %v has zero parents",
-            chunk->GetId());
-    }
 
     TChunkList* chunkList;
-    if (parentCount == 1) {
+    if (parentCount == 0) {
+        // Distributed chunk sessions do not have parents.
+        THROW_ERROR_EXCEPTION_IF(
+            chunk->GetChunkFormat() != EChunkFormat::JournalDistributed,
+            "Journal chunk %v has zero parents",
+            chunk->GetId());
+        chunkList = nullptr;
+    } else if (parentCount == 1) {
         chunkList = GetUniqueParent(chunk)->AsChunkList();
 
         if (isHunkChunkList(chunkList)) {
