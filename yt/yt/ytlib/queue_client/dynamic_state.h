@@ -130,7 +130,6 @@ struct TConsumerTableRow
     std::optional<std::string> QueueAgentStage;
     std::optional<bool> QueueAgentBanned;
     std::optional<std::string> QueueConsumerProfilingTag;
-    bool IsMultiConsumer;
 
     std::optional<TError> SynchronizationError;
 
@@ -144,6 +143,7 @@ struct TConsumerTableRow
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
     bool operator==(const TConsumerTableRow& rhs) const = default;
+    bool IsMultiConsumerRow() const;
 };
 
 void Serialize(const TConsumerTableRow& row, NYson::IYsonConsumer* consumer);
