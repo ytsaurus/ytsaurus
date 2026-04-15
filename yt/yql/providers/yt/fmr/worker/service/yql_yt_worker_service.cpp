@@ -81,8 +81,8 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption('b', "fmrjob-binary-path", "Path to fmrjob map binary").StoreResult(&options.FmrJobBinaryPath);
         opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
-        opts.AddLongOption("mem-limit-hard", "Set memory limit in megabytes").Handler1T<ui32>(15 * 1024, SetAddressSpaceLimit);
-        opts.AddLongOption("mem-limit-soft", "Worker RSS memory limit in megabytes for OOM detection").StoreResult(&options.WorkerMemLimitMb).DefaultValue(14 * 1024);
+        opts.AddLongOption("mem-limit-hard", "Set memory limit in megabytes").Handler1T<ui32>(70 * 1024, SetAddressSpaceLimit);
+        opts.AddLongOption("mem-limit-soft", "Worker RSS memory limit in megabytes for OOM detection").StoreResult(&options.WorkerMemLimitMb).DefaultValue(68 * 1024);
         opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
         opts.AddLongOption('h', "host", "Fast map reduce worker server host").StoreResult(&options.Host).DefaultValue("localhost");
         opts.AddLongOption('p', "port", "Worker server port").StoreResult(&options.Port).DefaultValue(7007);
