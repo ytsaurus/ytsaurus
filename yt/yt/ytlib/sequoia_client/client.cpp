@@ -201,7 +201,7 @@ private:
         } else if (!query.OrderBy.empty()) {
             // TODO(h0pless): This is an arbitrary value. Remove it once ORDER BY will work with an unspecified limit.
             // For details see YT-16489.
-            builder.SetLimit(100'000);
+            builder.SetLimit(100'000'000);
         }
 
         NApi::TSelectRowsOptions options;

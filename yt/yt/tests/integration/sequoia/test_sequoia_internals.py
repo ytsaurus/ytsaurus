@@ -100,6 +100,7 @@ class TestSequoiaInternals(YTEnvSetup):
             "enable_ground_update_queues_sync": False,
             "enable_user_directory_per_request_sync": False,
         },
+        "select_subtree_rows_limit": 10**6,
     }
 
     @authors("kvk1920")
@@ -769,6 +770,18 @@ class TestSequoiaInternals(YTEnvSetup):
 
         # TODO(grphil): Implement attributes in get for non map node
         # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
+
+    @authors("danilalexeev")
+    def test_recursive_attributes_heavy(self):
+        set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
+        sleep(0.5)
+        MAP_SIZE = 123
+        yson = {f"{i:03}": 42 for i in range(MAP_SIZE)}
+        set("//tmp", {chr(ord('a') + i): yson for i in range(10)}, force=True)
+        items = ls("//tmp", attributes=["recursive_resource_usage"])
+        for item in items:
+            node_count = item.attributes["recursive_resource_usage"]["node_count"]
+            assert node_count == MAP_SIZE + 1, f"incomplete result for key {item}"
 
     @authors("danilalexeev")
     def test_resolve_rootstock_from_object_id(self):

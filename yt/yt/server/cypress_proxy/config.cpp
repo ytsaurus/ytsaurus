@@ -114,6 +114,9 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(DefaultThreadPoolSize);
     registrar.Parameter("default_get_response_size_limit", &TThis::DefaultGetResponseSizeLimit)
         .Default(1'000);
+    registrar.Parameter("select_subtree_rows_limit", &TThis::SelectSubtreeRowsLimit)
+       .GreaterThanOrEqual(100)
+       .Default(1'000'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
