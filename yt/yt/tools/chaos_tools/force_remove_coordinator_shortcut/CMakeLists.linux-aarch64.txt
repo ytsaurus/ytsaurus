@@ -12,5 +12,37 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(chaos_force_remove_coordinator)
-add_subdirectory(force_remove_coordinator_shortcut)
+find_package(linux-headers-generic REQUIRED)
+
+add_executable(force_remove_coordinator_shortcut)
+
+
+target_link_libraries(force_remove_coordinator_shortcut PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  build-cow-on
+  yt-yt-ytlib
+)
+
+target_allocator(force_remove_coordinator_shortcut
+  system_allocator
+)
+
+target_link_options(force_remove_coordinator_shortcut PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lrt
+  -ldl
+  -lutil
+)
+
+target_sources(force_remove_coordinator_shortcut PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/chaos_tools/force_remove_coordinator_shortcut/main.cpp
+)
+
+
+vcs_info(force_remove_coordinator_shortcut)
