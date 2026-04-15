@@ -30,6 +30,7 @@ struct TSequoiaTransactionRequestPriorities
 struct TSequoiaTransactionFeatures
 {
     std::optional<bool> UseSharedWriteLocksForCypressTransactions;
+    std::optional<bool> CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
 };
 
 struct TSequoiaTransactionOptions
