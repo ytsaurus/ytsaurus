@@ -1234,8 +1234,14 @@ void TSlotLocation::UpdateDiskResources()
                     })
                     .AsyncVia(ToolInvoker_)
                     .Run();
-                slotDiskUsage = WaitFor(future)
-                    .ValueOrThrow();
+                try {
+                    slotDiskUsage = WaitFor(future)
+                        .ValueOrThrow();
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Failed to get directories size for slot %v", slotIndex);
+                    // Skip this attempt, do not disable slot location.
+                    return;
+                }
             }
 
             diskStatisticsPerSlot.insert(std::pair(
