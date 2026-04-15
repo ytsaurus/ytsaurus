@@ -1,10 +1,3 @@
-
-/*
-TODO(PR): this file was removed in the upstream, but I have added the test which proves
-that ODG actually works. This test will probably not be required after a complete e2e
-is written and works, but for now I think we should keep it.
-*/
-
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include <yt/yt/tests/cpp/test_base/private.h>
 
