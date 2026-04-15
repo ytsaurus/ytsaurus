@@ -1827,9 +1827,9 @@ private:
     {
         auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
         const auto& hiveManager = Slot_->GetHiveManager();
-        bool succes = hiveManager->TryRemoveCellMailbox(destinationCellId);
+        bool success = hiveManager->TryRemoveCellMailbox(destinationCellId);
 
-        response->set_success(succes);
+        response->set_success(success);
     }
 
     void HydraMigrateReplicationCards(
