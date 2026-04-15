@@ -74,4 +74,14 @@ std::optional<TSharedRef> SanitizeLocalHostName(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError WrapHydraError(TError&& error)
+{
+    if (error.GetCode() == EErrorCode::ExpectedMutationHandlerException) {
+        return std::move(error);
+    }
+    return std::move(error).Wrap(EErrorCode::ExpectedMutationHandlerException, "Error executing mutation");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHydra

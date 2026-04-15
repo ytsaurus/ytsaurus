@@ -248,6 +248,11 @@ TFuture<void> TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManag
     return OKFuture;
 }
 
+ELogLevel TSimpleHydraManagerMock::GetMutationHandlerFailureLogLevel(TStringBuf /*mutationType*/) const
+{
+    return ELogLevel::Warning;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra

@@ -122,8 +122,14 @@ public:
             "ChaosLeaseManager.Values",
             BIND_NO_PROPAGATE(&TChaosLeaseManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraCreateChaosLease, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraRemoveChaosLease, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraCreateChaosLease, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraRemoveChaosLease, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraChaosNodeSetState, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraChaosNodeMigrateChaosLeases, Unretained(this)));
 
