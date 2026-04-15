@@ -38,13 +38,9 @@ std::unique_ptr<TMutation> CreateMutation(
     auto mutation = CreateMutation(std::move(hydraManager), request);
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {
-            try {
-                (target->*handler)(&request);
-                static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
-                mutationContext->SetResponseData(cachedResponseMessage);
-            } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(ex);
-            }
+            (target->*handler)(&request);
+            static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
+            mutationContext->SetResponseData(cachedResponseMessage);
         }));
     return mutation;
 }
@@ -80,12 +76,8 @@ std::unique_ptr<TMutation> CreateMutation(
     mutation->SetHandler(
         BIND([=] (TMutationContext* mutationContext) {
             auto response = ObjectPool<TResponse>().Allocate();
-            try {
-                (target->*handler)(context, &context->Request(), response.get());
-                mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
-            } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(ex);
-            }
+            (target->*handler)(context, &context->Request(), response.get());
+            mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
         }));
     return mutation;
 }
@@ -101,12 +93,8 @@ std::unique_ptr<TMutation> CreateMutation(
     auto mutation = CreateMutation(std::move(hydraManager), *request);
     mutation->SetHandler(
         BIND([=] (TMutationContext* mutationContext) {
-            try {
-                (target->*handler)(nullptr, request, response);
-                mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
-            } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(ex);
-            }
+            (target->*handler)(nullptr, request, response);
+            mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
         }));
     return mutation;
 }
@@ -125,12 +113,8 @@ std::unique_ptr<TMutation> CreateMutation(
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {
             auto response = ObjectPool<TResponse>().Allocate();
-            try {
-                (target->*handler)(context, &request, response.get());
-                mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
-            } catch (const std::exception& ex) {
-                mutationContext->SetResponseData(ex);
-            }
+            (target->*handler)(context, &request, response.get());
+            mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
         }));
     return mutation;
 }

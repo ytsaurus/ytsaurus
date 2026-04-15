@@ -1246,19 +1246,6 @@ public:
         return chunk;
     }
 
-    void HydraPrepareCreateChunk(
-        TTransaction* /*transaction*/,
-        TReqCreateChunk* request,
-        const NTransactionSupervisor::TTransactionPrepareOptions& options)
-    {
-        YT_VERIFY(options.Persistent);
-        YT_VERIFY(options.LatePrepare);
-
-        ExecuteCreateChunkSubrequest(
-            request,
-            /*response*/ nullptr);
-    }
-
     void HydraPrepareConfirmChunk(
         TTransaction* /*transaction*/,
         TReqConfirmChunk* request,

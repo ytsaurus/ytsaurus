@@ -369,6 +369,18 @@ public:
         return OKFuture;
     }
 
+    ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto config = Config_->Get();
+
+        return GetOrDefault(
+            config->MutationHandlerFailureLogLevelOverrides,
+            mutationType,
+            config->MutationHandlerFailureLogLevel);
+    }
+
     bool IsEnteringReadOnlyMode() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

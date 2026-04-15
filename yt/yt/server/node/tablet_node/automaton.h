@@ -58,7 +58,8 @@ protected:
     template <class TRequest>
     void RegisterMethod(
         TCallback<void(TRequest*)> callback,
-        const std::vector<TString>& aliases = {});
+        const std::vector<TString>& aliases = {},
+        bool exceptionsAreNormal = false);
 
     //! Like |RegisterMethod|, but the mutation will be forwarded to a target servant
     //! if the subject tablet is a source servant in a smooth movement process.
