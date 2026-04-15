@@ -279,6 +279,7 @@ private:
         const auto& config = Bootstrap_->GetDynamicConfig()->SequoiaManager;
         SequoiaTransactionFeatures_.Store(TSequoiaTransactionFeatures{
             .UseSharedWriteLocksForCypressTransactions = config->UseSharedWriteLocksForCypressTransactions,
+            .CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator = config->CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator,
         });
     }
 };

@@ -96,6 +96,8 @@ struct TDynamicSequoiaManagerConfig
     //     don't.
     bool UseSharedWriteLocksForCypressTransactions;
 
+    bool CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 
     static void Register(TRegistrar registrar);

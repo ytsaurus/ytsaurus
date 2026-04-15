@@ -2457,6 +2457,7 @@ TFuture<void> ReplicateCypressTransactionsToCell(
     std::vector<TTransactionId> transactionIds,
     TCellId destinationCellId,
     std::unique_ptr<NTransactionServer::NProto::TReqReturnBoomerang> boomerang,
+    TCellId cypressTransactionCoordinatorCellId,
     TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     NLogging::TLogger logger)
@@ -2466,9 +2467,16 @@ TFuture<void> ReplicateCypressTransactionsToCell(
         return OKFuture;
     }
 
+    auto sequoiaTransactionCoordinatorCellId = destinationCellId;
+    if (features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator &&
+        cypressTransactionCoordinatorCellId)
+    {
+        sequoiaTransactionCoordinatorCellId = cypressTransactionCoordinatorCellId;
+    }
+
     return New<TReplicateCypressTransactions>(
         std::move(sequoiaClient),
-        destinationCellId,
+        sequoiaTransactionCoordinatorCellId,
         TCellTagList{CellTagFromId(destinationCellId)},
         std::move(transactionIds),
         std::move(boomerang),
