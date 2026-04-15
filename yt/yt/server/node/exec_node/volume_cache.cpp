@@ -610,13 +610,8 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
             ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     if (auto device = nbdServer->TryUnregisterDevice(options.DeviceId)) {
-                        YT_LOG_DEBUG("Draining and finalizing RO NBD device");
-                        YT_UNUSED_FUTURE(device->Drain()
-                            .Apply(BIND(
-                                [device] (const TErrorOr<void>&) {
-                                    YT_UNUSED_FUTURE(device->Finalize());
-                                })
-                                .AsyncVia(nbdServer->GetInvoker())));
+                        YT_LOG_DEBUG("Finalizing RO NBD device");
+                        YT_UNUSED_FUTURE(device->Finalize());
                     } else {
                         YT_LOG_WARNING("Failed to unregister NBD device");
                     }

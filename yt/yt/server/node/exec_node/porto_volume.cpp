@@ -274,11 +274,10 @@ TFuture<void> TRWNbdVolume::DoRemove(
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, drain device. This rejects new requests and waits for in-flight
-    // requests to complete.
-    auto drainFuture = OKFuture;
+    // Second, flush device.
+    auto flushFuture = OKFuture;
     if (device) {
-        drainFuture = device->Drain();
+        flushFuture = device->Flush();
     }
 
     // Fourth, finalize device after volume removal.
@@ -294,9 +293,8 @@ TFuture<void> TRWNbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    // Third, remove volume. At this point all device connections are going
-    // be terminated.
-    return drainFuture
+    // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+    return flushFuture
         .Apply(BIND(
             &TRWNbdVolume::DoRemoveVolumeCommon,
             "RW NBD",
@@ -349,11 +347,10 @@ TFuture<void> TRONbdVolume::DoRemove(
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, drain device. This rejects new requests and waits for in-flight
-    // requests to complete.
-    auto drainFuture = OKFuture;
+    // Second, flush device.
+    auto flushFuture = OKFuture;
     if (device) {
-        drainFuture = device->Drain();
+        flushFuture = device->Flush();
     }
 
     // Fourth, finalize device after volume removal.
@@ -369,9 +366,8 @@ TFuture<void> TRONbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    // Third, remove volume. At this point all device connections are going
-    // be terminated.
-    return drainFuture
+    // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+    return flushFuture
         .Apply(BIND(
             &TRWNbdVolume::DoRemoveVolumeCommon,
             "RO NBD",
