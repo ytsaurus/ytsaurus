@@ -28,39 +28,31 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_subdirectory(activation)
-
-add_library(providers-common-proto)
+add_library(common-proto-activation)
 
 
-target_link_libraries(providers-common-proto PUBLIC
+target_link_libraries(common-proto-activation PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yql-essentials-protos
-  utils-fetch-proto
-  minikql-runtime_settings-proto
-  common-proto-activation
   contrib-libs-protobuf
 )
 
-target_proto_messages(providers-common-proto PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/gateways_config.proto
-  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/udf_resolver.proto
+target_proto_messages(common-proto-activation PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/activation/activation.proto
 )
 
-target_sources(providers-common-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/gateways_config.pb.h
-  ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/udf_resolver.pb.h
+target_sources(common-proto-activation PRIVATE
+  ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/activation/activation.pb.h
 )
 
 
-target_proto_outs(providers-common-proto
+target_proto_outs(common-proto-activation
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
-target_proto_addincls(providers-common-proto
+target_proto_addincls(common-proto-activation
   ./
   ${PROJECT_SOURCE_DIR}/
   ${PROJECT_BINARY_DIR}

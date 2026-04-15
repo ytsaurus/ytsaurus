@@ -19,10 +19,6 @@ java {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
-    api(project(":yql:essentials:protos"))
-    api(project(":yql:essentials:utils:fetch:proto"))
-    api(project(":yql:essentials:minikql:runtime_settings:proto"))
-    api(project(":yql:essentials:providers:common:proto:activation"))
 
     protobuf(files(buildProtoDir))
 }
@@ -37,8 +33,7 @@ protobuf {
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
-        include("yql/essentials/providers/common/proto/gateways_config.proto")
-        include("yql/essentials/providers/common/proto/udf_resolver.proto")
+        include("yql/essentials/providers/common/proto/activation/activation.proto")
     }
     into(buildProtoDir)
 }

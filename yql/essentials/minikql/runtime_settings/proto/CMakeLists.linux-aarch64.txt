@@ -28,39 +28,32 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_subdirectory(activation)
-
-add_library(providers-common-proto)
+add_library(minikql-runtime_settings-proto)
 
 
-target_link_libraries(providers-common-proto PUBLIC
+target_link_libraries(minikql-runtime_settings-proto PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yql-essentials-protos
-  utils-fetch-proto
-  minikql-runtime_settings-proto
   common-proto-activation
   contrib-libs-protobuf
 )
 
-target_proto_messages(providers-common-proto PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/gateways_config.proto
-  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/udf_resolver.proto
+target_proto_messages(minikql-runtime_settings-proto PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/runtime_settings/proto/runtime_settings.proto
 )
 
-target_sources(providers-common-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/gateways_config.pb.h
-  ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/udf_resolver.pb.h
+target_sources(minikql-runtime_settings-proto PRIVATE
+  ${PROJECT_BINARY_DIR}/yql/essentials/minikql/runtime_settings/proto/runtime_settings.pb.h
 )
 
 
-target_proto_outs(providers-common-proto
+target_proto_outs(minikql-runtime_settings-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
-target_proto_addincls(providers-common-proto
+target_proto_addincls(minikql-runtime_settings-proto
   ./
   ${PROJECT_SOURCE_DIR}/
   ${PROJECT_BINARY_DIR}

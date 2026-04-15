@@ -19,6 +19,7 @@ add_subdirectory(datetime)
 add_subdirectory(computation)
 add_subdirectory(arrow)
 add_subdirectory(jsonpath)
+add_subdirectory(runtime_settings)
 add_subdirectory(protobuf_udf)
 
 add_library(yql-essentials-minikql)
