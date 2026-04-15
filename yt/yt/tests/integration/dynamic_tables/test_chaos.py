@@ -5999,23 +5999,28 @@ class TestChaosMetaCluster(ChaosTestBase):
         [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", alpha_cell)
 
-        root_lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 10000})
-        child_lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 10000, "parent_id": root_lease_id})
+        root = create_chaos_lease(alpha_cell, attributes={"timeout": 30000})
+        child1 = create_chaos_lease(alpha_cell, attributes={"timeout": 30000, "parent_id": root})
+        child2 = create_chaos_lease(alpha_cell, attributes={"timeout": 30000, "parent_id": root})
+        grandchild = create_chaos_lease(alpha_cell, attributes={"timeout": 30000, "parent_id": child1})
 
-        first_ping_time = get(f"#{root_lease_id}/@last_ping_time")
-        ping_chaos_lease(child_lease_id, ping_ancestors=True)
-        last_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+        first_ping_time = get(f"#{root}/@last_ping_time")
+        ping_chaos_lease(grandchild, ping_ancestors=True)
+        assert get(f"#{root}/@last_ping_time") > first_ping_time
 
-        assert first_ping_time < last_ping_time
+        last_ping_time = get(f"#{root}/@last_ping_time")
+        ping_chaos_lease(grandchild, ping_ancestors=False)
+        assert get(f"#{root}/@last_ping_time") == last_ping_time
 
-        ping_chaos_lease(child_lease_id, ping_ancestors=False)
-        unchanged_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+        remove(f"#{child1}")
+        wait(lambda: not self._chaos_lease_exists(child1))
+        wait(lambda: not self._chaos_lease_exists(grandchild))
+        assert self._chaos_lease_exists(root)
+        assert self._chaos_lease_exists(child2)
 
-        assert unchanged_ping_time == last_ping_time
-
-        remove(f"#{root_lease_id}")
-        assert not self._chaos_lease_exists(child_lease_id)
-        assert not self._chaos_lease_exists(root_lease_id)
+        remove(f"#{root}")
+        wait(lambda: not self._chaos_lease_exists(root))
+        wait(lambda: not self._chaos_lease_exists(child2))
 
     @authors("gryzlov-ad")
     def test_chaos_lease_migration(self):
