@@ -19,6 +19,7 @@ from yt.common import update, YtError
 from yt.yson import YsonEntity
 from yt.ypath import parse_ypath
 
+import contextlib
 import builtins
 import pytest
 from typing import Literal
@@ -1211,7 +1212,9 @@ class TestDataApiSingleCluster(TestDataApiBase):
 
 @pytest.mark.enabled_multidaemon
 class TestDataApiMultiCluster(TestDataApiBase):
-    NUM_REMOTE_CLUSTERS = 1
+    NUM_TEST_PARTITIONS = 2
+
+    NUM_REMOTE_CLUSTERS = 2
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -1237,6 +1240,16 @@ class TestDataApiMultiCluster(TestDataApiBase):
         config["replicated_table_mapping_read_path"] = parse_ypath("<clusters=[primary]>//sys/queue_agents/replicated_table_mapping")
         config["replica_mapping_read_path"] = parse_ypath("<clusters=[primary]>//sys/queue_agents/replica_mapping")
         self._apply_registration_manager_config_patch_all(config)
+
+    def teardown_method(self, method):
+        for cluster in self.get_cluster_names():
+            driver = get_driver(cluster=cluster)
+            set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=driver)
+
+        for cluster in self.get_cluster_names():
+            wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=driver) == "good")
+
+        super(TestDataApiMultiCluster, self).teardown_method(method)
 
     @authors("achulkov2", "nadya73")
     def test_pull_replicated_queue(self):
@@ -1388,6 +1401,71 @@ class TestDataApiMultiCluster(TestDataApiBase):
         wait(does_not_raise, ignore_exceptions=True)
 
         assert get_offset(queue_replicated_table) == 3
+
+    @authors("apachee")
+    @pytest.mark.timeout(180)
+    def test_federated_client(self):
+        impl = self._get_registration_manager_applied_implementation()
+        if impl == "legacy":
+            pytest.skip()
+
+        queues = []
+        consumers = []
+
+        for i in range(4):
+            queue_path = self.create_queue_path()
+            consumer_path = self.create_consumer_path()
+
+            self._create_queue(queue_path)
+            self._create_consumer(consumer_path)
+            register_queue_consumer(queue_path, consumer_path, vital=True)
+
+            queues.append(queue_path)
+            consumers.append(consumer_path)
+
+        assert len(self._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG["state_read_path"].attributes["clusters"]) > 1
+
+        def _disable_tablet_cell(driver):
+            set("//sys/tablet_cell_bundles/default/@node_tag_filter", "invalid", driver=driver)
+            wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=driver) == "failed")
+
+        def _enable_tablet_cell(driver):
+            set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=driver)
+            wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=driver) == "good")
+
+        for cluster in self._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG["state_read_path"].attributes["clusters"]:
+            driver = get_driver(cluster=cluster)
+            _disable_tablet_cell(driver)
+
+        def check(queue_path, consumer_path, ctx=None):
+            if ctx is None:
+                ctx = contextlib.nullcontext()
+            try:
+                with ctx:
+                    pull_consumer(consumer_path, queue_path, offset=0, partition_index=0)
+                    advance_consumer(consumer_path, queue_path, old_offset=0, new_offset=0, partition_index=0)
+                    list_queue_consumer_registrations(consumer_path, queue_path)
+                    list_queue_consumer_registrations(consumer_path)
+                    list_queue_consumer_registrations(queue_path)
+            except Exception as e:
+                print_debug(f"Failed to pull consumer with error {e}")
+                return False
+
+            return True
+
+        wait(lambda: check(queues[0], consumers[0], ctx=raises_yt_error("has no assigned peers")))
+
+        _enable_tablet_cell(get_driver(cluster="remote_0"))
+
+        wait(lambda: check(queues[1], consumers[1]))
+
+        _disable_tablet_cell(get_driver(cluster="remote_0"))
+
+        wait(lambda: check(queues[2], consumers[2], ctx=raises_yt_error("has no assigned peers")))
+
+        _enable_tablet_cell(get_driver(cluster="remote_1"))
+
+        wait(lambda: check(queues[3], consumers[3]))
 
 
 class TestLegacyRegistrationManagerMixin(QueueConsumerRegistrationManagerBase):

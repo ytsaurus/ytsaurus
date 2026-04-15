@@ -3,6 +3,8 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/client/federated/public.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/misc/cache_config.h>
@@ -37,6 +39,7 @@ struct TLookupSessionConfig
 {
     TString User;
     NYPath::TRichYPath Table;
+    NClient::NFederated::TFederationConfigPtr FederationConfig;
 
     bool operator==(const TLookupSessionConfig&) const;
 };
@@ -153,6 +156,10 @@ struct TQueueConsumerRegistrationManagerCacheConfig
     TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, TAsyncExpiringCacheDynamicConfigPtr> Delta;
     //! Config for batching all lookups, except periodic updates (for those look into #BatchUpdate in #Base or #Delta).
     TQueueConsumerRegistrationManagerBatchLookupConfigPtr BatchLookup;
+    //! Federated client config for state lookups.
+    NClient::NFederated::TFederationConfigPtr FederationConfig;
+    //! Tablet cell bundle used to override tablet cell bundle of federation config for each cache kind.
+    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, std::optional<std::string>> CacheKindToBundleName;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerCacheConfig);
 
