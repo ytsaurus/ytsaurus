@@ -5,6 +5,8 @@ main:
     ytsaurus: main
 2.16.0:
   source: stable
+  constraints:
+    ytsaurus: "<=25.3"
 2.17.3:
   source: stable
 2.17.4:
