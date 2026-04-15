@@ -77,15 +77,6 @@ public:
         auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
             .ValueOrThrow();
 
-        // Reject new requests if draining
-        if (Draining_.load()) {
-            YT_LOG_WARNING("Rejecting read request during drain (Offset: %v, Length: %v, Cookie: %x)",
-                offset,
-                length,
-                options.Cookie);
-            return MakeFuture<TReadResponse>(TError("Device is draining"));
-        }
-
         YT_LOG_DEBUG("Started reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             length,
@@ -153,15 +144,6 @@ public:
         auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
             .ValueOrThrow();
 
-        // Reject new requests if draining
-        if (Draining_.load()) {
-            YT_LOG_WARNING("Rejecting write request during drain (Offset: %v, Length: %v, Cookie: %x)",
-                offset,
-                data.size(),
-                options.Cookie);
-            return MakeFuture<TWriteResponse>(TError("Device is draining"));
-        }
-
         YT_LOG_DEBUG("Started writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
@@ -227,29 +209,6 @@ public:
         return TAsyncLockWriterGuard::Acquire(&Lock_).AsVoid();
     }
 
-    TFuture<void> Drain() override
-    {
-        YT_LOG_INFO("Draining device");
-
-        return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique()
-            .Apply(BIND(
-                [
-                    this,
-                    this_ = MakeStrong(this)
-                ] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& /*guard*/) {
-                    if (Draining_.exchange(true)) {
-                        YT_LOG_DEBUG("Draining is already in progress");
-                        return DrainFuture_;
-                    }
-
-                    // Since we hold the write lock, no other request can be in progress.
-                    DrainFuture_ = OKFuture;
-                    YT_LOG_INFO("Drained device");
-                    return DrainFuture_;
-                }));
-    }
-
     TFuture<void> Initialize() override
     {
         return TAsyncLockWriterGuard::Acquire(&Lock_)
@@ -287,8 +246,6 @@ private:
 
     //! All operations are serialized by write lock.
     TAsyncReaderWriterLock Lock_;
-    std::atomic<bool> Draining_ = false;
-    TFuture<void> DrainFuture_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

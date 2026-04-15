@@ -142,11 +142,6 @@ public:
             .Run();
     }
 
-    TFuture<void> Drain() override
-    {
-        return OKFuture;
-    }
-
     TFuture<void> Finalize() override
     {
         return OKFuture;

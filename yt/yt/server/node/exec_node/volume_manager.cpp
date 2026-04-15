@@ -2363,11 +2363,10 @@ private:
         // server but it remains in existing device connections.
         auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-        // Second, drain device. This rejects new requests and waits for in-flight
-        // requests to complete.
-        auto drainFuture = OKFuture;
+        // Second, flush device.
+        auto flushFuture = OKFuture;
         if (device) {
-            drainFuture = device->Drain();
+            flushFuture = device->Flush();
         }
 
         // Fourth, finalize device after volume removal.
@@ -2383,9 +2382,8 @@ private:
             })
             .AsyncVia(nbdServer->GetInvoker());
 
-        // Third, remove volume. At this point all device connections are going
-        // be terminated.
-        return drainFuture
+        // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+        return flushFuture
             .Apply(BIND(
                 &TRWNbdVolume::DoRemoveVolumeCommon,
                 "RW NBD",
@@ -2448,11 +2446,10 @@ private:
         // server but it remains in existing device connections.
         auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-        // Second, drain device. This rejects new requests and waits for in-flight
-        // requests to complete.
-        auto drainFuture = OKFuture;
+        // Second, flush device.
+        auto flushFuture = OKFuture;
         if (device) {
-            drainFuture = device->Drain();
+            flushFuture = device->Flush();
         }
 
         // Fourth, finalize device after volume removal.
@@ -2468,9 +2465,8 @@ private:
             })
             .AsyncVia(nbdServer->GetInvoker());
 
-        // Third, remove volume. At this point all device connections are going
-        // be terminated.
-        return drainFuture
+        // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+        return flushFuture
             .Apply(BIND(
                 &TRWNbdVolume::DoRemoveVolumeCommon,
                 "RO NBD",
@@ -3630,13 +3626,8 @@ private:
                 ] (const TErrorOr<TRONbdVolumePtr>& errorOrVolume) {
                     if (!errorOrVolume.IsOK()) {
                         if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
-                            YT_LOG_DEBUG("Draining and finalizing RO NBD device");
-                            YT_UNUSED_FUTURE(device->Drain()
-                                .Apply(BIND(
-                                    [device] (const TErrorOr<void>&) {
-                                        YT_UNUSED_FUTURE(device->Finalize());
-                                    })
-                                    .AsyncVia(nbdServer->GetInvoker())));
+                            YT_LOG_DEBUG("Finalizing RO NBD device");
+                            YT_UNUSED_FUTURE(device->Finalize());
                         } else {
                             YT_LOG_WARNING("Failed to unregister RO NBD device");
                         }
@@ -5162,13 +5153,8 @@ private:
                 ] (const TErrorOr<TRWNbdVolumePtr>& errorOrVolume) {
                     if (!errorOrVolume.IsOK()) {
                         if (auto device = nbdServer->TryUnregisterDevice(deviceId)) {
-                            YT_LOG_DEBUG("Draining and finalizing RW NBD device");
-                            YT_UNUSED_FUTURE(device->Drain()
-                                .Apply(BIND(
-                                    [device] (const TErrorOr<void>&) {
-                                        YT_UNUSED_FUTURE(device->Finalize());
-                                    })
-                                    .AsyncVia(nbdServer->GetInvoker())));
+                            YT_LOG_DEBUG("Finalizing RW NBD device");
+                            YT_UNUSED_FUTURE(device->Finalize());
                         } else {
                             YT_LOG_WARNING("Failed to unregister RW NBD device");
                         }
