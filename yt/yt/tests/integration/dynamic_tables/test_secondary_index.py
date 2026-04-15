@@ -1302,6 +1302,33 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         query = "key, value from [//tmp/table] where try_get_int64(value, \"/field\") = 33"
         assert select_rows(query) == select_rows(index_query)
 
+    @authors("sabdenovch")
+    def test_lookup_skip_deletion(self):
+        table_schema = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        index_schema = [
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
+        ]
+        self._create_basic_tables(
+            table_schema=table_schema,
+            index_schema=index_schema,
+            mount=True,
+        )
+
+        self._insert_rows([
+            {"key1": 1, "key2": 2, "value": "value"}
+        ])
+        self._expect_from_index([{"key2": 2, "key1": 1, EMPTY_COLUMN_NAME: None}])
+        self._delete_rows([
+            {"key1": 1, "key2": 2}
+        ])
+        self._expect_from_index([])
+
 
 ##################################################################
 
