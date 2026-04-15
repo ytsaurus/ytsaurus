@@ -16,6 +16,20 @@ find_package(linux-headers-generic REQUIRED)
 
 find_package(Python3 REQUIRED)
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_library(yt-server-kafka_proxy)
 
 
@@ -45,8 +59,14 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
   yt-library-orchid
   yt-library-program
   yt-library-server_program
+  yt_proto-yt-core
   library-cpp-getopt
   library-cpp-iterator
+  contrib-libs-protobuf
+)
+
+target_proto_messages(yt-server-kafka_proxy PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/proto/group_coordinator_api.proto
 )
 
 target_sources(yt-server-kafka_proxy PRIVATE
@@ -61,6 +81,7 @@ target_sources(yt-server-kafka_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/server.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/proto/group_coordinator_api.pb.h
 )
 
 
@@ -88,4 +109,22 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
+)
+
+target_proto_outs(yt-server-kafka_proxy
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
+)
+
+target_proto_addincls(yt-server-kafka_proxy
+  ./yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
