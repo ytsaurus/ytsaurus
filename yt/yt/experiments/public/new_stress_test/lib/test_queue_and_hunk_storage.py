@@ -101,7 +101,7 @@ def mount_async_tablets(obj, tablet_index):
 def unmount_async_tablets(obj, tablet_index):
     unmounted_async_tablet_indexes = obj.mount_state.get_unmounted_tablet_indexes(tablet_index, sync=False)
     if unmounted_async_tablet_indexes:
-        logger.info(f"Object {obj.path} was unmounted async for tablets {unmounted_async_tablet_indexes}, mounting with sync)")
+        logger.info(f"Object {obj.path} was unmounted async for tablets {unmounted_async_tablet_indexes}, unmounting with sync)")
         for unmounted_async_tablet_index in unmounted_async_tablet_indexes:
             obj.unmount(unmounted_async_tablet_index, sync=True)
 
@@ -254,7 +254,7 @@ class Queue:
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=3, backoff=2, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=20, backoff=0.1, backoff_config={"policy": "constant_time", "constant_time": 0.2}, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
