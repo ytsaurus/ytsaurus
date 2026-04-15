@@ -70,6 +70,7 @@ public:
         , WriteTargets_(std::move(targets))
         , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
     {
+        YT_VERIFY(IsJournalFormat(chunkFormat));
         if (WriteTargets_) {
             YT_VERIFY(std::ssize(*WriteTargets_) == ReplicaCount_);
         }

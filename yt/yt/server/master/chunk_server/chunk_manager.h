@@ -98,6 +98,11 @@ struct IChunkManager
         NChunkClient::NProto::TRspSealChunk>;
     using TCtxSealChunkPtr = TIntrusivePtr<TCtxSealChunk>;
 
+    using TCtxScheduleChunkSeal = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqScheduleChunkSeal,
+        NChunkClient::NProto::TRspScheduleChunkSeal>;
+    using TCtxScheduleChunkSealPtr = TIntrusivePtr<TCtxScheduleChunkSeal>;
+
     using TCtxCreateChunkLists = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqCreateChunkLists,
         NChunkClient::NProto::TRspCreateChunkLists>;
@@ -123,6 +128,8 @@ struct IChunkManager
         NChunkClient::NProto::TRspConfirmChunk* response) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateSealChunkMutation(
         TCtxSealChunkPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateScheduleChunkSealMutation(
+        TCtxScheduleChunkSealPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkListsMutation(
         TCtxCreateChunkListsPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateUnstageChunkTreeMutation(

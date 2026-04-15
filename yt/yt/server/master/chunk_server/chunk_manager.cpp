@@ -416,6 +416,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraCreateChunk, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraConfirmChunk, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraSealChunk, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraScheduleChunkSeal, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraCreateChunkLists, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
@@ -727,6 +728,15 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
             &TChunkManager::HydraSealChunk,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateScheduleChunkSealMutation(TCtxScheduleChunkSealPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraScheduleChunkSeal,
             this);
     }
 
@@ -1087,19 +1097,7 @@ public:
 
     void SealChunk(TChunk* chunk, const TChunkSealInfo& info) override
     {
-        if (!chunk->IsJournal()) {
-            THROW_ERROR_EXCEPTION("Chunk %v is not a journal chunk",
-                chunk->GetId());
-        }
-
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
-                chunk->GetId());
-        }
-
-        if (chunk->IsSealed()) {
-            YT_LOG_DEBUG("Chunk is already sealed (ChunkId: %v)",
-                chunk->GetId());
+        if (!ValidateChunkSealable(chunk)) {
             return;
         }
 
@@ -5077,6 +5075,35 @@ private:
         ExecuteSealChunkSubrequest(request, response);
     }
 
+    void HydraScheduleChunkSeal(
+        const TCtxScheduleChunkSealPtr& /*context*/,
+        TReqScheduleChunkSeal* request,
+        TRspScheduleChunkSeal* /*response*/)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto* chunk = GetChunkOrThrow(chunkId);
+
+        if (!ValidateChunkSealable(chunk)) {
+            return;
+        }
+
+        if (chunk->GetChunkFormat() != EChunkFormat::JournalDistributed) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot schedule sealing for chunk %v with format %Qlv; only chunks with format %Qlv are supported",
+                chunk->GetId(),
+                chunk->GetChunkFormat(),
+                EChunkFormat::JournalDistributed);
+        }
+
+        chunk->SetSealable(true);
+        ScheduleChunkSeal(chunk);
+
+        YT_LOG_DEBUG("Chunk marked as sealable and scheduled for sealing (ChunkId: %v)",
+            chunk->GetId());
+    }
+
     void HydraCreateChunkLists(
         const TCtxCreateChunkListsPtr& /*context*/,
         TReqCreateChunkLists* request,
@@ -6811,8 +6838,20 @@ private:
             UpdateResourceUsage(chunk, +1);
         }
 
+        if (chunk->GetChunkFormat() == EChunkFormat::JournalDistributed) {
+            if (chunk->GetParentCount() == 0 && !chunk->GetOverlayed()) {
+                // Distributed session chunks (parentless) just need resource usage update above.
+                return;
+            }
+
+            YT_LOG_ALERT(
+                "Distributed journal chunk has parents or is overlayed while being sealed (ChunkId: %v, ParentCount: %v, Overlayed: %v)",
+                chunk->GetId(),
+                chunk->GetParentCount(),
+                chunk->GetOverlayed());
+        }
         // Journal hunk chunks require special treatment.
-        if (chunk->GetSealable()) {
+        if (chunk->GetSealable() && chunk->GetChunkFormat() != EChunkFormat::JournalDistributed) {
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             tabletManager->OnHunkJournalChunkSealed(chunk);
             return;
@@ -6912,6 +6951,27 @@ private:
                 }
             }
         }
+    }
+
+    static bool ValidateChunkSealable(const TChunk* chunk)
+    {
+        if (!chunk->IsJournal()) {
+            THROW_ERROR_EXCEPTION("Chunk %v is not a journal chunk",
+                chunk->GetId());
+        }
+
+        if (!chunk->IsConfirmed()) {
+            THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
+                chunk->GetId());
+        }
+
+        if (chunk->IsSealed()) {
+            YT_LOG_DEBUG("Chunk is already sealed (ChunkId: %v)",
+                chunk->GetId());
+            return false;
+        }
+
+        return true;
     }
 
     void OnProfiling()
