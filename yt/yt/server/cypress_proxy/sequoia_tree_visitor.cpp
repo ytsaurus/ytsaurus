@@ -93,41 +93,38 @@ public:
     TSequoiaTreeVisitor(
         NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
-        int maxAllowedNodeDepth,
         const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>* nodeIdToChildren,
-        const TNodeIdToAttributes* nodesWithAttributes)
+        const TNodeIdToAttributes* nodesWithAttributes,
+        const THashSet<TNodeId>* opaqueNodeIds)
         : Consumer_(consumer)
         , AttributeFilter_(attributeFilter)
-        , MaxAllowedNodeDepth_(maxAllowedNodeDepth)
         , NodeIdToChildren_(nodeIdToChildren)
         , NodesWithAttributes_(nodesWithAttributes)
+        , OpaqueNodeIds_(opaqueNodeIds)
         , CalculateOpaqueness_(attributeFilter.AdmitsKeySlow({EInternedAttributeKey::Opaque.Unintern()}))
     { }
 
     void Visit(TNodeId rootId)
     {
-        VisitAny(rootId, /*currentNodeDepth*/ 0, /*itemKey*/ std::nullopt);
+        VisitAny(rootId, /*itemKey*/ std::nullopt);
     }
 
 private:
     NYson::IAsyncYsonConsumer* const Consumer_;
     const TAttributeFilter AttributeFilter_;
-    const int MaxAllowedNodeDepth_;
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>* const NodeIdToChildren_;
     const TNodeIdToAttributes* const NodesWithAttributes_;
+    const THashSet<TNodeId>* const OpaqueNodeIds_;
     const bool CalculateOpaqueness_;
 
-    void VisitAny(TNodeId nodeId, int currentNodeDepth, std::optional<TStringBuf> itemKey)
+    void VisitAny(TNodeId nodeId, std::optional<TStringBuf> itemKey)
     {
-        ++currentNodeDepth;
-
         auto maybeWriteKey = [&, written = false] () mutable {
             if (!std::exchange(written, true) && itemKey) {
                 Consumer_->OnKeyedItem(*itemKey);
             }
         };
 
-        // TODO(danilalexeev): YT-26733. Introduce mapping: nodeId -> access denied.
         if (!NodeIdToChildren_->contains(nodeId)) {
             // Access denied.
             maybeWriteKey();
@@ -151,7 +148,6 @@ private:
                     return std::move(node);
                 },
                 [&] (TMissingNodeTag) -> std::optional<INodePtr> {
-                    YT_VERIFY(currentNodeDepth > 1);
                     return {};
                 });
 
@@ -159,9 +155,8 @@ private:
                 return; // Omit the node.
             }
 
-            // TODO(danilalexeev): YT-26733. Introduce mapping: nodeId -> is opaque.
             if (CalculateOpaqueness_ && IsSequoiaCompositeNodeType(nodeType)) {
-                auto opaque = currentNodeDepth == MaxAllowedNodeDepth_;
+                auto opaque = OpaqueNodeIds_->contains(nodeId);
                 (*node)->MutableAttributes()->Set(EInternedAttributeKey::Opaque.Unintern(), opaque);
             }
 
@@ -182,7 +177,7 @@ private:
 
             case EObjectType::Scion:
             case EObjectType::SequoiaMapNode:
-                VisitMap(nodeId, currentNodeDepth);
+                VisitMap(nodeId);
                 break;
 
             default:
@@ -229,17 +224,17 @@ private:
         Consumer_->OnEntity();
     }
 
-    void VisitMap(TNodeId nodeId, int currentNodeDepth)
+    void VisitMap(TNodeId nodeId)
     {
         const auto& children = GetOrCrash(*NodeIdToChildren_, nodeId);
-        if (currentNodeDepth == MaxAllowedNodeDepth_) {
+        if (OpaqueNodeIds_->contains(nodeId)) {
             Consumer_->OnEntity();
             return;
         }
 
         Consumer_->OnBeginMap();
         for (const auto& childDescriptor : children) {
-            VisitAny(childDescriptor.ChildId, currentNodeDepth, childDescriptor.ChildKey);
+            VisitAny(childDescriptor.ChildId, childDescriptor.ChildKey);
         }
         Consumer_->OnEndMap();
     }
@@ -249,18 +244,18 @@ private:
 
 void VisitSequoiaTree(
     TNodeId rootId,
-    int maxAllowedNodeDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const TNodeIdToAttributes& nodesWithAttributes)
+    const TNodeIdToAttributes& nodesWithAttributes,
+    const THashSet<TNodeId>& opaqueNodeIds)
 {
     TSequoiaTreeVisitor treeVisitor(
         consumer,
         attributeFilter,
-        maxAllowedNodeDepth,
         &nodeIdToChildren,
-        &nodesWithAttributes);
+        &nodesWithAttributes,
+        &opaqueNodeIds);
     treeVisitor.Visit(rootId);
 }
 
