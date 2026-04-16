@@ -38,7 +38,7 @@ class MountState:
     def __init__(self, tablet_count):
         self.tablet_count = tablet_count
         self.is_mounted_tablet = [False] * tablet_count
-        self.is_sync = [False] * tablet_count
+        self.is_sync = [True] * tablet_count
 
     def _is_relevant_tablet(self, tablet_index, is_mount, sync):
         result = True
@@ -225,13 +225,13 @@ class Queue:
 
         self.mount_state.unmount(tablet_index, sync)
 
-    def write(self, only_in_mounted):
-        logger.info(f"Writing to the queue {self.path}, only in mounted: {only_in_mounted}")
+    def write(self, only_in_sync_mounted):
+        logger.info(f"Writing to the queue {self.path}, only in sync mounted: {only_in_sync_mounted}")
 
-        if only_in_mounted:
+        if only_in_sync_mounted:
             tablets = [tablet_index for tablet_index in range(self.tablet_count) if self.mount_state.is_mounted_tablet[tablet_index] and self.mount_state.is_sync[tablet_index]]
         else:
-            tablets = [tablet_index for tablet_index in range(self.tablet_count)]
+            tablets = [tablet_index for tablet_index in range(self.tablet_count) if not (not self.mount_state.is_mounted_tablet[tablet_index] and self.mount_state.is_sync[tablet_index])]
 
         logger.info(f"Rows will be written in tablets {tablets} in the queue {self.path}")
 
@@ -249,12 +249,14 @@ class Queue:
             data_rows += [{"key": row["key"], "value": row["value"], "tablet_index": tablet_index, "row_index": row_index}]
             new_written_row_count[row["$tablet_index"]] += 1
 
+        logger.info(f"Rows to write in the queue {self.path}: {rows}")
+
         def _insert_rows():
             with yt.Transaction(type="tablet"):
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=20, backoff=0.1, backoff_config={"policy": "constant_time", "constant_time": 0.2}, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=15, backoff=0.1, backoff_config={"policy": "constant_time", "constant_time": 0.1}, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -575,16 +577,26 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _write():
         for queue in queues.values():
-            queue.write(only_in_mounted=True)
+            need_to_write = random.random() < spec.queue_and_hunk_storage.write_probability
+            if not need_to_write:
+                continue
 
+            only_in_sync_mounted = random.choice([True, False])
             try:
-                queue.write(only_in_mounted=False)
+                queue.write(only_in_sync_mounted=only_in_sync_mounted)
             except YtError as err:
-                _check_write_error(queue, err)
+                if not only_in_sync_mounted:
+                    _check_write_error(queue, err)
+                else:
+                    raise err
 
 
     def _read():
         for queue in queues.values():
+            need_to_read = random.random() < spec.queue_and_hunk_storage.read_probability
+            if not need_to_read:
+                continue
+
             try:
                 queue.read_and_check()
             except YtError as err:
