@@ -1988,6 +1988,28 @@ func (r RemoveQueueProducerSessionRequest) Path() (string, bool) {
 	return string(r.GetProducerPath()), false
 }
 
+type RegisterQueueConsumerRequest struct {
+	*rpc_proxy.TReqRegisterQueueConsumer
+}
+
+func NewRegisterQueueConsumerRequest(r *rpc_proxy.TReqRegisterQueueConsumer) *RegisterQueueConsumerRequest {
+	return &RegisterQueueConsumerRequest{TReqRegisterQueueConsumer: r}
+}
+
+func (r RegisterQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("queue_path", string(r.GetQueuePath())),
+		log.String("consumer_path", string(r.GetConsumerPath())),
+		log.Bool("vital", r.GetVital()),
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqRegisterQueueConsumer)
+	return fields
+}
+
+func (r RegisterQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetQueuePath()), false
+}
+
 var _ TransactionalRequest = (*DeleteRowsRequest)(nil)
 
 type DeleteRowsRequest struct {

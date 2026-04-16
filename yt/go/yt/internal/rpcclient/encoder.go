@@ -1610,6 +1610,7 @@ func (e *Encoder) CheckPermission(
 	path ypath.YPath,
 	opts *yt.CheckPermissionOptions,
 ) (response *yt.CheckPermissionResponse, err error) {
+	permission, opts = yt.NormalizeCheckPermission(permission, opts)
 	if opts == nil {
 		opts = &yt.CheckPermissionOptions{}
 	}
@@ -1627,6 +1628,7 @@ func (e *Encoder) CheckPermission(
 		PrerequisiteOptions:  convertPrerequisiteOptions(opts.PrerequisiteOptions),
 		MasterReadOptions:    convertMasterReadOptions(opts.MasterReadOptions),
 		Columns:              convertCheckPermissionColumns(opts.Columns),
+		Vital:                opts.Vital,
 	}
 
 	call := e.newCall(MethodCheckPermission, NewCheckPermissionRequest(req), nil)
