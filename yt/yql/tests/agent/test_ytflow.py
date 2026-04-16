@@ -673,6 +673,69 @@ select * from $bad_stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
+    def test_using_same_stream_in_multiple_sinks(self, query_tracker, yql_agent, run_query):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        ))
+        input_data = [{"value": value} for value in range(5)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_paths = [self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "int64"},
+            ]),
+        )) for _ in range(2)]
+
+        run_query(f"""
+$stream = select value + 1 as value from `{input_table_path}`;
+
+insert into `{out_table_paths[0]}`
+select * from $stream;
+
+insert into `{out_table_paths[1]}`
+select * from $stream;
+""")
+
+        expected_data = [{"value": row["value"] + 1} for row in input_data]
+        for out_table in out_table_paths:
+            self._assert_yt_table_content(out_table, expected_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("column_name", ["Value", "UnexpectedColumnName"])
+    def test_with_truncate(self, query_tracker, yql_agent, run_query, column_name):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "Value", "type": "int64"},
+            ]),
+        ))
+        input_data = [{"Value": value} for value in range(5)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": column_name, "type": "int64"},
+            ]),
+        ))
+
+        run_query(f"""
+$stream = select Value + 1 as Value from `{input_table_path}`;
+
+insert into `{out_table_path}` with truncate
+select * from $stream;
+""")
+
+        expected_data = [{"Value": row["Value"] + 1} for row in input_data]
+        self._assert_yt_table_content(out_table_path, expected_data)
+
+
+class TestYtflowLogbroker(TestYtflowBase):
+    NUM_TEST_PARTITIONS = 16
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
     def test_logbroker_read(self, query_tracker, yql_agent, run_query, logbroker_client):
         input_topic_path = logbroker_client.create_topic()
         self._write_logbroker_topic(input_topic_path, ["a", "b", "c"], logbroker_client)
@@ -889,37 +952,6 @@ select * from $stream2;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_using_same_stream_in_multiple_sinks(self, query_tracker, yql_agent, run_query):
-        input_table_path = self._create_yt_table(dict(
-            schema=self._make_queue_schema([
-                {"name": "value", "type": "int64"},
-            ]),
-        ))
-        input_data = [{"value": value} for value in range(5)]
-        self._write_yt_table(input_table_path, input_data)
-
-        out_table_paths = [self._create_yt_table(dict(
-            schema=self._make_queue_schema([
-                {"name": "value", "type": "int64"},
-            ]),
-        )) for _ in range(2)]
-
-        run_query(f"""
-$stream = select value + 1 as value from `{input_table_path}`;
-
-insert into `{out_table_paths[0]}`
-select * from $stream;
-
-insert into `{out_table_paths[1]}`
-select * from $stream;
-""")
-
-        expected_data = [{"value": row["value"] + 1} for row in input_data]
-        for out_table in out_table_paths:
-            self._assert_yt_table_content(out_table, expected_data)
-
-    @authors("artemmashin")
-    @pytest.mark.timeout(180)
     def test_remove_system_columns_from_write(self, query_tracker, yql_agent, run_query, logbroker_client):
         input_topic_path = logbroker_client.create_topic()
         input_data = [str(i) for i in range(3)]
@@ -945,34 +977,6 @@ select * from $processed_stream;
 """)
 
         self._assert_yt_table_content(out_table_path, [{"Data": data + "_processed"} for data in input_data])
-
-    @authors("artemmashin")
-    @pytest.mark.timeout(180)
-    @pytest.mark.parametrize("column_name", ["Value", "UnexpectedColumnName"])
-    def test_with_truncate(self, query_tracker, yql_agent, run_query, column_name):
-        input_table_path = self._create_yt_table(dict(
-            schema=self._make_queue_schema([
-                {"name": "Value", "type": "int64"},
-            ]),
-        ))
-        input_data = [{"Value": value} for value in range(5)]
-        self._write_yt_table(input_table_path, input_data)
-
-        out_table_path = self._create_yt_table(dict(
-            schema=self._make_queue_schema([
-                {"name": column_name, "type": "int64"},
-            ]),
-        ))
-
-        run_query(f"""
-$stream = select Value + 1 as Value from `{input_table_path}`;
-
-insert into `{out_table_path}` with truncate
-select * from $stream;
-""")
-
-        expected_data = [{"Value": row["Value"] + 1} for row in input_data]
-        self._assert_yt_table_content(out_table_path, expected_data)
 
 
 class TestYtflowSolomon(TestYtflowBase):
