@@ -96,14 +96,26 @@ public:
         // Create debug tag.
         auto tag = TGuid::Create();
 
-        std::vector<TFuture<TVolumeResultPtr>> futures;
-        futures.reserve(volumes.size());
+        auto future = OKFuture;
+        auto result = std::make_shared<std::vector<TVolumeResultPtr>>();
+        result->reserve(volumes.size());
         for (const auto& volume : volumes) {
             YT_VERIFY(volume->VolumeType == EVolumeType::Tmpfs);
             auto mountPath = GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts);
-            futures.push_back(CreateTmpfsVolume(tag, jobId, *sandboxPath, StaticPointerCast<TTmpfsVolumeParams>(volume), mountPath));
+            future = future
+                .Apply(BIND([tag, jobId, sandboxPath, volume, mountPath, result, this, this_ = MakeStrong(this)] {
+                    return CreateTmpfsVolume(tag, jobId, *sandboxPath, StaticPointerCast<TTmpfsVolumeParams>(volume), mountPath)
+                        .Apply(
+                            BIND([result = std::move(result)] (TVolumeResultPtr volumeResult) {
+                                result->push_back(std::move(volumeResult));
+                            })
+                            .AsyncVia(GetCurrentInvoker())
+                        )
+                        .ToUncancelable();
+                }));
         }
-        return AllSucceeded(std::move(futures));
+
+        return future.Apply(BIND([result] { return std::move(*result); }));
     }
 
     TFuture<IVolumePtr> RbindRootVolume(
@@ -663,8 +675,7 @@ public:
         // Create debug tag.
         auto tag = TGuid::Create();
 
-        std::vector<TFuture<void>> futures;
-        futures.reserve(volumes.size());
+        TFuture<void> future = OKFuture;
         for (const auto& volumeMount : volumeMounts) {
             if (volumeMount->MountPath == "/") {
                 continue;
@@ -674,11 +685,15 @@ public:
 
             // DestinationDirectory may already be created before LinkVolumes is called.
             bool sholdCheckTargetDirExists = target != destinationDirectory;
-            futures.push_back(volume->Volume->Link(tag, target, sholdCheckTargetDirExists));
+            future = future
+                .Apply(
+                    BIND([tag, volume, target, sholdCheckTargetDirExists] {
+                        return volume->Volume->Link(tag, target, sholdCheckTargetDirExists);
+                    })
+                    .AsyncVia(GetCurrentInvoker())
+                );
         }
-
-        return AllSucceeded(std::move(futures))
-            .ToUncancelable();
+        return future;
     }
 
     bool IsLayerCached(const TArtifactKey& artifactKey) const override
