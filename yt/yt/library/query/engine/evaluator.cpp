@@ -68,15 +68,15 @@ public:
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
 
-            constexpr auto ellipsis = "... <truncated>"sv;
             if (options.TruncatedQueryLengthForTracing &&
-                std::ssize(queryFingerprint) > *options.TruncatedQueryLengthForTracing + std::ssize(ellipsis))
+                std::ssize(queryFingerprint) >
+                    *options.TruncatedQueryLengthForTracing + std::ssize(DefaultTruncatedMessage))
             {
                 traceContext->AddTag(
                     "query_fingerprint",
                     queryFingerprint
                         .substr(0, *options.TruncatedQueryLengthForTracing)
-                        .append(ellipsis));
+                        .append(DefaultTruncatedMessage));
             } else {
                 traceContext->AddTag("query_fingerprint", queryFingerprint);
             }

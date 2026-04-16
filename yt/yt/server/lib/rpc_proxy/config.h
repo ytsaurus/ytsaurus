@@ -210,6 +210,8 @@ struct TApiServiceDynamicConfig
     bool EnableLowLatencyGenerateTimestampsInvoker;
     bool EnableLowLatencyStartTransactionInvoker;
 
+    std::optional<int> TruncatedQueryLengthForRequestInfo;
+
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);
