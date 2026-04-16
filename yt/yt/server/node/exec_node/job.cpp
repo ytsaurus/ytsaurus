@@ -2918,6 +2918,9 @@ void TJob::Cleanup()
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
+    // Unsubscribe job prior to volume removal.
+    UnsubscribeJobFromNbdDevices();
+
     auto removeVolume = [this] (IVolumePtr volume) {
         if (volume) {
             auto removeResult = WaitFor(volume->Remove());
@@ -2936,8 +2939,6 @@ void TJob::Cleanup()
 
     removeVolume(FSSecretary_->ReleaseRootVolume());
     removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
-
-    UnsubscribeJobFromNbdDevices();
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2979,16 +2980,24 @@ void TJob::UnsubscribeJobFromNbdDevices()
 {
     if (auto nbdServer = Bootstrap_->GetNbdServer()) {
         for (const auto& deviceId : FSSecretary_->ReleaseNbdDeviceIds()) {
+            YT_LOG_DEBUG(
+                "Unsubscribing job from NBD device errors (DeviceId: %v)",
+                deviceId);
+
             if (auto device = nbdServer->FindDevice(deviceId)) {
                 auto res = device->UnsubscribeFromErrors(Id_.Underlying());
                 if (!res) {
                     YT_LOG_WARNING(
                         "Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
                         deviceId);
+                } else {
+                    YT_LOG_DEBUG(
+                        "Unsubscribed job from NBD device errors (DeviceId: %v)",
+                        deviceId);
                 }
             } else {
                 YT_LOG_DEBUG(
-                    "Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
+                    "Failed to unsubscribe job from NBD device errors; device not found (DeviceId: %v)",
                     deviceId);
             }
         }
