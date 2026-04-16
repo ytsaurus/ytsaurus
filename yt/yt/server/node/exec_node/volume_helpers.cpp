@@ -26,7 +26,7 @@ bool TBaseVolumeParams::operator==(const TBaseVolumeParams& other) const
     switch (VolumeType) {
         case EVolumeType::Tmpfs:
             return static_cast<const TTmpfsVolumeParams&>(*this) == static_cast<const TTmpfsVolumeParams&>(other);
-        case EVolumeType::Local:
+        case EVolumeType::LocalDisk:
             return static_cast<const TLocalDiskVolumeParams&>(*this) == static_cast<const TLocalDiskVolumeParams&>(other);
         default:
             YT_ABORT();
@@ -53,7 +53,7 @@ void TTmpfsVolumeParams::Format(TStringBuilderBase* builder) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocalDiskVolumeParams::TLocalDiskVolumeParams(std::string volumeId, int userId)
-    : TBaseVolumeParams(std::move(volumeId), EVolumeType::Local, userId)
+    : TBaseVolumeParams(std::move(volumeId), EVolumeType::LocalDisk, userId)
 { }
 
 void TLocalDiskVolumeParams::Format(TStringBuilderBase* builder) const

@@ -607,7 +607,7 @@ public:
                             switch (volume->VolumeType) {
                                 case EVolumeType::Tmpfs:
                                     return CreateTmpfsVolume(tag, StaticPointerCast<TTmpfsVolumeParams>(volume));
-                                case EVolumeType::Local:
+                                case EVolumeType::LocalDisk:
                                     return CreateLoopVolume(tag, StaticPointerCast<TLocalDiskVolumeParams>(volume));
                                 default:
                                     YT_ABORT();
@@ -886,7 +886,7 @@ private:
                 ] (TVolumeMeta&& volumeMeta) mutable {
                     auto result = New<TVolumeResult>(
                         std::move(volumeId),
-                        EVolumeType::Local,
+                        EVolumeType::LocalDisk,
                         New<TLoopVolume>(
                             std::move(tagSet),
                             std::move(volumeMeta),
