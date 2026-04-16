@@ -57,7 +57,8 @@ TFuture<void> TPortoVolumeBase::Link(
             // TODO(dgolear): Switch to std::string.
             auto source = TString(GetPath());
             return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
-        }));
+        }))
+        .ToUncancelable();
 }
 
 TFuture<void> TPortoVolumeBase::Remove()
