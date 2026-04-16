@@ -85,8 +85,8 @@ auto GroupBy(F f, std::vector<T> values)
 
 struct TRegistrationCacheKey
 {
-    TQueuePath Queue;
-    TConsumerPath Consumer;
+    TTablePath Queue;
+    TConsumerReference Consumer;
 
     std::strong_ordering operator<=>(const TRegistrationCacheKey&) const = default;
 };
@@ -105,10 +105,10 @@ void FormatValue(TStringBuilderBase* builder, const TRegistrationCacheKey& value
 //! Listing all registrations is forbidden.
 struct TListRegistrationsCacheKey
 {
-    std::optional<TQueuePath> Queue;
-    std::optional<TConsumerPath> Consumer;
+    std::optional<TTablePath> Queue;
+    std::optional<TConsumerReference> Consumer;
 
-    explicit TListRegistrationsCacheKey(std::optional<TQueuePath> queue, std::optional<TConsumerPath> consumer)
+    explicit TListRegistrationsCacheKey(std::optional<TTablePath> queue, std::optional<TConsumerReference> consumer)
         : Queue(std::move(queue))
         , Consumer(std::move(consumer))
     {
@@ -559,7 +559,7 @@ private:
     }
 
 private:
-    TFuture<THashMap<TQueuePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TTablePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -588,7 +588,7 @@ private:
             }));
     }
 
-    TFuture<THashMap<TConsumerPath, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TConsumerReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -1316,7 +1316,7 @@ private:
         NYPath::TRichYPath resolvedConsumer) override
     {
         auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-            TTablePath::FromRichYPathSafe(resolvedQueue), TGenericObjectPath::FromRichYPathSafe(resolvedConsumer)
+            TTablePath::FromRichYPathSafe(resolvedQueue), TGenericObjectReference::FromRichYPathSafe(resolvedConsumer)
         )));
 
         if (!resultOrError.IsOK()) {
@@ -1357,7 +1357,7 @@ private:
         // NB(apachee): #TListRegistrationsCache is only used for listing registrations by queue or consumer.
         if (resolvedQueue && resolvedConsumer) {
             auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-                TQueuePath::FromRichYPathSafe(*resolvedQueue), TConsumerPath::FromRichYPathSafe(*resolvedConsumer))));
+                TTablePath::FromRichYPathSafe(*resolvedQueue), TConsumerReference::FromRichYPathSafe(*resolvedConsumer))));
 
             if (!registrationOrError.IsOK() && !registrationOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
                 THROW_ERROR_EXCEPTION(registrationOrError);
@@ -1368,7 +1368,7 @@ private:
                 : std::vector<TConsumerRegistrationTableRow>();
         }
 
-        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(resolvedQueue.transform(TQueuePath::FromRichYPathSafe), resolvedConsumer.transform(TConsumerPath::FromRichYPathSafe))))
+        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(resolvedQueue.transform(TTablePath::FromRichYPathSafe), resolvedConsumer.transform(TConsumerReference::FromRichYPathSafe))))
             .ValueOrThrow();
     }
 

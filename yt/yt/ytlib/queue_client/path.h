@@ -28,10 +28,7 @@ public:
     static TTablePath FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
 };
 
-using TQueuePath = TTablePath;
-using TMultiConsumerPath = TTablePath;
-
-class TGenericObjectPath
+class TGenericObjectReference
     : public NYPath::TConstrainedRichYPath<
         NYPath::TRequiredAttributesValidator<ClusterAttributeKey>,
         NYPath::TWhitelistAttributesValidator<QueueConsumerNameAttributeKey, ClusterAttributeKey>>
@@ -40,27 +37,27 @@ public:
     using TConstrainedRichYPath::TConstrainedRichYPath;
 
     //! NB(panesher): All unexpected attributes are ignored during conversion.
-    static TGenericObjectPath FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
+    static TGenericObjectReference FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
 };
 
-using TConsumerPath = TGenericObjectPath;
+using TConsumerReference = TGenericObjectReference;
 
 std::weak_ordering operator<=>(const TTablePath& lhs, const TTablePath& rhs);
-std::weak_ordering operator<=>(const TGenericObjectPath& lhs, const TGenericObjectPath& rhs);
+std::weak_ordering operator<=>(const TGenericObjectReference& lhs, const TGenericObjectReference& rhs);
 
 //! NB(panesher): The queue_consumer_name attribute is ignored during conversion.
-TTablePath ToTablePath(const TGenericObjectPath& genericPath);
+TTablePath ToTablePath(const TGenericObjectReference& genericRef);
 
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path);
 
 //! NB(panesher): The queue_consumer_name attribute is ignored during conversion.
-TCrossClusterReference ToCrossClusterReference(const TGenericObjectPath& path);
+TCrossClusterReference ToCrossClusterReference(const TGenericObjectReference& ref);
 
 //! Stable format for TTablePath.
 void FormatValue(TStringBuilderBase* builder, const NQueueClient::TTablePath& path, TStringBuf spec);
 
-//! Stable format for TGenericObjectPath.
-void FormatValue(TStringBuilderBase* builder, const NQueueClient::TGenericObjectPath& path, TStringBuf spec);
+//! Stable format for TGenericObjectReference.
+void FormatValue(TStringBuilderBase* builder, const NQueueClient::TGenericObjectReference& ref, TStringBuf spec);
 
 NYTree::IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster);
 
@@ -69,13 +66,13 @@ NYTree::IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& clu
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct THash<NYT::NQueueClient::TQueuePath>
+struct THash<NYT::NQueueClient::TTablePath>
 {
-    size_t operator()(const NYT::NQueueClient::TQueuePath& path) const;
+    size_t operator()(const NYT::NQueueClient::TTablePath& path) const;
 };
 
 template <>
-struct THash<NYT::NQueueClient::TConsumerPath>
+struct THash<NYT::NQueueClient::TGenericObjectReference>
 {
-    size_t operator()(const NYT::NQueueClient::TConsumerPath& path) const;
+    size_t operator()(const NYT::NQueueClient::TGenericObjectReference& ref) const;
 };

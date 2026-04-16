@@ -318,7 +318,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TConsumerSnapshotMap = THashMap<TConsumerPath, TConsumerSnapshotPtr>;
+using TConsumerSnapshotMap = THashMap<TConsumerReference, TConsumerSnapshotPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -484,7 +484,7 @@ private:
     bool Leading_;
     NThreading::TAtomicObject<TQueueTableRow> QueueRow_;
     NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
-    const TQueuePath QueuePath_;
+    const TTablePath QueuePath_;
     const IObjectStore* ObjectStore_;
 
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
@@ -579,7 +579,7 @@ private:
             enableVerboseLogging = enableVerboseLogging && isVerboseLoggingObject;
         }
 
-        auto registrations = ObjectStore_->GetRegistrations(TGenericObjectPath(QueuePath_), EObjectKind::Queue);
+        auto registrations = ObjectStore_->GetRegistrations(TGenericObjectReference(QueuePath_), EObjectKind::Queue);
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {
             YT_LOG_DEBUG(
@@ -884,13 +884,13 @@ private:
 
     struct TQueueTrimContext
     {
-        TQueuePath Path;
+        TTablePath Path;
         TQueueSnapshotConstPtr ReplicaSnapshot;
         TYPath ObjectPath;
         std::vector<TPartitionTrimContext> Partitions;
         // TODO(achulkov2): Add upstream replica id field + server-side check in Trim.
 
-        TQueueTrimContext(TQueuePath ref, TQueueSnapshotConstPtr replicaSnapshot)
+        TQueueTrimContext(TTablePath ref, TQueueSnapshotConstPtr replicaSnapshot)
             : Path(std::move(ref))
             , ReplicaSnapshot(std::move(replicaSnapshot))
         {
@@ -930,7 +930,7 @@ private:
         std::vector<TQueueTrimContext> replicaContexts;
 
         for (const auto& replica : queueSnapshot->ReplicatedTableMappingRow->GetReplicas()) {
-            TQueuePath replicaPath{replica};
+            TTablePath replicaPath{replica};
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
                 THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaPath);
@@ -960,7 +960,7 @@ private:
         for (const auto& replicaInfo : GetValues(replicationCard->Replicas)) {
             auto path = TRichYPath(replicaInfo.ReplicaPath);
             path.SetCluster(replicaInfo.ClusterName);
-            TQueuePath replicaPath(std::move(path));
+            TTablePath replicaPath(std::move(path));
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
                 THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaPath);
@@ -1198,7 +1198,7 @@ private:
 
     struct TQueueTrimSession final
     {
-        const TQueuePath QueuePath;
+        const TTablePath QueuePath;
         const TQueueSnapshotPtr QueueSnapshot;
         //! NB: Modified in process of the session.
         TQueueTrimContext Context;
@@ -1209,10 +1209,10 @@ private:
         const IObjectStore* ObjectStore;
         NLogging::TLogger Logger;
 
-        THashMap<TConsumerPath, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
+        THashMap<TConsumerReference, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
 
         TQueueTrimSession(
-            TQueuePath queuePath,
+            TTablePath queuePath,
             TQueueSnapshotPtr queueSnapshot,
             TQueueTrimContext context,
             TTimestamp currentTimestamp,
@@ -1278,7 +1278,7 @@ private:
         //! Collects vital consumer snapshots from queue consumer registrations and validates error-correctness.
         void CollectVitalConsumerSubSnapshots()
         {
-            auto registrations = ObjectStore->GetRegistrations(TGenericObjectPath(QueuePath), EObjectKind::Queue);
+            auto registrations = ObjectStore->GetRegistrations(TGenericObjectReference(QueuePath), EObjectKind::Queue);
 
             VitalConsumerSubSnapshots.reserve(registrations.size());
             for (const auto& registration : registrations) {
@@ -1309,7 +1309,7 @@ private:
                         consumerSnapshot->Row.Path)
                         << consumerSubSnapshot->Error;
                 }
-                VitalConsumerSubSnapshots[consumerSnapshot->Row.Path] = consumerSubSnapshot;
+                VitalConsumerSubSnapshots[TConsumerReference(consumerSnapshot->Row.Path)] = consumerSubSnapshot;
             }
 
             if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {

@@ -74,7 +74,7 @@ private:
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TQueueTableRow
 {
-    TQueuePath Path;
+    TTablePath Path;
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
@@ -96,7 +96,7 @@ struct TQueueTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
-        const TQueuePath& queue,
+        const TTablePath& queue,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -121,7 +121,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TConsumerTableRow
 {
-    TConsumerPath Path;
+    TTablePath Path;
     std::optional<TRowRevision> RowRevision;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
@@ -138,7 +138,7 @@ struct TConsumerTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
-        const TConsumerPath& consumer,
+        const TTablePath& consumer,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -163,7 +163,7 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 struct TQueueAgentObjectMappingTableRow
 {
-    TGenericObjectPath Object;
+    TGenericObjectReference Object;
     std::string QueueAgentHost;
 };
 
@@ -175,7 +175,7 @@ class TQueueAgentObjectMappingTable
 public:
     TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
 
-    static THashMap<TGenericObjectPath, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
+    static THashMap<TGenericObjectReference, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
@@ -184,8 +184,8 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
 
 struct TConsumerRegistrationTableRow
 {
-    TQueuePath Queue;
-    TConsumerPath Consumer;
+    TTablePath Queue;
+    TConsumerReference Consumer;
     //! If true, this consumer will be considered in automatic trimming performed by queue agents for this queue.
     bool Vital;
 
