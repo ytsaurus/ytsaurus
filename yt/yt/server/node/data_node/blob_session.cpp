@@ -706,6 +706,11 @@ TFuture<void> TBlobSession::PreparePutBlocks(
 
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
+            if (slot.State == ESlotState::Released) {
+                YT_LOG_WARNING("Skipped already flushed block (Block: %v)", blockIndex);
+                continue;
+            }
+
             if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
                 YT_LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
                 continue;
