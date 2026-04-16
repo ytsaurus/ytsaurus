@@ -1,6 +1,6 @@
 #pragma once
 
-#include "global.h"
+#include "events.h"
 
 #include <contrib/ydb/core/base/row_version.h>
 #include <contrib/ydb/core/persqueue/pqtablet/blob/blob.h>
@@ -12,6 +12,8 @@
 #include <contrib/ydb/core/persqueue/public/partition_key_range/partition_key_range.h>
 #include <contrib/ydb/core/persqueue/public/counters/percentile_counter.h>
 #include <contrib/ydb/core/persqueue/public/write_id.h>
+#include <contrib/ydb/core/protos/msgbus.pb.h>
+#include <contrib/ydb/core/protos/msgbus_pq.pb.h>
 #include <contrib/ydb/core/tablet/tablet_counters.h>
 #include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 
@@ -19,8 +21,12 @@
 #include <contrib/ydb/library/actors/core/event_local.h>
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/core/grpc_services/rpc_calls.h>
+#include <contrib/ydb/public/api/protos/draft/persqueue_error_codes.pb.h>
 #include <contrib/ydb/public/api/protos/persqueue_error_codes_v1.pb.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/topic/control_plane.h>
+
+#include <contrib/ydb/core/persqueue/events/internal/protos/events.pb.h>
+
 #include <util/generic/maybe.h>
 #include <expected>
 
@@ -104,7 +110,7 @@ namespace NPQ {
 
 struct TEvPQ {
     enum EEv {
-        EvWrite = TEvPersQueue::EvInternalEvents,
+        EvWrite = InternalEventSpaceBegin(NPQ::NEvents::EServices::INTERNAL),
         EvRead,
         EvDie,
         EvMonRequest,
@@ -227,6 +233,7 @@ struct TEvPQ {
         EvMLPPurgeResponse,
         EvMLPConsumerStatus,
         EvUpdateReadMetrics,
+        EvMLPUpdateExternalLockedMessageGroupsId,
         EvEnd,
     };
 
@@ -910,6 +917,9 @@ struct TEvPQ {
             Operations.push_back(std::move(operation));
         }
 
+        bool GetSkipSrcIdInfo() const { return SkipSrcIdInfo; }
+        void SetSkipSrcIdInfo(bool value) { SkipSrcIdInfo = value; }
+
         ui64 Step;
         ui64 TxId;
         TVector<NKikimrPQ::TPartitionOperation> Operations;
@@ -917,6 +927,9 @@ struct TEvPQ {
         bool ForcePredicateFalse = false;
 
         NWilson::TSpan Span;
+
+    private:
+        bool SkipSrcIdInfo = false;
     };
 
     struct TEvTxCalcPredicateResult : public TEventLocal<TEvTxCalcPredicateResult, EvTxCalcPredicateResult> {
@@ -1179,9 +1192,18 @@ struct TEvPQ {
     };
 
     struct TEvGetWriteInfoRequest : public TEventLocal<TEvGetWriteInfoRequest, EvGetWriteInfoRequest> {
-        TActorId OriginalPartition;
+        explicit TEvGetWriteInfoRequest(bool skipSrcIdInfo = false) :
+            SkipSrcIdInfo(skipSrcIdInfo)
+        {
+        }
 
+        bool GetSkipSrcIdInfo() const { return SkipSrcIdInfo; }
+
+        TActorId OriginalPartition;
         NWilson::TSpan Span;
+
+    private:
+        bool SkipSrcIdInfo = false;
     };
 
     struct TEvGetWriteInfoResponse : public TEventLocal<TEvGetWriteInfoResponse, EvGetWriteInfoResponse> {
@@ -1728,6 +1750,18 @@ struct TEvPQ {
             Record.SetPartitionId(partitionId);
             Record.SetMessages(messages);
             Record.SetUseForReading(useForReading);
+        }
+    };
+
+    struct TEvMLPUpdateExternalLockedMessageGroupsId : TEventPB<TEvMLPUpdateExternalLockedMessageGroupsId, NKikimrPQ::TEvMLPUpdateExternalLockedMessageGroupsId, EvMLPUpdateExternalLockedMessageGroupsId> {
+        TEvMLPUpdateExternalLockedMessageGroupsId() = default;
+
+        const TString& GetConsumer() const {
+            return Record.GetConsumer();
+        }
+
+        ui32 GetPartitionId() const {
+            return Record.GetPartitionId();
         }
     };
 };

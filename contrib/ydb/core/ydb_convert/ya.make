@@ -20,6 +20,7 @@ PEERDIR(
     contrib/ydb/core/engine
     contrib/ydb/core/formats/arrow/switch
     yql/essentials/core
+    contrib/ydb/core/persqueue/events
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/util

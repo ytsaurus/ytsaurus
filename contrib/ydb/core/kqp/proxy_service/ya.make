@@ -12,6 +12,7 @@ SRCS(
 PEERDIR(
     library/cpp/protobuf/interop
     library/cpp/protobuf/json
+    library/cpp/string_utils/quote
     contrib/ydb/core/actorlib_impl
     contrib/ydb/core/base
     contrib/ydb/core/cms/console

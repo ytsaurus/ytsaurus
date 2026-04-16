@@ -1,5 +1,6 @@
 RECURSE_FOR_TESTS(
     ut_auditsettings
+    ut_topic_cloud_events
     ut_background_cleaning
     ut_backup
     ut_backup_collection
@@ -217,6 +218,7 @@ SRCS(
     schemeshard__operation_move_tables.cpp
     schemeshard__operation_part.cpp
     schemeshard__operation_part.h
+    schemeshard__operation_prepare_index_validation.cpp
     schemeshard__operation_restore_backup_collection.cpp
     schemeshard__operation_rmdir.cpp
     schemeshard__operation_rotate_cdc_stream.cpp
@@ -308,6 +310,7 @@ SRCS(
     schemeshard_path_describer.cpp
     schemeshard_path_element.cpp
     schemeshard_path_element.h
+    schemeshard_pq_helpers.cpp
     schemeshard_pq_helpers.h
     schemeshard_schema.h
     schemeshard_self_pinger.cpp
@@ -369,10 +372,12 @@ PEERDIR(
     contrib/ydb/core/persqueue/public
     contrib/ydb/core/persqueue/public/partition_index_generator
     contrib/ydb/core/persqueue/public/partition_key_range
+    contrib/ydb/core/persqueue/public/cloud_events
     contrib/ydb/core/persqueue/writer
     contrib/ydb/core/protos
     contrib/ydb/core/resource_pools
     contrib/ydb/core/scheme
+    contrib/ydb/core/split
     contrib/ydb/core/statistics
     contrib/ydb/core/sys_view/common
     contrib/ydb/core/sys_view/partition_stats
