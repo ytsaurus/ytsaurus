@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(yt-server-multidaemon)
+add_library(server-lib-cypress_proxy)
 
 
-target_compile_options(yt-server-multidaemon PRIVATE
+target_compile_options(server-lib-cypress_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,23 +27,18 @@ target_compile_options(yt-server-multidaemon PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-server-multidaemon PUBLIC
+target_link_libraries(server-lib-cypress_proxy PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-getopt
-  cpp-yt-phdr_cache
   yt-yt-core
-  yt-library-fusion
-  yt-library-program
+  yt-library-dynamic_config
   yt-library-server_program
-  server-lib-cypress_proxy
-  yt-server-master
+  server-lib-cross_cluster_replicated_state
   yt-yt-ytlib
 )
 
-target_sources(yt-server-multidaemon PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/multidaemon/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/multidaemon/program.cpp
+target_sources(server-lib-cypress_proxy PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_proxy/config.cpp
 )
 
