@@ -3,8 +3,9 @@
 #include "private.h"
 
 #include "bootstrap.h"
-#include "config.h"
 #include "helpers.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/sequoia/cypress_proxy_tracker_service_proxy.h>
 

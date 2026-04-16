@@ -1,7 +1,5 @@
 #include "response_keeper.h"
 
-#include "config.h"
-
 #include <yt/yt/server/lib/sequoia/response_keeper.h>
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>

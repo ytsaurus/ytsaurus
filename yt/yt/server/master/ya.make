@@ -459,20 +459,21 @@ PEERDIR(
     yt/yt/server/lib/cell_server
     yt/yt/server/lib/cellar_agent
     yt/yt/server/lib/chunk_server
+    yt/yt/server/lib/cypress_proxy
     yt/yt/server/lib/discovery_server
     yt/yt/server/lib/hive
-    yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/hydra
+    yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/incumbent_client
     yt/yt/server/lib/node_tracker_server
     yt/yt/server/lib/object_server
     yt/yt/server/lib/security_server
+    yt/yt/server/lib/sequoia
     yt/yt/server/lib/table_server
     yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/tablet_server
     yt/yt/server/lib/timestamp_server
     yt/yt/server/lib/transaction_supervisor
-    yt/yt/server/lib/sequoia
 
     # TODO(max42): eliminate.
     yt/yt/server/lib/scheduler
