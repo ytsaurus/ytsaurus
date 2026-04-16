@@ -138,7 +138,7 @@ class TestLayers(TestPortoLayersBase):
 
     @authors("prime")
     @pytest.mark.timeout(150)
-    @pytest.mark.parametrize("volume_type", ["root", "local", "tmpfs"])
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
     def test_corrupted_layer(self, volume_type):
         self.setup_files()
         create("table", "//tmp/t_in")
@@ -186,7 +186,7 @@ class TestLayers(TestPortoLayersBase):
 
     @authors("psushin")
     @pytest.mark.parametrize("layer_compression", ["", ".gz", ".xz"])
-    @pytest.mark.parametrize("volume_type", ["root", "local", "tmpfs"])
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
     def test_one_layer(self, layer_compression, volume_type):
         self.setup_files()
 
@@ -231,7 +231,7 @@ class TestLayers(TestPortoLayersBase):
             assert b"static-bin" in op.read_stderr(job_id)
 
     @authors("psushin")
-    @pytest.mark.parametrize("volume_type", ["root", "local", "tmpfs"])
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
     def test_two_layers(self, volume_type):
         self.setup_files()
 
@@ -291,7 +291,7 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2; cd $YT_ROOT_FS; ls tmpfs local 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2; cd $YT_ROOT_FS; ls tmpfs local_disk 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -315,7 +315,7 @@ class TestLayers(TestPortoLayersBase):
                                 },
                             ],
                             "disk_request": {
-                                "type": "local",
+                                "type": "local_disk",
                                 "disk_space": 1024 * 1024
                             }
                         }
@@ -327,7 +327,7 @@ class TestLayers(TestPortoLayersBase):
                         },
                         {
                             "volume_id": "2",
-                            "mount_path": "local"
+                            "mount_path": "local_disk"
                         }
                     ],
                 },
@@ -340,12 +340,12 @@ class TestLayers(TestPortoLayersBase):
             stderr = op.read_stderr(job_id)
             assert b"static-bin" in stderr
             assert b"tmpfs" in stderr
-            assert b"local" in stderr
+            assert b"local_disk" in stderr
             assert b"test" in stderr
 
     @authors("krasovav")
-    @pytest.mark.parametrize("outer", ["local", "tmpfs"])
-    @pytest.mark.parametrize("inner", ["tmpfs", "local"])
+    @pytest.mark.parametrize("outer", ["local_disk", "tmpfs"])
+    @pytest.mark.parametrize("inner", ["tmpfs", "local_disk"])
     def test_two_volumes_with_layers_inside_each_other(self, outer, inner):
         self.setup_files()
 
@@ -409,7 +409,7 @@ class TestLayers(TestPortoLayersBase):
             assert b"test" in stderr
 
     @authors("psushin")
-    @pytest.mark.parametrize("volume_type", ["root", "local", "tmpfs"])
+    @pytest.mark.parametrize("volume_type", ["root", "local_disk", "tmpfs"])
     def test_bad_layer(self, volume_type):
         self.setup_files()
 

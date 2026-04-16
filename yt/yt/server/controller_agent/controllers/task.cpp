@@ -545,7 +545,7 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
                 continue;
             }
 
-            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
                 attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
                 attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
@@ -2247,7 +2247,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
                 continue;
             }
 
-            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 resultWithQuota.DiskQuota() = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             }
         }

@@ -1166,7 +1166,7 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
     volumeProperties["layers"] = builder.Flush();
 
     TVolumeMeta volumeMeta;
-    volumeMeta.set_type(ToProto(EVolumeType::Local));
+    volumeMeta.set_type(ToProto(EVolumeType::LocalDisk));
 
     for (const auto& volumeOrLayer : overlayDataArray) {
         YT_ASSERT(!volumeOrLayer.GetPath().empty());
@@ -1199,7 +1199,7 @@ TVolumeMeta TLayerLocation::DoCreateSquashFSVolume(
     };
 
     TVolumeMeta volumeMeta;
-    volumeMeta.set_type(ToProto(EVolumeType::Local));
+    volumeMeta.set_type(ToProto(EVolumeType::LocalDisk));
     volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
     volumeMeta.add_layer_paths(squashFSFilePath);
 
@@ -1232,7 +1232,7 @@ TVolumeMeta TLayerLocation::DoCreateLoopVolume(
     }
 
     TVolumeMeta volumeMeta;
-    volumeMeta.set_type(ToProto(EVolumeType::Local));
+    volumeMeta.set_type(ToProto(EVolumeType::LocalDisk));
 
     return DoCreateVolume(
         tag,
