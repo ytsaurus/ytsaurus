@@ -592,7 +592,7 @@ private:
         {
             auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
             if (!guard) {
-                return;
+                break;
             }
 
             ++totalCount;
