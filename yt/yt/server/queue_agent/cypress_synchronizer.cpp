@@ -166,14 +166,14 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
-                        TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(QueueRows.back());
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
-                        TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(ConsumerRows.back());
@@ -204,7 +204,7 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Path = TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
@@ -212,7 +212,7 @@ private:
                     break;
                 case ECypressSyncObjectKind::Consumer: {
                     ConsumerRows.push_back({
-                        .Path = TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
@@ -260,7 +260,7 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Path = TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -268,7 +268,7 @@ private:
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back({
-                        .Path = TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)),
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -311,10 +311,10 @@ private:
         {
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
-                    QueueRows.emplace_back(TQueuePath(object.Path, *MakeAttributesWithCluster(cluster)));
+                    QueueRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Consumer:
-                    ConsumerRows.emplace_back(TConsumerPath(object.Path, *MakeAttributesWithCluster(cluster)));
+                    ConsumerRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Unknown:
                     // NB(apachee): Cypress sync object kind must be known at this point.

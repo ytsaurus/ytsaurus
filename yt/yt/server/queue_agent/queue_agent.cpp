@@ -68,9 +68,13 @@ std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(cons
     return {};
 }
 
-std::optional<TReplicatedTableMappingTableRow> GetReplicatedTableMappingRow(const THashMap<TTablePath, TReplicatedTableMappingTableRow>& replicatedTableMapping, const TGenericObjectPath& ref)
-{
-    return GetReplicatedTableMappingRow(replicatedTableMapping, ToTablePath(ref));
+template <typename TPath, typename T>
+THashMap<TPath, T> GetHashTable(const std::vector<T>& rowList) {
+    THashMap<TPath, T> result;
+    for (const auto& row : rowList) {
+        result.emplace(row.Path, row);
+    }
+    return result;
 }
 
 } // namespace
@@ -151,22 +155,22 @@ public:
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
-        TGenericObjectPath objectPath{key.data()};
+        TGenericObjectReference ref{key.data()};
 
         const auto& objectToHost = Owner_->ObjectToHost_;
-        auto objectToHostIt = objectToHost.find(objectPath);
+        auto objectToHostIt = objectToHost.find(ref);
         if (objectToHostIt == objectToHost.end()) {
             THROW_ERROR_EXCEPTION(
                 NQueueClient::EErrorCode::QueueAgentObjectIsNotMapped,
                 "Object %Qv is not mapped to any queue agent",
-                objectPath);
+                ref);
         }
 
-        if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(objectPath)) {
+        if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(ref)) {
             // NB(apachee): It is possible to try to access queue using consumers orchid (and vice versa), e.g.
             // //queue_agent/consumers/<queue>, and previously that would've let to redirect, but
             // this condition short-circuits resolving of such paths.
-            THROW_ERROR_EXCEPTION("Type of the object %Qv does not match with the path used", objectPath);
+            THROW_ERROR_EXCEPTION("Type of the object %Qv does not match with the path used", ref);
         }
 
         const auto& objectAgentId = objectToHostIt->second;
@@ -176,7 +180,7 @@ public:
                 auto error = TError(
                     NQueueClient::EErrorCode::QueueAgentRetriableError,
                     "Object %v is not available from instance %v",
-                    objectPath,
+                    ref,
                     Owner_->AgentId_)
                     << TErrorAttribute("cached_object_agent_id", objectAgentId);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unavailable, retry later")
@@ -189,9 +193,9 @@ public:
 
         const auto& objectMap = Owner_->Objects_[ObjectKind_];
 
-        auto it = objectMap.find(objectPath);
+        auto it = objectMap.find(ref);
         if (it == objectMap.end()) {
-            THROW_ERROR_EXCEPTION("Object %Qv is missing", objectPath);
+            THROW_ERROR_EXCEPTION("Object %Qv is missing", ref);
         }
 
         return IYPathService::FromProducer(BIND(&IObjectController::BuildOrchid, it->second.Controller));
@@ -513,28 +517,28 @@ void TQueueAgent::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
-TQueueSnapshotConstPtr TQueueAgent::FindQueueSnapshot(TQueuePath objectPath) const
+TQueueSnapshotConstPtr TQueueAgent::FindQueueSnapshot(const TTablePath& path) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ObjectLock_);
 
     const auto& objectMap = Objects_[EObjectKind::Queue];
-    if (auto it = objectMap.find(TGenericObjectPath(objectPath)); it != objectMap.end()) {
+    if (auto it = objectMap.find(TGenericObjectReference(path)); it != objectMap.end()) {
         return DynamicPointerCast<const TQueueSnapshot>(it->second.Controller->GetLatestSnapshot());
     }
 
     return nullptr;
 }
 
-TConsumerSnapshotConstPtr TQueueAgent::FindConsumerSnapshot(TConsumerPath objectPath) const
+TConsumerSnapshotConstPtr TQueueAgent::FindConsumerSnapshot(const TConsumerReference& ref) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ObjectLock_);
 
     const auto& objectMap = Objects_[EObjectKind::Consumer];
-    if (auto it = objectMap.find(objectPath); it != objectMap.end()) {
+    if (auto it = objectMap.find(ref); it != objectMap.end()) {
         return DynamicPointerCast<const TConsumerSnapshot>(it->second.Controller->GetLatestSnapshot());
     }
 
@@ -547,7 +551,7 @@ NYTree::IYPathServicePtr TQueueAgent::GetObjectService(EObjectKind objectKind) c
 }
 
 std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
-    TGenericObjectPath objectPath,
+    const TGenericObjectReference& objectPath,
     EObjectKind objectKind) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -637,19 +641,11 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         objectMappingRows.size(),
         replicatedTableMappingRows.size());
 
-    auto getHashTable = [] <class T>(const std::vector<T>& rowList) {
-        THashMap<decltype(T::Path), T> result;
-        for (const auto& row : rowList) {
-            result.emplace(row.Path, row);
-        }
-        return result;
-    };
-
-    auto allQueues = getHashTable(queueRows);
-    auto allConsumers = getHashTable(consumerRows);
+    auto allQueues = GetHashTable<TTablePath>(queueRows);
+    auto allConsumers = GetHashTable<TConsumerReference>(consumerRows);
 
     auto getObjectsWithOurStage = [&, this] <class T>(const std::vector<T>& rowList) {
-        THashSet<TGenericObjectPath> result;
+        THashSet<TGenericObjectReference> result;
         for (const auto& row : rowList) {
             if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
                 continue;
@@ -666,7 +662,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     auto objectMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);
 
     // Mapping from refs for replicated objects to their meta-rows with information about potential replicas.
-    auto replicatedTableMapping = getHashTable(replicatedTableMappingRows);
+    auto replicatedTableMapping = GetHashTable<TTablePath>(replicatedTableMappingRows);
 
     // Filter only those queues and consumers for which our queue agent is responsible.
 
@@ -681,7 +677,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
             }
 
             // NB: We don't need to check the object's stage, since the object to host mapping only contains objects for our stage.
-            auto it = objectMapping.find(TGenericObjectPath(row.Path));
+            auto it = objectMapping.find(TGenericObjectReference(row.Path));
             return it == objectMapping.end() || it->second != AgentId_;
         }), rowList.end());
     };
@@ -709,7 +705,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
         for (const auto& row : rows) {
             YT_LOG_TRACE("Processing row (Kind: %v, Row: %v)", objectKind, ConvertToYsonString(row, EYsonFormat::Text).ToString());
-            TGenericObjectPath ref(row.Path);
+            TGenericObjectReference ref(row.Path);
             auto& freshObject = freshObjects[objectKind][ref];
             auto& controller = freshObject.Controller;
 
@@ -752,21 +748,21 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         updateControllers(EObjectKind::Consumer, leaderConsumerRows, UpdateConsumerController, /*leading*/ true);
     }
 
-    auto ledQueues = getHashTable(leaderQueueRows);
-    auto ledConsumers = getHashTable(leaderConsumerRows);
+    auto ledQueues = GetHashTable<TTablePath>(leaderQueueRows);
+    auto ledConsumers = GetHashTable<TConsumerReference>(leaderConsumerRows);
 
-    THashMap<TQueuePath, TQueueTableRow> followedQueues;
-    THashMap<TConsumerPath, TConsumerTableRow> followedConsumers;
+    THashMap<TTablePath, TQueueTableRow> followedQueues;
+    THashMap<TConsumerReference, TConsumerTableRow> followedConsumers;
 
     // Then, collect follower objects from registrations.
     // NB: Follower objects can be from stages other than ours, since consumers from one stage can be registered for queues from another.
 
     // Checks that the given object is known to the QA and skips objects which are led by this QA.
-    auto addFollowedObject = [] (const auto& ref, auto& allObjects, auto& ledObjects, auto& followedObjects) {
-        auto allObjectsIt = allObjects.find(ref);
-        auto ledObjectsIt = ledObjects.find(ref);
+    auto addFollowedObject = [] (const auto& path, auto& allObjects, auto& ledObjects, auto& followedObjects) {
+        auto allObjectsIt = allObjects.find(path);
+        auto ledObjectsIt = ledObjects.find(path);
         if (allObjectsIt != allObjects.end() && ledObjectsIt == ledObjects.end()) {
-            followedObjects.emplace(ref, allObjectsIt->second);
+            followedObjects.emplace(path, allObjectsIt->second);
         }
     };
 
@@ -780,11 +776,11 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         }
     }
 
-    auto addFollowedReplicas = [&] (const std::vector<TQueuePath>& queuePaths) {
+    auto addFollowedReplicas = [&] (const std::vector<TTablePath>& queuePaths) {
         for (const auto& queue : queuePaths) {
             if (auto replicatedTableMappingRow = GetReplicatedTableMappingRow(replicatedTableMapping, queue)) {
                 for (const auto& queueReplica : replicatedTableMappingRow->GetReplicas()) {
-                    addFollowedObject(TQueuePath(queueReplica), allQueues, ledQueues, followedQueues);
+                    addFollowedObject(TTablePath(queueReplica), allQueues, ledQueues, followedQueues);
                 }
             }
         }
@@ -808,12 +804,12 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     // Then, put fresh registrations into fresh objects (both leading and following).
 
     for (const auto& registration : registrationRows) {
-        auto appendRegistration = [&] (TObjectMap& objectMap, const TGenericObjectPath& objectPath) {
+        auto appendRegistration = [&] (TObjectMap& objectMap, const TGenericObjectReference& objectPath) {
             if (auto it = objectMap.find(objectPath); it != objectMap.end()) {
                 it->second.Registrations.push_back(registration);
             }
         };
-        appendRegistration(freshObjects[EObjectKind::Queue], TGenericObjectPath(registration.Queue));
+        appendRegistration(freshObjects[EObjectKind::Queue], TGenericObjectReference(registration.Queue));
         appendRegistration(freshObjects[EObjectKind::Consumer], registration.Consumer);
     }
 
@@ -859,7 +855,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     auto updateRows = [&] (EObjectKind objectKind, const auto& rows) {
         for (const auto& row : rows) {
             // Existence of a key in the map is guaranteed by updateControllers.
-            const auto& object = GetOrCrash(Objects_[objectKind], TGenericObjectPath(row.Path));
+            const auto& object = GetOrCrash(Objects_[objectKind], TGenericObjectReference(row.Path));
             object.Controller->OnRowUpdated(row);
             object.Controller->OnReplicatedTableMappingRowUpdated(GetReplicatedTableMappingRow(replicatedTableMapping, row.Path));
         }

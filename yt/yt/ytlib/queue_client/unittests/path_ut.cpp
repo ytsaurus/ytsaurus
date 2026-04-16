@@ -34,9 +34,9 @@ TEST(TQueueClientPathTest, CrossClusterReference)
     EXPECT_EQ(crossClusterRef, ToCrossClusterReference(tablePath));
 
     path.SetQueueConsumerName("my_id");
-    TConsumerPath consumerPath(path);
+    TConsumerReference consumerRef(path);
 
-    EXPECT_EQ(crossClusterRef, ToCrossClusterReference(consumerPath));
+    EXPECT_EQ(crossClusterRef, ToCrossClusterReference(consumerRef));
 }
 
 TEST(TQueueClientPathTest, FromCrossClusterReferenceString)
@@ -59,24 +59,24 @@ TEST(TQueueClientPathTest, StringRoundConversion)
     EXPECT_EQ(TTablePath(ToString(tablePath)), tablePath);
 
     path.SetQueueConsumerName("my_id");
-    TConsumerPath consumerPath(path);
-    EXPECT_EQ(ToString(consumerPath), "<\"cluster\"=\"cluster_1\";\"queue_consumer_name\"=\"my_id\";>//my/path");
-    EXPECT_EQ(TConsumerPath(ToString(consumerPath)), consumerPath);
+    TConsumerReference consumerRef(path);
+    EXPECT_EQ(ToString(consumerRef), "<\"cluster\"=\"cluster_1\";\"queue_consumer_name\"=\"my_id\";>//my/path");
+    EXPECT_EQ(TConsumerReference(ToString(consumerRef)), consumerRef);
 }
 
 TEST(TQueueClientPathTest, BadObjects)
 {
     TRichYPath path("//my/path");
     EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
-    EXPECT_THROW(Y_UNUSED(TConsumerPath(path)), TErrorException);
+    EXPECT_THROW(Y_UNUSED(TConsumerReference(path)), TErrorException);
 
     path.SetCluster("cluster_1");
     EXPECT_NO_THROW(Y_UNUSED(TTablePath(path)));
-    EXPECT_NO_THROW(Y_UNUSED(TConsumerPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference(path)));
 
     path.SetForeign(true);
     EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
-    EXPECT_THROW(Y_UNUSED(TConsumerPath(path)), TErrorException);
+    EXPECT_THROW(Y_UNUSED(TConsumerReference(path)), TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
