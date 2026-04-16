@@ -6,13 +6,16 @@ import os.path
 import pytest
 
 import yatest.common
-import library.python.ydb.federated_topic_client as fedydb
-
-import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 
 import contrib.ydb.library.yql.tools.solomon_emulator.client.client as solomon_client
 
+import library.python.ydb.federated_topic_client as federated_topic_client
+
+import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
+
 from library.python.port_manager import PortManager
+
+from contextlib import closing
 
 from yt.environment.helpers import assert_items_equal
 from yt.wrapper.flow_commands import PipelineState
@@ -38,11 +41,102 @@ LOGBROKER_FEDERATION_RECIPE_BINARY = yatest.common.binary_path(
 ENV_FILE = yatest.common.work_path("env.json.txt")
 
 
+def has_logbroker_federation():
+    return os.getenv("CM_PORT") is not None
+
+
+def get_logbroker_endpoint(cluster):
+    return f"localhost:{os.getenv(f'{cluster}_port')}"
+
+
+class LogbrokerClient:
+    # By default logbroker federation recipe creates two clusters named 'cluster_a' and 'cluster_b'
+    # and two accounts named `prod` and `test`.
+    # Each account also already contains 1 topic and 1 consumer named `topic` and `consumer` correspondingly.
+    LOGBROKER_CLUSTER = "cluster_a"
+    LOGBROKER_ACCOUNT = "test"
+    LOGBROKER_DATABASE = "/Root/logbroker-federation/" + LOGBROKER_ACCOUNT
+    LOGBROKER_TOPIC = "topic"
+
+    def __init__(self, endpoint, database, cm, test_id):
+        self._endpoint = endpoint
+        self._database = database
+        self._cm = cm
+        self._test_id = test_id
+
+        self._federation_driver = federated_topic_client.FederationDriver(
+            endpoint, database
+        )
+
+        self._federation_driver.wait_init()
+
+        self._created_topics = []
+        self._topic_index_generator = itertools.count()
+
+    @property
+    def endpoint(self):
+        return self._endpoint
+
+    @property
+    def database(self):
+        return self._database
+
+    @property
+    def cm(self):
+        return self._cm
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def create_topic(self):
+        topic_index = next(self._topic_index_generator)
+        topic_path = self._test_id + "." + self.LOGBROKER_TOPIC + str(topic_index)
+        full_topic_path = self.LOGBROKER_ACCOUNT + "/" + topic_path
+        self._cm.exec_request((
+            cm_requests.request_create_topic(full_topic_path),
+        ))
+
+        self._created_topics.append(full_topic_path)
+
+        return topic_path
+
+    def create_topic_writer(self, topic_path):
+        return self._federation_driver.topic_writer(topic=topic_path)
+
+    def create_topic_reader(self, topic_path, consumer):
+        return self._federation_driver.topic_reader(topic=topic_path, consumer=consumer)
+
+    def close(self):
+        if self._created_topics:
+            self._cm.exec_request(tuple(
+                cm_requests.request_remove_topic(topic) for topic in self._created_topics
+            ))
+
+        self._federation_driver.close()
+
+
 def load_env():
     with open(ENV_FILE, "r") as env_file:
         for line in env_file:
             for key, value in json.loads(line.strip()).items():
                 os.environ[key] = value
+
+
+def get_test_id(request):
+    prefix_parts = [
+        request.cls.__name__.lower() if request.cls else "test",
+        request.function.__name__.lower()
+    ]
+
+    if hasattr(request.node, "callspec"):
+        indices = request.node.callspec.indices
+        for param in request.node.callspec.params.keys():
+            prefix_parts.append(str(indices[param]))
+
+    return ".".join(prefix_parts)
 
 
 @pytest.fixture(scope="session")
@@ -65,6 +159,29 @@ def logbroker_federation():
     yatest.common.process.execute(
         command=[LOGBROKER_FEDERATION_RECIPE_BINARY, "stop"] + common_args,
     )
+
+
+@pytest.fixture
+def logbroker_client(request, logbroker_federation):
+    if not has_logbroker_federation():
+        pytest.skip("Logbroker federation is not available")
+
+    cm_port = os.getenv("CM_PORT")
+
+    logbroker_cluster = LogbrokerClient.LOGBROKER_CLUSTER
+    logbroker_endpoint = get_logbroker_endpoint(logbroker_cluster)
+
+    cm = cm_requests.CMApiHelper(f'localhost:{cm_port}')
+
+    test_id = get_test_id(request)
+
+    with LogbrokerClient(
+        endpoint=logbroker_endpoint,
+        database=LogbrokerClient.LOGBROKER_DATABASE,
+        cm=cm,
+        test_id=test_id,
+    ) as client:
+        yield client
 
 
 class TestYtflowBase(TestQueueAgentBase):
@@ -99,11 +216,7 @@ class TestYtflowBase(TestQueueAgentBase):
     # By default logbroker federation recipe creates two clusters named 'cluster_a' and 'cluster_b'
     # and two accounts named `prod` and `test`.
     # Each account also already contains 1 topic and 1 consumer named `topic` and `consumer` correspondingly.
-    LOGBROKER_TOPIC = "topic"
     LOGBROKER_CONSUMER = "consumer"
-    LOGBROKER_ACCOUNT = "test"
-    LOGBROKER_CLUSTER = "cluster_a"
-    LOGBROKER_DATABASE = "/Root/logbroker-federation/" + LOGBROKER_ACCOUNT
     LOGBROKER_COMPRESSION_CODEC = "raw"
     LOGBROKER_COMPRESSION_LEVEL = "0"
 
@@ -112,39 +225,12 @@ class TestYtflowBase(TestQueueAgentBase):
     SOLOMON_SERVICE = "service"
     SOLOMON_CLUSTER = "cluster"
 
-    has_logbroker_federation = False
-
-    def setup_method(self, method):
-        super(TestYtflowBase, self).setup_method(method)
-
-        # NOTE: initialization is in setup_method as session scoped fixture
-        # may be used in not first test
-        cls = type(self)
-        if not cls.has_logbroker_federation:
-            cls.has_logbroker_federation = os.getenv("CM_PORT") is not None
-
-            if cls.has_logbroker_federation:
-                cls.logbroker_endpoint = f"localhost:{os.getenv(f"{cls.LOGBROKER_CLUSTER}_port")}"
-                cls.fed_driver = fedydb.FederationDriver(
-                    cls.logbroker_endpoint,
-                    cls.LOGBROKER_DATABASE
-                )
-                cls.fed_driver.wait_init()
-                cls.cm = cm_requests.CMApiHelper(f'localhost:{os.getenv("CM_PORT")}')
-
     @classmethod
     def setup_class(cls):
         super(TestYtflowBase, cls).setup_class()
 
         cls.solomon_endpoint = f"localhost:{os.getenv("SOLOMON_HTTP_PORT")}"
         solomon_client.config_solomon(response_code=200)
-
-    @classmethod
-    def teardown_class(cls):
-        if cls.has_logbroker_federation:
-            cls.fed_driver.close()
-
-        super(TestYtflowBase, cls).teardown_class()
 
     @classmethod
     def modify_yql_agent_config(cls, config):
@@ -162,12 +248,13 @@ class TestYtflowBase(TestQueueAgentBase):
             )],
         )
 
-        if cls.has_logbroker_federation:
+        if has_logbroker_federation():
+            logbroker_endpoint = get_logbroker_endpoint(LogbrokerClient.LOGBROKER_CLUSTER)
             config['yql_agent']['pq_gateway_config'] = dict(
                 cluster_mapping=[dict(
                     name='logbroker',
-                    endpoint=cls.logbroker_endpoint,
-                    database=cls.LOGBROKER_DATABASE
+                    endpoint=logbroker_endpoint,
+                    database=LogbrokerClient.LOGBROKER_DATABASE,
                 )]
             )
         config['yql_agent']['solomon_gateway_config'] = dict(
@@ -183,53 +270,14 @@ class TestYtflowBase(TestQueueAgentBase):
             yatest.common.binary_path("yt/yql/tests/agent/throwing_udf"),
         ])
 
-    def _get_test_id(self, request):
-        test_id_prefix = [
-            request.cls.__name__.lower(),
-            request.function.__name__.lower()
-        ]
-        if hasattr(request.node, "callspec"):
-            indices = request.node.callspec.indices
-            for param in request.node.callspec.params.keys():
-                test_id_prefix.append(str(indices[param]))
-        return ".".join(test_id_prefix)
-
     @pytest.fixture(autouse=True)
     def setup_yt_utils(self):
         self.yt_table_index_generator = itertools.count()
 
-    @pytest.fixture
-    def create_logbroker_topic(self, request, logbroker_federation):
-        assert self.has_logbroker_federation
-
-        logbroker_topic_index_generator = itertools.count()
-
-        logbroker_topic_prefix = self._get_test_id(request)
-        logbroker_created_topics = []
-
-        def create_topic():
-            topic_idx = next(logbroker_topic_index_generator)
-            topic_path = logbroker_topic_prefix + "." + self.LOGBROKER_TOPIC + str(topic_idx)
-            topic_path_with_account = self.LOGBROKER_ACCOUNT + "/" + topic_path
-            self.cm.exec_request((
-                cm_requests.request_create_topic(topic_path_with_account),
-            ))
-            logbroker_created_topics.append(topic_path_with_account)
-            return topic_path
-
-        yield create_topic
-
-        if not logbroker_created_topics:
-            return
-
-        self.cm.exec_request(tuple(
-            cm_requests.request_remove_topic(topic) for topic in logbroker_created_topics
-        ))
-
     @pytest.fixture()
     def create_solomon_shard(self, request):
         solomon_service_index_generator = itertools.count()
-        solomon_service_prefix = self._get_test_id(request)
+        solomon_service_prefix = get_test_id(request)
         solomon_created_shards = []
 
         def generate_shard_name():
@@ -269,27 +317,24 @@ class TestYtflowBase(TestQueueAgentBase):
     def _assert_yt_table_content(self, table_path, expected_rows):
         assert_items_equal(self._read_yt_table(table_path), expected_rows)
 
-    def _write_logbroker_topic(self, topic_path, data):
-        fed_writer = self.fed_driver.topic_writer(
-            topic=topic_path,
-        )
-        fed_writer.write(data)
-        fed_writer.close()
+    def _write_logbroker_topic(self, topic_path, data, logbroker_client):
+        with closing(logbroker_client.create_topic_writer(topic_path)) as topic_writer:
+            topic_writer.write(data)
 
-    def _read_logbroker_topic(self, topic_path):
-        assert self.has_logbroker_federation
+    def _read_logbroker_topic(self, topic_path, logbroker_client):
+        with closing(
+            logbroker_client.create_topic_reader(topic_path, self.LOGBROKER_CONSUMER)
+        ) as topic_reader:
+            batch = topic_reader.receive_batch()
+            topic_reader.commit_with_ack(batch)
+            return batch.messages
 
-        fed_reader = self.fed_driver.topic_reader(
-            topic=topic_path,
-            consumer=self.LOGBROKER_CONSUMER,
-        )
-        batch = fed_reader.receive_batch()
-        fed_reader.commit_with_ack(batch)
-        fed_reader.close()
-        return batch.messages
+    def _assert_logbroker_topic_content(self, topic_path, expected_data, logbroker_client):
+        actual_data = [
+            lb_data.message.data.decode()
+            for lb_data in self._read_logbroker_topic(topic_path, logbroker_client)
+        ]
 
-    def _assert_logbroker_topic_content(self, topic_path, expected_data):
-        actual_data = [lb_data.message.data.decode() for lb_data in self._read_logbroker_topic(topic_path)]
         assert_items_equal(actual_data, expected_data)
 
     def _assert_solomon_shard_content(self, shard_name, expected_data, sensors={"counter"}):
@@ -374,7 +419,7 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
 
                 client = self.Env.create_client()
 
-                test_id = self._get_test_id(request)
+                test_id = get_test_id(request)
 
                 controller_logs_replicator, worker_logs_replicator = create_flow_logs_replicators(
                     self.PIPELINE_PATH,
@@ -628,9 +673,9 @@ select * from $bad_stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_logbroker_read(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
-        input_topic_path = create_logbroker_topic()
-        self._write_logbroker_topic(input_topic_path, ["a", "b", "c"])
+    def test_logbroker_read(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, ["a", "b", "c"], logbroker_client)
 
         out_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
@@ -653,7 +698,7 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_logbroker_write(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
+    def test_logbroker_write(self, query_tracker, yql_agent, run_query, logbroker_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "Data", "type": "string"},
@@ -665,7 +710,7 @@ select * from $stream;
             {"Data": "EF"},
         ])
 
-        out_topic_path = create_logbroker_topic()
+        out_topic_path = logbroker_client.create_topic()
 
         run_query(f"""
 $stream = select coalesce(Data, "Empty!") as Data from `{input_table_path}`;
@@ -674,11 +719,11 @@ insert into logbroker.`{out_topic_path}`
 select * from $stream;
 """)
 
-        self._assert_logbroker_topic_content(out_topic_path, ["AB", "CD", "EF"])
+        self._assert_logbroker_topic_content(out_topic_path, ["AB", "CD", "EF"], logbroker_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_read_yt_write_yt_logbroker(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
+    def test_read_yt_write_yt_logbroker(self, query_tracker, yql_agent, run_query, logbroker_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "Data", "type": "string"},
@@ -695,7 +740,7 @@ select * from $stream;
                 {"name": "Data", "type": "string"},
             ]),
         ))
-        out_topic_path = create_logbroker_topic()
+        out_topic_path = logbroker_client.create_topic()
 
         run_query(f"""
 $stream = select * from `{input_table_path}`;
@@ -724,20 +769,20 @@ select * from $bad_stream;
         self._assert_yt_table_content(out_table_path, [
             {"Data": "yt"}
         ])
-        self._assert_logbroker_topic_content(out_topic_path, ["logbroker", "logbroker"])
+        self._assert_logbroker_topic_content(out_topic_path, ["logbroker", "logbroker"], logbroker_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_read_logbroker_write_yt_logbroker(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
-        input_topic_path = create_logbroker_topic()
-        self._write_logbroker_topic(input_topic_path, ["yt", "logbroker", "logbroker"])
+    def test_read_logbroker_write_yt_logbroker(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, ["yt", "logbroker", "logbroker"], logbroker_client)
 
         out_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "Data", "type": "string", "required": True},
             ]),
         ))
-        out_topic_path = create_logbroker_topic()
+        out_topic_path = logbroker_client.create_topic()
 
         run_query(f"""
 $stream = select * from logbroker.`{input_topic_path}`;
@@ -765,15 +810,15 @@ select * from $bad_stream;
         self._assert_yt_table_content(out_table_path, [
             {"Data": "yt"}
         ])
-        self._assert_logbroker_topic_content(out_topic_path, ["logbroker", "logbroker"])
+        self._assert_logbroker_topic_content(out_topic_path, ["logbroker", "logbroker"], logbroker_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_many_logbroker_outputs(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
-        input_topic_path = create_logbroker_topic()
-        self._write_logbroker_topic(input_topic_path, [str(i) for i in range(5)])
+    def test_many_logbroker_outputs(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, [str(i) for i in range(5)], logbroker_client)
 
-        out_topics = [create_logbroker_topic() for _ in range(5)]
+        out_topics = [logbroker_client.create_topic() for _ in range(5)]
 
         run_query(f"""
 $stream = select * from logbroker.`{input_topic_path}`;
@@ -794,13 +839,13 @@ $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda
 
 """)
         for idx, out_topic in enumerate(out_topics):
-            self._assert_logbroker_topic_content(out_topic, [f"{idx}"])
+            self._assert_logbroker_topic_content(out_topic, [f"{idx}"], logbroker_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_yt_yt_logbroker_output(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
-        input_topic_path = create_logbroker_topic()
-        self._write_logbroker_topic(input_topic_path, [str(i) for i in range(3)])
+    def test_yt_yt_logbroker_output(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, [str(i) for i in range(3)], logbroker_client)
 
         out_tables = [self._create_yt_table(dict(
             schema=self._make_queue_schema([
@@ -808,7 +853,7 @@ $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda
             ]),
         )) for _ in range(2)]
 
-        out_topic_path = create_logbroker_topic()
+        out_topic_path = logbroker_client.create_topic()
 
         run_query(f"""
 $stream = select * from logbroker.`{input_topic_path}`;
@@ -840,7 +885,7 @@ select * from $stream2;
                 {"Data": f"{idx}"}
             ])
 
-        self._assert_logbroker_topic_content(out_topic_path, ["2"])
+        self._assert_logbroker_topic_content(out_topic_path, ["2"], logbroker_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
@@ -875,10 +920,10 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_remove_system_columns_from_write(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
-        input_topic_path = create_logbroker_topic()
+    def test_remove_system_columns_from_write(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
         input_data = [str(i) for i in range(3)]
-        self._write_logbroker_topic(input_topic_path, input_data)
+        self._write_logbroker_topic(input_topic_path, input_data, logbroker_client)
 
         out_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
@@ -1016,7 +1061,7 @@ select * from $solomon_stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_logbroker_solomon_write(self, query_tracker, yql_agent, run_query, create_logbroker_topic, create_solomon_shard):
+    def test_logbroker_solomon_write(self, query_tracker, yql_agent, run_query, create_solomon_shard, logbroker_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "counter", "type": "uint64"},
@@ -1034,7 +1079,7 @@ select * from $solomon_stream;
         input_data += self._convert_solomon_metrics_to_yt_format(solomon_expected_data)
         self._write_yt_table(input_table_path, input_data)
 
-        out_topic_path = create_logbroker_topic()
+        out_topic_path = logbroker_client.create_topic()
         out_shard_path = create_solomon_shard()
 
         run_query(f"""
@@ -1061,7 +1106,7 @@ insert into solomon.`{out_shard_path}`
 select * from $solomon_stream;
 """)
 
-        self._assert_logbroker_topic_content(out_topic_path, logbroker_expected_data)
+        self._assert_logbroker_topic_content(out_topic_path, logbroker_expected_data, logbroker_client)
         self._assert_solomon_shard_content(out_shard_path, solomon_expected_data)
 
     @authors("artemmashin")
