@@ -586,8 +586,10 @@ items:
           - name: Чтение с удаленных кластеров через RPC Proxy
             href: admin-guide/multiproxy.md
   - name: Release notes
+    when: audience == "public"
     href: admin-guide/releases.md
-  - name: Compatibility of cluster components
+  - name: Совместимость компонент кластера
+    when: audience == "public"
     href: admin-guide/compatibility.md
   - name: FAQ
     href: faq/index.md
