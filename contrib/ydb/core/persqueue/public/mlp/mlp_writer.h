@@ -5,6 +5,7 @@
 #include <contrib/ydb/core/base/tablet_pipecache.h>
 #include <contrib/ydb/core/persqueue/common/actor.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
+#include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/core/persqueue/public/describer/describer.h>
 #include <contrib/ydb/core/util/backoff.h>
 
