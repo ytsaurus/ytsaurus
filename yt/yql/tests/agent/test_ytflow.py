@@ -611,10 +611,10 @@ $lambda = ($row) -> {{
 
 $good_stream, $bad_stream = process `{input_table_path}` using $lambda(TableRow());
 
-insert into `{out_table_good_path}` with truncate
+insert into `{out_table_good_path}`
 select * from $good_stream;
 
-insert into `{out_table_bad_path}` with truncate
+insert into `{out_table_bad_path}`
 select * from $bad_stream;
 """)
 
@@ -714,10 +714,10 @@ $lambda = ($row) -> {{
 
 $good_stream, $bad_stream = process $stream using $lambda(TableRow());
 
-insert into `{out_table_path}` with truncate
+insert into `{out_table_path}`
 select * from $good_stream;
 
-insert into logbroker.`{out_topic_path}` with truncate
+insert into logbroker.`{out_topic_path}`
 select * from $bad_stream;
 """)
 
@@ -734,7 +734,7 @@ select * from $bad_stream;
 
         out_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
-                {"name": "Data", "type": "string"},
+                {"name": "Data", "type": "string", "required": True},
             ]),
         ))
         out_topic_path = create_logbroker_topic()
@@ -755,10 +755,10 @@ $lambda = ($row) -> {{
 
 $good_stream, $bad_stream = process $stream using $lambda(TableRow());
 
-insert into `{out_table_path}` with truncate
+insert into `{out_table_path}`
 select * from $good_stream;
 
-insert into logbroker.`{out_topic_path}` with truncate
+insert into logbroker.`{out_topic_path}`
 select * from $bad_stream;
 """)
 
@@ -790,7 +790,7 @@ $lambda = ($row) -> {{
 
 $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda(TableRow());
 
-{"\n".join([f"""insert into logbroker.`{out_topic_path}` with truncate select * from $stream{idx};""" for idx, out_topic_path in enumerate(out_topics)])}
+{"\n".join([f"""insert into logbroker.`{out_topic_path}` select * from $stream{idx};""" for idx, out_topic_path in enumerate(out_topics)])}
 
 """)
         for idx, out_topic in enumerate(out_topics):
@@ -804,7 +804,7 @@ $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda
 
         out_tables = [self._create_yt_table(dict(
             schema=self._make_queue_schema([
-                {"name": "Data", "type": "string"},
+                {"name": "Data", "type": "string", "required": True},
             ]),
         )) for _ in range(2)]
 
@@ -825,13 +825,13 @@ $lambda = ($row) -> {{
 
 $stream0, $stream1, $stream2 = process $stream using $lambda(TableRow());
 
-insert into `{out_tables[0]}` with truncate
+insert into `{out_tables[0]}`
 select * from $stream0;
 
-insert into `{out_tables[1]}` with truncate
+insert into `{out_tables[1]}`
 select * from $stream1;
 
-insert into logbroker.`{out_topic_path}` with truncate
+insert into logbroker.`{out_topic_path}`
 select * from $stream2;
 """)
 
@@ -862,16 +862,72 @@ select * from $stream2;
         run_query(f"""
 $stream = select value + 1 as value from `{input_table_path}`;
 
-insert into `{out_table_paths[0]}` with truncate
+insert into `{out_table_paths[0]}`
 select * from $stream;
 
-insert into `{out_table_paths[1]}` with truncate
+insert into `{out_table_paths[1]}`
 select * from $stream;
 """)
 
         expected_data = [{"value": row["value"] + 1} for row in input_data]
         for out_table in out_table_paths:
             self._assert_yt_table_content(out_table, expected_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_remove_system_columns_from_write(self, query_tracker, yql_agent, run_query, create_logbroker_topic):
+        input_topic_path = create_logbroker_topic()
+        input_data = [str(i) for i in range(3)]
+        self._write_logbroker_topic(input_topic_path, input_data)
+
+        out_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "Data", "type": "string"},
+            ]),
+        ))
+
+        run_query(f"""
+$stream = select * from logbroker.`{input_topic_path}`;
+
+$lambda = ($row) -> {{
+    return ReplaceMember($row, "Data", $row.Data || "_processed");
+}};
+
+$processed_stream = process $stream using $lambda(TableRow());
+
+insert into `{out_table_path}`
+select * from $processed_stream;
+""")
+
+        self._assert_yt_table_content(out_table_path, [{"Data": data + "_processed"} for data in input_data])
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("column_name", ["Value", "UnexpectedColumnName"])
+    def test_with_truncate(self, query_tracker, yql_agent, run_query, column_name):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "Value", "type": "int64"},
+            ]),
+        ))
+        input_data = [{"Value": value} for value in range(5)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": column_name, "type": "int64"},
+            ]),
+        ))
+
+        run_query(f"""
+$stream = select Value + 1 as Value from `{input_table_path}`;
+
+insert into `{out_table_path}` with truncate
+select * from $stream;
+""")
+
+        expected_data = [{"Value": row["Value"] + 1} for row in input_data]
+        self._assert_yt_table_content(out_table_path, expected_data)
 
 
 class TestYtflowSolomon(TestYtflowBase):
@@ -948,7 +1004,7 @@ $lambda = ($row) -> {{
 
 $yt_stream, $solomon_stream = process $stream using $lambda(TableRow());
 
-insert into `{out_table_path}` with truncate
+insert into `{out_table_path}`
 select * from $yt_stream;
 
 insert into solomon.`{out_shard_path}`
