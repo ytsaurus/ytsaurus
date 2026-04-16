@@ -432,6 +432,12 @@ private:
             ProbationExecutor_->Start();
         }
 
+        ~TWrappedParticipant()
+        {
+            // ProbationExecutor_ owns this instance via MakeWeak
+            YT_UNUSED_FUTURE(ProbationExecutor_->Stop());
+        }
+
         TCellId GetCellId() const
         {
             return CellId_;
