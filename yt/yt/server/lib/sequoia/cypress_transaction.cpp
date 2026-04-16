@@ -59,6 +59,22 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ELockType GetTransactionsTableSharedLockMode(const ISequoiaTransactionPtr& transaction)
+{
+    auto useSharedWriteLocks = transaction->GetFeatures().UseSharedWriteLocksForCypressTransactions;
+
+    // NB: YT_ASSERT() instead of YT_VERIFY() is intentional here. It's better
+    // to use wrong lock type than crash master server.
+    YT_ASSERT(useSharedWriteLocks);
+
+    // For compatibility reasons shared write locks are used by default.
+    return useSharedWriteLocks.value_or(true)
+        ? ELockType::SharedWrite
+        : ELockType::SharedStrong;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Helpers.
 
 template <class T>
@@ -587,6 +603,8 @@ public:
 
     void Run()
     {
+        auto lockType = GetTransactionsTableSharedLockMode(SequoiaTransaction_);
+
         auto transactionActionData = MakeTransactionActionData(Action_);
         for (auto cellTag : CellTags_) {
             SequoiaTransaction_->AddTransactionAction(cellTag, transactionActionData);
@@ -597,7 +615,7 @@ public:
                         .Key = {.TransactionId = transactionId, .CellTag = cellTag},
                         .Dummy = 0,
                     },
-                    ELockType::SharedWrite);
+                    lockType);
             }
         }
     }
@@ -911,11 +929,11 @@ class TSequoiaMutation
     : public TRefCounted
 {
 public:
-    TFuture<TResult> Apply()
+    TFuture<TResult> Apply(TSequoiaTransactionFeatures features)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return BIND(&TSequoiaMutation::DoApply, MakeStrong(this))
+        return BIND(&TSequoiaMutation::DoApply, MakeStrong(this), features)
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -980,7 +998,7 @@ private:
     const TStringBuf Description_;
     const std::string Title_;
 
-    TFuture<TResult> DoApply()
+    TFuture<TResult> DoApply(TSequoiaTransactionFeatures features)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -1002,6 +1020,7 @@ private:
                     // should be already visible thanks to transaction
                     // sequencer.
                     .SuppressStronglyOrderedTransactionBarrier = true,
+                    .Features = std::move(features),
                 })
             .AsUnique().Apply(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
@@ -1282,13 +1301,9 @@ private:
             return MakeFuture<std::vector<TTransactionId>>({});
         }
 
-        // Shared read lock prevents concurrent parent transaction commit or
-        // abort but still allows to start another nested transaction
-        // concurrently.
-        // NB: it's actually a shared read lock but
         SequoiaTransaction_->LockRow(
             NRecords::TTransactionKey{.TransactionId = ParentId_},
-            ELockType::SharedWrite);
+            GetTransactionsTableSharedLockMode(SequoiaTransaction_));
 
         const auto& idMapping = NRecords::TTransactionDescriptor::Get()->GetIdMapping();
         return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
@@ -1329,8 +1344,9 @@ private:
 
         ValidateTransactionAncestors(records);
 
+        auto lockType = GetTransactionsTableSharedLockMode(SequoiaTransaction_);
         for (const auto& record : records) {
-            SequoiaTransaction_->LockRow(record->Key, ELockType::SharedWrite);
+            SequoiaTransaction_->LockRow(record->Key, lockType);
         }
     }
 
@@ -1683,6 +1699,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        auto lockType = GetTransactionsTableSharedLockMode(SequoiaTransaction_);
         for (const auto& transaction : transactionInfos.Transactions) {
             auto transactionId = transaction.first;
 
@@ -1693,7 +1710,7 @@ private:
             // Lock row in the main transaction table to detect concurrent tx commits / aborts.
             SequoiaTransaction_->LockRow(
                 NRecords::TTransactionKey{.TransactionId = transactionId},
-                ELockType::SharedWrite);
+                lockType);
         }
     }
 
@@ -2249,6 +2266,8 @@ private:
             DestinationCellTags_,
             Invoker_);
 
+        auto lockType = GetTransactionsTableSharedLockMode(SequoiaTransaction_);
+
         // NB: replication of transaction T with ancestors (P1, P2, ...) causes
         // replication of these ancestors too. So we don't need to send
         // replication requests for (P1, P2, ...).
@@ -2270,7 +2289,7 @@ private:
 
                 for (const auto& transaction : group) {
                     // To prevent concurrent commit/abort.
-                    SequoiaTransaction_->LockRow(transaction->Key, ELockType::SharedWrite);
+                    SequoiaTransaction_->LockRow(transaction->Key, lockType);
 
                     ToProto(action.add_transaction_ids(), transaction->Key.TransactionId);
                 }
@@ -2294,6 +2313,7 @@ TFuture<TTransactionId> StartCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     NCypressTransactionClient::NProto::TReqStartTransaction* request,
+    TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2303,7 +2323,7 @@ TFuture<TTransactionId> StartCypressTransaction(
         std::move(*request),
         std::move(invoker),
         std::move(logger))
-        ->Apply();
+        ->Apply(std::move(features));
 }
 
 TFuture<void> DoomCypressTransaction(
@@ -2311,6 +2331,7 @@ TFuture<void> DoomCypressTransaction(
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
     const NTransactionServer::NProto::TTransactionFinishRequest& request,
+    TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2321,7 +2342,7 @@ TFuture<void> DoomCypressTransaction(
         request,
         std::move(invoker),
         std::move(logger))
-        ->Apply();
+        ->Apply(std::move(features));
 }
 
 TFuture<TSharedRefArray> AbortCypressTransaction(
@@ -2331,6 +2352,7 @@ TFuture<TSharedRefArray> AbortCypressTransaction(
     bool force,
     TMutationId mutationId,
     bool retry,
+    TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2343,13 +2365,14 @@ TFuture<TSharedRefArray> AbortCypressTransaction(
         retry,
         std::move(invoker),
         std::move(logger))
-        ->Apply();
+        ->Apply(std::move(features));
 }
 
 TFuture<TSharedRefArray> AbortExpiredCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
+    TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2359,7 +2382,7 @@ TFuture<TSharedRefArray> AbortExpiredCypressTransaction(
         transactionId,
         std::move(invoker),
         std::move(logger))
-        ->Apply();
+        ->Apply(std::move(features));
 }
 
 TFuture<TSharedRefArray> CommitCypressTransaction(
@@ -2371,6 +2394,7 @@ TFuture<TSharedRefArray> CommitCypressTransaction(
     TTimestamp commitTimestamp,
     TMutationId mutationId,
     bool retry,
+    TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2385,7 +2409,7 @@ TFuture<TSharedRefArray> CommitCypressTransaction(
         retry,
         std::move(invoker),
         std::move(logger))
-        ->Apply();
+        ->Apply(std::move(features));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2419,6 +2443,7 @@ TFuture<void> ReplicateCypressTransactions(
     std::vector<TTransactionId> transactionIds,
     TTransactionReplicationDestinationCellTagList destinationCellTags,
     TCellId hintCoordinatorCellId,
+    TSequoiaTransactionFeatures features,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2434,7 +2459,7 @@ TFuture<void> ReplicateCypressTransactions(
         std::move(transactionIds),
         std::move(invoker),
         std::move(logger))
-        ->Apply();
+        ->Apply(std::move(features));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

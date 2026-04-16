@@ -465,10 +465,12 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(authenticationIdentity);
     auto nativeAuthenticatedClient = bootstrap->GetNativeConnection()->CreateNativeClient(clientOptions);
 
+    const auto& masterConnector = bootstrap->GetMasterConnector();
     auto sequoiaTransaction = WaitFor(
         StartCypressProxyTransaction(
             sequoiaClient,
             ESequoiaTransactionType::CypressModification,
+            masterConnector->GetSequoiaTransactionFeatures(),
             cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 
@@ -580,6 +582,7 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
         {cypressTransactionId},
         dstCellTags,
         coordinatorCellId,
+        SequoiaTransaction_->GetFeatures(),
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         Logger()))
         .ThrowOnError();

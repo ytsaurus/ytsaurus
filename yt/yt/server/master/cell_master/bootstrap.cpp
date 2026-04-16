@@ -1029,6 +1029,7 @@ void TBootstrap::DoInitialize()
     TabletManager_->Initialize();
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
+    SequoiaManager_->Initialize();
     SchedulerPoolManager_->Initialize();
     CypressProxyTracker_->Initialize();
     GroundUpdateQueueManager_->Initialize();

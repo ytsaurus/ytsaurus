@@ -179,6 +179,16 @@ public:
         return Transaction_->GetId();
     }
 
+    const TSequoiaTransactionOptions& GetOptions() const override
+    {
+        return SequoiaTransactionOptions_;
+    }
+
+    const TSequoiaTransactionFeatures& GetFeatures() const override
+    {
+        return SequoiaTransactionOptions_.Features;
+    }
+
     TTimestamp GetStartTimestamp() const override
     {
         return Transaction_->GetStartTimestamp();
