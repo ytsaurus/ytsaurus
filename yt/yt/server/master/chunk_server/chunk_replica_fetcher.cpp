@@ -459,7 +459,7 @@ public:
             .Apply(BIND([sequoiaChunkIds = std::move(sequoiaChunkIds), result = std::move(result)] (const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError) mutable {
                 if (!sequoiaReplicasOrError.IsOK()) {
                     for (auto chunkId : sequoiaChunkIds) {
-                        EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
+                        result[chunkId] = TError(sequoiaReplicasOrError);
                     }
                     return result;
                 }
