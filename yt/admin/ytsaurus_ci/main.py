@@ -14,7 +14,7 @@ from yt.admin.ytsaurus_ci import ghcr
 from yt.admin.ytsaurus_ci import scenario_processor
 
 
-@click.group()
+@click.group(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.pass_context
 def cli(ctx):
     ctx.ensure_object(dict)
