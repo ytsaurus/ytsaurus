@@ -4,6 +4,7 @@
 #include <contrib/ydb/core/scheme/scheme_tabledefs.h>
 #include <contrib/ydb/core/base/fulltext.h>
 
+#include <yql/essentials/core/yql_expr_type_annotation.h>
 #include <yql/essentials/providers/common/mkql/yql_type_mkql.h>
 #include <contrib/ydb/library/yql/providers/dq/expr_nodes/dqs_expr_nodes.h>
 #include <yql/essentials/core/dq_integration/yql_dq_integration.h>
