@@ -238,7 +238,14 @@ class TestYtflowBase(TestQueueAgentBase):
             ytflow_worker_bin=yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker"),
             gateway_threads=1,
             default_settings=[
-                dict(name='FiniteStreams', value='1'),
+                dict(name='_FiniteStreams', value='1'),
+                dict(name='_UseCpuAwareBalancer', value='false'),
+                dict(name='_ControllerWriteFullLogsToYT', value='true'),
+                dict(name='_ControllerWriteLogsToFile', value='false'),
+                dict(name='_ControllerLogLevel', value='debug'),
+                dict(name='_WorkerWriteLogsToYT', value='true'),
+                dict(name='_WorkerWriteLogsToFile', value='false'),
+                dict(name='_WorkerLogLevel', value='debug'),
                 dict(name='YtPartitionCount', value='1'),
             ],
             cluster_mapping=[dict(
@@ -398,17 +405,8 @@ pragma Ytflow.ControllerMonitoringPort = "{port_manager.get_port()}";
 pragma Ytflow.WorkerRpcPort = "{port_manager.get_port()}";
 pragma Ytflow.WorkerMonitoringPort = "{port_manager.get_port()}";
 pragma Ytflow.ControllerCount = "1";
-pragma Ytflow.UseCpuAwareBalancer = "false";
-
-pragma Ytflow.ControllerWriteFullLogsToYT = "true";
-pragma Ytflow.ControllerWriteLogsToFile = "false";
-pragma Ytflow.ControllerLogLevel = "debug";
 
 pragma Ytflow.WorkerCount = "1";
-
-pragma Ytflow.WorkerWriteLogsToYT = "true";
-pragma Ytflow.WorkerWriteLogsToFile = "false";
-pragma Ytflow.WorkerLogLevel = "debug";
 
 pragma Ytflow.LogbrokerConsumerPath = "{self.LOGBROKER_CONSUMER}";
 pragma Ytflow.LogbrokerWriteCompressionCodec = "{self.LOGBROKER_COMPRESSION_CODEC}";
