@@ -61,6 +61,7 @@
 | `spark.ytsaurus.driver.annotations` | - | Аннотации для операции с драйвером | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Аннотации для операции с экзекьюторами | 2.2.0 |
 | `spark.ytsaurus.driver.operation.parameters` | - | Дополнительные параметры операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.driver.operation.alias` | - | Алиас для операции с драйвером. Алиас должен начинаться с символа `*` | 2.9.0 |
 | `spark.ytsaurus.driver.task.parameters` | - | Дополнительные параметры таски в операции драйвера в формате YSON | 2.6.0 |
 | `spark.ytsaurus.executor.operation.parameters` | - | Дополнительные параметры операции экзекьюторов в формате YSON | 2.6.0 |
 | `spark.ytsaurus.executor.task.parameters` | - | Дополнительные параметры YTsaurus-таска экзекьюторов в формате YSON | 2.6.0 |

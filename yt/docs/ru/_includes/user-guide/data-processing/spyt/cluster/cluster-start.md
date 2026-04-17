@@ -58,7 +58,8 @@ $ spark-launch-yt
 | `--discovery-path` | да | - | Путь к директории для служебных данных на Кипарисе (Discovery path) | - |
 | `--proxy` | нет | Значение из переменной окружения `YT_PROXY` | Адрес {{product-name}} кластера | - |
 | `--pool` | нет | - | Вычислительный пул {{product-name}}, который будет использован для запуска кластера | - |
-| `--operation-alias` | нет | - | Алиас {{product-name}} операции со Spark кластером | - |
+| `--operation-title` | нет | `spark_<username>` | Название {{product-name}} операции со Spark кластером | 2.9.0 |
+| `--operation-alias` | нет | - | Алиас {{product-name}} операции со Spark кластером. Алиас операции должен начинаться с символа `*` | - |
 | `--params` | нет | - | Дополнительные параметры {{product-name}} операции, указываются в виде YSON строки. Подробнее - на странице [конфигурации](../../../../../user-guide/data-processing/spyt/cluster/configuration.md#add) | - |
 | `--spyt-version` | нет | Версия пакета `ytsaurus-spyt` на клиенте | Версия SPYT, которая будет использована для запуска кластера | - |
 | `--preemption-mode` | нет | normal | Режим вытеснения, используемый планировщиком {{product-name}}, допустимые значения 'normal' или 'graceful' | - |
