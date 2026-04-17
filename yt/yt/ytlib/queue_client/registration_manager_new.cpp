@@ -85,8 +85,8 @@ auto GroupBy(F f, std::vector<T> values)
 
 struct TRegistrationCacheKey
 {
-    TQueuePath Queue;
-    TConsumerPath Consumer;
+    TTablePath Queue;
+    TConsumerReference Consumer;
 
     std::strong_ordering operator<=>(const TRegistrationCacheKey&) const = default;
 };
@@ -105,10 +105,10 @@ void FormatValue(TStringBuilderBase* builder, const TRegistrationCacheKey& value
 //! Listing all registrations is forbidden.
 struct TListRegistrationsCacheKey
 {
-    std::optional<TQueuePath> Queue;
-    std::optional<TConsumerPath> Consumer;
+    std::optional<TTablePath> Queue;
+    std::optional<TConsumerReference> Consumer;
 
-    explicit TListRegistrationsCacheKey(std::optional<TQueuePath> queue, std::optional<TConsumerPath> consumer)
+    explicit TListRegistrationsCacheKey(std::optional<TTablePath> queue, std::optional<TConsumerReference> consumer)
         : Queue(std::move(queue))
         , Consumer(std::move(consumer))
     {
@@ -183,6 +183,154 @@ DEFINE_REFCOUNTED_TYPE(TLookupSessionProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(apachee): Create reusable helpers for federated client management across Queue API and Queue Agent.
+class TLookupSessionClientManager
+    : public TRefCounted
+{
+public:
+    TLookupSessionClientManager(
+        TWeakPtr<NNative::IConnection> connection,
+        TLookupSessionConfigPtr config)
+        : Connection_(std::move(connection))
+        , OnClusterUpdatedCallback_(BIND_NO_PROPAGATE(&TLookupSessionClientManager::OnClusterUpdated, MakeWeak(this)))
+        , Config_(std::move(config))
+    { }
+
+    void InitializeRefCounted()
+    {
+        auto localConnection = Connection_.Lock();
+        if (!localConnection) {
+            THROW_ERROR_EXCEPTION("Federated client manager owning connection expired");
+        }
+
+        // Order of initialization explanation:
+        // 1. Update state first, since #OnClusterUpdatedCallback_ might be called after subscribe.
+        // 2. Subscribe before updating client to ensure that client always has "fresh" connections: client is updated either by #OnClusterUpdatedCallback_ or by #UpdateClient that follows.
+        // 3. Finally, update client to ensure it is initialized after manager is constructed.
+
+        {
+            auto guard = Guard(Lock_);
+            UpdateState(guard);
+        }
+
+        localConnection->GetClusterDirectory()->SubscribeOnClusterUpdated(OnClusterUpdatedCallback_);
+
+        auto guard = Guard(Lock_);
+        UpdateClient(guard);
+    }
+
+    IClientPtr GetClientOrThrow() const
+    {
+        return ClientState_
+            .Acquire()
+            ->ClientOrError
+            .ValueOrThrow();
+    }
+
+    void Reconfigure(TLookupSessionConfigPtr newConfig)
+    {
+        auto guard = Guard(Lock_);
+        if (*Config_ == *newConfig) {
+            return;
+        }
+
+        Config_ = std::move(newConfig);
+
+        UpdateState(guard);
+        UpdateClient(guard);
+    }
+
+    ~TLookupSessionClientManager()
+    {
+        auto localConnection = Connection_.Lock();
+        if (!localConnection) {
+            return;
+        }
+
+        localConnection->GetClusterDirectory()->UnsubscribeOnClusterUpdated(OnClusterUpdatedCallback_);
+    }
+
+private:
+    // NB(apachee): A hacky way to use atomics rather than spinlocks for loading/acquiring TErrorOr<IClientPtr>.
+    struct TClientState final
+    {
+        TErrorOr<IClientPtr> ClientOrError;
+    };
+
+    const TWeakPtr<NNative::IConnection> Connection_;
+    const TCallback<void (const std::string&, NYTree::INodePtr)> OnClusterUpdatedCallback_;
+
+    TAtomicIntrusivePtr<TClientState> ClientState_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
+    TLookupSessionConfigPtr Config_;
+    NFederated::TFederationConfigPtr FederationConfig_;
+    TClientOptions ClientOptions_;
+    THashSet<std::string> Clusters_;
+
+    void UpdateState(const TGuard<TSpinLock>& /*guard*/)
+    {
+        FederationConfig_ = Config_->FederationConfig;
+        ClientOptions_ = TClientOptions::FromUser(Config_->User);
+
+        auto clusters = Config_->Table.GetClusters().value_or(std::vector<std::string>{});
+        Clusters_ = THashSet<std::string>(
+            std::make_move_iterator(clusters.begin()),
+            std::make_move_iterator(clusters.end()));
+    }
+
+    void UpdateClient(const TGuard<TSpinLock>& /*guard*/)
+    {
+        TErrorOr<IClientPtr> clientOrError;
+        try {
+            clientOrError = CreateClientOrThrow();
+        } catch (const std::exception& ex) {
+            clientOrError = ex;
+        }
+
+        ClientState_.Store(New<TClientState>(TClientState{
+            .ClientOrError = std::move(clientOrError),
+        }));
+    }
+
+    IClientPtr CreateClientOrThrow() const
+    {
+        auto localConnection = Connection_.Lock();
+        if (!localConnection) {
+            THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
+        }
+
+        auto clientDirectory = New<TClientDirectory>(localConnection->GetClusterDirectory(), ClientOptions_);
+
+        if (Clusters_.empty()) {
+            return localConnection->CreateClient(ClientOptions_);
+        }
+
+        std::vector<IClientPtr> clients;
+        clients.reserve(Clusters_.size());
+        for (const auto& cluster : Clusters_) {
+            clients.push_back(clientDirectory->GetClientOrThrow(cluster));
+        }
+
+        return NFederated::CreateClient(clients, FederationConfig_);
+    }
+
+    void OnClusterUpdated(const std::string& cluster, NYTree::INodePtr /*node*/)
+    {
+        auto guard = Guard(Lock_);
+        if (!Clusters_.contains(cluster)) {
+            return;
+        }
+
+        UpdateClient(guard);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLookupSessionClientManager)
+using TLookupSessionClientManagerPtr = TIntrusivePtr<TLookupSessionClientManager>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(apachee): Refactor helpers to registration_manager_new_detail.h and registration_manager_new_detail.cpp.
 // That would allow to cover helpers with tests.
 
@@ -198,7 +346,7 @@ public:
 
 public:
     TLookupSessionBase(
-        TWeakPtr<NNative::IConnection> connection,
+        TLookupSessionClientManagerPtr clientManager,
         TLookupSessionConfigPtr config,
         std::vector<TCacheKey> keys,
         TLookupSessionProfilingCountersPtr profilingCounters,
@@ -207,7 +355,7 @@ public:
         , Keys_(std::move(keys))
         , ProfilingCounters_(std::move(profilingCounters))
         , Logger(std::move(logger))
-        , Connection_(std::move(connection))
+        , ClientManager_(std::move(clientManager))
     { }
 
     auto Run() const
@@ -234,7 +382,7 @@ public:
 
     std::vector<TLookupResultWrapped> RunGuarded() const
     {
-        auto client = CreateTableClientOrThrow();
+        auto client = ClientManager_->GetClientOrThrow();
         auto table = New<TTable>(Config_->Table.GetPath(), client);
 
         // NB(apachee): Wrap result in TErrorOr in case it isn't already.
@@ -265,36 +413,7 @@ protected:
     virtual std::vector<TLookupResult> DoLookup(TIntrusivePtr<TTable> table) const = 0;
 
 private:
-    inline static const auto FederationConfig_ = New<NFederated::TFederationConfig>();
-
-    const TWeakPtr<NNative::IConnection> Connection_;
-
-    IClientPtr CreateTableClientOrThrow() const
-    {
-        auto localConnection = Connection_.Lock();
-        if (!localConnection) {
-            THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
-        }
-
-        auto clientOptions = NApi::TClientOptions::FromUser(Config_->User);
-
-        const auto& tablePath = Config_->Table;
-        auto clustersOrNull = tablePath.GetClusters();
-        if (!clustersOrNull) {
-            return localConnection->CreateClient(clientOptions);
-        }
-        const auto& clusters = *clustersOrNull;
-
-        auto clientDirectory = New<TClientDirectory>(localConnection->GetClusterDirectory(), clientOptions);
-
-        std::vector<IClientPtr> clients;
-        clients.reserve(clusters.size());
-        for (const auto& readCluster : clusters) {
-            clients.push_back(DynamicPointerCast<IClient>(clientDirectory->GetClientOrThrow(readCluster)));
-        }
-
-        return NFederated::CreateClient(clients, FederationConfig_);
-    }
+    const TLookupSessionClientManagerPtr ClientManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,12 +447,16 @@ public:
         : Connection_(std::move(connection))
         , ProfilingCounters_(std::move(profiler))
         , SessionLogger_(std::move(sessionLogger))
+        , ClientManager_(New<TLookupSessionClientManager>(
+            Connection_,
+            config))
         , Config_(std::move(config))
     { }
 
     void Reconfigure(TLookupSessionConfigPtr newConfig)
     {
-        Config_.Store(std::move(newConfig));
+        Config_.Store(newConfig);
+        ClientManager_->Reconfigure(std::move(newConfig));
     }
 
     TIntrusivePtr<TLookupSession> CreateSession(
@@ -341,7 +464,7 @@ public:
         ELookupReason lookupReason) const
     {
         return New<TLookupSession>(
-            Connection_,
+            ClientManager_,
             Config_.Acquire(),
             std::move(keys),
             ProfilingCounters_.LookupSessionByReason[lookupReason],
@@ -352,6 +475,7 @@ private:
     const TWeakPtr<NNative::IConnection> Connection_;
     const TLookupSessionFactoryProfilingCounters ProfilingCounters_;
     const NLogging::TLogger SessionLogger_;
+    const TLookupSessionClientManagerPtr ClientManager_;
 
     TAtomicIntrusivePtr<TLookupSessionConfig> Config_;
 };
@@ -435,7 +559,7 @@ private:
     }
 
 private:
-    TFuture<THashMap<TQueuePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TTablePath, std::vector<TConsumerRegistrationTableRow>>> ListByQueue(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -464,7 +588,7 @@ private:
             }));
     }
 
-    TFuture<THashMap<TConsumerPath, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
+    TFuture<THashMap<TConsumerReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
             "([%v], [%v]) IN {%v}",
@@ -1192,7 +1316,7 @@ private:
         NYPath::TRichYPath resolvedConsumer) override
     {
         auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-            TTablePath::FromRichYPathSafe(resolvedQueue), TGenericObjectPath::FromRichYPathSafe(resolvedConsumer)
+            TTablePath::FromRichYPathSafe(resolvedQueue), TGenericObjectReference::FromRichYPathSafe(resolvedConsumer)
         )));
 
         if (!resultOrError.IsOK()) {
@@ -1233,7 +1357,7 @@ private:
         // NB(apachee): #TListRegistrationsCache is only used for listing registrations by queue or consumer.
         if (resolvedQueue && resolvedConsumer) {
             auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-                TQueuePath::FromRichYPathSafe(*resolvedQueue), TConsumerPath::FromRichYPathSafe(*resolvedConsumer))));
+                TTablePath::FromRichYPathSafe(*resolvedQueue), TConsumerReference::FromRichYPathSafe(*resolvedConsumer))));
 
             if (!registrationOrError.IsOK() && !registrationOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
                 THROW_ERROR_EXCEPTION(registrationOrError);
@@ -1244,7 +1368,7 @@ private:
                 : std::vector<TConsumerRegistrationTableRow>();
         }
 
-        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(resolvedQueue.transform(TQueuePath::FromRichYPathSafe), resolvedConsumer.transform(TConsumerPath::FromRichYPathSafe))))
+        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(resolvedQueue.transform(TTablePath::FromRichYPathSafe), resolvedConsumer.transform(TConsumerReference::FromRichYPathSafe))))
             .ValueOrThrow();
     }
 

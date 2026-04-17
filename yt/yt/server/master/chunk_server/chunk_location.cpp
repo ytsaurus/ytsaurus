@@ -215,7 +215,7 @@ void TChunkLocation::AddToChunkSealQueue(const TChunkIdWithIndex& replica)
 {
     YT_ASSERT(Node_);
     YT_ASSERT(Node_->ReportedDataNodeHeartbeat());
-    ChunkSealQueue_.insert(replica);
+    ChunkSealQueue_.emplace(replica, 0);
 }
 
 void TChunkLocation::RemoveFromChunkSealQueue(const TChunkIdWithIndex& replica)

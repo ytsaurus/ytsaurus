@@ -8,6 +8,7 @@
 #include "cypress_proxy_object.h"
 #include "cypress_proxy_type_handler.h"
 #include "helpers.h"
+#include "sequoia_manager.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -29,6 +30,7 @@
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
+using namespace NCypressProxy;
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NRpc;
@@ -88,12 +90,16 @@ public:
 
         if (error.IsOK()) {
             response.set_master_reign(ToProto(GetCurrentReign()));
-            response.mutable_limits()->set_max_copiable_subtree_size(MaxCopiableSubtreeSize_.load());
+            response.mutable_limits()->set_max_copiable_subtree_size(MaxCopiableSubtreeSize_.load(std::memory_order::acquire));
             FillSupportedInheritableAttributes(&response);
+
+            const auto& sequoiaManager = Bootstrap_->GetSequoiaManager();
+            auto* transactionFeatures = response.mutable_sequoia_transaction_features();
+            ToProto(transactionFeatures, sequoiaManager->GetSequoiaTransactionFeatures());
         } else {
             YT_LOG_EVENT(
                 Logger,
-                SequoiaEnabled_.load() ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
+                SequoiaEnabled_.load(std::memory_order::acquire) ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
                 error,
                 "Failed to register Cypress proxy");
         }
@@ -138,8 +144,20 @@ public:
 
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(CypressProxy, CypressProxies, TCypressProxyObject);
 
+    const TCypressProxyDynamicConfigPtr& GetDynamicConfig() const override
+    {
+        return DynamicConfig_;
+    }
+
+    void SetDynamicConfig(TCypressProxyDynamicConfigPtr config) override
+    {
+        DynamicConfig_ = std::move(config);
+    }
+
 private:
     const IChannelFactoryPtr ChannelFactory_;
+
+    TCypressProxyDynamicConfigPtr DynamicConfig_ = New<TCypressProxyDynamicConfig>();
 
     // Part of dynamic config to read it from non-automaton thread.
     std::atomic<int> MaxCopiableSubtreeSize_;
@@ -153,6 +171,7 @@ private:
     {
         CypressProxyByAddress_.clear();
         CypressProxyMap_.Clear();
+        DynamicConfig_ = New<TCypressProxyDynamicConfig>();
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -163,6 +182,7 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         CypressProxyMap_.SaveValues(context);
+        Save(context, *DynamicConfig_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -173,6 +193,9 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         CypressProxyMap_.LoadValues(context);
+        if (context.GetVersion() >= EMasterReign::InternCypressProxyConfig) {
+            Load(context, *DynamicConfig_);
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -252,8 +275,9 @@ private:
     {
         const auto& config = Bootstrap_->GetDynamicConfig();
         const auto& cypressManagerConfig = config->CypressManager;
-        MaxCopiableSubtreeSize_.store(cypressManagerConfig->CrossCellCopyMaxSubtreeSize);
-        SequoiaEnabled_.store(config->SequoiaManager->Enable);
+
+        MaxCopiableSubtreeSize_.store(cypressManagerConfig->CrossCellCopyMaxSubtreeSize, std::memory_order::release);
+        SequoiaEnabled_.store(config->SequoiaManager->Enable, std::memory_order::release);
     }
 
     void FillSupportedInheritableAttributes(NProto::TRspHeartbeat* response)

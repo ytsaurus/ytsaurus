@@ -4,11 +4,11 @@
 #include "node_proxy_base.h"
 #endif
 
-#include "action_helpers.h"
 #include "bootstrap.h"
 #include "response_keeper.h"
 #include "sequoia_session.h"
-#include "config.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 

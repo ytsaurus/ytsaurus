@@ -29,20 +29,46 @@ DEFINE_ENUM(EGroupCoordinatorState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicConfigStore final
+{
+public:
+    TDynamicConfigStore()
+        : DynamicConfig_(New<TGroupCoordinatorConfig>())
+    { }
+
+    TGroupCoordinatorConfigPtr GetDynamicConfig() const
+    {
+        return DynamicConfig_.Acquire();
+    }
+
+    void OnDynamicConfigChanged(const TGroupCoordinatorConfigPtr& config)
+    {
+        DynamicConfig_.Store(config);
+    }
+
+private:
+    TAtomicIntrusivePtr<TGroupCoordinatorConfig> DynamicConfig_;
+};
+
+using TDynamicConfigStorePtr = TIntrusivePtr<TDynamicConfigStore>;
+using TDynamicConfigStoreConstPtr = TIntrusivePtr<const TDynamicConfigStore>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGroupCoordinator
     : public IGroupCoordinator
 {
 public:
-    TGroupCoordinator(TGroupId groupId, TGroupCoordinatorConfigPtr config)
+    TGroupCoordinator(TGroupId groupId, TDynamicConfigStoreConstPtr dynamicConfigStore)
         : GroupId_(std::move(groupId))
-        , DynamicConfig_(std::move(config))
+        , DynamicConfigStore_(std::move(dynamicConfigStore))
     { }
 
     TRspJoinGroup JoinGroup(const NKafka::TReqJoinGroup& request, const NLogging::TLogger& logger) override
     {
         auto Logger = logger.WithTag("GroupId: %v", request.GroupId);
 
-        auto rebalanceTimeout = GetDynamicConfig()->RebalanceTimeout;
+        auto rebalanceTimeout = DynamicConfigStore_->GetDynamicConfig()->RebalanceTimeout;
 
         auto checkState = [&] {
             auto state = State_.load();
@@ -211,7 +237,7 @@ public:
         }
 
         TDuration waitDuration = TDuration::Zero();
-        auto rebalanceTimeout = GetDynamicConfig()->RebalanceTimeout;
+        auto rebalanceTimeout = DynamicConfigStore_->GetDynamicConfig()->RebalanceTimeout;
 
         {
             auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
@@ -343,7 +369,7 @@ public:
             joinedMembersIt->second.LastHeartbeat = now;
         }
 
-        auto sessionTimeout = GetDynamicConfig()->SessionTimeout;
+        auto sessionTimeout = DynamicConfigStore_->GetDynamicConfig()->SessionTimeout;
 
         {
             auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
@@ -371,14 +397,9 @@ public:
         return TRspLeaveGroup{};
     }
 
-    void Reconfigure(const TGroupCoordinatorConfigPtr& config) override
-    {
-        DynamicConfig_.Store(config);
-    }
-
 private:
     const TGroupId GroupId_;
-    TAtomicIntrusivePtr<TGroupCoordinatorConfig> DynamicConfig_;
+    TDynamicConfigStoreConstPtr DynamicConfigStore_;
 
     const NLogging::TLogger Logger;
 
@@ -417,20 +438,58 @@ private:
         ++GenerationId_;
         JoinGroupResponsePromise_ = NewPromise<TRspJoinGroup>();
     }
-
-    TGroupCoordinatorConfigPtr GetDynamicConfig() const
-    {
-        return DynamicConfig_.Acquire();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGroupCoordinatorPtr CreateGroupCoordinator(
-    TGroupId groupId,
-    TGroupCoordinatorConfigPtr config)
+class TGroupCoordinatorManager
+    : public IGroupCoordinatorManager
 {
-    return New<TGroupCoordinator>(std::move(groupId), std::move(config));
+public:
+    explicit TGroupCoordinatorManager()
+        : DynamicConfigStore_(New<TDynamicConfigStore>())
+    { }
+
+    std::optional<IGroupCoordinatorPtr> GetGroupCoordinator(const NKafka::TGroupId& groupId) override
+    {
+        auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+        auto groupCoordinatorIt = GroupCoordinators_.find(groupId);
+        if (groupCoordinatorIt != GroupCoordinators_.end()) {
+            return groupCoordinatorIt->second;
+        }
+        return std::nullopt;
+    }
+
+    IGroupCoordinatorPtr GetOrCreateGroupCoordinator(const NKafka::TGroupId& groupId) override
+    {
+        auto guard = WriterGuard(GroupCoordinatorMapLock_);
+        auto groupCoordinatorIt = GroupCoordinators_.find(groupId);
+        if (groupCoordinatorIt != GroupCoordinators_.end()) {
+            return groupCoordinatorIt->second;
+        } else {
+            auto groupCoordinator = New<TGroupCoordinator>(groupId, static_cast<TDynamicConfigStoreConstPtr>(DynamicConfigStore_));
+            GroupCoordinators_[groupId] = groupCoordinator;
+            return groupCoordinator;
+        }
+    }
+
+    void OnDynamicConfigChanged(const TGroupCoordinatorConfigPtr& config) override
+    {
+        DynamicConfigStore_->OnDynamicConfigChanged(config);
+    }
+
+private:
+    TDynamicConfigStorePtr DynamicConfigStore_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, GroupCoordinatorMapLock_);
+    THashMap<TGroupId, IGroupCoordinatorPtr> GroupCoordinators_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IGroupCoordinatorManagerPtr CreateGroupCoordinatorManager()
+{
+    return New<TGroupCoordinatorManager>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,7 +11,6 @@ SRCS(
     config_helpers.cpp
     config_parser.cpp
     config_parser.h
-    driver.h
     factories.h
     factories.cpp
     grpc_servers_manager.h
@@ -56,7 +55,6 @@ PEERDIR(
     contrib/ydb/core/cms/console
     contrib/ydb/core/control
     contrib/ydb/core/counters_info
-    contrib/ydb/core/driver_lib/base_utils
     contrib/ydb/core/driver_lib/cli_config_base
     contrib/ydb/core/driver_lib/cli_utils
     contrib/ydb/core/driver_lib/version

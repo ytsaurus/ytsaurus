@@ -1,7 +1,6 @@
 #pragma once
 #include <contrib/ydb/core/formats/arrow/accessor/abstract/constructor.h>
 #include <contrib/ydb/library/formats/arrow/validation/validation.h>
-#include <contrib/ydb/core/formats/arrow/dictionary/object.h>
 #include <contrib/ydb/core/formats/arrow/save_load/loader.h>
 #include <contrib/ydb/core/formats/arrow/save_load/saver.h>
 #include <contrib/ydb/core/formats/arrow/serializer/abstract.h>

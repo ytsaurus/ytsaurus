@@ -1582,8 +1582,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             } else {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             }
         }
@@ -1669,8 +1669,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         }
 
         if (spec->DiskSpaceLimit) {
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
 
             diskRequest->DiskSpace = *spec->DiskSpaceLimit;
             diskRequest->InodeCount = spec->InodeLimit;

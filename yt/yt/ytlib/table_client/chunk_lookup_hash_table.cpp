@@ -185,6 +185,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     if (chunkFormat != EChunkFormat::TableVersionedSimple &&
         chunkFormat != EChunkFormat::TableVersionedIndexed &&
+        chunkFormat != EChunkFormat::TableVersionedSlim &&
         chunkFormat != EChunkFormat::TableUnversionedSchemalessHorizontal)
     {
         YT_LOG_INFO("Cannot create lookup hash table for improper chunk format "

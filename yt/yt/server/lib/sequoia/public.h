@@ -14,6 +14,7 @@ namespace NProto {
 
 class TReqHeartbeat;
 class TRspHeartbeat;
+class TSequoiaTransactionFeatures;
 
 } // namespace NProto
 

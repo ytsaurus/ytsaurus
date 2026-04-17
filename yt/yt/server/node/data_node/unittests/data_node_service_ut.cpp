@@ -640,7 +640,7 @@ public:
         return ActionQueue_;
     }
 
-    auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks, bool preallocateDiskSpace, bool useDirectIo)
+    auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks, bool preallocateDiskSpace, bool useDirectIo, bool disableSendBlocks = false)
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -649,6 +649,7 @@ public:
         req->set_use_probe_put_blocks(useProbePutBlocks);
         req->set_preallocate_disk_space(preallocateDiskSpace);
         req->set_use_direct_io(useDirectIo);
+        req->set_disable_send_blocks(disableSendBlocks);
         ToProto(req->mutable_session_id(), sessionId);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
 
@@ -1342,6 +1343,47 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
         WaitFor(FinishChunk(sessionIds[i], 0))
             .ThrowOnError();
     }
+}
+
+TEST_P(TWriteTest, DuplicateWrite)
+{
+    auto testCase = GetParam();
+    TRandomGenerator generator{RandomNumber<ui64>()};
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    int blockCount = testCase.BlockCount;
+    int blockSize = testCase.BlockSize;
+
+    auto blocks = CreateBlocks(blockCount, blockSize, generator);
+    WaitFor(StartChunk(sessionId, /*useProbePutBlocks*/ false, testCase.PreallocateDiskSpace, testCase.UseDirectIo, /*disableSendBlocks*/ true))
+        .ThrowOnError();
+
+    auto putBlocks = [&] {
+        auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+
+        std::vector<TFuture<void>> putBlocks(blocks.size() * 2);
+        std::vector<int> indices(blocks.size() * 2);
+        std::iota(std::begin(indices), std::end(indices), 0);
+        std::random_shuffle(std::begin(indices), std::end(indices));
+        for (auto i : indices) {
+            auto blockIndex = i % blocks.size();
+            putBlocks[i] = PutBlocks(sessionId, {blocks[blockIndex]}, blockIndex, cummulativeBlockSize).AsVoid();
+        }
+        WaitFor(AllSucceeded(putBlocks))
+            .ThrowOnError();
+    };
+
+    putBlocks();
+
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+
+    putBlocks();
+
+    WaitFor(FlushBlocks(sessionId, blockCount - 1))
+        .ThrowOnError();
+
+    WaitFor(FinishChunk(sessionId, blockCount))
+        .ThrowOnError();
 }
 
 TEST_P(TWriteTest, RandomWrite)

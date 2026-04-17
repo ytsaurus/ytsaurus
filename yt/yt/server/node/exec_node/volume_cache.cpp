@@ -492,6 +492,7 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
                 device
             ] (const TError& error) {
                 if (!error.IsOK()) {
+                    // Failed to initialize device, finalize it in background.
                     YT_UNUSED_FUTURE(device->Finalize());
                     THROW_ERROR_EXCEPTION("Failed to initialize NBD device")
                         << error;
@@ -609,7 +610,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
             ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     if (auto device = nbdServer->TryUnregisterDevice(options.DeviceId)) {
-                        YT_LOG_DEBUG("Finalizing NBD device");
+                        YT_LOG_DEBUG("Finalizing RO NBD device");
                         YT_UNUSED_FUTURE(device->Finalize());
                     } else {
                         YT_LOG_WARNING("Failed to unregister NBD device");

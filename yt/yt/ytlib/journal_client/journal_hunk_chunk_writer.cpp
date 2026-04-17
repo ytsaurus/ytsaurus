@@ -40,6 +40,7 @@ public:
             std::move(counters),
             TDispatcher::Get()->GetHeavyInvoker(),
             /*targets*/ std::nullopt,
+            EChunkFormat::HunkJournal,
             logger))
         , Options_(std::move(options))
         , Config_(std::move(config))

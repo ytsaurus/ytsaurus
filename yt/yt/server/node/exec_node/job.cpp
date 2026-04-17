@@ -875,11 +875,11 @@ bool TJob::Finalize(
     TForbidContextSwitchGuard guard;
 
     if (IsFinished()) {
-        YT_LOG_DEBUG("Job already finalized");
+        YT_LOG_DEBUG("Job already finalized (JobPhase: %v)", JobPhase_.load());
         return false;
     }
 
-    YT_LOG_INFO("Finalizing job (FinalState: %v)", finalJobState);
+    YT_LOG_INFO("Finalizing job (FinalState: %v, JobPhase: %v)", finalJobState, JobPhase_.load());
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
@@ -2762,7 +2762,7 @@ void TJob::OnJobProxyFinished(const TError& error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO(error, "Job proxy finished");
+    YT_LOG_INFO(error, "Job proxy finished (JobPhase: %v)", JobPhase_.load());
 
     ResetJobProbe();
 
@@ -2812,6 +2812,12 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
+            // Synthetic phase transition: if job_proxy exits before reporting a result,
+            // we still need a finishing phase for job removal/cleanup invariants.
+            if (JobPhase_.load() == EJobPhase::Running) {
+                SetJobPhase(EJobPhase::FinalizingJobProxy);
+            }
+
             Finalize(BuildJobProxyError(error));
         } else {
             YT_VERIFY(IsFinished());
@@ -2912,6 +2918,9 @@ void TJob::Cleanup()
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
+    // Unsubscribe job prior to volume removal.
+    UnsubscribeJobFromNbdDevices();
+
     auto removeVolume = [this] (IVolumePtr volume) {
         if (volume) {
             auto removeResult = WaitFor(volume->Remove());
@@ -2930,8 +2939,6 @@ void TJob::Cleanup()
 
     removeVolume(FSSecretary_->ReleaseRootVolume());
     removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
-
-    UnsubscribeJobFromNbdDevices();
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2973,16 +2980,24 @@ void TJob::UnsubscribeJobFromNbdDevices()
 {
     if (auto nbdServer = Bootstrap_->GetNbdServer()) {
         for (const auto& deviceId : FSSecretary_->ReleaseNbdDeviceIds()) {
+            YT_LOG_DEBUG(
+                "Unsubscribing job from NBD device errors (DeviceId: %v)",
+                deviceId);
+
             if (auto device = nbdServer->FindDevice(deviceId)) {
                 auto res = device->UnsubscribeFromErrors(Id_.Underlying());
                 if (!res) {
                     YT_LOG_WARNING(
                         "Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
                         deviceId);
+                } else {
+                    YT_LOG_DEBUG(
+                        "Unsubscribed job from NBD device errors (DeviceId: %v)",
+                        deviceId);
                 }
             } else {
                 YT_LOG_DEBUG(
-                    "Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
+                    "Failed to unsubscribe job from NBD device errors; device not found (DeviceId: %v)",
                     deviceId);
             }
         }

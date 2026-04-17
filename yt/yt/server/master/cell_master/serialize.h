@@ -178,6 +178,9 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveNativeTxExternalizationEnabledFlag)                     (3224))  // h0pless
     ((RemoveAllowCrossShardDynamicTableCopying)                     (3225))  // ponasenko-rs
     ((FixSignalingToRttAboutTableCreation)                          (3226))  // akozhikhov
+    ((IntroduceHunkJournalChunkFormat)                              (3227))  // akozhikhov
+    ((IntroduceDistributedJournalChunkFormat)                       (3228))  // apollo1321
+    ((InternCypressProxyConfig)                                     (3229))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

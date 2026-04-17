@@ -2,7 +2,6 @@
 
 #include "private.h"
 
-#include "config.h"
 #include "cypress_transaction_service.h"
 #include "dynamic_config_manager.h"
 #include "master_connector.h"
@@ -14,6 +13,8 @@
 #include "user_directory_synchronizer.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 

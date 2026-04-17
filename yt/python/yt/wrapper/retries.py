@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 
 def run_with_retries(
-    action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
+    action, retry_count=6, backoff=20.0, backoff_config=None, exceptions=(YtError,), except_action=None,
     backoff_action=None, additional_retriable_error_codes=None
 ):
     if additional_retriable_error_codes is None:
@@ -22,7 +22,7 @@ def run_with_retries(
                 "enable": True,
                 "count": retry_count,
                 "total_timeout": None,
-                "backoff": {"policy": "rounded_up_to_request_timeout"},
+                "backoff": backoff_config or {"policy": "rounded_up_to_request_timeout"},
                 "additional_retriable_error_codes": additional_retriable_error_codes,
             }
             super(SimpleRetrier, self).__init__(retry_config, backoff * 1000.0, exceptions)

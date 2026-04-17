@@ -125,10 +125,28 @@ void TClient::RunSequence()
     }
 }
 
+void TClient::RunThrowException()
+{
+    bool expected = rand() % 7 != 0;
+    YT_LOG_DEBUG("Starting exception throw (Expected: %v)",
+        expected);
+
+    auto writeReq = Proxy_.ThrowException();
+    writeReq->set_expected(expected);
+    GenerateMutationId(writeReq);
+
+    auto writeResult = WaitFor(writeReq->Invoke());
+    if (!writeResult.IsOK()) {
+        YT_LOG_DEBUG(writeResult, "ThrowException failed");
+    } else {
+        YT_LOG_DEBUG("ThrowException succeeded");
+    }
+}
+
 void TClient::DoRun()
 {
     while (true) {
-        switch (rand() % 3) {
+        switch (rand() % 4) {
             case 0:
                 RunRead();
                 break;
@@ -137,6 +155,9 @@ void TClient::DoRun()
                 break;
             case 2:
                 RunSequence();
+                break;
+            case 3:
+                RunThrowException();
                 break;
         }
         TDelayedExecutor::WaitForDuration(Config_->ClientInterval);

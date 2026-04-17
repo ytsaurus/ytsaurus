@@ -1,5 +1,7 @@
 #include "immutable_chunk_meta.h"
 
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <library/cpp/yt/malloc/malloc.h>
@@ -80,14 +82,21 @@ TRef TImmutableChunkMeta::GetExtensionData(const TExtensionDescriptor& descripto
 void ValidateFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
 {
     // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
-    if (FromProto<EChunkType>(protoMeta.type()) == EChunkType::Unknown) {
+    auto chunkType = FromProto<EChunkType>(protoMeta.type());
+    if (chunkType == EChunkType::Unknown) {
         THROW_ERROR TError("Unknown chunk type encountered while deserializing chunk meta")
             << TErrorAttribute("chunk_type", protoMeta.type());
     }
 
     // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
-    if (FromProto<EChunkFormat>(protoMeta.format()) == EChunkFormat::Unknown) {
+    auto chunkFormat = FromProto<EChunkFormat>(protoMeta.format());
+    if (chunkFormat == EChunkFormat::Unknown) {
         THROW_ERROR TError("Unknown chunk format encountered while deserializing chunk meta")
+            << TErrorAttribute("chunk_format", protoMeta.format());
+    }
+
+    if (chunkType == EChunkType::Journal && !IsJournalFormat(chunkFormat)) {
+        THROW_ERROR TError("Invalid journal chunk format")
             << TErrorAttribute("chunk_format", protoMeta.format());
     }
 

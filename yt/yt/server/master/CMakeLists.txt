@@ -62,20 +62,21 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-cell_server
   server-lib-cellar_agent
   server-lib-chunk_server
+  server-lib-cypress_proxy
   server-lib-discovery_server
   server-lib-hive
-  lib-hydra-dry_run
   server-lib-hydra
+  lib-hydra-dry_run
   server-lib-incumbent_client
   server-lib-node_tracker_server
   server-lib-object_server
   server-lib-security_server
+  server-lib-sequoia
   server-lib-table_server
   server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-timestamp_server
   server-lib-transaction_supervisor
-  server-lib-sequoia
   server-lib-scheduler
   server-lib-controller_agent
   contrib-libs-protobuf

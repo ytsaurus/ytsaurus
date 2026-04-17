@@ -28,6 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(activation)
+
 add_library(providers-common-proto)
 
 
@@ -37,6 +39,8 @@ target_link_libraries(providers-common-proto PUBLIC
   yutil
   yql-essentials-protos
   utils-fetch-proto
+  minikql-runtime_settings-proto
+  common-proto-activation
   contrib-libs-protobuf
 )
 

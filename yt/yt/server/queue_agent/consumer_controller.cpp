@@ -160,7 +160,7 @@ private:
         Client_ = clientContext.Client;
         ConsumerClient_ = CreateConsumerClient(Client_, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
 
-        std::vector<TQueuePath> queuePaths;
+        std::vector<TTablePath> queuePaths;
         std::vector<TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
         for (const auto& [registrationIndex, registration] : Enumerate(Registrations_)) {
             auto queuePath = registration.Queue;
@@ -204,7 +204,7 @@ private:
     }
 
     TSubConsumerSnapshotPtr BuildSubConsumerSnapshot(
-        TQueuePath queuePath,
+        TTablePath queuePath,
         TQueueSnapshotConstPtr queueSnapshot,
         bool enableVerboseLogging)
     {
@@ -497,12 +497,12 @@ public:
         : Leading_(leading)
         , ConsumerRow_(row)
         , ReplicatedTableMappingRow_(replicatedTableMappingRow)
-        , ConsumerPath_(row.Path)
+        , ConsumerRef_(row.Path)
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(ConsumerControllerLogger().WithTag("Consumer: %v, Leading: %v", ConsumerPath_, Leading_))
+        , Logger(ConsumerControllerLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
@@ -599,7 +599,7 @@ private:
     bool Leading_;
     NThreading::TAtomicObject<TConsumerTableRow> ConsumerRow_;
     NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
-    const TConsumerPath ConsumerPath_;
+    const TConsumerReference ConsumerRef_;
     const IObjectStore* ObjectStore_;
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
     TQueueControllerDynamicConfigAtomicPtr DynamicConfig_;
@@ -632,14 +632,14 @@ private:
 
         YT_LOG_INFO("Consumer controller pass started");
 
-        TRichYPath consumerPath(ConsumerPath_);
+        TRichYPath consumerRef(ConsumerRef_);
         bool enableVerboseLogging = false;
         {
             auto config = DynamicConfig_.Acquire();
 
             enableVerboseLogging = config->EnableVerboseLogging;
 
-            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), consumerPath);
+            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), consumerRef);
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
                 YT_LOG_WARNING("This pass is delayed since consumer is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelay);
@@ -647,7 +647,7 @@ private:
             }
         }
 
-        auto registrations = ObjectStore_->GetRegistrations(ConsumerPath_, EObjectKind::Consumer);
+        auto registrations = ObjectStore_->GetRegistrations(ConsumerRef_, EObjectKind::Consumer);
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {
             YT_LOG_DEBUG(
@@ -661,7 +661,7 @@ private:
         if (enableVerboseLogging) {
             auto config = DynamicConfig_.Acquire();
 
-            auto consumerIt = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), consumerPath);
+            auto consumerIt = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), consumerRef);
             auto isVerboseLoggingConsumer = consumerIt != config->VerboseLoggingObjects.end();
 
             if (isVerboseLoggingConsumer) {
@@ -724,7 +724,7 @@ bool UpdateConsumerController(
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
-    if (row.IsMultiConsumer) {
+    if (row.IsMultiConsumerRow()) {
         controller = New<TErrorConsumerController>(row, replicatedTableMappingRow, TError("Multi-consumer are not supported yet"));
         return true;
     }

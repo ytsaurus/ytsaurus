@@ -486,33 +486,6 @@ ACTIONS[6] = [
     create_replica_mapping_index_action_factory(),
 ]
 
-# Add is multi consumer flag to consumers table.
-TRANSFORMS[7] = [
-    Conversion(
-        "consumers",
-        table_info=TableInfo(
-            [
-                ("cluster", "string"),
-                ("path", "string"),
-            ],
-            [
-                ("row_revision", "uint64"),
-                ("revision", "uint64"),
-                ("object_type", "string"),
-                ("treat_as_queue_consumer", "boolean"),
-                ("schema", "any"),
-                ("queue_agent_stage", "string"),
-                ("queue_agent_banned", "boolean"),
-                ("synchronization_error", "any"),
-                ("queue_consumer_profiling_tag", "string"),
-                ("is_multi_consumer", "boolean"),  # new field
-            ],
-            optimize_for="lookup",
-            attributes=DEFAULT_TABLE_ATTRIBUTES_WITH_OLD_BUNDLE,
-        ),
-    )
-]
-
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,

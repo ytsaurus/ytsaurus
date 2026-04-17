@@ -86,9 +86,7 @@ namespace NKikimr::NDDisk {
 
         auto offset = DiskFormat->Offset(chunkRef.ChunkIdx, 0, selector.OffsetInBytes);
 
-        // TODO: use pool
-        std::unique_ptr<TDirectIoOpBase> op = std::make_unique<TDDiskIoOp>(
-            SelfId(), Counters, ev.Get());
+        std::unique_ptr<TDirectIoOpBase> op = AllocateOp<TDDiskIoOp>(ev.Get());
         op->SetSpan(std::move(span));
         op->PrepareWrite(std::move(data), offset, chunkRef.ChunkIdx, selector.OffsetInBytes);
 
@@ -159,9 +157,7 @@ namespace NKikimr::NDDisk {
 
         auto offset = DiskFormat->Offset(chunkRef.ChunkIdx, 0, selector.OffsetInBytes);
 
-        // TODO: use pool
-        std::unique_ptr<TDirectIoOpBase> op = std::make_unique<TDDiskIoOp>(
-            SelfId(), Counters, ev.Get());
+        std::unique_ptr<TDirectIoOpBase> op = AllocateOp<TDDiskIoOp>(ev.Get());
         op->SetSpan(std::move(span));
         op->PrepareRead(selector.Size, offset, chunkRef.ChunkIdx, selector.OffsetInBytes);
 
@@ -220,8 +216,8 @@ namespace NKikimr::NDDisk {
 
         return submitted;
 #else
-	Y_UNUSED(op);
-	Y_UNUSED(flush);
+        Y_UNUSED(op);
+        Y_UNUSED(flush);
 #endif
         return false;
     }
@@ -307,6 +303,8 @@ namespace NKikimr::NDDisk {
         const ui32 opsToWait = currentInflight - inDiskInflight;
         const ui32 usecWait = (opsToWait + opsInParallel - 1) * opMinLatencyUs / opsInParallel;
         Schedule(TDuration::MicroSeconds(usecWait), new TEvents::TEvWakeup(EWakeupTag::WakeupIoSubmitQueue));
+#else
+        Y_UNUSED(this);
 #endif
     }
 
@@ -330,6 +328,8 @@ namespace NKikimr::NDDisk {
         UringRouter->Flush();
 
         ScheduleIoSubmitWakeup();
+#else
+        Y_UNUSED(this);
 #endif
     }
 

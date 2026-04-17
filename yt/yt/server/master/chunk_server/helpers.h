@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_tree_statistics.h"
 #include "chunk_replica.h"
+#include "chunk_tree_statistics.h"
 #include "config.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
@@ -140,7 +141,9 @@ NTableClient::TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
 
-std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
+std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
+    const TChunk* chunk,
+    TRange<TAugmentedStoredChunkReplicaPtr> chunkReplicas);
 
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,

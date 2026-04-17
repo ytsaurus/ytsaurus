@@ -1014,7 +1014,7 @@ private:
                 if (!chunk->IsJournal()) {
                     break;
                 }
-                return chunkManager->GetChunkQuorumInfo(chunk)
+                return chunkManager->GetChunkQuorumInfoWithReplicaFetch(chunk)
                     .Apply(BIND([] (const TChunkQuorumInfo& info) {
                         return MakeFuture(BuildYsonStringFluently()
                             .BeginMap()

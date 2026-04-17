@@ -198,7 +198,7 @@ $udf = Python3::f(Callable<(Yson?)->Tuple<Int64,Yson?>>, $script);
 SELECT $udf(CAST(@@{"abc"=1}@@ as Yson));
 ```
 
-{% note warning "Attention!"%}
+{% note warning "Attention!" %}
 
 A string in Python 3 corresponds to the `Utf8` type in YQL, and the `String` type corresponds to `bytes` in Python 3.
 

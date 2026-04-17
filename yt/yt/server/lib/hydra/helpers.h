@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/election/public.h>
 
+#include <library/cpp/yt/error/error.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NHydra {
@@ -20,4 +22,15 @@ std::optional<TSharedRef> SanitizeLocalHostName(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TFunc, typename... TArgs>
+auto InvokeAndWrapHydraException(TFunc&& func, TArgs&&... args);
+
+TError WrapHydraError(TError&& error);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHydra
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

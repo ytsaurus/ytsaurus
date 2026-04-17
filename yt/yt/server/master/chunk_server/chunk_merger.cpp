@@ -1948,7 +1948,7 @@ void TChunkMerger::ValidateStatistics(
             YT_LOG_INFO("Fixed invalid row count (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
                 nodeId,
                 oldStatistics.RowCount,
-                newStatistics.RowCount);    
+                newStatistics.RowCount);
         } else {
             YT_LOG_ALERT("Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
                 nodeId,
@@ -1956,13 +1956,13 @@ void TChunkMerger::ValidateStatistics(
                 newStatistics.RowCount);
         }
     }
-    
+
     if (oldStatistics.DataWeight != newStatistics.DataWeight) {
         if (oldStatistics.DataWeight < 0) {
             YT_LOG_INFO("Fixed invalid data weight (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
                 nodeId,
                 oldStatistics.DataWeight,
-                newStatistics.DataWeight);    
+                newStatistics.DataWeight);
         } else {
             YT_LOG_ALERT("Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
                 nodeId,
@@ -2269,12 +2269,17 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     // TODO(aleksandra-zh): Move to HydraFinalizeChunkMergeSessions?
     if (chunkOwner->IsForeign()) {
+        const auto& config = GetDynamicConfig();
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             chunkOwner,
-            /*updateDataStatistics*/ true,
-            /*updateTabletStatistics*/ false,
-            /*useNativeContentRevisionCas*/ true);
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = false,
+                .UpdateModificationTime = config->UpdateModificationTime,
+                .UpdateAccessTime = config->UpdateModificationTime,
+                .UseNativeContentRevisionCas = true,
+            });
     }
 }
 
@@ -2396,9 +2401,13 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
             const auto& tableManager = Bootstrap_->GetTableManager();
             tableManager->ScheduleStatisticsUpdate(
                 chunkOwner,
-                /*updateDataStatistics*/ true,
-                /*updateTabletStatistics*/ false,
-                /*useNativeContentRevisionCas*/ true);
+                TStatisticsUpdateRequest{
+                    .UpdateDataStatistics = true,
+                    .UpdateTabletResourceUsage = false,
+                    .UpdateModificationTime = config->UpdateModificationTime,
+                    .UpdateAccessTime = config->UpdateModificationTime,
+                    .UseNativeContentRevisionCas = true,
+                });
         }
     }
 }

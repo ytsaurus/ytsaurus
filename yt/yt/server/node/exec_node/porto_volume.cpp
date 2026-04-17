@@ -57,7 +57,8 @@ TFuture<void> TPortoVolumeBase::Link(
             // TODO(dgolear): Switch to std::string.
             auto source = TString(GetPath());
             return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
-        }));
+        }))
+        .ToUncancelable();
 }
 
 TFuture<void> TPortoVolumeBase::Remove()
@@ -270,12 +271,17 @@ TFuture<void> TRWNbdVolume::DoRemove(
     TString nbdDeviceId,
     INbdServerPtr nbdServer)
 {
-    // First, unregister device. At this point device is removed from the
+    // First, unregister device. At this point device is removed from NBD
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, remove volume. At this point all device connections are going
-    // be terminated.
+    // Second, flush device.
+    auto flushFuture = OKFuture;
+    if (device) {
+        flushFuture = device->Flush();
+    }
+
+    // Fourth, finalize device after volume removal.
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
@@ -288,12 +294,15 @@ TFuture<void> TRWNbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    return DoRemoveVolumeCommon(
-        "RW NBD",
-        std::move(tagSet),
-        std::move(location),
-        std::move(volumeMeta),
-        std::move(postRemovalCleanup));
+    // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+    return flushFuture
+        .Apply(BIND(
+            &TRWNbdVolume::DoRemoveVolumeCommon,
+            "RW NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup)));
 }
 
 DEFINE_REFCOUNTED_TYPE(TRWNbdVolume)
@@ -335,12 +344,17 @@ TFuture<void> TRONbdVolume::DoRemove(
     TString nbdDeviceId,
     INbdServerPtr nbdServer)
 {
-    // First, unregister device. At this point device is removed from the
+    // First, unregister device. At this point device is removed from NBD
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, remove volume. At this point all device connections are going
-    // be terminated.
+    // Second, flush device.
+    auto flushFuture = OKFuture;
+    if (device) {
+        flushFuture = device->Flush();
+    }
+
+    // Fourth, finalize device after volume removal.
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
@@ -353,12 +367,15 @@ TFuture<void> TRONbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    return DoRemoveVolumeCommon(
-        "RO NBD",
-        std::move(tagSet),
-        std::move(location),
-        std::move(volumeMeta),
-        std::move(postRemovalCleanup));
+    // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+    return flushFuture
+        .Apply(BIND(
+            &TRWNbdVolume::DoRemoveVolumeCommon,
+            "RO NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup)));
 }
 
 DEFINE_REFCOUNTED_TYPE(TRONbdVolume)

@@ -184,6 +184,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tweak_traversal_info_after_rebalance", &TThis::TweakTraversalInfoAfterRebalance)
         .Default(true);
+
+    registrar.Parameter("update_modification_time", &TThis::UpdateModificationTime)
+        .Default(true)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,6 +687,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_running_replication_jobs_per_target_node", &TThis::MaxRunningReplicationJobsPerTargetNode)
         .Default(128);
 
+    registrar.Parameter("max_unsuccessful_schedule_seal_job_attempts_per_chunk_replica", &TThis::MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica)
+        .Default(10);
+
     registrar.Parameter("enable_chunk_refresh", &TThis::EnableChunkRefresh)
         .Default(true);
     registrar.Parameter("chunk_refresh_delay", &TThis::ChunkRefreshDelay)
@@ -746,6 +753,8 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(10000);
     registrar.Parameter("max_concurrent_chunk_seals", &TThis::MaxConcurrentChunkSeals)
         .GreaterThan(0)
+        .Default(10);
+    registrar.Parameter("max_unsuccessful_seal_attempts", &TThis::MaxUnsuccessfulSealAttempts)
         .Default(10);
 
     registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)

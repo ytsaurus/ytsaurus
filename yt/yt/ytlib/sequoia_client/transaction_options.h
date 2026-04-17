@@ -28,7 +28,10 @@ struct TSequoiaTransactionRequestPriorities
 //   - consistent inheritable attributes;
 //   - transaction coordinator during mirrored transaction replicator.
 struct TSequoiaTransactionFeatures
-{ };
+{
+    std::optional<bool> UseSharedWriteLocksForCypressTransactions;
+    std::optional<bool> CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator;
+};
 
 struct TSequoiaTransactionOptions
 {
@@ -40,6 +43,21 @@ struct TSequoiaTransactionOptions
     bool SuppressStronglyOrderedTransactionBarrier = false;
     TSequoiaTransactionFeatures Features = {};
 };
+
+namespace NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSequoiaTransactionFeatures;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(TSequoiaTransactionFeatures* protoFeatures, const NSequoiaClient::TSequoiaTransactionFeatures& features);
+void FromProto(NSequoiaClient::TSequoiaTransactionFeatures* features, const TSequoiaTransactionFeatures& protoFeatures);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

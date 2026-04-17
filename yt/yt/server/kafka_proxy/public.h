@@ -25,6 +25,7 @@ DECLARE_REFCOUNTED_STRUCT(IRequestHandler)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 DECLARE_REFCOUNTED_STRUCT(IGroupCoordinator)
+DECLARE_REFCOUNTED_STRUCT(IGroupCoordinatorManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

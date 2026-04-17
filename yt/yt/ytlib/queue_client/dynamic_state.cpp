@@ -87,7 +87,7 @@ std::optional<T> FromOptionalYsonString(const std::optional<TYsonString>& value)
 TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
 {
     return TQueueTableRow{
-        .Path = TQueuePath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
+        .Path = TTablePath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
         .RowRevision = record.RowRevision,
         .Revision = record.Revision,
         .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
@@ -140,7 +140,7 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
     }
 
     return TConsumerTableRow{
-        .Path = TConsumerPath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
+        .Path = TTablePath(record.Key.Path, *MakeAttributesWithCluster(record.Key.Cluster)),
         .RowRevision = record.RowRevision,
         .Revision = record.Revision,
         .ObjectType = MapStringToEnum<EObjectType>(record.ObjectType),
@@ -149,7 +149,6 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
         .QueueAgentStage = record.QueueAgentStage,
         .QueueAgentBanned = record.QueueAgentBanned,
         .QueueConsumerProfilingTag = record.QueueConsumerProfilingTag,
-        .IsMultiConsumer = record.IsMultiConsumer.value_or(false),
         .SynchronizationError = FromOptionalYsonString<TError>(record.SynchronizationError),
     };
 }
@@ -180,7 +179,6 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
         .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
         .QueueAgentBanned = row.QueueAgentBanned,
         .QueueConsumerProfilingTag = row.QueueConsumerProfilingTag,
-        .IsMultiConsumer = row.IsMultiConsumer,
     };
 }
 
@@ -188,8 +186,8 @@ TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistratio
 {
     const auto& key = record.Key;
     return TConsumerRegistrationTableRow{
-        .Queue = TQueuePath{key.QueuePath, *MakeAttributesWithCluster(key.QueueCluster)},
-        .Consumer = TConsumerPath{key.ConsumerPath, *MakeAttributesWithCluster(key.ConsumerCluster)},
+        .Queue = TTablePath{key.QueuePath, *MakeAttributesWithCluster(key.QueueCluster)},
+        .Consumer = TConsumerReference{key.ConsumerPath, *MakeAttributesWithCluster(key.ConsumerCluster)},
         .Vital = record.Vital.value_or(false),
         .Partitions = FromOptionalYsonString<std::vector<int>>(record.Partitions),
     };
@@ -217,7 +215,7 @@ NRecords::TConsumerRegistration RecordFromRow(const TConsumerRegistrationTableRo
 TQueueAgentObjectMappingTableRow RowFromRecord(const NRecords::TQueueAgentObjectMapping& record)
 {
     return TQueueAgentObjectMappingTableRow{
-        .Object = TGenericObjectPath(record.Key.Object),
+        .Object = TGenericObjectReference(record.Key.Object),
         .QueueAgentHost = record.QueueAgentHost,
     };
 }
@@ -476,7 +474,7 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
-    const TQueuePath& queue,
+    const TTablePath& queue,
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
@@ -550,11 +548,11 @@ std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
-    const TConsumerPath& consumer,
+    const TTablePath& consumer,
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
-    TConsumerTableRow row{
+    return {
         .Path = consumer,
         .RowRevision = rowRevision,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("attribute_revision"),
@@ -564,11 +562,13 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
         .QueueConsumerProfilingTag = cypressAttributes->Find<std::string>("queue_consumer_profiling_tag"),
-        .IsMultiConsumer = false,
         .SynchronizationError = TError(),
     };
-    row.IsMultiConsumer = row.Schema.has_value() && row.Schema->FindColumnByStableName(TColumnStableName{QueueConsumerNameAttributeKey}) != nullptr;
-    return row;
+}
+
+bool TConsumerTableRow::IsMultiConsumerRow() const
+{
+    return Schema.has_value() && Schema->FindColumnByStableName(TColumnStableName{"queue_consumer_name"});
 }
 
 void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
@@ -598,10 +598,10 @@ TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TGenericObjectPath, TString> TQueueAgentObjectMappingTable::ToMapping(
+THashMap<TGenericObjectReference, TString> TQueueAgentObjectMappingTable::ToMapping(
     const std::vector<TQueueAgentObjectMappingTableRow>& rows)
 {
-    THashMap<TGenericObjectPath, TString> objectMapping;
+    THashMap<TGenericObjectReference, TString> objectMapping;
     for (const auto& row : rows) {
         objectMapping[row.Object] = row.QueueAgentHost;
     }

@@ -43,6 +43,7 @@
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/helpers.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
@@ -3535,7 +3536,7 @@ private:
             ? std::make_optional(ETableReplicaMode(request->mode()))
             : std::nullopt;
         if (mode && !IsStableReplicaMode(*mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+            THROW_ERROR WrapHydraError(TError("Invalid replica mode %Qlv", *mode));
         }
 
         auto atomicity = request->has_atomicity()
@@ -3977,7 +3978,13 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto newReplicationEra = FromProto<TReplicationEra>(request->new_replication_era());
 
-        auto* tablet = GetTabletOrThrow(tabletId);
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            YT_LOG_DEBUG("Tablet is missing during advancement of replication era (TabletId: %v, NewReplicationEra: %v)",
+                tabletId,
+                newReplicationEra);
+            return;
+        }
         if (auto era = tablet->RuntimeData()->ReplicationEra.load();
             era == InvalidReplicationEra || era < newReplicationEra)
         {

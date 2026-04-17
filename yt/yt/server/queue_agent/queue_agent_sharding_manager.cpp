@@ -65,12 +65,12 @@ public:
         , DiscoveryClient_(std::move(discoveryClient))
         , QueueAgentStage_(std::move(queueAgentStage))
         , DynamicStateRoot_(std::move(dynamicStateRoot))
+        , Profiler_(profiler)
         , BannedGauge_(profiler.Gauge("/banned"))
         , PassExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TQueueAgentShardingManager::Pass, MakeWeak(this)),
             DynamicConfig_.Acquire()->PassPeriod))
-        , PassProfiler_(profiler.WithPrefix("/queue_agent_sharding_manager"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgentShardingManager::BuildOrchid, MakeWeak(this)))
             ->Via(ControlInvoker_))
         , SyncBannedQueueAgentInstancesFrequency_(CalculateSyncBannedQueueAgentInstancesFrequency(*DynamicConfig_.Acquire()))
@@ -115,10 +115,12 @@ private:
     const IDiscoveryClientPtr DiscoveryClient_;
     const std::string QueueAgentStage_;
     const TYPath DynamicStateRoot_;
+    const TProfiler Profiler_;
     const TGauge BannedGauge_;
     const TPeriodicExecutorPtr PassExecutor_;
-    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
+
+    TIntrusivePtr<TPassProfiler> PassProfiler_;
 
     std::atomic<bool> Active_ = false;
     //! Current pass iteration error.
@@ -149,7 +151,9 @@ private:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
-        PassProfiler_.OnStart(PassIndex_, PassInstant_);
+        if (PassProfiler_) {
+            PassProfiler_->OnStart(PassIndex_, PassInstant_);
+        }
 
         try {
             GuardedPass();
@@ -162,11 +166,17 @@ private:
                 "Error performing queue agent manager pass",
                 /*tags*/ {},
                 ex));
-            PassProfiler_.OnError();
+
+            // NB(panesher): We want to see error even if we are not leading.
+            if (PassProfiler_) {
+                PassProfiler_->OnError();
+            }
         }
 
         AlertCollector_->PublishAlerts();
-        PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
+        if (PassProfiler_) {
+            PassProfiler_->OnFinish(TInstant::Now() - PassInstant_);
+        }
     }
 
     //! Uses FarmFingerprint as a deterministic (both platform and time-agnostic) hash.
@@ -180,7 +190,7 @@ private:
 
     //! Picks host using rendezvous hashing.
     //! The probability of host reassignment in case of any small host set changes is low.
-    static std::string PickHost(const TGenericObjectPath& object, const std::vector<TMemberInfo>& queueAgents)
+    static std::string PickHost(const TGenericObjectReference& object, const std::vector<TMemberInfo>& queueAgents)
     {
         YT_VERIFY(!queueAgents.empty());
 
@@ -291,10 +301,14 @@ private:
         if (filteredQueueAgents[0].Id != MemberClient_->GetId()) {
             YT_LOG_DEBUG("Queue agent is not leading, skipping pass (LeadingHost: %v)", filteredQueueAgents[0].Id);
             Active_ = false;
+            PassProfiler_ = nullptr;
             return;
-        } else {
+        } else if (!Active_) {
+            YT_LOG_INFO("Sharding manager leadership acquired");
             Active_ = true;
+            PassProfiler_ = New<TPassProfiler>(Profiler_.WithPrefix("/queue_agent_sharding_manager"));
         }
+        YT_VERIFY(PassProfiler_);
 
         // Collect rows from dynamic state.
 
@@ -324,12 +338,12 @@ private:
 
         // Map all objects to their responsible queue agents via rendezvous hashing.
 
-        THashSet<TGenericObjectPath> allObjects;
+        THashSet<TGenericObjectReference> allObjects;
         for (const auto& queueRow : queueRows) {
             allObjects.emplace(queueRow.Path);
         }
         for (const auto& consumerRow : consumerRows) {
-            allObjects.insert(consumerRow.Path);
+            allObjects.emplace(consumerRow.Path);
         }
 
         auto currentMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);

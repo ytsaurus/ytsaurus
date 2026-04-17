@@ -14,6 +14,21 @@ const (
 	TrampolineBinaryDirectory = ypath.Path("//sys/bin/clickhouse-trampoline")
 )
 
+type chytBinaryInfo struct {
+	NodeId          string      `yson:"id,attr"`
+	Version         string      `yson:"version,attr"`
+	ContentRevision yt.Revision `yson:"content_revision,attr"`
+}
+
+func (c *Controller) getChytBinaryInfo(ctx context.Context, path ypath.Path) (info chytBinaryInfo, err error) {
+	options := yt.GetNodeOptions{Attributes: []string{"id", "version", "content_revision"}}
+	err = c.ytc.GetNode(ctx, path, &info, &options)
+	if err != nil {
+		return
+	}
+	return
+}
+
 func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (target ypath.Path, err error) {
 	var nodeType yt.NodeType
 	err = c.ytc.GetNode(ctx, path.SuppressSymlink().Attr("type"), &nodeType, nil)
@@ -32,10 +47,17 @@ func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (targe
 
 func (c *Controller) resolveChytVersion(ctx context.Context, path ypath.Path, chytVersion *chytOpletInfo) {
 	chytVersion.CHYTRunningVersionPath = path.String()
-	err := c.ytc.GetNode(ctx, path.Attr("version"), &chytVersion.CHYTRunningVersion, nil)
+	info, err := c.getChytBinaryInfo(ctx, path)
 	if err != nil {
 		chytVersion.CHYTRunningVersion = "unknown"
+		chytVersion.BinaryNodeId = nil
+		chytVersion.BinaryRevision = nil
+		return
 	}
+
+	chytVersion.CHYTRunningVersion = info.Version
+	chytVersion.BinaryNodeId = &info.NodeId
+	chytVersion.BinaryRevision = &info.ContentRevision
 }
 
 type artifact struct {
