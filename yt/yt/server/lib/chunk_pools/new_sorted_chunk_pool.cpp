@@ -777,8 +777,8 @@ private:
         jobStubs.reserve(jobs.size());
         isBarrierJob.reserve(jobs.size());
         for (auto& job : jobs) {
-            jobStubs.push_back(std::make_unique<TNewJobStub>(std::move(job)));
             isBarrierJob.push_back(job.GetIsBarrier());
+            jobStubs.push_back(std::make_unique<TNewJobStub>(std::move(job)));
         }
         JobManager_->SeekOrder(cookie);
         auto childCookies = JobManager_->AddJobs(std::move(jobStubs));

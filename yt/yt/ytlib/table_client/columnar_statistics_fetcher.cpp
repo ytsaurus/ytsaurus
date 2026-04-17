@@ -272,8 +272,8 @@ void TColumnarStatisticsFetcher::AddChunk(
 
     if (columnStableNames.empty()) {
         // Do not fetch anything. The less rpc requests, the better.
-        Chunks_.emplace_back(std::move(chunk));
         NeedFetchFromNode_[chunk] = false;
+        Chunks_.emplace_back(std::move(chunk));
         LightweightChunkStatistics_.resize(Chunks_.size());
         if (Chunks_.back()->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar && Options_.EnableReadSizeEstimation) {
             // NB(apollo1321): Columnar format readers do not fetch data blocks if the column names are empty.

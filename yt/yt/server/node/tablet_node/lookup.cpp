@@ -302,7 +302,7 @@ protected:
     { }
 
     TCompressingAdapterBase(TCompressingAdapterBase&& other) noexcept
-        : TAdapterBase(std::move(other))
+        : TAdapterBase(std::move(static_cast<TAdapterBase&>(other)))
         , Codec_(other.Codec_)
         , MemoryUsageTracker_(std::move(other.MemoryUsageTracker_))
     { }
@@ -1697,7 +1697,7 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
 
     auto runLookupSession = [&] <class TPipeline> (bool produceAllVersions) {
         return New<TTabletLookupSession<TPipeline>>(
-            std::move(adapter),
+            std::forward<TRowAdapter>(adapter),
             std::move(tabletSnapshot),
             std::move(tabletChunkReadOptions),
             produceAllVersions,
@@ -1830,15 +1830,17 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                 THROW_ERROR_EXCEPTION("Lookup command message is malformed");
             }
 
+            TUnversionedAdapter adapter(
+                tabletSnapshot,
+                columnMappingInfo,
+                lookupSession->TimestampRange_,
+                lookupKeys,
+                lookupSession->ResponseCodec_,
+                rowBuffer,
+                lookupSession->ChunkReadOptions_.MemoryUsageTracker);
+
             return DoRunTabletLookupSession<TUnversionedAdapter>(
-                TUnversionedAdapter(
-                    tabletSnapshot,
-                    columnMappingInfo,
-                    lookupSession->TimestampRange_,
-                    lookupKeys,
-                    lookupSession->ResponseCodec_,
-                    rowBuffer,
-                    lookupSession->ChunkReadOptions_.MemoryUsageTracker),
+                std::move(adapter),
                 useLookupCache,
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ false,
@@ -1859,16 +1861,19 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
 
             YT_VERIFY(lookupSession->VersionedReadOptions_.ReadMode == EVersionedIOMode::Default);
 
+
+            TVersionedAdapter adapter(
+                tabletSnapshot,
+                columnMappingInfo,
+                lookupSession->RetentionConfig_,
+                lookupSession->TimestampRange_,
+                lookupKeys,
+                lookupSession->ResponseCodec_,
+                rowBuffer,
+                lookupSession->ChunkReadOptions_.MemoryUsageTracker);
+
             return DoRunTabletLookupSession<TVersionedAdapter>(
-                TVersionedAdapter(
-                    tabletSnapshot,
-                    columnMappingInfo,
-                    lookupSession->RetentionConfig_,
-                    lookupSession->TimestampRange_,
-                    lookupKeys,
-                    lookupSession->ResponseCodec_,
-                    rowBuffer,
-                    lookupSession->ChunkReadOptions_.MemoryUsageTracker),
+                std::move(adapter),
                 useLookupCache,
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ true,

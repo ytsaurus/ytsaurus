@@ -376,11 +376,11 @@ void TLegacyJobManager::TJob::ResumeSelf()
 }
 
 template <class... TArgs>
-void TLegacyJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
+void TLegacyJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args)
 {
-    (DataWeightProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-    (RowProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-    (JobProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
+    (DataWeightProgressCounterGuard_.*Method)(args...);
+    (RowProgressCounterGuard_.*Method)(args...);
+    (JobProgressCounterGuard_.*Method)(args...);
 }
 
 PHOENIX_DEFINE_TYPE(TLegacyJobManager::TJob);

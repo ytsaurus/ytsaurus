@@ -1510,6 +1510,8 @@ private:
                         YT_LOG_DEBUG("Making group (GroupIndex: %v, Weight: %v)", groupIndex++, currentGroupWeight);
 
                         groupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                        // NB: we plan to reuse this buffer for the next group, but C++ moved-from containers are formally in "valid but unspecified state".
+                        tabletBoundsGroup = {};
 
                         // Initialize new group.
                         lastRowRange = nullptr;
@@ -1543,9 +1545,12 @@ private:
                         tabletBoundsGroup.push_back(tabletReadItems);
                     } else {
                         regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                        // NB: we plan to reuse this buffer, but C++ moved-from containers are formally in "valid but unspecified state".
+                        tabletBoundsGroup = {};
                     }
                 }
                 regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                tabletBoundsGroup = {};
             }
 
             return MakeSharedRange(regroupedReadRanges, RowBuffer_);
@@ -1820,6 +1825,9 @@ TQueryStatistics ExecuteSubquery(
 {
     ValidateReadTimestamp(queryOptions.TimestampRange.Timestamp);
 
+    // NB: to avoid use after move down the line.
+    auto statisticsAggregation = queryOptions.StatisticsAggregation;
+
     auto execution = New<TQueryExecution>(
         config,
         functionImplCache,
@@ -1836,7 +1844,7 @@ TQueryStatistics ExecuteSubquery(
 
     auto statistics = execution->Execute(profilerGuard);
 
-    if (TQueryStatistics::IsDepthAggregate(queryOptions.StatisticsAggregation)) {
+    if (TQueryStatistics::IsDepthAggregate(statisticsAggregation)) {
         TQueryStatistics aggregated;
         aggregated.Merge(statistics);
         return aggregated;

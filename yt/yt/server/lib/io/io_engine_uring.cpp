@@ -215,10 +215,10 @@ private:
     io_uring Uring_;
 
     template <class F,  class... Args>
-    static auto HandleUringEintr(F f, Args&&... args) -> decltype(f(args...))
+    static auto HandleUringEintr(F f, const Args&... args) -> decltype(f(args...))
     {
         while (true) {
-            auto result = f(std::forward<Args>(args)...);
+            auto result = f(args...);
             if (result != -EINTR) {
                 return result;
             }

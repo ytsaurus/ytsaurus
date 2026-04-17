@@ -1606,8 +1606,8 @@ void TApiService::ExecuteCall(
     New<TExecuteCallSession<TContext, TExecutor, TResultHandler>>(
         this,
         std::move(context),
-        std::move(executor),
-        std::move(resultHandler))
+        std::forward<TExecutor>(executor),
+        std::forward<TResultHandler>(resultHandler))
         ->Run();
 }
 
@@ -1618,7 +1618,7 @@ void TApiService::ExecuteCall(
 {
     ExecuteCall(
         context,
-        std::move(executor),
+        std::forward<TExecutor>(executor),
         [] (const TIntrusivePtr<TContext>& /*context*/) { });
 }
 

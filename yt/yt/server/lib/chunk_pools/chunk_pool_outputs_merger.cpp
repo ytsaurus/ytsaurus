@@ -297,12 +297,12 @@ private:
     bool DisableUpdate_ = false;
 
     template <class... TArgs>
-    void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
+    void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args)
     {
-        (JobCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-        (DataWeightCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-        (RowCounterGuard_.*Method)(std::forward<TArgs>(args)...);
-        (DataSliceCounterGuard_.*Method)(std::forward<TArgs>(args)...);
+        (JobCounterGuard_.*Method)(args...);
+        (DataWeightCounterGuard_.*Method)(args...);
+        (RowCounterGuard_.*Method)(args...);
+        (DataSliceCounterGuard_.*Method)(args...);
     }
 
     void VerifyExtractedCookieState(TCookie cookie, bool shouldBeRunning, bool shouldBeCompleted) const

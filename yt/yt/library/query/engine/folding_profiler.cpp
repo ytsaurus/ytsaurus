@@ -2527,10 +2527,11 @@ void TQueryProfiler::Profile(
 
             parameters.push_back(std::move(codegenParameters));
 
+            size_t joinKeySize = joinClause->ForeignEquations.size();
             TSingleJoinParameters singleJoinParameters{
-                .KeySize = joinClause->ForeignEquations.size(),
+                .KeySize = joinKeySize,
                 .IsLeft = joinClause->IsLeft,
-                .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
+                .IsPartiallySorted = joinClause->ForeignKeyPrefix < joinKeySize,
                 .ForeignColumns = joinClause->GetForeignColumnIndices(),
                 .JoinRowsProducer = joinProfilerRegistry.GetJoinProfilerOrThrow(joinIndex)->Profile(),
             };

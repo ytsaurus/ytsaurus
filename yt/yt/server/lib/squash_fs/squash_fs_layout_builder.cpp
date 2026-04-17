@@ -1232,11 +1232,12 @@ void TSquashFSLayoutBuilder::TDirectoryTable::Add(const TDirectoryPtr& directory
             std::vector<ui8> nameVector(nameString.begin(), nameString.end());
 
             // Create entry.
+            i64 nameVectorSize = nameVector.size();
             auto newEntry = TDirectoryTableEntry(
                 inode->InodeBlockOffset,
                 inode->InodeNumber - inodeNumber,
                 entry->GetType(),
-                nameVector.size() - 1,
+                nameVectorSize - 1,
                 std::move(nameVector));
 
             i64 entrySize = GetDirectoryTableEntrySize(newEntry);

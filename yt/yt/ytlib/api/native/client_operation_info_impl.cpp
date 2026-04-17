@@ -1530,7 +1530,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     // COMPAT(gepardo): this must be preserved until the operations without provided_spec (i.e. started before mid-2022)
     // are no longer in the operations archive.
     if (!options.Attributes || options.Attributes->contains("provided_spec")) {
-        for (auto& operation : operations) {
+        for (auto& operation : result.Operations) {
             if (!operation.ProvidedSpec) {
                 operation.ProvidedSpec = operation.Spec;
             }

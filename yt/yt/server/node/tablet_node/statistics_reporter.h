@@ -22,7 +22,7 @@ private:
     using TOnRowCallback = TCallback<void(
         const NYPath::TYPath&,
         TRange<TUnversionedRow>,
-        NTableClient::TRowBufferPtr&&,
+        const NTableClient::TRowBufferPtr&,
         const std::vector<TTabletSnapshotPtr>&)>;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Spinlock_);
@@ -55,18 +55,18 @@ private:
     void WriteRows(
         const NYPath::TYPath& tablePath,
         TRange<TUnversionedRow> rows,
-        NTableClient::TRowBufferPtr&& rowBuffer,
+        const NTableClient::TRowBufferPtr& rowBuffer,
         const std::vector<TTabletSnapshotPtr>& tabletSnapshots);
 
     TIntrusivePtr<NApi::IUnversionedRowset> LookupRows(
         const NYPath::TYPath& tablePath,
         TRange<TUnversionedRow> keys,
-        NTableClient::TRowBufferPtr&& rowBuffer);
+        const NTableClient::TRowBufferPtr& rowBuffer);
 
     void LoadStatistics(
         const NYPath::TYPath& tablePath,
         TRange<TUnversionedRow> keys,
-        NTableClient::TRowBufferPtr&& rowBuffer,
+        const NTableClient::TRowBufferPtr& rowBuffer,
         const std::vector<TTabletSnapshotPtr>& tabletSnapshots);
 
     THashMap<TTabletId, TTabletSnapshotPtr> GetLatestTabletSnapshots();
