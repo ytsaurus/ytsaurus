@@ -222,7 +222,7 @@ spec:
       jobResources:
         requests:
           cpu: 16
-          memory: 67072Mi
+          memory: 32768Mi
 
   tabletNodes:
     - instanceCount: 1
