@@ -186,7 +186,7 @@ public:
         , SchemalessWriter_(CreateSchemalessFromApiWriterAdapter(StaticPointerCast<ITableWriter>(TableWriter_)))
         , ValueConsumer_(
             SchemalessWriter_,
-            ConvertTo<TTypeConversionConfigPtr>(format.Attributes()))
+            ConvertTo<TTypeConversionConfigPtr>(Format_.Attributes()))
         , Output_(CreateParserForFormat(Format_, &ValueConsumer_))
     {
     }

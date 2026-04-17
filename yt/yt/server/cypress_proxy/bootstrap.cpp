@@ -201,15 +201,16 @@ public:
         NProfiling::TProfiler profiler) const override
     {
         auto selfAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
+        auto selfAddressCopy = selfAddress;
         return NDistributedThrottler::CreateDistributedThrottlerFactory(
             std::move(config),
             NativeConnection_->GetChannelFactory(),
             NativeConnection_,
             std::move(invoker),
             NYPath::TYPath(groupId),
-            selfAddress,
-            RpcServer_,
             std::move(selfAddress),
+            RpcServer_,
+            std::move(selfAddressCopy),
             std::move(logger),
             NativeAuthenticator_,
             profiler);

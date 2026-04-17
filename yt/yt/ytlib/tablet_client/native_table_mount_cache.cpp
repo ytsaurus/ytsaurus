@@ -83,7 +83,7 @@ public:
         : TTableMountCacheBase(std::move(config), logger, profiler.WithPrefix("/table_mount_cache"))
         , Connection_(std::move(connection))
         , CellDirectory_(std::move(cellDirectory))
-        , Invoker_(connection->GetInvoker())
+        , Invoker_(Connection_.Lock()->GetInvoker())
         , TableMountInfoUpdateInvoker_(CreateSerializedInvoker(Invoker_))
     { }
 

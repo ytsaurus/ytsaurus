@@ -899,7 +899,7 @@ private:
                     backendReaders.ChunkReader,
                     chunkReadOptions,
                     *xorFilterMeta,
-                    std::move(keys));
+                    keys);
             }
         }
 
@@ -1010,13 +1010,14 @@ private:
                 /*testingOptions*/ std::nullopt,
                 TabletNodeLogger());
 
+            auto chunkReader = CreateIndexedVersionedChunkReader(
+                chunkReadOptions,
+                std::move(controller),
+                std::move(backendReaders.ChunkReader),
+                tabletSnapshot->ChunkFragmentReader);
             MaybeWrapUnderlyingReader(
                 chunkStore,
-                CreateIndexedVersionedChunkReader(
-                    std::move(chunkReadOptions),
-                    std::move(controller),
-                    std::move(backendReaders.ChunkReader),
-                    tabletSnapshot->ChunkFragmentReader),
+                chunkReader,
                 chunkReadOptions);
             return;
         }
@@ -1028,7 +1029,7 @@ private:
                 std::move(backendReaders.ReaderConfig),
                 std::move(backendReaders.ChunkReader),
                 chunkState->BlockCache,
-                std::move(chunkReadOptions),
+                chunkReadOptions,
                 chunkMeta);
 
             MaybeWrapUnderlyingReader(

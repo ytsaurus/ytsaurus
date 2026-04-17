@@ -1108,6 +1108,9 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     auto rootVolumeManager = VolumeManager_.Acquire();
 
+    // NB: to avoid potential use-after-move in DoIf.
+    bool rootVolumeManagerPresent = static_cast<bool>(rootVolumeManager);
+
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("slot_count").Value(slotManagerInfo.SlotCount)
@@ -1133,7 +1136,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
                     }
                 })
             .DoIf(
-                static_cast<bool>(rootVolumeManager),
+                rootVolumeManagerPresent,
                 [rootVolumeManager = std::move(rootVolumeManager)] (TFluentMap fluent){
                     fluent
                         .Item("root_volume_manager").Do(std::bind(

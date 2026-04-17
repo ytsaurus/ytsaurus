@@ -190,7 +190,7 @@ TUnversionedRow TStatisticsReporter::MakeUnversionedRow(
 void TStatisticsReporter::WriteRows(
     const TYPath& tablePath,
     TRange<TUnversionedRow> rows,
-    TRowBufferPtr&& rowBuffer,
+    const TRowBufferPtr& rowBuffer,
     const std::vector<TTabletSnapshotPtr>& /*tabletSnapshots*/)
 {
     int reportedTabletCount = rows.size();
@@ -206,7 +206,7 @@ void TStatisticsReporter::WriteRows(
     transaction->WriteRows(
         tablePath,
         NameTable,
-        MakeSharedRange(rows, std::move(rowBuffer)));
+        MakeSharedRange(rows, rowBuffer));
 
     WaitFor(transaction->Commit())
         .ThrowOnError();
@@ -223,7 +223,7 @@ void TStatisticsReporter::WriteRows(
 TIntrusivePtr<NApi::IUnversionedRowset> TStatisticsReporter::LookupRows(
     const TYPath& tablePath,
     TRange<TUnversionedRow> keys,
-    NTableClient::TRowBufferPtr&& rowBuffer)
+    const NTableClient::TRowBufferPtr& rowBuffer)
 {
     NApi::TLookupRowsOptions lookupOptions;
     lookupOptions.VersionedReadOptions.ReadMode = EVersionedIOMode::LatestTimestamp;
@@ -232,7 +232,7 @@ TIntrusivePtr<NApi::IUnversionedRowset> TStatisticsReporter::LookupRows(
     auto lookupFuture = Bootstrap_->GetClient()->LookupRows(
         tablePath,
         NameTable,
-        MakeSharedRange(keys, std::move(rowBuffer)),
+        MakeSharedRange(keys, rowBuffer),
         lookupOptions);
 
     return WaitFor(lookupFuture)
@@ -243,13 +243,13 @@ TIntrusivePtr<NApi::IUnversionedRowset> TStatisticsReporter::LookupRows(
 void TStatisticsReporter::LoadStatistics(
     const TYPath& tablePath,
     TRange<TUnversionedRow> keys,
-    NTableClient::TRowBufferPtr&& rowBuffer,
+    const NTableClient::TRowBufferPtr& rowBuffer,
     const std::vector<TTabletSnapshotPtr>& tabletSnapshots)
 {
     auto tableStatisticsRowset = LookupRows(
         tablePath,
         keys,
-        std::move(rowBuffer));
+        rowBuffer);
 
     const auto& lookupSchema = tableStatisticsRowset->GetSchema();
 
@@ -440,7 +440,7 @@ void TStatisticsReporter::DoProcessStatistics(
             processRows(
                 tablePath,
                 TRange(rows, rowsSize),
-                std::move(rowBuffer),
+                rowBuffer,
                 tabletSnapshots);
             resetRows(snapshotIndex);
         }
@@ -450,7 +450,7 @@ void TStatisticsReporter::DoProcessStatistics(
         processRows(
             tablePath,
             TRange(rows, rowsSize),
-            std::move(rowBuffer),
+            rowBuffer,
             tabletSnapshots);
     }
 }

@@ -974,7 +974,7 @@ private:
             auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
             req->Attachments().reserve(payloadCount);
             for (const auto& payload : HunkPayloads_) {
-                req->Attachments().push_back(TSharedRef(payload, std::move(payloadHolder)));
+                req->Attachments().push_back(TSharedRef(payload, payloadHolder));
             }
 
             return req->Invoke().Apply(BIND([this, payloadCount]

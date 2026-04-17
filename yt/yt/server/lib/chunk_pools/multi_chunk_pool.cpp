@@ -541,11 +541,12 @@ public:
     TMultiChunkPool(
         std::vector<IPersistentChunkPoolInputPtr> underlyingPoolsInput,
         std::vector<IPersistentChunkPoolOutputPtr> underlyingPoolsOutput)
-        : TMultiChunkPoolInput(std::move(underlyingPoolsInput))
+        : TMultiChunkPoolInput([&] {
+            YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
+            return std::move(underlyingPoolsInput);
+          }())
         , TMultiChunkPoolOutput(std::move(underlyingPoolsOutput))
-    {
-        YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
-    }
+    { }
 
     void AddPool(IPersistentChunkPoolPtr pool, int poolIndex) override
     {

@@ -889,6 +889,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }),
         preparedChunkMeta->FullNewMeta);
 
+    // NB: to avoid use-after-move down the line.
+    bool itemsAreKeys = IsKeys(readItems);
     auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
         .KeyTypes = keyTypes,
         .ReadItemWidth = static_cast<ui16>(readItemWidth),
@@ -918,7 +920,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(blockManager),
         std::move(rowsetBuilder),
         std::move(windowsList),
-        IsKeys(readItems),
+        itemsAreKeys,
         skipValueBlocksForMissingKeys,
         readerStatistics,
         std::move(keyFilterStatistics),

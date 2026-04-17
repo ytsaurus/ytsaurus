@@ -44,7 +44,7 @@ void TChunkReaderSweeper::ScheduleChunkReaderSweep(IChunkPtr chunk)
 
 void TChunkReaderSweeper::OnChunkReaderSweep()
 {
-    ChunkReaderSweepStack_.DequeueAll(true, [&] (auto&& entry) {
+    ChunkReaderSweepStack_.DequeueAll(true, [&] (auto& entry) {
         ChunkReaderSweepQueue_.push(std::move(entry));
     });
 

@@ -1165,6 +1165,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
 
     if (!prepareFuture) {
         PreparedReader_ = std::move(reader);
+        return {};
     }
 
     if (PreparedReader_) {

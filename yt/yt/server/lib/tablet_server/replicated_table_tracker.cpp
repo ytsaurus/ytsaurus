@@ -558,7 +558,7 @@ public:
         , BundleHealthChecker_(Config_->BundleHealthCache, ClusterClientCache_)
     {
         YT_LOG_INFO("Replicated table tracker created (Config: %v)",
-            ConvertToYsonString(config, EYsonFormat::Text));
+            ConvertToYsonString(Config_, EYsonFormat::Text));
 
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
 
