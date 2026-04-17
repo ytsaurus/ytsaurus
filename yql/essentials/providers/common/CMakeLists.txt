@@ -14,3 +14,5 @@
 
 add_subdirectory(codec)
 add_subdirectory(proto)
+add_subdirectory(config)
+add_subdirectory(activation)

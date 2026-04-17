@@ -34,6 +34,7 @@ add_subdirectory(minsketch)
 add_subdirectory(histogram)
 add_subdirectory(expr_nodes)
 add_subdirectory(expr_nodes_gen)
+add_subdirectory(qplayer)
 
 add_library(yql-essentials-core)
 
@@ -74,6 +75,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   essentials-utils-log
   essentials-core-expr_nodes
   providers-common-proto
+  essentials-minikql-runtime_settings
   tools-enum_parser-enum_serialization_runtime
 )
 
