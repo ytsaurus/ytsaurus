@@ -1373,39 +1373,6 @@
             "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_limit-limit_over_sort_desc_in_subquery--Results_/results.txt"
         }
     ],
-    "test.test[lineage-reduce_all_row-default.txt-Debug]": [
-        {
-            "checksum": "b2028e2614558d45ee87efc17cd2eb7b",
-            "size": 1706,
-            "uri": "https://{canondata_backend}/1031349/55d238a244f3a0983368ea5e21207e3376525d7f/resource.tar.gz#test.test_lineage-reduce_all_row-default.txt-Debug_/opt.yql"
-        }
-    ],
-    "test.test[lineage-reduce_all_row-default.txt-Lineage]": [
-        {
-            "checksum": "0744f6bd456214509b00b27a90f681ce",
-            "size": 2536,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-reduce_all_row-default.txt-Lineage_/results.txt"
-        }
-    ],
-    "test.test[lineage-reduce_all_row-default.txt-Plan]": [
-        {
-            "checksum": "5f311169cf62952634aede234c78cecd",
-            "size": 6187,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-reduce_all_row-default.txt-Plan_/plan.txt"
-        }
-    ],
-    "test.test[lineage-reduce_all_row-default.txt-Results]": [
-        {
-            "checksum": "90649d6b580a4253a508c4aeb0eb89b1",
-            "size": 254,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-reduce_all_row-default.txt-Results_/Output.txt"
-        },
-        {
-            "checksum": "99a23a80241cdd0057583910f9155f61",
-            "size": 600,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-reduce_all_row-default.txt-Results_/Output.yqlrun.txt.attr"
-        }
-    ],
     "test.test[lineage-select_mix_fields-default.txt-Debug]": [
         {
             "checksum": "b017244e3f95598b5944a9b0a42038d4",
@@ -1470,39 +1437,6 @@
             "checksum": "2e59cb0f1fc95305461a42de3ea3ff59",
             "size": 482,
             "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-window_asstruct-default.txt-Results_/Output.yqlrun.txt.attr"
-        }
-    ],
-    "test.test[lineage-window_many-default.txt-Debug]": [
-        {
-            "checksum": "9ff2259f4634191edb619e7d71252216",
-            "size": 6010,
-            "uri": "https://{canondata_backend}/1031349/55d238a244f3a0983368ea5e21207e3376525d7f/resource.tar.gz#test.test_lineage-window_many-default.txt-Debug_/opt.yql"
-        }
-    ],
-    "test.test[lineage-window_many-default.txt-Lineage]": [
-        {
-            "checksum": "5939638fb05e89a09ca32307ebc5adb7",
-            "size": 2306,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-window_many-default.txt-Lineage_/results.txt"
-        }
-    ],
-    "test.test[lineage-window_many-default.txt-Plan]": [
-        {
-            "checksum": "5bbff1365ff00e05019939cc38a03380",
-            "size": 8449,
-            "uri": "https://{canondata_backend}/1900335/fdc9f9718e9732a24cd090d5655c1140d6c75e2d/resource.tar.gz#test.test_lineage-window_many-default.txt-Plan_/plan.txt"
-        }
-    ],
-    "test.test[lineage-window_many-default.txt-Results]": [
-        {
-            "checksum": "afda48944e5fe4a4713c18fcba7ab05b",
-            "size": 468,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-window_many-default.txt-Results_/Output.txt"
-        },
-        {
-            "checksum": "a91b77805e17270e377357de018f4596",
-            "size": 950,
-            "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_lineage-window_many-default.txt-Results_/Output.yqlrun.txt.attr"
         }
     ],
     "test.test[multicluster-map_force--Debug]": [
