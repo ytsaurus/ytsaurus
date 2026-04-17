@@ -97,8 +97,8 @@ public:
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
         , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
-        , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
-        , MinHashDigestBuilder_(CreateMinHashDigestBuilder(Config_->MinHashDigest))
+        , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->CompactionHintWriter.RowDigest))
+        , MinHashDigestBuilder_(CreateMinHashDigestBuilder(Config_->CompactionHintWriter.MinHashDigest))
         , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
@@ -238,7 +238,7 @@ protected:
 
     TMemoryUsageTrackerGuard SamplesMemoryUsageGuard_;
 
-    TEncodingChunkWriterPtr EncodingChunkWriter_;
+    const TEncodingChunkWriterPtr EncodingChunkWriter_;
 
     TLegacyOwningKey LastKey_;
 
@@ -313,7 +313,7 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {
             TVersionedRowDigestExt rowDigestExt;
-            ToProto(&rowDigestExt, RowDigestBuilder_->FlushDigest());
+            ToProto(&rowDigestExt, *RowDigestBuilder_->FlushDigest());
             SetProtoExtension(meta->mutable_extensions(), rowDigestExt);
         }
 
@@ -971,12 +971,12 @@ private:
 
     bool IsSegmentMetaInBlocksEnabled() const
     {
-        return Config_->EnableSegmentMetaInBlocks.value_or(false);
+        return Config_->EnableSegmentMetaInBlocks.value_or(true);
     }
 
     bool IsColumnMetaInChunkMetaEnabled() const
     {
-        return Config_->EnableColumnMetaInChunkMeta.value_or(true);
+        return Config_->EnableColumnMetaInChunkMeta.value_or(false);
     }
 };
 
@@ -1051,7 +1051,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         TRange<TVersionedRow>
     >;
 
-    auto writer = New<TVersionedMultiChunkWriter>(
+    return New<TVersionedMultiChunkWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -1064,8 +1064,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         /*trafficMeter*/ nullptr,
         std::move(throttler),
         std::move(blockCache));
-    writer->Init();
-    return writer;
 }
 
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(

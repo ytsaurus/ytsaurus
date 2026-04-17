@@ -1,5 +1,5 @@
 # testing/provision.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -518,7 +518,13 @@ def set_default_schema_on_connection(cfg, dbapi_connection, schema_name):
 
 @register.init
 def upsert(
-    cfg, table, returning, *, set_lambda=None, sort_by_parameter_order=False
+    cfg,
+    table,
+    returning,
+    *,
+    set_lambda=None,
+    sort_by_parameter_order=False,
+    index_elements=None,
 ):
     """return the backends insert..on conflict / on dupe etc. construct.
 

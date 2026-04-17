@@ -167,24 +167,28 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
     if (state != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::TabletNotMounted,
-            "Tablet %v of table %v is in %Qlv state",
+            "Tablet %v of table %v is in %Qlv state, expected: %Qlv",
             tabletInfo->TabletId,
             tableInfo->Path,
-            tabletInfo->State)
+            state,
+            ETabletState::Mounted)
             << TErrorAttribute("tablet_id", tabletInfo->TabletId)
             << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
-void ValidateTabletMounted(
-    const TTableMountInfoPtr& tableInfo,
-    const TTabletInfoPtr& tabletInfo,
-    bool validateWrite)
+void ValidateTabletNotUnmounted(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
 {
-    if (validateWrite) {
-        ValidateTabletMounted(tableInfo, tabletInfo);
-    } else {
-        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+    auto state = tabletInfo->State;
+    if (state == ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::TabletNotMounted,
+            "Cannot read from tablet %v of table %v while it is in %Qlv state",
+            tabletInfo->TabletId,
+            tableInfo->Path,
+            state)
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
+            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -262,7 +266,12 @@ TTabletInfoPtr GetSortedTabletForRowImpl(
     YT_ASSERT(tableInfo->IsSorted());
 
     auto tabletInfo = tableInfo->GetTabletForRow(row);
-    ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
+    if (validateWrite) {
+        ValidateTabletMounted(tableInfo, tabletInfo);
+    } else {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+    }
+
     return tabletInfo;
 }
 
@@ -318,7 +327,12 @@ TTabletInfoPtr GetOrderedTabletForRow(
     }
 
     auto tabletInfo = tableInfo->Tablets[tabletIndex];
-    ValidateTabletMounted(tableInfo, tabletInfo, validateWrite);
+    if (validateWrite) {
+        ValidateTabletMounted(tableInfo, tabletInfo);
+    } else {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+    }
+
     return tabletInfo;
 }
 
@@ -519,6 +533,7 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
         auto tabletId = tabletInfo->TabletId;
         if (tabletIds.insert(tabletId).second) {
+            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
             cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
     }
@@ -537,6 +552,7 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
 {
     THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
     for (const auto& tabletInfo : tableInfo->Tablets) {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
         cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
     }
 

@@ -279,7 +279,13 @@ struct ISecurityManager
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
-    virtual TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) = 0;
+    //! The result contains only the inherited ACEs. The object itself does not
+    //! inherit its every ACE. For grafted nodes (PortalExit, Scion), to mimic
+    //! the natural behaviour, one must provide a join of the object's ACEs and
+    //! inherited ancestry ACEs to the target node, hence the #skipFirstObject flag.
+    virtual TAccessControlList GetEffectiveAcl(
+        NObjectServer::TObject* object,
+        bool skipFirstObject = false) = 0;
 
     //! Sets the authenticated user.
     virtual void SetAuthenticatedUser(TUser* user) = 0;
@@ -293,10 +299,10 @@ struct ISecurityManager
     //! Returns |true| if safe mode is active.
     virtual bool IsSafeMode() const = 0;
 
-    //! Returns |true| if object has columnar ace for this user.
-    virtual bool HasColumnarAce(NObjectServer::TObject* object, TUser* user, TAcdOverride firstObjectAcdOverride = {}) const = 0;
+    //! Returns |true| if object has columnar ace.
+    virtual bool HasColumnarAce(NObjectServer::TObject* object) const = 0;
 
-    //! Returns |true| if object has columnar ace for any user.
+    //! Returns |true| if object has row-level ace.
     virtual bool HasRowLevelAce(NObjectServer::TObject* object) const = 0;
 
     //! Checks if #object ACL allows access with #permission. May throw on invalid request.
@@ -422,6 +428,9 @@ struct ISecurityManager
 
     //! Updates Sequoia tables on ACD change. Is not expected to be called manually.
     virtual void OnObjectAcdUpdated(TAccessControlDescriptor* acd) = 0;
+
+    //! Increases account statistics and puts update in gossip queue.
+    virtual void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

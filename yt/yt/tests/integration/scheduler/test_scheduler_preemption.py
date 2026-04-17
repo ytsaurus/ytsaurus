@@ -54,6 +54,7 @@ def get_scheduling_options(user_slots):
 
 class TestSchedulerPreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -106,6 +107,11 @@ class TestSchedulerPreemption(YTEnvSetup):
         }
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
         sync_create_cells(1)
@@ -120,6 +126,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "preemptive_scheduling_backoff": 0,
             "allocation_graceful_preemption_timeout": 10000,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     @authors("ignat")
@@ -765,6 +772,101 @@ class TestSchedulerPreemption(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
+class TestEmptyPreemptibleProgrssStartTime(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 20,
+            "min_spare_job_resources_on_node": {
+                "cpu": 0,
+                "user_slots": 0,
+                "memory": 0,
+                "gpu": 0,
+            },
+            "allowed_node_resources_overcommit_duration": 0,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 4,
+                "user_slots": 4
+            },
+        },
+        "resource_limits_update_period": 1,
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "waiting_jobs_timeout": 600000,
+                },
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        update_pool_tree_config("default", {
+            "preemption_satisfaction_threshold": 0.99,
+            "aggressive_preemption_satisfaction_threshold": 0.4,
+            "fair_share_starvation_tolerance": 0.9,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "preemptive_scheduling_backoff": 0,
+            "allocation_graceful_preemption_timeout": 10000,
+        })
+
+    @authors("yaishenka")
+    def test_empty_preemptible_progress_start_time_preempt_first(self):
+        update_scheduler_config("nodes_attributes_update_period", 100)
+
+        update_pool_tree_config("default", {
+            "allocation_graceful_preemption_timeout": 6000000,
+            "allocation_preemption_timeout": 6000000,
+        })
+
+        create_pool("poolA", attributes={"strong_guarantee_resources": {"cpu": 2}, "enable_aggressive_starvation": True})
+        create_pool("poolB", attributes={"strong_guarantee_resources": {"cpu": 2}, "enable_aggressive_starvation": True})
+
+        op_a = run_sleeping_vanilla(
+            spec={
+                "pool": "poolA",
+            },
+            task_patch={
+                "cpu_limit": 2,
+            },
+        )
+        wait(lambda: len(op_a.get_running_jobs()) == 1)
+        job_id = list(op_a.get_running_jobs())[0]
+        allocation_id = get_allocation_id_from_job_id(job_id)
+        wait(lambda: get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time") != yson.YsonEntity)
+
+        update_controller_agent_config("scheduler_heartbeat_period", 6000)
+
+        op_b = run_sleeping_vanilla(
+            spec={
+                "pool": "poolB",
+            },
+            task_patch={
+                "cpu_limit": 2,
+            },
+        )
+        wait(lambda: len(op_b.get_running_jobs()) == 1)
+
+        update_nodes_dynamic_config({"resource_limits": {"overrides": {"cpu": 2}}})
+        wait(lambda: op_b.get_job_count("aborted") == 1)
+
+
+@pytest.mark.enabled_multidaemon
 class TestPreemptibleProgressUpdate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -808,6 +910,11 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         }
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super().setup_method(method)
         self._work_dir = os.getcwd()
@@ -821,6 +928,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "preemptive_scheduling_backoff": 0,
             "allocation_graceful_preemption_timeout": 10000,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def teardown_method(self, method, wait_for_nodes=True):
@@ -999,6 +1107,11 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
         },
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestNonPreemptibleResourceUsageThreshold, self).setup_method(method)
 
@@ -1007,6 +1120,7 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
             "preemption_satisfaction_threshold": 0.9,
             "fair_share_starvation_tolerance": 1.0,
             "non_preemptible_resource_usage_threshold": {},
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def _check_preemptible_job_count(self, op, expected_preemptible_count, expected_aggressively_preemptible_count):
@@ -1147,6 +1261,11 @@ class TestPreemptionPriorityScope(YTEnvSetup):
         },
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     @authors("eshcherbin")
     def test_preemption_priority_scope(self):
         update_pool_tree_config(
@@ -1158,6 +1277,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
                 "non_preemptible_resource_usage_threshold": {"user_slots": 0},
                 "preemptive_scheduling_backoff": 0,
                 "scheduling_preemption_priority_scope": "operation_only",
+                "use_precommit_for_preemption": self.use_precommit_for_preemption,
             })
 
         create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 4.9, "user_slots": 5}})
@@ -1210,6 +1330,11 @@ class TestRacyPreemption(YTEnvSetup):
         },
     }
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestRacyPreemption, self).setup_method(method)
         update_pool_tree_config("default", {
@@ -1218,6 +1343,7 @@ class TestRacyPreemption(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "fair_share_starvation_timeout": 0,
             "preemptive_scheduling_backoff": 0,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def teardown_method(self, method):
@@ -1248,6 +1374,115 @@ class TestRacyPreemption(YTEnvSetup):
         time.sleep(2.0)
         blocking_op.abort()
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 1.0)
+
+
+##################################################################
+
+class TestSchedulerStarvationIntervals(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
+
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 2}}}
+
+    def setup_method(self, method):
+        super(TestSchedulerStarvationIntervals, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 0.8,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "preemptive_scheduling_backoff": 0,
+            "max_ephemeral_pools_per_user": 5,
+            "enable_detailed_starvation_logs": True,
+        })
+
+    def _get_op_starvation_status(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/starvation_status", default=None)
+
+    def _get_op_fair_share(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/detailed_dominant_fair_share/total", default=None)
+
+    @authors("yaishenka")
+    def test_starvation_intervals_usage_increased(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            spec={"scheduling_tag_filter": "haha_tag"},
+        )
+
+        wait(lambda: self._get_op_starvation_status(op) == "starving")
+
+        time.sleep(2)
+
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["haha_tag"])
+        wait(lambda: self._get_op_starvation_status(op) != "starving")
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+
+        def check_for_starving_interval():
+            histogram = profiler.histogram("scheduler/pools/starvation_intervals", {"pool": "<Root>"})
+            counters = histogram.get_all(tags={"reason": "usage_increased"})
+            assert len(counters) == 1
+            counter = counters[0]
+            for value in counter["value"]:
+                if value["bound"] != 60.0:
+                    continue
+                if value["count"] != 0:
+                    assert value["count"] == 1
+                    return True
+            return False
+
+        wait(lambda: check_for_starving_interval())
+
+    @authors("yaishenka")
+    def test_starvation_intervals_fair_share_decreased(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
+
+        starving_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={
+                "pool": "starving_pool",
+                "scheduling_tag_filter": nodes[0]
+            },
+            task_patch={"cpu_limit": 2},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 2.0)
+        wait(lambda: self._get_op_starvation_status(starving_op) == "starving")
+        time.sleep(2)
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 2.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 2.0)
+
+        wait(lambda: self._get_op_starvation_status(starving_op) != "starving")
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+
+        def check_for_starving_interval():
+            histogram = profiler.histogram("scheduler/pools/starvation_intervals", {"pool": "starving_pool"})
+            counters = histogram.get_all(tags={"reason": "fair_share_decreased"})
+            assert len(counters) == 1
+            counter = counters[0]
+            for value in counter["value"]:
+                if value["bound"] != 60.0:
+                    continue
+                if value["count"] != 0:
+                    assert value["count"] == 1
+                    return True
+            return False
+
+        wait(lambda: check_for_starving_interval())
 
 
 ##################################################################
@@ -1310,11 +1545,17 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 2, "user_slots": 2}}}
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
         update_pool_tree_config("default", {
             "allocation_graceful_preemption_timeout": 10000,
             "allocation_preemption_timeout": 600000,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     def teardown_method(self, method):
@@ -1459,6 +1700,11 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestSchedulerAggressivePreemption, self).setup_method(method)
         update_pool_tree_config("default", {
@@ -1470,6 +1716,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
             "max_ephemeral_pools_per_user": 5,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
         nodes = ls("//sys/cluster_nodes")
@@ -1630,6 +1877,11 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
+    @pytest.fixture(scope="class", autouse=True, params=[True, False])
+    def _setup_preempted_usage_precommit(self, request):
+        request.cls.use_precommit_for_preemption = request.param
+        yield
+
     def setup_method(self, method):
         super(TestSchedulerAggressivePreemption2, self).setup_method(method)
         update_pool_tree_config("default", {
@@ -1638,6 +1890,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
             "fair_share_starvation_timeout": 100,
             "non_preemptible_resource_usage_threshold": {"user_slots": 2},
             "preemptive_scheduling_backoff": 0,
+            "use_precommit_for_preemption": self.use_precommit_for_preemption,
         })
 
     @classmethod

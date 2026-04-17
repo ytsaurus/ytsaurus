@@ -1,6 +1,7 @@
 #pragma once
 
 #include "folding_profiler.h"
+#include "public.h"
 
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
@@ -17,8 +18,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TCodegenCacheConfig)
-
 struct TCodegenCacheConfig
     : public TSlruCacheConfig
 {
@@ -30,8 +29,6 @@ struct TCodegenCacheConfig
 DEFINE_REFCOUNTED_TYPE(TCodegenCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(TCodegenCacheDynamicConfig)
 
 struct TCodegenCacheDynamicConfig
     : public TSlruCacheDynamicConfig

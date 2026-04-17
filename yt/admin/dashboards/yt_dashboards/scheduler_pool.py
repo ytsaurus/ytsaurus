@@ -50,10 +50,10 @@ def _build_quotas_usage(d, os_documentation):
                 .legend_format("Resource demand"),
             SchedulerPools(f"yt.scheduler.pools.effective_strong_guarantee_resources.{resource}")
                 .nan_as_zero()
-                .legend_format("Effective guarantee"),
+                .legend_format("Effective strong guarantee"),
             SchedulerPools(f"yt.scheduler.pools.specified_strong_guarantee_resources.{resource_in_config}")
                 .nan_as_zero()
-                .legend_format("Configured guarantee"),
+                .legend_format("Configured strong guarantee"),
             SchedulerPools(f"yt.scheduler.pools.specified_resource_limits.{resource_in_config}")
                 .legend_format("Configured limit"),
         )
@@ -104,8 +104,8 @@ def _build_quotas_usage(d, os_documentation):
     DESCRIPTION = """
 **Demand**: amount of resources needed to run all waiting and running jobs in the pool.<EOLN>
 **Usage**: model resource consumption of the pool from scheduler's point of view. Represents the number of resources that are reserved for operations in the pool. Actual resource consumption may differ.<EOLN>
-**Configured Guarantee**: amount of resources guaranteed for the pool that is specified in pool's config.<EOLN>
-**Effective Guarantee**: amount of resources guaranteed for the pool that is derived from **Configured Guarantee**. In case of cluster resources shortage, **Effective Guarantee** can be lower than **Configured Guarantee**.<EOLN>
+**Configured Strong Guarantee**: amount of resources guaranteed for the pool that is specified in pool's config.<EOLN>
+**Effective Strong Guarantee**: amount of resources guaranteed for the pool that is derived from **Configured Strong Guarantee**. In case of cluster resources shortage, **Effective Strong Guarantee** can be lower than **Configured Strong Guarantee**.<EOLN>
 **Configured Limit**: maximum amount of resources given to the pool that is specified in pool's config.
 
 **Running Operations**: number of operations in the pool which are running, i.e. are considered for job scheduling. Also displays the number of "lightweight" running operations, which are not accounted in the running operation count limit.<EOLN>

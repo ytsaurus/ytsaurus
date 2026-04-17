@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from typing import get_type_hints, get_origin, get_args, Optional, Tuple, Type, TypedDict, Union, Literal, Dict, List, Any
 
 from . import common
@@ -261,7 +259,8 @@ class DefaultConfigType(TypedDict, total=False):
 
     class DefaultConfigReadParallelType(TypedDict, total=False):
         max_thread_count: int
-        data_size_per_thread: Union[int, None]
+        data_size_per_thread: Optional[int]
+        use_distributed_read: bool
         enable: bool
 
     read_parallel: DefaultConfigReadParallelType
@@ -873,8 +872,10 @@ default_config = {
         "max_thread_count": 10,
         # Approximate data size per one task.
         "data_size_per_thread": None,
+        # Download chunks using masterless distrubuted read method
+        "use_distributed_read": False,
         # Always run read parallel if it is possible.
-        "enable": False
+        "enable": False,
     },
     "write_parallel": {
         # Number of threads.

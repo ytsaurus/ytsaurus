@@ -249,7 +249,7 @@ private:
         Reader_ = CreateFileMultiChunkReader(
             Config_,
             New<TMultiChunkReaderOptions>(),
-            TChunkReaderHost::FromClient(Client_),
+            New<TChunkReaderHost>(Client_),
             ChunkReadOptions_,
             std::move(chunkSpecs),
             dataSource);

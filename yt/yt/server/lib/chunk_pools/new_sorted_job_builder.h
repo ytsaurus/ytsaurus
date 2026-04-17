@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-
 #include "new_job_manager.h"
+#include "private.h"
 #include "sorted_chunk_pool.h"
 #include "sorted_job_builder.h"
 

@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session_server/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/lib/node/config.h>
@@ -40,8 +38,6 @@ using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TP2PConfig
     : public NYTree::TYsonStruct
 {
@@ -65,8 +61,8 @@ struct TP2PConfig
     TSlruCacheDynamicConfigPtr RequestCacheOverride;
 
     TDuration ChunkCooldownTimeout;
-    int MaxDistributedBytes;
-    int MaxBlockSize;
+    i64 MaxDistributedBytes;
+    i64 MaxBlockSize;
     int BlockCounterResetTicks;
     int HotBlockThreshold;
     int SecondHotBlockThreshold;
@@ -117,12 +113,6 @@ struct TChunkLocationConfig
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
 
-    //! Enables defining a dynamic location IO weight given by a formula, which
-    //! is re-evaluated periodically to determine the current value.
-    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
-    //! Supported variables: available_space, used_space
-    std::optional<std::string> IOWeightFormula;
-
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TChunkLocationConfig);
@@ -147,12 +137,6 @@ struct TChunkLocationDynamicConfig
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
-
-    //! Enables defining a dynamic location IO weight given by a formula, which
-    //! is re-evaluated periodically to determine the current value.
-    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
-    //! Supported variables: available_space, used_space
-    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 
@@ -196,6 +180,12 @@ struct TStoreLocationConfig
     //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
     NYTree::INodePtr LowLatencySplitChangelog;
 
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
+    std::optional<std::string> IOWeightFormula;
+
     TStoreLocationConfigPtr ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig);
 
@@ -218,6 +208,8 @@ struct TStoreLocationDynamicConfig
     std::optional<TDuration> MaxTrashTtl;
     std::optional<i64> TrashCleanupWatermark;
     std::optional<TDuration> TrashCheckPeriod;
+
+    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TStoreLocationDynamicConfig);
 
@@ -476,6 +468,11 @@ struct TMasterConnectorDynamicConfig
 
     bool CheckChunksCellTagsBeforeHeartbeats;
 
+    // COMPAT(cherepashka)
+    bool ForceSyncMasterCellDirectoryBeforeCheckChunks;
+
+    bool CheckChunksCellTagsAfterReceivingNewMasterCellConfigs;
+
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -537,7 +534,7 @@ struct TDataNodeTestingOptions
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
 
-    std::optional<TDuration> SleepBeforePerformPutBlocks;
+    std::optional<TDuration> DelayBeforePerformPutBlocks;
 
     //! TChunkLocation::CheckWriteThrottling/TChunkLocation::CheckReadThrottling always return throttled.
     bool AlwaysThrottleLocation;
@@ -556,6 +553,10 @@ struct TDataNodeTestingOptions
     std::optional<TDuration> DelayBeforeProbeBlockSetExecution;
 
     bool IgnoreEmptyLocationsInFullHeartbeats;
+
+    // Only for testing purposes.
+    // To simulate node registration retries.
+    std::optional<int> MinEpochToStartHeartbeats;
 
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
@@ -1038,9 +1039,6 @@ struct TDataNodeConfig
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
 
-    //! Distributed chunk session service config.
-    NDistributedChunkSessionServer::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
-
     //! Blocks trash scan for test purpose.
     //! Have to be static, because dynamic config loads after initialization.
     bool EnableTrashScanningBarrier;
@@ -1104,7 +1102,7 @@ struct TDataNodeDynamicConfig
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
     bool PreallocateDiskSpace;
-    bool UseDirectIo;
+    bool UseDirectIO;
 
     bool WaitPrecedingBlocksReceived;
 

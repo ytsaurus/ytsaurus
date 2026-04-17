@@ -25,6 +25,8 @@
 
 #include <util/stream/length.h>
 
+#include <utility>
+
 namespace NYql {
 
 namespace {
@@ -34,7 +36,7 @@ using namespace NKikimr::NMiniKQL;
 
 class TPureDataSinkExecTransformer: public TExecTransformerBase {
 public:
-    TPureDataSinkExecTransformer(const TPureState::TPtr state)
+    explicit TPureDataSinkExecTransformer(const TPureState::TPtr state)
         : State_(state)
     {
         AddHandler({TStringBuf("Result")}, RequireNone(), Hndl(&TPureDataSinkExecTransformer::HandleRes));
@@ -228,8 +230,8 @@ THolder<TExecTransformerBase> CreatePureDataSourceExecTransformer(const TPureSta
 
 class TPureProvider: public TDataProviderBase {
 public:
-    TPureProvider(const TPureState::TPtr& state)
-        : State_(state)
+    explicit TPureProvider(TPureState::TPtr state)
+        : State_(std::move(state))
         , ExecTransformer_([this]() { return CreatePureDataSourceExecTransformer(State_); })
     {
     }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <contrib/ydb/public/sdk/cpp/src/client/impl/internal/internal_header.h>
+
 #include <string>
 
 namespace NYdb::inline Dev {

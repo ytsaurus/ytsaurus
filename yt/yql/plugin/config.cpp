@@ -23,7 +23,6 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"DefaultMaxJobFails", "5"},
     {"DefaultMemoryLimit", "512m"},
     {"MapJoinLimit", "2048m"},
-    {"ClientMapTimeout", "10s"},
     {"MapJoinShardCount", "4"},
     {"CommonJoinCoreLimit", "128m"},
     {"CombineCoreLimit", "128m"},
@@ -79,6 +78,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"DQRPCReaderInflight", "1"},
     {"UseNativeYtTypes", "true"},
     {"UseNativeDynamicTableRead", "true"},
+    {"RuntimeClusterSelection", "auto"},
 });
 
 constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -110,25 +110,22 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
-    {"FiniteStreams", "0"},
-    {"GatewayThreads", "16"},
+    {"_FiniteStreams", "0"},
     {"GracefulUpdate", "1"},
     {"UpdateTimeout", "600s"},
     {"ControllerCount", "1"},
     {"ControllerCpuLimit", "1.0"},
     {"ControllerMemoryLimit", "1G"},
-    {"ControllerRpcPort", "10080"},
-    {"ControllerMonitoringPort", "10081"},
-    {"WorkerCount", "10"},
+    {"WorkerCount", "1"},
     {"WorkerCpuLimit", "1.0"},
     {"WorkerMemoryLimit", "1G"},
-    {"WorkerRpcPort", "10082"},
-    {"WorkerMonitoringPort", "10083"},
     {"YtConsumerVital", "false"},
-    {"YtPartitionCount", "10"}
+    {"YtPartitionCount", "1"}
 });
 
 constexpr auto DefaultPQGatewaySettings = std::array<std::pair<TStringBuf, TStringBuf>, 0>{};
+
+constexpr auto DefaultSolomonGatewaySettings = std::array<std::pair<TStringBuf, TStringBuf>, 0>{};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,6 +323,10 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Alias("pq_gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
+    registrar.Parameter("solomon_gateway", &TThis::SolomonGatewayConfig)
+        .Alias("solomon_gateway_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
     registrar.Parameter("file_storage", &TThis::FileStorageConfig)
         .Alias("file_storage_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
@@ -440,6 +441,16 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         }
         pqGatewaySettings = MergeDefaultSettings(pqGatewaySettings->AsList(), DefaultPQGatewaySettings);
         YT_VERIFY(pqGatewayConfig->AddChild("default_settings", std::move(pqGatewaySettings)));
+
+        auto solomonGatewayConfig = config->SolomonGatewayConfig->AsMap();
+        auto solomonGatewaySettings = solomonGatewayConfig->FindChild("default_settings");
+        if (solomonGatewaySettings) {
+            solomonGatewayConfig->RemoveChild(solomonGatewaySettings);
+        } else {
+            solomonGatewaySettings = GetEphemeralNodeFactory()->CreateList();
+        }
+        solomonGatewaySettings = MergeDefaultSettings(solomonGatewaySettings->AsList(), DefaultSolomonGatewaySettings);
+        YT_VERIFY(solomonGatewayConfig->AddChild("default_settings", std::move(solomonGatewaySettings)));
 
         auto icSettingsConfig = config->DQManagerConfig->ICSettings->AsMap();
         auto closeOnIdleMs = icSettingsConfig->FindChild("close_on_idle_ms");

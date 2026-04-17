@@ -30,7 +30,6 @@ DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManagerConfig)
 struct TNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
-    // COMPAT(danilalexeev)
     TDuration DefaultNodeTransactionTimeout;
     TDuration DefaultDataNodeLeaseTransactionTimeout;
 
@@ -144,6 +143,11 @@ struct TDynamicNodeTrackerConfig
     TDuration MaxNodeIncompleteStateDuration;
 
     bool NoRestartingNodesDisposal;
+
+    // COMPAT(cherepashka)
+    bool ReturnMasterCellsConnectionConfigsOnNodeRegistration;
+    // COMPAT(cherepashka)
+    bool ReturnMasterCellsConnectionConfigsOnNodeHeartbeat;
 
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 

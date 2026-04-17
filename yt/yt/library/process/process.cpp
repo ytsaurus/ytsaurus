@@ -731,7 +731,7 @@ TFuture<void> TProcessBase::Spawn()
             ResolvedPath_)
             << ex);
     }
-    return FinishedPromise_;
+    return FinishedPromise_.ToFuture().ToUncancelable();
 }
 
 void TSimpleProcess::DoSpawn()

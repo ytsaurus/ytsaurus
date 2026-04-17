@@ -1441,12 +1441,12 @@ void RotateLastEntryBeforeIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBooleanOrCollector::operator() ()
+void TBooleanOrCollector::operator()()
 {
     Value_ = true;
 }
 
-bool TBooleanOrCollector::operator() (bool value)
+bool TBooleanOrCollector::operator()(bool value)
 {
     Value_ |= value;
     return value;

@@ -106,7 +106,7 @@ void TBootstrap::Run()
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(ControlInvoker_)
         .Run()
-        .Get()
+        .BlockingGet()
         .ThrowOnError();
 
     Sleep(TDuration::Max());
@@ -143,7 +143,7 @@ void TBootstrap::DoRun()
     auto clientDirectory = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+    DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
     BusServer_ = CreateBusServer(Config_->BusServer);
 

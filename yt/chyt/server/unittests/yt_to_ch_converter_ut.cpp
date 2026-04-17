@@ -32,6 +32,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
@@ -142,7 +143,7 @@ protected:
         ExpectFields(*column, expectedFields);
     }
 
-    void ExpectThrowOnDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input) const
+    void ExpectThrowOnDataConversion(const TComplexTypeFieldDescriptor& descriptor, const auto& input) const
     {
         TYTToCHColumnConverter converter(descriptor, Settings_);
         converter.InitColumn();
@@ -409,7 +410,8 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
         ESimpleLogicalValueType simpleLogicalValueType,
         DB::DataTypePtr expectedDataType,
         auto ytTypeDummy,
-        auto chTypeDummy)
+        auto chTypeDummy,
+        bool isLowCardinality)
     {
         YT_LOG_TRACE("Running tests (Type: %v)", simpleLogicalValueType);
 
@@ -422,6 +424,12 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
         }
 
         auto logicalType = SimpleLogicalType(simpleLogicalValueType);
+
+        if (isLowCardinality) {
+            logicalType = TaggedLogicalType(LowCardinalityTag, std::move(logicalType));
+            expectedDataType = std::make_shared<DB::DataTypeLowCardinality>(expectedDataType);
+        }
+
 
         auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
         TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
@@ -437,24 +445,26 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
         ExpectDataConversion(descriptor, ytColumnRequired, expectedFields);
     };
 
-    testAsType(ysonsInt8, ESimpleLogicalValueType::Int8, std::make_shared<DB::DataTypeNumber<DB::Int8>>(), i8(), i8());
-    testAsType(ysonsInt16, ESimpleLogicalValueType::Int16, std::make_shared<DB::DataTypeNumber<i16>>(), i16(), i16());
-    testAsType(ysonsInt32, ESimpleLogicalValueType::Int32, std::make_shared<DB::DataTypeNumber<i32>>(), i32(), i32());
-    testAsType(ysonsInt64, ESimpleLogicalValueType::Int64, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
-    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond), i64(), i64());
-    testAsType(ysonsInt64, ESimpleLogicalValueType::Interval64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond), i64(), i64());
-    testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), DB::UInt8(), DB::UInt8());
-    testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, GetDataTypeBoolean(), bool(), DB::UInt8());
-    testAsType(ysonsUint16, ESimpleLogicalValueType::Uint16, std::make_shared<DB::DataTypeNumber<ui16>>(), ui16(), ui16());
-    testAsType(ysonsUint32, ESimpleLogicalValueType::Uint32, std::make_shared<DB::DataTypeNumber<ui32>>(), ui32(), ui32());
-    testAsType(ysonsUint64, ESimpleLogicalValueType::Uint64, std::make_shared<DB::DataTypeNumber<ui64>>(), ui64(), ui64());
-    testAsType(ysonsUint16, ESimpleLogicalValueType::Date, std::make_shared<DB::DataTypeDate>(), ui16(), ui16());
-    testAsType(ysonsInt32, ESimpleLogicalValueType::Date32, std::make_shared<DB::DataTypeDate32>(), i32(), i32());
-    testAsType(ysonsUint32, ESimpleLogicalValueType::Datetime, std::make_shared<DB::DataTypeDateTime>(), ui32(), ui32());
-    testAsType(ysonsString, ESimpleLogicalValueType::String, std::make_shared<DB::DataTypeString>(), TString(), std::string());
-    testAsType(ysonsJson, ESimpleLogicalValueType::Json, std::make_shared<DB::DataTypeString>(), TString(), std::string());
-    testAsType(ysonsFloat, ESimpleLogicalValueType::Float, std::make_shared<DB::DataTypeNumber<float>>(), double(), float());
-    testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double());
+    testAsType(ysonsFloat, ESimpleLogicalValueType::Float, std::make_shared<DB::DataTypeNumber<float>>(), double(), float(), false);
+    testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double(), false);
+    testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, GetDataTypeBoolean(), bool(), DB::UInt8(), false);
+    for (bool isLowCardinality : {false, true}) {
+        testAsType(ysonsInt8, ESimpleLogicalValueType::Int8, std::make_shared<DB::DataTypeNumber<DB::Int8>>(), i8(), i8(), isLowCardinality);
+        testAsType(ysonsInt16, ESimpleLogicalValueType::Int16, std::make_shared<DB::DataTypeNumber<i16>>(), i16(), i16(), isLowCardinality);
+        testAsType(ysonsInt32, ESimpleLogicalValueType::Int32, std::make_shared<DB::DataTypeNumber<i32>>(), i32(), i32(), isLowCardinality);
+        testAsType(ysonsInt64, ESimpleLogicalValueType::Int64, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64(), isLowCardinality);
+        testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond), i64(), i64(), isLowCardinality);
+        testAsType(ysonsInt64, ESimpleLogicalValueType::Interval64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond), i64(), i64(), isLowCardinality);
+        testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), DB::UInt8(), DB::UInt8(), isLowCardinality);
+        testAsType(ysonsUint16, ESimpleLogicalValueType::Uint16, std::make_shared<DB::DataTypeNumber<ui16>>(), ui16(), ui16(), isLowCardinality);
+        testAsType(ysonsUint32, ESimpleLogicalValueType::Uint32, std::make_shared<DB::DataTypeNumber<ui32>>(), ui32(), ui32(), isLowCardinality);
+        testAsType(ysonsUint64, ESimpleLogicalValueType::Uint64, std::make_shared<DB::DataTypeNumber<ui64>>(), ui64(), ui64(), isLowCardinality);
+        testAsType(ysonsUint16, ESimpleLogicalValueType::Date, std::make_shared<DB::DataTypeDate>(), ui16(), ui16(), isLowCardinality);
+        testAsType(ysonsInt32, ESimpleLogicalValueType::Date32, std::make_shared<DB::DataTypeDate32>(), i32(), i32(), isLowCardinality);
+        testAsType(ysonsUint32, ESimpleLogicalValueType::Datetime, std::make_shared<DB::DataTypeDateTime>(), ui32(), ui32(), isLowCardinality);
+        testAsType(ysonsString, ESimpleLogicalValueType::String, std::make_shared<DB::DataTypeString>(), TString(), std::string(), isLowCardinality);
+        testAsType(ysonsJson, ESimpleLogicalValueType::Json, std::make_shared<DB::DataTypeString>(), TString(), std::string(), isLowCardinality);
+    }
 }
 
 TEST_F(TYTToCHConversionTest, DateTime64Types)
@@ -1602,6 +1612,58 @@ TEST(TTestKeyConversion, TestNulls)
             std::numeric_limits<DB::Int64>::min(),
             21u}));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TTestKeyConversion, TestLowCardinality)
+{
+    TTableSchema schema;
+
+    {
+        std::vector<TColumnSchema> columnSchemas;
+        columnSchemas.reserve(2);
+
+        auto& column1 = columnSchemas.emplace_back("dummy_name", ESimpleLogicalValueType::Int64);
+        column1.SetRequired(true);
+        auto& column2 = columnSchemas.emplace_back(column1);
+        column2.SetLogicalType(TaggedLogicalType(LowCardinalityTag, column2.LogicalType()));
+
+        schema = TTableSchema(std::move(columnSchemas));
+    }
+
+    DB::DataTypes dataTypes = {
+        std::make_shared<DB::DataTypeInt64>(),
+        std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeInt64>()),
+    };
+
+    auto lowerBound = MakeBound(
+        {MakeUnversionedInt64Value(5)},
+        /*isInclusive=*/false,
+        /*isUpper=*/false);
+    auto upperBound = MakeUpperBound({MakeUnversionedInt64Value(10)});
+
+    auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, false);
+    YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
+    YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(std::numeric_limits<DB::Int64>::max())}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(std::numeric_limits<DB::Int64>::min())}));
+
+    upperBound = MakeBound(
+        {MakeUnversionedInt64Value(10), MakeUnversionedInt64Value(5),},
+        /*isInclusive=*/false,
+        /*isUpper=*/true);
+
+    lowerBound = MakeBound(
+        {MakeUnversionedInt64Value(5), MakeUnversionedInt64Value(10),},
+        /*isInclusive=*/false,
+        /*isUpper=*/false);
+
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, true);
+    YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
+    YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(4L)}));
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(11L)}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

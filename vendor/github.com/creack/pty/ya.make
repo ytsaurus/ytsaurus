@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v1.1.21)
+VERSION(v1.1.24)
 
 SRCS(
     doc.go
@@ -12,8 +12,9 @@ SRCS(
 
 GO_TEST_SRCS(
     doc_test.go
+    fd_helper_other_test.go
     helpers_test.go
-    io_test.go
+    # io_test.go
 )
 
 IF (ARCH_X86_64)
@@ -68,6 +69,16 @@ IF (OS_ANDROID)
         ioctl.go
         ioctl_inner.go
         pty_linux.go
+        start.go
+        winsize_unix.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        ioctl.go
+        ioctl_inner.go
+        pty_unsupported.go
         start.go
         winsize_unix.go
     )

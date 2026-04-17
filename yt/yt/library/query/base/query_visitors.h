@@ -127,7 +127,9 @@ struct TVisitor
     {
         Visit(likeExpr->Text);
         Visit(likeExpr->Pattern);
-        Visit(likeExpr->EscapeCharacter);
+        if (likeExpr->EscapeCharacter) {
+            Visit(likeExpr->EscapeCharacter);
+        }
     }
 
     void OnCompositeMemberAccessor(const TCompositeMemberAccessorExpression* memberAccessorExpr)
@@ -844,7 +846,7 @@ struct TAbstractExpressionPrinter
 struct TSelfifyRewriter
     : public TRewriter<TSelfifyRewriter>
 {
-    const std::vector<TSelfEquation>& SelfEquations;
+    const std::vector<TConstExpressionPtr>& SelfEquations;
     const THashMap<std::string, int>& ForeignReferenceToIndexMap;
     bool Success = true;
 

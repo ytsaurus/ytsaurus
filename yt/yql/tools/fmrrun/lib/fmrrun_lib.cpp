@@ -55,6 +55,7 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
         auto jobPreparer = NFmr::MakeFmrJobPreparer(GetFileStorage(), TableDataServiceDiscoveryFilePath_);
         fmrServices->JobPreparer = jobPreparer;
     }
+    fmrServices->CheckSpecDoesntUseNativeYtTypes = false;
 
     auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(fileGateway, fmrServices);
     FmrWorker_ = std::move(worker);

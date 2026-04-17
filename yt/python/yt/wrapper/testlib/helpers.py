@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from yt.packages import requests
 
 from yt.test_helpers import wait, get_tests_sandbox
@@ -28,6 +26,7 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Optional, List
 from unittest.mock import patch
 try:
@@ -283,8 +282,8 @@ def random_string(length):
 def log_http_request(
     commands: Optional[List[str]] = None,
 ):
-    # from yt.wrapper.http_helpers import HTTPRequestRetrier
-
+    """Log commands called via `make_request` (http only)
+    """
     retrier_action_orig = yt.http_helpers.HTTPRequestRetrier.action
     stat = []
 
@@ -316,7 +315,8 @@ def inject_http_error(
     raise_custom_exception: Optional[requests.exceptions.RequestException] = None,
     response: Optional[requests.Response] = None,
 ):
-    """Raises RuntimeError or ConnectionError("Connection aborted.") every N http request. Modifies client.config retries
+    """Raises RuntimeError or ConnectionError("Connection aborted.") every N http request.
+       NB: Modifies client.config retries, patches client's requests.Session object
          filter_url - which urls will intercepted
          interrupt_from/interrupt_till - "window" in filtered requests
          interrupt_every - raise every N filtered request
@@ -330,6 +330,9 @@ def inject_http_error(
         filtered_total_calls = 0  # type: int
         filtered_raises = 0  # type: int
         filtered_bypasses = 0  # type: int
+
+        def __str__(self):
+            return f"Counters: {self.filtered_raises=} {self.total_calls=} {self.filtered_total_calls=} {self.filtered_bypasses=}"
 
     if not client._requests_session:
         yt.http_helpers._get_session(client)
@@ -365,6 +368,66 @@ def inject_http_error(
         return reqeust_session_send_orig(*args, **kwargs)
 
     with patch.object(client._requests_session, "send", send_wrapper):
+        yield cnt
+
+
+@contextmanager
+def inject_http_read_error(
+    filter_url: Optional[str] = None,
+    interrupt_from: int = 0,
+    interrupt_till: int = 2,
+    interrupt_every: int = 1,
+    interrupt_read_iteration: int = 5,
+):
+    """Raises ReadTimeout while reading response stream.
+       NB: patches response class
+    """
+    @dataclass
+    class Counters:
+        total_calls: int = 0
+        filtered_total_calls: int = 0
+        filtered_raises: int = 0
+        filtered_bypasses: int = 0
+        filtered_read_calls: int = 0
+
+        def __str__(self):
+            return f"Counters: {self.filtered_raises=} {self.total_calls=} {self.filtered_total_calls=} {self.filtered_bypasses=}"
+
+    cnt = Counters()
+
+    reqeust_session_send_orig = requests.Session.send
+
+    def session_send_wrapper(self, request, *args, **kwargs):
+        cnt.total_calls += 1
+        if (filter_url is not None and request.url and filter_url in request.url):
+            cnt.filtered_total_calls += 1
+            if cnt.filtered_total_calls > interrupt_from \
+                    and interrupt_every and not (cnt.filtered_total_calls - interrupt_from - 1) % interrupt_every \
+                    and cnt.filtered_total_calls < interrupt_till:
+                response = reqeust_session_send_orig(self, request, *args, **kwargs)
+                all_data = response.content
+
+                def iter_content_wrapper(chunk_size=None, decode_unicode=None):
+                    if not chunk_size:
+                        chunk_size = 1
+                    cnt.filtered_read_calls = 0
+                    while True:
+                        if cnt.filtered_read_calls * chunk_size > len(all_data):
+                            return
+                        if cnt.filtered_read_calls == interrupt_read_iteration:
+                            cnt.filtered_raises += 1
+                            raise requests.ReadTimeout(Exception(f"Read timeout {cnt.filtered_read_calls=}"), request=request)
+                        yield all_data[cnt.filtered_read_calls * chunk_size:cnt.filtered_read_calls * chunk_size + chunk_size]
+                        cnt.filtered_read_calls += 1
+
+                response.iter_content = iter_content_wrapper
+                return response
+            else:
+                cnt.filtered_bypasses += 1
+
+        return reqeust_session_send_orig(self, request, *args, **kwargs)
+
+    with patch.object(requests.Session, "send", session_send_wrapper):
         yield cnt
 
 

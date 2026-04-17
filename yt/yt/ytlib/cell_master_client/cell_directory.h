@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/public.h>
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/client/cell_master_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -32,7 +34,10 @@ struct ICellDirectory
         const THashSet<NObjectClient::TCellTag>& removedSecondaryMasterCellTags);
     DECLARE_INTERFACE_SIGNAL(TCellReconfigurationSignature, CellDirectoryChanged);
 
-    virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;
+    virtual void Update(
+        const NCellMasterClient::NProto::TCellDirectory& protoDirectory,
+        // NB: Used for testing purposes only.
+        bool duplicate) = 0;
     virtual void UpdateDefault() = 0;
 
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() = 0;
@@ -67,6 +72,13 @@ struct ICellDirectory
 
     //! Throws when passed EMasterCellRole::Unknown. Throws if no cells have the specified role.
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;
+
+    //! Returns secondary masters connection configuration.
+    virtual TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() = 0;
+
+    //! Reconfigures master connection directory.
+    virtual void ReconfigureMasterCellDirectory(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellDirectory)
@@ -77,7 +89,7 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     NRpc::IChannelFactoryPtr channelFactory,
-    TWeakPtr<NApi::NNative::IConnection> connection,
+    NHiveClient::ICellDirectoryPtr hiveCellDirectory,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -497,8 +497,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
-    @authors("faucct")
-    def test_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective(self):
         op = run_test_vanilla(
             with_breakpoint("echo YT_COLLECTIVE_MEMBER_RANK $YT_COLLECTIVE_MEMBER_RANK 1>&2; env 1>&2; BREAKPOINT"),
             task_patch={"collective_options": {"size": 2}}, job_count=1,
@@ -532,8 +532,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("faucct")
-    def test_table_output_distributed(self):
+    @authors("faucct", "pogorelov")
+    def test_table_output_job_collective(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError, match="echo: write error:"):
             vanilla(
@@ -844,7 +844,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_unused_volumes(self):
-        with raises_yt_error('Volume was described, but not used'):
+        with raises_yt_error('Volume was described but not used'):
             vanilla(
                 spec={
                     "tasks": {
@@ -866,7 +866,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_not_described_volumes(self):
-        with raises_yt_error('Volume was ordered but not described'):
+        with raises_yt_error('Volume was requested but not described'):
             vanilla(
                 spec={
                     "tasks": {
@@ -884,10 +884,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
     @authors("krasovav")
-    def test_two_non_tmpfs_volumes(self):
-        with raises_yt_error('Volume request with 2 or more different not tmpfs disk request are not currently supported'):
+    def test_non_root_nbd_volumes(self):
+        with raises_yt_error('Non-root nbd are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
@@ -896,25 +895,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "command": "cat",
                             "job_volumes_mounts" : [
                                 {
-                                    "volume_id": "a",
-                                    "mount_path": "first",
-                                },
-                                {
-                                    "volume_id": "b",
-                                    "mount_path": "second",
+                                    "volume_id": "nbd",
+                                    "mount_path": "nbd",
                                 },
                             ],
                             "volumes" : {
-                                "a": {
+                                "nbd": {
                                     "disk_request": {
-                                        "type": "local",
+                                        "type": "nbd",
                                         "disk_space": 1024 * 1024,
-                                    },
-                                },
-                                "b": {
-                                    "disk_request": {
-                                        "type": "local",
-                                        "disk_space": 1024 * 1024,
+                                        "nbd_disk": {},
                                     },
                                 },
                             },
@@ -1083,8 +1073,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
         wait(lambda: incarnation_switch_counter.get() == 0)
         wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
 
-    @authors("faucct")
-    def test_revive_before_distributed_jobs_scheduled(self):
+    @authors("faucct", "pogorelov")
+    def test_revive_before_job_collective_jobs_scheduled(self):
         started_job_profiler = JobCountProfiler(
             "started",
             tags={"tree": "default", "job_type": "vanilla"},
@@ -2202,7 +2192,7 @@ class TestGangOperations(YTEnvSetup):
 
         assert restarted_job_profiler.get_job_count_delta() == 0
 
-    @authors("faucct")
+    @authors("faucct", "pogorelov")
     def test_gang_operation_with_collective_options(self):
         with pytest.raises(YtError, match='Operation with "collective_options" can not have tasks with "gang_options"'):
             vanilla(
@@ -2392,9 +2382,7 @@ class TestGangOperations(YTEnvSetup):
             "controller_agent/gang_operations/incarnation_switch_count")
         abort_job(first_job_ids[0])
 
-        # After abort controller try to start job, but delay in cleanup greater then reincarnation timeout.
-        # ">= 2" because scheduler can schedule job before abort by reincarnation timeout and after abort_job
-        wait(lambda: incarnation_switch_counter.get() >= 2)
+        wait(lambda: incarnation_switch_counter.get() == 1)
 
         # Resolve life lock from comment above.
         update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
@@ -3048,6 +3036,48 @@ class TestGangOperations(YTEnvSetup):
 
         assert incarnation_switch_counter.get() == 0
 
+    @authors("pogorelov")
+    def test_suspended_gang_operation(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gang_options": {},
+                    },
+                },
+            },
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        op.suspend()
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
+        # Abort one job to trigger an incarnation switch.
+        # Since the operation is suspended, no new jobs should be scheduled.
+        abort_job(job_ids[0])
+
+        # Wait for all running jobs to stop.
+        wait(lambda: op.get_job_count("running") == 0)
+
+        # Wait a bit and verify that no new jobs were started.
+        time.sleep(1)
+        assert op.get_job_count("running") == 0
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        op.resume()
+        wait(lambda: not get(op.get_path() + "/@suspended"))
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
 
 ##################################################################
 
@@ -3428,3 +3458,59 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
         op.track()
 
         self.assert_job_states(op, "task", aborted=0, completed=3)
+
+
+##################################################################
+
+class TestDontStartNewIncarnationAfterPreemptionIfJobNotStartedYet(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    @authors("krasovav")
+    def test_dont_start_new_incarnation_after_preemption_if_job_not_started_yet(self):
+        create_pool("without_guarantee")
+        create_pool("with_guarantee", attributes={"strong_guarantee_resources": {"cpu": 2}})
+
+        operation_incarnation_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
+        op1 = run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="first"),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+            },
+            spec={
+                "pool": "without_guarantee",
+                "is_gang": True,
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 2000,
+                    },
+                },
+            },
+        )
+
+        wait_breakpoint(breakpoint_name="first", job_count=2)
+
+        run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="second"),
+            job_count=2,
+            spec={
+                "pool": "with_guarantee",
+            }
+        )
+
+        wait_breakpoint(breakpoint_name="second", job_count=2)
+
+        wait(lambda: operation_incarnation_counter.get_delta() == 1)
+        wait(lambda: op1.get_job_count("aborted") == 3)

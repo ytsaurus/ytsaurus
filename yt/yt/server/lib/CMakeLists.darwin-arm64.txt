@@ -37,6 +37,7 @@ add_subdirectory(lsm)
 add_subdirectory(tablet_node)
 add_subdirectory(node)
 add_subdirectory(rpc)
+add_subdirectory(tablet_balancer)
 add_subdirectory(tablet_server)
 add_subdirectory(controller_agent)
 add_subdirectory(scheduler)
@@ -56,6 +57,7 @@ target_compile_options(ytserver INTERFACE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(ytserver INTERFACE

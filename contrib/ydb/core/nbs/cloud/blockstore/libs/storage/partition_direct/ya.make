@@ -1,0 +1,47 @@
+LIBRARY()
+
+SRCS(
+    direct_block_group_in_mem.cpp
+    direct_block_group.cpp
+    erase_request.cpp
+    executor_pool.cpp
+    fast_path_service.cpp
+    flush_request.cpp
+    load_actor_adapter.cpp
+    partition_direct_actor.cpp
+    partition_direct.cpp
+    range_translate.cpp
+    read_request.cpp
+    region.cpp
+    restore_request.cpp
+    vchunk_config.cpp
+    vchunk.cpp
+    write_request.cpp
+)
+
+PEERDIR(
+    contrib/ydb/core/nbs/cloud/blockstore/bootstrap
+    contrib/ydb/core/nbs/cloud/blockstore/config/protos
+    contrib/ydb/core/nbs/cloud/blockstore/libs/storage/api
+    contrib/ydb/core/nbs/cloud/blockstore/libs/storage/storage_transport
+    contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/dirty_map
+    contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/protos
+    contrib/ydb/core/nbs/cloud/storage/core/libs/coroutine
+
+    contrib/ydb/core/protos
+    contrib/ydb/library/aclib
+    contrib/ydb/library/services
+
+    contrib/ydb/core/mind/bscontroller
+    contrib/libs/opentelemetry-proto
+)
+
+END()
+
+RECURSE(
+    dirty_map
+)
+
+RECURSE_FOR_TESTS(
+    ut
+)

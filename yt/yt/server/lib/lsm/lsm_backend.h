@@ -1,12 +1,33 @@
 #pragma once
 
-#include "public.h"
+#include "partition.h"
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
 namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+struct TCompactionHintUpdateRequest
+{
+    struct TStoreRequest
+    {
+        TStoreId StoreId;
+        TStoreCompactionHints::THints Update;
+    };
+
+    struct TPartitionRequest
+    {
+        TPartitionId PartitionId;
+        TPartitionCompactionHints::THints Update;
+        std::vector<TStoreRequest> StoreRequests;
+    };
+
+    NHydra::TCellId CellId;
+    TTabletId TabletId;
+    std::vector<TPartitionRequest> PartitionRequests;
+};
 
 struct TCompactionRequest
 {
@@ -66,6 +87,8 @@ struct TLsmActionBatch
 
     std::vector<TRotateStoreRequest> Rotations;
 
+    std::vector<TCompactionHintUpdateRequest> CompactionHintUpdates;
+
     void MergeWith(TLsmActionBatch&& other);
 
     TString GetStatsLoggingString() const;
@@ -77,7 +100,7 @@ private:
 
 struct TStartedCompactionTask
 {
-    TString TablePath;
+    NYPath::TYPath TablePath;
     EStoreCompactionReason Reason;
 };
 

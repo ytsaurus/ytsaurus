@@ -1,13 +1,12 @@
 package slices
 
 import (
+	"cmp"
 	"slices"
-
-	"golang.org/x/exp/constraints"
 )
 
 // MergeSorted merges two sorted slices. Returns nil in case of a or b is not sorted
-func MergeSorted[E constraints.Ordered](a, b []E) []E {
+func MergeSorted[E cmp.Ordered](a, b []E) []E {
 	if a == nil || b == nil || !slices.IsSorted(a) || !slices.IsSorted(b) {
 		return nil
 	}
@@ -43,7 +42,7 @@ func MergeSorted[E constraints.Ordered](a, b []E) []E {
 }
 
 // UniqueMergeSorted merges two sorted slices and returns merged slice without duplicates. Returns nil in case of a or b is not sorted
-func UniqueMergeSorted[E constraints.Ordered](a, b []E) []E {
+func UniqueMergeSorted[E cmp.Ordered](a, b []E) []E {
 	if a == nil || b == nil || !slices.IsSorted(a) || !slices.IsSorted(b) {
 		return nil
 	}

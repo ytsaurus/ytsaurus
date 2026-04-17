@@ -48,7 +48,7 @@ public:
         std::function<void()> onFinished,
         const TLogger& logger,
         TCallback<void(const TStatistics&)> statisticsCallback = {})
-        : DB::SinkToStorage(ToHeaderBlock(*schema, New<TCompositeSettings>()))
+        : DB::SinkToStorage(ToHeaderBlock(*schema, compositeSettings))
         , NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
         , Schema_(std::move(schema))

@@ -38,7 +38,10 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/guid.h>
+
+#include <yt/yt/core/profiling/timing.h>
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
@@ -164,7 +167,7 @@ TExternalFunction::operator size_t() const
     return result;
 }
 
-bool TExternalFunction::operator == (const TExternalFunction& /*other*/) const = default;
+bool TExternalFunction::operator==(const TExternalFunction& /*other*/) const = default;
 
 void FormatValue(TStringBuilderBase* builder, const TExternalFunction& value, TStringBuf /*spec*/)
 {
@@ -202,6 +205,11 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
     std::vector<TExternalFunctionSpec> result;
 
     YT_LOG_DEBUG("Looking for UDFs in Cypress");
+
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished Looking for UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
 
     auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
@@ -613,6 +621,11 @@ std::vector<TExternalFunctionSpec> LookupAllWebAssemblyUdfDescriptors(
 
     YT_LOG_DEBUG("Looking for WebAssembly UDFs in Cypress");
 
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished Looking for WebAssembly UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
+
     auto uniqueDirectories = GetUniqueDirectories(functions);
     auto [proxy, getRspsOrError] = ListDirectory(client, uniqueDirectories);
     auto resultIndices = GetResultIndices(functions);
@@ -744,6 +757,11 @@ void AppendNativeUdfDescriptors(
 
     YT_LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
 
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished appending UDF descriptors (AppendUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
+
     for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
         const auto& item = externalFunctionSpecs[index];
         const auto& descriptor = item.Descriptor;
@@ -836,6 +854,11 @@ void AppendWebAssemblyUdfDescriptors(
     YT_LOG_DEBUG("Appending WebAssembly UDF descriptors (Functions: %v, Files: %v)",
         functionNames.size(),
         externalFunctionSpecs.size());
+
+    auto timer = NProfiling::TWallTimer();
+    auto finally = Finally([&] {
+        YT_LOG_DEBUG("Finished appending WebAssembly UDF descriptors (AppendUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+    });
 
     if (std::ssize(functionNames) + 1 != std::ssize(externalFunctionSpecs)) {
         YT_LOG_ALERT("Could not load WebAssembly UDFs (Functions: %v, Files: %v)",
@@ -1080,7 +1103,7 @@ struct TFunctionImplKey
     operator size_t() const;
 
     // Comparer.
-    bool operator == (const TFunctionImplKey& other) const;
+    bool operator==(const TFunctionImplKey& other) const;
 };
 
 TFunctionImplKey::operator size_t() const
@@ -1095,7 +1118,7 @@ TFunctionImplKey::operator size_t() const
     return result;
 }
 
-bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
+bool TFunctionImplKey::operator==(const TFunctionImplKey& other) const
 {
     if (ChunkSpecs.size() != other.ChunkSpecs.size())
         return false;
@@ -1202,7 +1225,7 @@ private:
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
-            TChunkReaderHost::FromClient(client),
+            New<TChunkReaderHost>(client),
             chunkReadOptions,
             std::move(chunks),
             MakeFileDataSource(std::nullopt));

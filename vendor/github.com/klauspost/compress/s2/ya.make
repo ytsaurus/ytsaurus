@@ -6,7 +6,7 @@ LICENSE(
     MIT
 )
 
-VERSION(v1.18.0)
+VERSION(v1.18.4)
 
 SRCS(
     decode.go
@@ -58,7 +58,14 @@ IF (ARCH_ARM64)
     )
 ENDIF()
 
-IF (OS_LINUX AND ARCH_ARM7)
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    SRCS(
+        decode_other.go
+        encode_go.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         decode_other.go
         encode_go.go

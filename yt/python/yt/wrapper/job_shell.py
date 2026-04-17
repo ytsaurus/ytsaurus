@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from . import yson
 from .common import generate_uuid, get_user_agent, YtError, get_binary_std_stream
 from .errors import YtResponseError

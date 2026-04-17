@@ -51,6 +51,8 @@ struct TJobProxyTestingConfig
 
     bool FailPreparation;
 
+    bool HaltWhenMaterializingArtifact;
+
     REGISTER_YSON_STRUCT(TJobProxyTestingConfig);
 
     static void Register(TRegistrar registrar);

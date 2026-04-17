@@ -24,6 +24,7 @@ target_compile_options(yt-server-multidaemon PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-multidaemon PUBLIC
@@ -33,11 +34,12 @@ target_link_libraries(yt-server-multidaemon PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-yt-core
-  yt-yt-ytlib
   yt-library-fusion
   yt-library-program
   yt-library-server_program
+  server-lib-cypress_proxy
   yt-server-master
+  yt-yt-ytlib
 )
 
 target_sources(yt-server-multidaemon PRIVATE

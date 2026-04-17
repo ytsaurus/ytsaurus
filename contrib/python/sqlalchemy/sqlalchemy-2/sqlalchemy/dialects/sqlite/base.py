@@ -1,5 +1,5 @@
 # dialects/sqlite/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -194,7 +194,7 @@ The implications of legacy transaction mode include:
   of the transaction will not rollback elements that were part of a released
   savepoint.
 
-Legacy transaction mode first existed in order to faciliate working around
+Legacy transaction mode first existed in order to facilitate working around
 SQLite's file locks.  Because SQLite relies upon whole-file locks, it is easy to
 get "database is locked" errors, particularly when newer features like "write
 ahead logging" are disabled.   This is a key reason why ``sqlite3``'s legacy
@@ -1592,11 +1592,15 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 for c in clause.inferred_target_elements
             )
             if clause.inferred_target_whereclause is not None:
-                target_text += " WHERE %s" % self.process(
-                    clause.inferred_target_whereclause,
+                whereclause_kw = dict(kw)
+                whereclause_kw.update(
                     include_table=False,
                     use_schema=False,
                     literal_execute=True,
+                )
+                target_text += " WHERE %s" % self.process(
+                    clause.inferred_target_whereclause,
+                    **whereclause_kw,
                 )
 
         else:
@@ -1624,6 +1628,8 @@ class SQLiteCompiler(compiler.SQLCompiler):
 
         insert_statement = self.stack[-1]["selectable"]
         cols = insert_statement.table.c
+        set_kw = dict(kw)
+        set_kw.update(use_schema=False)
         for c in cols:
             col_key = c.key
 
@@ -1644,7 +1650,9 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 ):
                     value = value._clone()
                     value.type = c.type
-            value_text = self.process(value.self_group(), use_schema=False)
+            value_text = self.process(
+                value.self_group(), is_upsert_set=True, **set_kw
+            )
 
             key_text = self.preparer.quote(c.name)
             action_set_ops.append("%s = %s" % (key_text, value_text))
@@ -1663,18 +1671,21 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 key_text = (
                     self.preparer.quote(k)
                     if isinstance(k, str)
-                    else self.process(k, use_schema=False)
+                    else self.process(k, **set_kw)
                 )
                 value_text = self.process(
                     coercions.expect(roles.ExpressionElementRole, v),
-                    use_schema=False,
+                    is_upsert_set=True,
+                    **set_kw,
                 )
                 action_set_ops.append("%s = %s" % (key_text, value_text))
 
         action_text = ", ".join(action_set_ops)
         if clause.update_whereclause is not None:
+            where_kw = dict(kw)
+            where_kw.update(include_table=True, use_schema=False)
             action_text += " WHERE %s" % self.process(
-                clause.update_whereclause, include_table=True, use_schema=False
+                clause.update_whereclause, **where_kw
             )
 
         return "ON CONFLICT %s DO UPDATE SET %s" % (target_text, action_text)

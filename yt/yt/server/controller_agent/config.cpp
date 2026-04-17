@@ -16,15 +16,14 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
-
-#include <yt/yt/core/concurrency/config.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NControllerAgent {
 
@@ -58,6 +57,9 @@ void TTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter(
         "abort_output_transaction_after_completion_transaction_commit",
         &TThis::AbortOutputTransactionAfterCompletionTransactionCommit)
+        .Default(false);
+
+    registrar.Parameter("enable_events_on_fs", &TThis::EnableEventsOnFs)
         .Default(false);
 }
 
@@ -1095,6 +1097,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_map_job_size_adjustment", &TThis::EnableMapJobSizeAdjustment)
         .Default(true);
+    registrar.Parameter("enable_ordered_map_job_size_adjustment", &TThis::EnableOrderedMapJobSizeAdjustment)
+        .Default(true);
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
     registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
@@ -1157,6 +1161,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .Alias("operation_alerts")
         .DefaultNew();
+
+    registrar.Parameter("max_job_thread_count_formula", &TThis::MaxJobThreadCountFormula)
+        .Default();
 
     registrar.Parameter("controller_row_buffer_chunk_size", &TThis::ControllerRowBufferChunkSize)
         .Default(64_KB)
@@ -1281,7 +1288,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew("robot-.*");
 
     registrar.Parameter("enable_bulk_insert_for_everyone", &TThis::EnableBulkInsertForEveryone)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_versioned_remote_copy", &TThis::EnableVersionedRemoteCopy)
         .Default(true);
     registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
@@ -1420,6 +1427,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
         .DefaultNew();
 
+    registrar.Parameter("fail_operations_in_empty_trees", &TThis::FailOperationsInEmptyTrees)
+        .Default(true);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
@@ -1478,6 +1488,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
                 config->CudaProfilerEnvironment->PathEnvironmentVariableName,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
+
+#if defined(_tsan_enabled_)
+        // TODO(pogorelov): Implement building snapshots without fork to improve compatibility with tsan (YT-27927).
+        config->EnableSnapshotBuilding = false;
+        config->EnableSnapshotBuildingDisabledAlert = false;
+#endif
     });
 }
 

@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "queue_exporter.h"
+#include "queue_exporter_profile_manager.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
@@ -85,13 +86,13 @@ public:
 
     TQueueExporterOld(
         TString exportName,
-        NQueueClient::TCrossClusterReference queue,
+        NQueueClient::TTablePath queue,
         const NQueueClient::TQueueStaticExportConfigPtr& exportConfig,
         const TQueueExporterDynamicConfig& dynamicConfig,
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         NAlertManager::IAlertCollectorPtr alertCollector,
-        const NProfiling::TProfiler& queueProfiler,
+        IQueueExporterProfileManagerPtr profileManager,
         const NLogging::TLogger& logger);
 
     TQueueExportProgressOldPtr GetExportProgressOld() const;
@@ -107,7 +108,7 @@ public:
 
 private:
     const TString ExportName_;
-    const NQueueClient::TCrossClusterReference Queue_;
+    const NQueueClient::TTablePath Queue_;
 
     NThreading::TSpinLock Lock_;
     NQueueClient::TQueueStaticExportConfigPtr ExportConfig_;

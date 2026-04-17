@@ -76,7 +76,7 @@ TPartRange::operator bool() const
     return !IsEmpty();
 }
 
-bool operator == (const TPartRange& lhs, const TPartRange& rhs)
+bool operator==(const TPartRange& lhs, const TPartRange& rhs)
 {
     return lhs.Begin == rhs.Begin && lhs.End == rhs.End;
 }

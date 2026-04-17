@@ -66,4 +66,17 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        archive_other.go
+        archive_unix.go
+        changes_other.go
+        changes_unix.go
+        copy_unix.go
+        diff_unix.go
+        path_unix.go
+        time_unsupported.go
+    )
+ENDIF()
+
 END()

@@ -51,7 +51,7 @@ spec:
             - {{ .Values.cors.allowedHosts | join "," | quote }}
             {{- end }}
             {{- if .Values.cors.allowedHostSuffixes }}
-            - "--allowed-hosts-suffixes"
+            - "--allowed-host-suffixes"
             - {{ .Values.cors.allowedHostSuffixes | join "," | quote }}
             {{- end }}
           securityContext:

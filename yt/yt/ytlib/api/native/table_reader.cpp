@@ -95,7 +95,7 @@ public:
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
         }
 
-        if (IsAborted() || !ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (IsAborted() || !ReadyEvent_.IsSet() || !ReadyEvent_.GetOrCrash().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -105,7 +105,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.GetOrCrash().IsOK()) {
             return ReadyEvent_;
         }
 
@@ -212,7 +212,10 @@ private:
         Reader_ = CreateAppropriateSchemalessMultiChunkReader(
             tableReaderOptions,
             tableReaderConfig,
-            TChunkReaderHost::FromClient(Client_, BandwidthThrottler_, RpsThrottler_),
+            New<TChunkReaderHost>(
+                Client_,
+                MakeUniformPerCategoryThrottlerProvider(BandwidthThrottler_),
+                RpsThrottler_),
             tableReadSpec,
             chunkReadOptions,
             Options_.Unordered,

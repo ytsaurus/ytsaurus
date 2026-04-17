@@ -3,11 +3,11 @@
 #include "artifact.h"
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
-
-#include <yt/yt/server/node/cluster_node/public.h>
-#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/library/gpu/gpu_info_provider.h>
 

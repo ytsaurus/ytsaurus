@@ -44,7 +44,7 @@ namespace NYql {
 
 namespace {
 
-constexpr char ComponentName[] = "file_storage";
+constexpr const char* ComponentName = "file_storage";
 
 class TFileLockGuard {
 public:
@@ -302,7 +302,7 @@ private:
 
 class TFileStorageWithAsync: public TFileStorageDecorator {
 public:
-    TFileStorageWithAsync(TFileStoragePtr fs)
+    explicit TFileStorageWithAsync(TFileStoragePtr fs)
         : TFileStorageDecorator(std::move(fs))
         , QueueStarted_(0)
     {

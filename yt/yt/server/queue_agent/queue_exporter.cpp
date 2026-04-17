@@ -1138,7 +1138,7 @@ class TQueueExporter
 public:
     TQueueExporter(
         TString exportName,
-        TCrossClusterReference queue,
+        TTablePath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
         TClientDirectoryPtr clientDirectory,
@@ -1263,7 +1263,7 @@ private:
     std::atomic<ui64> LastSuccessfulExportUnixTs_ = 0;
 
     const TString ExportName_;
-    const TCrossClusterReference Queue_;
+    const TTablePath Queue_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
     const IQueueExportManagerPtr QueueExportManager_;
@@ -1366,9 +1366,9 @@ private:
         }
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
-            ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
+            ClientDirectory_->GetClientOrThrow(Queue_.GetCluster().value()),
             Invoker_,
-            Queue_.Path,
+            Queue_.GetPath(),
             exportConfig,
             std::move(dynamicConfig),
             isInitialInvocation,
@@ -1447,15 +1447,14 @@ DEFINE_REFCOUNTED_TYPE(TQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
     TString exportName,
-    TCrossClusterReference queue,
+    TTablePath queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     IAlertCollectorPtr alertCollector,
-    const TProfiler& queueProfiler,
-    const TProfiler& queuePassProfiler,
+    IQueueExporterProfileManagerPtr profileManager,
     const TLogger& logger)
 {
     auto exporter =  New<TQueueExporter>(
@@ -1467,12 +1466,8 @@ IQueueExporterPtr CreateQueueExporter(
         std::move(invoker),
         std::move(queueExportManager),
         std::move(alertCollector),
-        queueProfiler
-            .WithPrefix("/static_export")
-            .WithTag("export_name", exportName),
-        queuePassProfiler
-            .WithPrefix("/static_export")
-            .WithTag("export_name", exportName),
+        profileManager->GetProfiler(EProfilerScope::Object),
+        profileManager->GetProfiler(EProfilerScope::ObjectPass),
         logger);
     exporter->Initialize();
 

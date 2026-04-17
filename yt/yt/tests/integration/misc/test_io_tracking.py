@@ -2127,7 +2127,6 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
 class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
     ENABLE_MULTIDAEMON = False  # Check structured logs.
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {

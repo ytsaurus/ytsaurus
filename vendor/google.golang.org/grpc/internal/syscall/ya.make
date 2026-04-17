@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.73.0)
+VERSION(v1.79.3)
 
 IF (OS_LINUX)
     SRCS(
@@ -25,6 +25,12 @@ ENDIF()
 IF (OS_ANDROID)
     SRCS(
         syscall_linux.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        syscall_nonlinux.go
     )
 ENDIF()
 

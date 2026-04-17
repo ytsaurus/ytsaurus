@@ -95,6 +95,7 @@ protected:
     void Fold(EExecutionBackend backend);
     void Fold(EOptimizationLevel optimizationLevel);
     void Fold(ETotalsMode backend);
+    void Fold(EScanOrder scanOrder);
     void Fold(bool boolean);
     void Fold(int numeric);
     void Fold(size_t numeric);
@@ -129,6 +130,11 @@ void TSchemaProfiler::Fold(EOptimizationLevel optimizationLevel)
 void TSchemaProfiler::Fold(ETotalsMode mode)
 {
     Fold(static_cast<int>(mode));
+}
+
+void TSchemaProfiler::Fold(EScanOrder scanOrder)
+{
+    Fold(static_cast<int>(scanOrder));
 }
 
 void TSchemaProfiler::Fold(bool boolean)
@@ -1226,7 +1232,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*escapeCharacterId].UseCount;
     }
 
-    bool nullable = true;
+    bool nullable = false;
     nullable |= fragments->Items[textId].Nullable;
     nullable |= fragments->Items[patternId].Nullable;
     if (escapeCharacterId) {
@@ -1286,7 +1292,8 @@ size_t TExpressionProfiler::Profile(
             likeExpr->Opcode,
             patternId,
             escapeCharacterId,
-            opaqueIndex),
+            opaqueIndex,
+            nullable),
         likeExpr->GetWireType(),
         nullable);
 
@@ -1356,6 +1363,9 @@ size_t TExpressionProfiler::Profile(
     TExpressionFragments* fragments,
     bool isolated)
 {
+    THROW_ERROR_EXCEPTION_IF(!subqueryExpr->JoinClauses.empty(),
+        "JOIN clauses in subquery expressions are not implemented");
+
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::Subquery));
@@ -1629,7 +1639,7 @@ public:
         TCodegenSource* codegenSource,
         const TConstQueryPtr& query,
         size_t* slotCount,
-        const std::vector<IJoinProfilerPtr>& joinProfilers);
+        const TJoinProfilerRegistry& joinProfilerRegistry);
 
     void Profile(
         TCodegenSource* codegenSource,
@@ -1726,7 +1736,7 @@ private:
     // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
     bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator() const
     {
-        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered(AllowUnorderedGroupByWithLimit_);
+        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered;
     }
 
     // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
@@ -1780,7 +1790,7 @@ private:
 
     void LimitTotalsInput(size_t* totals) const
     {
-        bool considerLimit = Query_->IsOrdered(AllowUnorderedGroupByWithLimit_) && Query_->IsFinal;
+        bool considerLimit = (Query_->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && Query_->IsFinal;
 
         if (considerLimit) {
             int offsetId = Variables_->AddOpaque<size_t>(Query_->Offset);
@@ -1933,7 +1943,7 @@ void TQueryProfiler::Profile(
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
     Fold(EFoldingObjectType::QueryIsOrdered);
-    Fold(query->IsOrdered(AllowUnorderedGroupByWithLimit_));
+    Fold(query->GetScanOrder(AllowUnorderedGroupByWithLimit_));
 
     auto combineGroupOpWithOrderOp = TCodegenOrderOpInfosPtr();
 
@@ -2090,7 +2100,7 @@ void TQueryProfiler::Profile(
             groupClause->TotalsMode != ETotalsMode::None,
             // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
             // Prefix comparer can be used only if input is ordered.
-            (!mergeMode || query->IsOrdered(AllowUnorderedGroupByWithLimit_)) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
+            (!mergeMode || query->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
@@ -2345,7 +2355,7 @@ void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstQueryPtr& query,
     size_t* slotCount,
-    const std::vector<IJoinProfilerPtr>& joinProfilers)
+    const TJoinProfilerRegistry& joinProfilerRegistry)
 {
     Fold(ExecutionBackend_);
     Fold(OptimizationLevel_);
@@ -2481,7 +2491,7 @@ void TQueryProfiler::Profile(
 
         size_t joinBatchSize = MaxJoinBatchSize_;
 
-        if (query->IsOrdered(AllowUnorderedGroupByWithLimit_) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
+        if ((query->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
             joinBatchSize = query->Offset + query->Limit;
         }
 
@@ -2496,21 +2506,14 @@ void TQueryProfiler::Profile(
 
             int equationCount = joinClause->SelfEquations.size();
 
-            std::vector<std::pair<size_t, bool>> selfKeys(equationCount);
+            std::vector<size_t> selfKeys(equationCount);
             std::vector<EValueType> lookupKeyTypes(equationCount);
             for (int index = 0; index < equationCount; ++index) {
-                const auto& [expression, evaluated] = joinClause->SelfEquations[index];
-                const auto& expressionSchema = evaluated ? joinClause->Schema.Original : schema;
-
-                selfKeys[index] = {
-                    TExpressionProfiler::Profile(
-                        expression,
-                        expressionSchema,
-                        &equationFragments,
-                        evaluated),
-                    evaluated,
-                };
-                lookupKeyTypes[index] = expression->GetWireType();
+                selfKeys[index] = TExpressionProfiler::Profile(
+                    joinClause->SelfEquations[index],
+                    schema,
+                    &equationFragments);
+                lookupKeyTypes[index] = joinClause->SelfEquations[index]->GetWireType();
             }
 
             TSingleJoinCGParameters codegenParameters{
@@ -2529,7 +2532,7 @@ void TQueryProfiler::Profile(
                 .IsLeft = joinClause->IsLeft,
                 .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
                 .ForeignColumns = joinClause->GetForeignColumnIndices(),
-                .JoinRowsProducer = joinProfilers[joinIndex]->Profile(),
+                .JoinRowsProducer = joinProfilerRegistry.GetJoinProfilerOrThrow(joinIndex)->Profile(),
             };
 
             joinParameters.Items.push_back(std::move(singleJoinParameters));
@@ -2682,7 +2685,7 @@ TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers,
+    const TJoinProfilerRegistry& joinProfilerRegistry,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
     EOptimizationLevel optimizationLevel,
@@ -2711,7 +2714,7 @@ TCGQueryGenerator Profile(
     TCodegenSource codegenSource = &CodegenEmptyOp;
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilers);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilerRegistry);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount);
     } else {

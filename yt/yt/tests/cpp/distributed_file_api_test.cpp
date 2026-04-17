@@ -44,7 +44,7 @@ TDistributedWriteFileSessionWithCookies TDistributedFileApiTest::StartDistribute
 {
     TDistributedWriteFileSessionStartOptions options;
     options.CookieCount = cookieCount;
-    options.Timeout = timeout;
+    options.SessionTimeout = timeout;
     if (!txId.IsEmpty()) {
         options.TransactionId = txId;
     }

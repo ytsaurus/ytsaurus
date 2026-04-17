@@ -1,11 +1,24 @@
 from . import common
 
 from collections.abc import Iterable
+import typing
+
+if typing.TYPE_CHECKING:
+    import requests
+else:
+    from yt.packages import requests
 
 
 class ResponseStream(Iterable):
     """Iterable over response."""
-    def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
+    def __init__(
+            self,
+            get_response: typing.Callable[[None], typing.Optional[requests.Response]],
+            iter_content: typing.Iterator[bytes],
+            close: typing.Callable[[bool], None],
+            process_error: typing.Callable[[requests.Response], None],
+            get_response_parameters: typing.Callable[[None], typing.Optional[typing.Dict[str, typing.Any]]],
+    ):
         self._buffer = b""
         self._buffer_length = 0
         self._pos = 0
@@ -21,14 +34,16 @@ class ResponseStream(Iterable):
 
         self.response_parameters = get_response_parameters()
 
-    def chunk_iter(self):
+    def chunk_iter(self) -> typing.Generator[bytes, None, None]:
+        """Yield data chunks from response"""
         while True:
             result = self._read_chunk()
             if not result:
                 break
             yield result
 
-    def read(self, length=None):
+    def read(self, length: int = None) -> bytes:
+        """Read `length` bytes (or all) from current position"""
         if self._stream_finished:
             return b""
 
@@ -63,7 +78,8 @@ class ResponseStream(Iterable):
 
         return b"".join(result_strings)
 
-    def readline(self):
+    def readline(self) -> bytes:
+        """Read bytes to the nearest new line"""
         if self._stream_finished:
             return b""
 
@@ -82,13 +98,14 @@ class ResponseStream(Iterable):
 
         return b"".join(result)
 
-    def add_close_action(self, action):
+    def add_close_action(self, action: typing.Callable[[bool], None]):
         if self._is_closed:
             action(from_delete=False)
         else:
             self._close_actions.append(action)
 
-    def _read_chunk(self):
+    def _read_chunk(self) -> bytes:
+        """Returns unreaded data from buffer, move cursor, fetch new data from response if nedded"""
         if self._pos == 0:
             remaining_buffer = self._buffer
         elif self._pos == len(self._buffer):
@@ -104,6 +121,7 @@ class ResponseStream(Iterable):
         return remaining_buffer
 
     def _fetch(self):
+        """Fetch one data block into buffer from response"""
         assert not self._stream_finished
         try:
             while True:
@@ -120,7 +138,8 @@ class ResponseStream(Iterable):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> bytes:
+        """Iterate over lines"""
         line = self.readline()
         if not line:
             raise StopIteration()

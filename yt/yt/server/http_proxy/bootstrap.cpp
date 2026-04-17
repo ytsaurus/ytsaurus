@@ -153,13 +153,15 @@ void TBootstrap::DoInitialize()
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    connectionOptions.CreateQueueConsumerRegistrationManager = true;
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
         New<TNodeMemoryTrackerConfig>(),
         /*limits*/ {},
         Logger(),
-        HttpProxyProfiler().WithPrefix("/memory_usage"));
+        HttpProxyProfiler().WithPrefix("/memory_usage"),
+        GetControlInvoker());
 
     Connection_ = CreateConnection(
         Config_->ClusterConnection,
@@ -175,7 +177,7 @@ void TBootstrap::DoInitialize()
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
     Connection_->GetNodeDirectorySynchronizer()->Start();
-    Connection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     Connection_->GetMasterCellDirectorySynchronizer()->Start();
     SetupClients();
 
@@ -184,11 +186,11 @@ void TBootstrap::DoInitialize()
     auto setGlobalRoleTag = [] (const std::string& role) {
         TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", role}});
     };
-    setGlobalRoleTag(Coordinator_->GetSelf()->Role);
+    setGlobalRoleTag(Coordinator_->GetSelfEntry()->Role);
     Coordinator_->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(setGlobalRoleTag));
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
+    DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
 
     if (Config_->ExposeConfigInOrchid) {
         SetNodeByYPath(
@@ -242,7 +244,7 @@ void TBootstrap::DoInitialize()
     ClickHouseHandler_->Start();
 
     AccessChecker_ = CreateAccessChecker(this);
-    auto ownerId = TOwnerId(Coordinator_->GetSelf()->Endpoint);
+    auto ownerId = TOwnerId(Coordinator_->GetSelfEntry()->Endpoint);
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
         std::move(ownerId),
@@ -390,7 +392,10 @@ void TBootstrap::SetupClients()
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
-void TBootstrap::ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLimitRatiosConfigPtr& memoryLimitRatios)
+void TBootstrap::ReconfigureMemoryUsageTracker(
+    i64 memoryLimit,
+    const TMemoryLimitRatiosConfigPtr& memoryLimitRatios,
+    const TNodeMemoryTrackerConfigPtr& newConfig)
 {
     auto totalMemoryLimit = static_cast<i64>(memoryLimit * memoryLimitRatios->TotalMemoryLimitRatio);
     MemoryUsageTracker_->SetTotalLimit(totalMemoryLimit);
@@ -399,6 +404,8 @@ void TBootstrap::ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLim
     MemoryUsageTracker_->SetCategoryLimit(
         EMemoryCategory::HeavyRequest,
         heavyRequestMemoryLimit);
+
+    MemoryUsageTracker_->Reconfigure(newConfig);
 }
 
 void TBootstrap::OnDynamicConfigChanged(
@@ -412,14 +419,15 @@ void TBootstrap::OnDynamicConfigChanged(
         memoryLimit = *newConfig->MemoryLimits->Total;
     }
 
-    auto role = Coordinator_->GetSelf()->Role;
+    auto role = Coordinator_->GetSelfEntry()->Role;
 
     ReconfigureMemoryUsageTracker(
         memoryLimit,
         GetOrDefault(
             newConfig->Api->RoleToMemoryLimitRatios,
             role,
-            newConfig->Api->DefaultMemoryLimitRatios));
+            newConfig->Api->DefaultMemoryLimitRatios),
+        newConfig->MemoryTracker);
 
     DynamicConfig_.Store(newConfig);
 
@@ -492,6 +500,8 @@ void TBootstrap::DoStart()
     Coordinator_->Start();
 
     AuthenticationManager_->Start();
+
+    MemoryUsageTracker_->Start();
 
     RpcServer_->Start();
 }

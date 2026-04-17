@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -12,18 +13,21 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/metrics"
+	"go.ytsaurus.tech/library/go/httputil/swaggerui"
+	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/docs"
 	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/access"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
 )
 
 type API struct {
-	l             log.Structured
-	ready         atomic.Bool
-	resourceUsage *resourceusage.ResourceUsage
-	accessChecker *access.AccessChecker
+	l              log.Structured
+	ready          atomic.Bool
+	resourceUsage  *resourceusage.ResourceUsage
+	accessChecker  *access.AccessChecker
+	swaggerHandler http.Handler
 }
 
-func NewAPI(l log.Structured, resourceUsageConfig *resourceusage.Config, accessCheckerConfig *access.Config) *API {
+func NewAPI(l log.Structured, resourceUsageConfig *resourceusage.Config, accessCheckerConfig *access.Config, apiPrefix string, enableSwagger bool) *API {
 	resourceUsageL := log.With(l.Logger(), log.String("component", "resource_usage")).Structured()
 
 	accessChecker, err := access.NewAccessChecker(l, accessCheckerConfig)
@@ -35,10 +39,29 @@ func NewAPI(l log.Structured, resourceUsageConfig *resourceusage.Config, accessC
 		l.Fatal("failed to create resource usage", log.Error(err))
 	}
 
+	var swaggerHandler http.Handler
+	if enableSwagger {
+		var swaggerSpec map[string]interface{}
+		if err := json.Unmarshal(docs.SwaggerJSON, &swaggerSpec); err != nil {
+			l.Fatal("failed to unmarshal swagger spec", log.Error(err))
+		}
+		swaggerSpec["basePath"] = apiPrefix
+		var swaggerSpecBytes []byte
+		if swaggerSpecBytes, err = json.Marshal(swaggerSpec); err != nil {
+			l.Fatal("failed to marshal modified swagger spec", log.Error(err))
+		}
+
+		swaggerHandler = http.StripPrefix(
+			path.Join(apiPrefix, "swagger"),
+			http.FileServer(swaggerui.NewFileSystem(swaggerui.WithJSONScheme(swaggerSpecBytes))),
+		)
+	}
+
 	return &API{
-		l:             l,
-		resourceUsage: resourceUsage,
-		accessChecker: accessChecker,
+		l:              l,
+		resourceUsage:  resourceUsage,
+		accessChecker:  accessChecker,
+		swaggerHandler: swaggerHandler,
 	}
 }
 
@@ -48,6 +71,14 @@ func (a *API) StartServingClusters(ctx context.Context) {
 
 func (a *API) Routes() chi.Router {
 	r := chi.NewRouter()
+
+	if a.swaggerHandler != nil {
+		r.Route("/swagger", func(r chi.Router) {
+			r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+				a.swaggerHandler.ServeHTTP(w, r)
+			})
+		})
+	}
 
 	r.Route("/ready", func(r chi.Router) {
 		r.Use(waitReady(&a.ready))
@@ -115,6 +146,10 @@ func (a *API) Routes() chi.Router {
 	return r
 }
 
+// @Produce json
+// @Success 200 {object} WhoamiResponse
+// @Failure 401 {object} WhoamiResponse
+// @Router /whoami [post]
 func (a *API) whoamiHandler(w http.ResponseWriter, r *http.Request) {
 	user, ok := r.Context().Value(access.AuthInfoKey).(access.AuthInfo)
 	if !ok {
@@ -126,6 +161,10 @@ func (a *API) whoamiHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(WhoamiResponse{User: user.Login, IsService: user.IsService})
 }
 
+// @Produce json
+// @Success 200 {object} StatusResponse
+// @Failure 500 {object} StatusResponse
+// @Router /status [post]
 func (a *API) statusHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -165,6 +204,12 @@ func (a *API) statusHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(StatusResponse{Stats: response.Stats})
 }
 
+// @Accept json
+// @Produce json
+// @Param request body GetVersionedResourceUsageRequest true "Request body"
+// @Success 200 {object} GetVersionedResourceUsageResponse
+// @Failure 400 {object} GetVersionedResourceUsageResponse
+// @Router /get-versioned-resource-usage [post]
 func (a *API) versionedResourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := GetVersionedResourceUsageRequest{
@@ -210,12 +255,20 @@ func (a *API) versionedResourceUsageHandler(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// @Accept json
+// @Produce json
+// @Param request body GetResourceUsageRequest true "Request body"
+// @Success 200 {object} GetResourceUsageResponse
+// @Failure 400 {object} GetResourceUsageResponse
+// @Failure 401 {object} GetResourceUsageResponse
+// @Failure 500 {object} GetResourceUsageResponse
+// @Router /get-resource-usage [post]
 func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(WhoamiResponse{Error: "failed to get user"})
+		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: "failed to get user"})
 		return
 	}
 	req := GetResourceUsageRequest{
@@ -282,12 +335,20 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Accept json
+// @Produce json
+// @Param request body GetResourceUsageDiffRequest true "Request body"
+// @Success 200 {object} GetResourceUsageDiffResponse
+// @Failure 400 {object} GetResourceUsageDiffResponse
+// @Failure 401 {object} GetResourceUsageDiffResponse
+// @Failure 403 {object} GetResourceUsageDiffResponse
+// @Router /get-resource-usage-diff [post]
 func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(WhoamiResponse{Error: "failed to get user"})
+		_ = json.NewEncoder(w).Encode(GetResourceUsageDiffResponse{Error: "failed to get user"})
 		return
 	}
 	req := GetResourceUsageDiffRequest{
@@ -312,14 +373,14 @@ func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: err.Error()})
+		_ = json.NewEncoder(w).Encode(GetResourceUsageDiffResponse{Error: err.Error()})
 		return
 	}
 	cluster, err := a.resourceUsage.GetCluster(ctx, req.Cluster)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: err.Error()})
+		_ = json.NewEncoder(w).Encode(GetResourceUsageDiffResponse{Error: err.Error()})
 		return
 	}
 
@@ -345,7 +406,7 @@ func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusForbidden)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: err.Error()})
+		_ = json.NewEncoder(w).Encode(GetResourceUsageDiffResponse{Error: err.Error()})
 		return
 	}
 
@@ -368,6 +429,10 @@ type ReadyResponse struct {
 	Ready bool `json:"ready"`
 }
 
+// @Produce json
+// @Success 200 {object} ServedClustersResponse
+// @Failure 500 {object} ServedClustersResponse
+// @Router /served-clusters [post]
 func (a *API) servedClustersHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
@@ -389,6 +454,12 @@ func (a *API) SetReady() {
 	a.l.Info("api is ready")
 }
 
+// @Accept json
+// @Produce json
+// @Param request body ListTimestampsRequest true "Request body"
+// @Success 200 {object} ListTimestampsResponse
+// @Failure 400 {object} ListTimestampsResponse
+// @Router /list-timestamps [post]
 func (a *API) listTimestampsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

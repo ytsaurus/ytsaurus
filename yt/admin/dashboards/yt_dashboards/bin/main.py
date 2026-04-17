@@ -32,6 +32,7 @@ from yt_dashboards import lsm
 
 from yt_dashboards import flow
 
+from yt_dashboards import queue_agent
 from yt_dashboards import queue_and_consumer_metrics
 
 
@@ -302,8 +303,21 @@ dashboards = {
         "func": flow.build_flow_state_cache,
         "monitoring": {},
     },
+    "flow-companion-manager": {
+        "func": flow.build_flow_companion_manager,
+        "monitoring": {},
+    },
     "queue-metrics": {
         "func": queue_and_consumer_metrics.build_queue_metrics,
+        "monitoring": {
+            "args": ["monitoring"]
+        },
+        "grafana": {
+            "args": ["grafana"]
+        },
+    },
+    "queue-pass-metrics": {
+        "func": queue_and_consumer_metrics.build_queue_pass_metrics,
         "monitoring": {
             "args": ["monitoring"]
         },
@@ -320,9 +334,26 @@ dashboards = {
             "args": ["grafana"]
         },
     },
+    "queue-consumer-pass-metrics": {
+        "func": queue_and_consumer_metrics.build_queue_consumer_pass_metrics,
+        "monitoring": {
+            "args": ["monitoring"]
+        },
+        "grafana": {
+            "args": ["grafana"]
+        },
+    },
     "user-load": {
         "func": build_user_load,
         "monitoring": {},
+    },
+    "queue-agent": {
+        "func": queue_agent.build_dashboard,
+        "monitoring": {
+            "args": [
+                True,  # has_porto
+            ],
+        },
     },
 }
 

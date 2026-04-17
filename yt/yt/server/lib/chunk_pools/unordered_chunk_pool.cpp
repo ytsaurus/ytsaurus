@@ -4,9 +4,9 @@
 #include "job_size_adjuster.h"
 #include "new_job_manager.h"
 
-#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
-
 #include <yt/yt/server/lib/chunk_pools/config.h>
+
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
@@ -317,6 +317,7 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
+            YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
             ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
                 return GetStripeList(cookie);
@@ -471,7 +472,7 @@ private:
         }
 
         if (Sampler_.Sample()) {
-            ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
+            ChunkTeleported_.Fire(chunk, /*tag*/ std::any{});
         } else {
             // Drop this teleport chunk.
         }

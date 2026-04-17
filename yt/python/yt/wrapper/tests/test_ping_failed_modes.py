@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 from .conftest import authors
 from .helpers import set_config_option, dumps_yt_config, get_test_file_path, get_python
 

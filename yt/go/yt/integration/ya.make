@@ -11,7 +11,7 @@ ENDIF()
 ENV(YT_STUFF_MAX_START_RETRIES=10)
 
 IF (NOT OPENSOURCE)
-    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_tablets.inc)
+    INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_operations_archive.inc)
 ENDIF()
 
 GO_TEST_SRCS(

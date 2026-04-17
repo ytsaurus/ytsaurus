@@ -316,6 +316,13 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* rootUser = securityManager->GetRootUser();
 
+        auto validateUserNotRoot = [&] {
+            THROW_ERROR_EXCEPTION_IF(user == rootUser,
+                "Cannot set %Qv for %Qv",
+                key.Unintern(),
+                user->GetName());
+        };
+
         switch (key) {
             case EInternedAttributeKey::Banned: {
                 auto banned = ConvertTo<bool>(value);
@@ -324,41 +331,44 @@ private:
             }
 
             case EInternedAttributeKey::ReadRequestRateLimit: {
+                validateUserNotRoot();
+
                 auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
                     THROW_ERROR_EXCEPTION("\"read_request_rate_limit\" cannot be negative");
                 }
-                if (user == rootUser) {
-                    THROW_ERROR_EXCEPTION("Cannot set \"read_request_rate_limit\" for %Qv",
-                        user->GetName());
-                }
+
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Read);
                 return true;
             }
 
             case EInternedAttributeKey::WriteRequestRateLimit: {
+                validateUserNotRoot();
+
                 auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
                     THROW_ERROR_EXCEPTION("\"write_request_rate_limit\" cannot be negative");
                 }
-                if (user == rootUser) {
-                    THROW_ERROR_EXCEPTION("Cannot set \"write_request_rate_limit\" for %Qv",
-                        user->GetName());
-                }
+
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Write);
                 return true;
             }
 
             case EInternedAttributeKey::RequestQueueSizeLimit: {
+                validateUserNotRoot();
+
                 auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
                     THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
                 }
+
                 securityManager->SetUserRequestQueueSizeLimit(user, limit);
                 return true;
             }
 
             case EInternedAttributeKey::RequestLimits: {
+                validateUserNotRoot();
+
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
                 auto config = ConvertTo<TSerializableUserRequestLimitsConfigPtr>(value)->ToConfigOrThrow(multicellManager);
@@ -367,11 +377,7 @@ private:
             }
 
             case EInternedAttributeKey::ChunkServiceRequestWeightThrottler: {
-                if (user == rootUser) {
-                    THROW_ERROR_EXCEPTION("Cannot set %Qv for %Qv",
-                        key.Unintern(),
-                        user->GetName());
-                }
+                validateUserNotRoot();
 
                 auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
                 securityManager->SetChunkServiceUserRequestWeightThrottlerConfig(user, config);
@@ -379,11 +385,7 @@ private:
             }
 
             case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
-                if (user == rootUser) {
-                    THROW_ERROR_EXCEPTION("Cannot set %Qv for %Qv",
-                        key.Unintern(),
-                        user->GetName());
-                }
+                validateUserNotRoot();
 
                 auto config = ConvertTo<TThroughputThrottlerConfigPtr>(value);
                 securityManager->SetChunkServiceUserRequestBytesThrottlerConfig(user, config);

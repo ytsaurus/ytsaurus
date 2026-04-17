@@ -158,7 +158,6 @@ func walkXPath(e Elem, path string) (res Elem, err error) {
 		if c == ".." {
 			if e = e.enclosing(); e == nil {
 				panic("path ..")
-				return nil, fmt.Errorf(`cldr: ".." moves past root in path %q`, path)
 			}
 			continue
 		} else if c == "" {

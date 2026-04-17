@@ -14,10 +14,12 @@
 
 #include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
 
-#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/chunk_client/helpers.h>
 
@@ -144,10 +146,9 @@ TJobInputCache::TJobInputCache(
         Bootstrap_->GetLocalDescriptor(),
         BlockCache_,
         MetaCache_,
-        /*nodeStatusDirectory*/ nullptr,
-        Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn),
+        MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetExecNodeBootstrap()->GetThrottler(EExecNodeThrottlerKind::JobIn)),
         Bootstrap_->GetReadRpsOutThrottler(),
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
+        /*mediumThrottler*/ nullptr,
         /*trafficMeter*/ nullptr))
     , Profiler_(std::move(profiler))
 {

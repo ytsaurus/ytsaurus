@@ -698,18 +698,24 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::TransferableMedia);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkMedia)
         .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransferableHunkMedia)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::PrimaryMediumId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
         .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMediumId)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
@@ -823,6 +829,14 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::TransferableMedia: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& replication = node->Replication();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableTransferableChunkReplication(replication, chunkManager));
+            return true;
+        }
+
         case EInternedAttributeKey::HunkMedia: {
             if (!node->GetHunkPrimaryMediumIndex()) {
                 break;
@@ -831,6 +845,17 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             auto replication = node->HunkReplication();
             BuildYsonFluently(consumer)
                 .Value(TSerializableChunkReplication(replication, chunkManager));
+            return true;
+        }
+
+        case EInternedAttributeKey::TransferableHunkMedia: {
+            if (!node->GetHunkPrimaryMediumIndex()) {
+                break;
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& replication = node->HunkReplication();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableTransferableChunkReplication(replication, chunkManager));
             return true;
         }
 
@@ -857,6 +882,16 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::PrimaryMediumId:{
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+            auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+
+            BuildYsonFluently(consumer)
+                .Value(medium->GetId());
+            return true;
+        }
+
         case EInternedAttributeKey::HunkPrimaryMedium: {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
@@ -867,6 +902,19 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
             BuildYsonFluently(consumer)
                 .Value(medium->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkPrimaryMediumId: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
+            if (!hunkPrimaryMediumIndex) {
+                break;
+            }
+            auto* medium = chunkManager->GetMediumByIndex(*hunkPrimaryMediumIndex);
+
+            BuildYsonFluently(consumer)
+                .Value(medium->GetId());
             return true;
         }
 
@@ -1041,43 +1089,66 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 break;
             }
 
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-            return ComputeChunkStatistics(
+            std::vector<TEphemeralObjectPtr<TChunkList>> ephemeralChunkLists;
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                ephemeralChunkLists.emplace_back(chunkLists[contentType]);
+            }
+
+            auto visitor = New<TChunkReplicasVisitor>(
                 Bootstrap_,
-                chunkLists,
-                [chunkReplicaFetcher] (const TChunk* chunk) -> std::optional<int> {
-                    // TODO(aleksandra-zh): batch getting replicas.
-                    auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(const_cast<TChunk*>(chunk));
-                    // This is context switch, chunk may die.
-                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
-                        .ValueOrThrow();
-                    if (replicas.empty()) {
-                        return std::nullopt;
-                    }
+                chunkLists);
+            return visitor->Run()
+                .Apply(BIND([chunkLists = std::move(chunkLists), ephemeralChunkLists = std::move(ephemeralChunkLists), this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>& chunkIdToReplicas) {
+                    const auto& chunkManager = Bootstrap_->GetChunkManager();
+                    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-                    // We should choose a single medium for the chunk if there are replicas
-                    // with different media. We choose the most frequent medium if more than
-                    // half replicas belong to it, otherwise arbitrary one.
-                    int chosenMediumIndex = -1;
-                    int chosenMediumReplicaCount = 0;
+                    return ComputeChunkStatistics(
+                        Bootstrap_,
+                        chunkLists,
+                        [chunkReplicaFetcher, chunkIdToReplicas = std::move(chunkIdToReplicas)] (const TChunk* chunk) -> std::optional<int> {
+                            auto it = chunkIdToReplicas.find(chunk->GetId());
+                            if (it == chunkIdToReplicas.end()) {
+                                // Maybe try one more time?
+                                THROW_ERROR_EXCEPTION(
+                                    NRpc::EErrorCode::TransientFailure,
+                                    "Chunk %v replicas were not fetched",
+                                    chunk->GetId());
+                            }
 
-                    for (auto replica : replicas) {
-                        int mediumIndex = replica.GetEffectiveMediumIndex();
-                        if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
-                            chosenMediumIndex = mediumIndex;
-                            ++chosenMediumReplicaCount;
-                        } else {
-                            --chosenMediumReplicaCount;
-                        }
-                    }
+                            const auto& sequoiaReplicas = it->second
+                                .ValueOrThrow();
 
-                    YT_VERIFY(chosenMediumIndex != -1);
-                    return chosenMediumIndex;
-                },
-                [=] (int mediumIndex) {
-                    return chunkManager->GetMediumByIndexOrThrow(mediumIndex)->GetName();
-                });
+                            if (sequoiaReplicas.empty()) {
+                                return std::nullopt;
+                            }
+
+                            auto replicas = chunkReplicaFetcher->FilterAliveReplicas(sequoiaReplicas);
+
+                            // We should choose a single medium for the chunk if there are replicas
+                            // with different media. We choose the most frequent medium if more than
+                            // half replicas belong to it, otherwise arbitrary one.
+                            int chosenMediumIndex = -1;
+                            int chosenMediumReplicaCount = 0;
+
+                            for (auto replica : replicas) {
+                                int mediumIndex = replica.GetEffectiveMediumIndex();
+                                if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
+                                    chosenMediumIndex = mediumIndex;
+                                    ++chosenMediumReplicaCount;
+                                } else {
+                                    --chosenMediumReplicaCount;
+                                }
+                            }
+
+                            YT_VERIFY(chosenMediumIndex != -1);
+                            return chosenMediumIndex;
+                        },
+                        [=] (int mediumIndex) {
+                            return chunkManager->GetMediumByIndexOrThrow(mediumIndex)->GetName();
+                        });
+            }).AsyncViaGuarded(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                TError("Error computing chunk statistics")));
         }
 
         default:
@@ -1363,7 +1434,8 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
 }
 
 template <bool IsHunk>
-void TChunkOwnerNodeProxy::SetReplication(const TSerializableChunkReplication& serializableReplication)
+void TChunkOwnerNodeProxy::SetReplication(
+    const TSerializableChunkReplication& serializableReplication)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
@@ -1484,12 +1556,6 @@ void TChunkOwnerNodeProxy::ValidateResourceUsageIncreaseOnPrimaryMediumChange(TM
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
-
-    // COMPAT(danilalexeev)
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-    if (!config->ValidateResourceUsageIncreaseOnPrimaryMediumChange) {
-        return;
-    }
 
     auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
     auto* account = node->Account().Get();
@@ -1659,14 +1725,14 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
 TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     TChunkOwnerBase* node,
-    const TCompactTableSchemaPtr& schema,
+    TCompactTableSchemaPtr schema,
     TMasterTableSchemaId schemaId,
     TTransaction* schemaHolder)
 {
     const auto& tableManager = Bootstrap_->GetTableManager();
     if (node->IsNative()) {
         if (schema) {
-            return tableManager->GetOrCreateNativeMasterTableSchema(schema, schemaHolder);
+            return tableManager->GetOrCreateNativeMasterTableSchema(std::move(schema), schemaHolder);
         }
 
         if (schemaId) {
@@ -1679,7 +1745,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     YT_VERIFY(schemaId);
 
     if (schema) {
-        return tableManager->CreateImportedTemporaryMasterTableSchema(schema, schemaHolder, schemaId);
+        return tableManager->CreateImportedTemporaryMasterTableSchema(std::move(schema), schemaHolder, schemaId);
     }
 
     return tableManager->GetMasterTableSchema(schemaId);
@@ -1860,7 +1926,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             tableSchema,
             tableSchemaId);
 
-        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, uploadTransaction);
+        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, std::move(tableSchema), tableSchemaId, uploadTransaction);
 
         // NB: Chunk schema is at least as strict as the table schema, possibly more strict.
         // Thus we can send extra information only when they differ, and otherwise treat them the same way.
@@ -1872,12 +1938,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 /*tableSchemaFromConstrainedSchema*/ nullptr,
                 /*isChunkSchema*/ true);
 
-            uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, chunkSchema, chunkSchemaId, uploadTransaction);
+            uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, std::move(chunkSchema), chunkSchemaId, uploadTransaction);
             ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.ChunkSchema->GetId());
         } else {
             ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.TableSchema->GetId());
         }
     }
+
+    lockedNode->ValidateBeginUpload(uploadContext);
 
     if (!node->IsExternal()) {
         switch (uploadContext.Mode) {

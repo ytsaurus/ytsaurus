@@ -1,6 +1,7 @@
 #include "job_proxy.h"
 
 #include "cpu_monitor.h"
+#include "job_api_service.h"
 #include "job_prober_service.h"
 #include "job_throttler.h"
 #include "merge_job.h"
@@ -10,7 +11,6 @@
 #include "shallow_merge_job.h"
 #include "signature_proxy.h"
 #include "simple_sort_job.h"
-#include "job_api_service.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
 #include "user_job_write_controller.h"
@@ -21,6 +21,8 @@
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
+
+#include <yt/yt/server/lib/job_proxy/events_on_fs.h>
 
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
@@ -64,6 +66,7 @@
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/library/containers/porto_helpers.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
 
@@ -79,14 +82,18 @@
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
-#include <yt/yt/library/containers/public.h>
-
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
+
+#include <yt/yt/core/rpc/http/server.h>
+
+#include <yt/yt/core/rpc/grpc/server.h>
+
+#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/dispatcher.h>
@@ -109,14 +116,8 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 
-#include <yt/yt/core/rpc/grpc/server.h>
-
-#include <yt/yt/core/rpc/http/server.h>
-
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
-
-#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
@@ -125,13 +126,13 @@
 #include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <tcmalloc/malloc_extension.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <util/system/fs.h>
+
+#include <tcmalloc/malloc_extension.h>
 
 #include <sys/resource.h>
 
@@ -754,14 +755,18 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
 
-    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
+    NApi::NNative::TConnectionOptions options;
+    options.CreateQueueConsumerRegistrationManager = Config_->StartQueueConsumerRegistrationManager;
+
+    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection, std::move(options));
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
     if (Config_->StartQueueConsumerRegistrationManager) {
-        connection->GetQueueConsumerRegistrationManager()->StartSync();
+        connection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     }
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+    auto apiInvoker = ApiServiceThreadPool_->GetInvoker();
 
     auto signatureGenerator = New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_);
     connection->SetSignatureGenerator(std::move(signatureGenerator));
@@ -774,13 +779,13 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         YT_VERIFY(JobProxyRpcServerPort_.has_value());
         Config_->BusServer->Port = *JobProxyRpcServerPort_;
 
-        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreatePublicTcpBusServer(Config_->BusServer));
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreateRemoteTcpBusServer(Config_->BusServer));
         PublicRpcServer_->Start();
         YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
 
         auto localServerAddress = BuildServiceAddress(NNet::GetLocalHostName(), *Config_->BusServer->Port);
         auto shuffleService = CreateShuffleService(
-            ApiServiceThreadPool_->GetInvoker(),
+            apiInvoker,
             rootClient,
             localServerAddress);
         PublicRpcServer_->RegisterService(std::move(shuffleService));
@@ -800,9 +805,8 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
-        GetControlInvoker(),
-        ApiServiceThreadPool_->GetInvoker(),
-        ApiServiceThreadPool_->GetInvoker(),
+        apiInvoker,
+        [=] (const std::string& /*pool*/, const TFairShareThreadPoolTag& /*executionTag*/) { return apiInvoker; },
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
@@ -1001,7 +1005,9 @@ TJobResult TJobProxy::RunJob()
             if (userJobSpec.enable_rpc_proxy_in_job_proxy()) {
                 EnableRpcProxyInJobProxy(userJobSpec.rpc_proxy_worker_thread_pool_size(), userJobSpec.enable_shuffle_service_in_job_proxy());
             } else {
-                YT_VERIFY(!userJobSpec.enable_shuffle_service_in_job_proxy());
+                THROW_ERROR_EXCEPTION_IF(
+                    userJobSpec.enable_shuffle_service_in_job_proxy(),
+                    "Shuffle service in job proxy requires RPC proxy to be enabled in job proxy");
             }
         }
 
@@ -1095,10 +1101,21 @@ TJobResult TJobProxy::RunJob()
         environment->StartSidecars(GetJobSpecHelper()->GetJobSpecExt());
     }
 
+    if (auto eventsOnFsConfig = Config_->JobTestingOptions->EventsOnFs) {
+        WaitFor(
+            GetBreakpointEvent(
+                eventsOnFsConfig,
+                JobId_,
+                EBreakpointType::BeforeRun))
+            .ThrowOnError();
+    }
+
     return job->Run();
 }
 
-NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(
+    NApi::NNative::TConnectionCompoundConfigPtr config,
+    NApi::NNative::TConnectionOptions options) const
 {
     if (TvmBridge_ && config->Dynamic->TvmId) {
         YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->Dynamic->TvmId);
@@ -1109,7 +1126,6 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
         YT_LOG_DEBUG("Destination service id is ready");
     }
 
-    NNative::TConnectionOptions options;
     options.RetryRequestQueueSizeLimitExceeded = true;
 
     return NApi::NNative::CreateConnection(std::move(config), std::move(options));
@@ -1200,17 +1216,17 @@ void TJobProxy::ReportResult(
 
 void TJobProxy::InitializeChunkReaderHost()
 {
-    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-        auto thisLocked = weakThis.Lock();
-        if (!thisLocked) {
-            return IThroughputThrottlerPtr();
-        }
+    auto bandwidthThrottlerProvider = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) -> TPerCategoryThrottlerProvider {
+        return BIND([=, this] (EWorkloadCategory /*category*/) -> IThroughputThrottlerPtr {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return GetUnlimitedThrottler();
+            }
 
-        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
-            return GetInBandwidthThrottler(clusterName);
-        }
-
-        return GetInBandwidthThrottler(LocalClusterName);
+            return JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()
+                ? GetInBandwidthThrottler(clusterName)
+                : GetInBandwidthThrottler(LocalClusterName);
+        });
     });
 
     std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList{
@@ -1245,18 +1261,17 @@ void TJobProxy::InitializeChunkReaderHost()
             });
     }
 
-    MultiChunkReaderHost_ = CreateMultiChunkReaderHost(
+    MultiChunkReaderHost_ = New<TMultiChunkReaderHost>(
         New<TChunkReaderHost>(
             Client_,
             LocalDescriptor_,
             ReaderBlockCache_,
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(LocalClusterName),
+            bandwidthThrottlerProvider(LocalClusterName),
             GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             GetTrafficMeter()),
-        std::move(bandwidthThrottlerFactory),
+        bandwidthThrottlerProvider,
         clusterContextList);
 }
 
@@ -1363,6 +1378,21 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             statistics.AddSample(
                 "/latency/output/total/min_time_to_first_read_batch"_SP,
                 minOutputTimeToFirstBatch);
+        }
+
+        for (const auto& [index, timingStatistics] : SEnumerate(extendedStatistics.WriterTimingStatistics)) {
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "write_time"_L,
+                timingStatistics.WriteTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "wait_time"_L,
+                timingStatistics.WaitTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "idle_time"_L,
+                timingStatistics.IdleTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "close_time"_L,
+                timingStatistics.CloseTime);
         }
     }
 
@@ -1596,9 +1626,9 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     };
 
     if (Config_->RestrictPortoPlace) {
-        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, GetSandboxRelPath(ESandboxKind::PortoPlace)));
     } else {
-        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, GetSandboxRelPath(ESandboxKind::PortoPlace)));
         // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
         environmentOptions.Places.push_back(AnyTarget);
     }
@@ -1821,29 +1851,9 @@ void TJobProxy::CheckMemoryUsage()
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
 
-    constexpr double JobProxyMaxMemoryUsageLoggingExponentialFactor = 1.2;
-
     auto usage = JobProxyMaxMemoryUsage_.load();
-    if (usage > JobProxyMemoryReserve_ &&
-        usage > LastLoggedJobProxyMaxMemoryUsage_ * JobProxyMaxMemoryUsageLoggingExponentialFactor)
-    {
-        if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
-            YT_LOG_WARNING("Job proxy used more memory than estimated "
-                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
-                usage,
-                JobProxyMemoryReserve_,
-                TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
-            // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
-            // logging's message length limit. So let's duplicate the warning to reliably see at least
-            // a prefix of both blobs.
-            YT_LOG_WARNING("Job proxy used more memory than estimated "
-                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
-                usage,
-                JobProxyMemoryReserve_,
-                tcmalloc::MallocExtension::GetStats());
-            LastRefCountedTrackerLogTime_ = TInstant::Now();
-            LastLoggedJobProxyMaxMemoryUsage_ = usage;
-        }
+    if (usage > JobProxyMemoryReserve_) {
+        OnMemoryReserveExceeded(usage);
     }
 
     if (JobProxyMemoryOvercommitLimit_ && jobProxyMemoryUsage > JobProxyMemoryReserve_ + *JobProxyMemoryOvercommitLimit_) {
@@ -2134,6 +2144,32 @@ void TJobProxy::SetOomScoreAdj(int score)
             ex,
             "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
             pid);
+    }
+}
+
+void TJobProxy::OnMemoryReserveExceeded(i64 usage)
+{
+    constexpr double LoggingExponentialFactor = 1.2;
+
+    bool shouldLog = usage > LastLoggedJobProxyMaxMemoryUsage_ * LoggingExponentialFactor &&
+        TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_;
+
+    if (shouldLog) {
+        YT_LOG_WARNING("Job proxy used more memory than estimated "
+            "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
+            usage,
+            JobProxyMemoryReserve_,
+            TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
+        // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
+        // logging's message length limit. So let's duplicate the warning to reliably see at least
+        // a prefix of both blobs.
+        YT_LOG_WARNING("Job proxy used more memory than estimated "
+            "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
+            usage,
+            JobProxyMemoryReserve_,
+            tcmalloc::MallocExtension::GetStats());
+        LastRefCountedTrackerLogTime_ = TInstant::Now();
+        LastLoggedJobProxyMaxMemoryUsage_ = usage;
     }
 }
 

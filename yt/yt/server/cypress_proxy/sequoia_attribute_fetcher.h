@@ -11,35 +11,26 @@
 
 namespace NYT::NCypressProxy {
 
-class ISequoiaAttributeFetcher
-    : public TRefCounted
-{
-public:
-    virtual ~ISequoiaAttributeFetcher() = default;
+////////////////////////////////////////////////////////////////////////////////
 
-    virtual TFuture<THashMap<NCypressClient::TNodeId, NYTree::INodePtr>> FetchNodesWithAttributes() = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ISequoiaAttributeFetcher);
+bool HasSpecialAttributes(const NYTree::TAttributeFilter& attributeFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaAttributeFetcherPtr CreateAttributeFetcherForGetRequest(
+TFuture<TNodeIdToAttributes> FetchAttributesForGetRequest(
     const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    NCypressClient::TNodeId rootId,
     const TNodeIdToChildDescriptors* nodeIdToChildren,
-    TNodeAncestry rootAncestry,
-    const std::vector<NCypressClient::TNodeId>& scalarNodeIds);
+    const std::vector<NCypressClient::TNodeId>* scalarNodeIds,
+    TNodeAncestry rootAncestry);
 
-ISequoiaAttributeFetcherPtr CreateAttributeFetcherForListRequest(
+TFuture<TNodeIdToAttributes> FetchAttributesForListRequest(
     const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    NCypressClient::TNodeId rootId,
     const std::vector<TCypressChildDescriptor>* children,
     TNodeAncestry rootAncestry);
 
-std::tuple<ISequoiaAttributeFetcherPtr, NYTree::TAttributeFilter> CreateSpecialAttributeFetcherAndLeftAttributesForNode(
+TFuture<NYTree::IAttributeDictionaryPtr> FetchAttributesForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
     NCypressClient::TNodeId rootId,

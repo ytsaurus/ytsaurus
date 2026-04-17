@@ -47,7 +47,7 @@ void Serialize(const TCypressShardAccountStatistics& statistics, IYsonConsumer* 
         .EndMap();
 }
 
-TCypressShardAccountStatistics& operator +=(
+TCypressShardAccountStatistics& operator+=(
     TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs)
 {
@@ -55,7 +55,7 @@ TCypressShardAccountStatistics& operator +=(
     return lhs;
 }
 
-TCypressShardAccountStatistics operator +(
+TCypressShardAccountStatistics operator+(
     const TCypressShardAccountStatistics& lhs,
     const TCypressShardAccountStatistics& rhs)
 {

@@ -189,7 +189,7 @@ void TViablePeerRegistryConfig::Register(TRegistrar registrar)
         .Default(0);
 
     registrar.Parameter("enable_power_of_two_choices_strategy", &TThis::EnablePowerOfTwoChoicesStrategy)
-        .Default(false);
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->MinPeerCountForPriorityAwareness > config->MaxPeerCount) {
@@ -386,7 +386,7 @@ void TDispatcherDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TServiceMethod::Register(TRegistrar registrar)
+void TOverloadTrackedServiceMethod::Register(TRegistrar registrar)
 {
     registrar.Parameter("service", &TThis::Service)
         .Default();
@@ -398,7 +398,7 @@ void TServiceMethod::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TServiceMethodConfig::Register(TRegistrar registrar)
+void TOverloadTrackedServiceMethodConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("service", &TThis::Service)
         .Default();

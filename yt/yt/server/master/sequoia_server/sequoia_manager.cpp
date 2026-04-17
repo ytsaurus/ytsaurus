@@ -1,10 +1,13 @@
 #include "sequoia_manager.h"
 
+#include "config.h"
+
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/transaction_server/config.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -29,9 +32,13 @@ using namespace NLeaseServer;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
+using namespace NThreading;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYTree;
+
+using NObjectServer::VerifyPersistentStateRead;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +57,13 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::HydraStartTransaction, Unretained(this)));
     }
 
-    virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
+    void Initialize() override
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -68,25 +81,78 @@ public:
         // It should be moved to TransactionSupervisor::Prepare when Sequoia tx
         // sequencer will be implemented.
         // TODO(aleksandra-zh): do it.
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
-            .ThrowOnError();
+        if (!request->suppress_strongly_ordered_transaction_barrier()) {
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            WaitForFast(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
+                .ThrowOnError();
+        }
 
+        auto transactionId = FromProto<TTransactionId>(request->id());
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         ValidateWritePrerequisites(
-            FromProto<TTransactionId>(request->id()),
+            transactionId,
             FromProto(request->attributes())->Find<std::string>("title"),
             prerequisiteTransactionIds);
 
         auto mutation = CreateMutation(hydraManager, *request);
         mutation->SetCurrentTraceContext();
 
-        WaitFor(mutation->Commit())
-            .ThrowOnError();
+        const auto& config = Bootstrap_->GetDynamicConfig()->SequoiaManager;
+
+        // Optimization: just enqueue mutation without waiting for it. Sequoia
+        // transaction prepare will be enqueued later than start so it will be
+        // executed later and observe Sequoia transaction start.
+        //
+        // Without optimization:
+        // | client                          | master                          |
+        // | send StartSequoiaTransaction    |                                 |
+        // |                                 | enqueue StartSequoiaTransaction |
+        // |                                 | execute StartSequoiaTransaction |
+        // | receive StartSequoiaTransaction |                                 |
+        // | send CommitTransaction          |                                 |
+        // |                                 | enqueue CommitTransaction       |
+        // |                                 | execute CommitTransaction       |
+        //
+        // With optimization:
+        // | client                          | master                          |
+        // | send StartSequoiaTransaction    |                                 |
+        // |                                 | enqueue StartSequoiaTransaction |
+        // | receive StartSequoiaTransaction | execute StartSequoiaTransaction |
+        // | send CommitTransaction          |                                 | <- Send next reques without waiting for mutation
+        // |                                 | enqueue CommitTransaction       |
+        // |                                 | execute CommitTransaction       |
+        if (config->EnableAsyncSequoiaTransactionStart) {
+            auto failureProbability = config->Testing->SequoiaTransactionStartFailureProbability;
+            if (Y_UNLIKELY(failureProbability && RandomNumber<double>() < *failureProbability)) {
+                YT_LOG_DEBUG("Sequoia transaction start failed for testing purposes (TransactionId: %v)",
+                    transactionId);
+            } else {
+                mutation
+                    ->Commit()
+                    .Subscribe(BIND([transactionId] (TErrorOr<TMutationResponse> rsp) {
+                        if (!rsp.IsOK()) {
+                            YT_LOG_ERROR(TError(rsp), "Failed to start Sequoia transaction (TransactionId: %v)",
+                                transactionId);
+                        }
+                    }));
+            }
+        } else {
+            WaitFor(mutation->Commit())
+                .ThrowOnError();
+        }
+    }
+
+    TSequoiaTransactionFeatures GetSequoiaTransactionFeatures() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return SequoiaTransactionFeatures_.Load();
     }
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TAtomicObject<TSequoiaTransactionFeatures> SequoiaTransactionFeatures_;
 
     void ValidateWritePrerequisites(
         TTransactionId sequoiaTransactionId,
@@ -141,6 +207,8 @@ private:
 
     void HydraStartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+
         // To set actual user before creating transaction object.
         auto identity = ParseAuthenticationIdentityFromProto(request->identity());
         TAuthenticatedUserGuard userGuard(Bootstrap_->GetSecurityManager(), identity);
@@ -163,7 +231,7 @@ private:
             title = "Sequoia transaction";
         }
 
-        auto enableLeaseIssuing = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
+        auto enableLeaseIssuing = config->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
         YT_LOG_DEBUG(
             "Starting Sequoia transaction "
             "(TransactionId: %v, Timeout: %v, Title: %v, LeasesToIssue: %v)",
@@ -177,13 +245,18 @@ private:
             THROW_ERROR_EXCEPTION("Transaction %v already exists", transactionId);
         }
 
-        // TODO(cherepashka): add user-friendly handling of errors above.
-        auto* transaction = transactionManager->StartSystemTransaction(
-            /*replicatedToCellTags*/ {},
-            timeout,
-            title,
-            *attributes,
-            transactionId);
+        NTransactionServer::TTransaction* transaction = nullptr;
+
+        try {
+            transaction = transactionManager->StartSequoiaTransaction(
+                transactionId,
+                timeout,
+                title,
+                *attributes);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to start Sequoia transaction (TransactionId: %v)", transactionId);
+            throw;
+        }
 
         transaction->SetSequoiaTransaction(true);
         transaction->SequoiaWriteSet().CopyFrom(request->write_set());
@@ -199,6 +272,15 @@ private:
 
         transaction->SetAuthenticationIdentity(std::move(identity));
         transaction->SetTraceContext(TryGetCurrentTraceContext());
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& config = Bootstrap_->GetDynamicConfig()->SequoiaManager;
+        SequoiaTransactionFeatures_.Store(TSequoiaTransactionFeatures{
+            .UseSharedWriteLocksForCypressTransactions = config->UseSharedWriteLocksForCypressTransactions,
+            .CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator = config->CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator,
+        });
     }
 };
 

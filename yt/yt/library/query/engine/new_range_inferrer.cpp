@@ -93,7 +93,7 @@ public:
         ui64 NextValue = 0;
         ui64 Divisor;
 
-        bool operator < (const TQueueItem& other) const
+        bool operator<(const TQueueItem& other) const
         {
             return NextValue < other.NextValue;
         }
@@ -961,7 +961,9 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
-    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
+    auto buffer = New<TRowBuffer>(
+        TRangeInferrerBufferTag(),
+        memoryChunkProvider);
     auto keySize = schema->GetKeyColumnCount();
     auto evaluator = evaluatorCache->Find(schema);
 
@@ -992,7 +994,10 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
         InferName(predicate),
         ToString(constraints, constraintRef));
 
-    std::vector<TRowRange> enrichedRanges;
+    using TAlloc = TAllocatorOverChunkProvider<TRowRange>;
+    std::set<TRowRange, std::less<TRowRange>, TAlloc> nonOverlappingEnrichedRanges(TAlloc(
+        memoryChunkProvider,
+        GetRefCountedTypeCookie<TRangeInferrerBufferTag>()));
 
     TReadRangesGenerator rangesGenerator(constraints);
 
@@ -1027,20 +1032,49 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
                 constraintRow,
                 options.RangeExpansionLimit);
 
-            enrichedRanges.insert(enrichedRanges.end(), ranges.begin(), ranges.end());
+            for (const auto& newRange : ranges) {
+                auto it = nonOverlappingEnrichedRanges.lower_bound(newRange);
+
+                auto mergeStart = it;
+                auto mergedLower = newRange.first;;
+                if (it != nonOverlappingEnrichedRanges.begin()) {
+                    auto prev = std::prev(it);
+                    if (!(prev->second < newRange.first)) {
+                        mergeStart = prev;
+                        mergedLower = mergeStart->first;
+                    }
+                }
+
+                auto mergeEnd = it;
+                while (mergeEnd != nonOverlappingEnrichedRanges.end() && !(newRange.second < mergeEnd->first)) {
+                    ++mergeEnd;
+                }
+
+                auto mergedUpper = newRange.second;
+                if (mergeStart != mergeEnd) {
+                    auto lastMerged = std::prev(mergeEnd);
+                    if (lastMerged->second > mergedUpper) {
+                        mergedUpper = lastMerged->second;
+                    }
+                }
+
+                if (mergeStart != mergeEnd) {
+                    nonOverlappingEnrichedRanges.erase(mergeStart, mergeEnd);
+                }
+
+                nonOverlappingEnrichedRanges.insert(TRowRange(mergedLower, mergedUpper));
+            }
         },
         keyWidth);
 
-    std::sort(enrichedRanges.begin(), enrichedRanges.end());
-    enrichedRanges.erase(
-        MergeOverlappingRanges(enrichedRanges.begin(), enrichedRanges.end()),
-        enrichedRanges.end());
+    std::vector<TRowRange> enrichedRanges(nonOverlappingEnrichedRanges.begin(), nonOverlappingEnrichedRanges.end());
 
     for (int index = 0; index + 1 < std::ssize(enrichedRanges); ++index) {
-        YT_VERIFY(enrichedRanges[index].second <= enrichedRanges[index + 1].first);
+        YT_ASSERT(enrichedRanges[index].second <= enrichedRanges[index + 1].first);
     }
 
-    return MakeSharedRange(enrichedRanges, buffer);
+    // Predicate holds string literal blobs.
+    return MakeSharedRange(std::move(enrichedRanges), buffer, std::move(predicate));
 }
 
 TSharedRange<TRowRange> CreateNewLightRangeInferrer(
@@ -1050,7 +1084,9 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
-    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
+    auto buffer = New<TRowBuffer>(
+        TRangeInferrerBufferTag(),
+        memoryChunkProvider);
     auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerBufferTag>(), memoryChunkProvider);
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 

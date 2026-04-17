@@ -10,7 +10,7 @@ from .helpers import get_disabled_cache_config
 
 import yt.yson as yson
 
-from yt.common import wait
+from yt.common import wait, update_inplace
 
 from yt.test_helpers import assert_items_equal
 
@@ -1016,15 +1016,16 @@ class TestInputFetching(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query('select * from "//tmp/table_banned"')
 
-            assert clique.make_query('select * from "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == data
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('exists "//tmp/table_banned"')
+
             assert clique.make_query('select * from "//tmp/table_implicitly_not_banned"') == data
             assert clique.make_query('select * from "//tmp/table_explicitly_not_banned"') == data
-
             assert clique.make_query('exists "//tmp/table_surely_nonexisting"') == [{'result': 0}]
-            assert clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == [{'result': 1}]
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 1})
+        with Clique(1, config_patch={"yt": {"check_chyt_banned": 0}}) as clique:
+            assert clique.make_query('select * from "//tmp/table_banned"') == data
+            assert clique.make_query('exists "//tmp/table_banned"') == [{'result': 1}]
 
     @authors("denvid")
     def test_min_max_filtering(self):
@@ -1601,7 +1602,7 @@ class TestInferReadRange(ClickHouseTestBase):
     def _get_config_patch(self):
         return {
             "yt": {
-                "settings": {
+                "query_settings": {
                     "execution": {
                         "enable_read_range_inferring": True,
                     },
@@ -1683,9 +1684,19 @@ class TestInferReadRange(ClickHouseTestBase):
                 [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
             )
 
+        create(
+            "table",
+            "//tmp/t_str",
+            attributes={
+                "schema": [{"name": "a", "type": "string", "sort_order": "ascending"}],
+            }
+        )
+        write_table("<append=%true>//tmp/t_str", [{"a": "aa"}, {"a": "ab"}])
+        write_table("<append=%true>//tmp/t_str", [{"a": "ba"}, {"a": "bb"}])
+
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
             def base_check(table, predicate, exact, expected=None):
-                query = f"select ts from '{table}' where {predicate}"
+                query = f"select * from '{table}' where {predicate}"
                 res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
                 if expected is not None:
                     assert_items_equal(res, expected)
@@ -1709,24 +1720,39 @@ class TestInferReadRange(ClickHouseTestBase):
                 2,
                 expected=[{"ts": "2025-01-01 12:21:00.000000"}, {"ts": "2025-03-03 12:23:00.000000"}]
             )
-            check(
-                "ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')",
-                2,
-                expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
-            check("ts IN (toDateTime('2025-05-05T12:25:00'))", 1, expected=[{"ts": "2025-05-05 12:25:00.000000"}])
-            check(
-                "ts IN (toDateTime('2025-02-02T12:22:00'), toDateTime('2025-05-05T12:25:00'), toDateTime('2025-08-08T12:28:00'))",
-                3,
-                expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
-            # Values are not sorted.
-            check(
-                "ts IN (toDateTime('2025-05-05T12:25:00'), toDateTime('2025-02-02T12:22:00'), toDateTime('2025-08-08T12:28:00'))",
-                3,
-                expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
             check("ts < toDateTime('2025-02-02T00:00:00') OR ts > toDateTime('2025-09-09T00:00:00')", 2)
+
+            expected_result = [{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            check("ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+            check("ts >= toDateTime('2025-07-07T00:00:00') AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+            check("toDateTime('2025-07-07T00:00:00') <= ts  AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+
+            for set_template in ["[{data}]", "({data})"]:
+                set_data = "toDateTime('2025-05-05T12:25:00')"
+                expected = [{"ts": "2025-05-05 12:25:00.000000"}]
+                check(f"ts IN {set_template.format(data=set_data)}", 1, expected=expected)
+
+                set_data = [
+                    "toDateTime('2025-02-02T12:22:00')",
+                    "toDateTime('2025-05-05T12:25:00')",
+                    "toDateTime('2025-08-08T12:28:00')",
+                ]
+                expected = [
+                    {"ts": "2025-02-02 12:22:00.000000"},
+                    {"ts": "2025-05-05 12:25:00.000000"},
+                    {"ts": "2025-08-08 12:28:00.000000"},
+                ]
+                check(f"ts IN {set_template.format(data=', '.join(set_data))}", 3, expected=expected)
+
+                # Values are not sorted.
+                set_data = [
+                    "toDateTime('2025-05-05T12:25:00')",
+                    "toDateTime('2025-02-02T12:22:00')",
+                    "toDateTime('2025-08-08T12:28:00')",
+                ]
+                check(f"ts IN {set_template.format(data=', '.join(set_data))}", 3, expected=expected)
+
+                base_check("//tmp/t_str", f"a IN {set_template.format(data="\'ab\', \'bb\'")}", 2, [{"a": "ab"}, {"a": "bb"}])
 
     @authors("buyval01")
     def test_clickhouse_bool(self):
@@ -1763,6 +1789,118 @@ class TestInferReadRange(ClickHouseTestBase):
 
             # Inferrer treats only columns as arguments to the IN operator.
             check('(key != 0) IN (0, 1)', 3, [{"key": 0}, {"key": 1},])
+
+    # CHYT-1387
+    @authors("buyval01")
+    def test_sorted_pool(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "id", "type": "int64", "required": True, "sort_order": "ascending"}]
+        })
+
+        value_cnt = 8
+        data = []
+        for i in range(4):
+            data += [{"id": i} for _ in range(value_cnt)]
+        # It is necessary to have approximately one block for each group of values.
+        write_table("//tmp/t", data, table_writer={"block_size": 8 * value_cnt},)
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_read_range_inferring": True,
+                    },
+                },
+                "subquery": {
+                    # The default minimum limit is too high for this test.
+                    # It is necessary to save the value that will be calculated when constructing JobSizeConstraints.
+                    "min_slice_data_weight": 1,
+                },
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            # To have explicit key bounds on the input block, need to request a range within the chunk: [1, 2] in [0, 3].
+            res = clique.make_query("select id, count(*) as cnt from `//tmp/t` where id between 1 and 2 group by id")
+            assert_items_equal(res, [{"id": 1, "cnt": value_cnt}, {"id": 2, "cnt": value_cnt}])
+
+    @authors("a-dyu")
+    def test_optional_list_sort_key(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type_v3": "int64", "sort_order": "ascending"},
+                    {"name": "arr", "type_v3": optional_type({"type_name": "list", "item": "string"}),
+                     "sort_order": "ascending"},
+                    {
+                        "name": "tuple_key",
+                        "type_v3": {
+                            "type_name": "tuple",
+                            "elements": [{"type": "string"}, {"type": "int64"}],
+                        },
+                        "sort_order": "ascending",
+                    },
+                    {"name": "value", "type_v3": "string"},
+                ],
+            },
+        )
+
+        write_table("<append=%true>//tmp/t", [
+            {"key": 1, "arr": ["a", "b"], "tuple_key": ["a", 1], "value": "v1"},
+            {"key": 1, "arr": ["c"], "tuple_key": ["b", 2], "value": "v2"},
+            {"key": 2, "arr": None, "tuple_key": ["c", 3], "value": "v3"},
+        ])
+        write_table("<append=%true>//tmp/t", [
+            {"key": 3, "arr": [], "tuple_key": ["d", 4], "value": "v4"},
+            {"key": 3, "arr": ["x", "y", "z"], "tuple_key": ["e", 5], "value": "v5"},
+            {"key": 4, "arr": ["d"], "tuple_key": ["f", 6], "value": "v6"},
+        ])
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            res = clique.make_query("select value from \"//tmp/t\" where key = 3 order by value")
+            assert res == [{"value": "v4"}, {"value": "v5"}]
+
+            res = clique.make_query("select value from \"//tmp/t\" where key >= 2 order by value")
+            assert res == [{"value": "v3"}, {"value": "v4"}, {"value": "v5"}, {"value": "v6"}]
+
+            res = clique.make_query("select value from \"//tmp/t\" where key = 1 order by value")
+            assert res == [{"value": "v1"}, {"value": "v2"}]
+
+    @authors("buyval01")
+    def test_low_cardinality_key(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "string", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"},
+                ]
+            }
+        )
+        write_table("<append=%true>//tmp/t", [{"key": "aa", "value": 1}, {"key": "ab", "value": 2}])
+        write_table("<append=%true>//tmp/t", [{"key": "ba", "value": 3}, {"key": "bb", "value": 4}])
+
+        config = {
+            "yt": {"query_settings": {"composite": {"low_cardinality_mode": "all"}}}
+        }
+        update_inplace(config, self._get_config_patch())
+        with Clique(1, config_patch=config, export_query_log=True) as clique:
+            res = clique.make_query_and_validate_prewhered_row_count(
+                'select value from "//tmp/t" where key = \'aa\'', exact=1
+            )
+            assert res == [{"value": 1}]
+
+            res = clique.make_query_and_validate_prewhered_row_count(
+                'select value from "//tmp/t" where key >= \'ba\'', exact=2
+            )
+            assert_items_equal(res, [{"value": 3}, {"value": 4}])
+
+            res = clique.make_query_and_validate_prewhered_row_count(
+                'select value from "//tmp/t" where key IN (\'aa\', \'bb\')', exact=2
+            )
+            assert_items_equal(res, [{"value": 1}, {"value": 4}])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

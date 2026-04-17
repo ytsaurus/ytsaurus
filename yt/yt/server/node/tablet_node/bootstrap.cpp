@@ -13,11 +13,10 @@
 #include "in_memory_service.h"
 #include "lsm_interop.h"
 #include "master_connector.h"
+#include "overload_reporter.h"
 #include "partition_balancer.h"
-#include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
-#include "sorted_dynamic_comparer.h"
 #include "statistics_reporter.h"
 #include "store_compactor.h"
 #include "store_flusher.h"
@@ -46,6 +45,8 @@
 
 #include <yt/yt/server/node/tablet_node/distributed_throttler_manager.h>
 #include <yt/yt/server/node/tablet_node/medium_throttler_manager.h>
+
+#include <yt/yt/ytlib/api/native/pool_weight_provider.h>
 
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
@@ -100,93 +101,17 @@ static const std::string PullRowsThreadPoolName = "PullRows";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
-
-class TPoolWeightCache
-    : public TAsyncExpiringCache<std::string, double>
-    , public IPoolWeightProvider
-{
-public:
-    TPoolWeightCache(
-        TAsyncExpiringCacheConfigPtr config,
-        TWeakPtr<NApi::NNative::IClient> client,
-        IInvokerPtr invoker)
-        : TAsyncExpiringCache(
-            std::move(config),
-            invoker,
-            TabletNodeLogger().WithTag("Cache: PoolWeight"))
-        , Client_(std::move(client))
-        , Invoker_(std::move(invoker))
-    { }
-
-    double GetWeight(const std::string& poolName) override
-    {
-        auto poolWeight = DefaultQLExecutionPoolWeight;
-        auto weightFuture = this->Get(poolName);
-        if (auto optionalWeightOrError = weightFuture.TryGet()) {
-            poolWeight = optionalWeightOrError->ValueOrThrow();
-        }
-        return poolWeight;
-    }
-
-private:
-    static constexpr double DefaultQLExecutionPoolWeight = 1.0;
-
-    const TWeakPtr<NApi::NNative::IClient> Client_;
-    const IInvokerPtr Invoker_;
-
-    TFuture<double> DoGet(
-        const std::string& poolName,
-        bool /*isPeriodicUpdate*/) noexcept override
-    {
-        auto client = Client_.Lock();
-        if (!client) {
-            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
-        }
-        return BIND(GetPoolWeight, std::move(client), poolName)
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const std::string& poolName)
-    {
-        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
-
-        NApi::TGetNodeOptions options;
-        options.ReadFrom = NApi::EMasterChannelKind::Cache;
-        auto rspOrError = WaitFor(client->GetNode(path + "/@weight", options));
-
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return DefaultQLExecutionPoolWeight;
-        }
-
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
-                poolName);
-            return DefaultQLExecutionPoolWeight;
-        }
-
-        try {
-            auto weight = ConvertTo<double>(rspOrError.Value());
-            THROW_ERROR_EXCEPTION_IF(!std::isfinite(weight) || weight <= 0,
-                "Weight must be a finite positive number");
-            return weight;
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
-                poolName);
-            return DefaultQLExecutionPoolWeight;
-        }
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
 {
+public:
+    DEFINE_SIGNAL_OVERRIDE(
+        void(
+            const TTabletNodeDynamicConfigPtr& oldConfig,
+            const TTabletNodeDynamicConfigPtr& newConfig),
+        TabletNodeConfigChanged);
+
 public:
     explicit TBootstrap(NClusterNode::IBootstrap* bootstrap)
         : TBootstrapBase(bootstrap)
@@ -199,9 +124,9 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         OverloadController_ = NRpc::CreateOverloadController(
             New<NRpc::TOverloadControllerConfig>(),
@@ -229,10 +154,11 @@ public:
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             QueryThreadPoolName,
             {
-                New<TPoolWeightCache>(
+                .PoolWeightProvider=CreateCachingCypressPoolWeightProvider(
                     GetConfig()->QueryAgent->PoolWeightCache,
                     GetClient(),
-                    GetControlInvoker())
+                    GetControlInvoker(),
+                    Logger())
             });
 
         PullRowsThreadPool_ = CreateFairShareThreadPool(
@@ -328,6 +254,7 @@ public:
         RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         StatisticsReporter_ = New<TStatisticsReporter>(this);
+        OverloadReporter_ = CreateOverloadReporter(this);
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
         StoreRotator_ = CreateStoreRotator(this);
@@ -411,6 +338,10 @@ public:
             GetOrchidRoot(),
             "/replication_hint_manager",
             CreateVirtualNode(HintManager_->GetOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/tablet_reign",
+            ConvertTo<INodePtr>(GetCurrentReign()));
         if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
             SetNodeByYPath(
                 GetOrchidRoot(),
@@ -422,6 +353,7 @@ public:
         StoreTrimmer_->Start();
         HunkChunkSweeper_->Start();
         StatisticsReporter_->Start();
+        OverloadReporter_->Start();
         BackingStoreCleaner_->Start();
         LsmInterop_->Start();
         ChunkReplicaCachePinger_->Start();
@@ -609,6 +541,16 @@ public:
         return GetCellarNodeBootstrap()->GetMasterConnector();
     }
 
+    const TTabletNodeConfigPtr& GetTabletNodeConfig() const override
+    {
+        return GetConfig()->TabletNode;
+    }
+
+    TTabletNodeDynamicConfigPtr GetTabletNodeDynamicConfig() const override
+    {
+        return GetDynamicConfigManager()->GetConfig()->TabletNode;
+    }
+
     const IChunkRegistryPtr& GetChunkRegistry() const override
     {
         if (ClusterNodeBootstrap_->IsDataNode()) {
@@ -672,6 +614,7 @@ private:
     IHunkChunkSweeperPtr HunkChunkSweeper_;
     IPartitionBalancerPtr PartitionBalancer_;
     TStatisticsReporterPtr StatisticsReporter_;
+    IOverloadReporterPtr OverloadReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     IChunkReplicaCachePingerPtr ChunkReplicaCachePinger_;
@@ -685,7 +628,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -712,17 +655,24 @@ private:
 
         OverloadController_->Reconfigure(tabletNodeConfig->OverloadController);
 
-        StatisticsReporter_->Reconfigure(newConfig);
+        StatisticsReporter_->Reconfigure(tabletNodeConfig);
+        OverloadReporter_->Reconfigure(tabletNodeConfig);
 
         CompressionDictionaryManager_->OnDynamicConfigChanged(tabletNodeConfig->CompressionDictionaryCache);
 
-        ErrorManager_->Reconfigure(newConfig);
+        ErrorManager_->Reconfigure(tabletNodeConfig);
 
         if (ReplicationCardUpdatesBatcher_) {
             ReplicationCardUpdatesBatcher_->Reconfigure(
                 GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
                     tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
+
+        NTesting::SetCurrentReignOverride(newConfig->TabletNode->Testing.ReignOverride);
+
+        TabletNodeConfigChanged_.Fire(
+            oldConfig->TabletNode,
+            newConfig->TabletNode);
     }
 
     void OnBundleDynamicConfigChanged(

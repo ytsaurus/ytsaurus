@@ -1,12 +1,14 @@
 #include "allocation.h"
 
+#include "bootstrap.h"
 #include "controller_agent_connector.h"
 #include "job_controller.h"
+#include "job_fs_secretary.h"
 #include "slot.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/library/profiling/public.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
@@ -15,6 +17,8 @@
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
+
+#include <yt/yt/library/profiling/public.h>
 
 #include <library/cpp/yt/error/error_helpers.h>
 
@@ -59,7 +63,7 @@ public:
                     .Counter("/settlement_requests_succeeded"),
                 Profiler_
                     .WithTag("is_job_first", "true")
-                    .Counter("/settlement_requests_succeeded")
+                    .Counter("/settlement_requests_succeeded"),
             }
     { }
 
@@ -204,6 +208,9 @@ TAllocation::TAllocation(
     , NetworkPriority_(networkPriority)
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
+    , FSSecretary_(New<TJobFSSecretary>(
+        Bootstrap_,
+        Logger))
 {
     YT_VERIFY(bootstrap);
 
@@ -614,7 +621,8 @@ void TAllocation::CreateAndSettleJob(
         std::move(jobSpec),
         ControllerAgentInfo_.GetDescriptor(),
         Bootstrap_,
-        Bootstrap_->GetJobController()->GetDynamicConfig()->JobCommon);
+        Bootstrap_->GetJobController()->GetDynamicConfig()->JobCommon,
+        FSSecretary_);
 
     job->SubscribeJobPrepared(
         BIND_NO_PROPAGATE(&TAllocation::OnJobPrepared, MakeStrong(this))
@@ -755,6 +763,9 @@ void TAllocation::OnAllocationFinished(EAllocationFinishReason finishReason)
 
     ResourceHolder_.Reset();
 
+    FSSecretary_->ReleaseArtifacts();
+    FSSecretary_.Reset();
+
     AllocationProfiler->OnAllocationFinished(TotalJobCount_, finishReason);
 }
 
@@ -786,14 +797,14 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
         if (enableMultipleJobs && job->GetState() == EJobState::Completed) {
             YT_LOG_INFO(
-                "Job completed and multiple jobs in allocation enabled, waiting for storing and clenup job to settle new one (JobId: %v)",
+                "Job completed and multiple jobs in allocation enabled, waiting for storing and cleanup job to settle new one (JobId: %v)",
                 job->GetId());
             return true;
         }
 
         if (settlementNewJobOnJobAbortRequested && job->GetState() == EJobState::Aborted) {
             YT_LOG_INFO(
-                "Job aborted and new job settlement requested, waiting for storing and clenup job to settle new one (JobId: %v)",
+                "Job aborted and new job settlement requested, waiting for storing and cleanup job to settle new one (JobId: %v)",
                 job->GetId());
             return true;
         }
@@ -855,7 +866,16 @@ void TAllocation::OnJobFinished(TJobPtr job)
                 }
 
                 if (auto slot = StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())) {
-                    slot->ValidateEnabled();
+                    try {
+                        slot->ValidateEnabled();
+                    } catch (const std::exception& ex) {
+                        YT_LOG_INFO(ex,
+                            "User slot is disabled, skip new job settlement (JobId: %v)",
+                            jobId);
+
+                        Complete(EAllocationFinishReason::UserSlotDisabled);
+                        return;
+                    }
                 }
 
                 YT_LOG_INFO(

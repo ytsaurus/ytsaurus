@@ -8,12 +8,6 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangelogScanInfo
-{
-    i64 RecordCount;
-    bool AtPrimaryPath = true;
-};
-
 struct TChangelogStoreScanResult
 {
     int LatestChangelogId = InvalidSegmentId;
@@ -22,14 +16,12 @@ struct TChangelogStoreScanResult
     i64 LatestNonemptyChangelogRecordCount = -1;
     int LastMutationTerm = InvalidTerm;
     i64 LastMutationSequenceNumber = -1;
-    // COMPAT(danilalexeev)
-    bool IsLatestNonemptyChangelogAtPrimaryPath;
 };
 
 TChangelogStoreScanResult ScanChangelogStore(
     const std::vector<int>& changelogIds,
-    const std::function<TChangelogScanInfo(int changelogId)> scanInfoGetter,
-    const std::function<TSharedRef(int changelogId, i64 recordId, bool atPrimaryPath)>& recordReader);
+    const std::function<i64(int changelogId)> recordCountGetter,
+    const std::function<TSharedRef(int changelogId, i64 recordId)>& recordReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 

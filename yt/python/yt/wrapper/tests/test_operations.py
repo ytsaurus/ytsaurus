@@ -1,10 +1,8 @@
-from __future__ import print_function
-
 from yt.testlib import authors, ASAN_USER_JOB_MEMORY_LIMIT
 from yt.wrapper.testlib.helpers import (TEST_DIR, get_test_file_path, check_rows_equality,
                                         set_config_option, get_tests_sandbox, dumps_yt_config, get_python,
                                         wait, get_operation_path, random_string, yatest_common,
-                                        create_job_events, inject_http_error)
+                                        create_job_events, inject_http_error, set_cypress_attribute)
 
 # Necessary for tests.
 try:
@@ -195,10 +193,11 @@ class TestOperations(object):
 
         assert yt.is_sorted(table)
 
-        yt.run_sort(table, sort_by=[SortColumn("x", sort_order=SortColumn.DESCENDING)])
-        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0], reverse=True)] == list(yt.read_table(table))
+        with set_cypress_attribute("//sys/@config/enable_descending_sort_order", True):
+            yt.run_sort(table, sort_by=[SortColumn("x", sort_order=SortColumn.DESCENDING)])
+            assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0], reverse=True)] == list(yt.read_table(table))
 
-        assert yt.is_sorted(table)
+            assert yt.is_sorted(table)
 
         with pytest.raises(yt.YtError):
             yt.run_sort(table, sort_by=None)
@@ -393,8 +392,6 @@ class TestOperations(object):
             pytest.skip()
 
         script = """
-from __future__ import print_function
-
 import yt.wrapper as yt
 import sys
 
@@ -2394,8 +2391,6 @@ class TestOperationsSkiffFormat(object):
             pytest.skip()
 
         script = """
-from __future__ import print_function
-
 import yt.wrapper as yt
 import sys
 

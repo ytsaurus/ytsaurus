@@ -180,6 +180,29 @@ def _annotate_variance(self: TypeAnnotator, expression: exp.Expression) -> exp.E
     return expression
 
 
+def _annotate_kurtosis(self: TypeAnnotator, expression: exp.Kurtosis) -> exp.Kurtosis:
+    """Annotate KURTOSIS with correct return type.
+
+    Based on Snowflake behavior:
+    - DECFLOAT input -> DECFLOAT
+    - DOUBLE or FLOAT input -> DOUBLE
+    - Other numeric types (INT, NUMBER) -> NUMBER(38, 12)
+    """
+    expression = self._annotate_by_args(expression, "this")
+    input_type = expression.this.type
+
+    if input_type.is_type(exp.DataType.Type.DECFLOAT):
+        self._set_type(expression, exp.DataType.build("DECFLOAT", dialect="snowflake"))
+    elif input_type.is_type(exp.DataType.Type.FLOAT, exp.DataType.Type.DOUBLE):
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
+    else:
+        self._set_type(
+            expression, exp.DataType.build(f"NUMBER({MAX_PRECISION}, 12)", dialect="snowflake")
+        )
+
+    return expression
+
+
 def _annotate_math_with_float_decfloat(
     self: TypeAnnotator, expression: exp.Expression
 ) -> exp.Expression:
@@ -239,10 +262,18 @@ EXPRESSION_METADATA = {
         for expr_type in (
             exp.ApproxTopK,
             exp.ApproxTopKEstimate,
+            exp.Array,
             exp.ArrayAgg,
+            exp.ArrayAppend,
+            exp.ArrayCompact,
+            exp.ArrayConcat,
             exp.ArrayConstructCompact,
+            exp.ArrayPrepend,
+            exp.ArrayRemove,
+            exp.ArraysZip,
             exp.ArrayUniqueAgg,
             exp.ArrayUnionAgg,
+            exp.MapKeys,
             exp.RegexpExtractAll,
             exp.Split,
             exp.StringToArray,
@@ -259,6 +290,7 @@ EXPRESSION_METADATA = {
             exp.MD5NumberLower64,
             exp.MD5NumberUpper64,
             exp.Rand,
+            exp.Seq8,
             exp.Zipf,
         }
     },
@@ -270,6 +302,10 @@ EXPRESSION_METADATA = {
             exp.BitmapOrAgg,
             exp.Compress,
             exp.DecompressBinary,
+            exp.Decrypt,
+            exp.DecryptRaw,
+            exp.Encrypt,
+            exp.EncryptRaw,
             exp.HexString,
             exp.MD5Digest,
             exp.SHA1Digest,
@@ -289,6 +325,7 @@ EXPRESSION_METADATA = {
             exp.BoolxorAgg,
             exp.EqualNull,
             exp.IsNullValue,
+            exp.MapContainsKey,
             exp.Search,
             exp.SearchIp,
             exp.ToBoolean,
@@ -321,19 +358,17 @@ EXPRESSION_METADATA = {
         for expr_type in {
             exp.ApproxPercentileEstimate,
             exp.ApproximateSimilarity,
-            exp.Asinh,
-            exp.Atanh,
-            exp.Cbrt,
-            exp.Cosh,
             exp.CosineDistance,
+            exp.CovarPop,
+            exp.CovarSamp,
             exp.DotProduct,
             exp.EuclideanDistance,
             exp.ManhattanDistance,
             exp.MonthsBetween,
             exp.Normal,
-            exp.Sinh,
         }
     },
+    exp.Kurtosis: {"annotator": _annotate_kurtosis},
     **{
         expr_type: {"returns": exp.DataType.Type.DECFLOAT}
         for expr_type in {
@@ -348,6 +383,7 @@ EXPRESSION_METADATA = {
             exp.Asin,
             exp.Atan,
             exp.Atan2,
+            exp.Cbrt,
             exp.Cos,
             exp.Cot,
             exp.Degrees,
@@ -376,20 +412,16 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.INT}
         for expr_type in {
-            exp.Ascii,
-            exp.BitLength,
             exp.ByteLength,
-            exp.Getbit,
             exp.Grouping,
-            exp.Hour,
             exp.JarowinklerSimilarity,
-            exp.Length,
-            exp.Levenshtein,
+            exp.MapSize,
             exp.Minute,
             exp.RtrimmedLength,
             exp.Second,
-            exp.StrPosition,
-            exp.Unicode,
+            exp.Seq1,
+            exp.Seq2,
+            exp.Seq4,
             exp.WidthBucket,
         }
     },
@@ -407,6 +439,15 @@ EXPRESSION_METADATA = {
         }
     },
     **{
+        expr_type: {"returns": exp.DataType.Type.MAP}
+        for expr_type in {
+            exp.MapCat,
+            exp.MapDelete,
+            exp.MapInsert,
+            exp.MapPick,
+        }
+    },
+    **{
         expr_type: {"returns": exp.DataType.Type.FILE}
         for expr_type in {
             exp.ToFile,
@@ -420,6 +461,22 @@ EXPRESSION_METADATA = {
         }
     },
     **{
+        expr_type: {"returns": exp.DataType.Type.TIMESTAMPLTZ}
+        for expr_type in {
+            exp.CurrentTimestamp,
+            exp.Localtimestamp,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.TINYINT}
+        for expr_type in {
+            exp.DayOfMonth,
+            exp.DayOfWeek,
+            exp.DayOfYear,
+            exp.Quarter,
+        }
+    },
+    **{
         expr_type: {"returns": exp.DataType.Type.VARCHAR}
         for expr_type in {
             exp.AIAgg,
@@ -429,7 +486,6 @@ EXPRESSION_METADATA = {
             exp.Base64Encode,
             exp.CheckJson,
             exp.CheckXml,
-            exp.Chr,
             exp.Collate,
             exp.Collation,
             exp.CurrentAccount,
@@ -442,7 +498,6 @@ EXPRESSION_METADATA = {
             exp.CurrentSecondaryRoles,
             exp.CurrentSession,
             exp.CurrentStatement,
-            exp.CurrentVersion,
             exp.CurrentTransaction,
             exp.CurrentWarehouse,
             exp.CurrentOrganizationUser,
@@ -453,21 +508,14 @@ EXPRESSION_METADATA = {
             exp.DecompressString,
             exp.HexDecodeString,
             exp.HexEncode,
-            exp.Initcap,
-            exp.MD5,
-            exp.Monthname,
             exp.Randstr,
             exp.RegexpExtract,
             exp.RegexpReplace,
             exp.Repeat,
             exp.Replace,
-            exp.SHA,
-            exp.SHA2,
             exp.Soundex,
             exp.SoundexP123,
-            exp.Space,
             exp.SplitPart,
-            exp.Translate,
             exp.TryBase64DecodeString,
             exp.TryHexDecodeString,
             exp.Uuid,
@@ -500,15 +548,11 @@ EXPRESSION_METADATA = {
     },
     exp.DateAdd: {"annotator": _annotate_date_or_time_add},
     exp.DecodeCase: {"annotator": _annotate_decode_case},
-    exp.GreatestIgnoreNulls: {
-        "annotator": lambda self, e: self._annotate_by_args(e, "expressions")
-    },
     exp.HashAgg: {
         "annotator": lambda self, e: self._set_type(
             e, exp.DataType.build("NUMBER(19, 0)", dialect="snowflake")
         )
     },
-    exp.LeastIgnoreNulls: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.Median: {"annotator": _annotate_median},
     exp.Reverse: {"annotator": _annotate_reverse},
     exp.StrToTime: {"annotator": _annotate_str_to_time},

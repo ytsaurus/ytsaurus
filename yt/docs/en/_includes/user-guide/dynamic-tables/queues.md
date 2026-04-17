@@ -68,7 +68,7 @@ To execute the command above, you need a `register_queue_consumer` permission wi
 
 To delete a registration, use the `unregister_queue_consumer` method. Executing this command requires write access to the queue or the consumer.
 
-Both Cypress arguments in both of these commands are of [rich YPath](../../../user-guide/storage/ypath.md#rich_ypath) type and can take cluster names. Otherwise, the commands use the cluster on which they were executed.
+Both Cypress arguments in both of these commands are of [rich YPath](../../../user-guide/storage/ypath.md#rich_ypath) type and can take cluster names. Otherwise, the command uses the cluster on which it was executed.
 
 ### Reading data
 
@@ -140,27 +140,103 @@ The `@queue_status` and `@queue_partitions` queue table attributes along with th
 
 These attributes aren't intended for high-load services and should only be used for introspection.
 
+{% if audience != "internal" %}
+### Queue exports to static tables
+
+With Queue Agent, you can configure regular data export from queues to static tables. Exporting does not involve physical data transfer from the queue to the static table, since export works at the metainformation level. The exported table references the same chunks as in the queue instead of creating new chunks with the same data.
+
+#### Export parameters
+- `export_directory` (required): The destination directory for the created static tables.
+- `export_period` (required): Export frequency. It must be a multiple of 1 second and is expressed in milliseconds. For example, `export_period=300000` triggers export every 300 seconds.
+- `export_ttl`: [`expiration_timeout`](../../../user-guide/storage/cypress.md#TTL) for created tables.
+- `output_table_name_pattern`: Table name pattern. The default value is `%UNIX_TS-%PERIOD`. If you set a custom value, different export iterations must generate different table names to ensure proper export operation; otherwise, behavior is undefined. `output_table_name_pattern` supports the `strftime` format and:
+  - `%UNIX_TS`: Unix timestamp of the export boundary; the exact boundary is determined by the `use_upper_bound_for_table_names` parameter.
+  - `%PERIOD`: `export_period` in seconds.
+  - `%ISO`: Export time in ISO 8601 format, such as `2015-11-21T23:30:27Z`.
+- `use_upper_bound_for_table_names`: Determines the time boundary used in the table name.  The default value is `false`. When set to `false`, the lower boundary is used; `true` indicates the upper boundary.
+
+The complete queue export configuration appears as a mapping from export names to their parameters, for example:
+```
+{
+    default={
+        export_period=60000;
+        export_directory="//path/to/export/dir";
+    };
+    another_export={
+        export_period=300000;
+        export_directory="//path/to/another/export/dir";
+    };
+}
+```
+
+This configuration is assigned to the `static_export_config` attribute of the queue or, for replicated and сhaos tables, to the corresponding attribute of the queue replica, for example:
+```bash
+$ yt set //path/to/some/queue/@static_export_config '...'
+```
+
+#### Configuring the export directory
+
+To verify permissions for creating static tables in the export directory, set the `queue_static_export_destination` attribute for the directory, specifying the queue ID:
+```bash
+$ yt get //path/to/your/queue/@id
+"18f-50544-3ea0191-fc6c51c5" # sample queue ID
+
+$ yt set //path/to/your/export/directory/@queue_static_export_destination \
+    '{originating_queue_id="18f-50544-3ea0191-fc6c51c5"}' # originating_queue_id must contain your queue ID
+```
+
+#### Export progress
+
+Queue Agent uses the `queue_static_export_progress` attribute on the export directory to store internal information about already exported data. The contents of this attribute are not part of the public API. In typical scenarios, users should neither change this attribute nor depend on its contents. If `originating_queue_id` of the export directory is changed, the above mentioned attribute should be deleted to ensure proper operation:
+```bash
+$ yt remove //path/to/your/export/directory/@queue_static_export_progress
+```
+
+#### Automatic export trimming
+
+Export can be considered a virtual vital consumer of the queue. When automatic trimming is enabled, data is deleted only if it has been read by all vital consumers and successfully exported.
+
+#### Export structure
+
+Time boundaries for the export iteration: export data is segmented based on Unix timestamps multiple of `export_period`. The upper boundary is inclusive while the lower one is exclusive.
+
+Considering the above, all non-exported (for this export) flushed chunks with a `max_timestamp` less than the upper boundary of the export iteration are included in the export.
+
+Due to this, enabling export for a queue that contains a large amount of data will result in a first massive export, since all chunks are non-exported. Starting from the next iteration, Queue Agent will export flushed data written to the queue after the previous export.
+
+{% note info %}
+
+The data flush requirements imply that data can't be exported more often than it gets flushed. By default, dynamic store flush occurs every 15 minutes. Export operations with intervals less than 15 minutes make no sense without changing queue flush parameters and only create excessive load on the master server. See the [documentation](../../../user-guide/dynamic-tables/compaction#flush_attributes) for configuring dynamic table flush.
+
+{% endnote %}
+
+Due to the export structure, Queue Agent cannot provide strict timestamp gurantees for exported data.  Each export chunk is processed as a whole and may contain data that logically belongs to different export iterations.
+
+If an export iteration fails, the data is exported during the next iteration, resulting in the export table containing data from two export iterations.
+
+{% endif %}
+
 ## Usage example
 
 {% if audience == "internal" %}
 These examples use [Freud](https://{{yt-domain}}.{{internal-domain}}/freud) and [Pythia](https://{{yt-domain}}.{{internal-domain}}/pythia) clusters.
 {% else %}
-These examples use a hypothetical configuration with multiple clusters, named `freud` and `pythia`.
+These examples use a hypothetical configuration with multiple clusters named `freud` and `pythia`.
 {% endif %}
 
 <small>Listing 1 — Example of using the Queue API</small>
 
 ```bash
 # Create queue on pythia.
-$ yt --proxy pythia create table //tmp/$USER-test-queue --attributes '{dynamic=true;schema=[{name=data;type=string};{name="$timestamp";type=uint64};{name="$cumulative_data_weight";type=int64}]}
-'2826e-2b1e4-3f30191-dcd2013e
+$ yt --proxy pythia create table //tmp/$USER-test-queue --attributes '{dynamic=true;schema=[{name=data;type=string};{name="$timestamp";type=uint64};{name="$cumulative_data_weight";type=int64}]}'
+2826e-2b1e4-3f30191-dcd2013e
 
 # Create queue_consumer on freud.
 $ yt --proxy freud create queue_consumer //tmp/$USER-test-consumer
 
 # OR: Create queue_consumer on freud as table with explicit schema specification.
-$ yt --proxy freud create table //tmp/$USER-test-consumer --attributes '{dynamic=true;treat_as_queue_consumer=true;schema=[{name=queue_cluster;type=string;sort_order=ascending;required=true};{name=queue_path;type=string;sort_order=ascending;required=true};{name=partition_index;type=uint64;sort_order=ascending;required=true};{name=offset;type=uint64;required=true};{name=meta;type=any;required=false}]}
-'18a5b-28931-3ff0191-35282540
+$ yt --proxy freud create table //tmp/$USER-test-consumer --attributes '{dynamic=true;treat_as_queue_consumer=true;schema=[{name=queue_cluster;type=string;sort_order=ascending;required=true};{name=queue_path;type=string;sort_order=ascending;required=true};{name=partition_index;type=uint64;sort_order=ascending;required=true};{name=offset;type=uint64;required=true};{name=meta;type=any;required=false}]}'
+18a5b-28931-3ff0191-35282540
 
 # Register consumer for queue.
 $ yt --proxy pythia register-queue-consumer //tmp/$USER-test-queue "<cluster=freud>//tmp/$USER-test-consumer" --vital

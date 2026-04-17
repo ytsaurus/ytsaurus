@@ -209,7 +209,7 @@ def download_table(table_path, directory, client_config, transaction_id):
 
 def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_count, force, prepare_for_sky_share,
                            store_full_path=False, exact_filenames=None, filter_by_regexp=None, exclude_by_regexp=None,
-                           chunk_count=None, process_pool_class=mp.Pool, client=None):
+                           chunk_count=None, process_pool_class=mp.get_context("spawn").Pool, client=None):
     start_time = time.time()
     if not chunk_count:
         chunk_count = process_count
@@ -278,7 +278,7 @@ def check_file_name(file_name, exact_filenames, filter_by_regexp, exclude_by_reg
 
 
 def download_directory_from_yt(directory, yt_table, process_count, exact_filenames, filter_by_regexp,
-                               exclude_by_regexp, process_pool_class=mp.Pool, client=None):
+                               exclude_by_regexp, process_pool_class=mp.get_context("spawn").Pool, client=None):
     start_time = time.time()
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -384,7 +384,7 @@ def list_files_from_yt(yt_table, raw=False, client=None):
     return file_sizes
 
 
-def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_class=mp.Pool, store_full_path=False, client=None):
+def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_class=mp.get_context("spawn").Pool, store_full_path=False, client=None):
     start_time = time.time()
     assert os.path.isfile(fs_path), "{} must be existing file".format(fs_path)
     assert store_full_path or yt_name is not None, "`yt_name` must be specified if `store-full-path` is `False`"

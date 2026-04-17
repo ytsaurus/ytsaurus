@@ -165,6 +165,7 @@ void TTablet::Save(NCellMaster::TSaveContext& context) const
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
+    Save(context, ConflictHorizonTimestamp_);
     Save(context, ReplicationErrorCount_);
     Save(context, UnconfirmedDynamicTableLocks_);
     Save(context, EdenStoreIds_);
@@ -182,13 +183,7 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics ||
-        context.GetVersion() < EMasterReign::Start_25_2)
-    {
-        Load(context, AuxiliaryNodeStatistics_);
-    }
+    Load(context, AuxiliaryNodeStatistics_);
 
     // COMPAT(atalmenev)
     if (context.GetVersion() >= EMasterReign::SaveOriginatorTabletsAfterReshard) {
@@ -198,6 +193,9 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     Load(context, TrimmedRowCount_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
+    if (context.GetVersion() >= EMasterReign::AddPerTabletConflictHorizonTimestamp) {
+        Load(context, ConflictHorizonTimestamp_);
+    }
     Load(context, ReplicationErrorCount_);
     Load(context, UnconfirmedDynamicTableLocks_);
     Load(context, EdenStoreIds_);
@@ -245,6 +243,7 @@ void TTablet::CopyFrom(const TTabletBase& otherBase)
 
     PivotKey_ = other->PivotKey_;
     TrimmedRowCount_ = other->TrimmedRowCount_;
+    ConflictHorizonTimestamp_ = other->ConflictHorizonTimestamp_;
     EdenStoreIds_ = other->EdenStoreIds_;
     BackupCutoffDescriptor_ = other->BackupCutoffDescriptor_;
     ReplicationProgress_ = other->ReplicationProgress_;

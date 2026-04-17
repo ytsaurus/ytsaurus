@@ -11,7 +11,7 @@ from yt_sequoia_helpers import not_implemented_in_sequoia
 from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls,
                   grant_system_permissions_to_clickhouse_user)
 
-from yt.common import YtError, wait, parts_to_uuid, update as config_update
+from yt.common import YtError, wait, parts_to_uuid, update_inplace, update as config_update
 
 from yt.test_helpers import assert_items_equal
 
@@ -25,6 +25,7 @@ import time
 import threading
 import random
 import signal
+import copy
 
 
 class TestClickHouseCommon(ClickHouseTestBase):
@@ -254,6 +255,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         write_table("//tmp/rle_encoded_table", arr)
 
+        create("table", "//tmp/t_read_part_block", attributes={
+            "schema": [{"name": "a", "type": "int64"}],
+            "optimize_for": "scan",
+        })
+        arr = []
+        for _ in range(100):
+            arr.append({"a": 1})
+        for _ in range(100):
+            arr.append({"a": 2})
+        for _ in range(100):
+            arr.append({"a": 3})
+        write_table("//tmp/t_read_part_block", arr)
+
         with Clique(1, config_patch=patch, export_query_log=True) as clique:
             def send_simple_distinct_queries(table_name):
                 # Queries that are optimized by simple distinct optimization.
@@ -315,6 +329,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     clique, query_log_path, "select distinct b from " + table_name + " prewhere a = c", 1, [{"b": "a"}]
                 )
                 self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere c = 4", 1, [{"b": None}]
+                )
+                self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a from " + table_name + " group by a having a < 2",
@@ -368,6 +385,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 """
                 )
                 == [{"a": 1}, {"a": 2}, {"a": None}]
+            )
+
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#0:#100]"',
+                100,
+                [{"a": 1}],
+            )
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#100:#200]"',
+                100,
+                [{"a": 2}],
+            )
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#200:#300]"',
+                100,
+                [{"a": 3}],
             )
 
     @authors("evgenstf")
@@ -1592,6 +1631,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
             ]
             assert read_table("//tmp/t1") == read_table("//tmp/t2")
 
+    DATE_MAX = 49673
+    DATETIME_MAX = DATE_MAX * 86400
+    TIMESTAMP_MAX = DATETIME_MAX * 1000000
+    INTERVAL_MAX = TIMESTAMP_MAX
+    INTERVAL_MIN = -TIMESTAMP_MAX
+    DATE32_MAX = 53375808
+    DATE32_MIN = -DATE32_MAX - 1
+    DATETIME64_MAX = DATE32_MAX * 86400
+    DATETIME64_MIN = DATE32_MIN * 86400
+    TIMESTAMP64_MAX = DATETIME64_MAX * 1000000
+    TIMESTAMP64_MIN = DATETIME64_MIN * 1000000
+    INTERVAL64_MAX = TIMESTAMP64_MAX - TIMESTAMP64_MIN + 1
+    INTERVAL64_MIN = -INTERVAL64_MAX
+
     @authors("buyval01")
     def test_date_types_bounds(self):
         types = [
@@ -1611,25 +1664,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "schema": [{"name": type, "type": type} for type in types],
             }
         )
-
-        # Types bounds from code
-        date_max = 49673
-        datetime_max = date_max * 86400
-        timestamp_max = datetime_max * 1000000
-        interval_max = timestamp_max
-        interval_min = -timestamp_max
-        date32_max = 53375808
-        date32_min = -date32_max - 1
-        datetime64_max = date32_max * 86400
-        datetime64_min = date32_min * 86400
-        timestamp64_max = datetime64_max * 1000000
-        timestamp64_min = datetime64_min * 1000000
-        interval64_max = timestamp64_max - timestamp64_min + 1
-        interval64_min = -interval64_max
-        # correct borders according to valid rages
-        date32_min -= 1
-        datetime64_min -= 1
-        timestamp64_min -= 1
 
         with Clique(1) as clique:
             query = "insert into `//tmp/t`({}) values ({})"
@@ -1651,58 +1685,158 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query('truncate table  `//tmp/t`')
 
             # Date in CH and YT is unsigned, so it has only upper bound
-            expect_error("date", date_max)
+            expect_error("date", self.DATE_MAX)
 
             # The CH Data32 type has narrower value bounds than YT.
             # Anything outside these bounds is rounded up to them
-            expect_value_shrink("date32", date32_min)
-            expect_value_shrink("date32", date32_max)
+            expect_value_shrink("date32", self.DATE32_MIN - 1)
+            expect_value_shrink("date32", self.DATE32_MAX)
 
             # Datetime in CH and YT is unsigned, so it has only upper bound
-            expect_error("datetime", datetime_max)
+            expect_error("datetime", self.DATETIME_MAX)
 
-            expect_error("datetime64", datetime64_min)
-            expect_error("datetime64", datetime64_max)
+            expect_error("datetime64", self.DATETIME64_MIN - 1)
+            expect_error("datetime64", self.DATETIME64_MAX)
 
             # YT timestamp is unsigned, but corresponding CH type is signed
             expect_error("timestamp", -1)
-            expect_error("timestamp", timestamp_max)
+            expect_error("timestamp", self.TIMESTAMP_MAX)
 
-            expect_error("timestamp64", timestamp64_min)
-            expect_error("timestamp64", timestamp64_max)
+            expect_error("timestamp64", self.TIMESTAMP64_MIN - 1)
+            expect_error("timestamp64", self.TIMESTAMP64_MAX)
 
-            expect_error("interval", interval_min)
-            expect_error("interval", interval_max)
+            expect_error("interval", self.INTERVAL_MIN)
+            expect_error("interval", self.INTERVAL_MAX)
 
-            expect_error("interval64", interval64_min)
-            expect_error("interval64", interval64_max)
+            expect_error("interval64", self.INTERVAL64_MIN)
+            expect_error("interval64", self.INTERVAL64_MAX)
 
             # Сheck that inserting values that satisfy the boundary does not cause errors
             query = "insert into `//tmp/t` values ({})"
             # min values
             clique.make_query(query.format(', '.join(map(str, [
                 0,
-                date32_min + 1,
+                self.DATE32_MIN,
                 0,
-                datetime64_min + 1,
+                self.DATETIME64_MIN,
                 0,
-                timestamp64_min + 1,
-                interval_min + 1,
-                interval64_min + 1,
+                self.TIMESTAMP64_MIN,
+                self.INTERVAL_MIN + 1,
+                self.INTERVAL64_MIN + 1,
             ]))))
             # max values
             clique.make_query(query.format(', '.join(map(str, [
-                date_max - 1,
-                date32_max - 1,
-                datetime_max - 1,
-                datetime64_max - 1,
-                timestamp_max - 1,
-                timestamp64_max - 1,
-                interval_max - 1,
-                interval64_max - 1,
+                self.DATE_MAX - 1,
+                self.DATE32_MAX - 1,
+                self.DATETIME_MAX - 1,
+                self.DATETIME64_MAX - 1,
+                self.TIMESTAMP_MAX - 1,
+                self.TIMESTAMP64_MAX - 1,
+                self.INTERVAL_MAX - 1,
+                self.INTERVAL64_MAX - 1,
             ]))))
             query = "select * from '//tmp/t'"
             assert clique.make_query_and_validate_read_row_count(query, exact=2)
+
+    @authors("a-dyu")
+    def test_tz_dates(self):
+        types = [
+            {
+                "name": "TzDate",
+                "bytes": 2,
+                "min": 0,
+                "max": self.DATE_MAX - 1},
+            {
+                "name": "TzDatetime",
+                "bytes": 4,
+                "min": 0,
+                "max": self.DATETIME_MAX - 1,
+            },
+            {
+                "name": "TzTimestamp",
+                "bytes": 8,
+                "min": 0,
+                "max": self.TIMESTAMP_MAX - 1,
+            },
+            {
+                "name": "TzDate32",
+                "bytes": 4,
+                "min": -25567,
+                "max": 47482,
+            },
+            {
+                "name": "TzDatetime64",
+                "bytes": 8,
+                "min": self.DATETIME64_MIN,
+                "max": self.DATETIME64_MAX - 1,
+            },
+            {
+                "name": "TzTimestamp64",
+                "bytes": 8,
+                "min": self.TIMESTAMP64_MIN,
+                "max": self.TIMESTAMP64_MAX - 1,
+            },
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [{"name": t["name"], "type": t["name"]} for t in types],
+                "optimize_for": "lookup",
+            },
+        )
+
+        def timestamp_to_tz(timestamp, zone, t):
+            raw_bytes = timestamp.to_bytes(t["bytes"], byteorder="big", signed=t["min"] < 0)
+            if t["min"] < 0:
+                first_byte = raw_bytes[0] ^ 0x80
+                return bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
+            else:
+                return raw_bytes + zone.encode("ascii")
+
+        arr = []
+        arr.append({t["name"]: timestamp_to_tz(t["min"], "Europe/Moscow", t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(1, "Europe/Moscow", t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(t["max"], "Europe/Moscow", t) for t in types})
+
+        expected = [
+            {
+                "TzDate": "1970-01-01",
+                "TzDatetime": "1970-01-01 03:00:00",
+                "TzTimestamp": "1970-01-01 03:00:00.000000",
+                "TzDate32": "1900-01-01",
+                "TzDatetime64": "1900-01-01 00:00:00",
+                "TzTimestamp64": "1900-01-01 00:00:00.000000",
+            },
+            {
+                "TzDate": "1970-01-02",
+                "TzDatetime": "1970-01-01 03:00:01",
+                "TzTimestamp": "1970-01-01 03:00:00.000001",
+                "TzDate32": "1970-01-02",
+                "TzDatetime64": "1970-01-01 03:00:01",
+                "TzTimestamp64": "1970-01-01 03:00:00.000001",
+            },
+            {
+                "TzDate": "2105-12-31",
+                "TzDate32": "2100-01-01",
+                "TzDatetime": "2106-01-01 02:59:59",
+                "TzDatetime64": "2299-12-31 23:59:59",
+                "TzTimestamp": "2106-01-01 02:59:59.999999",
+                "TzTimestamp64": "2299-12-31 23:59:59.999999",
+            },
+        ]
+
+        write_table("//tmp/t", arr)
+        with Clique(1) as clique:
+            assert clique.make_query("select * from `//tmp/t`") == expected
+
+            clique.make_query("insert into `<append=%false>//tmp/t` select * from `//tmp/t`")
+
+            assert clique.make_query("select * from `//tmp/t`") == expected
+
+            clique.make_query("create table `//tmp/t1` engine=YtTable() as select * from `//tmp/t`")
+
+            assert clique.make_query("select * from `//tmp/t1`") == expected
 
     @authors("dakovalkov")
     def test_yson_extract(self):
@@ -2584,6 +2718,390 @@ class TestClickHouseNoCache(ClickHouseTestBase):
                 if i != 0:
                     time.sleep(0.5)
                 assert clique.make_query('select * from "//tmp/t"') == [{"a": 123}]
+
+
+class TestDataTypeConversion(ClickHouseTestBase):
+    def make_query_and_check_low_cardinality(self, clique, query, expected_result, exact_match=True, settings=None):
+        result = clique.make_query(query, settings=settings, full_response=True)
+
+        if exact_match:
+            assert result.json()["data"] == expected_result
+        else:
+            assert_items_equal(result.json()["data"], expected_result)
+
+        for col in result.json()["meta"]:
+            assert col["type"].startswith("LowCardinality")
+
+    def low_cardinality_config(self, lc_mode=None):
+        config = {
+            "clickhouse": {"settings": {"allow_suspicious_low_cardinality_types": 1}}
+        }
+        if lc_mode is not None:
+            update_inplace(config, {
+                "yt": {
+                    "query_settings": {"composite": {"low_cardinality_mode": lc_mode}}
+                }
+            })
+
+        return config
+
+    @authors("a-dyu")
+    def test_low_cardinality_columns(self):
+        schema = [
+            {"name": "uint8_column", "type": "uint8"},
+            {"name": "uint16_column", "type": "uint16"},
+            {"name": "uint32_column", "type": "uint32"},
+            {"name": "uint64_column", "type": "uint64"},
+            {"name": "int8_column", "type": "int8"},
+            {"name": "int16_column", "type": "int16"},
+            {"name": "int32_column", "type": "int32"},
+            {"name": "int64_column", "type": "int64"},
+            {"name": "interval_column", "type": "interval"},
+            {"name": "interval64_column", "type": "interval64"},
+            {"name": "string_column", "type": "string"},
+            {"name": "utf8_column", "type": "utf8"},
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema, "optimize_for": "scan"})
+        create("table", "//tmp/t0", attributes={"schema": schema, "optimize_for": "lookup"})
+
+        short_schema = [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        create("table", "//tmp/rle_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
+        create("table", "//tmp/dict_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
+        create("table", "//tmp/t1", attributes={"schema": short_schema})
+        create("table", "//tmp/t2", attributes={"schema": short_schema})
+        create("table", "//tmp/different_cardinality", attributes={"schema": short_schema})
+        create("table", "//tmp/t3", attributes={"schema": short_schema})
+        nested_optional_schema = [
+            {"name": "nested_optional_uint8", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "uint8"}}},
+            {"name": "nested_optional_string", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "string"}}},
+        ]
+        create("table", "//tmp/nested_optional", attributes={"schema": nested_optional_schema})
+
+        def get_row(value):
+            str_value = str(value)
+            return {
+                "uint8_column": value,
+                "uint16_column": value,
+                "uint32_column": value,
+                "uint64_column": value,
+                "int8_column": value,
+                "int16_column": value,
+                "int32_column": value,
+                "int64_column": value,
+                "interval_column": value,
+                "interval64_column": value,
+                "string_column": str_value,
+                "utf8_column": str_value,
+            }
+
+        data = []
+        for i in range(3):
+            data.append(get_row(i))
+        data.append(get_row(None))
+        write_table("//tmp/t", data)
+
+        with Clique(1, config_patch=self.low_cardinality_config()) as clique:
+            settings = {
+                "chyt.composite.low_cardinality_mode": "all",
+            }
+
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', data, settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t" prewhere uint8_column = 1', [get_row(1)], settings=settings)
+
+            clique.make_query("insert into `//tmp/t0` select * from `//tmp/t`", settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t0"', data, settings=settings)
+
+            clique.make_query("create table `//tmp/t_ch` engine=YtTable() as select * from `//tmp/t`", settings=settings)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t_ch"', data, settings=settings)
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": "a", "b": "b"})
+
+            for _ in range(1000):
+                arr.append({"a": "b", "b": "a"})
+
+            for _ in range(1000):
+                arr.append({"a": None, "b": None})
+
+            write_table("//tmp/rle_encoded", arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/rle_encoded"', arr, settings=settings)
+            result = clique.make_query('select uniq(*) from "//tmp/rle_encoded"', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": "a", "b": "b"})
+                arr.append({"a": "b", "b": "a"})
+                arr.append({"a": None, "b": None})
+
+            write_table("//tmp/dict_encoded", arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', arr, settings=settings)
+
+            result = clique.make_query('select uniq(*) from "//tmp/dict_encoded"', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            result = clique.make_query('select uniq(*) from concatYtTables("//tmp/rle_encoded", "//tmp/dict_encoded")', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": None, "b": None})
+
+            settings["chyt.execution.enable_distinct_read_optimization"] = 1
+            write_table("//tmp/dict_encoded", arr)
+            self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', arr, settings=settings)
+
+            result = clique.make_query('select distinct a from "//tmp/dict_encoded"', settings=settings)
+            assert result == [{"a": None}]
+            settings["chyt.execution.enable_distinct_read_optimization"] = 0
+
+            write_table("//tmp/t1", [{"a": "a", "b": "b"}])
+            write_table("//tmp/t2", [{"a": "b", "b": "a"}])
+
+            self.make_query_and_check_low_cardinality(
+                clique,
+                'select * from "//tmp/t1" as t1 inner join (select * from "//tmp/t2") as t2 on t1.a != t2.a',
+                [{"a": "a", "b": "b", "t2.a": "b", "t2.b": "a"}],
+                settings=settings
+            )
+
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/t0"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/t1"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/rle_encoded"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/dict_encoded"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.composite.low_cardinality_mode"] = "from_statistics"
+            settings["chyt.composite.low_cardinality_threshold"] = 10
+            arr = []
+            for i in range(20):
+                arr.append({"a": "a", "b": str(i)})
+            write_table("//tmp/different_cardinality", arr)
+            result = clique.make_query('describe table "//tmp/different_cardinality"', settings=settings)
+            assert result[0]["type"].startswith("LowCardinality")
+            assert not result[1]["type"].startswith("LowCardinality")
+
+            clique.make_query("insert into `//tmp/t3` select * from `//tmp/different_cardinality`", settings=settings)
+            result = clique.make_query('select * from "//tmp/t3"', settings=settings)
+            assert result == arr
+
+            clique.make_query("create table `//tmp/t_ch1` engine=YtTable() as select * from `//tmp/different_cardinality`", settings=settings)
+            result = clique.make_query('select * from "//tmp/t_ch1"', settings=settings)
+            assert result == arr
+
+            result = clique.make_query('describe table "//tmp/nested_optional"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.composite.low_cardinality_mode"] = "string_only"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            for t in result:
+                if t["name"] == "string_column" or t["name"] == "utf8_column":
+                    assert t["type"].startswith("LowCardinality")
+                else:
+                    assert not t["type"].startswith("LowCardinality")
+
+            settings["chyt.composite.low_cardinality_mode"] = "none"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.composite.low_cardinality_regexp"] = "uint8_column"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            for t in result:
+                if t["name"] == "uint8_column":
+                    assert t["type"].startswith("LowCardinality")
+                else:
+                    assert not t["type"].startswith("LowCardinality")
+
+    @authors("buyval01")
+    def test_low_cardinality_over_encodings(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "ui64", "type": "uint64", "required": True},
+                {"name": "i64", "type": "int64"},
+                {"name": "str", "type": "string"},
+                {"name": "str_req", "type": "string", "required": True},
+            ],
+            "optimize_for": "scan",
+        })
+
+        # Using patterns from integer_column_ut.cpp that are proven to trigger specific encodings.
+
+        # 1. DirectDense: Sequential values (base + i).
+        def direct_dense_generator(base_ui64, base_i64):
+            result = []
+            for i in range(100 * 100):
+                result.append({
+                    "ui64": base_ui64 + i,
+                    "i64": base_i64 + i,
+                    "str": f"dd_{i}",
+                    "str_req": f"dd_req_{i}",
+                })
+            return result
+
+        # 2. DictionaryDense: Small dictionary with alternating pattern.
+        def dict_dense_generator(base_ui64, base_i64):
+            result = []
+            for _ in range(100):
+                for j in range(100):
+                    if j != 50:
+                        result.append({
+                            "ui64": base_ui64 + j * 1024,
+                            "i64": base_i64 + j * 1024,
+                            "str": f"dictd_{j}",
+                            "str_req": f"dictd_req_{j}",
+                        })
+                    else:
+                        result.append({
+                            "ui64": 0,
+                            "i64": 0,
+                            "str": "",
+                            "str_req": "",
+                        })
+            return result
+
+        # 3. DictionaryRle: Very small dictionary (4 values) with long runs + nulls.
+        def dict_rle_generator(base_ui64, base_i64):
+            result = []
+            for i in range(100):
+                for j in range(100):
+                    val_idx = j // 25
+                    result.append({
+                        "ui64": base_ui64 + val_idx * 1024,
+                        "i64": base_i64 + val_idx * 1024,
+                        "str": f"dictr_{val_idx}",
+                        "str_req": f"dictr_req_{val_idx}",
+                    })
+                    if val_idx == 1:
+                        result[-1]["ui64"] = 0
+                        result[-1]["i64"] = 0
+                        result[-1]["str"] = ""
+                        result[-1]["str_req"] = ""
+
+                null_row = copy.deepcopy(result[-1])
+                null_row["i64"] = None
+                null_row["str"] = None
+                # Add nulls to create more runs
+                for j in range(2):
+                    result.append(null_row)
+
+            return result
+
+        # 4. DirectRle: Same value repeated in runs.
+        def direct_rle_generator(base_ui64, base_i64):
+            result = []
+            for i in range(100):
+                for j in range(100):
+                    result.append({
+                        "ui64": base_ui64 + i,
+                        "i64": base_i64 + i,
+                        "str": f"dr_{i}",
+                        "str_req": f"dr_req_{i}_{"a" * 100}",
+                    })
+                null_row = copy.deepcopy(result[-1])
+                null_row["i64"] = None
+                null_row["str"] = None
+                result.append(null_row)
+            return result
+
+        # We need to generate disjoint ranges.
+
+        # [base .. base + 102400)
+        dict_dense_data = dict_dense_generator(22222, 12345)
+        write_table("<append=%true>//tmp/t", dict_dense_data)
+
+        # [base .. base + 4096)
+        dict_rle_data = dict_rle_generator(333333, 333333)
+        write_table("<append=%true>//tmp/t", dict_rle_data)
+
+        # [base .. base + 10000)
+        direct_dense_data = direct_dense_generator(1000, -10001)
+        write_table("<append=%true>//tmp/t", direct_dense_data)
+
+        direct_rle_data = direct_rle_generator(444444, 444444)
+        write_table("<append=%true>//tmp/t", direct_rle_data)
+
+        expected_data = dict_rle_data + direct_rle_data + dict_dense_data + direct_dense_data
+
+        expected_ui64_sum = sum(row["ui64"] for row in expected_data)
+        expected_i64_sum = sum(row["i64"] for row in expected_data if row["i64"] is not None)
+        expected_i64_nulls = sum(1 for row in expected_data if row["i64"] is None)
+        expected_str_nulls = sum(1 for row in expected_data if row["str"] is None)
+
+        from clickhouse_cityhash.cityhash import CityHash64
+        import operator
+        from functools import reduce
+
+        expected_str_hash = reduce(operator.xor, [CityHash64(row["str"].encode("utf-8")) if row["str"] is not None else 0 for row in expected_data], 0)
+        expected_str_req_hash = reduce(operator.xor, [CityHash64(row["str_req"].encode("utf-8")) for row in expected_data], 0)
+
+        with Clique(1, config_patch=self.low_cardinality_config("all")) as clique:
+            # Verify distinct values work correctly across all encoding types.
+            # Should have:
+            #   * 10000 from direct_dense;
+            #   * 100 from dict_dense;
+            #   * 4 from dict_rle - 1 for zero value overlap;
+            #   * 100 from direct_rle.
+            # Result: 10203
+            assert clique.make_query('select count(distinct ui64) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+            assert clique.make_query('select count(distinct i64) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+            assert clique.make_query('select count(distinct str) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+            assert clique.make_query('select count(distinct str_req) as cnt from "//tmp/t"')[0]["cnt"] == 10203
+
+            agg_result = clique.make_query(
+                'select '
+                '   sum(ui64) as ui64_sum, '
+                '   sum(i64) as i64_sum, '
+                '   countIf(i64 is null) as i64_nulls, '
+                '   countIf(str is null) as str_nulls, '
+                '   groupBitXor(cityHash64(str)) as str_hash, '
+                '   groupBitXor(cityHash64(str_req)) as str_req_hash '
+                'from "//tmp/t"')[0]
+
+            assert agg_result["ui64_sum"] == expected_ui64_sum
+            assert agg_result["i64_sum"] == expected_i64_sum
+
+            assert agg_result["i64_nulls"] == expected_i64_nulls
+            assert agg_result["str_nulls"] == expected_str_nulls
+
+            assert agg_result["str_hash"] == expected_str_hash
+            assert agg_result["str_req_hash"] == expected_str_req_hash
+
+    @authors("buyval01")
+    def test_key_condition_with_lc_types(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending", "required": True}
+            ]
+        })
+        for i in range(3):
+            data = 5 * [{"a": 3 * i}] + 5 * [{"a": 3 * i + 1}] + 5 * [{"a": 3 * i + 2}]
+            write_table("<append=%true>//tmp/t", data)
+
+        with Clique(1, config_patch=self.low_cardinality_config("all")) as clique:
+            self.make_query_and_check_low_cardinality(
+                clique,
+                "select * from '//tmp/t' where a > 2",
+                5 * [{"a": 3 + i} for i in range(6)],
+                exact_match=False
+            )
+
+            self.make_query_and_check_low_cardinality(
+                clique,
+                "select * from '//tmp/t' where CAST(a as Int8) = 7",
+                5 * [{"a": 7}],
+                exact_match=False
+            )
 
 
 class TestCustomSettings(ClickHouseTestBase):

@@ -23,6 +23,7 @@ struct TTabletCellBundle final
     TBundleTabletBalancerConfigPtr Config;
     THashMap<TTabletCellId, TTabletCellPtr> TabletCells;
     THashMap<TTableId, TTablePtr> Tables;
+    THashMap<NYPath::TYPath, TTablePtr> TablesByPath;
     THashMap<TNodeAddress, TNodeStatistics> NodeStatistics;
     THashMap<TTabletId, TTabletPtr> Tablets;
 
@@ -32,6 +33,8 @@ struct TTabletCellBundle final
     TTabletCellBundle(TString name);
 
     std::vector<TTabletCellPtr> GetAliveCells() const;
+    THashSet<TGroupName> GetBalancingGroups() const;
+
     TTabletCellBundlePtr DeepCopy(bool copyCells, bool copyTabletsAndStatistics) const;
 };
 

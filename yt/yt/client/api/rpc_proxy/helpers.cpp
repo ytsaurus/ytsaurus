@@ -42,7 +42,8 @@ void PatchProxyForStallRequests(const TConnectionConfigPtr& config, TApiServiceP
         auto totalStreamingTimeout = config->DefaultTotalStreamingTimeout;
         NRpc::TStreamingParameters patchedParameters{
             .ReadTimeout = totalStreamingTimeout,
-            .WriteTimeout = totalStreamingTimeout};
+            .WriteTimeout = totalStreamingTimeout,
+        };
 
         proxy->DefaultClientAttachmentsStreamingParameters() = patchedParameters;
         proxy->DefaultServerAttachmentsStreamingParameters() = patchedParameters;
@@ -1288,7 +1289,7 @@ void ToProto(
 
     ToProto(protoStatistics->mutable_column_hyperloglog_digests(), statistics.LargeStatistics.ColumnHyperLogLogDigests);
 
-    YT_OPTIONAL_SET_PROTO(protoStatistics, read_size_estimation, statistics.ReadDataSizeEstimate);
+    YT_OPTIONAL_SET_PROTO(protoStatistics, read_size_estimate, statistics.ReadDataSizeEstimate);
 }
 
 void FromProto(
@@ -1308,7 +1309,7 @@ void FromProto(
 
     FromProto(&statistics->LargeStatistics.ColumnHyperLogLogDigests, protoStatistics.column_hyperloglog_digests());
 
-    statistics->ReadDataSizeEstimate = YT_OPTIONAL_FROM_PROTO(protoStatistics, read_size_estimation);
+    statistics->ReadDataSizeEstimate = YT_OPTIONAL_FROM_PROTO(protoStatistics, read_size_estimate);
 }
 
 void ToProto(
@@ -1929,8 +1930,6 @@ NProto::EQueryEngine ConvertQueryEngineToProto(
             return NProto::EQueryEngine::QE_MOCK;
         case NQueryTrackerClient::EQueryEngine::Spyt:
             return NProto::EQueryEngine::QE_SPYT;
-        case NQueryTrackerClient::EQueryEngine::SpytConnect:
-            return NProto::EQueryEngine::QE_SPYT;
     }
     YT_ABORT();
 }
@@ -2241,8 +2240,8 @@ void FillRequest(
 {
     ToProto(req->mutable_path(), path);
     req->set_cookie_count(options.CookieCount);
-    if (options.Timeout) {
-        req->set_timeout(options.Timeout->GetValue());
+    if (options.SessionTimeout) {
+        req->set_session_timeout(options.SessionTimeout->GetValue());
     }
 
     if (options.TransactionId) {
@@ -2257,8 +2256,8 @@ void ParseRequest(
 {
     *mutablePath = FromProto<NYPath::TRichYPath>(req.path());
     mutableOptions->CookieCount = req.cookie_count();
-    if (req.has_timeout()) {
-        mutableOptions->Timeout = TDuration::FromValue(req.timeout());
+    if (req.has_session_timeout()) {
+        mutableOptions->SessionTimeout = TDuration::FromValue(req.session_timeout());
     }
     if (req.has_transactional_options()) {
         FromProto(mutableOptions, req.transactional_options());
@@ -2352,8 +2351,8 @@ void FillRequest(
 {
     ToProto(req->mutable_path(), path);
     req->set_cookie_count(options.CookieCount);
-    if (options.Timeout) {
-        req->set_timeout(options.Timeout->GetValue());
+    if (options.SessionTimeout) {
+        req->set_session_timeout(options.SessionTimeout->GetValue());
     }
 
     if (options.TransactionId) {
@@ -2368,8 +2367,8 @@ void ParseRequest(
 {
     *mutablePath = FromProto<NYPath::TRichYPath>(req.path());
     mutableOptions->CookieCount = req.cookie_count();
-    if (req.has_timeout()) {
-        mutableOptions->Timeout = TDuration::FromValue(req.timeout());
+    if (req.has_session_timeout()) {
+        mutableOptions->SessionTimeout = TDuration::FromValue(req.session_timeout());
     }
     if (req.has_transactional_options()) {
         FromProto(mutableOptions, req.transactional_options());
@@ -2458,7 +2457,8 @@ bool IsChaosRetriableError(const TError& error)
             code == NTabletClient::EErrorCode::TabletReplicationEraMismatch ||
             code == NChaosClient::EErrorCode::ShortcutNotFound ||
             code == NChaosClient::EErrorCode::ShortcutHasDifferentEra ||
-            code == NChaosClient::EErrorCode::ShortcutRevoked;
+            code == NChaosClient::EErrorCode::ShortcutRevoked ||
+            code == NChaosClient::EErrorCode::ChaosCellIsNotEnabled;
     }));
 }
 

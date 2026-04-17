@@ -309,11 +309,14 @@ func (e *Encoder) RevokeToken(
 	token string,
 	options *yt.RevokeTokenOptions,
 ) (err error) {
-	passwordSHA256 := ""
-	if password != "" {
+	passwordSHA256 := password
+	if password != "" && (options == nil || !options.PasswordIsHash) {
 		passwordSHA256 = encodeSHA256(password)
 	}
-	tokenSHA256 := encodeSHA256(token)
+	tokenSHA256 := token
+	if options == nil || !options.TokenIsHash {
+		tokenSHA256 = encodeSHA256(token)
+	}
 
 	call := e.newCall(NewRevokeTokenParams(user, passwordSHA256, tokenSHA256, options))
 	err = e.do(ctx, call, noopResultDecoder)
@@ -610,6 +613,16 @@ func (e *Encoder) GetJobStderr(
 	return
 }
 
+func (e *Encoder) ListOperationEvents(
+	ctx context.Context,
+	opID yt.OperationID,
+	options *yt.ListOperationEventsOptions,
+) (r *yt.ListOperationEventsResult, err error) {
+	call := e.newCall(NewListOperationEventsParams(opID, options))
+	err = e.do(ctx, call, ListOperationEventsResultDecoder(&r))
+	return
+}
+
 func (e *Encoder) WriteFile(
 	ctx context.Context,
 	path ypath.YPath,
@@ -664,6 +677,7 @@ func (e *Encoder) WriteTableRaw(
 ) (err error) {
 	call := e.newCall(NewWriteTableParams(path, options))
 	call.YSONValue = body.Bytes()
+	call.DisableRetries = true
 	err = e.do(ctx, call, noopResultDecoder)
 	return
 }

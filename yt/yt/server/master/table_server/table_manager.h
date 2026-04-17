@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "master_table_schema.h"
+#include "secondary_index.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -17,6 +18,21 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStatisticsUpdateRequest
+{
+    bool UpdateDataStatistics = false;
+    bool UpdateTabletResourceUsage = false;
+    bool UpdateModificationTime = false;
+    bool UpdateAccessTime = false;
+    bool UseNativeContentRevisionCas = false;
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+
+    TStatisticsUpdateRequest& operator|=(const TStatisticsUpdateRequest& rhs);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ITableManager
     : public virtual TRefCounted
 {
@@ -28,9 +44,7 @@ struct ITableManager
 
     virtual void ScheduleStatisticsUpdate(
         NChunkServer::TChunkOwnerBase* chunkOwner,
-        bool updateDataStatistics = true,
-        bool updateTabletStatistics = true,
-        bool useNativeContentRevisionCas = false) = 0;
+        TStatisticsUpdateRequest request) = 0;
 
     virtual void SendStatisticsUpdate(
         NChunkServer::TChunkOwnerBase* chunkOwner,
@@ -50,16 +64,6 @@ struct ITableManager
     virtual TMasterTableSchema* FindNativeMasterTableSchema(
         const TCompactTableSchemaPtr& tableSchema) const = 0;
 
-    //! Creates an imported schema with the specified id.
-    /*!
-     *  An artificial ref is taken to ensure that native cell controls object's lifetime.
-     *
-     *  NB: This is the means of schema deduplication.
-     */
-    virtual TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
-        TMasterTableSchemaId hintId) = 0;
-
     //! Creates a foreign schema with the specified id.
     /*!
      *  Unlike the method above, it does not take a ref.
@@ -68,11 +72,10 @@ struct ITableManager
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const TCompactTableSchemaPtr& tableSchema,
+        TCompactTableSchemaPtr tableSchema,
         NTransactionServer::TTransaction* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
-    // TODO(cherepashka): make `schema` argument rvalue in functions below (YT-22285).
     //! Looks up a schema or creates one if no such schema exists.
     /*!
      *  #schemaHolder will have its schema set to the resulting schema.
@@ -81,19 +84,19 @@ struct ITableManager
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         TSchemafulNode* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a transaction instead
     //! of a schemaful node.
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         NTransactionServer::TTransaction* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a chunk instead
     //! of a transaction.
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchemaPtr& schema,
+        TCompactTableSchemaPtr schema,
         NChunkServer::TChunk* schemaHolder) = 0;
 
     virtual TFuture<NYson::TYsonString> GetYsonTableSchemaAsync(const TMasterTableSchema* masterSchema) = 0;
@@ -165,7 +168,7 @@ struct ITableManager
         TTableId table,
         TTableId secondaryIndex,
         std::optional<std::string> predicate,
-        std::optional<std::string> unfoldedColumnName,
+        std::optional<NTabletClient::TUnfoldedColumns> unfoldedColumns,
         NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
 
     // Table collocation management.

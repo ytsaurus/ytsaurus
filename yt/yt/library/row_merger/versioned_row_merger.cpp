@@ -485,13 +485,13 @@ private:
         return Config_->MaxDataTtl;
     }
 
-    static bool CompareValueWithRuntimeWatermark(TUnversionedValue value, const TWatermarkRuntimeData& watermarkRuntimeData)
+    static bool CompareValueWithRuntimeWatermark(const TUnversionedValue& value, const TWatermarkRuntimeData& watermarkRuntimeData)
     {
         if (value.Id != watermarkRuntimeData.ColumnIndex || value.Type == EValueType::Null) {
             return false;
         }
 
-        switch (watermarkRuntimeData.ComparisonOpeator) {
+        switch (watermarkRuntimeData.ComparisonOperator) {
             case EWatermarkComparisonOperator::Less:
                 return FromUnversionedValue<ui64>(value) < watermarkRuntimeData.Watermark;
 
@@ -564,14 +564,14 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     IMemoryUsageTrackerPtr memoryTracker)
 {
     return std::make_unique<TLegacyVersionedRowMerger>(
-        rowBuffer,
+        std::move(rowBuffer),
         columnCount,
         keyColumnCount,
         columnFilter,
-        config,
+        std::move(config),
         currentTimestamp,
         majorTimestamp,
-        columnEvaluator,
+        std::move(columnEvaluator),
         mergeRowsOnFlush,
         ttlColumnIndex,
         mergeDeletionsOnFlush,
@@ -1017,7 +1017,7 @@ private:
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
 
-    TNestedTableMerger NestedMerger_;
+    TNestedTableMerger NestedMerger_{/*orderNestedRows*/ false};
     std::vector<TRange<TVersionedValue>> NestedKeyColumns_;
     std::vector<TRange<TVersionedValue>> NestedValueColumns_;
 
@@ -1247,7 +1247,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
         rowMergerType = ERowMergerType::Legacy;
     }
 
-    auto nestedColumnsSchema = GetNestedColumnsSchema(tableSchema);
+    auto nestedColumnsSchema = GetNestedColumnsSchema(*tableSchema);
 
     if (!nestedColumnsSchema.KeyColumns.empty() && rowMergerType != ERowMergerType::New) {
         THROW_ERROR_EXCEPTION("Nested columns are supported only in new versioned row merger");
@@ -1289,7 +1289,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                     watermarkRuntimeData = TWatermarkRuntimeData{
                         .Watermark = watermarkRuntimeDataConfig.Watermark,
                         .ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig.ColumnName),
-                        .ComparisonOpeator = watermarkRuntimeDataConfig.ComparisonOperator
+                        .ComparisonOperator = watermarkRuntimeDataConfig.ComparisonOperator,
                     };
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Failed to prepare watermark runtime data");

@@ -19,7 +19,7 @@ struct TModuleBytecode
     TSharedRef Data;
     TSharedRef ObjectCode;
 
-    bool operator == (const TModuleBytecode& other) const;
+    bool operator==(const TModuleBytecode& other) const;
     operator size_t() const;
 };
 

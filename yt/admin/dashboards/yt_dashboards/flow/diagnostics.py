@@ -11,7 +11,7 @@ from .common import create_dashboard, build_text_row
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.sensor import Text, EmptyCell
+from yt_dashboard_generator.sensor import Text, EmptyCell, MultiSensor
 
 
 def add_single_core_diagnostic(row):
@@ -51,11 +51,19 @@ def add_slow_input_messages_lookup_diagnostic(row):
         .cell("", Text(description_text))
         .cell(
             "Slow input messages lookup",
-            MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
-                .aggr("computation_id")
-                .query_transformation(transformation)
-                .alias("{{computation_id}}")
-                .stack(True))
+            MultiSensor(
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
+                    .aggr("computation_id")
+                    .query_transformation(transformation)
+                    .alias("{{computation_id}}")
+                    .stack(True),
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_time.max"))
+                    .value("table", "input_messages")
+                    .value("tag", "-")
+                    .aggr("computation_id")
+                    .query_transformation(transformation)
+                    .alias("{{computation_id}}")
+                    .stack(True)))
     )
 
 

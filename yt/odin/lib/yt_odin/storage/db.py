@@ -3,10 +3,13 @@ from .storage import Storage, StorageForCluster, OdinDBRecord
 from yt_odin.common.token import get_token
 from yt_odin.logging import TaskLoggerAdapter
 from yt.wrapper import YtClient
+from yt.wrapper.errors import YtAllWritesDisabled
+from yt.wrapper.retries import run_with_retries
 
 from six import text_type, binary_type
 
 import logging
+import time
 
 odin_logger = logging.getLogger("Odin")
 
@@ -19,6 +22,18 @@ class OdinYtTableClient(Storage):
     def _get_task_logger(self, check_id):
         return TaskLoggerAdapter(odin_logger, check_id)
 
+    def _retry_on_overloaded_bundle(self, action):
+        # The `All writes disabled` error is not retriable by default because those retries are not always safe.
+        # However, it is safe to retry here.
+        # Without this retry, writing to overloaded tablet cell bundles would cause Odin to restart,
+        # resulting in the loss of information about the latest checks.
+        run_with_retries(
+            action,
+            retry_count=12,
+            exceptions=(YtAllWritesDisabled,),
+            backoff_action=lambda _, attempt, __: time.sleep(min(min(20 * 60, 2 ** (attempt - 1)), 5 * 60)),
+        )
+
     def add_record(self, check_id, cluster, service, timestamp, **kwargs):
         row = dict(
             cluster=cluster,
@@ -28,7 +43,7 @@ class OdinYtTableClient(Storage):
         )
         logger = self._get_task_logger(check_id)
         logger.info("Inserting row %s to %s", str(row), self._table)
-        self._client.insert_rows(self._table, [row])
+        self._retry_on_overloaded_bundle(lambda: self._client.insert_rows(self._table, [row]))
         logger.info("Successfully inserted row to %s", self._table)
 
     def add_records_bulk_impl(self, records):
@@ -36,7 +51,7 @@ class OdinYtTableClient(Storage):
             check_id = row.pop("check_id")
             logger = self._get_task_logger(check_id)
             logger.info("Bulk-inserting row %s to %s (%s/%s)", str(row), self._table, i, len(records))
-        self._client.insert_rows(self._table, records)
+        self._retry_on_overloaded_bundle(lambda: self._client.insert_rows(self._table, records))
         odin_logger.info("Successfully bulk-inserted %s rows to %s", len(records), self._table)
 
     def get_records(self, clusters, services, start_timestamp, stop_timestamp):

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/node/tablet_node/tablet_memory_statistics.h>
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
@@ -17,8 +15,6 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
-
-#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 

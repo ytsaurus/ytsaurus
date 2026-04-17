@@ -1,5 +1,5 @@
 # testing/engines.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -162,9 +162,14 @@ class ConnectionKiller:
             if pool.base._strong_ref_connection_records:
                 ln = len(pool.base._strong_ref_connection_records)
                 pool.base._strong_ref_connection_records.clear()
-                assert (
-                    False
-                ), "%d connection recs not cleared after test suite" % (ln)
+
+                if ln > 2:
+                    # allow two connections to linger, as on loaded down
+                    # CI hardware there seem to be occasional GC lapses that
+                    # are not easily preventable
+                    assert (
+                        False
+                    ), "%d connection recs not cleared after test suite" % (ln)
         if config.options and config.options.low_connections:
             # for suites running with --low-connections, dispose the "global"
             # engines to disconnect everything before making a testing engine

@@ -113,13 +113,19 @@ public class EntityTableSchemaCreator {
         boolean isNullable = true;
         if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
+        } else if (tiTypeInSchema != null) {
+            isNullable = tiTypeInSchema.isOptional();
         }
+
+        TiType innerSchemaType = tiTypeInSchema != null && tiTypeInSchema.isOptional()
+                ? tiTypeInSchema.asOptional().getItem()
+                : tiTypeInSchema;
 
         TiType tiType = getClassTiType(
                 clazz,
                 annotation,
                 genericTypeParameters,
-                tiTypeInSchema
+                innerSchemaType
         );
 
         if (isNullable && !clazz.isPrimitive()) {
@@ -136,16 +142,6 @@ public class EntityTableSchemaCreator {
                                 .filter(member -> member.getName().equals(name))
                                 .map(StructType.Member::getType)
                                 .findAny()
-                ).map(
-                        tiType -> tiType.isOptional() ?
-                                tiType.asOptional().getItem() : tiType
-                ).map(
-                        tiType -> {
-                            if (tiType.isOptional()) {
-                                throw new RuntimeException("Table schema has column with optional<optional>");
-                            }
-                            return tiType;
-                        }
                 );
     }
 

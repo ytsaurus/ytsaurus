@@ -94,6 +94,7 @@ microservices:
       failedJobsHistoryLimit: 2
       startingDeadlineSeconds: 5
       ttlSecondsAfterFinished: 43200
+      pool: null
     removeExcessive:
       enabled: true
       schedule: "0 0 * * *"
@@ -164,9 +165,14 @@ microservices:
       startingDeadlineSeconds: 5
       config:
         accessLogExportPath: "//sys/admin/logs/export/master-access"
-        lockPath: "//sys/admin/yt-microservices/raw_log_processing/lock"
-        workPath: "//sys/admin/yt-microservices/raw_log_processing"
+        lockPath: "//sys/admin/yt-microservices/raw_master_access_log_processing/lock"
+        workPath: "//sys/admin/yt-microservices/raw_master_access_log_processing"
         maxInputTables: 16
+        processings:
+          30min:
+            expirationTimeout: 168h
+          # 1d:
+          #   expirationTimeout: 672h
     preprocessing:
       enabled: true
       schedule: "*/15 * * * *"

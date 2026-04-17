@@ -12,62 +12,107 @@ constexpr TStringBuf KeyRangeIncrementals = "RangeIncrementals";
 constexpr TStringBuf KeyRowIncrementals = "RowIncrementals";
 constexpr TStringBuf KeySortOrder = "SortOrder";
 constexpr TStringBuf KeyBounds = "Bounds";
-constexpr TStringBuf KeySortColumnName = "SortColumnName";
 constexpr TStringBuf KeyDirection = "Direction";
 constexpr TStringBuf KeyNumber = "Number";
+constexpr TStringBuf KeySortedColumn = "SortedColumn";
+constexpr TStringBuf KeyFiniteValue = "FiniteValue";
+constexpr TStringBuf KeyProcId = "ProcId";
 
-TExprNode::TPtr BuildNumberVariantType(TPositionHandle pos, TStringBuf dataTypeName, TExprContext& ctx) {
-    return ctx.Builder(pos)
-        .Callable("VariantType")
-            .Callable(0, "StructType")
-                .List(0)
-                    .Atom(0, "Unbounded")
-                    .Callable(1, "VoidType")
-                    .Seal()
-                .Seal()
-                .List(1)
-                    .Atom(0, "Bounded")
-                    .Callable(1, "DataType")
-                        .Atom(0, dataTypeName)
-                    .Seal()
-                .Seal()
-            .Seal()
-        .Seal()
-        .Build();
-}
+using TCoreWinFrameCollectorBounds = TCoreWinFrameCollectorBounds<TWindowFrameSettingWithOffset, /*WithSortedColumnNames=*/true>;
 
-template <typename T>
-TExprNode::TPtr SerializeNumberAndDirection(
+constexpr TCoreWinFrameCollectorBounds::TSortColumnNamesView SortedColumnsNotRequired = {};
+constexpr TCoreWinFrameCollectorBounds::TSortColumnNameView SortedColumnNotRequired = {};
+
+TWindowFrameSettingBound ConvertToFrameBound(
     TPositionHandle pos,
-    const TNumberAndDirection<T>& value,
-    TStringBuf dataTypeName,
-    TStringBuf callableName,
+    const TNumberAndDirection<ui64>& value,
     TExprContext& ctx)
 {
-    auto variantType = BuildNumberVariantType(pos, dataTypeName, ctx);
-
-    TExprNode::TPtr numberVariant;
     if (value.IsInf()) {
-        numberVariant = ctx.Builder(pos)
-            .Callable("Variant")
-                .Callable(0, "Void")
-                .Seal()
-                .Atom(1, "Unbounded")
-                .Add(2, variantType)
-            .Seal()
-            .Build();
-    } else {
-        numberVariant = ctx.Builder(pos)
-            .Callable("Variant")
-                .Callable(0, callableName)
-                    .Atom(0, ToString(value.GetUnderlyingValue()))
-                .Seal()
-                .Atom(1, "Bounded")
-                .Add(2, variantType)
-            .Seal()
-            .Build();
+        return TWindowFrameSettingBound::Inf(value.GetDirection());
     }
+    // clang-format off
+    auto node = ctx.Builder(pos)
+        .Callable("Uint64")
+            .Atom(0, ToString(value.GetUnderlyingValue()))
+        .Seal()
+        .Build();
+    // clang-format on
+    return TWindowFrameSettingBound({node,  Nothing(), Nothing(), Nothing()}, value.GetDirection());
+}
 
+TWindowFrame<TWindowFrameSettingBound> ConvertToFrameBound(
+    TPositionHandle pos,
+    const TWindowFrame<TNumberAndDirection<ui64>>& frame,
+    TExprContext& ctx)
+{
+    return TWindowFrame<TWindowFrameSettingBound>(
+        ConvertToFrameBound(pos, frame.Min(), ctx),
+        ConvertToFrameBound(pos, frame.Max(), ctx));
+}
+
+TExprNode::TPtr SerializeNumberAndDirection(
+    TPositionHandle pos,
+    const TWindowFrameSettingBound& value,
+    TCoreWinFrameCollectorBounds::TSortColumnNameView sortColumnName,
+    TExprContext& ctx)
+{
+    auto visitor = TOverloaded{
+        [&](TWindowFrameSettingBound::TUnbounded) {
+            // clang-format off
+            return ctx.Builder(pos)
+                .Callable("AsTagged")
+                    .Callable(0, "Void")
+                    .Seal()
+                    .Atom(1, "inf")
+                .Seal()
+                .Build();
+            // clang-format on
+        },
+        [&](const TWindowFrameSettingWithOffset& value) {
+            auto frameBound = value.GetFrameBound();
+            if (const auto& boundCast = value.GetBoundCast()) {
+                frameBound = (*boundCast)(frameBound, ctx);
+            }
+            // clang-format off
+            return ctx.Builder(pos)
+                .Callable("AsStruct")
+                    .List(0)
+                        .Atom(0, KeyFiniteValue)
+                        .Add(1, frameBound)
+                    .Seal()
+                    .Do([&](auto& builder) -> auto& {
+                        if (const auto& procId = value.GetProcId()) {
+                            builder
+                                .List(1)
+                                    .Atom(0, KeyProcId)
+                                    .Callable(1, "Uint32")
+                                        .Atom(0, ToString(*procId))
+                                    .Seal()
+                                .Seal();
+                        }
+                        return builder;
+                    })
+                .Seal()
+                .Build();
+            // clang-format on
+        },
+        [&](const TWindowFrameSettingBound::TZero) {
+            // clang-format off
+            return ctx.Builder(pos)
+                .Callable("AsTagged")
+                    .Callable(0, "Void")
+                    .Seal()
+                    .Atom(1, "zero")
+                .Seal()
+                .Build();
+            // clang-format on
+        },
+    };
+
+    TExprNode::TPtr numberAndDirection = std::visit(visitor, value.GetValue());
+
+    // clang-format off
     return ctx.Builder(pos)
         .Callable("AsStruct")
             .List(0)
@@ -78,93 +123,102 @@ TExprNode::TPtr SerializeNumberAndDirection(
             .Seal()
             .List(1)
                 .Atom(0, KeyNumber)
-                .Add(1, numberVariant)
+                .Add(1, numberAndDirection)
+            .Seal()
+            .List(2)
+                .Atom(0, KeySortedColumn)
+                .Callable(1, "String")
+                    .Atom(0, sortColumnName)
+                .Seal()
             .Seal()
         .Seal()
         .Build();
+    // clang-format on
 }
 
-template <typename T>
 TExprNode::TPtr SerializeWindowFrame(
     TPositionHandle pos,
-    const TWindowFrame<TNumberAndDirection<T>>& frame,
-    TStringBuf dataTypeName,
-    TStringBuf callableName,
+    const TWindowFrame<TWindowFrameSettingBound>& frame,
+    const TCoreWinFrameCollectorBounds::TSortColumnNamesView& sortColumnNames,
     TExprContext& ctx)
 {
+    // clang-format off
     return ctx.Builder(pos)
         .Callable("AsStruct")
             .List(0)
                 .Atom(0, KeyMin)
-                .Add(1, SerializeNumberAndDirection(pos, frame.Min(), dataTypeName, callableName, ctx))
+                .Add(1, SerializeNumberAndDirection(pos, frame.Min(), sortColumnNames.first, ctx))
             .Seal()
             .List(1)
                 .Atom(0, KeyMax)
-                .Add(1, SerializeNumberAndDirection(pos, frame.Max(), dataTypeName, callableName, ctx))
+                .Add(1, SerializeNumberAndDirection(pos, frame.Max(), sortColumnNames.second, ctx))
             .Seal()
         .Seal()
         .Build();
+    // clang-format on
 }
 
-TExprNode::TPtr SerializeWindowFrameAggregatedBounds(TPositionHandle pos, const TCoreWinFrameCollectorBounds<TString>& bounds, TStringBuf rangeCallableName, TExprContext& ctx) {
+TExprNode::TPtr SerializeWindowFrameAggregatedBounds(TPositionHandle pos, const TCoreWinFrameCollectorBounds& bounds, TExprContext& ctx) {
     TExprNodeList rangeIntervalItems;
     for (const auto& frame : bounds.RangeIntervals()) {
-        rangeIntervalItems.push_back(SerializeWindowFrame(pos, frame, rangeCallableName, rangeCallableName, ctx));
+        rangeIntervalItems.push_back(SerializeWindowFrame(pos, frame.first, frame.second, ctx));
     }
 
     TExprNodeList rowIntervalItems;
     for (const auto& frame : bounds.RowIntervals()) {
-        rowIntervalItems.push_back(SerializeWindowFrame(pos, frame, "Uint64", "Uint64", ctx));
+        rowIntervalItems.push_back(SerializeWindowFrame(pos, ConvertToFrameBound(pos, frame, ctx), SortedColumnsNotRequired, ctx));
     }
 
     TExprNodeList rangeIncrementalItems;
     for (const auto& item : bounds.RangeIncrementals()) {
-        rangeIncrementalItems.push_back(SerializeNumberAndDirection(pos, item, rangeCallableName, rangeCallableName, ctx));
+        rangeIncrementalItems.push_back(SerializeNumberAndDirection(pos, item.first, item.second, ctx));
     }
 
     TExprNodeList rowIncrementalItems;
     for (const auto& item : bounds.RowIncrementals()) {
-        rowIncrementalItems.push_back(SerializeNumberAndDirection(pos, item, "Uint64", "Uint64", ctx));
+        rowIncrementalItems.push_back(SerializeNumberAndDirection(pos, ConvertToFrameBound(pos, item, ctx), SortedColumnNotRequired, ctx));
     }
 
+    // clang-format off
     return ctx.Builder(pos)
         .Callable("AsStruct")
             .List(0)
                 .Atom(0, KeyRangeIntervals)
-                .Callable(1, "AsList")
+                .List(1)
                     .Add(std::move(rangeIntervalItems))
                 .Seal()
             .Seal()
             .List(1)
                 .Atom(0, KeyRowIntervals)
-                .Callable(1, "AsList")
+                .List(1)
                     .Add(std::move(rowIntervalItems))
                 .Seal()
             .Seal()
             .List(2)
                 .Atom(0, KeyRangeIncrementals)
-                .Callable(1, "AsList")
+                .List(1)
                     .Add(std::move(rangeIncrementalItems))
                 .Seal()
             .Seal()
             .List(3)
                 .Atom(0, KeyRowIncrementals)
-                .Callable(1, "AsList")
+                .List(1)
                     .Add(std::move(rowIncrementalItems))
                 .Seal()
             .Seal()
         .Seal()
         .Build();
+    // clang-format on
 }
 
 } // anonymous namespace
 
 TExprNode::TPtr SerializeWindowAggregatorParamsToExpr(
-    const TStringCoreWinFramesCollectorParams& params,
+    const TExprNodeCoreWinFrameCollectorParams& params,
     TPositionHandle pos,
-    TStringBuf rangeCallableName,
     TExprContext& ctx)
 {
+    // clang-format off
     return ctx.Builder(pos)
         .Callable("AsStruct")
             .List(0)
@@ -175,16 +229,11 @@ TExprNode::TPtr SerializeWindowAggregatorParamsToExpr(
             .Seal()
             .List(1)
                 .Atom(0, KeyBounds)
-                .Add(1, SerializeWindowFrameAggregatedBounds(pos, params.GetBounds(), rangeCallableName, ctx))
-            .Seal()
-            .List(2)
-                .Atom(0, KeySortColumnName)
-                .Callable(1, "String")
-                    .Atom(0, params.GetSortColumnName())
-                .Seal()
+                .Add(1, SerializeWindowFrameAggregatedBounds(pos, params.GetBounds(), ctx))
             .Seal()
         .Seal()
         .Build();
+    // clang-format on
 }
 
 } // namespace NYql::NWindow

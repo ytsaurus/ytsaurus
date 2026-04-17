@@ -96,7 +96,7 @@ TPendingMutation::TPendingMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
+TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 
@@ -105,14 +105,14 @@ TSystemLockGuard::~TSystemLockGuard()
     Release();
 }
 
-TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other)
+TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other) noexcept
 {
     Release();
     Automaton_ = std::move(other.Automaton_);
     return *this;
 }
 
-void TSystemLockGuard::Release()
+void TSystemLockGuard::Release() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -122,7 +122,7 @@ void TSystemLockGuard::Release()
     }
 }
 
-TSystemLockGuard::operator bool() const
+TSystemLockGuard::operator bool() const noexcept
 {
     return static_cast<bool>(Automaton_);
 }
@@ -139,7 +139,7 @@ TSystemLockGuard::TSystemLockGuard(TDecoratedAutomatonPtr automaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserLockGuard::TUserLockGuard(TUserLockGuard&& other)
+TUserLockGuard::TUserLockGuard(TUserLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 
@@ -148,7 +148,7 @@ TUserLockGuard::~TUserLockGuard()
     Release();
 }
 
-TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other)
+TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other) noexcept
 {
     Release();
     Automaton_ = std::move(other.Automaton_);
@@ -292,7 +292,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         try {
-            TryAcquireLock();
+            AcquireLock();
 
             NHydra::NProto::TSnapshotMeta meta;
             meta.set_sequence_number(SequenceNumber_);
@@ -342,36 +342,43 @@ protected:
 
     virtual TFuture<void> DoRun() = 0;
 
-    void TryAcquireLock()
+    void AcquireLock()
     {
-        bool expected = false;
-        if (!Owner_->BuildingSnapshot_.compare_exchange_strong(expected, true)) {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (Owner_->BuildingSnapshot_.exchange(true)) {
             THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
                 SnapshotId_);
         }
-        LockAcquired_ = true;
+
+        YT_VERIFY(!LockAcquired_.exchange(true));
 
         YT_LOG_INFO("Snapshot builder lock acquired");
     }
 
     void ReleaseLock()
     {
-        if (LockAcquired_) {
-            auto delay = Owner_->Config_->Get()->BuildSnapshotDelay;
-            if (delay != TDuration::Zero()) {
-                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
-                TDelayedExecutor::WaitForDuration(delay);
-            }
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-            Owner_->BuildingSnapshot_.store(false);
-            LockAcquired_ = false;
+        if (!LockAcquired_.load()) {
+            return;
+        }
 
+        auto delay = Owner_->Config_->Get()->BuildSnapshotDelay;
+        if (delay != TDuration::Zero()) {
+            YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
+            TDelayedExecutor::WaitForDuration(delay);
+        }
+
+        if (!LockReleased_.exchange(true)) {
+            YT_VERIFY(Owner_->BuildingSnapshot_.exchange(false));
             YT_LOG_INFO("Snapshot builder lock released");
         }
     }
 
 private:
-    bool LockAcquired_ = false;
+    std::atomic<bool> LockAcquired_ = false;
+    std::atomic<bool> LockReleased_ = false;
 
 
     TRemoteSnapshotParams OnFinished(const TError& error)
@@ -506,7 +513,7 @@ private:
         YT_LOG_INFO("Child process forked");
 
         Owner_->SaveSnapshot(context)
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         YT_LOG_INFO("Child process is exiting");
@@ -1154,10 +1161,11 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
-    TFiberMessageTagGuard messageTagGuard(Format("PhysicalMutationVersion: %v, LogicalMutationVersion: %v, Recovery: %v",
-        mutationVersion,
-        mutationContext.GetVersion(),
-        true));
+    TFiberMessageTagGuard messageTagGuard(
+        Format("PhysicalMutationVersion: %v, Recovery: %v",
+            mutationVersion,
+            true),
+        TFiberMessageTagGuard::EMode::Replace);
 
     TMutationApplicationResult result;
     DoApplyMutation(&mutationContext, mutationVersion, &result);
@@ -1346,9 +1354,9 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TMutationApplicationResult result;
-    TFiberMessageTagGuard messageTagGuard(Format("PhysicalMutationVersion: %v, LogicalMutationVersion: %v",
-        mutation->Version,
-        mutationContext.GetVersion()));
+    TFiberMessageTagGuard messageTagGuard(
+        Format("PhysicalMutationVersion: %v", mutation->Version),
+        TFiberMessageTagGuard::EMode::Replace);
 
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
@@ -1705,7 +1713,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
     auto builder =
         // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
-#ifdef _asan_enabled_
+        // XXX(babenko): TSAN is not compatible with forks; cf. YT-27589
+#if defined(_asan_enabled_) || defined(_tsan_enabled_)
         false
 #else
         Options_.UseFork

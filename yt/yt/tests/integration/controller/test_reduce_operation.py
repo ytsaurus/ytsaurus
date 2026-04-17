@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, parametrize_external
+from yt_env_setup import YTEnvSetup, is_asan_build, parametrize_external
 
 from yt_commands import (
     authors, print_debug, raises_yt_error, set_nodes_banned, update_controller_agent_config, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
@@ -17,9 +17,10 @@ import yt.yson as yson
 
 import pytest
 
-import itertools
-import time
 import binascii
+import itertools
+import random
+import time
 
 
 ##################################################################
@@ -924,8 +925,8 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
-    @authors("faucct")
-    def test_distributed_reduce(self):
+    @authors("faucct", "pogorelov")
+    def test_job_collective_reduce(self):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         skip_if_component_old(self.Env, (25, 3), "node")
 
@@ -3552,3 +3553,128 @@ class TestReduceJobSizeAdjuster(YTEnvSetup):
 
         # 1 primary row + 1 foreign row == 2
         assert all(int(row["lines"]) == 2 for row in counts)
+
+    @authors("coteeq")
+    @pytest.mark.timeout(180)
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    def test_interrupted_adjusted(self):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [
+                {"name": "index", "type": "int64", "sort_order": "ascending"},
+                {"name": "payload", "type": "string"},
+            ]},
+        )
+
+        # We need random to make chunk pool schedule jobs from the middle.
+        # If we schedule jobs left-to-right, the probability of the misadjusment is much lower.
+        payload_size = (800, 1000)
+        seed = random.randint(0, 2**16)
+        print_debug(f"Seed: {seed}")
+        rng = random.Random(seed)
+
+        def rows(*indices):
+            return [{"index": i, "payload": rng.randint(payload_size[0], payload_size[1]) * "x"} for i in indices]
+
+        for indices in itertools.batched(range(1000), n=50):
+            write_table("<append=%true>//tmp/in", rows(*indices))
+
+        ranges = [
+            "{lower_limit={key=[%s]};upper_limit={key=[%s]}}" % (range[0], range[-1] + 1)
+            for range in itertools.batched(range(1000), n=100)
+        ]
+
+        # Shuffle ranges to increase misadjustment probability.
+        rng.shuffle(ranges)
+
+        from textwrap import dedent
+        reducer = dedent(
+            """
+                import json
+                from sys import stdin
+                prev_index = None
+                for line in stdin:
+                    row = json.loads(line)
+                    assert prev_index is None or prev_index < row["index"]
+                    prev_index = row["index"]
+                    print(json.dumps(row))
+            """
+        )
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.encode("utf-8"))
+
+        op = reduce(
+            track=False,
+            in_=[
+                f"<ranges=[{';'.join(ranges)}]>//tmp/in",
+            ],
+            out="<create=%true>//tmp/t_output",
+            file="//tmp/reducer.py",
+            command="python3 -u reducer.py",
+            ordered=True,
+            reduce_by="index",
+            spec={
+                "data_size_per_job": 10_000,
+                "reducer": {"format": "json"},
+                "resource_limits": {"user_slots": 3},
+                "force_allow_job_interruption": True,
+                "force_job_size_adjuster": True,
+                "job_io": {
+                    "testing_options": {"pipe_delay": 50},
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+            }
+        )
+
+        op.wait_for_state("running")
+
+        def get_and_print_progress():
+            try:
+                progress = get(
+                    op.get_path() + "/@brief_progress/jobs",
+                    verbose=False
+                )
+            except YtError as e:
+                if e.contains_code(500):
+                    return None
+                else:
+                    raise
+
+            print_debug("Progress: ", (", ".join(f"{category}={count}" for category, count in progress.items())))
+            return progress
+
+        while op.get_state() == "running":
+            progress = get_and_print_progress()
+            if not progress:
+                continue
+
+            # No point in interrupting final jobs. They are not going to be adjusted anyway.
+            if progress["pending"] <= 5:
+                break
+
+            progress = op.build_progress()
+            jobs = op.get_running_jobs(verbose=False)
+            if len(jobs) >= 1:
+                job_id = next(iter(jobs))
+                try:
+                    time.sleep(1.5)  # Wait a bit until job starts reading.
+                    op.interrupt_job(job_id, raise_on_failed_interruption=False)
+                    print_debug(f"Successfully interrupted {job_id}")
+                except YtError:
+                    print_debug(f"Failed to interrupt {job_id}")
+                    pass
+
+        op.track()
+
+        # Otherwise payload shows up in diff
+        def strip_payload(rows):
+            return [
+                {"index": row["index"]}
+                for row in rows
+            ]
+
+        actual = strip_payload(read_table("//tmp/t_output", verbose=False))
+        expected = strip_payload(rows(*range(1000)))
+        assert sorted_dicts(actual) == sorted_dicts(expected)

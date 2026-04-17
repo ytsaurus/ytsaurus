@@ -35,7 +35,7 @@ class TCypressKeyWriter
     : public IKeyStoreWriter
 {
 public:
-    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, TOwnerId owner, NApi::NNative::IClientPtr client);
+    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, TOwnerId ownerId, NApi::NNative::IClientPtr client);
 
     TOwnerId GetOwner() const final;
 
@@ -50,9 +50,9 @@ private:
 
     TFuture<void> CleanUpKeysIfLimitReached(TCypressKeyWriterConfigPtr config);
 
-    TFuture<void> DoCleanUpOnReachedLimit(TCypressKeyWriterConfigPtr config, const TErrorOr<NYson::TYsonString>& ownerNode);
+    TFuture<void> DoCleanUpOnLimitReached(const TCypressKeyWriterConfigPtr& config, const TErrorOr<NYson::TYsonString>& ownerNode);
 
-    TFuture<void> DoRegisterKey(TCypressKeyWriterConfigPtr config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId);
+    TFuture<void> DoRegisterKey(const TCypressKeyWriterConfigPtr& config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)

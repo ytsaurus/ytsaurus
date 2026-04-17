@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.5.0)
+VERSION(v0.6.0)
 
 SRCS(
     doc.go
@@ -27,6 +27,12 @@ IF (OS_WINDOWS)
 ENDIF()
 
 IF (OS_ANDROID)
+    SRCS(
+        sequential_unix.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         sequential_unix.go
     )

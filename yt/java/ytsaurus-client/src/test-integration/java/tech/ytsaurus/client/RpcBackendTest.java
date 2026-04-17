@@ -23,8 +23,10 @@ import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientListener;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequestDescriptor;
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
@@ -228,6 +230,69 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
             idx++;
         }
         Assert.assertEquals("Did not observe expected RPC sequence for DirectYTsaurusClient", expected.size(), idx);
+    }
+
+    @Test
+    public void testRpcClientListenerBytesReceived() {
+        List<Event> sentEvents = Collections.synchronizedList(new ArrayList<>());
+        List<Event> receivedEvents = Collections.synchronizedList(new ArrayList<>());
+
+        var rpcOptions = new RpcOptions()
+                .setRpcClientListener(new RpcClientListener() {
+                    @Override
+                    public void onBytesSent(RpcRequestDescriptor ctx, long bytes) {
+                        sentEvents.add(new Event(ctx.getMethod(), ctx.getService(), ctx.isStream(), bytes));
+                    }
+
+                    @Override
+                    public void onBytesReceived(RpcRequestDescriptor ctx, long bytes) {
+                        receivedEvents.add(new Event(ctx.getMethod(), ctx.getService(), ctx.isStream(), bytes));
+                    }
+                });
+        YTsaurusClient ytWithListener = YTsaurusClient.builder()
+                .setClusters(yt.getClusters())
+                .setPreferredClusterName("local")
+                .setAuth(YTsaurusClientAuth.builder().setUser("root").setToken("").build())
+                .setConfig(YTsaurusClientConfig.builder()
+                        .setRpcOptions(rpcOptions)
+                        .build())
+                .disableValidation()
+                .build();
+
+        ytWithListener.waitProxies().join();
+
+        // Non-streaming RPC: GetNode
+        ytWithListener.getNode("//tmp/@").join();
+
+        boolean hasGetNodeReceived = receivedEvents.stream()
+                .anyMatch(e -> "GetNode".equals(e.method) && e.bytes > 0);
+        Assert.assertTrue("Expected onBytesReceived for GetNode with bytes > 0", hasGetNodeReceived);
+
+        // Streaming RPC: ReadTable
+        String path = "//tmp/test_bytes_received_" + UUID.randomUUID();
+        TableSchema schema = new TableSchema.Builder()
+                .addKey("key", ColumnValueType.STRING)
+                .addValue("value", ColumnValueType.STRING)
+                .build();
+
+        ytWithListener.createNode(CreateNode.builder()
+                .setPath(YPath.simple(path))
+                .setType(CypressNodeType.TABLE)
+                .setAttributes(Map.of("schema", schema.toYTree()))
+                .build()).join();
+
+        var writer = ytWithListener.writeTableV2(WriteTable.builder(YTreeMapNode.class)
+                .setPath(YPath.simple(path))
+                .build()).join();
+        writer.write(List.of(YTree.mapBuilder().key("key").value("k1").key("value").value("v1").buildMap())).join();
+        writer.finish().join();
+
+        receivedEvents.clear();
+        readTable(ytWithListener, YPath.simple(path));
+
+        boolean hasReadTableReceived = receivedEvents.stream()
+                .anyMatch(e -> "ReadTable".equals(e.method) && e.isStream && e.bytes > 0);
+        Assert.assertTrue("Expected onBytesReceived for ReadTable streaming with bytes > 0", hasReadTableReceived);
     }
 
     @Test

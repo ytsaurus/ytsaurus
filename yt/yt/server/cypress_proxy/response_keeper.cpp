@@ -1,7 +1,5 @@
 #include "response_keeper.h"
 
-#include "config.h"
-
 #include <yt/yt/server/lib/sequoia/response_keeper.h>
 
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
@@ -39,7 +37,7 @@ public:
 
         YT_VERIFY(transaction);
 
-        if (!GetDynamicConfig()->Enable) {
+        if (!IsEnabled()) {
             return std::nullopt;
         }
 
@@ -75,7 +73,7 @@ public:
         YT_VERIFY(mutationId);
         YT_VERIFY(transaction);
 
-        if (!GetDynamicConfig()->Enable) {
+        if (!IsEnabled()) {
             YT_LOG_DEBUG("Sequoia response keeper is disabled, skipping response (MutationId: %v)", mutationId);
             return;
         }
@@ -92,21 +90,23 @@ public:
             Logger);
     }
 
-    const TSequoiaResponseKeeperDynamicConfigPtr& GetDynamicConfig() const override
-    {
-        return Config_;
-    }
-
     void Reconfigure(const TSequoiaResponseKeeperDynamicConfigPtr& newConfig) override
     {
-        YT_LOG_DEBUG_IF(Config_->Enable != newConfig->Enable,
-            "Sequoia response keeper %v", newConfig->Enable ? "enabled" : "disabled");
-        Config_ = newConfig;
+        auto newEnable = newConfig->Enable;
+        auto oldEnable = Config_.Exchange(newConfig)->Enable;
+
+        YT_LOG_DEBUG_IF(oldEnable != newEnable,
+            "Sequoia response keeper %v", newEnable ? "enabled" : "disabled");
     }
 
 private:
-    TSequoiaResponseKeeperDynamicConfigPtr Config_;
+    TAtomicIntrusivePtr<TSequoiaResponseKeeperDynamicConfig> Config_;
     const TLogger Logger;
+
+    bool IsEnabled() const
+    {
+        return Config_.Acquire()->Enable;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -124,6 +124,8 @@ void TChunkStripeList::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, Statistics_);
     PHOENIX_REGISTER_FIELD(6, OverriddenDataWeight_);
     PHOENIX_REGISTER_FIELD(7, OverriddenRowCount_);
+    PHOENIX_REGISTER_FIELD(8, OutputChunkPoolIndex_,
+        .SinceVersion(ESnapshotVersion::FixOutputChunkPoolIndexSerialization));
 }
 
 void TChunkStripeList::Reserve(i64 size)

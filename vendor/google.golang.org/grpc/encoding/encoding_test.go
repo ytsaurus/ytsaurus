@@ -77,7 +77,7 @@ func (s) TestDuplicateCompressorRegister(t *testing.T) {
 		t.Fatalf("Unexpected compressor, got: %+v, want:%+v", got, mc)
 	}
 
-	wantNames := []string{"mock-compressor"}
+	wantNames := []string{"gzip", "mock-compressor"}
 	if !cmp.Equal(wantNames, grpcutil.RegisteredCompressorNames) {
 		t.Fatalf("Unexpected compressor names, got: %+v, want:%+v", grpcutil.RegisteredCompressorNames, wantNames)
 	}
@@ -112,7 +112,7 @@ func (c *errProtoCodec) Name() string {
 // Tests the case where encoding fails on the server. Verifies that there is
 // no panic and that the encoding error is propagated to the client.
 func (s) TestEncodeDoesntPanicOnServer(t *testing.T) {
-	grpctest.TLogger.ExpectError("grpc: server failed to encode response")
+	grpctest.ExpectError("grpc: server failed to encode response")
 
 	// Create a codec that errors when encoding messages.
 	encodingErr := errors.New("encoding failed")
@@ -334,7 +334,7 @@ func (s) TestForceCodecName(t *testing.T) {
 	// Create a test service backend that pushes the received content-type on a
 	// channel for the test to inspect.
 	ss := &stubserver.StubServer{
-		EmptyCallF: func(ctx context.Context, in *testpb.Empty) (*testpb.Empty, error) {
+		EmptyCallF: func(ctx context.Context, _ *testpb.Empty) (*testpb.Empty, error) {
 			md, ok := metadata.FromIncomingContext(ctx)
 			if !ok {
 				return nil, status.Errorf(codes.Internal, "no metadata in context")
@@ -360,6 +360,34 @@ func (s) TestForceCodecName(t *testing.T) {
 	codec := &renameProtoCodec{CodecV2: encoding.GetCodecV2(proto.Name), name: t.Name()}
 	wantContentTypeCh <- []string{fmt.Sprintf("application/grpc+%s", strings.ToLower(t.Name()))}
 	if _, err := ss.Client.EmptyCall(ctx, &testpb.Empty{}, grpc.ForceCodecV2(codec)); err != nil {
+		t.Fatalf("ss.Client.EmptyCall(_, _) = _, %v; want _, nil", err)
+	}
+}
+
+// Tests the case where the client uses a codec (one that uses proto encoding
+// but uses a different content-subtype name) that the server does not support.
+// Verifies that the server falls back to the proto codec and that the client
+// can successfully make RPCs.
+//
+// TODO(https://github.com/grpc/grpc-go/issues/1824): Once we add an environment
+// variable to change the behavior on the server to reject unsupported codecs,
+// we should modify this test to verify that the RPC fails in that case.
+func (s) TestUnsupportedCodecOnServer(t *testing.T) {
+	backend := stubserver.StartTestService(t, nil)
+	defer backend.Stop()
+
+	cc, err := grpc.NewClient(backend.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial test backend at %q: %v", backend.Address, err)
+	}
+	defer cc.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	defer cancel()
+
+	codec := &renameProtoCodec{CodecV2: encoding.GetCodecV2(proto.Name), name: t.Name()}
+	client := testgrpc.NewTestServiceClient(cc)
+	if _, err := client.EmptyCall(ctx, &testpb.Empty{}, grpc.ForceCodecV2(codec)); err != nil {
 		t.Fatalf("ss.Client.EmptyCall(_, _) = _, %v; want _, nil", err)
 	}
 }

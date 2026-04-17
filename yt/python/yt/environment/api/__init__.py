@@ -3,6 +3,53 @@ try:
 except ImportError:
     import attr
 
+from enum import Enum
+from functools import total_ordering
+
+
+@total_ordering
+class LogLevel(Enum):
+    TRACE = ("trace", 10)
+    DEBUG = ("debug", 20)
+    INFO = ("info", 30)
+    WARNING = ("warning", 40)
+    ERROR = ("error", 50)
+    CRITICAL = ("critical", 60)
+
+    def __init__(self, label: str, level: int):
+        self.label = label
+        self.level = level
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.level < other.level
+        return NotImplemented
+
+    def __eq__(self, other):
+        if self.__class__ is other.__class__:
+            return self.level == other.level
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.level)
+
+    @classmethod
+    def from_str(cls, s: str) -> "LogLevel":
+        s = s.lower()
+        for item in cls:
+            if item.label == s:
+                return item
+        raise ValueError(f"Unknown log level: {s}")
+
+    def to_str(self) -> str:
+        return self.label
+
+
+def _parse_log_level(value):
+    if isinstance(value, LogLevel):
+        return value
+    return LogLevel.from_str(value)
+
 
 @attr.s
 class LocalYtConfig(object):
@@ -93,6 +140,7 @@ class LocalYtConfig(object):
     mock_tvm_id = attr.ib(None)
 
     """Logging configuration"""
+    log_level = attr.ib(default=LogLevel.INFO, converter=_parse_log_level)
     enable_log_compression = attr.ib(False)
     enable_debug_logging = attr.ib(True)
     enable_structured_logging = attr.ib(False)

@@ -24,6 +24,7 @@ target_compile_options(orm-client-misc PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
   -Wunused-parameter
   -Wno-c99-designator
 )

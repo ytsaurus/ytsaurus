@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from . import config
 from .config import get_config
 from .pickling import Pickler

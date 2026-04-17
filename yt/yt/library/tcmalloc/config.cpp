@@ -57,8 +57,7 @@ void TDynamicHeapSizeLimitConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("container_memory_ratio", &TThis::ContainerMemoryRatio)
         .Default()
-        .GreaterThanOrEqual(0)
-        .LessThanOrEqual(1);
+        .InRange(0, 1);
     registrar.Parameter("container_memory_margin", &TThis::ContainerMemoryMargin)
         .Default();
     registrar.Parameter("hard", &TThis::Hard)

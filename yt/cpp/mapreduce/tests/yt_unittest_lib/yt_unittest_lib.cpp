@@ -59,7 +59,7 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
     fqdnAttr = to_lower(fqdnAttr);
     auto realFqdn = to_lower(::FQDNHostName());
     Y_ENSURE(
-        fqdnAttr == realFqdn,
+        fqdnAttr == "localhost" || fqdnAttr == realFqdn,
         "FQDN from cluster differs from host name: " << fqdnAttr << ' ' << realFqdn
             << "; are you trying to run tests on a real cluster?");
 }
@@ -199,7 +199,7 @@ TOwningYaMRRow::operator TYaMRRow() const
     return {Key, SubKey, Value};
 }
 
-bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
+bool operator==(const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
     return row1.Key == row2.Key
         && row1.SubKey == row2.SubKey
         && row1.Value == row2.Value;

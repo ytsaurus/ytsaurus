@@ -6,6 +6,9 @@
 
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -1572,6 +1575,156 @@ TEST_F(TWebAssemblyTest, DLMalloc)
     for (int i = 0; i < 1'000'000; ++i) {
         auto* offset = std::bit_cast<char*>(compartment->AllocateBytes(40));
         ::memset(PtrFromVM(compartment.get(), offset), 'a', 40);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TStringBuf InfiniteRecursion = R"(
+    (module
+        (type $t0 (func (param i64) (result i64)))
+        (func $recurse (type $t0) (param $n i64) (result i64)
+            local.get $n
+            i64.const 1
+            i64.sub
+            call $recurse)
+        (export "recurse" (func $recurse))
+    ))";
+
+TEST_F(TWebAssemblyTest, InfiniteRecursion)
+{
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(InfiniteRecursion);
+    auto recurse = TCompartmentFunction<i64(i64)>(compartment.get(), "recurse");
+
+    auto actionQueue = New<NConcurrency::TActionQueue>("WebAssemblyTest");
+    auto finally = Finally([&] {
+        actionQueue->Shutdown();
+    });
+
+    auto runInFiberContext = [&] {
+        NConcurrency::WaitFor(BIND([&] {
+            SetCurrentCompartment(compartment.get());
+            auto unsetCompartment = Finally([] {
+                SetCurrentCompartment(nullptr);
+            });
+
+            recurse(1000000);
+        })
+            .AsyncVia(actionQueue->GetInvoker())
+            .Run())
+            .ThrowOnError();
+    };
+
+    EXPECT_THROW_THAT(
+        runInFiberContext(),
+        testing::HasSubstr("Expression depth causes stack overflow"));
+
+    actionQueue->Shutdown();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TStringBuf InfiniteLoopModule = R"(
+    (module
+        (type (;0;) (func (result i64)))
+
+        (func $infinite_loop (type 0) (result i64)
+            (local $counter i64)
+            (local.set $counter (i64.const 0))
+            (loop $loop
+                (local.set $counter (i64.add (local.get $counter) (i64.const 1)))
+                (br $loop)
+            )
+            (local.get $counter)
+        )
+
+        (export "infinite_loop" (func $infinite_loop))
+    ))";
+
+TEST_F(TWebAssemblyTest, InfiniteLoop)
+{
+    Y_UNUSED(InfiniteLoopModule);
+
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(InfiniteLoopModule);
+
+    auto infiniteLoop = TCompartmentFunction<i64()>(compartment.get(), "infinite_loop");
+
+    compartment->SetTimeout(TDuration::Seconds(1));
+    compartment->StartDeadlineTimer();
+
+    SetCurrentCompartment(compartment.get());
+    auto unsetCompartment = Finally([] {
+        SetCurrentCompartment(nullptr);
+    });
+
+    try {
+        infiniteLoop();
+        GTEST_FAIL() << "Expected exception to be thrown";
+    } catch (WAVM::Runtime::Exception* exception) {
+        WAVM::Runtime::destroyException(exception);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TStringBuf SpinlockDeadlockModule = R"(
+    (module
+        (import "env" "memory" (memory i64 1))
+        (import "env" "__memory_base" (global $__memory_base i64))
+
+        (type $t0 (func (result i64)))
+        (type $t1 (func (param i64)))
+
+        (func $create_lock (type $t0) (result i64)
+            (i64.store
+                (global.get $__memory_base)
+                (i64.const 0))
+            (global.get $__memory_base))
+
+        (func $lock (type $t1) (param $lock_addr i64)
+            (block $acquired
+                (loop $spin
+                    (br_if $acquired
+                        (i64.eqz (i64.load (local.get $lock_addr))))
+                    (br $spin)))
+            (i64.store
+                (local.get $lock_addr)
+                (i64.const 1)))
+
+        (func $deadlock (type $t0) (result i64)
+            (local $lock_addr i64)
+            (local.set $lock_addr (call $create_lock))
+            (call $lock (local.get $lock_addr))
+            (call $lock (local.get $lock_addr))
+            (i64.const 0))
+
+        (export "create_lock" (func $create_lock))
+        (export "lock" (func $lock))
+        (export "deadlock" (func $deadlock))
+    ))";
+
+TEST_F(TWebAssemblyTest, SpinlockDeadlock)
+{
+    auto compartment = CreateMinimalRuntimeImage();
+    compartment->AddModule(SpinlockDeadlockModule);
+
+    auto deadlock = TCompartmentFunction<i64()>(compartment.get(), "deadlock");
+
+    compartment->SetTimeout(TDuration::Seconds(1));
+    compartment->StartDeadlineTimer();
+
+    SetCurrentCompartment(compartment.get());
+    auto unsetCompartment = Finally([] {
+        SetCurrentCompartment(nullptr);
+    });
+
+    try {
+        deadlock();
+        GTEST_FAIL() << "Expected exception to be thrown";
+    } catch (WAVM::Runtime::Exception* exception) {
+        WAVM::Runtime::destroyException(exception);
     }
 }
 

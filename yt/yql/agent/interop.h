@@ -44,7 +44,7 @@ struct TYqlRowset
     std::vector<NTableClient::TUnversionedRow> ResultRows;
     NTableClient::TRowBufferPtr RowBuffer;
     bool Incomplete = false;
-    TYqlRefPtr References;
+    std::vector<TYqlRefPtr> References;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +54,7 @@ struct TWireYqlRowset
     TError Error;
     TSharedRef WireRowset;
     bool Incomplete = false;
-    TYqlRefPtr References;
+    std::vector<TYqlRefPtr> References;
 };
 
 std::vector<TWireYqlRowset> BuildRowsets(

@@ -8,17 +8,25 @@
 
 #include <yt/yt/server/lib/hive/public.h>
 
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
+
 #include <yt/yt/server/lib/tablet_node/public.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
 
-#include <yt/yt/client/misc/workload.h>
-
-#include <yt/yt/core/compression/public.h>
-
 #include <yt/yt/ytlib/chaos_client/public.h>
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
+
+#include <yt/yt/client/misc/workload.h>
+
+#include <yt/yt/library/dynamic_config/public.h>
+
+#include <yt/yt/library/query/base/public.h>
+
+#include <yt/yt/library/re2/public.h>
+
+#include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
@@ -26,12 +34,6 @@
 
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
 #include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/library/dynamic_config/public.h>
-
-#include <yt/yt/library/query/base/public.h>
-
-#include <yt/yt/library/re2/public.h>
 
 namespace NYT::NTabletNode {
 
@@ -126,6 +128,10 @@ struct TTabletManagerDynamicConfig
 {
     std::optional<int> ReplicatorThreadPoolSize;
 
+    //! If set, specifies the timeout after which
+    //! snapshots with redirection hint may be evicted.
+    std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -143,6 +149,9 @@ struct TTabletCellWriteManagerDynamicConfig
     //! In case of failure write request will be equiprobably
     //! applied or not applied.
     std::optional<double> WriteFailureProbability;
+
+    //! Compat. See comment in TTabletWriteManager::OnTransactionTransientReset.
+    bool DetectTransientTransactionsPerTablet;
 
     REGISTER_YSON_STRUCT(TTabletCellWriteManagerDynamicConfig);
 
@@ -188,7 +197,7 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 struct TCompactionHintFetcherConfig
     : public NYTree::TYsonStruct
 {
-    TDuration FetchPeriod;
+    NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
     NConcurrency::TThroughputThrottlerConfigPtr RequestThrottler;
 
     REGISTER_YSON_STRUCT(TCompactionHintFetcherConfig);
@@ -263,16 +272,9 @@ struct TStoreCompactorDynamicConfig
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
 
-    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
-    TDuration ChunkViewSizeFetchPeriod;
-    NConcurrency::TThroughputThrottlerConfigPtr ChunkViewSizeRequestThrottler;
+    NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr> CompactionHintFetchers;
 
-    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
-    TDuration RowDigestFetchPeriod;
-    NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
-    bool UseRowDigests;
-
-    TCompactionHintFetcherConfigPtr MinHashDigestFetcher;
+    i64 MinHashDigestCacheCapacity;
 
     int MaxCompactionStructuredLogEvents;
     int MaxPartitioningStructuredLogEvents;
@@ -514,10 +516,27 @@ struct TStatisticsReporterConfig
     NConcurrency::TPeriodicExecutorOptions PeriodicOptions;
 
     REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
+
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOverloadReporterConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    i64 MaxEvaluatorCacheSize;
+    NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
+
+    REGISTER_YSON_STRUCT(TOverloadReporterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadReporterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -639,6 +658,19 @@ DEFINE_REFCOUNTED_TYPE(TUserBanDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestingTabletNodeDynamicConfig
+    : public NYTree::TYsonStructLite
+{
+    // Overrides tablet reign. Should only be used in tests.
+    NHydra::TReign ReignOverride;
+
+    REGISTER_YSON_STRUCT_LITE(TTestingTabletNodeDynamicConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -684,6 +716,7 @@ struct TTabletNodeDynamicConfig
     NRpc::TOverloadControllerConfigPtr OverloadController;
 
     TStatisticsReporterConfigPtr StatisticsReporter;
+    TOverloadReporterConfigPtr OverloadReporter;
 
     TErrorManagerConfigPtr ErrorManager;
 
@@ -698,6 +731,8 @@ struct TTabletNodeDynamicConfig
     bool EnableSnapshotNetworkThrottling;
 
     NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
+
+    TTestingTabletNodeDynamicConfig Testing;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

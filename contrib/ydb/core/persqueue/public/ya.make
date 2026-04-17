@@ -2,6 +2,7 @@ LIBRARY()
 
 SRCS(
     config.cpp
+    inflight_limiter.cpp
     pq_database.cpp
     pq_rl_helpers.cpp
     utils.cpp
@@ -11,6 +12,8 @@ SRCS(
 PEERDIR(
     contrib/ydb/core/base
     contrib/ydb/core/protos
+    contrib/ydb/core/persqueue/events
+    contrib/ydb/core/persqueue/public/cloud_events
 )
 
 END()
@@ -26,4 +29,5 @@ RECURSE(
     partition_index_generator
     partition_key_range
     write_meta
+    cloud_events
 )

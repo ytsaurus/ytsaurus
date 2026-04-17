@@ -3,7 +3,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
@@ -46,18 +46,25 @@ void FormatValue(TStringBuilderBase* builder, const TSequoiaTablePathDescriptor&
 
 void ITableDescriptor::ScheduleInitialization()
 {
-    static IThreadPoolPtr ThreadPool;
     static std::atomic<bool> InitializationStarted = false;
 
     if (InitializationStarted.exchange(true)) {
         return;
     }
 
-    ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
+    auto threadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
 
+    std::vector<TFuture<void>> futures;
     for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-        ThreadPool->GetInvoker()->Invoke(BIND([table] { ITableDescriptor::Get(table); }));
+        futures.emplace_back(BIND([table] { ITableDescriptor::Get(table); })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
     }
+    YT_UNUSED_FUTURE(AllSet(std::move(futures))
+        .Apply(BIND([threadPool = std::move(threadPool)] (const std::vector<TError>&) {
+            threadPool->Shutdown();
+        })
+            .AsyncVia(GetFinalizerInvoker())));
 }
 
 const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
@@ -168,7 +175,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(PathToNodeId, "path_to_node_id", PathToNodeId)
         XX(NodeIdToPath, "node_id_to_path", NodeIdToPath)
         XX(ChunkReplicas, "chunk_replicas", ChunkReplicas)
-        XX(ChildNode, "child_node", ChildNode)
+        XX(ChildNode, "child_nodes", ChildNodes)
         XX(LocationReplicas, "location_replicas", LocationReplicas)
         XX(Transaction, "transactions", Transactions)
         XX(TransactionDescendant, "transaction_descendants", TransactionDescendants)

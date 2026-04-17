@@ -13,7 +13,7 @@ struct TBoundaryKeys
     NTableClient::TKey MinKey;
     NTableClient::TKey MaxKey;
 
-    bool operator ==(const TBoundaryKeys& other) const;
+    bool operator==(const TBoundaryKeys& other) const;
 
     explicit operator bool() const;
 
@@ -38,12 +38,12 @@ public:
 
     TOutputCookie AsOutputCookie() const;
 
-    bool operator ==(const TChunkStripeKey& other) const;
+    bool operator==(const TChunkStripeKey& other) const;
 
 private:
     struct TUninitialized
     {
-        bool operator ==(const TUninitialized& uninitializedTag) const = default;
+        bool operator==(const TUninitialized& uninitializedTag) const = default;
         void Persist(const auto& /*context*/);
     };
 

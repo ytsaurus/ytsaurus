@@ -82,6 +82,18 @@ void TChunkReaderStatistics::AddFrom(const TChunkReaderStatisticsPtr& from)
         fieldName.fetch_add(from->fieldName.load(std::memory_order::relaxed), std::memory_order::relaxed);
     ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX)
     #undef XX
+
+    {
+        auto value = from->MaxBlockSize.load(std::memory_order_relaxed);
+        auto prevValue = MaxBlockSize.load(std::memory_order_relaxed);
+        while (
+            value > prevValue &&
+            !MaxBlockSize.compare_exchange_weak(
+                prevValue,
+                value,
+                std::memory_order_relaxed))
+        { }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

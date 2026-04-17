@@ -57,7 +57,7 @@ Y_WEAK std::pair<TDataSource, TConstQueryPtr> InferRanges(
 }
 
 Y_WEAK TQueryStatistics CoordinateAndExecute(
-    bool /*ordered*/,
+    EScanOrder /*scanOrder*/,
     bool /*prefetch*/,
     int /*splitCount*/,
     i64 /*offset*/,

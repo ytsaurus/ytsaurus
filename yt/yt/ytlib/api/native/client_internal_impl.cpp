@@ -6,9 +6,11 @@
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -52,12 +54,8 @@ std::vector<TSharedRef> TClient::DoReadHunks(
 {
     auto reader = CreateChunkFragmentReader(
         options.Config,
-        this,
-        CreateTrivialNodeStatusDirectory(),
-        GetNullBlockCache(),
-        /*profiler*/ {},
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
-        /*throttlerProvider*/ {});
+        New<TChunkReaderHost>(this),
+        /*profiler*/ {});
 
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> readerRequests;
     readerRequests.reserve(requests.size());
@@ -100,6 +98,8 @@ std::vector<THunkDescriptor> TClient::DoWriteHunks(
     auto tableMountInfo = WaitFor(GetTableMountCache()->GetTableInfo(path))
         .ValueOrThrow();
     auto tabletInfo = tableMountInfo->GetTabletByIndexOrThrow(tabletIndex);
+    ValidateTabletMounted(tableMountInfo, tabletInfo);
+
     auto cellChannel = GetCellChannelOrThrow(tabletInfo->CellId);
 
     TTabletServiceProxy proxy(cellChannel);
@@ -255,6 +255,7 @@ void TClient::DoToggleHunkStoreLock(
     auto tableMountInfo = WaitFor(GetTableMountCache()->GetTableInfo(path))
         .ValueOrThrow();
     auto tabletInfo = tableMountInfo->GetTabletByIndexOrThrow(tabletIndex);
+    ValidateTabletMounted(tableMountInfo, tabletInfo);
 
     auto transaction = WaitFor(StartNativeTransaction(
         NTransactionClient::ETransactionType::Tablet,
@@ -374,7 +375,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
 
 void TClient::DoForsakeChaosCoordinator(
     NHydra::TCellId chaosCellId,
-    NHydra::TCellId coordiantorCellId,
+    NHydra::TCellId coordinatorCellId,
     const TForsakeChaosCoordinatorOptions& options)
 {
     auto cellChannel = Connection_->GetChaosChannelByCellId(chaosCellId);
@@ -382,7 +383,39 @@ void TClient::DoForsakeChaosCoordinator(
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
     auto req = proxy.ForsakeCoordinator();
 
-    ToProto(req->mutable_coordinator_cell_id(), coordiantorCellId);
+    ToProto(req->mutable_coordinator_cell_id(), coordinatorCellId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+}
+
+void TClient::DoForsakeChaosShortcut(
+    NHydra::TCellId coordinatorCellId,
+    TChaosObjectId chaosObjectId,
+    const TForsakeChaosShortcutOptions& options)
+{
+    auto cellChannel = Connection_->GetChaosChannelByCellId(coordinatorCellId);
+    auto proxy = TCoordinatorServiceProxy(cellChannel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    auto req = proxy.ForsakeShortcut();
+
+    ToProto(req->mutable_chaos_object_id(), chaosObjectId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+}
+
+void TClient::DoRemoveChaosCellMailbox(
+    NHydra::TCellId chaosCellId,
+    NHydra::TCellId destinationCellId,
+    const TRemoveChaosCellMailboxOptions& options)
+{
+    auto cellChannel = Connection_->GetChaosChannelByCellId(chaosCellId);
+    auto proxy = TChaosNodeServiceProxy(cellChannel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    auto req = proxy.RemoveCellMailbox();
+
+    ToProto(req->mutable_destination_cell_id(), destinationCellId);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

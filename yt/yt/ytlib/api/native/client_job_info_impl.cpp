@@ -1027,7 +1027,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
-        CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this))),
+        New<TMultiChunkReaderHost>(New<TChunkReaderHost>(MakeStrong(this))),
         GetConnection()->GetInvoker(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
@@ -1503,7 +1503,7 @@ void TClient::UpdateJobTracesWithJobState(
         auto jobYsonMap = ConvertToNode(jobYsonString)->AsMap();
         jobState = jobYsonMap->GetChildValueOrThrow<EJobState>("state");
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to fetch state from job. Skipping job trace update (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG(ex, "Failed to fetch state from job, skipping job trace update (OperationId: %v, JobId: %v)",
             operationId,
             jobId);
         return;
@@ -1717,8 +1717,8 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
 
         builder->AddWhereConjunct(Format(
             "(collective_id_hi, collective_id_lo) = (%vu, %vu)",
-            collectiveId.Parts64[0],
-            collectiveId.Parts64[1]));
+            collectiveId.Underlying().Parts64[0],
+            collectiveId.Underlying().Parts64[1]));
     }
 
     if (options.WithCompetitors) {
@@ -1940,9 +1940,9 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         }
 
         if (record.CollectiveIdHi) {
-            job.CollectiveId = TGuid(
+            job.CollectiveId = TCollectiveId(TGuid(
                 *record.CollectiveIdHi,
-                *record.CollectiveIdLo);
+                *record.CollectiveIdLo));
         }
 
         if (record.CollectiveMemberRank) {
@@ -2247,14 +2247,14 @@ static void ParseJobsFromControllerAgentResponse(
         if (needCollectiveMemberRank) {
             auto collectiveInfo = jobMapNode->FindChild("collective_info");
             if (collectiveInfo) {
-                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<ui64>("rank");
+                job.CollectiveMemberRank = collectiveInfo->AsMap()->FindChildValue<int>("rank");
             }
         }
         if (needCollectiveId) {
             auto collectiveInfo = jobMapNode->FindChild("collective_info");
             if (collectiveInfo) {
                 if (auto collectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
-                    job.CollectiveId = collectiveId->Underlying();
+                    job.CollectiveId = TCollectiveId(collectiveId->Underlying());
                 }
             }
         }
@@ -2313,10 +2313,10 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        std::optional<TGuid> collectiveId;
+        std::optional<TCollectiveId> collectiveId;
         if (auto collectiveInfo = jobMap->FindChild("collective_info")) {
             if (auto maybeCollectiveId = collectiveInfo->AsMap()->FindChildValue<TJobId>("collective_id")) {
-                collectiveId = maybeCollectiveId->Underlying();
+                collectiveId = TCollectiveId(maybeCollectiveId->Underlying());
             }
         }
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");

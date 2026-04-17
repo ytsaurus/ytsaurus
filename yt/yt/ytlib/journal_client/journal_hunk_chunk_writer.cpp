@@ -1,18 +1,21 @@
 #include "journal_hunk_chunk_writer.h"
 
 #include "config.h"
-#include "journal_chunk_writer.h"
 #include "helpers.h"
+#include "journal_chunk_writer.h"
 
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NJournalClient {
 
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NYTree;
 
@@ -27,12 +30,17 @@ public:
         TSessionId sessionId,
         TJournalHunkChunkWriterOptionsPtr options,
         TJournalHunkChunkWriterConfigPtr config,
+        TJournalWriterPerformanceCounters counters,
         const NLogging::TLogger& logger)
         : UnderlyingWriter_(CreateJournalChunkWriter(
             std::move(client),
             sessionId,
             options,
             PrepareJournalChunkWriterConfig(config),
+            std::move(counters),
+            TDispatcher::Get()->GetHeavyInvoker(),
+            /*targets*/ std::nullopt,
+            EChunkFormat::HunkJournal,
             logger))
         , Options_(std::move(options))
         , Config_(std::move(config))
@@ -50,11 +58,21 @@ public:
 
     TFuture<void> Close() override
     {
+        YT_VERIFY(!Closed_.exchange(true));
+
+        auto guard = std::make_optional(Guard(Lock_));
+        FlushCurrentRecord(guard);
+
         return UnderlyingWriter_->Close();
     }
 
     TFuture<std::vector<TJournalHunkDescriptor>> WriteHunks(std::vector<TSharedRef> payloads) override
     {
+        if (Closed_) {
+            auto error = TError("Journal chunk writer is already closed");
+            return MakeFuture<std::vector<TJournalHunkDescriptor>>(error);
+        }
+
         YT_VERIFY(!payloads.empty());
 
         std::vector<TFuture<std::vector<TJournalHunkDescriptor>>> futures;
@@ -138,6 +156,9 @@ private:
 
     TJournalHunkChunkWriterStatistics Statistics_;
 
+    std::atomic<bool> Closed_ = false;
+
+
     void ScheduleCurrentRecordFlush()
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
@@ -181,7 +202,12 @@ private:
     void FlushCurrentRecord(std::optional<TGuard<NThreading::TSpinLock>>& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
-        YT_VERIFY(!CurrentRecordPayloads_.empty());
+
+        if (CurrentRecordPayloads_.empty()) {
+            guard.reset();
+            YT_LOG_DEBUG("No journal hunk chunk records to flush");
+            return;
+        }
 
         YT_LOG_DEBUG("Flushing journal hunk chunk record "
             "(RecordIndex: %v, RecordSize: %v, RecordHunkCount: %v, FutureCount: %v)",
@@ -348,6 +374,7 @@ IJournalHunkChunkWriterPtr CreateJournalHunkChunkWriter(
     TSessionId sessionId,
     TJournalHunkChunkWriterOptionsPtr options,
     TJournalHunkChunkWriterConfigPtr config,
+    TJournalWriterPerformanceCounters counters,
     const NLogging::TLogger& logger)
 {
     return New<TJournalHunkChunkWriter>(
@@ -355,6 +382,7 @@ IJournalHunkChunkWriterPtr CreateJournalHunkChunkWriter(
         sessionId,
         std::move(options),
         std::move(config),
+        std::move(counters),
         logger);
 }
 

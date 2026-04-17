@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.5.0)
+VERSION(v0.5.2)
 
 SRCS(
     ascii.go
@@ -44,6 +44,16 @@ IF (OS_WINDOWS)
 ENDIF()
 
 IF (OS_ANDROID)
+    SRCS(
+        term_unix.go
+        termios_nonbsd.go
+        termios_unix.go
+    )
+
+    GO_TEST_SRCS(term_test.go)
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
     SRCS(
         term_unix.go
         termios_nonbsd.go

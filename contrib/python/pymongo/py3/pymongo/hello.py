@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,16 +13,20 @@
 # limitations under the License.
 
 """Helpers for the 'hello' and legacy hello commands."""
+from __future__ import annotations
 
+import copy
+import datetime
 import itertools
+from typing import Any, Generic, Mapping, Optional
 
-from bson.py3compat import imap
+from bson.objectid import ObjectId
 from pymongo import common
-from pymongo.hello_compat import HelloCompat
 from pymongo.server_type import SERVER_TYPE
+from pymongo.typings import ClusterTime, _DocumentType
 
 
-def _get_server_type(doc):
+def _get_server_type(doc: Mapping[str, Any]) -> int:
     """Determine the server type from a hello response."""
     if not doc.get("ok"):
         return SERVER_TYPE.Unknown
@@ -50,14 +54,25 @@ def _get_server_type(doc):
         return SERVER_TYPE.Standalone
 
 
-class Hello(object):
-    """Parse a hello response from the server."""
+class HelloCompat:
+    CMD = "hello"
+    LEGACY_CMD = "ismaster"
+    PRIMARY = "isWritablePrimary"
+    LEGACY_PRIMARY = "ismaster"
+    LEGACY_ERROR = "not master"
+
+
+class Hello(Generic[_DocumentType]):
+    """Parse a hello response from the server.
+
+    .. versionadded:: 3.12
+    """
 
     __slots__ = ("_doc", "_server_type", "_is_writable", "_is_readable", "_awaitable")
 
-    def __init__(self, doc, awaitable=False):
+    def __init__(self, doc: _DocumentType, awaitable: bool = False) -> None:
         self._server_type = _get_server_type(doc)
-        self._doc = doc
+        self._doc: _DocumentType = doc
         self._is_writable = self._server_type in (
             SERVER_TYPE.RSPrimary,
             SERVER_TYPE.Standalone,
@@ -69,22 +84,22 @@ class Hello(object):
         self._awaitable = awaitable
 
     @property
-    def document(self):
+    def document(self) -> _DocumentType:
         """The complete hello command response document.
 
         .. versionadded:: 3.4
         """
-        return self._doc.copy()
+        return copy.copy(self._doc)
 
     @property
-    def server_type(self):
+    def server_type(self) -> int:
         return self._server_type
 
     @property
-    def all_hosts(self):
+    def all_hosts(self) -> set[tuple[str, int]]:
         """List of hosts, passives, and arbiters known to this server."""
         return set(
-            imap(
+            map(
                 common.clean_node,
                 itertools.chain(
                     self._doc.get("hosts", []),
@@ -95,12 +110,12 @@ class Hello(object):
         )
 
     @property
-    def tags(self):
+    def tags(self) -> Mapping[str, Any]:
         """Replica set member tags or empty dict."""
         return self._doc.get("tags", {})
 
     @property
-    def primary(self):
+    def primary(self) -> Optional[tuple[str, int]]:
         """This server's opinion about who the primary is, or None."""
         if self._doc.get("primary"):
             return common.partition_node(self._doc["primary"])
@@ -108,70 +123,71 @@ class Hello(object):
             return None
 
     @property
-    def replica_set_name(self):
+    def replica_set_name(self) -> Optional[str]:
         """Replica set name or None."""
         return self._doc.get("setName")
 
     @property
-    def max_bson_size(self):
+    def max_bson_size(self) -> int:
         return self._doc.get("maxBsonObjectSize", common.MAX_BSON_SIZE)
 
     @property
-    def max_message_size(self):
-        return self._doc.get("maxMessageSizeBytes", 2 * self.max_bson_size)
+    def max_message_size(self) -> int:
+        return self._doc.get("maxMessageSizeBytes", common.MAX_MESSAGE_SIZE)
 
     @property
-    def max_write_batch_size(self):
+    def max_write_batch_size(self) -> int:
         return self._doc.get("maxWriteBatchSize", common.MAX_WRITE_BATCH_SIZE)
 
     @property
-    def min_wire_version(self):
+    def min_wire_version(self) -> int:
         return self._doc.get("minWireVersion", common.MIN_WIRE_VERSION)
 
     @property
-    def max_wire_version(self):
+    def max_wire_version(self) -> int:
         return self._doc.get("maxWireVersion", common.MAX_WIRE_VERSION)
 
     @property
-    def set_version(self):
+    def set_version(self) -> Optional[int]:
         return self._doc.get("setVersion")
 
     @property
-    def election_id(self):
+    def election_id(self) -> Optional[ObjectId]:
         return self._doc.get("electionId")
 
     @property
-    def cluster_time(self):
+    def cluster_time(self) -> Optional[ClusterTime]:
         return self._doc.get("$clusterTime")
 
     @property
-    def logical_session_timeout_minutes(self):
+    def logical_session_timeout_minutes(self) -> Optional[int]:
         return self._doc.get("logicalSessionTimeoutMinutes")
 
     @property
-    def is_writable(self):
+    def is_writable(self) -> bool:
         return self._is_writable
 
     @property
-    def is_readable(self):
+    def is_readable(self) -> bool:
         return self._is_readable
 
     @property
-    def me(self):
+    def me(self) -> Optional[tuple[str, int]]:
         me = self._doc.get("me")
         if me:
             return common.clean_node(me)
+        return None
 
     @property
-    def last_write_date(self):
+    def last_write_date(self) -> Optional[datetime.datetime]:
         return self._doc.get("lastWrite", {}).get("lastWriteDate")
 
     @property
-    def compressors(self):
+    def compressors(self) -> Optional[list[str]]:
         return self._doc.get("compression")
 
     @property
-    def sasl_supported_mechs(self):
+    def sasl_supported_mechs(self) -> list[str]:
         """Supported authentication mechanisms for the current user.
 
         For example::
@@ -183,22 +199,26 @@ class Hello(object):
         return self._doc.get("saslSupportedMechs", [])
 
     @property
-    def speculative_authenticate(self):
+    def speculative_authenticate(self) -> Optional[Mapping[str, Any]]:
         """The speculativeAuthenticate field."""
         return self._doc.get("speculativeAuthenticate")
 
     @property
-    def topology_version(self):
+    def topology_version(self) -> Optional[Mapping[str, Any]]:
         return self._doc.get("topologyVersion")
 
     @property
-    def awaitable(self):
+    def awaitable(self) -> bool:
         return self._awaitable
 
     @property
-    def service_id(self):
+    def service_id(self) -> Optional[ObjectId]:
         return self._doc.get("serviceId")
 
     @property
-    def hello_ok(self):
+    def hello_ok(self) -> bool:
         return self._doc.get("helloOk", False)
+
+    @property
+    def connection_id(self) -> Optional[int]:
+        return self._doc.get("connectionId")

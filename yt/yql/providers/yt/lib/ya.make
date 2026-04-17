@@ -1,4 +1,6 @@
 RECURSE(
+    access_provider
+    blackbox_client
     config_clusters
     dump_helpers
     errors
@@ -15,6 +17,7 @@ RECURSE(
     res_pull
     row_spec
     temp_files
+    tvm_client
     schema
     secret_masker
     skiff

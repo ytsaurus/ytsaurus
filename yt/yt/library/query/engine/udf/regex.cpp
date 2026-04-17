@@ -30,7 +30,7 @@ struct TRe2Regex
     }
 
     TRe2Regex(const TRe2Regex& other) = delete;
-    TRe2Regex& operator= (const TRe2Regex& other) = delete;
+    TRe2Regex& operator=(const TRe2Regex& other) = delete;
 
     re2::RE2* Re2;
 };

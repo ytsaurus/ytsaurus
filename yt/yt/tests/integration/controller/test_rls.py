@@ -1,26 +1,32 @@
 from functools import partial
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
+    alter_table,
     authors,
-    create,
     create_user,
+    create,
     join_reduce,
     ls,
+    make_ace,
+    map_reduce,
+    map,
+    merge,
     raises_yt_error,
     read_table,
-    remove,
-    write_table,
-    sorted_dicts,
-    map,
-    map_reduce,
-    merge,
     reduce,
+    remove,
+    set as yt_set,
     sort,
-    make_ace,
+    sorted_dicts,
+    write_file,
+    write_table,
 )
 import pytest
 from random import Random
-from yt_type_helpers import make_column, make_sorted_column
+from yt_type_helpers import make_column, make_sorted_column, optional_type
+import yt.yson as yson
+
+from textwrap import dedent
 
 
 @authors("coteeq")
@@ -378,3 +384,78 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out_input") == [{"max": 42}]
         assert read_table("//tmp/t_out_file") == []
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("column_selector", ["off", "all", "without_int2"])
+    @pytest.mark.parametrize("reduce_by", ["int", "int;int2"])
+    def test_key_widening(self, optimize_for, column_selector, reduce_by):
+        if column_selector == "without_int2" and reduce_by == "int;int2":
+            pytest.skip("inapplicable")
+
+        self._prepare_simple_test(optimize_for, sorted=True)
+
+        new_schema = [
+            make_sorted_column("int", "int64"),
+            make_sorted_column("int2", optional_type("int64")),
+            make_column("str", "string"),
+        ]
+        alter_table("//tmp/t", schema=new_schema)
+
+        reducer = dedent(
+            """
+            import json
+            from sys import stdin
+
+            control_attributes = {}
+            for line in stdin:
+                row = json.loads(line)
+                if "$value" in row:
+                    assert row["$value"] is None
+                    control_attributes.update(row["$attributes"])
+                    continue
+
+                row.update({
+                    key.removeprefix("$"): value
+                    for key, value in control_attributes.items()
+                })
+                control_attributes = {}
+                print(json.dumps(row))
+            """
+        )
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.encode("utf-8"))
+
+        yt_set("//tmp/t/@acl", [
+            self._make_rl_ace("prime_user", """str in ("val_5", "val_7")"""),
+            self._make_rl_ace("prime_user", """str in ("val_2", "val_3")"""),
+            make_ace("allow", "prime_user", "read"),
+        ])
+
+        match column_selector:
+            case "off":
+                path = "//tmp/t"
+            case "all":
+                path = "//tmp/t{str,int,int2}"
+            case "without_int2":
+                path = "//tmp/t{str,int}"
+            case _:
+                assert False
+
+        reduce(
+            in_=path,
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "omit_inaccessible_rows": True,
+                "reducer": {"format": "json"},
+            },
+            authenticated_user="prime_user",
+            command="python3 reducer.py",
+            file="//tmp/reducer.py",
+            reduce_by=reduce_by.split(";"),
+        )
+
+        expected = self._rows(2, 3, 5, 7)
+        for row in expected:
+            row["int2"] = yson.YsonEntity()
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(expected)

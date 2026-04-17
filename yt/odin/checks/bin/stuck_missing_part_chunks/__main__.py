@@ -12,6 +12,8 @@ SAMPLE_PATH = "//sys/oldest_part_missing_chunks_sample"
 
 
 def run_check(yt_client, logger, options, states):
+    yt_client.config["proxy"]["request_timeout"] = 57000
+
     result = states.FULLY_AVAILABLE_STATE
     unavailable_threshold = datetime.now(UTC) - UNAVAILABLE_AGE
     warning_threshold = datetime.now(UTC) - WARNING_AGE

@@ -386,6 +386,8 @@ struct TClusterNodeBootstrapConfig
     //! Bucket configuration for out network throttlers.
     THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
+    int AuxPollerThreadCount;
+
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
 

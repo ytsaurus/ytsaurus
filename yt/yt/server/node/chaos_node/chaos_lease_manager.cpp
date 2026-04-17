@@ -122,8 +122,14 @@ public:
             "ChaosLeaseManager.Values",
             BIND_NO_PROPAGATE(&TChaosLeaseManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraCreateChaosLease, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraRemoveChaosLease, Unretained(this)));
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraCreateChaosLease, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        RegisterMethod(
+            BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraRemoveChaosLease, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraChaosNodeSetState, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosLeaseManager::HydraChaosNodeMigrateChaosLeases, Unretained(this)));
 
@@ -189,10 +195,20 @@ public:
         return ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
     }
 
-    TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) const override
+    TChaosLease* GetChaosLeaseOrThrowWithValidate(TChaosLeaseId chaosLeaseId) const
     {
         ValidateEnabledState();
 
+        auto* chaosLease = FindChaosLease(chaosLeaseId);
+        if (!chaosLease) {
+            ThrowChaosLeaseNotKnown(chaosLeaseId);
+        }
+
+        return chaosLease;
+    }
+
+    TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) const override
+    {
         auto* chaosLease = FindChaosLease(chaosLeaseId);
         if (!chaosLease) {
             ThrowChaosLeaseNotKnown(chaosLeaseId);
@@ -229,12 +245,15 @@ public:
     {
         std::vector<TChaosLeaseId> createdLeaseIds;
         std::vector<TChaosLeaseId> nestedLeaseIds;
+        createdLeaseIds.reserve(request->chaos_leases().size());
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+
         for (const auto& protoChaosLease : request->chaos_leases()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(protoChaosLease.chaos_lease_id());
-            createdLeaseIds.push_back(chaosLeaseId);
-            nestedLeaseIds.push_back(chaosLeaseId);
             auto* chaosLease = FindChaosLease(chaosLeaseId);
             if (!chaosLease) {
+                createdLeaseIds.push_back(chaosLeaseId);
                 auto chaosLeaseHolder = std::make_unique<TChaosLease>(chaosLeaseId);
                 chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
                 YT_LOG_DEBUG("Chaos lease created for immigration (ChaosLeaseId: %v)",
@@ -259,6 +278,13 @@ public:
                 std::nullopt,
                 BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
                     .Via(Slot_->GetEpochAutomatonInvoker()));
+
+            // COMPAT(osidorkin)
+            if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+                reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration)
+            {
+                chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());
+            }
 
             YT_LOG_DEBUG("Chaos lease migrated (ChaosLeaseId: %v)",
                 chaosLeaseId);
@@ -427,18 +453,99 @@ private:
         chaosLeaseHolder->RemovePromise().Set();
     }
 
-    void HandleChaosLeaseStateTransition(TChaosLease* chaosLease) override
+    void TryRemoveLeaseBottomUp(TChaosLease* chaosLease)
     {
-        if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && chaosLease->Coordinators().empty()) {
-            YT_LOG_DEBUG("Chaos lease removed after revoking all shortcuts (ChaosObjectId: %v, Type: %v)",
-                chaosLease->GetId(),
-                TypeFromId(chaosLease->GetId()));
+        for (auto nestedId : chaosLease->NestedLeaseIds()) {
+            if (FindChaosLease(nestedId)) {
+                YT_LOG_DEBUG("Waiting for child lease to be removed before removing parent (ParentId: %v, ChildId: %v)",
+                    chaosLease->GetId(),
+                    nestedId);
+                return;
+            }
+        }
 
-            DoRemoveChaosLease(chaosLease->GetId());
+        auto chaosLeaseId = chaosLease->GetId();
+        auto parentId = chaosLease->GetParentId();
+
+        YT_LOG_DEBUG("Chaos lease removed after revoking all shortcuts (ChaosLeaseId: %v, ParentId: %v)",
+            chaosLeaseId,
+            parentId);
+
+        if (parentId) {
+            auto* parent = GetChaosLeaseOrThrow(parentId);
+            auto& nestedIds = parent->NestedLeaseIds();
+            auto it = std::ranges::find(nestedIds, chaosLeaseId);
+            YT_VERIFY(it != nestedIds.end());
+            std::swap(*it, nestedIds.back());
+            nestedIds.pop_back();
+        }
+
+        DoRemoveChaosLease(chaosLeaseId);
+
+        if (parentId) {
+            auto* parent = GetChaosLeaseOrThrow(parentId);
+            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && parent->Coordinators().empty())
+            {
+                TryRemoveLeaseBottomUp(parent);
+            }
+        } else {
+            CheckAllLeasesMigrated();
         }
     }
 
-    void TraverseLeaseSubtree(TChaosLease* chaosLease, std::vector<TChaosLease*>* traversedLeases)
+    void HandleChaosLeaseStateTransition(TChaosLease* chaosLease) override
+    {
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+
+        if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && chaosLease->Coordinators().empty()) {
+            // COMPAT(gryzlov-ad)
+            if (reign >= EChaosReign::ChaosLeaseRemoveLeaseOnlyAfterChildren) {
+                TryRemoveLeaseBottomUp(chaosLease);
+            } else {
+                YT_LOG_DEBUG("Chaos lease removed after revoking all shortcuts (ChaosObjectId: %v)",
+                    chaosLease->GetId());
+                DoRemoveChaosLease(chaosLease->GetId());
+
+                if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration) {
+                    CheckAllLeasesMigrated();
+                }
+            }
+            return;
+        }
+
+        // COMPAT(osidorkin)
+        if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration) {
+            if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForMigration &&
+                chaosLease->Coordinators().empty())
+            {
+                TChaosLease* rootLease;
+                // COMPAT(gryzlov-ad)
+                if (reign < EChaosReign::ChaosLeaseEnabledValidationDuringGet) {
+                    rootLease = chaosLease->IsRoot()
+                        ? chaosLease
+                        : GetChaosLeaseOrThrowWithValidate(chaosLease->GetRootId());
+                } else {
+                    rootLease = chaosLease->IsRoot()
+                        ? chaosLease
+                        : GetChaosLeaseOrThrow(chaosLease->GetRootId());
+                }
+
+                // TODO(osidorkin) Can do this more optimally if some extra data is stored inside lease object.
+                std::vector<TChaosLease*> traversedLeases;
+                TraverseLeaseSubtree(rootLease, &traversedLeases);
+                for (const auto* nestedLease : traversedLeases) {
+                    if (!nestedLease->Coordinators().empty()) {
+                        return;
+                    }
+                }
+
+                MigrateChaosLeases(traversedLeases);
+                return;
+            }
+        }
+    }
+
+    void TraverseLeaseSubtree(TChaosLease* chaosLease, std::vector<TChaosLease*>* traversedLeases) const
     {
         traversedLeases->push_back(chaosLease);
         for (int index = std::ssize(*traversedLeases) - 1; index < std::ssize(*traversedLeases); ++index) {
@@ -452,7 +559,7 @@ private:
         }
     }
 
-    void MigrateAllChaosLeases()
+    void MigrateAllChaosLeasesOld()
     {
         THashSet<TChaosLeaseId> seenRoots;
         std::vector<TChaosLease*> currentBatch;
@@ -470,6 +577,39 @@ private:
 
         if (!currentBatch.empty()) {
             MigrateChaosLeases(std::move(currentBatch));
+        }
+    }
+
+    void MigrateAllChaosLeases()
+    {
+        // COMPAT(osidorkin)
+        if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            reign < EChaosReign::RevokeChaosLeaseShortcutsOnMigration)
+        {
+            MigrateAllChaosLeasesOld();
+            return;
+        }
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+
+        auto chaosLeases = GetValuesSortedByKey(ChaosLeaseMap_);
+        EraseIf(chaosLeases, [] (const TChaosLease* lease) {
+            return !lease->IsNormalState();
+        });
+
+        chaosManager->RevokeShortcuts(TRange<TChaosObjectBase*>(
+            reinterpret_cast<TChaosObjectBase**>(chaosLeases.data()),
+            chaosLeases.size()));
+        for (auto* chaosLease : chaosLeases) {
+            chaosLease->SetState(EChaosLeaseState::RevokingShortcutsForMigration);
+        }
+
+        // NB: Chaos leases with active shortcuts will receive a hive message from the coordinators about
+        // revocation, but for leases without coordinators and children HandleChaosLeaseStateTransition will never be triggered.
+        for (auto* chaosLease : chaosLeases) {
+            if (chaosLease->IsRoot() && chaosLease->Coordinators().empty()) {
+                HandleChaosLeaseStateTransition(chaosLease);
+            }
         }
     }
 
@@ -496,8 +636,29 @@ private:
         const auto& hiveManager = Slot_->GetHiveManager();
         auto mailbox = hiveManager->GetOrCreateCellMailbox(GetKnownSiblingCellIdOrThrow());
         hiveManager->PostMessage(mailbox, req);
+
+        // COMPAT(osidorkin)
+        if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration)
+        {
+            for (auto* chaosLease : chaosLeases) {
+                ChaosLeaseMap_.Remove(chaosLease->GetId());
+            }
+
+            CheckAllLeasesMigrated();
+        }
     }
 
+    void CheckAllLeasesMigrated()
+    {
+        // COMPAT(osidorkin)
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+        YT_VERIFY(reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration);
+
+        if (State_ == EChaosLeaseManagerState::Disabling && ChaosLeaseMap_.empty()) {
+            MakeStateTransition(EChaosLeaseManagerState::Disabling, EChaosLeaseManagerState::Disabled);
+        }
+    }
 
     void MakeStateTransition(EChaosLeaseManagerState expectedCurrentState, EChaosLeaseManagerState nextState) override
     {
@@ -546,10 +707,26 @@ private:
                 auto mailbox = hiveManager->GetOrCreateCellMailbox(siblingCellId);
                 hiveManager->PostMessage(mailbox, req);
 
-                MigrateAllChaosLeases();
+                bool hasChaosLeases = false;
+                // COMPAT(osidorkin)
+                auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+                if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration) {
+                    for (const auto& [_, chaosLease] : ChaosLeaseMap_) {
+                        if (chaosLease->IsNormalState()) {
+                            hasChaosLeases = true;
+                            break;
+                        }
+                    }
 
+                }
+
+                MigrateAllChaosLeases();
                 State_ = nextState;
-                MakeStateTransition(EChaosLeaseManagerState::Disabling, EChaosLeaseManagerState::Disabled);
+
+                if (!hasChaosLeases) {
+                    MakeStateTransition(EChaosLeaseManagerState::Disabling, EChaosLeaseManagerState::Disabled);
+                }
+
                 return;
             }
 
@@ -643,10 +820,12 @@ private:
         }
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->RevokeShortcuts(TRange<TChaosObjectBase*>(reinterpret_cast<TChaosObjectBase**>(chaosLeases.data()), chaosLeases.size()));
+        chaosManager->RevokeShortcuts(TRange<TChaosObjectBase*>(
+            reinterpret_cast<TChaosObjectBase**>(chaosLeases.data()),
+            chaosLeases.size()));
 
         // NB: Chaos leases with active shortcuts will receive a hive message from the coordinators about
-        //     revocation, but for leases without coordinators HandleChaosLeaseStateTransition will never be triggered.
+        // revocation, but for leases without coordinators HandleChaosLeaseStateTransition will never be triggered.
         for (auto* chaosLease : chaosLeases) {
             if (chaosLease->Coordinators().empty()) {
                 HandleChaosLeaseStateTransition(chaosLease);
@@ -693,7 +872,7 @@ private:
             siblingChaosCellTag);
     }
 
-    void ValidateEnabledState() const
+    void ValidateEnabledState() const override
     {
         if (State_ != EChaosLeaseManagerState::Enabled) {
             ThrowCellIsNotEnabled(State_);

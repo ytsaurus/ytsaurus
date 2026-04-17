@@ -16,7 +16,7 @@ namespace NYT::NCellMaster {
     XX(quorum_missing_chunk_count) \
     XX(inconsistently_placed_chunk_count)
 
-NProto::TCellStatistics& operator += (NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs);
+NProto::TCellStatistics& operator+=(NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs);
 NProto::TCellStatistics  operator +  (const NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs);
 
 namespace NProto {

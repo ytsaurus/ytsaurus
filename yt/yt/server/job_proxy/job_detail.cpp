@@ -2,8 +2,8 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
+#include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -25,8 +25,8 @@
 
 #include <yt/yt/ytlib/table_client/granule_min_max_filter.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/yt/library/query/base/query.h>
 
@@ -337,6 +337,9 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         // skipped |InputTimeToFirstWrittenBatch| entirely :/.
         result.LatencyStatistics.OutputTimeToFirstReadBatch.push_back(
             Writer_->GetTimeToFirstBatch());
+
+        result.WriterTimingStatistics.push_back(
+            Writer_->GetTimingStatistics());
     }
 
     return result;

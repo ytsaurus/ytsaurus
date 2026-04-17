@@ -18,10 +18,10 @@ PEERDIR(
     contrib/python/click
     contrib/python/curlify
     contrib/python/Jinja2
-    contrib/python/pydantic
     contrib/python/pytest
     contrib/python/PyYAML
     contrib/python/requests
+    contrib/python/frozendict
     library/python/resource
 )
 
@@ -34,6 +34,7 @@ RESOURCE_FILES(
     configs/compat-ytsaurus.yaml
     configs/components.yaml
     configs/scenarios.yaml
+    snapshots/ytsaurus
     templates/base-spec.yaml
     tests/configs/compat-operator.yaml
     tests/configs/compat-ytsaurus.yaml

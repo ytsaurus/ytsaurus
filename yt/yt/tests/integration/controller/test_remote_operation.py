@@ -807,6 +807,18 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert extract_statistic_v2(statistics, "chunk_reader_statistics.block_count", job_type=job_type) == 1
         assert extract_statistic_v2(statistics, "chunk_reader_statistics.<local>.block_count", job_type=job_type) == (1 if dump_local else None)
 
+    @authors("coteeq")
+    def test_output_table_path(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2", driver=self.remote_driver)
+
+        with raises_yt_error("Output table must be on the same cluster as operation"):
+            map(
+                in_=self.to_remote_path("//tmp/t1"),
+                out=self.to_remote_path("//tmp/t2"),
+                command="cat",
+            )
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationNetworks(TestSchedulerRemoteOperationCommandsBase):

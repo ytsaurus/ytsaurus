@@ -54,7 +54,7 @@ public:
     TMessageId TrimLastestOutcomingMessages(int count);
     TMessageIdRange GetOutcomingMessageIdRange() const;
     void IterateOutcomingMessages(
-        TMessageId firstMessageId,
+        TMessageId* firstMessageId,
         const std::function<bool(const TOutcomingMessage&)>& visitor) const;
 
 private:
@@ -214,7 +214,7 @@ DEFINE_REFCOUNTED_TYPE(TAvenueMailboxRuntimeData)
 class TAvenueMailbox
     : public TMailbox
     , public NHydra::TEntityBase
-    , public TRefTracked<TCellMailbox>
+    , public TRefTracked<TAvenueMailbox>
 {
 public:
     using TMailbox::TMailbox;

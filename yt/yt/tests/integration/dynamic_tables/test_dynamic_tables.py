@@ -84,7 +84,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         "tablet_node": {
             "changelogs": {
                 "writer": {
-                    "enable_checksums": True,
                     "validate_erasure_coding": True
                 }
             }
@@ -781,6 +780,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     def test_no_column_meta_in_chunk_meta(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
+
+        set("//tmp/t/@chunk_writer", {
+            "enable_column_meta_in_chunk_meta": True,
+            "enable_segment_meta_in_blocks": False,
+        })
 
         sync_mount_table("//tmp/t")
 

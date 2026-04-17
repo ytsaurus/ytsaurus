@@ -116,6 +116,11 @@ private:
                     .Value(location->GetUuid());
                 return true;
 
+            case EInternedAttributeKey::Index:
+                BuildYsonFluently(consumer)
+                    .Value(location->GetIndex());
+                return true;
+
             case EInternedAttributeKey::LastSeenTime:
                 BuildYsonFluently(consumer)
                     .Value(Bootstrap_->GetDataNodeTracker()->GetChunkLocationLastSeenTime(*location));

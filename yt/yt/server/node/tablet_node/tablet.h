@@ -11,8 +11,6 @@
 #include "tablet_write_manager.h"
 #include "row_cache.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/master/table_server/public.h>
 
 #include <yt/yt/server/lib/lsm/statistics.h>
@@ -49,6 +47,8 @@
 #include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/library/heavy_hitters/misra_gries.h>
+
+#include <yt/yt/library/min_hash_digest/public.h>
 
 #include <library/cpp/yt/compact_containers/compact_set.h>
 
@@ -293,6 +293,8 @@ struct TTabletSnapshot
     NTableClient::TTabletPerformanceCountersPtr PerformanceCounters;
     TTableProfilerPtr TableProfiler;
 
+    NTabletClient::TReshardRedirectionHintPtr ReshardRedirectionHint;
+
     //! Local throttlers.
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler;
@@ -320,6 +322,8 @@ struct TTabletSnapshot
     std::string TabletCellBundle;
 
     NYson::TYsonString CustomRuntimeData;
+
+    TTabletSizeMetrics TabletSizeMetrics;
 
     std::atomic<bool> Unregistered = false;
 
@@ -351,6 +355,7 @@ struct TTabletSnapshot
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
     void ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
+    void MaybeReplyWithReshardRedirectionHint();
     void WaitOnLocks(TTimestamp timestamp) const;
 };
 
@@ -360,6 +365,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp);
 void ValidateTabletMounted(TTablet* tablet);
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -373,10 +379,11 @@ struct ITabletContext
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
     virtual IInvokerPtr GetAutomatonInvoker() const = 0;
+    virtual IInvokerPtr GetStorageHeavyInvoker() const = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
-    virtual NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const = 0;
+    virtual TTabletNodeDynamicConfigPtr GetDynamicConfig() const = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
@@ -395,6 +402,8 @@ struct ITabletContext
     virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const = 0;
     virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const = 0;
     virtual IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const = 0;
+    virtual const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const = 0;
+    virtual TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -626,6 +635,27 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    // ConflictHorizonTimestamp is a monotonic timestamp that accounts for versions that were present
+    // in the tablet's chunks, including would-be empty ones.
+    //
+    // An empty rowset can be produced without chunk creation, either on flush or on compaction.
+    // In both cases, some stores are removed with their row versions, without leaving a trace in the tablet's metadata.
+    //
+    // ConflictHorizonTimestamp is advanced every time a chunk store is added or an empty dynamic store is flushed.
+    //
+    // It is separated into persistent and transient parts to avoid lock conflicts while dynamic store is available as a backing one.
+    // The transient part is advanced every time a backing store (unleashed or ordinary) is removed.
+    //
+    // The transient part should never be greater than the persistent one.
+    DEFINE_BYVAL_RO_PROPERTY(
+        NTransactionClient::TTimestamp,
+        PersistentConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(
+        NTransactionClient::TTimestamp,
+        TransientConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
+
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, LastDiscardStoresRevision);
@@ -719,7 +749,8 @@ public:
         TTimestamp retainedTimestamp,
         i64 cumulativeDataWeight,
         NTableClient::ETabletTransactionSerializationType serializationType,
-        TInstant mountTime);
+        TInstant mountTime,
+        TTimestamp conflictHorizonTimestamp);
 
     ETabletState GetPersistentState() const;
 
@@ -834,6 +865,11 @@ public:
 
     void UpdateUnflushedTimestamp() const;
 
+    void AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp);
+    void AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp);
+    // Advances the transient timestamp up to the persistent one.
+    void ResetTransientConflictHorizonTimestamp();
+
     // Returns |true| if tablet either participates in smooth movement and holds master avenue connection
     // or does not participate in it at all.
     bool IsActiveServant() const;
@@ -897,7 +933,7 @@ public:
 
     void UpdateUnmergedRowCount();
 
-    TTimestamp GetOrderedChaosReplicationMinTimestamp();
+    TTimestamp GetOrderedChaosReplicationMinTimestamp() const;
 
     const IHunkLockManagerPtr& GetHunkLockManager() const;
 
@@ -927,21 +963,26 @@ public:
 
     void ResetRowCache(const ITabletSlotPtr& slot);
 
-    INodeMemoryTrackerPtr MaybeGetNodeMemoryUsageTracker() const;
+    INodeMemoryTrackerPtr TryGetNodeMemoryUsageTracker() const;
+
+    void OnDynamicConfigChanged(
+        const ITabletSlotPtr& slot,
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig);
+
+    NHydra::EPeerState GetAutomatonState() const;
+
+    IInvokerPtr GetStorageHeavyInvoker() const;
+
+    NApi::NNative::IClientPtr GetClient() const;
+
+    NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const;
+
+    const TCompactionHintFetcherPtr& GetCompactionHintFetcher(NLsm::EStoreCompactionHintKind kind) const;
+
+    TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const;
 
 private:
-    struct TTabletSizeMetrics
-    {
-        i64 DataWeight = 0;
-        i64 UncompressedDataSize = 0;
-        i64 CompressedDataSize = 0;
-        i64 RowCount = 0;
-        i64 ChunkCount = 0;
-        i64 HunkCount = 0;
-        i64 TotalHunkLength = 0;
-        i64 HunkChunkCount = 0;
-    };
-
     class TTabletSizeProfiler
     {
     public:
@@ -1041,10 +1082,10 @@ void BuildTableSettingsOrchidYson(
     NYTree::TFluentMap fluent);
 
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot);
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletNodeDynamicConfigPtr& nodeDynamicConfig,
     const TTabletSnapshotPtr& tabletSnapshot);
 
 bool IsInUnmountWorkflow(ETabletState state);

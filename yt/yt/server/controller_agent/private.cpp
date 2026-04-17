@@ -12,12 +12,13 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobMonitoringDescriptor::Persist(const TPersistenceContext& context)
+void TJobMonitoringDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Guid);
-    Persist(context, Index);
+    PHOENIX_REGISTER_FIELD(1, Guid);
+    PHOENIX_REGISTER_FIELD(2, Index);
 }
+
+PHOENIX_DEFINE_TYPE(TJobMonitoringDescriptor);
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/)
 {
@@ -91,7 +92,7 @@ void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& a
     }
 }
 
-bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+bool operator==(const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     if (lhs.DefaultCount != rhs.DefaultCount) {
         return false;
@@ -113,7 +114,7 @@ bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJ
     return true;
 }
 
-TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+TCompositePendingJobCount operator+(const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     TCompositePendingJobCount result;
     result.DefaultCount = lhs.DefaultCount + rhs.DefaultCount;
@@ -135,7 +136,7 @@ TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, cons
     return result;
 }
 
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& count)
+TCompositePendingJobCount operator-(const TCompositePendingJobCount& count)
 {
     TCompositePendingJobCount result;
     result.DefaultCount = -count.DefaultCount;
@@ -146,7 +147,7 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& count)
     return result;
 }
 
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+TCompositePendingJobCount operator-(const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     return lhs + (-rhs);
 }

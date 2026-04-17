@@ -1,6 +1,6 @@
 #include "environment.h"
-#include "private.h"
 #include "job.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
@@ -9,8 +9,8 @@
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
-#include <yt/yt/ytlib/job_proxy/private.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -18,6 +18,7 @@
 
 #include <util/system/fs.h>
 #include <util/system/user.h>
+
 #include <util/string/split.h>
 
 #ifdef _linux_
@@ -41,11 +42,11 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <library/cpp/yt/assert/assert.h>
-
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/system/exit.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 #include <sys/stat.h>
 
@@ -593,15 +594,24 @@ public:
         Launcher_->SetCwd(CurrentWorkDirectory_);
     }
 
-    void StartSidecar() final
+    TFuture<void> StartSidecar() final
     {
-        Instance_ = WaitFor(Launcher_->Launch("/bin/bash", {"-c", Spec_->Command}, {}))
-            .ValueOrThrow();
-        OnSidecarStarted();
+        YT_VERIFY(!Instance_);
+
+        return Launcher_->Launch("/bin/bash", {"-c", Spec_->Command}, {})
+            .Apply(
+                BIND([this, this_ = MakeStrong(this)] (IInstancePtr instance) {
+                    Instance_ = std::move(instance);
+                    OnSidecarStarted();
+                })
+                .AsyncVia(GetCurrentInvoker())
+            );
     }
 
     TFuture<void> ShutdownSidecar() final
     {
+        YT_VERIFY(Instance_);
+
         SidecarFinished_.Unsubscribe(FutureSidecarFinishedCallbackCookie_);
         return BIND(&TPortoSidecarEnvironment::DoShutdownSidecar, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
@@ -610,16 +620,24 @@ public:
 
     void RestartSidecar() final
     {
+        YT_VERIFY(Instance_);
+
         Instance_->Respawn();
         OnSidecarStarted();
     }
 
     bool IsAlive() final
     {
-        return !Instance_->Wait().IsSet();
+        return Instance_ && !Instance_->Wait().IsSet();
     }
 
 private:
+    IInstancePtr Instance_;
+    const TString CurrentWorkDirectory_;
+    IInstanceLauncherPtr Launcher_;
+    TFuture<void> SidecarFinished_;
+    TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
+
     void DoShutdownSidecar()
     {
         if (Spec_->GracefulShutdown) {
@@ -628,7 +646,7 @@ private:
             YT_VERIFY(signal);
 
             YT_LOG_INFO(
-                "Sending signal to sidecar (sidecar: %v, signal: %v, timeout: %v)",
+                "Sending signal to sidecar (Sidecar: %v, Signal: %v, Timeout: %v)",
                 Name_,
                 signal,
                 Spec_->GracefulShutdown->Timeout);
@@ -645,13 +663,14 @@ private:
                     .ThrowOnError();
             } catch (...) {
                 YT_LOG_INFO(
-                    "Sidecar's shutdown timeout has expired (sidecar: %v, timeout: %v)",
+                    "Sidecar's shutdown timeout has expired (Sidecar: %v, Timeout: %v)",
                     Name_,
                     Spec_->GracefulShutdown->Timeout);
             }
         }
 
         Instance_->Destroy();
+        Instance_.Reset();
     }
 
     void OnSidecarStarted()
@@ -662,13 +681,6 @@ private:
             MakeStrong(this)
         ));
     }
-
-private:
-    IInstancePtr Instance_;
-    TString CurrentWorkDirectory_;
-    IInstanceLauncherPtr Launcher_;
-    TFuture<void> SidecarFinished_;
-    TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoSidecarEnvironment)
@@ -768,6 +780,8 @@ public:
             return;
         }
 
+        std::vector<TFuture<void>> futures;
+        futures.reserve(jobSpecExt.user_job_spec().sidecars().size());
         RunningSidecars_.reserve(jobSpecExt.user_job_spec().sidecars().size());
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
             auto sidecarSpec = New<TSidecarJobSpec>();
@@ -781,9 +795,16 @@ public:
                 PortoExecutor_,
                 JobProxyContainerPath_);
 
-            newSidecar->StartSidecar();
-
+            futures.push_back(std::move(newSidecar->StartSidecar()));
             RunningSidecars_.push_back(std::move(newSidecar));
+        }
+
+        try {
+            WaitFor(AllSet(std::move(futures)))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            ShutdownSidecars();
+            throw;
         }
     }
 

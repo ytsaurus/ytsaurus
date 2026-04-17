@@ -1,5 +1,6 @@
 #include "table_node.h"
 
+#include "config.h"
 #include "private.h"
 #include "master_table_schema.h"
 #include "mount_config_attributes.h"
@@ -123,13 +124,8 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     Load(context, LastCommitTimestamp);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        Load(context, RetainedTimestamp);
-        Load(context, UnflushedTimestamp);
-    }
-
+    Load(context, RetainedTimestamp);
+    Load(context, UnflushedTimestamp);
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
@@ -159,17 +155,9 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, SecondaryIndices);
     Load(context, IndexTo);
     Load(context, TreatAsQueueProducer);
-
-    // COMPAT(ponasenko-rs)
-    if (context.GetVersion() >= EMasterReign::TabletTransactionSerializationType) {
-        Load(context, SerializationType);
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        Load(context, ReplicationCollocation);
-        Load(context, CustomRuntimeData);
-    }
+    Load(context, SerializationType);
+    Load(context, ReplicationCollocation);
+    Load(context, CustomRuntimeData);
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
@@ -243,6 +231,21 @@ const TTableNode* TTableNode::GetTrunkNode() const
     return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
+void TTableNode::ValidateBeginUpload(const TBeginUploadContext& context)
+{
+    // COMPAT(h0pless): This check protects from requests from pre-24.2 clients.
+    // It is safe to remove once we become brave enough.
+    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
+
+    const auto& config = context.Bootstrap->GetConfigManager()->GetConfig();
+    if (config->TableManager->ValidateNoDescendingSortOrder) {
+        if (!config->EnableDescendingSortOrder || (IsDynamic() && !config->EnableDescendingSortOrderDynamic)) {
+            const auto& compactTableSchema = context.TableSchema->AsCompactTableSchema();
+            ValidateNoDescendingSortOrder(compactTableSchema->GetSortOrders(), compactTableSchema->GetKeyColumns());
+        }
+    }
+}
+
 void TTableNode::BeginUpload(const TBeginUploadContext &context)
 {
     const auto& tableManager = context.Bootstrap->GetTableManager();
@@ -267,7 +270,6 @@ void TTableNode::BeginUpload(const TBeginUploadContext &context)
         SchemaMode_ = *context.SchemaMode;
     }
 
-    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
     tableManager->SetTableSchema(this, context.TableSchema);
 
     TTabletOwnerBase::BeginUpload(context);
@@ -352,21 +354,23 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     TSchemafulNode::Load(context);
 
     using NYT::Load;
-    Load(context, OptimizeFor_);
+    // COMPAT(cherepashka)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ReduceSchemaModeAndOptimizeFor) {
+        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<ECompatOptimizeFor>>(context);
+        if (compatOptimizeFor.IsNull()) {
+            OptimizeFor_.Reset();
+        } else if (compatOptimizeFor.IsTombstoned()) {
+            OptimizeFor_.Remove();
+        } else if (compatOptimizeFor.IsSet()) {
+            auto optimizeFor = compatOptimizeFor.ToOptional();
+            YT_VERIFY(optimizeFor);
+            OptimizeFor_.Set(CheckedEnumCast<EOptimizeFor>(*optimizeFor));
+        }
+    } else {
+        Load(context, OptimizeFor_);
+    }
     Load(context, ChunkFormat_);
     Load(context, HunkErasureCodec_);
-
-    // COMPAT(ifsmirnov)
-    TTimestamp retainedTimestamp;
-    TTimestamp unflushedTimestamp;
-    TTableCollocationRawPtr replicationCollocation;
-    TYsonString customRuntimeData;
-    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        Load(context, retainedTimestamp);
-        Load(context, unflushedTimestamp);
-        Load(context, replicationCollocation);
-        Load(context, customRuntimeData);
-    }
 
     // COMPAT(gritukan): Use TUniquePtrSerializer.
     if (Load<bool>(context)) {
@@ -374,16 +378,6 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         DynamicTableAttributes_->Load(context);
     } else {
         DynamicTableAttributes_.reset();
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
-        SetRetainedTimestamp(retainedTimestamp);
-        SetUnflushedTimestamp(unflushedTimestamp);
-        SetReplicationCollocation(replicationCollocation);
-        if (customRuntimeData) {
-            MutableCustomRuntimeData() = std::move(customRuntimeData);
-        }
     }
 }
 

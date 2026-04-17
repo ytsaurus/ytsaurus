@@ -5,7 +5,7 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
-#include <yt/yt/library/query/engine/folding_profiler.h>
+#include <yt/yt/library/query/engine_api/query_evaluator.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -121,31 +121,6 @@ std::optional<std::string> ValidateAndBuildPredicate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCGInstanceHolder final
-{
-    TCGExpressionInstance Instance;
-    TCGVariables Variables;
-    TCGExpressionImage Image;
-
-    void Run(
-        TUnversionedValue* value,
-        TUnversionedRow schemafulRow,
-        const TRowBufferPtr& rowBuffer)
-    {
-        Instance.Run(
-            Variables.GetLiteralValues(),
-            Variables.GetOpaqueData(),
-            Variables.GetOpaqueDataSizes(),
-            value,
-            schemafulRow.Elements(),
-            rowBuffer);
-    }
-};
-
-using TCGInstanceHolderPtr = TIntrusivePtr<TCGInstanceHolder>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A thing that knows chunk schema and is able to remap incoming unversioned
 //! rows to the order expected by the codegened instance.
 class TRlsChecker
@@ -153,10 +128,10 @@ class TRlsChecker
 {
 public:
     TRlsChecker(
-        TCGInstanceHolderPtr instance,
+        TQueryEvaluationContextPtr instance,
         TNameTableToSchemaIdMapping chunkToExpressionIdMapping,
         int valueCount)
-        : Instance_(std::move(instance))
+        : EvaluationContext_(std::move(instance))
         , ValueCount_(valueCount)
         , RemappedValueCount_(
             std::ranges::count_if(
@@ -166,7 +141,7 @@ public:
                 }))
         , ChunkToExpressionIdMapping_(std::move(chunkToExpressionIdMapping))
     {
-        YT_VERIFY(Instance_);
+        YT_VERIFY(EvaluationContext_);
         YT_VERIFY(
             AllOf(
                 ChunkToExpressionIdMapping_,
@@ -175,7 +150,10 @@ public:
                 }));
     }
 
-    ESecurityAction Check(TUnversionedRow row, const TRowBufferPtr& rowBuffer) const override
+    ESecurityAction Check(
+        TUnversionedRow row,
+        const TUnversionedRowLayout& layout,
+        const TRowBufferPtr& rowBuffer) const override
     {
         // NB(coteeq): Although RLS only acts on schemaful rows,
         // this checker is created per-datasource, not per-chunk (so there is
@@ -184,13 +162,11 @@ public:
         // per-chunk expression compilation, but YMMV. Maybe, I should add
         // an option to compile per-chunk and some heuristic to choose between
         // per-chunk and per-datasource compilation.
-        auto reorderedRow = ReorderRow(row, rowBuffer);
+        auto reorderedRow = ReorderRow(row, layout, rowBuffer);
 
-        auto value = MakeUnversionedSentinelValue(EValueType::Null);
-
-        Instance_->Run(
-            &value,
-            reorderedRow,
+        auto value = EvaluateQuery(
+            *EvaluationContext_,
+            reorderedRow.Elements(),
             rowBuffer);
 
         switch (value.Type) {
@@ -211,8 +187,8 @@ public:
     }
 
 private:
-    const TCGInstanceHolderPtr Instance_;
-    //! Width of the row expected by the |Instance_|.
+    const TQueryEvaluationContextPtr EvaluationContext_;
+    //! Width of the row expected by the |EvaluationContext_|.
     //! Note that this number may be greater than |RemappedValueCount_| when
     //! a chunk physically does not have enough columns (we must assume
     //! corresponding values to be nulls).
@@ -221,7 +197,10 @@ private:
     const int RemappedValueCount_;
     const TNameTableToSchemaIdMapping ChunkToExpressionIdMapping_;
 
-    TUnversionedRow ReorderRow(TUnversionedRow row, const TRowBufferPtr& rowBuffer) const
+    TUnversionedRow ReorderRow(
+        TUnversionedRow row,
+        const TUnversionedRowLayout& layout,
+        const TRowBufferPtr& rowBuffer) const
     {
         auto reorderedRow = rowBuffer->AllocateUnversioned(ValueCount_);
         for (int index = 0; index < ValueCount_; ++index) {
@@ -229,10 +208,11 @@ private:
         }
 
         int remappedValueCount = 0;
-        for (const auto& value : row) {
-            if (value.Id > std::ssize(ChunkToExpressionIdMapping_)) {
+        for (const auto& [index, value] : SEnumerate(row)) {
+            if (layout.GetNameTableAffinity(index) != ENameTableAffinity::Chunk) {
                 continue;
             }
+            YT_VERIFY(value.Id < std::ssize(ChunkToExpressionIdMapping_));
             auto newId = ChunkToExpressionIdMapping_[value.Id];
             if (newId != -1) {
                 reorderedRow[newId] = value;
@@ -241,7 +221,10 @@ private:
                 ++remappedValueCount;
             }
         }
-        YT_VERIFY(remappedValueCount == RemappedValueCount_);
+
+        YT_VERIFY(
+            remappedValueCount == RemappedValueCount_,
+            Format("%v != %v", remappedValueCount, RemappedValueCount_));
         return reorderedRow;
     }
 };
@@ -254,9 +237,9 @@ class TRlsCheckerFactory
 public:
     TRlsCheckerFactory(
         TTableSchemaPtr adjustedSchema,
-        TCGInstanceHolderPtr instanceHolder)
+        TQueryEvaluationContextPtr context)
         : AdjustedSchema_(std::move(adjustedSchema))
-        , CGInstance_(std::move(instanceHolder))
+        , EvaluationContext_(std::move(context))
     { }
 
     IRlsCheckerPtr CreateCheckerForChunk(const TNameTablePtr& chunkNameTable) const override
@@ -274,14 +257,14 @@ public:
         }
 
         return New<TRlsChecker>(
-            CGInstance_,
+            EvaluationContext_,
             std::move(idMapping),
             std::ssize(AdjustedSchema_->Columns()));
     }
 
 private:
     const TTableSchemaPtr AdjustedSchema_;
-    const TCGInstanceHolderPtr CGInstance_;
+    const TQueryEvaluationContextPtr EvaluationContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -412,28 +395,11 @@ IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
         }
     }
     auto adjustedSchema = New<TTableSchema>(std::move(columns));
-
-    TCGVariables variables;
-
-    auto profiler = Profile(
-        preparedExpression,
-        adjustedSchema,
-        /*id*/ nullptr,
-        &variables,
-        /*useCanonicalNullRelations*/ false,
-        NYT::NCodegen::EExecutionBackend::Native,
-        GetBuiltinFunctionProfilers());
-
-    auto image = profiler();
-    auto instance = image.Instantiate();
-    auto instanceHolder = New<TCGInstanceHolder>(
-        std::move(instance),
-        std::move(variables),
-        std::move(image));
+    auto context = CreateQueryEvaluationContext(preparedExpression, adjustedSchema);
 
     return New<TRlsCheckerFactory>(
         adjustedSchema,
-        std::move(instanceHolder));
+        std::move(context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,18 +41,20 @@ type ResourcesConfig struct {
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline and chyt binaries.
-	LocalBinariesDir          *string                 `yson:"local_binaries_dir"`
-	LogRotationMode           *LogRotationModeType    `yson:"log_rotation_mode"`
-	AddressResolver           map[string]any          `yson:"address_resolver"`
-	BusServer                 map[string]any          `yson:"bus_server"`
-	EnableYandexSpecificLinks *bool                   `yson:"enable_yandex_specific_links"`
-	ExportSystemLogTables     *bool                   `yson:"export_system_log_tables"`
-	EnableGeodata             *bool                   `yson:"enable_geodata"`
-	EnableRuntimeData         *bool                   `yson:"enable_runtime_data"`
-	ResourcesConfig           *ResourcesConfig        `yson:"resources_config"`
-	SecureVaultFiles          map[string]string       `yson:"secure_vault_files"`
-	DefaultSpeclet            *Speclet                `yson:"default_speclet"`
-	DefaultOpletHealth        *strawberry.OpletHealth `yson:"default_oplet_health"`
+	LocalBinariesDir           *string                 `yson:"local_binaries_dir"`
+	LogRotationMode            *LogRotationModeType    `yson:"log_rotation_mode"`
+	AddressResolver            map[string]any          `yson:"address_resolver"`
+	BusServer                  map[string]any          `yson:"bus_server"`
+	EnableYandexSpecificLinks  *bool                   `yson:"enable_yandex_specific_links"`
+	ExportSystemLogTables      *bool                   `yson:"export_system_log_tables"`
+	EnableGeodata              *bool                   `yson:"enable_geodata"`
+	EnableRuntimeData          *bool                   `yson:"enable_runtime_data"`
+	ResourcesConfig            *ResourcesConfig        `yson:"resources_config"`
+	SecureVaultFiles           map[string]string       `yson:"secure_vault_files"`
+	DefaultSpeclet             *Speclet                `yson:"default_speclet"`
+	SpecletConfigExclusionTree map[string]any          `yson:"speclet_config_exclusion_tree"`
+	DefaultOpletHealth         *strawberry.OpletHealth `yson:"default_oplet_health"`
+	EnableDiscoveryHealthCheck *bool                   `yson:"enable_discovery_health_check"`
 }
 
 type controllerSnapshot struct {
@@ -61,11 +63,12 @@ type controllerSnapshot struct {
 }
 
 const (
-	DefaultEnableYandexSpecificLinks                        = false
-	DefaultExportSystemLogTables                            = false
-	DefaultEnableGeodata                                    = false
-	DefaultEnableRuntimeData                                = false
-	DefaultDefaultOpletHealth        strawberry.OpletHealth = strawberry.OpletHealthUnknown
+	DefaultEnableYandexSpecificLinks                         = false
+	DefaultExportSystemLogTables                             = false
+	DefaultEnableGeodata                                     = false
+	DefaultEnableRuntimeData                                 = false
+	DefaultEnableDiscoveryHealthCheck                        = false
+	DefaultDefaultOpletHealth         strawberry.OpletHealth = strawberry.OpletHealthUnknown
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -110,6 +113,13 @@ func (c *Config) DefaultOpletHealthOrDefault() strawberry.OpletHealth {
 	return DefaultDefaultOpletHealth
 }
 
+func (c *Config) EnableDiscoveryHealthCheckOrDefault() bool {
+	if c.EnableDiscoveryHealthCheck != nil {
+		return *c.EnableDiscoveryHealthCheck
+	}
+	return DefaultEnableDiscoveryHealthCheck
+}
+
 func (c *Config) getDefaultInstanceCPU() uint64 {
 	if c.ResourcesConfig != nil && c.ResourcesConfig.DefaultInstanceCPU != nil {
 		return *c.ResourcesConfig.DefaultInstanceCPU
@@ -125,8 +135,10 @@ func (c *Config) getDefaultMemory() uint64 {
 }
 
 type chytOpletInfo struct {
-	CHYTRunningVersion     string `yson:"chyt_running_version"`
-	CHYTRunningVersionPath string `yson:"chyt_running_version_path"`
+	CHYTRunningVersion     string       `yson:"chyt_running_version"`
+	CHYTRunningVersionPath string       `yson:"chyt_running_version_path"`
+	BinaryNodeId           *string      `yson:"binary_node_id"`
+	BinaryRevision         *yt.Revision `yson:"binary_revision"`
 }
 
 type Controller struct {
@@ -390,11 +402,10 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 		return false, nil
 	}
 
-	cypressVersionPath, err := c.resolveSymlink(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
+	info, err := c.getChytBinaryInfo(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
 	if err != nil {
 		return false, err
 	}
-	specifiedVersionPath := filepath.Base(cypressVersionPath.String())
 
 	briefInfo := oplet.GetBriefInfo()
 	var controllerInfo chytOpletInfo
@@ -403,13 +414,21 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 		return false, err
 	}
 
-	if controllerInfo.CHYTRunningVersionPath != specifiedVersionPath {
+	if controllerInfo.BinaryNodeId != nil && *controllerInfo.BinaryNodeId != info.NodeId {
 		return true, nil
 	}
+	if controllerInfo.BinaryRevision != nil && *controllerInfo.BinaryRevision != info.ContentRevision {
+		return true, nil
+	}
+
 	return false, nil
 }
 
 func (c *Controller) checkHealth(ctx context.Context, oplet *strawberry.Oplet) (strawberry.OpletHealth, string) {
+	if !oplet.Active() || !c.config.EnableDiscoveryHealthCheckOrDefault() {
+		return strawberry.OpletHealthGood, ""
+	}
+
 	// If discovery client hasn't been initialized for any reason, we consider this as the default case.
 	if c.dc == nil {
 		return c.config.DefaultOpletHealthOrDefault(), ""
@@ -705,9 +724,15 @@ func createDiscoveryClient(ctx context.Context, ytc yt.Client) (yt.DiscoveryClie
 }
 
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller {
-	dc, err := createDiscoveryClient(context.Background(), ytc)
-	if err != nil {
-		panic(err)
+	config := parseConfig(rawConfig)
+
+	var dc yt.DiscoveryClient
+	if config.EnableDiscoveryHealthCheckOrDefault() {
+		var err error
+		dc, err = createDiscoveryClient(context.Background(), ytc)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	c := &Controller{
@@ -717,7 +742,7 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		root:    root,
 		cluster: cluster,
 		secrets: make(map[string][]byte),
-		config:  parseConfig(rawConfig),
+		config:  config,
 	}
 	c.prepareTvmSecret()
 	return c

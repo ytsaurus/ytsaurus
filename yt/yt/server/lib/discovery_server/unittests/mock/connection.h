@@ -135,6 +135,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NNodeTrackerClient::INodeStatusDirectoryPtr& GetNodeStatusDirectory() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() override
     {
         YT_UNIMPLEMENTED();
@@ -167,6 +172,10 @@ public:
     NRpc::IChannelPtr GetCypressChannelOrThrow(
         NApi::EMasterChannelKind /*kind*/,
         NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+    const NRpc::IChannelPtr& GetCypressProxyChannel() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -203,7 +212,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -406,6 +415,11 @@ public:
     }
 
     const NRpc::IChannelPtr& GetBundleControllerChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelPtr& GetTabletBalancerChannel() override
     {
         YT_UNIMPLEMENTED();
     }

@@ -1,5 +1,5 @@
 # testing/plugin/plugin_base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -110,7 +110,7 @@ def setup_options(make_option):
     make_option(
         "--disable-asyncio",
         action="store_true",
-        help="disable test / fixtures / provisoning running in asyncio",
+        help="disable test / fixtures / provisioning running in asyncio",
     )
     make_option(
         "--backend-only",

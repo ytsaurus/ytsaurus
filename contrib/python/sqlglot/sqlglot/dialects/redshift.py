@@ -5,6 +5,7 @@ import typing as t
 from sqlglot import exp, transforms
 from sqlglot.dialects.dialect import (
     NormalizationStrategy,
+    array_concat_sql,
     concat_to_dpipe_sql,
     concat_ws_to_dpipe_sql,
     date_delta_sql,
@@ -49,6 +50,7 @@ class Redshift(Postgres):
     HAS_DISTINCT_ARRAY_CONSTRUCTORS = True
     COALESCE_COMPARISON_NON_STANDARD = True
     REGEXP_EXTRACT_POSITION_OVERFLOW_RETURNS_NULL = False
+    ARRAY_FUNCS_PROPAGATES_NULLS = True
 
     # ref: https://docs.aws.amazon.com/redshift/latest/dg/r_FORMAT_strings.html
     TIME_FORMAT = "'YYYY-MM-DD HH24:MI:SS'"
@@ -82,6 +84,7 @@ class Redshift(Postgres):
             ),
             "STRTOL": exp.FromBase.from_arg_list,
         }
+        FUNCTIONS.pop("GET_BIT")
 
         NO_PAREN_FUNCTION_PARSERS = {
             **Postgres.Parser.NO_PAREN_FUNCTION_PARSERS,
@@ -130,6 +133,27 @@ class Redshift(Postgres):
             self._retreat(index)
             return None
 
+        def _parse_projections(self) -> t.Tuple[t.List[exp.Expression], t.List[exp.Expression]]:
+            projections, _ = super()._parse_projections()
+            if self._prev and self._prev.text.upper() == "EXCLUDE" and self._curr:
+                self._retreat(self._index - 1)
+
+            # EXCLUDE clause always comes at the end of the projection list and applies to it as a whole
+            exclude = (
+                self._parse_wrapped_csv(self._parse_expression, optional=True)
+                if self._match_text_seq("EXCLUDE")
+                else []
+            )
+
+            if (
+                exclude
+                and isinstance(expr := projections[-1], exp.Alias)
+                and expr.alias.upper() == "EXCLUDE"
+            ):
+                projections[-1] = expr.this.pop()
+
+            return projections, exclude
+
     class Tokenizer(Postgres.Tokenizer):
         BIT_STRINGS = []
         HEX_STRINGS = []
@@ -172,6 +196,8 @@ class Redshift(Postgres):
         SUPPORTS_DECODE_CASE = True
         SUPPORTS_BETWEEN_FLAGS = False
         LIMIT_FETCH = "LIMIT"
+        STAR_EXCEPT = "EXCLUDE"
+        STAR_EXCLUDE_REQUIRES_DERIVED_TABLE = False
 
         # Redshift doesn't have `WITH` as part of their with_properties so we remove it
         WITH_PROPERTIES_PREFIX = " "
@@ -189,7 +215,7 @@ class Redshift(Postgres):
 
         TRANSFORMS = {
             **Postgres.Generator.TRANSFORMS,
-            exp.ArrayConcat: lambda self, e: self.arrayconcat_sql(e, name="ARRAY_CONCAT"),
+            exp.ArrayConcat: array_concat_sql("ARRAY_CONCAT"),
             exp.Concat: concat_to_dpipe_sql,
             exp.ConcatWs: concat_ws_to_dpipe_sql,
             exp.ApproxDistinct: lambda self,
@@ -243,6 +269,9 @@ class Redshift(Postgres):
         TRANSFORMS.pop(exp.AnyValue)
         TRANSFORMS.pop(exp.LastDay)
         TRANSFORMS.pop(exp.SHA2)
+
+        # Postgres and Redshift have different semantics for Getbit
+        TRANSFORMS.pop(exp.Getbit)
 
         # Postgres does not permit a double precision argument in ROUND; Redshift does
         TRANSFORMS.pop(exp.Round)

@@ -179,6 +179,20 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellHydraPersistenceSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicTabletManagerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    bool MountViaOrphanedTabletActions;
+
+    REGISTER_YSON_STRUCT(TDynamicTabletManagerTestingConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletManagerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicTabletManagerConfig
     : public NHydra::THydraJanitorConfig
     , public NTabletNode::TClusterTableConfigPatchSet
@@ -331,15 +345,14 @@ struct TDynamicTabletManagerConfig
     // COMPAT(shakurov)
     bool EnableHunkSpecificMedia;
 
-    // COMPAT(danilalexeev)
-    bool SafeCheckSecondaryCellStorage;
-
     bool EnableSmoothTabletMovement;
 
     bool EnableClockCellTagValidationOnChaosReplicaMount;
 
     // COMPAT(akozhikhov)
     bool EnableAlterToStaticWithHunks;
+
+    TDynamicTabletManagerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 

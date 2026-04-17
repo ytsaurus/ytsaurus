@@ -413,6 +413,8 @@ struct TProxyDynamicConfig
 
     std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
 
+    TNodeMemoryTrackerConfigPtr MemoryTracker;
+
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);

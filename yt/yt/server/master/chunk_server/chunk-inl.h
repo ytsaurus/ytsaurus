@@ -12,12 +12,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TRange<TAugmentedStoredChunkReplicaPtr> TChunk::StoredReplicas() const
-{
-    const auto& data = ReplicasData();
-    return data.GetStoredReplicas();
-}
-
 inline TRange<TNodeId> TChunk::LastSeenReplicas() const
 {
     const auto& data = ReplicasData();

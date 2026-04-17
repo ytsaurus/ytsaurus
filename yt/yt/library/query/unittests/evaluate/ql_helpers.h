@@ -101,7 +101,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const std::vector<IJoinProfilerPtr>& joinProfilers);
+    TJoinProfilerRegistry joinProfilerRegistry = {});
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,
@@ -125,7 +125,7 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     NYson::TYsonStringBuf placeholderValues = {},
-    int syntaxVersion = 1,
+    const TPreparePlanFragmentOptions& options = {.BuilderVersion = DefaultExpressionBuilderVersion},
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 TConstExpressionPtr ParseAndPrepareExpression(
@@ -133,7 +133,7 @@ TConstExpressionPtr ParseAndPrepareExpression(
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr,
-    int exprBuilderVersion = DefaultExpressionBuilderVersion);
+    TPreparePlanFragmentOptions options = {.BuilderVersion = DefaultExpressionBuilderVersion});
 
 ////////////////////////////////////////////////////////////////////////////////
 

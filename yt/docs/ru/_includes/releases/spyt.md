@@ -8,6 +8,19 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.9.0**" %}
+
+**Release date:** 2026-03-30
+
+
+- Support for Spark Connect in Spark Standalone inner cluster
+- Row and column level security (RLS/CLS) support
+- Updated read and write statistics
+- Perfomance and stability fixes
+
+{% endcut %}
+
+
 {% cut "**2.8.2**" %}
 
 **Release date:** 2025-12-23

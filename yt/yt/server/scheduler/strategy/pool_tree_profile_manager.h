@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "pool_tree.h"
+#include "pool_tree_element.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
 
@@ -18,7 +19,8 @@ public:
         NProfiling::TProfiler profiler,
         bool sparsifyMetrics,
         const IInvokerPtr& profilingInvoker,
-        NPolicy::ISchedulingPolicyPtr schedulingPolicy);
+        NPolicy::ISchedulingPolicyPtr schedulingPolicy,
+        std::vector<TDuration> perPoolStarvationIntervalBounds);
 
     // Thread affinity: Control thread.
     NProfiling::TProfiler GetProfiler() const;
@@ -48,11 +50,14 @@ public:
         const TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
         const TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedAllocationResourcesDeltas);
 
+    // Thread affinity: Profiler thread.
+    void ProfileStarvationIntervals(const TPoolTreeSnapshotPtr& treeSnapshot);
 private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
     const IInvokerPtr ProfilingInvoker_;
     const NPolicy::ISchedulingPolicyPtr SchedulingPolicy_;
+    const std::vector<TDuration> PerPoolStarvationIntervalBounds_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -89,6 +94,7 @@ private:
     struct TPoolState
     {
         TUnregisterOperationCounters UnregisterOperationCounters;
+        TEnumIndexedArray<EStarvationChangeReason, NProfiling::TEventTimer> StarvationIntervalHistograms;
 
         // We postpone deletion to avoid ABA problem with pool deletion and immediate creation.
         std::optional<TInstant> RemoveTime;

@@ -605,17 +605,19 @@ type ListOperationsOptions struct {
 
 	*ReadRetryOptions
 
-	FromTime       *yson.Time      `http:"from_time,omitnil"`
-	ToTime         *yson.Time      `http:"to_time,omitnil"`
-	Cursor         *yson.Time      `http:"cursor_time,omitnil"`
-	User           *string         `http:"user,omitnil"`
-	State          *OperationState `http:"state,omitnil"`
-	Type           *OperationType  `http:"type,omitnil"`
-	Filter         *string         `http:"filter,omitnil"`
-	Limit          *int            `http:"limit,omitnil"`
-	Pool           *string         `http:"pool,omitnil"`
-	PoolTree       *string         `http:"pool_tree,omitnil"`
-	IncludeArchive *bool           `http:"include_archive,omitnil"`
+	FromTime        *yson.Time              `http:"from_time,omitnil"`
+	ToTime          *yson.Time              `http:"to_time,omitnil"`
+	Cursor          *yson.Time              `http:"cursor_time,omitnil"`
+	CursorDirection *OperationSortDirection `http:"cursor_direction,omitnil"`
+	User            *string                 `http:"user,omitnil"`
+	State           *OperationState         `http:"state,omitnil"`
+	Type            *OperationType          `http:"type,omitnil"`
+	Filter          *string                 `http:"filter,omitnil"`
+	Limit           *int                    `http:"limit,omitnil"`
+	Pool            *string                 `http:"pool,omitnil"`
+	PoolTree        *string                 `http:"pool_tree,omitnil"`
+	IncludeArchive  *bool                   `http:"include_archive,omitnil"`
+	Attributes      []string                `http:"attributes,omitnil"`
 }
 
 type ListJobsOptions struct {
@@ -628,6 +630,7 @@ type ListJobsOptions struct {
 	WithInterruptionInfo     *bool          `http:"with_interruption_info,omitnil"`
 	TaskName                 *string        `http:"task_name,omitnil"`
 	Attributes               []string       `http:"attributes,omitnil"`
+	WithSpec                 *bool          `http:"with_spec,omitnil"`
 	SortField                *JobSortField  `http:"sort_field,omitnil"`
 	SortOrder                *JobSortOrder  `http:"sort_order,omitnil"`
 	Limit                    *int           `http:"limit,omitnil"`
@@ -652,6 +655,8 @@ type JobStatus struct {
 	Progress        float64            `yson:"progress,omitempty"`
 	ExecAttributes  *JobExecAttributes `yson:"exec_attributes,omitempty"`
 	IsStale         bool               `yson:"is_stale,omitempty"`
+	JobCookie       *uint64            `yson:"job_cookie,omitempty"`
+	Statistics      yson.RawValue      `yson:"statistics,omitempty"`
 }
 
 type JobExecAttributes struct {
@@ -676,6 +681,23 @@ type ListJobsResult struct {
 }
 
 type GetJobStderrOptions struct {
+}
+
+type ListOperationEventsOptions struct {
+	EventType *OperationEventType `http:"event_type,omitnil"`
+	Limit     *uint64             `http:"limit,omitnil"`
+}
+
+type OperationEvent struct {
+	Timestamp               yson.Time                         `yson:"timestamp"`
+	EventType               OperationEventType                `yson:"event_type"`
+	Incarnation             *string                           `yson:"incarnation,omitempty"`
+	IncarnationSwitchReason *OperationIncarnationSwitchReason `yson:"incarnation_switch_reason,omitempty"`
+	IncarnationSwitchInfo   yson.RawValue                     `yson:"incarnation_switch_info,omitempty"`
+}
+
+type ListOperationEventsResult struct {
+	Events []OperationEvent
 }
 
 type GetOperationOptions struct {
@@ -711,6 +733,7 @@ type OperationStatus struct {
 	Result            *OperationResult           `yson:"result"`
 	Type              OperationType              `yson:"type"`
 	BriefProgress     OperationBriefProgress     `yson:"brief_progress"`
+	Progress          yson.RawValue              `yson:"progress"`
 	BriefSpec         map[string]any             `yson:"brief_spec"`
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
@@ -840,6 +863,14 @@ type LowLevelSchedulerClient interface {
 		jobID JobID,
 		options *GetJobStderrOptions,
 	) (r []byte, err error)
+
+	// http:verb:"list_operation_events"
+	// http:params:"operation_id"
+	ListOperationEvents(
+		ctx context.Context,
+		opID OperationID,
+		options *ListOperationEventsOptions,
+	) (r *ListOperationEventsResult, err error)
 }
 
 type AddMemberOptions struct {
@@ -868,7 +899,12 @@ type SetUserPasswordOptions struct{}
 
 type IssueTokenOptions struct{}
 
-type RevokeTokenOptions struct{}
+type RevokeTokenOptions struct {
+	// TokenIsHash indicates that the token parameter is already a SHA256 hash.
+	TokenIsHash bool
+	// PasswordIsHash indicates that the password parameter is already a SHA256 hash.
+	PasswordIsHash bool
+}
 
 type ListUserTokensOptions struct{}
 

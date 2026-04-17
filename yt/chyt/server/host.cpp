@@ -4,6 +4,7 @@
 #include "clickhouse_service_proxy.h"
 #include "config.h"
 #include "custom_data_types.h"
+#include "dictionary_access_control.h"
 #include "dictionary_source.h"
 #include "health_checker.h"
 #include "helpers.h"
@@ -183,6 +184,10 @@ public:
             CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(CreateClient(ChytSqlObjectsUserName), Config_->DictionaryRepository);
         }
 
+        if (Config_->DictionaryAccessControl) {
+            DictionaryAccessControl_ = CreateDictionaryAccessControl(PermissionCache_, Config_->DictionaryAccessControl, FetcherInvoker_);
+        }
+
         ClickHouseYtProfiler().AddFuncGauge(
             "/clique_instance_count",
             MakeStrong(this),
@@ -264,6 +269,10 @@ public:
         GossipExecutor_->Start();
         HealthChecker_->Start();
 
+        if (Config_->DictionaryAccessControl) {
+            DictionaryAccessControl_->Start(getContext());
+        }
+
         CreateOrchidNode();
         StartDiscovery();
 
@@ -313,15 +322,15 @@ public:
         std::vector<TError> errors;
         std::vector<THost::TRowLevelAcl> rowLevelAclPerTable(validationResults.size());
         for (size_t index = 0; index < validationResults.size(); ++index) {
-            const auto& validationResult = validationResults[index];
+            const auto& resultOrError = validationResults[index];
 
-            if (!validationResult.IsOK()) {
-                errors.push_back(validationResult
+            if (!resultOrError.IsOK()) {
+                errors.push_back(resultOrError
                     << TErrorAttribute("path", paths[index])
                     << TErrorAttribute("permission", "read")
                     << TErrorAttribute("columns", paths[index].GetColumns()));
             } else {
-                rowLevelAclPerTable[index] = validationResult.Value().RowLevelAcl;
+                rowLevelAclPerTable[index] = resultOrError.Value().RowLevelAcl;
             }
         }
         if (!errors.empty()) {
@@ -623,6 +632,11 @@ public:
         return RootClient_;
     }
 
+    NApi::NNative::IClientPtr GetDictionariesClient() const
+    {
+        return DictionaryAccessControl_ ? DictionariesClient_ : RootClient_;
+    }
+
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
@@ -762,12 +776,12 @@ public:
             .ThrowOnError();
     }
 
-    void ReloadDictionaryGlobally(const std::string& dictionaryName) const
+    void ReloadDictionaryGlobally(const std::string& configPath) const
     {
-        YT_LOG_DEBUG("Reloading dictionary on all instances (DictionaryName: %v)", dictionaryName);
+        YT_LOG_DEBUG("Reloading dictionary on all instances (ConfigPath: %v)", configPath);
 
         const auto& externalDictionariesLoader = GetContext()->getExternalDictionariesLoader();
-        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, dictionaryName);
+        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, configPath);
 
         auto instances = Discovery_->List();
         using TResponse = NRpc::TTypedClientResponse<TRspReloadDictionary>::TResult;
@@ -785,7 +799,7 @@ public:
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.ReloadDictionary();
-            req->set_dictionary_name(dictionaryName);
+            req->set_config_path(configPath);
 
             futures.push_back(req->Invoke());
         }
@@ -797,6 +811,21 @@ public:
     TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository()
     {
         return CypressDictionaryConfigRepository_;
+    }
+
+    void PrepareClickHouseUser(const std::string& userName)
+    {
+        auto context = getContext();
+        RegisterNewUser(
+            context->getAccessControl(),
+            userName,
+            GetUserDefinedDatabaseNames(),
+            HasUserDefinedSqlObjectStorage(),
+            DictionaryAccessControl_ == nullptr);
+
+        if (DictionaryAccessControl_) {
+            DictionaryAccessControl_->SyncUserAccessRights(userName);
+        }
     }
 
 private:
@@ -820,6 +849,7 @@ private:
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
+    NApi::NNative::IClientPtr DictionariesClient_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
@@ -841,6 +871,7 @@ private:
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
     TCypressDictionaryConfigRepositoryPtr CypressDictionaryConfigRepository_;
+    IDictionaryAccessControlPtr DictionaryAccessControl_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -867,6 +898,7 @@ private:
         };
         RootClient_ = getClientForUser(Config_->User);
         CacheClient_ = getClientForUser(CacheUserName);
+        DictionariesClient_ = getClientForUser(DictionariesUserName);
     }
 
     void InitializeCaches()
@@ -880,7 +912,7 @@ private:
             Config_->TableAttributeCache,
             TableAttributesToFetch_,
             Connection_,
-            ControlInvoker_,
+            FetcherInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/object_attribute_cache"));
 
@@ -1099,6 +1131,7 @@ private:
             SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
         RegisterDataTypeTimestamp();
+        RegisterTzDataTypes();
     }
 };
 
@@ -1246,6 +1279,11 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
     return Impl_->GetRootClient();
 }
 
+NApi::NNative::IClientPtr THost::GetDictionariesClient() const
+{
+    return Impl_->GetDictionariesClient();
+}
+
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
@@ -1339,13 +1377,18 @@ void THost::RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::T
     Impl_->RemoveSqlObjectOnOtherInstances(objectName, revision);
 }
 
-void THost::ReloadDictionaryGlobally(const std::string& dictionaryName) const
+void THost::ReloadDictionaryGlobally(const std::string& configPath) const
 {
-    Impl_->ReloadDictionaryGlobally(dictionaryName);
+    Impl_->ReloadDictionaryGlobally(configPath);
 }
 
 TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepository() {
     return Impl_->GetCypressDictionaryConfigRepository();
+}
+
+void THost::PrepareClickHouseUser(const std::string& userName)
+{
+    Impl_->PrepareClickHouseUser(userName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

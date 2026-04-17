@@ -26,6 +26,7 @@
 #include <contrib/ydb/core/mind/bscontroller/yaml_config_helpers.h>
 #include <contrib/ydb/core/node_whiteboard/node_whiteboard.h>
 #include <contrib/ydb/core/protos/blobstorage_config.pb.h>
+#include <contrib/ydb/core/protos/blobstorage_ddisk.pb.h>
 #include <contrib/ydb/core/protos/blobstorage_distributed_config.pb.h>
 #include <contrib/ydb/core/protos/blobstorage.pb.h>
 #include <contrib/ydb/core/protos/counters_bs_controller.pb.h>

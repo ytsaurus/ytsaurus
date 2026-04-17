@@ -6,6 +6,7 @@
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_tree_balancer.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -162,7 +163,8 @@ TEST(TChunkTreeBalancerTest, Chain)
     EXPECT_EQ(ChainSize, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.Rebalance(root);
+    Y_UNUSED(rebalanceStatistics);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
 
@@ -193,7 +195,8 @@ TEST(TChunkTreeBalancerTest, ManyChunkLists)
     EXPECT_EQ(ChunkListCount + 1, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.Rebalance(root);
+    Y_UNUSED(rebalanceStatistics);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
 
@@ -218,7 +221,8 @@ TEST(TChunkTreeBalancerTest, EmptyChunkLists)
     EXPECT_EQ(2 * ChunkListCount + 1, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.Rebalance(root);
+    Y_UNUSED(rebalanceStatistics);
     EXPECT_EQ(1, root->Statistics().ChunkListCount);
 }
 
@@ -254,6 +258,43 @@ TEST(TChunkTreeBalancerTest, PermissiveMode)
     EXPECT_EQ(ChunkListCount + 1, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_FALSE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
+}
+
+TEST(TChunkTreeBalancerTest, UntouchedPrefixChunkCount)
+{
+    const int ChunkListCount = 5;
+
+    std::vector<std::unique_ptr<TChunk>> chunkStorage;
+    std::vector<std::unique_ptr<TChunkList>> chunkListStorage;
+    auto bootstrap = New<TChunkTreeBalancerCallbacksMock>(&chunkListStorage);
+    std::vector<TChunkTreeRawPtr> chunkLists;
+    auto createChunk = [&] () -> TChunk* {
+        chunkStorage.push_back(CreateChunk());
+        return chunkStorage.back().get();
+    };
+
+    auto root = bootstrap->CreateChunkList();
+    bootstrap->RefObject(root);
+    for (int i = 0; i < ChunkListCount; ++i) {
+        auto chunkList = bootstrap->CreateChunkList();
+        AttachToChunkListAndRef(chunkList, {createChunk(), createChunk()});
+        auto subRoot = bootstrap->CreateChunkList();
+        AttachToChunkListAndRef(subRoot, {chunkList});
+        EXPECT_EQ(2, subRoot->Statistics().ChunkCount);
+        chunkLists.push_back(chunkList);
+    }
+    AttachToChunkListAndRef(root, chunkLists);
+
+    EXPECT_EQ(ChunkListCount * 2, root->Statistics().ChunkCount);
+    EXPECT_EQ(ChunkListCount + 1, root->Statistics().ChunkListCount);
+
+    TChunkTreeBalancer balancer(bootstrap);
+
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
+    ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
+    auto rebalanceStatistics = balancer.Rebalance(root);
+    EXPECT_EQ(2, rebalanceStatistics.UntouchedPrefixChunkCount);
+    EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

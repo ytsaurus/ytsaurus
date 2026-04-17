@@ -22,7 +22,7 @@ struct TInstanceRackInfo
     THashMap<std::string, int> RackToBundleInstances;
     THashMap<std::string, int> RackToSpareInstances;
 
-    // Spare instances needed-for-minus one rack guarantee.
+    // Spare instances needed for minus one rack guarantee.
     int RequiredSpareNodeCount = 0;
 };
 
@@ -54,6 +54,7 @@ struct TDataCenterDisruptedState
 struct TSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
+    TBundleControllerDynamicConfigPtr DynamicConfig;
 
     TIndexedEntries<TZoneInfo> Zones;
     TIndexedEntries<TBundleInfo> Bundles;
@@ -80,7 +81,7 @@ struct TSchedulerInputState
 
     THashMap<std::string, TDataCenterRackInfo> ZoneToRacks;
 
-    TBundlesDynamicConfig DynamicConfig;
+    TBundlesDynamicConfig BundlesDynamicConfig;
 
     THashMap<std::string, TPerDataCenterSpareNodesInfo> ZoneToSpareNodes;
 
@@ -97,7 +98,7 @@ struct TSchedulerInputState
     THashMap<std::string, TInstanceCountBySize> AliveProxiesBySize;
 
     using TQualifiedDCName = std::pair<std::string, std::string>;
-    THashMap<TQualifiedDCName, TDataCenterDisruptedState> DatacenterDisrupted;
+    THashMap<TQualifiedDCName, TDataCenterDisruptedState> DataCenterDisruptionStatuses;
 
     THashMap<std::string, std::string> BundleToShortName;
 

@@ -4,6 +4,8 @@
 #include "bundle_controller_service.h"
 #include "cell_tracker.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
+#include "node_tracker.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -100,7 +102,7 @@ public:
             .Run();
     }
 
-    const NApi::NNative::IClientPtr& GetClient() override
+    const NApi::NNative::IClientPtr& GetClient() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -134,6 +136,20 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NativeAuthenticator_;
+    }
+
+    const INodeTrackerPtr& GetNodeTracker() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return NodeTracker_;
+    }
+
+    const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DynamicConfigManager_;
     }
 
     void ExecuteIteration(bool dryRun) override
@@ -173,7 +189,10 @@ private:
 
     ICypressElectionManagerPtr ElectionManager_;
     ICellTrackerPtr CellTracker_;
+    INodeTrackerPtr NodeTracker_;
     IBundleControllerPtr BundleController_;
+
+    TDynamicConfigManagerPtr DynamicConfigManager_;
 
     void DoRun()
     {
@@ -189,7 +208,11 @@ private:
         Connection_->GetClusterDirectorySynchronizer()->Start();
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::RootUserName);
+        const auto& bundleController = Config_->BundleController;
+        auto clientOptions = NNative::TClientOptions::FromUser(
+            bundleController && bundleController->UseDedicatedUserName
+                ? NSecurityClient::BundleControllerUserName
+                : NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
@@ -209,7 +232,9 @@ private:
             Config_->ElectionManager,
             options);
 
+        DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
+        NodeTracker_ = CreateNodeTracker();
         BundleController_ = CreateBundleController(this, Config_->BundleController);
 
         NMonitoring::Initialize(
@@ -223,6 +248,10 @@ private:
                 OrchidRoot_,
                 "/config",
                 CreateVirtualNode(ConfigNode_));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         }
         SetNodeByYPath(
             OrchidRoot_,
@@ -258,6 +287,8 @@ private:
         RegisterInstance();
 
         ElectionManager_->Start();
+
+        DynamicConfigManager_->Start();
 
         if (Config_->EnableCellBalancer) {
             CellTracker_->Start();

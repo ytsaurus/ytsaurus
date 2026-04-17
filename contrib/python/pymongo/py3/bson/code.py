@@ -12,33 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tools for representing JavaScript code in BSON.
-"""
+"""Tools for representing JavaScript code in BSON."""
+from __future__ import annotations
 
-from bson.py3compat import PY3, abc, string_type, text_type
+from collections.abc import Mapping as _Mapping
+from typing import Any, Mapping, Optional, Type, Union
 
 
 class Code(str):
     """BSON's JavaScript code type.
 
     Raises :class:`TypeError` if `code` is not an instance of
-    :class:`basestring` (:class:`str` in python 3) or `scope`
-    is not ``None`` or an instance of :class:`dict`.
+    :class:`str` or `scope` is not ``None`` or an instance
+    of :class:`dict`.
 
     Scope variables can be set by passing a dictionary as the `scope`
     argument or by using keyword arguments. If a variable is set as a
     keyword argument it will override any setting for that variable in
     the `scope` dictionary.
 
-    :Parameters:
-      - `code`: A string containing JavaScript code to be evaluated or another
+    :param code: A string containing JavaScript code to be evaluated or another
         instance of Code. In the latter case, the scope of `code` becomes this
         Code's :attr:`scope`.
-      - `scope` (optional): dictionary representing the scope in which
+    :param scope: dictionary representing the scope in which
         `code` should be evaluated - a mapping from identifiers (as
         strings) to values. Defaults to ``None``. This is applied after any
         scope associated with a given `code` above.
-      - `**kwargs` (optional): scope variables can also be passed as
+    :param kwargs: scope variables can also be passed as
         keyword arguments. These are applied after `scope` and `code`.
 
     .. versionchanged:: 3.4
@@ -47,51 +47,54 @@ class Code(str):
     """
 
     _type_marker = 13
+    __scope: Union[Mapping[str, Any], None]
 
-    def __new__(cls, code, scope=None, **kwargs):
-        if not isinstance(code, string_type):
-            raise TypeError("code must be an " "instance of %s" % (string_type.__name__))
+    def __new__(
+        cls: Type[Code],
+        code: Union[str, Code],
+        scope: Optional[Mapping[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Code:
+        if not isinstance(code, str):
+            raise TypeError(f"code must be an instance of str, not {type(code)}")
 
-        if not PY3 and isinstance(code, text_type):
-            self = str.__new__(cls, code.encode("utf8"))
-        else:
-            self = str.__new__(cls, code)
+        self = str.__new__(cls, code)
 
         try:
-            self.__scope = code.scope
+            self.__scope = code.scope  # type: ignore
         except AttributeError:
             self.__scope = None
 
         if scope is not None:
-            if not isinstance(scope, abc.Mapping):
-                raise TypeError("scope must be an instance of dict")
+            if not isinstance(scope, _Mapping):
+                raise TypeError(f"scope must be an instance of dict, not {type(scope)}")
             if self.__scope is not None:
-                self.__scope.update(scope)
+                self.__scope.update(scope)  # type: ignore
             else:
                 self.__scope = scope
 
         if kwargs:
             if self.__scope is not None:
-                self.__scope.update(kwargs)
+                self.__scope.update(kwargs)  # type: ignore
             else:
                 self.__scope = kwargs
 
         return self
 
     @property
-    def scope(self):
+    def scope(self) -> Optional[Mapping[str, Any]]:
         """Scope dictionary for this instance or ``None``."""
         return self.__scope
 
-    def __repr__(self):
-        return "Code(%s, %r)" % (str.__repr__(self), self.__scope)
+    def __repr__(self) -> str:
+        return f"Code({str.__repr__(self)}, {self.__scope!r})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Code):
             return (self.__scope, str(self)) == (other.__scope, str(other))
         return False
 
-    __hash__ = None
+    __hash__: Any = None
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self == other

@@ -10,6 +10,7 @@
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler_thread.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
@@ -368,8 +369,7 @@ public:
     {
         PrepareFile();
 
-        File_ = IOEngine_->Open({FileName_, EOpenModeFlag::RdWr})
-            .Get()
+        File_ = WaitFor(IOEngine_->Open({FileName_, EOpenModeFlag::RdWr}))
             .ValueOrThrow();
         Position_ = 0;
         MaxPosition_ = File_->GetLength();
@@ -467,7 +467,7 @@ private:
             shots.push_back(SingleShoot(ammo));
         }
 
-        AllSet(std::move(shots)).Get();
+        WaitFor(AllSet(std::move(shots))).ThrowOnError();
 
         -- Inflight_;
     }

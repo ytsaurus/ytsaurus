@@ -1,7 +1,5 @@
 UNITTEST_FOR(contrib/ydb/library/yql/dq/comp_nodes)
 
-SIZE(MEDIUM)
-
 PEERDIR(
     contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/comp_nodes/ut/utils
@@ -15,6 +13,15 @@ PEERDIR(
     library/cpp/dwarf_backtrace/registry
 
 )
+
+IF (SANITIZER_TYPE)
+    TIMEOUT(1800)
+    SIZE(LARGE)
+    INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
+ELSE()
+    TIMEOUT(600)
+    SIZE(MEDIUM)
+ENDIF()
 
 YQL_LAST_ABI_VERSION()
 

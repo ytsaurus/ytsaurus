@@ -24,6 +24,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NQueryClient;
 using namespace NSecurityServer;
+using namespace NTabletClient;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NServer;
@@ -71,10 +72,24 @@ public:
         auto indexTableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::IndexTableId.Unintern());
         auto predicate = attributes->FindAndRemove<std::string>(EInternedAttributeKey::Predicate.Unintern());
 
-        std::optional<std::string> unfoldedColumn;
-        if (kind == ESecondaryIndexKind::Unfolding) {
-            unfoldedColumn = attributes->GetAndRemove<std::string>(EInternedAttributeKey::UnfoldedColumn.Unintern());
-        }
+        auto getUnfoldedColumns = [&] {
+            if (auto unfoldedColumn = attributes->FindAndRemove<std::string>("unfolded_column")) {
+                attributes->Remove("unfolded_table_column");
+                attributes->Remove("unfolded_index_column");
+                return TUnfoldedColumns{
+                    .TableColumn = *unfoldedColumn,
+                    .IndexColumn = *unfoldedColumn,
+                };
+            } else {
+                return TUnfoldedColumns{
+                    .TableColumn = attributes->GetAndRemove<std::string>("unfolded_table_column"),
+                    .IndexColumn = attributes->GetAndRemove<std::string>("unfolded_index_column"),
+                };
+            }
+        };
+        auto unfoldedColumns = kind == ESecondaryIndexKind::Unfolding
+            ? std::optional(getUnfoldedColumns())
+            : std::nullopt;
 
         auto evaluatedColumns = attributes->FindAndRemove<TTableSchemaPtr>(
             EInternedAttributeKey::EvaluatedColumnsSchema.Unintern());
@@ -85,7 +100,7 @@ public:
             tableId,
             indexTableId,
             std::move(predicate),
-            std::move(unfoldedColumn),
+            std::move(unfoldedColumns),
             std::move(evaluatedColumns));
     }
 

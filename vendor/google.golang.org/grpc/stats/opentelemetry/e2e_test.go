@@ -25,6 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/health"
+	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
 	otelcodes "go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -361,7 +365,7 @@ func (s) TestMethodAttributeFilter(t *testing.T) {
 		{
 			Name:        "grpc.client.attempt.started",
 			Description: "Number of client call attempts started.",
-			Unit:        "attempt",
+			Unit:        "{attempt}",
 			Data: metricdata.Sum[int64]{
 				DataPoints: []metricdata.DataPoint[int64]{
 					{
@@ -487,7 +491,7 @@ func (s) TestAllMetricsOneFunction(t *testing.T) {
 		{
 			Name:        "grpc.client.attempt.started",
 			Description: "Number of client call attempts started.",
-			Unit:        "attempt",
+			Unit:        "{attempt}",
 			Data: metricdata.Sum[int64]{
 				DataPoints: []metricdata.DataPoint[int64]{
 					{
@@ -510,7 +514,7 @@ func (s) TestAllMetricsOneFunction(t *testing.T) {
 		{
 			Name:        "grpc.server.call.started",
 			Description: "Number of server calls started.",
-			Unit:        "call",
+			Unit:        "{call}",
 			Data: metricdata.Sum[int64]{
 				DataPoints: []metricdata.DataPoint[int64]{
 					{
@@ -673,7 +677,7 @@ func (s) TestWRRMetrics(t *testing.T) {
 	mo := opentelemetry.MetricsOptions{
 		MeterProvider:  provider,
 		Metrics:        opentelemetry.DefaultMetrics().Add("grpc.lb.wrr.rr_fallback", "grpc.lb.wrr.endpoint_weight_not_yet_usable", "grpc.lb.wrr.endpoint_weight_stale", "grpc.lb.wrr.endpoint_weights"),
-		OptionalLabels: []string{"grpc.lb.locality"},
+		OptionalLabels: []string{"grpc.lb.locality", "grpc.lb.backend_service"},
 	}
 
 	target := fmt.Sprintf("xds:///%s", serviceName)
@@ -699,16 +703,17 @@ func (s) TestWRRMetrics(t *testing.T) {
 
 	targetAttr := attribute.String("grpc.target", target)
 	localityAttr := attribute.String("grpc.lb.locality", `{region="region-1", zone="zone-1", sub_zone="subzone-1"}`)
+	backendServiceAttr := attribute.String("grpc.lb.backend_service", clusterName)
 
 	wantMetrics := []metricdata.Metrics{
 		{
 			Name:        "grpc.lb.wrr.rr_fallback",
 			Description: "EXPERIMENTAL. Number of scheduler updates in which there were not enough endpoints with valid weight, which caused the WRR policy to fall back to RR behavior.",
-			Unit:        "update",
+			Unit:        "{update}",
 			Data: metricdata.Sum[int64]{
 				DataPoints: []metricdata.DataPoint[int64]{
 					{
-						Attributes: attribute.NewSet(targetAttr, localityAttr),
+						Attributes: attribute.NewSet(targetAttr, localityAttr, backendServiceAttr),
 						Value:      1, // value ignored
 					},
 				},
@@ -720,11 +725,11 @@ func (s) TestWRRMetrics(t *testing.T) {
 		{
 			Name:        "grpc.lb.wrr.endpoint_weight_not_yet_usable",
 			Description: "EXPERIMENTAL. Number of endpoints from each scheduler update that don't yet have usable weight information (i.e., either the load report has not yet been received, or it is within the blackout period).",
-			Unit:        "endpoint",
+			Unit:        "{endpoint}",
 			Data: metricdata.Sum[int64]{
 				DataPoints: []metricdata.DataPoint[int64]{
 					{
-						Attributes: attribute.NewSet(targetAttr, localityAttr),
+						Attributes: attribute.NewSet(targetAttr, localityAttr, backendServiceAttr),
 						Value:      1, // value ignored
 					},
 				},
@@ -735,11 +740,11 @@ func (s) TestWRRMetrics(t *testing.T) {
 		{
 			Name:        "grpc.lb.wrr.endpoint_weights",
 			Description: "EXPERIMENTAL. Weight of each endpoint, recorded on every scheduler update. Endpoints without usable weights will be recorded as weight 0.",
-			Unit:        "endpoint",
+			Unit:        "{endpoint}",
 			Data: metricdata.Histogram[float64]{
 				DataPoints: []metricdata.HistogramDataPoint[float64]{
 					{
-						Attributes: attribute.NewSet(targetAttr, localityAttr),
+						Attributes: attribute.NewSet(targetAttr, localityAttr, backendServiceAttr),
 					},
 				},
 				Temporality: metricdata.CumulativeTemporality,
@@ -757,11 +762,11 @@ func (s) TestWRRMetrics(t *testing.T) {
 	eventuallyWantMetric := metricdata.Metrics{
 		Name:        "grpc.lb.wrr.endpoint_weight_stale",
 		Description: "EXPERIMENTAL. Number of endpoints from each scheduler update whose latest weight is older than the expiration period.",
-		Unit:        "endpoint",
+		Unit:        "{endpoint}",
 		Data: metricdata.Sum[int64]{
 			DataPoints: []metricdata.DataPoint[int64]{
 				{
-					Attributes: attribute.NewSet(targetAttr, localityAttr),
+					Attributes: attribute.NewSet(targetAttr, localityAttr, backendServiceAttr),
 					Value:      1, // value ignored
 				},
 			},
@@ -1510,7 +1515,7 @@ func (s) TestRPCSpanErrorStatus(t *testing.T) {
 	to, exporter := defaultTraceOptions(t)
 	const rpcErrorMsg = "unary call: internal server error"
 	ss := &stubserver.StubServer{
-		UnaryCallF: func(_ context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
+		UnaryCallF: func(context.Context, *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
 			return nil, fmt.Errorf("%v", rpcErrorMsg)
 		},
 	}
@@ -1559,7 +1564,7 @@ func (s) TestTraceSpan_WithRetriesAndNameResolutionDelay(t *testing.T) {
 			name: "unary",
 			setupStub: func() *stubserver.StubServer {
 				return &stubserver.StubServer{
-					UnaryCallF: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
+					UnaryCallF: func(ctx context.Context, _ *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
 						md, _ := metadata.FromIncomingContext(ctx)
 						headerAttempts := 0
 						if h := md["grpc-previous-rpc-attempts"]; len(h) > 0 {
@@ -1788,4 +1793,206 @@ func (s) TestStreamingRPC_TraceSequenceNumbers(t *testing.T) {
 		t.Fatal(err)
 	}
 	validateTraces(t, spans, wantSpanInfos)
+}
+
+// TestSubChannelMetrics tests subchannel metrics emitted during connection
+// lifecycle events (connect, disconnect, failure).
+func (s) TestSubChannelMetrics(t *testing.T) {
+	// Start a single backend server.
+	backend := stubserver.StartTestService(t, &stubserver.StubServer{
+		EmptyCallF: func(_ context.Context, _ *testpb.Empty) (*testpb.Empty, error) {
+			return &testpb.Empty{}, nil
+		},
+	})
+	port := itestutils.ParsePort(t, backend.Address)
+	defer backend.Stop()
+
+	const serviceName = "my-service-client-side-xds"
+
+	// Configure xDS for that single backend.
+	managementServer, nodeID, _, xdsResolver := setup.ManagementServerAndResolver(t)
+	routeConfigName := "route-" + serviceName
+	clusterName := "cluster-" + serviceName
+	endpointsName := "endpoints-" + serviceName
+
+	resources := e2e.UpdateOptions{
+		NodeID:    nodeID,
+		Listeners: []*v3listenerpb.Listener{e2e.DefaultClientListener(serviceName, routeConfigName)},
+		Routes:    []*v3routepb.RouteConfiguration{e2e.DefaultRouteConfig(routeConfigName, serviceName, clusterName)},
+		Clusters:  []*v3clusterpb.Cluster{e2e.DefaultCluster(clusterName, endpointsName, e2e.SecurityLevelNone)},
+		Endpoints: []*v3endpointpb.ClusterLoadAssignment{e2e.EndpointResourceWithOptions(e2e.EndpointOptions{
+			ClusterName: endpointsName,
+			Host:        "localhost",
+			Localities: []e2e.LocalityOptions{
+				{
+					Backends: []e2e.BackendOptions{{Ports: []uint32{port}}},
+					Weight:   1,
+				},
+			},
+		})},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	defer cancel()
+	if err := managementServer.Update(ctx, resources); err != nil {
+		t.Fatal(err)
+	}
+
+	// Setup Telemetry.
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+	mo := opentelemetry.MetricsOptions{
+		MeterProvider: provider,
+		Metrics: opentelemetry.DefaultMetrics().Add(
+			"grpc.subchannel.connection_attempts_succeeded",
+			"grpc.subchannel.open_connections",
+			"grpc.subchannel.disconnections",
+			"grpc.subchannel.connection_attempts_failed",
+		),
+		OptionalLabels: []string{
+			"grpc.lb.locality",
+			"grpc.lb.backend_service",
+			"grpc.security_level",
+			"grpc.disconnect_error",
+		},
+	}
+
+	target := fmt.Sprintf("xds:///%s", serviceName)
+	cc, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithResolvers(xdsResolver), opentelemetry.DialOption(opentelemetry.Options{MetricsOptions: mo}))
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	defer cc.Close()
+	client := testgrpc.NewTestServiceClient(cc)
+
+	if _, err := client.EmptyCall(ctx, &testpb.Empty{}); err != nil {
+		t.Fatalf("rpc failed: %v", err)
+	}
+
+	targetAttr := attribute.String("grpc.target", target)
+	localityAttr := attribute.String("grpc.lb.locality", `{region="region-1", zone="zone-1", sub_zone="subzone-1"}`)
+	backendServiceAttr := attribute.String("grpc.lb.backend_service", clusterName)
+	disconnectionReasonAttr := attribute.String("grpc.disconnect_error", "unknown")
+	securityLevelAttr := attribute.String("grpc.security_level", "NoSecurity")
+
+	// Verify Connect Metrics.
+	wantMetrics := []metricdata.Metrics{
+		{
+			Name:        "grpc.subchannel.connection_attempts_succeeded",
+			Description: "EXPERIMENTAL. Number of successful connection attempts.",
+			Unit:        "{attempt}",
+			Data: metricdata.Sum[int64]{
+				DataPoints: []metricdata.DataPoint[int64]{
+					{
+						Attributes: attribute.NewSet(targetAttr, backendServiceAttr, localityAttr),
+						Value:      1,
+					},
+				},
+				Temporality: metricdata.CumulativeTemporality,
+				IsMonotonic: true,
+			},
+		},
+		{
+			Name:        "grpc.subchannel.open_connections",
+			Description: "EXPERIMENTAL. Number of open connections.",
+			Unit:        "{attempt}",
+			Data: metricdata.Sum[int64]{
+				DataPoints: []metricdata.DataPoint[int64]{
+					{
+						Attributes: attribute.NewSet(targetAttr, backendServiceAttr, securityLevelAttr, localityAttr),
+						Value:      1,
+					},
+				},
+				Temporality: metricdata.CumulativeTemporality,
+				IsMonotonic: false,
+			},
+		},
+	}
+	if err := pollForWantMetrics(ctx, t, reader, wantMetrics); err != nil {
+		t.Fatal(err)
+	}
+
+	// Stop backend to trigger Disconnect Metrics.
+	backend.Stop()
+
+	disconnectionWantMetrics := []metricdata.Metrics{
+		{
+			Name:        "grpc.subchannel.disconnections",
+			Description: "EXPERIMENTAL. Number of times the selected subchannel becomes disconnected.",
+			Unit:        "{disconnection}",
+			Data: metricdata.Sum[int64]{
+				DataPoints: []metricdata.DataPoint[int64]{
+					{
+						Attributes: attribute.NewSet(targetAttr, backendServiceAttr, localityAttr, disconnectionReasonAttr),
+						Value:      1,
+					},
+				},
+				Temporality: metricdata.CumulativeTemporality,
+				IsMonotonic: true,
+			},
+		},
+		{
+			Name:        "grpc.subchannel.connection_attempts_failed",
+			Description: "EXPERIMENTAL. Number of failed connection attempts.",
+			Unit:        "{attempt}",
+			Data: metricdata.Sum[int64]{
+				DataPoints: []metricdata.DataPoint[int64]{
+					{
+						Attributes: attribute.NewSet(targetAttr, backendServiceAttr, localityAttr),
+						Value:      1, // It will try to reconnect at least once
+					},
+				},
+				Temporality: metricdata.CumulativeTemporality,
+				IsMonotonic: true,
+			},
+		},
+	}
+
+	if err := pollForWantMetrics(ctx, t, reader, disconnectionWantMetrics); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (s) TestHealthStreamNoOtelErrorLog(t *testing.T) {
+	mo, _ := defaultMetricsOptions(t, nil)
+	to, _ := defaultTraceOptions(t)
+	otelOptions := opentelemetry.Options{
+		MetricsOptions: *mo,
+		TraceOptions:   *to,
+	}
+
+	healthcheck := health.NewServer()
+
+	backend := stubserver.StartTestService(t, &stubserver.StubServer{
+		EmptyCallF: func(_ context.Context, _ *testpb.Empty) (*testpb.Empty, error) {
+			return &testpb.Empty{}, nil
+		},
+	}, stubserver.RegisterServiceServerOption(func(s grpc.ServiceRegistrar) {
+		healthgrpc.RegisterHealthServer(s, healthcheck)
+	}))
+	defer backend.Stop()
+
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+
+	// Dial with healthCheckConfig to trigger the internal health stream.
+	sc := `{"loadBalancingConfig": [{"round_robin":{}}], "healthCheckConfig": {"serviceName": ""}}`
+	dopts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		opentelemetry.DialOption(otelOptions),
+		grpc.WithDefaultServiceConfig(sc),
+	}
+
+	cc, err := grpc.NewClient(backend.Address, dopts...)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	defer cc.Close()
+
+	// Perform an RPC to ensure the subchannel connects and health stream initializes.
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	defer cancel()
+	client := testgrpc.NewTestServiceClient(cc)
+	if _, err := client.EmptyCall(ctx, &testpb.Empty{}); err != nil {
+		t.Fatalf("EmptyCall failed: %v", err)
+	}
 }

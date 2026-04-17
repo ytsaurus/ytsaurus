@@ -115,8 +115,7 @@ private:
 
     TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount,
-        bool truncateExtraBlocks) override;
+        std::optional<int> blockCount) override;
     TFinishResult OnFinished(
         NNode::TLocationFairShareSlotPtr fairShareQueueSlot,
         const TError& error);

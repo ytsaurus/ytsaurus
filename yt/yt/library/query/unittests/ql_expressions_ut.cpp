@@ -1931,7 +1931,7 @@ TEST_F(TExpressionTest, NonNullableVariableForNullableArgument)
         *schema,
         GetBuiltinTypeInferrers(),
         /*references*/ nullptr,
-        /*exprBuilderVersion*/ 2);
+        TPreparePlanFragmentOptions{.BuilderVersion = 2});
     EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
     Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -2754,8 +2754,8 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
         {EValueType::Int64},
         EValueType::Int64,
         EValueType::Int64,
-        "xor_aggregate",
-        ECallingConvention::UnversionedValue);
+        EValueType::Null,
+        "xor_aggregate");
 
     auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
     usedWebAssemblyFiles->insert(NWebAssembly::GetBuiltinYtQlUdfs());
@@ -2828,8 +2828,8 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         {EValueType::String},
         EValueType::String,
         EValueType::String,
-        "concat_all",
-        ECallingConvention::UnversionedValue);
+        EValueType::Null,
+        "concat_all");
 
     auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
     usedWebAssemblyFiles->insert(NWebAssembly::GetBuiltinYtQlUdfs());

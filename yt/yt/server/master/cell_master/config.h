@@ -181,7 +181,6 @@ struct TTestConfig
 {
     // NB: Temporary field to test dynamic propagation of master cells to nodes.
     TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
-    THashSet<NObjectClient::TCellTag> DiscoveredMastersCellTags;
 
     //! This can simulate connection instability.
     /*!

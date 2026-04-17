@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"os"
 	"reflect"
 	"runtime"
@@ -41,8 +42,8 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
 	rsaPrivateKeyFile             = "fixtures/key.pem"
 	certificateFile               = "fixtures/cert.pem"
 	multiCertificateFile          = "fixtures/multi.pem"
-	rsaEncryptedPrivateKeyFile    = "fixtures/encrypted_key.pem"
-	certificateOfEncryptedKeyFile = "fixtures/cert_of_encrypted_key.pem"
+	rsaEncryptedPrivateKeyFile    = "fixtures/encrypted_key.pem"         // TODO add code to regenerate in fixtures/generate.go
+	certificateOfEncryptedKeyFile = "fixtures/cert_of_encrypted_key.pem" // TODO add code to regenerate in fixtures/generate.go
 )
 
 // returns the name of a pre-generated, multiple-certificate CA file
@@ -72,8 +73,8 @@ func TestConfigServerTLSFailsIfUnableToLoadCerts(t *testing.T) {
 	if err != nil {
 		t.Fatal("Unable to create temporary empty file")
 	}
-	defer os.RemoveAll(tempFile.Name())
-	tempFile.Close()
+	defer func() { _ = os.RemoveAll(tempFile.Name()) }()
+	_ = tempFile.Close()
 
 	for _, badFile := range []string{"not-a-file", tempFile.Name()} {
 		for i := 0; i < 3; i++ {
@@ -125,9 +126,6 @@ func TestConfigServerTLSServerCertsOnly(t *testing.T) {
 
 	if !reflect.DeepEqual(tlsConfig.CipherSuites, DefaultServerAcceptedCiphers) {
 		t.Fatal("Unexpected server cipher suites")
-	}
-	if !tlsConfig.PreferServerCipherSuites { //nolint:staticcheck // Ignore SA1019: tlsConfig.PreferServerCipherSuites has been deprecated since Go 1.18: PreferServerCipherSuites is ignored.
-		t.Fatal("Expected server to prefer cipher suites")
 	}
 	if tlsConfig.MinVersion != tls.VersionTLS12 {
 		t.Fatal("Unexpected server TLS version")
@@ -397,7 +395,7 @@ func TestConfigClientTLSNoVerify(t *testing.T) {
 		t.Fatal("Should not have set Root CAs", err)
 	}
 
-	if !reflect.DeepEqual(tlsConfig.CipherSuites, clientCipherSuites) {
+	if !reflect.DeepEqual(tlsConfig.CipherSuites, defaultCipherSuites) {
 		t.Fatal("Unexpected client cipher suites")
 	}
 	if tlsConfig.MinVersion != tls.VersionTLS12 {
@@ -422,7 +420,7 @@ func TestConfigClientTLSNoRoot(t *testing.T) {
 		t.Fatal("Should not have set Root CAs", err)
 	}
 
-	if !reflect.DeepEqual(tlsConfig.CipherSuites, clientCipherSuites) {
+	if !reflect.DeepEqual(tlsConfig.CipherSuites, defaultCipherSuites) {
 		t.Fatal("Unexpected client cipher suites")
 	}
 	if tlsConfig.MinVersion != tls.VersionTLS12 {
@@ -474,7 +472,7 @@ func TestConfigClientTLSClientCertOrKeyInvalid(t *testing.T) {
 	if err != nil {
 		t.Fatal("Unable to create temporary empty file")
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 	_ = tempFile.Close()
 
 	for i := 0; i < 2; i++ {
@@ -523,39 +521,18 @@ func TestConfigClientTLSValidClientCertAndKey(t *testing.T) {
 	}
 }
 
-// The certificate is set if the client cert and encrypted client key are
-// provided and valid and passphrase can decrypt the key
-func TestConfigClientTLSValidClientCertAndEncryptedKey(t *testing.T) {
+func TestConfigClientTLSEncryptedKey(t *testing.T) {
 	key, cert := getCertAndEncryptedKey()
 
 	tlsConfig, err := Client(Options{
-		CertFile:   cert,
-		KeyFile:    key,
-		Passphrase: "FooBar123",
+		CertFile: cert,
+		KeyFile:  key,
 	})
-
-	if err != nil || tlsConfig == nil {
-		t.Fatal("Unable to configure client TLS", err)
+	if !errors.Is(err, errEncryptedKeyDeprecated) {
+		t.Errorf("Expected %v but got %v", errEncryptedKeyDeprecated, err)
 	}
-
-	if len(tlsConfig.Certificates) != 1 {
-		t.Fatal("Unexpected client certificates")
-	}
-}
-
-// The certificate is not set if the provided passphrase cannot decrypt
-// the encrypted key.
-func TestConfigClientTLSNotSetWithInvalidPassphrase(t *testing.T) {
-	key, cert := getCertAndEncryptedKey()
-
-	tlsConfig, err := Client(Options{
-		CertFile:   cert,
-		KeyFile:    key,
-		Passphrase: "InvalidPassphrase",
-	})
-
-	if !IsErrEncryptedKey(err) || tlsConfig != nil {
-		t.Fatal("Expected failure due to incorrect passphrase.")
+	if tlsConfig != nil {
+		t.Errorf("Expected nil but got %v", tlsConfig)
 	}
 }
 

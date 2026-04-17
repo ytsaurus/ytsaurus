@@ -98,6 +98,11 @@ struct IChunkManager
         NChunkClient::NProto::TRspSealChunk>;
     using TCtxSealChunkPtr = TIntrusivePtr<TCtxSealChunk>;
 
+    using TCtxScheduleChunkSeal = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqScheduleChunkSeal,
+        NChunkClient::NProto::TRspScheduleChunkSeal>;
+    using TCtxScheduleChunkSealPtr = TIntrusivePtr<TCtxScheduleChunkSeal>;
+
     using TCtxCreateChunkLists = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqCreateChunkLists,
         NChunkClient::NProto::TRspCreateChunkLists>;
@@ -123,6 +128,8 @@ struct IChunkManager
         NChunkClient::NProto::TRspConfirmChunk* response) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateSealChunkMutation(
         TCtxSealChunkPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateScheduleChunkSealMutation(
+        TCtxScheduleChunkSealPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkListsMutation(
         TCtxCreateChunkListsPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateUnstageChunkTreeMutation(
@@ -289,8 +296,11 @@ struct IChunkManager
 
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.
-    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfoWithReplicaFetch(
         TChunk* chunk) = 0;
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+        TChunk* chunk,
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) = 0;
     virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
         TChunkId chunkId,
         bool overlayed,
@@ -321,7 +331,7 @@ struct IChunkManager
     virtual void SetMediumConfig(TDomesticMedium* medium, TDomesticMediumConfigPtr newConfig) = 0;
 
     //! Returns the medium with a given name (|nullptr| if none).
-    virtual TMedium* FindMediumByName(const std::string& name) const = 0;
+    virtual TMedium* FindMediumByName(const std::string& name, bool throwOnInvalidId) const = 0;
 
     //! Returns the medium with a given name (throws if none).
     virtual TMedium* GetMediumByNameOrThrow(const std::string& name) const = 0;
@@ -384,7 +394,9 @@ struct IChunkManager
     virtual TFuture<void> ConfirmSequoiaChunk(
         NChunkClient::NProto::TReqConfirmChunk* request) = 0;
     virtual TFuture<void> ConfirmSequoiaChunkBatched(
-        NChunkClient::NProto::TReqConfirmChunk* request) = 0;
+        NChunkClient::NProto::TReqConfirmChunk request) = 0;
+
+    virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
 
 private:
     friend class TChunkTypeHandler;
@@ -398,6 +410,8 @@ private:
     virtual void DestroyChunk(TChunk* chunk) = 0;
     virtual void ExportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag) = 0;
     virtual void UnexportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag, int importRefCounter) = 0;
+
+    virtual bool IsDurabilityRequiredForChunk(TChunk* chunk, TChunkRequisitionIndex requisitionIndex) = 0;
 
     virtual NHydra::TEntityMap<TChunkList>& MutableChunkLists() = 0;
     virtual void DestroyChunkList(TChunkList* chunkList) = 0;

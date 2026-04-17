@@ -202,6 +202,7 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
+            YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
 
             std::vector<TLegacyDataSlicePtr> foreignSlices;
             for (const auto& stripe : GetStripeList(cookie)->Stripes()) {
@@ -232,13 +233,6 @@ public:
             ValidateChildJobSizes(cookie, childCookies, [&] (TOutputCookie cookie) {
                 return GetStripeList(cookie);
             });
-
-            for (const auto& stripe : GetStripeList(cookie)->Stripes()) {
-                // TODO(apollo1321): Chunk stripe list aggregate statistics should be updated.
-                if (stripe->IsForeign()) {
-                    stripe->DataSlices().clear();
-                }
-            }
 
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
@@ -571,7 +565,7 @@ private:
 
         i64 totalTeleportChunkSize = 0;
         for (const auto& teleportChunk : TeleportChunks_) {
-            ChunkTeleported_.Fire(teleportChunk, /* tag = */ std::any{});
+            ChunkTeleported_.Fire(teleportChunk, /*tag*/ std::any{});
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 
@@ -748,6 +742,8 @@ private:
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
             /*samplingRate*/ std::nullopt);
+
+        YT_LOG_DEBUG("Initialized constraints (Constraints: %v)", jobSizeConstraints);
 
         auto splitSortedJobOptions = SortedJobOptions_;
         // We do not want to yield during job splitting because it may potentially lead

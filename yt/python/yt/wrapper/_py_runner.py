@@ -1,6 +1,3 @@
-from __future__ import print_function
-
-
 def lsb_release():
     """ Simplified implementation of distro.linux_distribution().
 

@@ -139,7 +139,7 @@ struct THeapItem
     }
 };
 
-bool operator < (const THeapItem& lhs, const THeapItem& rhs)
+bool operator<(const THeapItem& lhs, const THeapItem& rhs)
 {
     return lhs.Bucket->ExcessTime < rhs.Bucket->ExcessTime;
 }
@@ -170,6 +170,11 @@ public:
     ~TTwoLevelFairShareQueue()
     {
         Shutdown();
+    }
+
+    void SetWeightProvider(IPoolWeightProviderPtr weightProvider)
+    {
+        PoolWeightProvider_ = std::move(weightProvider);
     }
 
     void Configure(int threadCount)
@@ -462,7 +467,8 @@ private:
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
     const std::string ThreadNamePrefix_;
     const TProfiler Profiler_;
-    const IPoolWeightProviderPtr PoolWeightProvider_;
+
+    IPoolWeightProviderPtr PoolWeightProvider_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     // NB: We set this flag to true so that whomever may spam tasks to queue
@@ -708,6 +714,11 @@ public:
     void UnsubscribeWaitTimeObserved(const TWaitTimeObserver& callback) override
     {
         Queue_->UnsubscribeWaitTimeObserved(callback);
+    }
+
+    void SetWeightProvider(IPoolWeightProviderPtr weightProvider) override
+    {
+        Queue_->SetWeightProvider(std::move(weightProvider));
     }
 
 private:

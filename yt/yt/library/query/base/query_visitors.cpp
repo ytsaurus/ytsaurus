@@ -12,7 +12,7 @@ TConstExpressionPtr TSelfifyRewriter::OnReference(const TReferenceExpression* re
         Success = false;
         return reference;
     }
-    return SelfEquations[it->second].Expression;
+    return SelfEquations[it->second];
 }
 
 TConstExpressionPtr TAddAliasRewriter::OnReference(const TReferenceExpression* reference)

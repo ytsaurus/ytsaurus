@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.73.0)
+VERSION(v1.79.3)
 
 SRCS(
     googlecloud.go
@@ -31,6 +31,12 @@ ENDIF()
 IF (OS_ANDROID)
     SRCS(
         manufacturer_linux.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        manufacturer.go
     )
 ENDIF()
 

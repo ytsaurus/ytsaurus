@@ -8,6 +8,10 @@
 #include "cypress_config_repository.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
+
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -39,6 +43,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -52,7 +57,7 @@ TYtDatabaseBase::TYtDatabaseBase(String databaseName)
 
 void TYtDatabaseBase::createTable(
     const DB::ContextPtr context,
-    const std::string& name,
+    const std::string& /*name*/,
     const DB::StoragePtr& table,
     const DB::ASTPtr& /*query*/)
 {
@@ -61,7 +66,7 @@ void TYtDatabaseBase::createTable(
         auto host = queryContext->Host;
         host->GetCypressDictionaryConfigRepository()->WriteDictionary(
             context,
-            name,
+            table->getStorageID(),
             dynamic_pointer_cast<DB::StorageDictionary>(table)->getConfiguration());
     }
     else if (table->getName() != "StorageDistributor") {
@@ -116,22 +121,39 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
         SlashedStatisticPath(
             Format("/%v_database/drop_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
+    #ifndef NDEBUG
+    if (auto breakpointFilename = queryContext->SessionSettings->Testing->DropTableBreakpoint) {
+        HandleBreakpoint(*breakpointFilename, queryContext->Client());
+    }
+    #endif
+
     DB::StorageID tableId(getDatabaseName(), name);
-    if (context->getExternalDictionariesLoader().has(tableId.getFullTableName())) {
+    if (queryContext->LastResolvedDictionaryName == name) {
         host->GetCypressDictionaryConfigRepository()->DeleteDictionary(context, tableId);
         return;
     }
 
     TYPath path = getTableDataPath(name);
 
-    // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
-    auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
-    auto batchReq = proxy.ExecuteBatch();
-    batchReq->AddRequest(TYPathProxy::Remove(path));
-    auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-    auto refreshRevision = NHydra::TRevision(batchRsp->GetRevision(0).Underlying() + 1);
+    if (queryContext->ParentTransactionId) {
+        queryContext->InitializeQueryWriteTransaction();
 
-    InvalidateCache(queryContext, {{path, refreshRevision}});
+        TRemoveNodeOptions options;
+        options.TransactionId = queryContext->WriteTransactionId;
+        WaitFor(queryContext->Client()->RemoveNode(path, options))
+            .ThrowOnError();
+
+        queryContext->CommitWriteTransaction();
+    } else {
+        // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
+        auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(TYPathProxy::Remove(path));
+        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
+        auto refreshRevision = NHydra::TRevision(batchRsp->GetRevision(0).Underlying() + 1);
+
+        InvalidateCache(queryContext, {{path, refreshRevision}});
+    }
 }
 
 void TYtDatabaseBase::renameTable(
@@ -155,14 +177,22 @@ void TYtDatabaseBase::renameTable(
     TYPath srcPath = getTableDataPath(name);
     TYPath dstPath = getTableDataPath(toName);
 
+    bool invalidateCache = queryContext->ParentTransactionId == NObjectClient::NullTransactionId;
+
     const auto& Logger = ClickHouseYtLogger;
-    YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v)", srcPath, dstPath, exchange);
+    YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v, InvalidateCache: %v)",
+        srcPath,
+        dstPath,
+        exchange,
+        invalidateCache);
 
     auto srcRefreshRevision = NHydra::NullRevision;
-    auto dstRefreshRevision = NHydra::NullRevision;
     if (exchange) {
-        auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
+        auto transaction = WaitFor(client->StartTransaction(
+            NTransactionClient::ETransactionType::Master,
+            {.ParentId = queryContext->ParentTransactionId}))
             .ValueOrThrow();
+
         auto tmpPath = TYPath(Format("//tmp/tmp_exchange_table_%v", transaction->GetId()));
 
         WaitFor(transaction->MoveNode(srcPath, tmpPath))
@@ -175,14 +205,22 @@ void TYtDatabaseBase::renameTable(
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        srcRefreshRevision = GetRefreshRevision(client, srcPath);
+        if (invalidateCache) {
+            srcRefreshRevision = GetRefreshRevision(client, srcPath);
+        }
     } else {
-        WaitFor(client->MoveNode(srcPath, dstPath))
+        TMoveNodeOptions options;
+        options.TransactionId = queryContext->ParentTransactionId;
+        WaitFor(client->MoveNode(srcPath, dstPath, options))
             .ThrowOnError();
     }
-    dstRefreshRevision = GetRefreshRevision(client, dstPath);
+    auto dstRefreshRevision = invalidateCache
+        ? GetRefreshRevision(client, dstPath)
+        : NHydra::NullRevision;
 
-    InvalidateCache(queryContext, {{srcPath, srcRefreshRevision}, {dstPath, dstRefreshRevision}});
+    if (invalidateCache) {
+        InvalidateCache(queryContext, {{srcPath, srcRefreshRevision}, {dstPath, dstRefreshRevision}});
+    }
 }
 
 DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const
@@ -191,7 +229,7 @@ DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::Cont
     auto path = TRichYPath::Parse(getTableDataPath(name));
 
     TGetNodeOptions options;
-    static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
+    static_cast<TMasterReadOptions&>(options) = *queryContext->SessionSettings->CypressReadOptions;
     options.Attributes = {
         "compression_codec",
         "erasure_codec",
@@ -233,26 +271,62 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     DB::ContextPtr context,
     const String& name) const
 {
-    auto tableId = DB::StorageID(getDatabaseName(), name);
-    if (context->getExternalDictionariesLoader().has(tableId.getFullTableName())) {
-        return DoGetDictionary(context, tableId);
-    }
-
+    DB::StorageID storageId{getDatabaseName(), name};
     // Normally it's called with a query context.
     // In rare cases CH tries to find special tables (e.g. Dictionary)
     // outside of query execution and provides a global context.
-    // We do not support such tables, so returning nullptr is fine.
+    // When called with a global context, we only attempt to retrieve dictionaries.
     if (context->isGlobalContext()) {
-        return nullptr;
+        return DoGetDictionary(context, /*queryContext*/ nullptr, storageId);
     }
 
     auto* queryContext = GetQueryContext(context);
+    auto settings = queryContext->GetContextSettings(context);
+    auto invoker = queryContext->Host->GetClickHouseFetcherInvoker();
+
+    auto tableFuture = BIND(&TYtDatabaseBase::DoGetYtTable, Unretained(this),
+        context,
+        Unretained(queryContext),
+        storageId).AsyncVia(invoker).Run();
+    auto dictionaryFuture = BIND(&TYtDatabaseBase::DoGetDictionary, Unretained(this),
+        context,
+        Unretained(queryContext),
+        storageId).AsyncVia(invoker).Run();
+
+    WaitFor(AllSucceeded(std::vector({tableFuture.AsVoid(), dictionaryFuture.AsVoid()})))
+        .ThrowOnError();
+
+    auto table = tableFuture.GetOrCrash().ValueOrThrow();
+    auto dictionary = dictionaryFuture.GetOrCrash().ValueOrThrow();
+
+    DB::StoragePtr result;
+    if (table && dictionary) {
+        if (settings->StorageConflictResolveMode == EStorageConflictResolveMode::Throw) {
+            THROW_ERROR_EXCEPTION(
+                "CHYT failed to resolve storage object from name %Qv "
+                "because both a YT table and a clique object exist with this name. "
+                "Specify setting chyt.storage_conflict_resolve_mode = {clique,yt} to choose which one to use.",
+                name);
+        }
+        result = settings->StorageConflictResolveMode == EStorageConflictResolveMode::Clique ? dictionary : table;
+    } else {
+        result = table ? table : dictionary;
+    }
+
+    if (result != nullptr && result->isDictionary()) {
+        queryContext->LastResolvedDictionaryName = name;
+    }
+
+    return result;
+}
+
+DB::StoragePtr TYtDatabaseBase::DoGetYtTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const
+{
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
         SlashedStatisticPath(
-            Format("/%v_database/do_get_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
+            Format("/%v_database/do_get_yt_table", to_lower(TString(storageId.database_name)))).ValueOrThrow());
 
-
-    TYPath path = getTableDataPath(name);
+    TYPath path = getTableDataPath(storageId.table_name);
     TRichYPath richPath;
     try {
         richPath = TRichYPath::Parse(path);
@@ -265,10 +339,10 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
             queryContext,
             {std::move(richPath)},
             /*skipUnsuitableNodes*/ false,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        return CreateStorageDistributor(context, std::move(tables), DB::StorageID{getDatabaseName(), name});
+        return CreateStorageDistributor(context, std::move(tables), storageId);
     } catch (const TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return nullptr;
@@ -277,14 +351,25 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     }
 }
 
-DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, const DB::StorageID& storageId) const {
-    auto loadResult = context->getExternalDictionariesLoader().getLoadResult(storageId.getFullTableName());
+DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryContext* /*qC*/, const DB::StorageID& storageId) const {
+    auto name = storageId.getInternalDictionaryName();
+
+    auto& loader = context->getExternalDictionariesLoader();
+    if (!loader.has(name)) {
+        return nullptr;
+    }
+
+    auto loadResult = loader.getLoadResult(name);
     if (!loadResult.config) {
         return nullptr;
     }
+
     return std::make_shared<DB::StorageDictionary>(
-        DB::StorageID(getDatabaseName(), loadResult.name),
-        loadResult.config->config,
+        storageId,
+        loadResult.name,
+        DB::ExternalDictionariesLoader::getDictionaryStructure(*loadResult.config),
+        loadResult.config->config->getString("dictionary.comment", ""),
+        DB::StorageDictionary::Location::SameDatabaseAndNameAsDictionary,
         context);
 }
 

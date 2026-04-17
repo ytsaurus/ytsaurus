@@ -8,8 +8,8 @@
    uint64_t hash=wyhash(s.c_str(), s.size(), 0, _wyp);
 */
 
-#ifndef wyhash_final_version_4_2
-#define wyhash_final_version_4_2
+#ifndef wyhash_final_version_4_3
+#define wyhash_final_version_4_3
 
 #ifndef WYHASH_CONDOM
 //protections that produce different results:
@@ -149,6 +149,7 @@ static inline uint64_t wyhash64(uint64_t A, uint64_t B){ A^=0x2d358dccaa6c78a5ul
 
 //The wyrand PRNG that pass BigCrush and PractRand
 static inline uint64_t wyrand(uint64_t *seed){ *seed+=0x2d358dccaa6c78a5ull; return _wymix(*seed,*seed^0x8bb84b93962eacc9ull);}
+static inline uint64_t w1rand(uint64_t *seed){ const uint64_t c=0xd07ebc63274654c7ull; *seed+=c; return _wymix(*seed,*seed^c);}
 
 //convert any 64 bit pseudo random numbers to uniform distribution [0,1). It can be combined with wyrand, wyhash64 or wyhash.
 static inline double wy2u01(uint64_t r){ const double _wynorm=1.0/(1ull<<52); return (r>>12)*_wynorm;}

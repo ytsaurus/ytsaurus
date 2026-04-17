@@ -21,7 +21,7 @@ TQueueAgentClientDirectory::TClientContext TQueueAgentClientDirectory::GetDataRe
     const TObjectSnapshotPtr& snapshot,
     bool onlyDataReplicas)
 {
-    const auto& object = snapshot->Row.Ref;
+    const auto& object = snapshot->Row.Path;
 
     if (!snapshot->Row.ObjectType) {
         THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type", object);
@@ -34,8 +34,8 @@ TQueueAgentClientDirectory::TClientContext TQueueAgentClientDirectory::GetDataRe
         case NCypressClient::EObjectType::Table:
         case NCypressClient::EObjectType::ReplicatedTable:
             return {
-                .Client = ClientDirectory_->GetClientOrThrow(object.Cluster),
-                .Path = object.Path
+                .Client = ClientDirectory_->GetClientOrThrow(object.GetCluster().value()),
+                .Path = object.GetPath()
             };
         case NCypressClient::EObjectType::ChaosReplicatedTable: {
             if (!replicatedTableMappingRow) {
@@ -68,7 +68,7 @@ TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::Get
     const TObjectSnapshotPtr& snapshot,
     bool onlyDataReplicas)
 {
-    const auto& object = snapshot->Row.Ref;
+    const auto& object = snapshot->Row.Path;
 
     if (!snapshot->Row.ObjectType) {
         THROW_ERROR_EXCEPTION("Cannot get client for object %Qv with unknown object type",
@@ -81,8 +81,8 @@ TQueueAgentClientDirectory::TNativeClientContext TQueueAgentClientDirectory::Get
     switch (objectType) {
         case NCypressClient::EObjectType::Table:
             return {
-                .Client = ClientDirectory_->GetClientOrThrow(object.Cluster),
-                .Path = object.Path,
+                .Client = ClientDirectory_->GetClientOrThrow(object.GetCluster().value()),
+                .Path = object.GetPath(),
             };
         case NCypressClient::EObjectType::ReplicatedTable:
         case NCypressClient::EObjectType::ChaosReplicatedTable: {

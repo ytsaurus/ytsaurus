@@ -2813,6 +2813,53 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert 0 < first_read <= first_written
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_key_widening_and_non_materialized_columns(self, optimize_for):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        schema = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "num", "type": "int64"},
+            {
+                "name": "doubled_num",
+                "type": "int64",
+                "expression": "num * 2",
+                "materialized": False,
+            },
+        ]
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "optimize_for": optimize_for,
+                "schema": schema,
+            },
+        )
+
+        write_table("//tmp/table", [{"key1": 10, "num": 1}, {"key1": 11, "num": 1}, {"key1": 12, "num": 2}, {"key1": 13, "num": 3}])
+
+        new_schema = schema[:1] + [{"name": "key2", "type": "int64", "sort_order": "ascending"}] + schema[1:]
+        alter_table("//tmp/table", schema=new_schema)
+
+        merge(
+            in_="//tmp/table",
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "mode": "sorted",
+                "merge_by": ["key1", "key2"],
+                "force_transform": True,
+            }
+        )
+
+        expected = [
+            {"key1": 10, "key2": yson.YsonEntity(), "num": 1, "doubled_num": 2},
+            {"key1": 11, "key2": yson.YsonEntity(), "num": 1, "doubled_num": 2},
+            {"key1": 12, "key2": yson.YsonEntity(), "num": 2, "doubled_num": 4},
+            {"key1": 13, "key2": yson.YsonEntity(), "num": 3, "doubled_num": 6},
+        ]
+
+        assert read_table("//tmp/t_out") == expected
+
 
 ##################################################################
 

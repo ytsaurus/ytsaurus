@@ -370,7 +370,8 @@ private:
                     break;
                 }
 
-                auto storedReplicas = chunk->StoredReplicas();
+                // We may have replicas from non-online nodes here.
+                auto storedReplicas = chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true);
                 TStoredChunkReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
                 BuildYsonReplicas(
                     consumer,
@@ -1013,7 +1014,7 @@ private:
                 if (!chunk->IsJournal()) {
                     break;
                 }
-                return chunkManager->GetChunkQuorumInfo(chunk)
+                return chunkManager->GetChunkQuorumInfoWithReplicaFetch(chunk)
                     .Apply(BIND([] (const TChunkQuorumInfo& info) {
                         return MakeFuture(BuildYsonStringFluently()
                             .BeginMap()

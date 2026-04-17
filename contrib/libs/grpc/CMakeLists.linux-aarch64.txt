@@ -32,8 +32,8 @@ target_include_directories(contrib-libs-grpc PUBLIC
 target_include_directories(contrib-libs-grpc PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
   ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
@@ -71,15 +71,16 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/config_selector.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/dynamic_filters.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/global_subchannel_pool.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/health/health_check_client.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/http_proxy.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/http_proxy_mapper.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/address_filtering.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/child_policy_handler.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/endpoint_list.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/grpclb/client_load_reporting_filter.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/grpclb/grpclb.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/grpclb/grpclb_balancer_addresses.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/grpclb/grpclb_client_stats.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/grpclb/load_balancer_api.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/health_check_client.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/oob_backend_metric.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/outlier_detection/outlier_detection.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/pick_first/pick_first.cc
@@ -91,7 +92,6 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/weighted_round_robin/weighted_round_robin.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/weighted_target/weighted_target.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/xds/cds.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/xds/xds_attributes.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/xds/xds_cluster_impl.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/xds/xds_cluster_manager.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/lb_policy/xds/xds_cluster_resolver.cc
@@ -105,6 +105,9 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/c_ares/grpc_ares_wrapper.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/c_ares/grpc_ares_wrapper_posix.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/c_ares/grpc_ares_wrapper_windows.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/dns_resolver_plugin.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/event_engine/event_engine_client_channel_resolver.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/event_engine/service_config_helper.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/dns/native/dns_resolver.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/fake/fake_resolver.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/google_c2p/google_c2p_resolver.cc
@@ -112,6 +115,7 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/sockaddr/sockaddr_resolver.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/resolver/xds/xds_resolver.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/retry_filter.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/retry_filter_legacy_call_data.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/retry_service_config.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/retry_throttle.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/client_channel/service_config_channel_arg_filter.cc
@@ -157,7 +161,6 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/bin_decoder.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/bin_encoder.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/chttp2_transport.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/context_list.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/decode_huff.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/flow_control.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/frame_data.cc
@@ -168,331 +171,341 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/frame_window_update.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/hpack_encoder.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/hpack_encoder_table.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/hpack_parse_result.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/hpack_parser.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/hpack_parser_table.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/http2_settings.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/http_trace.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/huffsyms.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/max_concurrent_streams_policy.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/parsing.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/ping_abuse_policy.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/ping_callbacks.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/ping_rate_policy.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/stream_lists.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/stream_map.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/varint.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/write_size_policy.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/chttp2/transport/writing.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/inproc/inproc_plugin.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/inproc/inproc_transport.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/certs.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/clusters.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/config_dump.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/config_dump_shared.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/init_dump.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/listeners.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/memory.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/metrics.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/mutex_stats.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/server_info.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/tap.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/annotations/deprecation.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/annotations/resource.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/accesslog/v3/accesslog.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/bootstrap/v3/bootstrap.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/circuit_breaker.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/cluster.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/filter.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/outlier_detection.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/common/matcher/v3/matcher.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/address.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/backoff.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/base.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/config_source.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/event_service_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/extension.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/grpc_method_list.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/grpc_service.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/health_check.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/http_uri.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/protocol.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/proxy_protocol.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/resolver.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/socket_option.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/substitution_format_string.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/udp_socket_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/endpoint/v3/endpoint.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/endpoint/v3/endpoint_components.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/endpoint/v3/load_report.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/api_listener.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/listener.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/listener_components.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/quic_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/udp_listener_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/metrics/v3/metrics_service.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/metrics/v3/stats.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/overload/v3/overload.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/rbac/v3/rbac.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/route/v3/route.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/route/v3/route_components.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/route/v3/scoped_route.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/tap/v3/common.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/datadog.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/dynamic_ot.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/http_tracer.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/lightstep.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/opencensus.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/opentelemetry.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/service.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/skywalking.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/trace.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/xray.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/zipkin.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/clusters/aggregate/v3/cluster.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/common/fault/v3/fault.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/fault/v3/fault.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/rbac/v3/rbac.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/router/v3/router.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/http/stateful_session/cookie/v3/cookie.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/client_side_weighted_round_robin/v3/client_side_weighted_round_robin.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/common/v3/common.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/ring_hash/v3/ring_hash.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/wrr_locality/v3/wrr_locality.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/cert.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/common.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/secret.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/tls.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/discovery/v3/ads.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/discovery/v3/discovery.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/load_stats/v3/lrs.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/status/v3/csds.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/http/v3/cookie.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/http/v3/path_transformation.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/filter_state.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/http_inputs.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/metadata.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/node.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/number.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/path.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/regex.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/status_code_input.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/string.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/struct.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/value.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/metadata/v3/metadata.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/tracing/v3/custom_tag.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/hash_policy.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/http.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/http_status.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/percent.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/range.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/ratelimit_strategy.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/ratelimit_unit.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/semantic_version.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/token_bucket.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/annotations.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/expr/v1alpha1/checked.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/expr/v1alpha1/syntax.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/http.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/httpbody.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/any.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/duration.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/empty.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/struct.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/timestamp.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/wrappers.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/rpc/status.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/opencensus/proto/trace/v1/trace_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/gcp/altscontext.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/gcp/handshaker.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/gcp/transport_security_common.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/health/v1/health.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/lb/v1/load_balancer.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/lookup/v1/rls.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/lookup/v1/rls_config.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/migrate.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/security.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/sensitive.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/status.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/versioning.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/validate/validate.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/migrate.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/security.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/sensitive.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/status.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/versioning.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/authority.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/cidr.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/collection_entry.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/context_params.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/extension.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/resource.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/resource_locator.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/resource_name.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/data/orca/v3/orca_load_report.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/service/orca/v3/orca.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/cel.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/domain.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/http_inputs.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/ip.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/matcher.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/range.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/regex.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/string.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/v3/cel.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/v3/range.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/v3/typed_struct.upb.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/certs.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/clusters.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/config_dump.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/config_dump_shared.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/init_dump.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/listeners.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/memory.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/metrics.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/mutex_stats.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/server_info.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/tap.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/annotations/deprecation.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/annotations/resource.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/accesslog/v3/accesslog.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/bootstrap/v3/bootstrap.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/circuit_breaker.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/cluster.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/filter.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/outlier_detection.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/common/matcher/v3/matcher.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/address.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/backoff.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/base.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/config_source.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/event_service_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/extension.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/grpc_method_list.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/grpc_service.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/health_check.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/http_uri.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/protocol.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/proxy_protocol.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/resolver.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/socket_option.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/substitution_format_string.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/udp_socket_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/endpoint/v3/endpoint.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/endpoint/v3/endpoint_components.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/endpoint/v3/load_report.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/api_listener.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/listener.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/listener_components.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/quic_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/udp_listener_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/metrics/v3/metrics_service.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/metrics/v3/stats.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/overload/v3/overload.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/rbac/v3/rbac.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/route/v3/route.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/route/v3/route_components.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/route/v3/scoped_route.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/tap/v3/common.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/datadog.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/dynamic_ot.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/http_tracer.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/lightstep.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/opencensus.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/opentelemetry.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/service.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/skywalking.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/trace.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/xray.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/zipkin.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/clusters/aggregate/v3/cluster.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/common/fault/v3/fault.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/fault/v3/fault.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/rbac/v3/rbac.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/router/v3/router.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/http/stateful_session/cookie/v3/cookie.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/cert.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/common.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/secret.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/tls.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/discovery/v3/ads.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/discovery/v3/discovery.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/load_stats/v3/lrs.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/status/v3/csds.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/http/v3/cookie.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/http/v3/path_transformation.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/filter_state.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/http_inputs.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/metadata.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/node.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/number.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/path.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/regex.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/status_code_input.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/string.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/struct.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/value.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/metadata/v3/metadata.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/tracing/v3/custom_tag.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/hash_policy.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/http.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/http_status.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/percent.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/range.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/ratelimit_strategy.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/ratelimit_unit.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/semantic_version.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/token_bucket.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/annotations.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/expr/v1alpha1/checked.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/expr/v1alpha1/syntax.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/http.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/httpbody.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/any.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/duration.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/empty.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/struct.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/timestamp.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/wrappers.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/rpc/status.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/opencensus/proto/trace/v1/trace_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/src/proto/grpc/lookup/v1/rls_config.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/migrate.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/security.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/sensitive.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/status.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/versioning.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/validate/validate.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/migrate.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/security.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/sensitive.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/status.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/versioning.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/authority.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/cidr.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/collection_entry.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/context_params.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/extension.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/resource.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/resource_locator.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/resource_name.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/cel.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/domain.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/http_inputs.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/ip.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/matcher.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/range.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/regex.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/string.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/v3/cel.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/v3/range.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/v3/typed_struct.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/transport/inproc/legacy_inproc_transport.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/certs.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/clusters.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/config_dump.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/config_dump_shared.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/init_dump.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/listeners.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/memory.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/metrics.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/mutex_stats.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/server_info.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/tap.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/annotations/deprecation.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/annotations/resource.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/accesslog/v3/accesslog.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/bootstrap/v3/bootstrap.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/circuit_breaker.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/cluster.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/filter.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/outlier_detection.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/common/matcher/v3/matcher.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/address.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/backoff.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/base.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/config_source.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/event_service_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/extension.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/grpc_method_list.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/grpc_service.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/health_check.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/http_uri.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/protocol.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/proxy_protocol.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/resolver.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/socket_option.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/substitution_format_string.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/udp_socket_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/endpoint/v3/endpoint.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/endpoint/v3/endpoint_components.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/endpoint/v3/load_report.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/api_listener.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/listener.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/listener_components.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/quic_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/udp_listener_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/metrics/v3/metrics_service.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/metrics/v3/stats.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/overload/v3/overload.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/rbac/v3/rbac.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/route/v3/route.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/route/v3/route_components.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/route/v3/scoped_route.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/tap/v3/common.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/datadog.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/dynamic_ot.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/http_tracer.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/lightstep.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/opencensus.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/opentelemetry.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/service.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/skywalking.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/trace.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/xray.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/zipkin.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/data/accesslog/v3/accesslog.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/clusters/aggregate/v3/cluster.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/common/fault/v3/fault.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/fault/v3/fault.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/rbac/v3/rbac.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/router/v3/router.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/http/stateful_session/cookie/v3/cookie.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/client_side_weighted_round_robin/v3/client_side_weighted_round_robin.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/common/v3/common.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/pick_first/v3/pick_first.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/ring_hash/v3/ring_hash.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/wrr_locality/v3/wrr_locality.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/cert.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/common.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/secret.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/tls.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/discovery/v3/ads.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/discovery/v3/discovery.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/load_stats/v3/lrs.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/status/v3/csds.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/http/v3/cookie.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/http/v3/path_transformation.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/filter_state.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/http_inputs.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/metadata.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/node.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/number.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/path.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/regex.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/status_code_input.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/string.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/struct.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/value.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/metadata/v3/metadata.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/tracing/v3/custom_tag.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/hash_policy.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/http.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/http_status.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/percent.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/range.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/ratelimit_strategy.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/ratelimit_unit.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/semantic_version.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/token_bucket.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/annotations.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/expr/v1alpha1/checked.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/expr/v1alpha1/syntax.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/http.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/httpbody.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/any.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/duration.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/empty.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/struct.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/timestamp.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/wrappers.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/rpc/status.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/opencensus/proto/trace/v1/trace_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/gcp/altscontext.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/gcp/handshaker.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/gcp/transport_security_common.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/health/v1/health.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/lb/v1/load_balancer.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/lookup/v1/rls.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/lookup/v1/rls_config.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/migrate.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/security.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/sensitive.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/status.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/versioning.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/validate/validate.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/migrate.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/security.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/sensitive.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/status.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/versioning.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/authority.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/cidr.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/collection_entry.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/context_params.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/extension.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/resource.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/resource_locator.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/resource_name.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/data/orca/v3/orca_load_report.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/service/orca/v3/orca.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/cel.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/domain.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/http_inputs.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/ip.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/matcher.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/range.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/regex.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/string.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/v3/cel.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/v3/range.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/v3/typed_struct.upb_minitable.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/certs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/clusters.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/config_dump.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/config_dump_shared.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/init_dump.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/listeners.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/memory.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/metrics.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/mutex_stats.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/server_info.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/tap.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/annotations/deprecation.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/annotations/resource.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/accesslog/v3/accesslog.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/bootstrap/v3/bootstrap.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/circuit_breaker.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/cluster.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/filter.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/outlier_detection.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/common/matcher/v3/matcher.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/address.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/backoff.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/base.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/config_source.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/event_service_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/extension.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/grpc_method_list.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/grpc_service.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/health_check.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/http_uri.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/protocol.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/proxy_protocol.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/resolver.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/socket_option.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/substitution_format_string.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/udp_socket_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/endpoint/v3/endpoint.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/endpoint/v3/endpoint_components.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/endpoint/v3/load_report.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/api_listener.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/listener.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/listener_components.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/quic_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/udp_listener_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/metrics/v3/metrics_service.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/metrics/v3/stats.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/overload/v3/overload.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/rbac/v3/rbac.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/route/v3/route.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/route/v3/route_components.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/route/v3/scoped_route.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/tap/v3/common.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/datadog.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/dynamic_ot.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/http_tracer.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/lightstep.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/opencensus.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/opentelemetry.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/service.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/skywalking.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/trace.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/xray.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/zipkin.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/data/accesslog/v3/accesslog.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/clusters/aggregate/v3/cluster.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/common/fault/v3/fault.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/fault/v3/fault.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/rbac/v3/rbac.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/router/v3/router.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/http/stateful_session/cookie/v3/cookie.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/cert.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/common.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/secret.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/tls.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/discovery/v3/ads.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/discovery/v3/discovery.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/load_stats/v3/lrs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/status/v3/csds.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/http/v3/cookie.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/http/v3/path_transformation.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/filter_state.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/http_inputs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/metadata.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/node.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/number.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/path.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/regex.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/status_code_input.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/string.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/struct.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/value.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/metadata/v3/metadata.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/tracing/v3/custom_tag.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/hash_policy.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/http.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/http_status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/percent.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/range.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/ratelimit_strategy.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/ratelimit_unit.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/semantic_version.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/token_bucket.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/annotations.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/expr/v1alpha1/checked.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/expr/v1alpha1/syntax.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/http.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/httpbody.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/any.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/descriptor.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/duration.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/empty.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/struct.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/timestamp.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/wrappers.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/rpc/status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/opencensus/proto/trace/v1/trace_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/src/proto/grpc/lookup/v1/rls_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/migrate.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/security.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/sensitive.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/versioning.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/validate/validate.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/migrate.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/security.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/sensitive.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/versioning.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/authority.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/cidr.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/collection_entry.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/context_params.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/extension.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/resource.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/resource_locator.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/resource_name.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/cel.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/domain.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/http_inputs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/ip.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/matcher.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/range.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/regex.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/string.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/v3/cel.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/v3/range.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/v3/typed_struct.upbdefs.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/certificate_provider_store.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/file_watcher_certificate_provider_factory.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/xds_api.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/xds_audit_logger_registry.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/xds_bootstrap.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/xds_bootstrap_grpc.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/xds/xds_certificate_provider.cc
@@ -525,6 +538,7 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channel_stack.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channel_stack_builder.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channel_stack_builder_impl.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channel_stack_trace.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channel_trace.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channelz.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/channel/channelz_registry.cc
@@ -544,6 +558,10 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/debug/stats.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/debug/stats_data.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/debug/trace.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/ares_resolver.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/cf_engine/cf_engine.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/cf_engine/cfstream_endpoint.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/cf_engine/dns_service_resolver.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/channel_args_endpoint_config.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/default_event_engine.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/default_event_engine_factory.cc
@@ -573,15 +591,20 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/slice_buffer.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/tcp_socket_utils.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/thread_local.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/thread_pool.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/thread_pool/thread_count.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/thread_pool/thread_pool_factory.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/thread_pool/work_stealing_thread_pool.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/thready_event_engine/thready_event_engine.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/time_util.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/trace.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/utils.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/windows/grpc_polled_fd_windows.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/windows/iocp.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/windows/win_socket.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/windows/windows_endpoint.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/windows/windows_engine.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/windows/windows_listener.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/event_engine/work_queue/basic_work_queue.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/experiments/config.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/experiments/experiments.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gpr/alloc.cc
@@ -618,9 +641,12 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/linux/env.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/load_file.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/mpscq.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/per_cpu.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/posix/directory_reader.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/posix/env.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/posix/stat.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/posix/thd.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/ref_counted_string.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/status_helper.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/strerror.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/tchar.cc
@@ -628,6 +654,7 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/time_averaged_stats.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/time_util.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/validation_errors.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/windows/directory_reader.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/windows/env.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/windows/stat.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/gprpp/windows/thd.cc
@@ -710,6 +737,7 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/timer_manager.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/unix_sockets_posix.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/unix_sockets_posix_noop.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/vsock.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/wakeup_fd_eventfd.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/wakeup_fd_nospecial.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/iomgr/wakeup_fd_pipe.cc
@@ -725,9 +753,9 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/promise/party.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/promise/sleep.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/promise/trace.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resolver/endpoint_addresses.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resolver/resolver.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resolver/resolver_registry.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resolver/server_address.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resource_quota/api.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resource_quota/arena.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resource_quota/memory_quota.cc
@@ -735,12 +763,14 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resource_quota/resource_quota.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resource_quota/thread_quota.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/resource_quota/trace.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/audit_logging.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/authorization_policy_provider_vtable.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/evaluate_args.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/grpc_authorization_engine.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/grpc_server_authz_filter.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/matchers.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/rbac_policy.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/authorization/stdout_logger.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/certificate_provider/certificate_provider_registry.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/context/security_context.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/alts/alts_credentials.cc
@@ -773,9 +803,11 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/plugin/plugin_credentials.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/ssl/ssl_credentials.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/grpc_tls_certificate_distributor.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/grpc_tls_certificate_match.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/grpc_tls_certificate_provider.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/grpc_tls_certificate_verifier.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/grpc_tls_credentials_options.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/grpc_tls_crl_provider.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/tls_credentials.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/tls/tls_utils.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/lib/security/credentials/xds/xds_credentials.cc
@@ -887,7 +919,6 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/alarm.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/auth_property_iterator.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/channel_arguments.cc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/channel_filter.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/completion_queue_cc.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/resource_quota_cc.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/common/rpc_method.cc
@@ -914,6 +945,7 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/server/server_cc.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/server/server_context.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/server/server_posix.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/server/xds_server_builder.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/server/xds_server_credentials.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/thread_manager/thread_manager.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/util/byte_buffer_cc.cc
@@ -925,7 +957,7 @@ target_sources(contrib-libs-grpc PRIVATE
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/certs.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/certs.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -933,7 +965,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/clusters.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/clusters.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -941,7 +973,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/config_dump.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/config_dump.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -949,7 +981,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/config_dump_shared.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/config_dump_shared.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -957,7 +989,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/init_dump.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/init_dump.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -965,7 +997,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/listeners.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/listeners.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -973,7 +1005,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/memory.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/memory.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -981,7 +1013,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/metrics.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/metrics.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -989,7 +1021,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/mutex_stats.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/mutex_stats.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -997,7 +1029,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/server_info.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/server_info.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1005,7 +1037,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/admin/v3/tap.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/admin/v3/tap.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1013,7 +1045,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/annotations/deprecation.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/annotations/deprecation.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1021,7 +1053,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/annotations/resource.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/annotations/resource.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1029,7 +1061,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/accesslog/v3/accesslog.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/accesslog/v3/accesslog.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1037,7 +1069,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/bootstrap/v3/bootstrap.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/bootstrap/v3/bootstrap.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1045,7 +1077,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/circuit_breaker.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/circuit_breaker.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1053,7 +1085,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/cluster.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/cluster.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1061,7 +1093,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/filter.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/filter.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1069,7 +1101,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/cluster/v3/outlier_detection.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/cluster/v3/outlier_detection.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1077,7 +1109,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/common/matcher/v3/matcher.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/common/matcher/v3/matcher.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1085,7 +1117,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/address.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/address.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1093,7 +1125,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/backoff.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/backoff.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1101,7 +1133,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/base.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/base.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1109,7 +1141,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/config_source.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/config_source.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1117,7 +1149,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/event_service_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/event_service_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1125,7 +1157,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/extension.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/extension.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1133,7 +1165,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/grpc_method_list.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/grpc_method_list.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1141,7 +1173,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/grpc_service.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/grpc_service.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1149,7 +1181,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/health_check.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/health_check.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1157,7 +1189,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/http_uri.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/http_uri.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1165,7 +1197,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/protocol.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/protocol.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1173,7 +1205,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/proxy_protocol.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/proxy_protocol.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1181,7 +1213,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/resolver.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/resolver.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1189,7 +1221,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/socket_option.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/socket_option.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1197,7 +1229,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/substitution_format_string.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/substitution_format_string.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1205,7 +1237,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/core/v3/udp_socket_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/core/v3/udp_socket_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1213,7 +1245,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/endpoint/v3/endpoint.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/endpoint/v3/endpoint.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1221,7 +1253,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/endpoint/v3/endpoint_components.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/endpoint/v3/endpoint_components.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1229,7 +1261,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/endpoint/v3/load_report.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/endpoint/v3/load_report.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1237,7 +1269,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/api_listener.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/api_listener.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1245,7 +1277,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/listener.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/listener.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1253,7 +1285,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/listener_components.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/listener_components.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1261,7 +1293,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/quic_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/quic_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1269,7 +1301,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/listener/v3/udp_listener_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/listener/v3/udp_listener_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1277,7 +1309,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/metrics/v3/metrics_service.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/metrics/v3/metrics_service.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1285,7 +1317,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/metrics/v3/stats.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/metrics/v3/stats.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1293,7 +1325,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/overload/v3/overload.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/overload/v3/overload.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1301,7 +1333,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/rbac/v3/rbac.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/rbac/v3/rbac.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1309,7 +1341,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/route/v3/route.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/route/v3/route.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1317,7 +1349,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/route/v3/route_components.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/route/v3/route_components.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1325,7 +1357,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/route/v3/scoped_route.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/route/v3/scoped_route.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1333,7 +1365,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/tap/v3/common.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/tap/v3/common.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1341,7 +1373,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/datadog.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/datadog.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1349,7 +1381,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/dynamic_ot.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/dynamic_ot.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1357,7 +1389,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/http_tracer.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/http_tracer.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1365,7 +1397,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/lightstep.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/lightstep.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1373,7 +1405,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/opencensus.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/opencensus.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1381,7 +1413,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/opentelemetry.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/opentelemetry.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1389,7 +1421,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/service.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/service.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1397,7 +1429,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/skywalking.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/skywalking.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1405,7 +1437,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/trace.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/trace.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1413,7 +1445,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/xray.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/xray.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1421,7 +1453,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/config/trace/v3/zipkin.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/config/trace/v3/zipkin.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1429,7 +1461,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/clusters/aggregate/v3/cluster.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/data/accesslog/v3/accesslog.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1437,7 +1469,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/common/fault/v3/fault.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/clusters/aggregate/v3/cluster.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1445,7 +1477,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/fault/v3/fault.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/common/fault/v3/fault.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1453,7 +1485,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/rbac/v3/rbac.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/fault/v3/fault.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1461,7 +1493,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/router/v3/router.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/rbac/v3/rbac.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1469,7 +1501,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/router/v3/router.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1477,7 +1509,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1485,7 +1517,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/http/stateful_session/cookie/v3/cookie.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1493,7 +1525,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/client_side_weighted_round_robin/v3/client_side_weighted_round_robin.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/http/stateful_session/cookie/v3/cookie.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1501,7 +1533,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/common/v3/common.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/client_side_weighted_round_robin/v3/client_side_weighted_round_robin.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1509,7 +1541,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/ring_hash/v3/ring_hash.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/common/v3/common.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1517,7 +1549,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/load_balancing_policies/wrr_locality/v3/wrr_locality.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/pick_first/v3/pick_first.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1525,7 +1557,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/cert.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/ring_hash/v3/ring_hash.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1533,7 +1565,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/common.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/load_balancing_policies/wrr_locality/v3/wrr_locality.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1541,7 +1573,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/secret.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/cert.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1549,7 +1581,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/tls.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/common.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1557,7 +1589,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/secret.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1565,7 +1597,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/discovery/v3/ads.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/tls.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1573,7 +1605,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/discovery/v3/discovery.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1581,7 +1613,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/load_stats/v3/lrs.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/discovery/v3/ads.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1589,7 +1621,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/service/status/v3/csds.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/discovery/v3/discovery.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1597,7 +1629,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/http/v3/cookie.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/load_stats/v3/lrs.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1605,7 +1637,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/http/v3/path_transformation.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/service/status/v3/csds.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1613,7 +1645,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/filter_state.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/http/v3/cookie.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1621,7 +1653,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/http_inputs.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/http/v3/path_transformation.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1629,7 +1661,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/metadata.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/filter_state.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1637,7 +1669,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/node.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/http_inputs.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1645,7 +1677,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/number.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/metadata.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1653,7 +1685,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/path.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/node.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1661,7 +1693,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/regex.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/number.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1669,7 +1701,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/status_code_input.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/path.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1677,7 +1709,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/string.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/regex.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1685,7 +1717,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/struct.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/status_code_input.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1693,7 +1725,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/matcher/v3/value.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/string.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1701,7 +1733,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/metadata/v3/metadata.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/struct.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1709,7 +1741,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/tracing/v3/custom_tag.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/matcher/v3/value.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1717,7 +1749,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/hash_policy.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/metadata/v3/metadata.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1725,7 +1757,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/http.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/tracing/v3/custom_tag.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1733,7 +1765,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/http_status.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/hash_policy.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1741,7 +1773,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/percent.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/http.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1749,7 +1781,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/range.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/http_status.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1757,7 +1789,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/ratelimit_strategy.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/percent.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1765,7 +1797,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/ratelimit_unit.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/range.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1773,7 +1805,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/semantic_version.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/ratelimit_strategy.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1781,7 +1813,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/envoy/type/v3/token_bucket.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/ratelimit_unit.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1789,7 +1821,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/annotations.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/semantic_version.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1797,7 +1829,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/expr/v1alpha1/checked.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/envoy/type/v3/token_bucket.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1805,7 +1837,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/expr/v1alpha1/syntax.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/annotations.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1813,7 +1845,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/http.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/expr/v1alpha1/checked.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1821,7 +1853,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/api/httpbody.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/expr/v1alpha1/syntax.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1829,7 +1861,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/any.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/http.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1837,7 +1869,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/api/httpbody.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1845,7 +1877,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/duration.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/any.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1853,7 +1885,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/empty.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/descriptor.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1861,7 +1893,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/struct.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/duration.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1869,7 +1901,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/timestamp.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/empty.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1877,7 +1909,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/wrappers.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/struct.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1885,7 +1917,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/rpc/status.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/timestamp.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1893,7 +1925,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/opencensus/proto/trace/v1/trace_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/protobuf/wrappers.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1901,7 +1933,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/gcp/altscontext.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/google/rpc/status.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1909,7 +1941,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/gcp/handshaker.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/opencensus/proto/trace/v1/trace_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1917,7 +1949,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/gcp/transport_security_common.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/gcp/altscontext.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1925,7 +1957,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/health/v1/health.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/gcp/handshaker.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1933,7 +1965,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/lb/v1/load_balancer.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/gcp/transport_security_common.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1941,7 +1973,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/lookup/v1/rls.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/health/v1/health.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1949,7 +1981,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/src/proto/grpc/lookup/v1/rls_config.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/lb/v1/load_balancer.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1957,7 +1989,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/migrate.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/lookup/v1/rls.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1965,7 +1997,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/security.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/src/proto/grpc/lookup/v1/rls_config.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1973,7 +2005,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/sensitive.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/migrate.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1981,7 +2013,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/status.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/security.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1989,7 +2021,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/udpa/annotations/versioning.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/sensitive.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -1997,7 +2029,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/validate/validate.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/status.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2005,7 +2037,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/migrate.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/udpa/annotations/versioning.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2013,7 +2045,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/security.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/validate/validate.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2021,7 +2053,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/sensitive.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/migrate.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2029,7 +2061,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/status.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/security.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2037,7 +2069,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/annotations/v3/versioning.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/sensitive.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2045,7 +2077,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/authority.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/status.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2053,7 +2085,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/cidr.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/annotations/v3/versioning.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2061,7 +2093,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/collection_entry.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/authority.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2069,7 +2101,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/context_params.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/cidr.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2077,7 +2109,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/extension.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/collection_entry.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2085,7 +2117,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/resource.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/context_params.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2093,7 +2125,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/resource_locator.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/extension.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2101,7 +2133,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/core/v3/resource_name.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/resource.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2109,7 +2141,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/data/orca/v3/orca_load_report.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/resource_locator.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2117,7 +2149,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/service/orca/v3/orca.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/core/v3/resource_name.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2125,7 +2157,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/cel.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/data/orca/v3/orca_load_report.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2133,7 +2165,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/domain.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/service/orca/v3/orca.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2141,7 +2173,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/http_inputs.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/cel.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2149,7 +2181,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/ip.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/domain.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2157,7 +2189,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/matcher.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/http_inputs.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2165,7 +2197,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/range.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/ip.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2173,7 +2205,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/regex.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/matcher.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2181,7 +2213,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/matcher/v3/string.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/range.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2189,7 +2221,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/v3/cel.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/regex.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2197,7 +2229,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/v3/range.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/matcher/v3/string.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2205,7 +2237,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/xds/type/v3/typed_struct.upb.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/v3/cel.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2213,7 +2245,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/certs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/v3/range.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2221,7 +2253,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/clusters.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-gen/xds/type/v3/typed_struct.upb_minitable.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2229,7 +2261,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/config_dump.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/certs.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2237,7 +2269,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/config_dump_shared.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/clusters.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2245,7 +2277,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/init_dump.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/config_dump.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2253,7 +2285,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/listeners.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/config_dump_shared.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2261,7 +2293,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/memory.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/init_dump.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2269,7 +2301,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/metrics.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/listeners.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2277,7 +2309,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/mutex_stats.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/memory.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2285,7 +2317,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/server_info.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/metrics.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2293,7 +2325,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/admin/v3/tap.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/mutex_stats.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2301,7 +2333,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/annotations/deprecation.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/server_info.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2309,7 +2341,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/annotations/resource.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/admin/v3/tap.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2317,7 +2349,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/accesslog/v3/accesslog.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/annotations/deprecation.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2325,7 +2357,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/bootstrap/v3/bootstrap.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/annotations/resource.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2333,7 +2365,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/circuit_breaker.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/accesslog/v3/accesslog.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2341,7 +2373,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/cluster.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/bootstrap/v3/bootstrap.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2349,7 +2381,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/filter.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/circuit_breaker.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2357,7 +2389,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/cluster/v3/outlier_detection.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/cluster.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2365,7 +2397,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/common/matcher/v3/matcher.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/filter.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2373,7 +2405,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/address.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/cluster/v3/outlier_detection.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2381,7 +2413,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/backoff.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/common/matcher/v3/matcher.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2389,7 +2421,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/base.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/address.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2397,7 +2429,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/config_source.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/backoff.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2405,7 +2437,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/event_service_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/base.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2413,7 +2445,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/extension.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/config_source.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2421,7 +2453,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/grpc_method_list.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/event_service_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2429,7 +2461,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/grpc_service.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/extension.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2437,7 +2469,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/health_check.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/grpc_method_list.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2445,7 +2477,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/http_uri.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/grpc_service.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2453,7 +2485,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/protocol.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/health_check.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2461,7 +2493,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/proxy_protocol.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/http_uri.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2469,7 +2501,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/resolver.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/protocol.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2477,7 +2509,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/socket_option.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/proxy_protocol.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2485,7 +2517,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/substitution_format_string.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/resolver.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2493,7 +2525,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/core/v3/udp_socket_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/socket_option.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2501,7 +2533,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/endpoint/v3/endpoint.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/substitution_format_string.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2509,7 +2541,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/endpoint/v3/endpoint_components.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/core/v3/udp_socket_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2517,7 +2549,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/endpoint/v3/load_report.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/endpoint/v3/endpoint.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2525,7 +2557,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/api_listener.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/endpoint/v3/endpoint_components.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2533,7 +2565,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/listener.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/endpoint/v3/load_report.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2541,7 +2573,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/listener_components.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/api_listener.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2549,7 +2581,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/quic_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/listener.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2557,7 +2589,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/listener/v3/udp_listener_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/listener_components.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2565,7 +2597,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/metrics/v3/metrics_service.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/quic_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2573,7 +2605,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/metrics/v3/stats.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/listener/v3/udp_listener_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2581,7 +2613,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/overload/v3/overload.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/metrics/v3/metrics_service.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2589,7 +2621,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/rbac/v3/rbac.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/metrics/v3/stats.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2597,7 +2629,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/route/v3/route.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/overload/v3/overload.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2605,7 +2637,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/route/v3/route_components.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/rbac/v3/rbac.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2613,7 +2645,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/route/v3/scoped_route.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/route/v3/route.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2621,7 +2653,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/tap/v3/common.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/route/v3/route_components.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2629,7 +2661,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/datadog.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/route/v3/scoped_route.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2637,7 +2669,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/dynamic_ot.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/tap/v3/common.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2645,7 +2677,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/http_tracer.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/datadog.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2653,7 +2685,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/lightstep.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/dynamic_ot.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2661,7 +2693,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/opencensus.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/http_tracer.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2669,7 +2701,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/opentelemetry.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/lightstep.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2677,7 +2709,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/service.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/opencensus.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2685,7 +2717,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/skywalking.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/opentelemetry.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2693,7 +2725,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/trace.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/service.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2701,7 +2733,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/xray.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/skywalking.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2709,7 +2741,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/config/trace/v3/zipkin.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/trace.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2717,7 +2749,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/clusters/aggregate/v3/cluster.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/xray.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2725,7 +2757,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/common/fault/v3/fault.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/config/trace/v3/zipkin.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2733,7 +2765,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/fault/v3/fault.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/data/accesslog/v3/accesslog.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2741,7 +2773,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/rbac/v3/rbac.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/clusters/aggregate/v3/cluster.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2749,7 +2781,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/router/v3/router.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/common/fault/v3/fault.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2757,7 +2789,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/fault/v3/fault.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2765,7 +2797,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/rbac/v3/rbac.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2773,7 +2805,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/http/stateful_session/cookie/v3/cookie.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/router/v3/router.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2781,7 +2813,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/cert.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/http/stateful_session/v3/stateful_session.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2789,7 +2821,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/common.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2797,7 +2829,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/secret.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/http/stateful_session/cookie/v3/cookie.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2805,7 +2837,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/tls.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/cert.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2813,7 +2845,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/common.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2821,7 +2853,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/discovery/v3/ads.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/secret.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2829,7 +2861,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/discovery/v3/discovery.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/tls.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2837,7 +2869,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/load_stats/v3/lrs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2845,7 +2877,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/service/status/v3/csds.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/discovery/v3/ads.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2853,7 +2885,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/http/v3/cookie.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/discovery/v3/discovery.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2861,7 +2893,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/http/v3/path_transformation.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/load_stats/v3/lrs.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2869,7 +2901,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/filter_state.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/service/status/v3/csds.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2877,7 +2909,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/http_inputs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/http/v3/cookie.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2885,7 +2917,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/metadata.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/http/v3/path_transformation.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2893,7 +2925,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/node.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/filter_state.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2901,7 +2933,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/number.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/http_inputs.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2909,7 +2941,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/path.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/metadata.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2917,7 +2949,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/regex.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/node.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2925,7 +2957,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/status_code_input.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/number.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2933,7 +2965,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/string.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/path.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2941,7 +2973,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/struct.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/regex.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2949,7 +2981,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/matcher/v3/value.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/status_code_input.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2957,7 +2989,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/metadata/v3/metadata.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/string.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2965,7 +2997,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/tracing/v3/custom_tag.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/struct.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2973,7 +3005,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/hash_policy.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/matcher/v3/value.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2981,7 +3013,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/http.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/metadata/v3/metadata.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2989,7 +3021,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/http_status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/tracing/v3/custom_tag.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -2997,7 +3029,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/percent.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/hash_policy.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3005,7 +3037,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/range.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/http.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3013,7 +3045,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/ratelimit_strategy.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/http_status.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3021,7 +3053,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/ratelimit_unit.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/percent.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3029,7 +3061,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/semantic_version.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/range.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3037,7 +3069,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/envoy/type/v3/token_bucket.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/ratelimit_strategy.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3045,7 +3077,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/annotations.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/ratelimit_unit.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3053,7 +3085,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/expr/v1alpha1/checked.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/semantic_version.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3061,7 +3093,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/expr/v1alpha1/syntax.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/envoy/type/v3/token_bucket.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3069,7 +3101,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/http.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/annotations.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3077,7 +3109,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/api/httpbody.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/expr/v1alpha1/checked.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3085,7 +3117,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/any.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/expr/v1alpha1/syntax.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3093,7 +3125,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/http.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3101,7 +3133,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/duration.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/api/httpbody.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3109,7 +3141,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/empty.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/any.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3117,7 +3149,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/struct.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/descriptor.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3125,7 +3157,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/timestamp.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/duration.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3133,7 +3165,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/wrappers.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/empty.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3141,7 +3173,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/rpc/status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/struct.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3149,7 +3181,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/opencensus/proto/trace/v1/trace_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/timestamp.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3157,7 +3189,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/src/proto/grpc/lookup/v1/rls_config.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/protobuf/wrappers.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3165,7 +3197,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/migrate.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/google/rpc/status.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3173,7 +3205,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/security.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/opencensus/proto/trace/v1/trace_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3181,7 +3213,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/sensitive.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/src/proto/grpc/lookup/v1/rls_config.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3189,7 +3221,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/migrate.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3197,7 +3229,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/udpa/annotations/versioning.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/security.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3205,7 +3237,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/validate/validate.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/sensitive.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3213,7 +3245,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/migrate.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/status.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3221,7 +3253,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/security.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/udpa/annotations/versioning.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3229,7 +3261,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/sensitive.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/validate/validate.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3237,7 +3269,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/status.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/migrate.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3245,7 +3277,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/annotations/v3/versioning.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/security.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3253,7 +3285,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/authority.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/sensitive.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3261,7 +3293,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/cidr.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/status.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3269,7 +3301,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/collection_entry.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/annotations/v3/versioning.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3277,7 +3309,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/context_params.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/authority.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3285,7 +3317,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/extension.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/cidr.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3293,7 +3325,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/resource.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/collection_entry.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3301,7 +3333,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/resource_locator.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/context_params.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3309,7 +3341,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/core/v3/resource_name.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/extension.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3317,7 +3349,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/cel.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/resource.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3325,7 +3357,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/domain.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/resource_locator.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3333,7 +3365,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/http_inputs.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/core/v3/resource_name.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3341,7 +3373,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/ip.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/cel.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3349,7 +3381,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/matcher.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/domain.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3357,7 +3389,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/range.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/http_inputs.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3365,7 +3397,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/regex.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/ip.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3373,7 +3405,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/matcher/v3/string.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/matcher.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3381,7 +3413,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/v3/cel.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/range.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3389,7 +3421,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/v3/range.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/regex.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -3397,7 +3429,31 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/xds/type/v3/typed_struct.upbdefs.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/matcher/v3/string.upbdefs.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/v3/cel.upbdefs.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/v3/range.upbdefs.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-gen/xds/type/v3/typed_struct.upbdefs.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

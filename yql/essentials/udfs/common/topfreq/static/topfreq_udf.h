@@ -10,6 +10,7 @@
 #include "topfreq.h"
 #include <algorithm>
 #include <array>
+#include <utility>
 
 using namespace NYql;
 using namespace NUdf;
@@ -19,7 +20,7 @@ extern const char TopFreqResourceNameGeneric[] = "TopFreq.TopFreqResource.Generi
 class TTopFreqResource: public TBoxedResource<TTopFreqGeneric, TopFreqResourceNameGeneric> {
 public:
     template <typename... Args>
-    inline TTopFreqResource(Args&&... args)
+    inline explicit TTopFreqResource(Args&&... args)
         : TBoxedResource(std::forward<Args>(args)...)
     {
     }
@@ -57,8 +58,8 @@ private:
 
 public:
     TTopFreqCreate(IHash::TPtr hash, IEquate::TPtr equate)
-        : Hash_(hash)
-        , Equate_(equate)
+        : Hash_(std::move(hash))
+        , Equate_(std::move(equate))
     {
     }
 
@@ -117,8 +118,8 @@ private:
 
 public:
     TTopFreqDeserialize(IHash::TPtr hash, IEquate::TPtr equate)
-        : Hash_(hash)
-        , Equate_(equate)
+        : Hash_(std::move(hash))
+        , Equate_(std::move(equate))
     {
     }
 
@@ -147,8 +148,8 @@ private:
 
 public:
     TTopFreqMerge(IHash::TPtr hash, IEquate::TPtr equate)
-        : Hash_(hash)
-        , Equate_(equate)
+        : Hash_(std::move(hash))
+        , Equate_(std::move(equate))
     {
     }
 
@@ -178,7 +179,7 @@ private:
     class TTopFreqResourceData<EDataSlot::slot>: public TBoxedResource<TTopFreqData<EDataSlot::slot>, TopFreqResourceName##slot> { \
     public:                                                                                                                        \
         template <typename... Args>                                                                                                \
-        inline TTopFreqResourceData(Args&&... args)                                                                                \
+        inline explicit TTopFreqResourceData(Args&&... args)                                                                       \
             : TBoxedResource(std::forward<Args>(args)...)                                                                          \
         {                                                                                                                          \
         }                                                                                                                          \
@@ -363,7 +364,8 @@ public:
             }
 
             if (name == GetName) {
-                ui32 indexF, indexV;
+                ui32 indexF;
+                ui32 indexV;
                 auto itemType = builder.Struct()->AddField<ui64>("Frequency", &indexF).AddField("Value", valueType, &indexV).Build();
                 auto resultType = builder.List()->Item(itemType).Build();
 

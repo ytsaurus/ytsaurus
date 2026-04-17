@@ -54,12 +54,8 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    if (context.GetVersion() >= EMasterReign::MasterCompactTableSchema) {
-        CompactTableSchema_ = New<TCompactTableSchema>();
-        Load(context, *CompactTableSchema_);
-    } else {
-        CompactTableSchema_ = New<TCompactTableSchema>(Load<TTableSchema>(context));
-    }
+    CompactTableSchema_ = New<TCompactTableSchema>();
+    Load(context, *CompactTableSchema_);
 
     if (IsObjectAlive(this)) {
         if (IsNative()) {

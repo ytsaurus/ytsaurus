@@ -8,8 +8,7 @@
 
 struct ArrowSchema;
 
-namespace NYql {
-namespace NUdf {
+namespace NYql::NUdf {
 
 // opaque type info
 using TType = void;
@@ -143,7 +142,7 @@ enum ETypeKind {
 ENUM_TO_STRING(ETypeKind, UDF_TYPE_KIND_MAP)
 
 struct TSourcePosition {
-    TSourcePosition(ui32 row = 0, ui32 column = 0, TStringRef file = {})
+    explicit TSourcePosition(ui32 row = 0, ui32 column = 0, TStringRef file = {})
         : Row(row)
         , Column(column)
         , File(file)
@@ -190,7 +189,7 @@ UDF_ASSERT_TYPE_SIZE(ICallablePayload, 8);
 //////////////////////////////////////////////////////////////////////////////
 class ITypeVisitor1 {
 protected:
-    ITypeVisitor1(ui16 compatibilityVersion)
+    explicit ITypeVisitor1(ui16 compatibilityVersion)
         : AbiCompatibility_(compatibilityVersion)
     {
     }
@@ -281,43 +280,43 @@ public:
 class ITypeVisitor: public ITypeVisitor7 {
 protected:
     using TBase = ITypeVisitor7;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #elif UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 26)
 class ITypeVisitor: public ITypeVisitor6 {
 protected:
     using TBase = ITypeVisitor6;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #elif UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 25)
 class ITypeVisitor: public ITypeVisitor5 {
 protected:
     using TBase = ITypeVisitor5;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #elif UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 21)
 class ITypeVisitor: public ITypeVisitor4 {
 protected:
     using TBase = ITypeVisitor4;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #elif UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 15)
 class ITypeVisitor: public ITypeVisitor3 {
 protected:
     using TBase = ITypeVisitor3;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #elif UDF_ABI_COMPATIBILITY_VERSION_CURRENT >= UDF_ABI_COMPATIBILITY_VERSION(2, 13)
 class ITypeVisitor: public ITypeVisitor2 {
 protected:
     using TBase = ITypeVisitor2;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #else
 class ITypeVisitor: public ITypeVisitor1 {
 protected:
     using TBase = ITypeVisitor1;
-    ITypeVisitor(ui16 compatibilityVersion);
+    explicit ITypeVisitor(ui16 compatibilityVersion);
 };
 #endif
 
@@ -460,5 +459,4 @@ public:
 UDF_ASSERT_TYPE_SIZE(ITypeInfoHelper, 16);
 UDF_ASSERT_TYPE_SIZE(ITypeInfoHelper::TPtr, 8);
 
-} // namespace NUdf
-} // namespace NYql
+} // namespace NYql::NUdf

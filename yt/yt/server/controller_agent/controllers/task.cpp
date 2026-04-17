@@ -1,12 +1,12 @@
 #include "task.h"
 
+#include "data_flow_graph.h"
+#include "helpers.h"
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "task_host.h"
-#include "helpers.h"
-#include "data_flow_graph.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/config.h>
@@ -16,9 +16,9 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -130,7 +130,7 @@ void TTask::Initialize()
     if (IsSimpleTask()) {
         if (auto userJobSpec = GetUserJobSpec()) {
             for (const auto& [name, volume] : userJobSpec->Volumes) {
-                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                if (IsDiskRequestTmpfs(volume->DiskRequest)) {
                     MaximumUsedTmpfsSizes_[name];
                 }
             }
@@ -545,7 +545,7 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
                 continue;
             }
 
-            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
                 attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
                 attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
@@ -830,7 +830,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     if (userJobSpec) {
         i64 totalTmpfsSize = 0;
         for (const auto& [_, volume] : userJobSpec->Volumes) {
-            if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+            if (IsDiskRequestTmpfs(volume->DiskRequest)) {
                 totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
             }
         }
@@ -1069,7 +1069,7 @@ void TTask::SetChunkPoolIndexForOutputStripes(
     }
 }
 
-NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(
+NChunkPools::IChunkPoolOutput::TCookie TTask::ExtractCookieForAllocation(
     const TAllocation& allocation)
 {
     auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
@@ -2247,7 +2247,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
                 continue;
             }
 
-            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>()) {
                 resultWithQuota.DiskQuota() = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             }
         }

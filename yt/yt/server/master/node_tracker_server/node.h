@@ -157,6 +157,8 @@ public:
     bool ReportedCellarNodeHeartbeat() const;
     bool ReportedTabletNodeHeartbeat() const;
 
+    void ValidateAllMasterCellsAreReliable() const;
+
     void ValidateRegistered() const;
 
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TClusterNodeStatistics, ClusterNodeStatistics);
@@ -258,6 +260,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextValidationFullHeartbeatTime);
+
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
     DEFINE_BYVAL_RW_PROPERTY(ECellAggregatedStateReliability, LastCellAggregatedStateReliability, ECellAggregatedStateReliability::Unknown);
 
@@ -320,6 +324,9 @@ public:
 
     //! Checks that node state is either Online, Registered or Restarted.
     bool HasAliveLocalState() const;
+
+    //! Checks that node is in Registered or Restarted state at any cell.
+    bool IsRegisteredOrRestartedAtAnyCell() const;
 
     //! Gets the cell reliability for node descriptor.
     ECellAggregatedStateReliability GetCellAggregatedStateReliability(NObjectClient::TCellTag cellTag) const;

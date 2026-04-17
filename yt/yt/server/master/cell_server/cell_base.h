@@ -39,7 +39,7 @@ struct TCellStatus
     ECellHealth Health;
     bool Decommissioned;
 
-    bool operator== (const TCellStatus& other) const = default;
+    bool operator==(const TCellStatus& other) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 };

@@ -18,27 +18,25 @@ import (
 	"context"
 
 	"github.com/envoyproxy/go-control-plane/pkg/cache/types"
-	"github.com/envoyproxy/go-control-plane/pkg/server/stream/v3"
 )
 
 // groups together resource-related arguments for the createDeltaResponse function
 type resourceContainer struct {
-	resourceMap   map[string]types.Resource
-	versionMap    map[string]string
-	systemVersion string
+	resourceMap map[string]types.Resource
+	versionMap  map[string]string
 }
 
-func createDeltaResponse(ctx context.Context, req *DeltaRequest, state stream.StreamState, resources resourceContainer) *RawDeltaResponse {
+func createDeltaResponse(ctx context.Context, req *DeltaRequest, sub Subscription, resources resourceContainer, cacheVersion string) *RawDeltaResponse {
 	// variables to build our response with
 	var nextVersionMap map[string]string
-	var filtered []types.Resource
+	var filtered []*cachedResource
 	var toRemove []string
 
 	// If we are handling a wildcard request, we want to respond with all resources
 	switch {
-	case state.IsWildcard():
-		if len(state.GetResourceVersions()) == 0 {
-			filtered = make([]types.Resource, 0, len(resources.resourceMap))
+	case sub.IsWildcard():
+		if len(sub.ReturnedResources()) == 0 {
+			filtered = make([]*cachedResource, 0, len(resources.resourceMap))
 		}
 		nextVersionMap = make(map[string]string, len(resources.resourceMap))
 		for name, r := range resources.resourceMap {
@@ -46,29 +44,29 @@ func createDeltaResponse(ctx context.Context, req *DeltaRequest, state stream.St
 			// we can just set it here to be used for comparison later
 			version := resources.versionMap[name]
 			nextVersionMap[name] = version
-			prevVersion, found := state.GetResourceVersions()[name]
+			prevVersion, found := sub.ReturnedResources()[name]
 			if !found || (prevVersion != version) {
-				filtered = append(filtered, r)
+				filtered = append(filtered, newCachedResource(name, r, version))
 			}
 		}
 
 		// Compute resources for removal
 		// The resource version can be set to "" here to trigger a removal even if never returned before
-		for name := range state.GetResourceVersions() {
+		for name := range sub.ReturnedResources() {
 			if _, ok := resources.resourceMap[name]; !ok {
 				toRemove = append(toRemove, name)
 			}
 		}
 	default:
-		nextVersionMap = make(map[string]string, len(state.GetSubscribedResourceNames()))
+		nextVersionMap = make(map[string]string, len(sub.SubscribedResources()))
 		// state.GetResourceVersions() may include resources no longer subscribed
 		// In the current code this gets silently cleaned when updating the version map
-		for name := range state.GetSubscribedResourceNames() {
-			prevVersion, found := state.GetResourceVersions()[name]
+		for name := range sub.SubscribedResources() {
+			prevVersion, found := sub.ReturnedResources()[name]
 			if r, ok := resources.resourceMap[name]; ok {
 				nextVersion := resources.versionMap[name]
 				if prevVersion != nextVersion {
-					filtered = append(filtered, r)
+					filtered = append(filtered, newCachedResource(name, r, nextVersion))
 				}
 				nextVersionMap[name] = nextVersion
 			} else if found {
@@ -79,10 +77,10 @@ func createDeltaResponse(ctx context.Context, req *DeltaRequest, state stream.St
 
 	return &RawDeltaResponse{
 		DeltaRequest:      req,
-		Resources:         filtered,
-		RemovedResources:  toRemove,
-		NextVersionMap:    nextVersionMap,
-		SystemVersionInfo: resources.systemVersion,
+		resources:         filtered,
+		removedResources:  toRemove,
+		returnedResources: nextVersionMap,
+		SystemVersionInfo: cacheVersion,
 		Ctx:               ctx,
 	}
 }

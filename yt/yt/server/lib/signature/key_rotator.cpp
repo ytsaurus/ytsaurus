@@ -25,7 +25,7 @@ TKeyRotator::TKeyRotator(
     , Generator_(std::move(generator))
     , Executor_(New<TRetryingPeriodicExecutor>(
         std::move(invoker),
-        BIND([weakSelf = MakeWeak(this)] {
+        BIND_NO_PROPAGATE([weakSelf = MakeWeak(this)] {
             if (auto self = weakSelf.Lock()) {
                 return self->DoRotate();
             }
@@ -65,7 +65,10 @@ void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
         Config_.Store(std::move(config));
         Executor_->SetOptions(keyRotationOptions);
     }
-    YT_LOG_INFO("Key rotator reconfigured (KeyRotationInterval: %v)", keyRotationOptions.Period);
+    YT_LOG_INFO("Key rotator reconfigured (KeyRotationInterval: %v, Splay: %v, Jitter: %v)",
+        keyRotationOptions.Period,
+        keyRotationOptions.Splay,
+        keyRotationOptions.Jitter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +95,7 @@ TError TKeyRotator::DoRotate()
 
     auto error = WaitFor(KeyWriter_->RegisterKey(keyInfo));
     if (!error.IsOK()) {
-       YT_LOG_ERROR(error, "Failed to register new keypair (NewKeyPair: %v), rotation failed", GetKeyId(keyInfo->Meta()));
+       YT_LOG_ERROR(error, "Failed to register new keypair during rotation (NewKeyPair: %v)", GetKeyId(keyInfo->Meta()));
        return error;
     }
 
@@ -104,7 +107,7 @@ TError TKeyRotator::DoRotate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TKeyRotator::GetNextRotation()
+TFuture<void> TKeyRotator::GetNextRotationFuture()
 {
     return Executor_->GetExecutedEvent();
 }

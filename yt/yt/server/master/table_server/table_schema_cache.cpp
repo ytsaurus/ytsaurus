@@ -94,14 +94,13 @@ TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TYsonTableSchemaCacheConfigPtr config)
+TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TAsyncExpiringCacheConfigPtr config)
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TYsonString>(
         config,
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         TableServerLogger().WithTag("Cache: YsonTableSchema"),
         TableServerProfiler().WithPrefix("/yson_table_schema_cache"))
     , WeakTableManager_(weakTableManager)
-    , EnableTableSchemaCache_(config->CacheTableSchemaAfterConvertionToYson)
 { }
 
 bool TYsonTableSchemaCache::CanCacheError(const TError& /*error*/) noexcept
@@ -109,24 +108,10 @@ bool TYsonTableSchemaCache::CanCacheError(const TError& /*error*/) noexcept
     return false;
 }
 
-void TYsonTableSchemaCache::Reconfigure(const TYsonTableSchemaCacheConfigPtr& config)
-{
-    TAsyncExpiringCache::Reconfigure(config);
-
-    EnableTableSchemaCache_.store(config->CacheTableSchemaAfterConvertionToYson);
-}
-
 TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
     const TCompactTableSchemaPtr& schema,
     bool /*isPeriodicUpdate*/) noexcept
 {
-    if (auto tableManager = WeakTableManager_.Lock(); EnableTableSchemaCache_.load() && tableManager) {
-        return tableManager->GetHeavyTableSchemaAsync(schema)
-            .Apply(BIND([] (const TTableSchemaPtr& heavySchema) {
-                return ConvertHeavySchemaToYsonString(heavySchema).ValueOrThrow();
-            }));
-    }
-
     return BIND([schema] {
         auto heavySchemaOrError = TTableSchemaCache::ConvertToHeavyTableSchema(schema);
         return ConvertHeavySchemaToYsonString(heavySchemaOrError.ValueOrThrow()).ValueOrThrow();

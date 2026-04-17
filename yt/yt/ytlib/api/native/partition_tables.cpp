@@ -77,12 +77,17 @@ TMultiTablePartitioner::TMultiTablePartitioner(
     , Options_(std::move(options))
     , User_(std::move(user))
     , Logger(std::move(logger))
-{ }
+{
+    if (!Options_.DataWeightPerPartition && !Options_.CompressedDataSizePerPartition) {
+        THROW_ERROR_EXCEPTION("Must specify either DataWeightPerPartition or CompressedDataSizePerPartition");
+    }
+}
 
 TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
 {
-    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, MaxPartitionCount: %v, AdjustDataWeightPerPartition: %v)",
+    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, MaxPartitionCount: %v, AdjustDataWeightPerPartition: %v)",
         Options_.DataWeightPerPartition,
+        Options_.CompressedDataSizePerPartition,
         Options_.MaxPartitionCount,
         Options_.AdjustDataWeightPerPartition);
 
@@ -98,6 +103,7 @@ void TMultiTablePartitioner::InitializeChunkPool()
     ChunkPool_ = CreateChunkPool(
         Options_.PartitionMode,
         Options_.DataWeightPerPartition,
+        Options_.CompressedDataSizePerPartition,
         Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
         Logger);
 }
@@ -322,6 +328,11 @@ void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inp
 {
     const auto& [inputChunks, tableIndex] = inputTable;
     const auto& comparator = GetComparator(tableIndex);
+    if (Options_.CompressedDataSizePerPartition) {
+        THROW_ERROR_EXCEPTION("Partitioning versioned table by compressed data size is unimplemented")
+            << TErrorAttribute("table_index", tableIndex);
+    }
+    YT_VERIFY(Options_.DataWeightPerPartition);
 
     YT_LOG_DEBUG("Fetching versioned data slices (TableIndex: %v, ChunkCount: %v)",
         tableIndex,
@@ -346,7 +357,7 @@ void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inp
         YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)",
             tableIndex,
             dataSlice);
-        fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
+        fetcher->AddDataSliceForSlicing(dataSlice, comparator, *Options_.DataWeightPerPartition, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
     }
 
     FetchState_.TableFetchers.push_back(std::move(fetcher));

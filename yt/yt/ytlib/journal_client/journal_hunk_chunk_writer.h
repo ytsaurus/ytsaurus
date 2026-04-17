@@ -65,6 +65,7 @@ IJournalHunkChunkWriterPtr CreateJournalHunkChunkWriter(
     NChunkClient::TSessionId sessionId,
     TJournalHunkChunkWriterOptionsPtr options,
     TJournalHunkChunkWriterConfigPtr config,
+    NApi::TJournalWriterPerformanceCounters counters,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

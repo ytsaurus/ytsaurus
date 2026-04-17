@@ -73,6 +73,17 @@ DEFINE_ENUM(ETransactionLeasesState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETransactionType,
+    ((Unknown)          (0))
+    ((Cypress)          (1))
+    ((Externalized)     (2))
+    ((Upload)           (3))
+    ((System)           (4))
+    ((Sequoia)          (5))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TProto, class TState>
 using TTypedTransactionActionDescriptor = NTransactionSupervisor::TTypedTransactionActionDescriptor<
     TTransaction,

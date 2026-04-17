@@ -24,6 +24,7 @@ target_compile_options(unpack-local-changelog PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unpack-local-changelog PUBLIC

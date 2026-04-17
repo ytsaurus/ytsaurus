@@ -4,6 +4,12 @@ This page features video content and publications from {{product-name}} develope
 
 ## Conferences, publications
 
+### 2025: Training ML Models and Running Batch Inference on {{product-name}}
+- **Event:** Yandex Scale 2025
+- **Materials:** [YouTube](https://youtu.be/d1l8rH36gHM) [Habr](https://habr.com/ru/companies/yandex/articles/979336/)
+- **Speaker:** Alexey Arkhipenko
+- **Language:** Russian
+
 ### 2025: Rebalancing without downtime in YTsaurus dynamic tables
 - **Event:** HighLoad++ 2025
 - **Materials:** [YouTube](https://youtu.be/eHzD4TJy6XM)

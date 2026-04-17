@@ -1,5 +1,5 @@
 from operator import itemgetter
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, OverrideConfig
 from yt_chaos_test_base import ChaosTestBase
 
 from yt_commands import (execute_batch, get, get_batch_output, get_connection_orchid_value, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table,
@@ -21,9 +21,40 @@ from collections import defaultdict
 from yt.yson import YsonEntity
 
 from yt.wrapper.common import generate_uuid
-from yt.wrapper.ypath import escape_ypath_literal
+from yt.wrapper.ypath import escape_ypath_literal, YPath
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
+
+
+class GenericObjectPath(YPath):
+    def __init__(self, path: str, cluster: str | None = None, queue_consumer_name: str | None = None):
+        if cluster is None:
+            super().__init__(path)
+            if "cluster" not in self.attributes:
+                raise ValueError("Cluster is not specified")
+            return
+
+        attributes = {"cluster": cluster}
+        if queue_consumer_name is not None:
+            attributes["queue_consumer_name"] = queue_consumer_name
+
+        super().__init__(path, attributes=attributes)
+
+    def get_path(self) -> str:
+        return str(self.to_yson_type())
+
+    def get_cluster(self) -> str:
+        return self.attributes["cluster"]
+
+    def get_queue_consumer_name(self) -> str | None:
+        return self.attributes.get("queue_consumer_name")
+
+    def __str__(self):
+        if self.get_queue_consumer_name() is not None:
+            return str(self.to_yson_string(sort_keys=True))
+
+        return f"{self.get_cluster()}:{self.get_path()}"
+
 
 ##################################################################
 
@@ -60,8 +91,10 @@ class QueueConsumerRegistration:
 
     @classmethod
     def from_orchid(cls, r):
-        return cls(*r["queue"].split(":"), *r["consumer"].split(":"), r["vital"],
-                   cls._normalize_partitions(r["partitions"]))
+        queue_ypath = GenericObjectPath(r["queue"])
+        consumer_ypath = GenericObjectPath(r["consumer"])
+        return cls(queue_ypath.get_cluster(), queue_ypath.get_path(), consumer_ypath.get_cluster(),
+                   consumer_ypath.get_path(), r["vital"], cls._normalize_partitions(r["partitions"]))
 
     @classmethod
     def from_list_registrations(cls, r):
@@ -332,11 +365,11 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
         self.wait_fresh_pass()
         return get(self.orchid_path() + "/owned_consumers")
 
-    def get_queue_orchid(self, queue_ref):
-        return QueueOrchid(queue_ref, self.agent_id)
+    def get_queue_orchid(self, queue_ref: str | GenericObjectPath):
+        return QueueOrchid(str(queue_ref), self.agent_id)
 
-    def get_owned_queue_orchid(self, queue_ref):
-        return OwnedQueueOrchid(queue_ref, self.agent_id)
+    def get_owned_queue_orchid(self, queue_ref: str | GenericObjectPath):
+        return OwnedQueueOrchid(str(queue_ref), self.agent_id)
 
     def get_queue_orchids(self):
         return [self.get_queue_orchid(queue) for queue in self.list_queues()]
@@ -344,11 +377,11 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
     def get_owned_queue_orchids(self):
         return [self.get_owned_queue_orchid(queue) for queue in self.list_queues()]
 
-    def get_consumer_orchid(self, consumer_ref):
-        return ConsumerOrchid(consumer_ref, self.agent_id)
+    def get_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return ConsumerOrchid(str(consumer_ref), self.agent_id)
 
-    def get_owned_consumer_orchid(self, consumer_ref):
-        return OwnedConsumerOrchid(consumer_ref, self.agent_id)
+    def get_owned_consumer_orchid(self, consumer_ref: str | GenericObjectPath):
+        return OwnedConsumerOrchid(str(consumer_ref), self.agent_id)
 
     def get_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
@@ -747,16 +780,29 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         "disable_list_all_registrations": True,
         "implementation": "async_expiring_cache",
         "bypass_caching": False,
+        "cache": {
+            "federation_config": {
+                "cluster_health_check_period": 1000,
+                "bundle_name": "default",
+            },
+        },
     }
 
     QUEUE_CONSUMER_REGISTRATION_MANAGER_LEGACY_IMPLEMENTATION_CHECK = False
 
-    _QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_FIELD_LIST = {
-        "local_replica_path",
-        "replica_clusters",
-        "read_availability_clusters",
-        "write_availability_clusters",
-    }
+    QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_PATHS_LIST = [
+        ["local_replica_path"],
+        ["replica_clusters"],
+        ["read_availability_clusters"],
+        ["write_availability_clusters"],
+    ]
+
+    NATIVE_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_PATHS_LIST = [
+        ["local_replica_path"],
+        ["replica_clusters"],
+        ["read_availability_clusters"],
+        ["write_availability_clusters"],
+    ]
 
     _APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {}
 
@@ -780,6 +826,15 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
                         driver=driver
                     )
                     assert effective_implementation == implementation
+
+            if exists("//sys/kafka_proxies", driver=driver):
+                for proxy in ls("//sys/kafka_proxies/instances", driver=driver):
+                    with get_ctx():
+                        effective_implementation = get(
+                            f"//sys/kafka_proxies/instances/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation",
+                            driver=driver
+                        )
+                        assert effective_implementation == implementation
 
             if cls.DRIVER_BACKEND == "native":
                 effective_implementation = get_connection_orchid_value("/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation", driver=driver)
@@ -819,12 +874,66 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
             return cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG["implementation"]
 
     @classmethod
-    def _process_patch(cls, patch):
-        processed_patch = {}
+    def _get_ignored_paths_tree(cls, native=False):
+        result = {}
+        for base in cls.__mro__[::-1]:
+            base_ignored_paths = base.__dict__.get("QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_PATHS_LIST", [])
+            base_native_ignored_paths = base.__dict__.get("NATIVE_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_PATHS_LIST", [])
 
-        for k, v in patch.items():
-            if k not in cls._QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_IGNORED_FIELD_LIST:
-                processed_patch[k] = v
+            actual_base_ignored_paths = base_native_ignored_paths if native else base_ignored_paths
+
+            if isinstance(actual_base_ignored_paths, OverrideConfig):
+                result = {}
+
+            for ignored_path in actual_base_ignored_paths:
+                assert len(ignored_path) > 0
+                current = result
+                for part in ignored_path:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+
+        return result
+
+    @classmethod
+    def _verify_effective_config(cls, effective_config, native=False):
+        def verify_config(config, ignored_paths_tree, path):
+            if not isinstance(config, dict) or ignored_paths_tree is None:
+                return
+
+            for key, value in config.items():
+                ignored_paths_subtree = ignored_paths_tree.get(key, None)
+                if ignored_paths_subtree is None:
+                    continue
+
+                assert ignored_paths_subtree or not value, f"Ignored path {'/'.join(path + [key])} is not empty: {value}"
+
+                if isinstance(value, dict):
+                    verify_config(value, ignored_paths_subtree, path=(path + [key]))
+
+        verify_config(effective_config, cls._get_ignored_paths_tree(native=native), path=[])
+
+    @classmethod
+    def _process_patch(cls, patch, native=False):
+        def copy_patch(patch, ignored_paths_tree):
+            if not isinstance(patch, dict) or ignored_paths_tree is None:
+                return copy.deepcopy(patch)
+
+            assert isinstance(ignored_paths_tree, dict)
+
+            result = {}
+            for key, value in patch.items():
+                ignored_paths_subtree = ignored_paths_tree.get(key, None)
+                if ignored_paths_subtree is None:
+                    result[key] = copy_patch(value, None)
+
+                # Non-terminal vertex.
+                if ignored_paths_subtree:
+                    result[key] = copy_patch(value, ignored_paths_subtree)
+
+            return result
+
+        processed_patch = copy_patch(patch, cls._get_ignored_paths_tree(native=native))
 
         # NB(apachee): Improve registration manager responsiveness by reducing refresh periods.
 
@@ -836,7 +945,7 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         # COMPAT(apachee): After stable release supports this field, we can remove this code.
         implementation = processed_patch.get("implementation", None) or cls._get_registration_manager_applied_implementation()
         if implementation == "async_expiring_cache":
-            processed_patch.update({
+            update_inplace(processed_patch, {
                 "cache": {
                     "base": {
                         "expire_after_access_time": 1000,
@@ -853,22 +962,29 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         return processed_patch
 
     @classmethod
-    def _apply_registration_manager_config_patch(cls, processed_patch, cluster):
+    def _apply_registration_manager_config_patch(cls, processed_patch, processed_native_patch, cluster):
         """Apply processed registration manager config patch to the specified cluster"""
         driver = get_driver(cluster=cluster)
         config_path = f"//sys/clusters/{cluster}/queue_agent/queue_consumer_registration_manager"
 
+        # Assume native client registration manager config is a super set of the proxies' one.
         config = get(config_path, driver=driver)
-        update_inplace(config, processed_patch)
+        proxy_config = update(config, processed_patch)
+        update_inplace(config, processed_native_patch)
         print_debug("Setting dynamic config", config)
         set(config_path, config, driver=driver)
 
         applied_config = {}
 
-        def check_orchid_value(proxy, effective_config, unrecognized_config_options):
+        def check_orchid_value(proxy, effective_config, unrecognized_config_options, native=False):
+            compared_config = config if native else proxy_config
+
             print_debug(f"Checking orchid value for proxy {proxy}")
-            if update(effective_config, config) != effective_config or unrecognized_config_options != {}:
-                print_debug(f"Diff: {calculate_object_diff(update(effective_config, config), effective_config):expected_config,actual_config}, "
+            # TODO(apachee): Move unrecognized config options check to verify, since once it works we should ignore
+            # parts which should be ignored.
+            cls._verify_effective_config(effective_config, native=native)
+            if update(effective_config, compared_config) != effective_config or unrecognized_config_options != {}:
+                print_debug(f"Diff: {calculate_object_diff(update(effective_config, compared_config), effective_config):expected_config,actual_config}, "
                             f"unrecognized config options: {unrecognized_config_options}")
                 return False
             return True
@@ -886,11 +1002,20 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
                 if not check_orchid_value(proxy, effective_config, unrecognized_config_options):
                     return False
 
+            if exists("//sys/kafka_proxies", driver=driver):
+                for proxy in ls("//sys/kafka_proxies/instances", driver=driver):
+                    orchid_path = f"//sys/kafka_proxies/instances/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+                    orchid_value = get(orchid_path, driver=driver)
+                    effective_config = orchid_value["effective_config"]
+                    unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
+                    if not check_orchid_value(proxy, effective_config, unrecognized_config_options):
+                        return False
+
             if cls.DRIVER_BACKEND == "native":
                 orchid_value = get_connection_orchid_value("/queue_consumer_registration_manager", driver=driver)
                 effective_config = orchid_value["effective_config"]
                 unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
-                if not check_orchid_value("native_driver", effective_config, unrecognized_config_options):
+                if not check_orchid_value("native_driver", effective_config, unrecognized_config_options, native=True):
                     return False
 
             assert effective_config is not None
@@ -903,14 +1028,15 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
         return applied_config
 
     @classmethod
-    def _apply_registration_manager_config_patch_all(cls, patch):
+    def _apply_registration_manager_config_patch_all(cls, raw_patch):
         """Apply registration manager config patch to all clusters"""
-        patch = cls._process_patch(patch)
+        patch = cls._process_patch(raw_patch)
+        native_patch = cls._process_patch(raw_patch, native=True)
 
         print_debug(f"Applying config patch {patch} to queue consumer registration manager dynamic config")
 
         for cluster in cls.get_cluster_names():
-            applied_config = cls._apply_registration_manager_config_patch(patch, cluster)
+            applied_config = cls._apply_registration_manager_config_patch(patch, native_patch, cluster)
             if cluster == "primary":
                 # NB(apachee): This kind of reassignment is fine.
                 cls._APPLIED_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = applied_config

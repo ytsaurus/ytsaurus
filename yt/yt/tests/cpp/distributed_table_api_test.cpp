@@ -72,7 +72,7 @@ TDistributedWriteSessionWithCookies TDistributedTableApiTest::StartDistributedWr
 {
     TDistributedWriteSessionStartOptions options = {};
     options.CookieCount = cookieCount;
-    options.Timeout = timeout;
+    options.SessionTimeout = timeout;
     if (txId) {
         options.TransactionId = *txId;
     }

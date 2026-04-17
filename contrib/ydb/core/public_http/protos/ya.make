@@ -1,0 +1,14 @@
+PROTO_LIBRARY()
+PROTOC_FATAL_WARNINGS()
+
+SRCS(
+    fq.proto
+)
+
+PEERDIR(
+    contrib/ydb/core/protos
+)
+
+EXCLUDE_TAGS(GO_PROTO)
+
+END()

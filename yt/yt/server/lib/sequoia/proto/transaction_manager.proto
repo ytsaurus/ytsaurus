@@ -24,16 +24,17 @@ message TReqStartForeignTransaction
     required NYT.NProto.TGuid id = 1;
     optional NYT.NProto.TGuid parent_id = 2;
     optional string title = 3;
-    required bool upload = 4;
     optional string operation_type = 5;
     optional string operation_id = 6;
     optional string operation_title = 7;
 
     optional string user = 8;
 
+    // COMPAT(h0pless): RemoveCompatsAroundStartTransaction.
+    optional bool upload = 4;
 
-    // COMPAT(kvk1920): remove after 24.2.
-    optional bool enable_native_tx_externalization = 9 [default = false];
+    // Can be used after 26.2.
+    reserved 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +88,16 @@ message TReqMarkCypressTransactionsReplicatedToCells
 message TReqMaterializeCypressTransactionReplicas
 {
     repeated TReqStartForeignTransaction transactions = 1;
+}
+
+message TReqReturnBoomerang
+{
+    required NYT.NProto.TGuid boomerang_wave_id = 1;
+    required int32 boomerang_wave_size = 2;
+
+    required NYT.NProto.TGuid boomerang_mutation_id = 3;
+    required string boomerang_mutation_type = 4;
+    required bytes boomerang_mutation_data = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

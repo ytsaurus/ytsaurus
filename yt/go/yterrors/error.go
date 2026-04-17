@@ -43,7 +43,7 @@ type Error struct {
 	origError error
 }
 
-// ContainsErrorCode returns true iff any of the nested errors has ErrorCode equal to errorCode.
+// ContainsErrorCode returns true if any of the nested errors has ErrorCode equal to errorCode.
 //
 // ContainsErrorCode invokes errors.As internally. It is safe to pass arbitrary error value to this function.
 func ContainsErrorCode(err error, code ErrorCode) bool {
@@ -58,6 +58,30 @@ func ContainsResolveError(err error) bool {
 // ContainsAlreadyExistsError is convenient helper for checking AlreadyExistsError.
 func ContainsAlreadyExistsError(err error) bool {
 	return ContainsErrorCode(err, CodeAlreadyExists)
+}
+
+// GetErrorCodes extracts all unique error codes from error chain recursively.
+//
+// Function traverses nested errors depth-first and collects distinct error codes
+// into a map set. If error doesn't match yterrors.Error type function returns empty map.
+func GetErrorCodes(err error) map[ErrorCode]struct{} {
+	errorCodes := make(map[ErrorCode]struct{})
+
+	var extractErrorCodes func(err error)
+
+	extractErrorCodes = func(err error) {
+		var ytError *Error
+		if errors.As(err, &ytError) {
+			errorCodes[ytError.Code] = struct{}{}
+			for _, innerError := range ytError.InnerErrors {
+				extractErrorCodes(innerError)
+			}
+		}
+	}
+
+	extractErrorCodes(err)
+
+	return errorCodes
 }
 
 // FindErrorCode examines error and all nested errors, returning first YT error with given error code.

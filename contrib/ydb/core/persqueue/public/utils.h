@@ -7,6 +7,10 @@
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 
+namespace NKikimrPQ {
+    class TUpdateBalancerConfig;
+}
+
 namespace NKikimr::NPQ {
 
 ui64 TopicPartitionReserveSize(const NKikimrPQ::TPQTabletConfig& config);

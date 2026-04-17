@@ -1,5 +1,5 @@
 # util/_collections.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -313,12 +313,7 @@ class WeakSequence(Sequence[_T]):
         )
 
     def __getitem__(self, index):
-        try:
-            obj = self._storage[index]
-        except KeyError:
-            raise IndexError("Index %s out of range" % index)
-        else:
-            return obj()
+        return self._storage[index]()
 
 
 class OrderedIdentitySet(IdentitySet):

@@ -57,7 +57,7 @@ void SerializeDiskQuotaImpl(
         .Item("disk_space_per_medium")
             .DoMapFor(quota.DiskSpacePerMedium, [&] (TFluentMap fluent, const std::pair<int, i64>& pair) {
                 auto [mediumIndex, diskSpace] = pair;
-                fluent.Item(mediumDirectory->FindByIndex(mediumIndex)->Name).Value(diskSpace);
+                fluent.Item(mediumDirectory->FindByIndex(mediumIndex)->Name()).Value(diskSpace);
             })
         .Item("disk_space_without_medium").Value(quota.DiskSpaceWithoutMedium);
 }
@@ -224,8 +224,6 @@ void ProfileResources(
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
             break;
-        default:
-            YT_ABORT();
     }
 }
 

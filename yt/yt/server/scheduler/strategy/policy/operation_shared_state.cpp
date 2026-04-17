@@ -130,6 +130,37 @@ bool TOperationSharedState::ProcessAllocationUpdate(
     return true;
 }
 
+bool TOperationSharedState::ProcessAllocationPreemption(
+    TPoolTreeOperationElement* operationElement,
+    TAllocationId allocationId)
+{
+    if (!IsEnabled()) {
+        return false;
+    }
+
+    auto delta = [&] {
+        auto guard = WriterGuard(AllocationPropertiesMapLock_);
+
+        return SetAllocationResourceUsage(
+            GetAllocationProperties(allocationId),
+            TJobResources());
+    }();
+
+    if (delta != TJobResources()) {
+        if (!operationElement->CommitHierarchicalPreemptedResourceUsage(-delta)) {
+            YT_LOG_DEBUG(
+                "Failed to commit preempted resource usage, decreasing resource usage instead "
+                "(OperationId: %v, Delta: %v)",
+                operationElement->GetId(),
+                delta);
+            operationElement->IncreaseHierarchicalResourceUsage(delta);
+        }
+        UpdatePreemptibleAllocationsList(operationElement);
+    }
+
+    return true;
+}
+
 TDiskQuota TOperationSharedState::GetTotalDiskQuota() const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
@@ -571,6 +602,7 @@ TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TOperationSharedState::Get
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
 }
 
@@ -585,6 +617,7 @@ TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivati
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return DeactivationReasons_;
 }
 
@@ -592,6 +625,7 @@ TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivati
 {
     UpdateDiagnosticCounters();
 
+    auto guard = ReaderGuard(DiagnosticCountersLock_);
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
@@ -612,7 +646,10 @@ int TOperationSharedState::GetOperationScheduleAllocationAttemptCount()
 void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
-        std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+        {
+            auto guard = WriterGuard(DiagnosticCountersLock_);
+            std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+        }
 
         int shardId = 0;
         for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
@@ -633,7 +670,14 @@ void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus sta
 void TOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
-    if (now < LastDiagnosticCountersUpdateTime_ + UpdateStateShardsBackoff_) {
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
+        return;
+    }
+
+    auto guard = WriterGuard(DiagnosticCountersLock_);
+
+    now = TInstant::Now();
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
         return;
     }
 
@@ -657,7 +701,7 @@ void TOperationSharedState::UpdateDiagnosticCounters()
     }
 
     ScheduleAllocationAttemptCount_ = scheduleAllocationAttemptCount;
-    LastDiagnosticCountersUpdateTime_ = now;
+    LastDiagnosticCountersUpdateTime_.store(now, std::memory_order_relaxed);
 }
 
 TInstant TOperationSharedState::GetLastScheduleAllocationSuccessTime() const

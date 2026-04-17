@@ -444,7 +444,7 @@ public:
         }
 
         if (planFragment.SubqueryFragment) {
-            auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
+            auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
 
             auto subqueryStatistics = Execute(
                 *planFragment.SubqueryFragment,
@@ -527,7 +527,7 @@ private:
 
         std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
-        if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
+        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Ordered) {
             // Splits are ordered by tablet bounds.
             YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
 
@@ -630,10 +630,11 @@ private:
 
         auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
 
-        std::vector<IJoinProfilerPtr> joinProfilers;
+        TJoinProfilerRegistry joinProfilerRegistry;
         for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
-            joinProfilers.push_back(CreateJoinSubqueryProfiler(
-                query->JoinClauses[joinIndex],
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
+                joinClause,
                 executePlanCallback,
                 [subqueryResults] (TQueryStatistics statistics) mutable {
                     subqueryResults->Enqueue(std::move(statistics));
@@ -648,7 +649,7 @@ private:
             query,
             reader,
             writer,
-            std::move(joinProfilers),
+            joinProfilerRegistry,
             functionGenerators,
             aggregateGenerators,
             sdk,
@@ -700,7 +701,7 @@ private:
         int splitCount = std::ssize(groupedDataSplits);
 
         auto statistics = CoordinateAndExecute(
-            query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
+            query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
             query->Offset,
@@ -744,7 +745,7 @@ private:
                     std::move(frontQuery),
                     std::move(reader),
                     writer,
-                    /*joinProfilers*/ {},
+                    /*joinProfilerRegistry*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     sdk,

@@ -61,18 +61,21 @@ void TLsmActionBatch::MergeWith(TLsmActionBatch&& other)
     DoMerge(other, &TLsmActionBatch::Merges);
 
     DoMerge(other, &TLsmActionBatch::Rotations);
+
+    DoMerge(other, &TLsmActionBatch::CompactionHintUpdates);
 }
 
 TString TLsmActionBatch::GetStatsLoggingString() const
 {
     return Format("Compactions: %v, Partitionings: %v, Samplings: %v, "
-        "Splits: %v, Merges: %v, Rotations: %v",
+        "Splits: %v, Merges: %v, Rotations: %v, CompactionHintUpdates: %v",
         Compactions.size(),
         Partitionings.size(),
         Samplings.size(),
         Splits.size(),
         Merges.size(),
-        Rotations.size());
+        Rotations.size(),
+        CompactionHintUpdates.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

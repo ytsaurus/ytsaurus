@@ -25,6 +25,9 @@ public:
         TAllocationId allocationId,
         const TJobResources& resources,
         bool resetAllocationPreemptibleProgress);
+    bool ProcessAllocationPreemption(
+        TPoolTreeOperationElement* operationElement,
+        TAllocationId allocationId);
 
     TDiskQuota GetTotalDiskQuota() const;
 
@@ -108,7 +111,7 @@ private:
     const int UpdatePreemptibleAllocationsListLoggingPeriod_;
 
     // TODO(ignat): make it configurable.
-    TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
+    const TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
 
     struct TAllocationProperties
     {
@@ -131,13 +134,15 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiagnosticCountersLock_);
+
     const NLogging::TLogger Logger;
 
-    //! Thread affinity: control.
+    //! Protected by DiagnosticCountersLock_. Accessed from FairShareLoggingInvoker, OrchidWorkerInvoker, and FairShareUpdateInvoker.
     TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons_;
     TEnumIndexedArray<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTime_;
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
-    TInstant LastDiagnosticCountersUpdateTime_;
+    std::atomic<TInstant> LastDiagnosticCountersUpdateTime_;
 
     //! Thread affinity: control, profiling.
     std::atomic<i64> ScheduleAllocationAttemptCount_;

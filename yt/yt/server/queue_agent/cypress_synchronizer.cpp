@@ -27,6 +27,7 @@ using namespace NRpc;
 using namespace NTracing;
 using namespace NYson;
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,14 +166,14 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
-                        TCrossClusterReference{cluster, object.Path},
+                        TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(QueueRows.back());
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
-                        TCrossClusterReference{cluster, object.Path},
+                        TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(ConsumerRows.back());
@@ -186,7 +187,7 @@ private:
         // NB: Must provide a strong exception-safety guarantee.
         void AppendPotentiallyReplicatedObject(const std::string& cluster, const TObject& object, const IAttributeDictionaryPtr& attributes) {
             auto tableRow =
-                TReplicatedTableMappingTableRow::FromAttributeDictionary(TCrossClusterReference{cluster, object.Path}, attributes);
+                TReplicatedTableMappingTableRow::FromAttributeDictionary(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)), attributes);
             const auto& type = tableRow.ObjectType;
             if (IsReplicatedTableObjectType(type)) {
                 tableRow.Validate();
@@ -203,20 +204,21 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
-                case ECypressSyncObjectKind::Consumer:
+                case ECypressSyncObjectKind::Consumer: {
                     ConsumerRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
+                }
                 case ECypressSyncObjectKind::Unknown:
                     // NB(apachee): Cypress sync object kind must be known at this point.
                     YT_ABORT();
@@ -258,7 +260,7 @@ private:
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -266,7 +268,7 @@ private:
                     break;
                 case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back({
-                        .Ref = TCrossClusterReference{cluster, object.Path},
+                        .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -299,7 +301,7 @@ private:
             }
 
             ReplicatedTableMappingRows.push_back({
-                .Ref = TCrossClusterReference{cluster, object.Path},
+                .Path = TTablePath(object.Path, *MakeAttributesWithCluster(cluster)),
                 .ObjectType = objectType,
                 .SynchronizationError = error,
             });
@@ -309,10 +311,10 @@ private:
         {
             switch (object.Kind) {
                 case ECypressSyncObjectKind::Queue:
-                    QueueRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
+                    QueueRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Consumer:
-                    ConsumerRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
+                    ConsumerRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
                     break;
                 case ECypressSyncObjectKind::Unknown:
                     // NB(apachee): Cypress sync object kind must be known at this point.
@@ -322,7 +324,7 @@ private:
 
         void AppendReplicatedObjectKey(const std::string& cluster, const TObject& object)
         {
-            ReplicatedTableMappingRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
+            ReplicatedTableMappingRows.emplace_back(TTablePath(object.Path, *MakeAttributesWithCluster(cluster)));
         }
 
         void MergeWith(const TObjectRowList& rhs)
@@ -595,7 +597,7 @@ private:
                     continue;
                 }
 
-                if (auto inserted = watchedObjects.InsertObject(&object).second; Y_UNLIKELY(!inserted)) {
+                if (auto inserted = watchedObjects.InsertObject(&object).second; !inserted) [[unlikely]] {
                     YT_LOG_WARNING("Duplicate object paths present in current dynamic state (Cluster: %v, Path: %v)",
                         cluster,
                         object.Path);
@@ -609,11 +611,14 @@ private:
 
                 auto [revision, kind] = *objectInfo;
 
+                // NB(apachee): Treating any revision change as an object update instead of checking for a revision increase is a deliberate choice.
+                // It is not completely foolproof (portals, sequoia, cluster rebuild), but it should make it basically impossible
+                // to miss an object update.
                 // NB(apachee): Replicated table attributes change is handled in other part below and here we only
                 // care about revision change.
                 // TODO(apachee): In future it might be beneficial to limit fetched attributes for replicated objects to only those
                 // needed for replicated table mapping, as other attributes change results in revision change.
-                if (!object.Revision || revision > *object.Revision) {
+                if (!object.Revision || revision != *object.Revision) {
                     YT_LOG_DEBUG(
                         "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
                         cluster,
@@ -704,7 +709,7 @@ private:
             }
         }
 
-        if (Y_UNLIKELY(missingReplicatedTableMappingObjectCount > 0)) {
+        if (missingReplicatedTableMappingObjectCount > 0) [[unlikely]] {
             // NB(apachee): As a side effect if WriteReplicatedTableMapping was only just enabled, this would stage an alert.
             // TODO(apachee): Persist alerts in alert collector to be able to check this alert in tests.
             YT_LOG_WARNING("Found objects present in current dynamic state with replicated table object type, but missing in replicated table mapping table (ObjectCount: %v)",
@@ -733,18 +738,19 @@ private:
         WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid(), asyncReplicatedTableMapping.AsVoid()}))
             .ThrowOnError();
 
-        for (const auto& queue : asyncQueues.Get().Value()) {
-            ClusterToDynamicStateObjects_[queue.Ref.Cluster].push_back({
-                queue.Ref.Path,
+
+        for (const auto& queue : asyncQueues.GetOrCrash().Value()) {
+            ClusterToDynamicStateObjects_[queue.Path.GetCluster().value()].push_back({
+                queue.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Queue,
                 queue.ObjectType,
                 queue.Revision,
                 queue.RowRevision});
         }
 
-        for (const auto& consumer : asyncConsumers.Get().Value()) {
-            ClusterToDynamicStateObjects_[consumer.Ref.Cluster].push_back({
-                consumer.Ref.Path,
+        for (const auto& consumer : asyncConsumers.GetOrCrash().Value()) {
+            ClusterToDynamicStateObjects_[consumer.Path.GetCluster().value()].push_back({
+                consumer.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Consumer,
                 consumer.ObjectType,
                 consumer.Revision,
@@ -755,9 +761,9 @@ private:
             return;
         }
 
-        for (const auto& replicatedObject : asyncReplicatedTableMapping.Get().Value()) {
-            ClusterToReplicatedTableMappingObjects_[replicatedObject.Ref.Cluster].push_back({
-                replicatedObject.Ref.Path,
+        for (const auto& replicatedObject : asyncReplicatedTableMapping.GetOrCrash().Value()) {
+            ClusterToReplicatedTableMappingObjects_[replicatedObject.Path.GetCluster().value()].push_back({
+                replicatedObject.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Unknown,
                 replicatedObject.ObjectType,
                 replicatedObject.Revision,
@@ -820,7 +826,7 @@ private:
                 const auto& object = modifiedObjects[objectIndex];
                 const auto& responseOrError = responses[objectIndex];
                 if (!responseOrError.IsOK()) {
-                    YT_LOG_ERROR(
+                    YT_LOG_WARNING(
                         responseOrError,
                         "Error fetching attributes for object (Cluster: %v, Path: %v)",
                         cluster,
@@ -979,7 +985,6 @@ public:
             ControlInvoker_,
             BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
             DynamicConfig_->PassPeriod))
-        , PassProfiler_(QueueAgentProfilerGlobal().WithPrefix("/cypress_synchronizer"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
         , AlertCollector_(CreateAlertCollectorCallback_())
     { }
@@ -993,10 +998,11 @@ public:
     {
         Active_ = true;
 
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_ = CreateAlertCollectorCallback_();
+        // NB: Start and Stop called via Serialized Invoker, so there is no concurrency here.
+        if (!PassProfiler_.Acquire()) {
+            PassProfiler_.Store(New<TPassProfiler>(QueueAgentProfiler().WithPrefix("/cypress_synchronizer")));
         }
+        AlertCollector_.Store(CreateAlertCollectorCallback_());
         PassExecutor_->Start();
     }
 
@@ -1005,10 +1011,10 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         YT_UNUSED_FUTURE(PassExecutor_->Stop());
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_->Stop();
-        }
+
+        // NB: Start and Stop called via Serialized Invoker, so there is no concurrency here.
+        AlertCollector_.Acquire()->Stop();
+        PassProfiler_.Store(nullptr);
 
         Active_ = false;
     }
@@ -1021,15 +1027,14 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
-        IAlertCollectorPtr alertCollector;
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            alertCollector = AlertCollector_;
-        }
+        IAlertCollectorPtr alertCollector = AlertCollector_.Acquire();
 
+        auto passProfiler = PassProfiler_.Acquire();
         auto finalizePass = Finally([&] {
             alertCollector->PublishAlerts();
-            PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
+            if (passProfiler) {
+                passProfiler->OnFinish(TInstant::Now() - PassInstant_);
+            }
         });
 
         if (!DynamicConfig_->Enable) {
@@ -1039,8 +1044,9 @@ public:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
-        PassProfiler_.OnStart(PassIndex_, PassInstant_);
-
+        if (passProfiler) {
+            passProfiler->OnStart(PassIndex_, PassInstant_);
+        }
         auto dynamicConfigSnapshot = CloneYsonStruct(DynamicConfig_);
 
         YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
@@ -1056,7 +1062,9 @@ public:
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
-            PassProfiler_.OnError();
+            if (passProfiler) {
+                passProfiler->OnError();
+            }
             alertCollector->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
                 "Error performing Cypress synchronizer pass",
@@ -1091,11 +1099,10 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const TCallback<IAlertCollectorPtr()> CreateAlertCollectorCallback_;
     const TPeriodicExecutorPtr PassExecutor_;
-    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);
-    IAlertCollectorPtr AlertCollector_;
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_{};
+    TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;

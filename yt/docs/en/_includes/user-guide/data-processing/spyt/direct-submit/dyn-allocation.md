@@ -11,7 +11,15 @@ To enable the option, you need to set the following parameters:
 --conf spark.ytsaurus.shuffle.enabled=true
 ```
 
-In addition, you need to specify the initial, minimum, and maximum number of executors, and additional parameters if necessary, using the standard [Spark configuration](https://spark.apache.org/docs/latest/configuration.html#dynamic-allocation).
+In addition, you need to specify the minimum and maximum number of executors, and additional parameters if necessary, using the standard [Spark configuration](https://spark.apache.org/docs/latest/configuration.html#dynamic-allocation):
+
+```
+--conf spark.dynamicAllocation.minExecutors=1            # minimum during idle
+--conf spark.dynamicAllocation.maxExecutors=10           # maximum under load
+--conf spark.dynamicAllocation.executorIdleTimeout=120s  # timeout for stopping due to inactivity
+--conf spark.dynamicAllocation.initialExecutors=5        # initial number of executors
+```
+Due to the specifics of operations in {{product-name}}, the `minExecutors` parameter must not be zero.
 
 {% note info "Note" %}
 

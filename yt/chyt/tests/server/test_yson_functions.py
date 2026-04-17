@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
+from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from yt_commands import (create, write_table, read_table, authors, raises_yt_error, merge)
 
@@ -245,6 +245,8 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert result == [{"i": object["a"][2]}]
             result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
             assert result == [{"i": object["a"]}]
+            result = clique.make_query("select YPathExtract(a, '/b', 'String') as i from \"//tmp/s1\"")
+            assert result == [{"i": ""}]
 
     # CHYT-370.
     @authors("max42")
@@ -296,8 +298,3 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert json_res == {'a': 1}
             result = clique.make_query("select ConvertYsonToJson(null) as v")
             assert result[0]["v"] is None
-
-
-@enable_sequoia
-class TestYsonFunctionsSequoia(TestYsonFunctions):
-    pass

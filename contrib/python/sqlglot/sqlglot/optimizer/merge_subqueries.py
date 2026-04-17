@@ -130,6 +130,8 @@ def _mergeable(
 
     def _is_a_window_expression_in_unmergable_operation():
         window_aliases = {s.alias_or_name for s in inner_select.selects if s.find(exp.Window)}
+        if not window_aliases:
+            return False
         inner_select_name = from_or_join.alias_or_name
         unmergable_window_columns = [
             column
@@ -138,12 +140,10 @@ def _mergeable(
                 exp.Where, exp.Group, exp.Order, exp.Join, exp.Having, exp.AggFunc
             )
         ]
-        window_expressions_in_unmergable = [
-            column
+        return any(
+            column.table == inner_select_name and column.name in window_aliases
             for column in unmergable_window_columns
-            if column.table == inner_select_name and column.name in window_aliases
-        ]
-        return any(window_expressions_in_unmergable)
+        )
 
     def _outer_select_joins_on_inner_select_join():
         """
@@ -322,21 +322,37 @@ def _merge_expressions(outer_scope: Scope, inner_scope: Scope, alias: str) -> No
         if not projection_name:
             continue
         columns_to_replace = outer_columns.get(projection_name, [])
+        if not columns_to_replace:
+            continue
 
         expression = expression.unalias()
         must_wrap_expression = not isinstance(expression, SAFE_TO_REPLACE_UNWRAPPED)
 
-        for column in columns_to_replace:
+        is_number = expression.is_number
+        last = len(columns_to_replace) - 1
+
+        for i, column in enumerate(columns_to_replace):
+            parent = column.parent
+
+            # Ensures that we don't merge literal numbers in GROUP BY as they have positional context
+            # e.g don't trasform `SELECT a FROM (SELECT 6 AS a) GROUP BY a` to `SELECT 6 AS a GROUP BY 6`,
+            # as this would attempt to GROUP BY the 6th projection instead of the column `a`
+            if is_number and isinstance(parent, exp.Group):
+                column.replace(exp.to_identifier(column.name))
+                continue
+
             # Ensures we don't alter the intended operator precedence if there's additional
             # context surrounding the outer expression (i.e. it's not a simple projection).
-            if isinstance(column.parent, (exp.Unary, exp.Binary)) and must_wrap_expression:
+            if isinstance(parent, (exp.Unary, exp.Binary)) and must_wrap_expression:
                 expression = exp.paren(expression, copy=False)
 
             # make sure we do not accidentally change the name of the column
-            if isinstance(column.parent, exp.Select) and column.name != expression.name:
+            if isinstance(parent, exp.Select) and column.name != expression.name:
                 expression = exp.alias_(expression, column.name)
 
-            column.replace(expression.copy())
+            # Skip the expensive deep copy for the last reference since the inner query
+            # is about to be removed, so we can move the expression directly
+            column.replace(expression.copy() if i < last else expression)
 
 
 def _merge_where(outer_scope: Scope, inner_scope: Scope, from_or_join: FromOrJoin) -> None:
@@ -382,6 +398,10 @@ def _merge_order(outer_scope: Scope, inner_scope: Scope) -> None:
         outer_scope (sqlglot.optimizer.scope.Scope)
         inner_scope (sqlglot.optimizer.scope.Scope)
     """
+    inner_order = inner_scope.expression.args.get("order")
+    if not inner_order:
+        return
+
     if (
         any(
             outer_scope.expression.args.get(arg) for arg in ["group", "distinct", "having", "order"]
@@ -391,7 +411,7 @@ def _merge_order(outer_scope: Scope, inner_scope: Scope) -> None:
     ):
         return
 
-    outer_scope.expression.set("order", inner_scope.expression.args.get("order"))
+    outer_scope.expression.set("order", inner_order)
 
 
 def _merge_hints(outer_scope: Scope, inner_scope: Scope) -> None:

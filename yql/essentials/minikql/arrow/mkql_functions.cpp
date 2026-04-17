@@ -20,7 +20,7 @@ bool ConvertInputArrowType(TType* blockType, arrow::ValueDescr& descr) {
 
 class TOutputTypeVisitor: public arrow::TypeVisitor {
 public:
-    TOutputTypeVisitor(TTypeEnvironment& env)
+    explicit TOutputTypeVisitor(TTypeEnvironment& env)
         : Env_(env)
     {
     }
@@ -175,7 +175,8 @@ bool FindArrowFunction(TStringBuf name, const TArrayRef<TType*>& inputTypes, TTy
 }
 
 bool HasArrowCast(TType* from, TType* to) {
-    std::shared_ptr<arrow::DataType> fromArrowType, toArrowType;
+    std::shared_ptr<arrow::DataType> fromArrowType;
+    std::shared_ptr<arrow::DataType> toArrowType;
     if (!ConvertArrowType(from, fromArrowType)) {
         return false;
     }

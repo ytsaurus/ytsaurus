@@ -17,6 +17,7 @@ PEERDIR(
 
     yt/java/ytsaurus-client
     yt/java/ytsaurus-testlib
+    yt/java/ytsaurus-testlib/src/main/proto
 )
 
 # Added automatically to remove dependency on default contrib versions

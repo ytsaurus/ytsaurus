@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(proto_deps)
+
 add_executable(dump-changelog)
 
 
@@ -22,6 +24,7 @@ target_compile_options(dump-changelog PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(dump-changelog PUBLIC
@@ -34,6 +37,7 @@ target_link_libraries(dump-changelog PUBLIC
   server-lib-hydra
   yt-yt-ytlib
   cpp-getopt-small
+  tools-dump_changelog-proto_deps
 )
 
 target_allocator(dump-changelog
@@ -51,6 +55,7 @@ target_link_options(dump-changelog PRIVATE
 
 target_sources(dump-changelog PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/printers.cpp
 )
 
 

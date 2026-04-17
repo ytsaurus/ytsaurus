@@ -8,10 +8,70 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTypeInferrerBase
+{
+public:
+    explicit TTypeInferrerBase(
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints)
+        : TypeParameterConstraints_(std::move(typeParameterConstraints))
+    { }
+
+    int GetIndex(
+        TNormalizedContraints* constraints,
+        std::unordered_map<TTypeParameter, int>* idToIndex,
+        const TType& type,
+        TStringBuf functionName) const
+    {
+        return Visit(type,
+            [&] (TTypeParameter genericId) -> int {
+                auto itIndex = idToIndex->find(genericId);
+                if (itIndex != idToIndex->end()) {
+                    return itIndex->second;
+                } else {
+                    int index = constraints->TypeConstraints.size();
+                    auto it = TypeParameterConstraints_.find(genericId);
+                    if (it == TypeParameterConstraints_.end()) {
+                        constraints->TypeConstraints.push_back(TTypeSet({
+                            EValueType::Null,
+                            EValueType::Int64,
+                            EValueType::Uint64,
+                            EValueType::Double,
+                            EValueType::Boolean,
+                            EValueType::String,
+                            EValueType::Any,
+                        }));
+                    } else {
+                        constraints->TypeConstraints.push_back(TTypeSet(it->second.begin(), it->second.end()));
+                    }
+                    idToIndex->emplace(genericId, index);
+                    return index;
+                }
+            },
+            [&] (EValueType fixedType) -> int {
+                int index = constraints->TypeConstraints.size();
+                constraints->TypeConstraints.push_back(TTypeSet({fixedType}));
+                return index;
+            },
+            [&] (const TUnionType& unionType) -> int {
+                int index = constraints->TypeConstraints.size();
+                constraints->TypeConstraints.push_back(TTypeSet(unionType.begin(), unionType.end()));
+                return index;
+            },
+            [&] (const TLogicalTypePtr&) -> int {
+                THROW_ERROR_EXCEPTION("Function %Qv is not supported in expression builder v1",
+                    functionName);
+            });
+    }
+
+protected:
+    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
+};
+
 DECLARE_REFCOUNTED_CLASS(TFunctionTypeInferrer)
 
 class TFunctionTypeInferrer
     : public ITypeInferrer
+    , public TTypeInferrerBase
 {
 public:
     TFunctionTypeInferrer(
@@ -19,10 +79,10 @@ public:
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType)
-        : TypeParameterConstraints_(std::move(typeParameterConstraints))
+        : TTypeInferrerBase(std::move(typeParameterConstraints))
         , ArgumentTypes_(std::move(argumentTypes))
-        , RepeatedArgumentType_(repeatedArgumentType)
-        , ResultType_(resultType)
+        , RepeatedArgumentType_(std::move(repeatedArgumentType))
+        , ResultType_(std::move(resultType))
     { }
 
     bool IsAggregate() const override
@@ -30,69 +90,26 @@ public:
         return false;
     }
 
-    int GetNormalizedConstraints(
-        std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* formalArguments,
-        std::optional<std::pair<int, bool>>* repeatedType,
-        TStringBuf functionName) const override
+    TNormalizedContraints GetNormalizedConstraints(TStringBuf functionName) const override
     {
+        TNormalizedContraints constraints;
         std::unordered_map<TTypeParameter, int> idToIndex;
 
-        auto getIndex = [&] (const TType& type) -> int {
-            return Visit(type,
-                [&] (TTypeParameter genericId) -> int {
-                    auto itIndex = idToIndex.find(genericId);
-                    if (itIndex != idToIndex.end()) {
-                        return itIndex->second;
-                    } else {
-                        int index = typeConstraints->size();
-                        auto it = TypeParameterConstraints_.find(genericId);
-                        if (it == TypeParameterConstraints_.end()) {
-                            typeConstraints->push_back(TTypeSet({
-                                EValueType::Null,
-                                EValueType::Int64,
-                                EValueType::Uint64,
-                                EValueType::Double,
-                                EValueType::Boolean,
-                                EValueType::String,
-                                EValueType::Any,
-                            }));
-                        } else {
-                            typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
-                        }
-                        idToIndex.emplace(genericId, index);
-                        return index;
-                    }
-                },
-                [&] (EValueType fixedType) -> int {
-                    int index = typeConstraints->size();
-                    typeConstraints->push_back(TTypeSet({fixedType}));
-                    return index;
-                },
-                [&] (const TUnionType& unionType) -> int {
-                    int index = typeConstraints->size();
-                    typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
-                    return index;
-                },
-                [&] (const TLogicalTypePtr&) -> int {
-                    THROW_ERROR_EXCEPTION("Function %Qv is not supported in expression builder v1",
-                        functionName);
-                });
-        };
-
         for (const auto& argumentType : ArgumentTypes_) {
-            formalArguments->push_back(getIndex(argumentType));
+            constraints.FormalArguments.push_back(GetIndex(&constraints, &idToIndex, argumentType, functionName));
         }
 
         if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) &&
             std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null))
         {
-            *repeatedType = std::pair(
-                getIndex(RepeatedArgumentType_),
+            constraints.RepeatedType = std::pair(
+                GetIndex(&constraints, &idToIndex, RepeatedArgumentType_, functionName),
                 std::get_if<TUnionType>(&RepeatedArgumentType_));
         }
 
-        return getIndex(ResultType_);
+        constraints.ReturnType = GetIndex(&constraints, &idToIndex, ResultType_, functionName);
+
+        return constraints;
     }
 
     std::vector<TTypeId> InferTypes(
@@ -101,21 +118,13 @@ public:
         TStringBuf name) const override
     {
         std::vector<TTypeId> argumentTypeIds;
-        for (auto type : argumentTypes) {
+        for (const auto& type : argumentTypes) {
             argumentTypeIds.push_back(typingCtx->GetTypeId(type));
         }
 
         auto signature = GetSignature(typingCtx, std::ssize(argumentTypes));
 
         return typingCtx->InferFunctionType(name, {signature}, argumentTypeIds);
-    }
-
-    std::pair<int, int> GetNormalizedConstraints(
-        std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*argumentConstraintIndexes*/,
-        TStringBuf /*functionName*/) const override
-    {
-        YT_ABORT();
     }
 
 private:
@@ -228,17 +237,20 @@ ITypeInferrerPtr CreateFunctionTypeInferrer(
 
 class TAggregateFunctionTypeInferrer
     : public ITypeInferrer
+    , public TTypeInferrerBase
 {
 public:
     TAggregateFunctionTypeInferrer(
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
+        TType repeatedArgType,
         TType stateType,
         TType resultType)
-        : TypeParameterConstraints_(std::move(typeParameterConstraints))
+        : TTypeInferrerBase(std::move(typeParameterConstraints))
         , ArgumentTypes_(std::move(argumentTypes))
-        , StateType_(stateType)
-        , ResultType_(resultType)
+        , RepeatedArgumentType_(std::move(repeatedArgType))
+        , StateType_(std::move(stateType))
+        , ResultType_(std::move(resultType))
     { }
 
     bool IsAggregate() const override
@@ -246,58 +258,27 @@ public:
         return true;
     }
 
-    std::pair<int, int> GetNormalizedConstraints(
-        std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* argumentConstraintIndexes,
-        TStringBuf functionName) const override
+    TNormalizedContraints GetNormalizedConstraints(TStringBuf functionName) const override
     {
+        TNormalizedContraints constraints;
         std::unordered_map<TTypeParameter, int> idToIndex;
 
-        auto getIndex = [&] (const TType& type) -> int {
-            return Visit(type,
-                [&] (EValueType fixedType) -> int {
-                    typeConstraints->push_back(TTypeSet({fixedType}));
-                    return typeConstraints->size() - 1;
-                },
-                [&] (TTypeParameter genericId) -> int {
-                    auto itIndex = idToIndex.find(genericId);
-                    if (itIndex != idToIndex.end()) {
-                        return itIndex->second;
-                    } else {
-                        int index = typeConstraints->size();
-                        auto it = TypeParameterConstraints_.find(genericId);
-                        if (it == TypeParameterConstraints_.end()) {
-                            typeConstraints->push_back(TTypeSet({
-                                EValueType::Null,
-                                EValueType::Int64,
-                                EValueType::Uint64,
-                                EValueType::Double,
-                                EValueType::Boolean,
-                                EValueType::String,
-                                EValueType::Any,
-                            }));
-                        } else {
-                            typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
-                        }
-                        idToIndex.emplace(genericId, index);
-                        return index;
-                    }
-                },
-                [&] (const TUnionType& unionType) -> int {
-                    typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
-                    return typeConstraints->size() - 1;
-                },
-                [&] (const TLogicalTypePtr&) -> int {
-                    THROW_ERROR_EXCEPTION("Function %Qv is not supported in expression builder v1",
-                        functionName);
-                });
-        };
-
         for (const auto& argumentType : ArgumentTypes_) {
-            argumentConstraintIndexes->push_back(getIndex(argumentType));
+            constraints.FormalArguments.push_back(GetIndex(&constraints, &idToIndex, argumentType, functionName));
         }
 
-        return std::pair(getIndex(StateType_), getIndex(ResultType_));
+        if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) &&
+            std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null))
+        {
+            constraints.RepeatedType = std::pair(
+                GetIndex(&constraints, &idToIndex, RepeatedArgumentType_, functionName),
+                std::get_if<TUnionType>(&RepeatedArgumentType_));
+        }
+
+        constraints.StateType = GetIndex(&constraints, &idToIndex, StateType_, functionName);
+        constraints.ReturnType = GetIndex(&constraints, &idToIndex, ResultType_, functionName);
+
+        return constraints;
     }
 
     std::vector<TTypeId> InferTypes(
@@ -306,33 +287,24 @@ public:
         TStringBuf name) const override
     {
         std::vector<TTypeId> argumentTypeIds;
-        for (auto type : argumentTypes) {
+        for (const auto& type : argumentTypes) {
             argumentTypeIds.push_back(typingCtx->GetTypeId(GetWireType(type)));
         }
 
-        auto signature = GetSignature(typingCtx);
+        auto signature = GetSignature(typingCtx, std::ssize(argumentTypes));
 
         // TODO(lukyan): Argument types and additional types (result, state)
         // Return two vectors?
         return typingCtx->InferFunctionType(name, {signature}, argumentTypeIds, 2);
     }
 
-    int GetNormalizedConstraints(
-        std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*formalArguments*/,
-        std::optional<std::pair<int, bool>>* /*repeatedType*/,
-        TStringBuf /*functionName*/) const override
-    {
-        YT_ABORT();
-    }
-
 private:
-    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
     const std::vector<TType> ArgumentTypes_;
+    const TType RepeatedArgumentType_;
     const TType StateType_;
     const TType ResultType_;
 
-    TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx) const
+    TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx, int argumentCount) const
     {
         TTypingCtx::TFunctionSignature signature({});
         int nextGenericId = 0;
@@ -395,6 +367,32 @@ private:
                 });
         }
 
+        Visit(RepeatedArgumentType_,
+            [&] (TTypeParameter genericId) {
+                for (int i = std::ssize(ArgumentTypes_); i < argumentCount; ++i) {
+                    signature.Types.push_back(-(1 + genericId));
+                }
+                nextGenericId = std::min(nextGenericId, genericId + 1);
+            },
+            [&] (EValueType fixedType) {
+                if (fixedType == EValueType::Null) {
+                    return;
+                }
+                for (int i = std::ssize(ArgumentTypes_); i < argumentCount; ++i) {
+                    signature.Types.push_back(typingCtx->GetTypeId(fixedType));
+                }
+            },
+            [&] (const TUnionType& unionType) {
+                for (int i = std::ssize(ArgumentTypes_); i < argumentCount; ++i) {
+                    signature.Types.push_back(-(1 + nextGenericId));
+                    registerConstraints(nextGenericId, unionType);
+                    ++nextGenericId;
+                }
+            },
+            [&] (const TLogicalTypePtr& logicalType) {
+                signature.Types.push_back(typingCtx->GetTypeId(logicalType));
+            });
+
         for (const auto& [parameterId, unionType] : TypeParameterConstraints_) {
             registerConstraints(parameterId, unionType);
         }
@@ -408,12 +406,14 @@ private:
 ITypeInferrerPtr CreateAggregateTypeInferrer(
     TType resultType,
     std::vector<TType> argumentTypes,
+    TType repeatedArgType,
     TType stateType,
     std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints)
 {
     return New<TAggregateFunctionTypeInferrer>(
         std::move(typeParameterConstraints),
         std::move(argumentTypes),
+        std::move(repeatedArgType),
         std::move(stateType),
         std::move(resultType));
 }
@@ -427,6 +427,7 @@ ITypeInferrerPtr CreateAggregateTypeInferrer(
     return New<TAggregateFunctionTypeInferrer>(
         std::move(typeParameterConstraints),
         std::vector<TType>{std::move(argumentType)},
+        EValueType::Null,
         std::move(stateType),
         std::move(resultType));
 }
@@ -451,6 +452,7 @@ public:
                 },
                 EValueType::Boolean,
             },
+            EValueType::Null,
             EValueType::String,
             EValueType::Any)
     { }
@@ -492,21 +494,7 @@ public:
         return Aggregate_;
     }
 
-    [[noreturn]] int GetNormalizedConstraints(
-        std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*formalArguments*/,
-        std::optional<std::pair<int, bool>>* /*repeatedType*/,
-        TStringBuf /*functionName*/) const override
-    {
-        THROW_ERROR_EXCEPTION_UNLESS(SupportedInV1_, "Function %Qv is not supported in expression builder v1",
-            Name_);
-        YT_ABORT();
-    }
-
-    [[noreturn]] std::pair<int, int> GetNormalizedConstraints(
-        std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*argumentConstraintIndexes*/,
-        TStringBuf /*functionName*/) const override
+    [[noreturn]] TNormalizedContraints GetNormalizedConstraints(TStringBuf /*functionName*/) const override
     {
         THROW_ERROR_EXCEPTION_UNLESS(SupportedInV1_, "Function %Qv is not supported in expression builder v1",
             Name_);

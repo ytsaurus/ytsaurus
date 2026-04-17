@@ -4,6 +4,50 @@
 
 На данной странице приведена инструкция по импорту данных с помощью скрипта [import.py](https://github.com/ytsaurus/ytsaurus/blob/main/connectors/import.py). Этот скрипт позволяет импортировать данные из Hive, Hadoop, S3, а также из СУБД, поддерживающих протокол JDBC. Для импорта из других систем хранения данных &mdash; например, из MongoDB &mdash; вы можете использовать SPYT напрямую, обратившись к этой системе с помощью соответствующего Spark Datasource.
 
+
+## Настройка подключения через Kerberos
+
+Для работы с платформой Hadoop может использоваться протокол сетевой аутентификации Kerberos. Для настройки взаимодействия необходимо:
+
+1. Создать на стороне Hadoop токен следующей командой:
+```bash
+$ fetchdt --renewer null /tmp/token
+```
+2. Скопировать токен в Кипарис:
+```bash
+$ cat /tmp/token | yt write-file //home/spark/conf/token
+```
+3. Задать при запуске приложения путь к токену в Кипарисе с помощью опции `--files`
+
+#### Клиентский режим
+
+При запуске в режиме `--deploy-mode client` для драйвера необходимо указать путь к локальному 
+файлу с токеном, так как процесс драйвера запускается не в кластере {{product-name}}. 
+Для экзекьюторов указывается параметр `HADOOP_TOKEN_FILE_LOCATION=token````bash
+```bash
+$ spark-submit \
+  --master ytsaurus:// \
+  --deploy-mode client \
+  --files yt://home/spark/conf/token \
+  --conf spark.executorEnv.HADOOP_TOKEN_FILE_LOCATION=/tmp/token \
+ ./script.py
+```
+#### Кластерный режим
+
+Для запуска в режиме `--deploy-mode cluster` путь к файлу с токеном указывается через конфигурационный параметр `spark.ytsaurus.config.global.path`. 
+
+Дополнительно для драйвера необходимо добавить параметры `kdc` и `realm`. Пример команды:
+
+```bash
+$ spark-submit \
+  --master ytsaurus:// \
+  --deploy-mode cluster \
+  --files yt://home/spark/conf/token \
+  --conf spark.ytsaurus.config.global.path=//home/spark/conf/global \
+  --conf spark.driver.extraJavaOption="-Djava.security.krb5.kdc=... -Djava.secutirykrb5.realm=..."  \
+ ./script.py
+```
+
 ## Установите зависимости { #dependencies }
 
 jar-зависимости для чтения из Hive предоставляются вместе с пакетом `pyspark`. Пакеты для работы с SPYT (включая `pyspark`), должны быть установлены на системе, из которой вызывается импорт.

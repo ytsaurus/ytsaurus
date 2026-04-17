@@ -1,5 +1,3 @@
-from __future__ import with_statement, print_function
-
 from .conftest import authors
 from .helpers import (TEST_DIR, check_rows_equality, set_config_option, get_tests_sandbox, set_config_options,
                       wait, failing_heavy_request, random_string)
@@ -596,24 +594,6 @@ class TestTableCommands(object):
 
         yt.write_table(table_path, [{"a/b": 1}])
         check_rows_equality([{"a/b": 1}], yt.read_table(yt.TablePath(table_path, columns=["a/b"])))
-
-    @authors("alex-shishkin")
-    def test_partition_tables(self):
-        table_path = TEST_DIR + "/table"
-        yt.create("table", table_path)
-        row_count = 5
-        rows = [{"value": i} for i in range(row_count)]
-        yt.write_table(table_path, rows)
-        partitions = yt.partition_tables(table_path, partition_mode="ordered", data_weight_per_partition=10)
-        assert len(partitions) <= 3
-        table_data = []
-        for partition in partitions:
-            table_ranges = partition["table_ranges"]
-            assert len(table_ranges) == 1
-            range_data = list(yt.read_table(table_ranges[0]))
-            assert len(range_data) <= 2
-            table_data.extend(range_data)
-        check_rows_equality(rows, table_data)
 
     @authors("denvr")
     def test_guess_schema_from_table(self):

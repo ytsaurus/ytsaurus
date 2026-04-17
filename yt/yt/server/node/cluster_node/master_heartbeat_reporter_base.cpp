@@ -78,10 +78,7 @@ void TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(const THash
         } else {
             executor = New<TRetryingPeriodicExecutor>(
                 Bootstrap_->GetMasterConnectionInvoker(),
-                BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), cellTag] {
-                    auto this_ = weakThis.Lock();
-                    return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-                }),
+                BIND_NO_PROPAGATE(&TMasterHeartbeatReporterBase::ReportHeartbeat, MakeStrong(this), cellTag),
                 Options_);
 
             executor->Start();
@@ -218,10 +215,7 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
     for (auto cellTag : masterCellTags) {
         auto executor = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
-            BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this), cellTag] {
-                auto this_ = weakThis.Lock();
-                return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-            }),
+            BIND_NO_PROPAGATE(&TMasterHeartbeatReporterBase::ReportHeartbeat, MakeStrong(this), cellTag),
             Options_);
 
         YT_LOG_INFO(

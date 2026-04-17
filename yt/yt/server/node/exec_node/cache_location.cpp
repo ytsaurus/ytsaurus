@@ -3,8 +3,6 @@
 #include "artifact_cache.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/chunk_client/format.h>
-
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/config.h>
@@ -14,6 +12,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/yt/ytlib/chunk_client/format.h>
 
 #include <yt/yt/library/program/program.h>
 

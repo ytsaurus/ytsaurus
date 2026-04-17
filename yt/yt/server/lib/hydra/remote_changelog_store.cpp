@@ -112,45 +112,24 @@ std::vector<TSharedRef> ReadRecords(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(danilalexeev)
-DEFINE_BIT_ENUM(EStorageState,
-    (None)
-    (Primary)
-    (Secondary)
-    (Both)
-);
-
-// COMPAT(danilalexeev): Purge `SecondaryPath_`.
 class TRemoteChangelogStoreAccessor
 {
 protected:
-    const TYPath PrimaryPath_;
-    const TYPath SecondaryPath_;
+    const TYPath Path_;
     const IClientPtr Client_;
-
-    EStorageState StorageState_;
-
     const TLogger Logger;
 
-
     TRemoteChangelogStoreAccessor(
-        TYPath primaryPath,
-        TYPath secondaryPath,
-        IClientPtr client,
-        EStorageState storageState)
-        : PrimaryPath_(std::move(primaryPath))
-        , SecondaryPath_(std::move(secondaryPath))
+        TYPath path,
+        IClientPtr client)
+        : Path_(std::move(path))
         , Client_(std::move(client))
-        , StorageState_(storageState)
-        , Logger(HydraLogger().WithTag("PrimaryPath: %v, SecondaryPath: %v, StorageState: %v",
-            PrimaryPath_,
-            SecondaryPath_,
-            StorageState_))
+        , Logger(HydraLogger().WithTag("Path: %v", Path_))
     { }
 
     void ListChangelogs(
         const std::vector<std::string>& attributes,
-        std::function<void(const INodePtr&, int id, bool atPrimaryPath)> functor)
+        std::function<void(const INodePtr&, int id)> functor)
     {
         YT_LOG_DEBUG("Requesting changelog list from remote store");
 
@@ -158,32 +137,20 @@ protected:
             .Attributes = attributes,
         };
 
-        auto processChangelogs = [&] (const TYPath& path, bool isPrimaryPath) {
-            auto rspOrError = WaitFor(Client_->ListNode(path, options));
-            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_DEBUG("Missing storage at path (IsPrimary: %v)", isPrimaryPath);
-                return;
-            }
-            YT_LOG_DEBUG("Changelog list received");
+        auto result = WaitFor(Client_->ListNode(Path_, options))
+            .ValueOrThrow();
+        YT_LOG_DEBUG("Changelog list received");
 
-            auto items = ConvertTo<IListNodePtr>(rspOrError.ValueOrThrow());
-            for (const auto& item : items->GetChildren()) {
-                auto key = item->GetValue<TString>();
-                int id;
-                if (!TryFromString(key, id)) {
-                    THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
-                        key,
-                        path);
-                }
-                functor(item, id, isPrimaryPath);
+        auto items = ConvertTo<IListNodePtr>(result);
+        for (const auto& item : items->GetChildren()) {
+            auto key = item->GetValue<TString>();
+            int id;
+            if (!TryFromString(key, id)) {
+                THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
+                    key,
+                    Path_);
             }
-        };
-
-        if (Any(StorageState_ & EStorageState::Primary)) {
-            processChangelogs(PrimaryPath_, /*isPrimaryPath*/ true);
-        }
-        if (Any(StorageState_ & EStorageState::Secondary)) {
-            processChangelogs(SecondaryPath_, /*isPrimaryPath*/ false);
+            functor(item, id);
         }
     }
 
@@ -203,9 +170,7 @@ public:
     TRemoteChangelogStore(
         TRemoteChangelogStoreConfigWrapperPtr config,
         TTabletCellOptionsPtr options,
-        TYPath primaryPath,
-        TYPath secondaryPath,
-        EStorageState storageState,
+        TYPath path,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         ITransactionPtr prerequisiteTransaction,
@@ -215,10 +180,8 @@ public:
         std::optional<int> latestChangelogId,
         const TJournalWriterPerformanceCounters& counters)
         : TRemoteChangelogStoreAccessor(
-            std::move(primaryPath),
-            std::move(secondaryPath),
-            std::move(client),
-            storageState)
+            std::move(path),
+            std::move(client))
         , Config_(std::move(config))
         , Options_(std::move(options))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
@@ -228,11 +191,7 @@ public:
         , Counters_(counters)
         , Term_(term)
         , LatestChangelogId_(latestChangelogId)
-    {
-        YT_VERIFY(
-            storageState != EStorageState::None &&
-            storageState != EStorageState::Secondary);
-    }
+    { }
 
     bool IsReadOnly() const override
     {
@@ -318,17 +277,8 @@ private:
             TSetNodeOptions options;
             options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
-            auto setTerm = [&] (const TYPath& path) {
-                WaitFor(Client_->SetNode(path + "/@term", ConvertToYsonString(term), options))
-                    .ThrowOnError();
-            };
-
-            if (Any(StorageState_ & EStorageState::Primary)) {
-                setTerm(PrimaryPath_);
-            }
-            if (Any(StorageState_ & EStorageState::Secondary)) {
-                setTerm(SecondaryPath_);
-            }
+            WaitFor(Client_->SetNode(Path_ + "/@term", ConvertToYsonString(term), options))
+                .ThrowOnError();
 
             Term_.Store(term);
 
@@ -336,6 +286,7 @@ private:
                 term);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error setting remote changelog store term")
+                << TErrorAttribute("store_path", Path_)
                 << ex;
         }
     }
@@ -354,7 +305,7 @@ private:
 
     TFuture<IChangelogPtr> DoCreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options)
     {
-        auto path = GetChangelogPath(PrimaryPath_, id);
+        auto path = GetChangelogPath(Path_, id);
         try {
             ValidateWritable();
 
@@ -412,7 +363,7 @@ private:
 
     TFuture<IChangelogPtr> DoOpenChangelog(int id, const TChangelogOptions& options)
     {
-        TYPath path;
+        auto path = GetChangelogPath(Path_, id);
         try {
             YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
                 id);
@@ -420,26 +371,14 @@ private:
             TGetNodeOptions getNodeOptions;
             getNodeOptions.Attributes = {"uncompressed_data_size", "quorum_row_count"};
 
-            INodePtr node;
-            auto getNode = [&] (const TYPath& pathPrefix) -> INodePtr {
-                path = GetChangelogPath(pathPrefix, id);
-                auto rspOrError = WaitFor(Client_->GetNode(path, getNodeOptions));
-                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    return nullptr;
-                }
-                return ConvertToNode(rspOrError.ValueOrThrow());
-            };
-            if (Any(StorageState_ & EStorageState::Primary)) {
-                node = getNode(PrimaryPath_);
-            }
-            if (!node && Any(StorageState_ & EStorageState::Secondary)) {
-                node = getNode(SecondaryPath_);
-            }
-            if (!node) {
+            auto rspOrError = WaitFor(Client_->GetNode(path, getNodeOptions));
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchChangelog,
-                    "Error opening remote changelog");
+                    "Changelog does not exist in remote store")
+                    << TErrorAttribute("changelog_path", path);
             }
+            auto node = ConvertToNode(rspOrError.ValueOrThrow());
             const auto& attributes = node->Attributes();
 
             auto dataSize = attributes.Get<i64>("uncompressed_data_size");
@@ -470,7 +409,7 @@ private:
 
     void DoRemoveChangelog(int id)
     {
-        TYPath path;
+        auto path = GetChangelogPath(Path_, id);
         try {
             ValidateWritable();
 
@@ -480,33 +419,11 @@ private:
             TRemoveNodeOptions options;
             options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
-            auto tryRemove = [&] (const TYPath& path) {
-                auto rspOrError = WaitFor(Client_->RemoveNode(path, options));
-                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    return false;
-                }
-                rspOrError.ThrowOnError();
-                return true;
-            };
+            WaitFor(Client_->RemoveNode(path, options))
+                .ThrowOnError();
 
-            bool removed = false;
-            if (Any(StorageState_ & EStorageState::Primary)) {
-                path = GetChangelogPath(PrimaryPath_, id);
-                removed = tryRemove(path);
-            }
-            if (!removed && Any(StorageState_ & EStorageState::Secondary)) {
-                path = GetChangelogPath(SecondaryPath_, id);
-                removed = tryRemove(path);
-            }
-            if (!removed) {
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::NoSuchChangelog,
-                    "Error removing remote changelog");
-            }
-
-            YT_LOG_DEBUG("Remote changelog removed (ChangelogId: %v, Path: %v)",
-                id,
-                path);
+            YT_LOG_DEBUG("Remote changelog removed (ChangelogId: %v)",
+                id);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error removing remote changelog")
                 << TErrorAttribute("changelog_path", path)
@@ -773,10 +690,10 @@ private:
 
         TFuture<void> FlushPendingRecords()
         {
+            auto guard = Guard(WriterLock_);
+
             YT_LOG_DEBUG("Journal writer opened; flushing pending records (PendingRecordCount: %v)",
                 PendingRecords_.size());
-
-            auto guard = Guard(WriterLock_);
 
             auto rows = std::exchange(PendingRecords_, {});
             auto flushedFuture = rows.empty() ? OKFuture : Writer_->Write(TRange(rows));
@@ -801,17 +718,14 @@ public:
     TRemoteChangelogStoreFactory(
         TRemoteChangelogStoreConfigPtr config,
         TTabletCellOptionsPtr options,
-        TYPath primaryPath,
-        TYPath secondaryPath,
+        TYPath path,
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         TTransactionId prerequisiteTransactionId,
         TJournalWriterPerformanceCounters counters)
         : TRemoteChangelogStoreAccessor(
-            std::move(primaryPath),
-            std::move(secondaryPath),
-            std::move(client),
-            EStorageState::None)
+            std::move(path),
+            std::move(client))
         , Config_(New<TRemoteChangelogStoreConfigWrapper>(std::move(config)))
         , Options_(std::move(options))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
@@ -842,7 +756,6 @@ private:
     IChangelogStorePtr DoLock()
     {
         try {
-            UpdateStorageState();
             ITransactionPtr prerequisiteTransaction;
             std::optional<TVersion> reachableVersion;
             std::optional<TElectionPriority> electionPriority;
@@ -868,9 +781,7 @@ private:
             return New<TRemoteChangelogStore>(
                 Config_,
                 Options_,
-                PrimaryPath_,
-                SecondaryPath_,
-                StorageState_,
+                Path_,
                 Client_,
                 ResourceLimitsManager_,
                 prerequisiteTransaction,
@@ -881,44 +792,8 @@ private:
                 Counters_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking remote changelog store")
-                << TErrorAttribute("primary_path", PrimaryPath_)
-                << TErrorAttribute("secondary_path", SecondaryPath_)
+                << TErrorAttribute("store_path", Path_)
                 << ex;
-        }
-    }
-
-    void UpdateStorageState()
-    {
-        StorageState_ = EStorageState::None;
-        auto updateStateIfExists = [&] (const TYPath& path, EStorageState stateUpdate) {
-            auto exists = WaitFor(Client_->NodeExists(path))
-                .ValueOrThrow();
-            if (exists) {
-                StorageState_ |= stateUpdate;
-            }
-        };
-
-        updateStateIfExists(PrimaryPath_, EStorageState::Primary);
-
-        bool ignoreSecondaryStorage = true;
-        auto checkVirtualCellMap = [&] (const TYPath& path, EObjectType expectedType) {
-            auto rspOrError = WaitFor(Client_->GetNode(path + "/@type"));
-            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                return;
-            }
-            ignoreSecondaryStorage &= expectedType == ConvertTo<EObjectType>(rspOrError.ValueOrThrow());
-        };
-
-        checkVirtualCellMap(NCellarAgent::TabletCellCypressPrefix, EObjectType::VirtualTabletCellMap);
-        checkVirtualCellMap(NCellarAgent::ChaosCellCypressPrefix, EObjectType::VirtualChaosCellMap);
-
-        if (!ignoreSecondaryStorage) {
-            updateStateIfExists(SecondaryPath_, EStorageState::Secondary);
-        }
-
-        if (!Any(StorageState_ & EStorageState::Primary)) {
-            THROW_ERROR_EXCEPTION("Persistence storage has not been created yet")
-                << TErrorAttribute("missing_path", PrimaryPath_);
         }
     }
 
@@ -928,12 +803,8 @@ private:
         options.ParentId = PrerequisiteTransactionId_;
         options.Timeout = Config_->Get()->LockTransactionTimeout;
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title",
-            Format("Lock for changelog store (PrimaryPath: %v, SecondaryPath: %v)",
-                PrimaryPath_,
-                SecondaryPath_));
+        attributes->Set("title", Format("Lock for changelog store %v", Path_));
         options.Attributes = std::move(attributes);
-
         return WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
     }
@@ -942,17 +813,17 @@ private:
     {
         TLockNodeOptions options;
         options.ChildKey = "lock";
-        Y_UNUSED(WaitFor(prerequisiteTransaction->LockNode(PrimaryPath_, NCypressClient::ELockMode::Shared, options))
-            .ValueOrThrow());
+        WaitFor(prerequisiteTransaction->LockNode(Path_, NCypressClient::ELockMode::Shared, options))
+            .ThrowOnError();
     }
 
     void ValidateChangelogsSealed()
     {
-        ListChangelogs({"sealed"}, [&] (const INodePtr& item, int id, bool atPrimaryPath) {
+        ListChangelogs({"sealed"}, [&] (const INodePtr& item, int id) {
             if (!item->Attributes().Get<bool>("sealed", false)) {
                 THROW_ERROR_EXCEPTION("Changelog %v in changelog store %v is not sealed",
                     id,
-                    atPrimaryPath ? PrimaryPath_ : SecondaryPath_);
+                    Path_);
             }
         });
 
@@ -963,22 +834,19 @@ private:
     {
         ValidateChangelogsSealed();
 
-        THashMap<int, TChangelogScanInfo> changelogIdToScanInfo;
-        ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id, bool atPrimaryPath) {
-            changelogIdToScanInfo.emplace(
+        THashMap<int, i64> changelogIdToRecordCount;
+        ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id) {
+            changelogIdToRecordCount.emplace(
                 id,
-                TChangelogScanInfo{
-                    .RecordCount = item->Attributes().Get<i64>("quorum_row_count"),
-                    .AtPrimaryPath = atPrimaryPath,
-                });
+                item->Attributes().Get<i64>("quorum_row_count"));
         });
 
-        auto scanInfoGetter = [&] (int changelogId) {
-            return GetOrCrash(changelogIdToScanInfo, changelogId);
+        auto recordCountGetter = [&] (int changelogId) {
+            return GetOrCrash(changelogIdToRecordCount, changelogId);
         };
 
-        auto recordReader = [&] (int changelogId, i64 recordId, bool atPrimaryPath) {
-            auto path = GetChangelogPath(atPrimaryPath ? PrimaryPath_ : SecondaryPath_, changelogId);
+        auto recordReader = [&] (int changelogId, i64 recordId) {
+            auto path = GetChangelogPath(Path_, changelogId);
             auto recordsData = ReadRecords(path, Config_->Get()->Reader, Client_, recordId, 1);
 
             if (recordsData.empty()) {
@@ -991,8 +859,8 @@ private:
         };
 
         return ScanChangelogStore(
-            GetKeys(changelogIdToScanInfo),
-            scanInfoGetter,
+            GetKeys(changelogIdToRecordCount),
+            recordCountGetter,
             recordReader);
     }
 
@@ -1003,30 +871,15 @@ private:
         TGetNodeOptions options;
         options.Attributes = {"term"};
 
-        std::optional<int> term;
-        auto processPath = [&] (const TYPath& path) {
-            auto rspOrError = WaitFor(Client_->GetNode(path + "/@", options));
-            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                return;
-            }
-
-            auto attributes = ConvertToAttributes(rspOrError.ValueOrThrow());
-            term = std::max(term.value_or(0), attributes->Get<int>("term", 0));
-        };
-
-        processPath(PrimaryPath_);
-        processPath(SecondaryPath_);
-
-        if (!term) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Error requesting term from remote store");
-        }
+        auto yson = WaitFor(Client_->GetNode(Path_ + "/@", options))
+            .ValueOrThrow();
+        auto attributes = ConvertToAttributes(yson);
+        auto term = attributes->Get<int>("term", 0);
 
         YT_LOG_DEBUG("Term received (Term: %v)",
             term);
 
-        return *term;
+        return term;
     }
 };
 
@@ -1037,8 +890,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreFactory)
 IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TTabletCellOptionsPtr options,
-    TYPath primaryPath,
-    TYPath secondaryPath,
+    TYPath path,
     IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     TTransactionId prerequisiteTransactionId,
@@ -1047,8 +899,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     return New<TRemoteChangelogStoreFactory>(
         std::move(config),
         std::move(options),
-        std::move(primaryPath),
-        std::move(secondaryPath),
+        std::move(path),
         std::move(client),
         std::move(resourceLimitsManager),
         prerequisiteTransactionId,

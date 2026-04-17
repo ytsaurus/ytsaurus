@@ -170,6 +170,39 @@ func TestVeryLongSparseChunk(t *testing.T) {
 	t.Log("Length:", buf.Len())
 }
 
+func TestOneMByte(t *testing.T) {
+	var input [1024 * 1024]byte
+
+	var compressedOutput bytes.Buffer
+	for level := HuffmanOnly; level <= BestCompression; level++ {
+		compressedOutput.Reset()
+		compressor, err := NewWriter(&compressedOutput, level)
+		if err != nil {
+			t.Fatalf("create: %s", err)
+		}
+		// Use single write...
+		if _, err := compressor.Write(input[:]); err != nil {
+			t.Fatalf("compress: %s", err)
+		}
+
+		if err := compressor.Close(); err != nil {
+			t.Fatalf("close: %s", err)
+		}
+
+		var decompressedOutput bytes.Buffer
+
+		decompresser := NewReader(&compressedOutput)
+		t.Log("level:", level, "compressed:", compressedOutput.Len())
+		if _, err := io.Copy(&decompressedOutput, decompresser); err != nil {
+			t.Fatalf("decompress: %s", err)
+		}
+
+		if !bytes.Equal(input[:], decompressedOutput.Bytes()) {
+			t.Fatal("input and output do not match")
+		}
+	}
+}
+
 type syncBuffer struct {
 	buf    bytes.Buffer
 	mu     sync.RWMutex
@@ -238,7 +271,7 @@ func testSync(t *testing.T, level int, input []byte, name string) {
 	r := NewReader(buf)
 
 	// Write half the input and read back.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		var lo, hi int
 		if i == 0 {
 			lo, hi = 0, (len(input)+1)/2
@@ -340,7 +373,7 @@ func testToFromWithLevelAndLimit(t *testing.T, level int, input []byte, name str
 }
 
 func testToFromWithLimit(t *testing.T, input []byte, name string, limit [11]int) {
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		testToFromWithLevelAndLimit(t, i, input, name, limit[i])
 	}
 	testToFromWithLevelAndLimit(t, -2, input, name, limit[10])
@@ -470,7 +503,7 @@ func TestRegression2508(t *testing.T) {
 		t.Fatalf("NewWriter: %v", err)
 	}
 	buf := make([]byte, 1024)
-	for i := 0; i < 131072; i++ {
+	for range 131072 {
 		if _, err := w.Write(buf); err != nil {
 			t.Fatalf("writer failed: %v", err)
 		}
@@ -491,7 +524,7 @@ func TestWriterReset(t *testing.T) {
 			t.Fatalf("NewWriter: %v", err)
 		}
 		buf := []byte("hello world")
-		for i := 0; i < 1024; i++ {
+		for range 1024 {
 			w.Write(buf)
 		}
 		w.Reset(io.Discard)
@@ -556,7 +589,7 @@ func testResetOutput(t *testing.T, name string, newWriter func(w io.Writer) (*Wr
 			t.Fatalf("NewWriter: %v", err)
 		}
 		b := []byte("hello world - how are you doing?")
-		for i := 0; i < 1024; i++ {
+		for range 1024 {
 			w.Write(b)
 		}
 		w.Close()
@@ -564,7 +597,7 @@ func testResetOutput(t *testing.T, name string, newWriter func(w io.Writer) (*Wr
 
 		buf2 := new(bytes.Buffer)
 		w.Reset(buf2)
-		for i := 0; i < 1024; i++ {
+		for range 1024 {
 			w.Write(b)
 		}
 		w.Close()

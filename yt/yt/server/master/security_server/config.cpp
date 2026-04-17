@@ -26,6 +26,17 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("account_master_memory_usage_update_period", &TThis::AccountMasterMemoryUsageUpdatePeriod)
         .Default(TDuration::Seconds(60));
 
+    registrar.Parameter("send_only_updates_in_account_gossip", &TThis::SendOnlyUpdatesInAccountGossip)
+        .Default(false);
+    registrar.Parameter("primary_cell_account_gossip_batch_size", &TThis::PrimaryCellAccountGossipBatchSize)
+        .Default(10000)
+        .GreaterThan(0);
+    registrar.Parameter("secondary_cell_account_gossip_batch_size", &TThis::SecondaryCellAccountGossipBatchSize)
+        .Default(10000)
+        .GreaterThan(0);
+    registrar.Parameter("account_statistics_gossip_profiling_period", &TThis::AccountStatisticsGossipProfilingPeriod)
+        .Default(DefaultProfilingPeriod);
+
     registrar.Parameter("enable_accounts_profiling", &TThis::EnableAccountsProfiling)
         .Default(true);
     registrar.Parameter("enable_delayed_membership_closure_recomputation", &TThis::EnableDelayedMembershipClosureRecomputation)
@@ -59,9 +70,6 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forbid_irreversible_changes", &TThis::ForbidIrreversibleAclChanges)
         .Default(false);
-
-    registrar.Parameter("enable_subject_tag_filters", &TThis::EnableSubjectTagFilters)
-        .Default(true);
 
     registrar.Parameter("user_statistics_flush_period", &TThis::UserStatisticsFlushPeriod)
         .GreaterThan(TDuration::Zero())

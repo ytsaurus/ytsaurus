@@ -2487,7 +2487,8 @@ TCodegenExpression MakeCodegenLikeExpr(
     EStringMatchOp opcode,
     size_t patternId,
     std::optional<size_t> escapeCharacterId,
-    int contextIndex)
+    int contextIndex,
+    bool nullable)
 {
     return [
         =
@@ -2540,7 +2541,7 @@ TCodegenExpression MakeCodegenLikeExpr(
                 builder.GetOpaqueValue(contextIndex),
             });
 
-        return TCGValue::LoadFromRowValue(builder, result, EValueType::Boolean);
+        return TCGValue::LoadFromRowValue(builder, result, nullable, EValueType::Boolean);
     };
 }
 
@@ -3029,26 +3030,8 @@ size_t MakeCodegenMultiJoinOp(
 
                     const auto& equations = parameters[index].Equations;
                     for (size_t column = 0; column < equations.size(); ++column) {
-                        if (!equations[column].second) {
-                            auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
-                            joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
-                        }
-                    }
-
-                    TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
-                        *fragmentInfos,
-                        rowBuilder.Buffer,
-                        keyValues,
-                        rowBuilder.ExpressionClosurePtr,
-                    });
-
-                    for (size_t column = 0; column < equations.size(); ++column) {
-                        if (equations[column].second) {
-                            auto evaluatedColumn = CodegenFragment(
-                                evaluatedColumnsBuilder,
-                                equations[column].first);
-                            evaluatedColumn.StoreToValues(evaluatedColumnsBuilder, keyValues, column);
-                        }
+                        auto joinKeyValue = CodegenFragment(rowBuilder, equations[column]);
+                        joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
                     }
                 }
 

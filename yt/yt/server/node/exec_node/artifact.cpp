@@ -1,13 +1,14 @@
 #include "artifact.h"
 
-#include <yt/yt/core/misc/protobuf_helpers.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 #include <library/cpp/yt/misc/hash.h>
 
@@ -144,7 +145,7 @@ TArtifactKey::operator size_t() const
     return result;
 }
 
-bool TArtifactKey::operator == (const TArtifactKey& other) const
+bool TArtifactKey::operator==(const TArtifactKey& other) const
 {
     if (data_source().type() != other.data_source().type())
         return false;
@@ -201,7 +202,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
             return false;
         }
 
-        if (rlsReadSpec.has_table_schema() != rlsReadSpec.has_table_schema()) {
+        if (rlsReadSpec.has_table_schema() != otherRlsReadSpec.has_table_schema()) {
             return false;
         }
         if (rlsReadSpec.has_table_schema()) {
@@ -266,6 +267,27 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     }
 
     return true;
+}
+
+TString TArtifactKey::GetRuntimeGuid() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    // It is a global cache with unique artifact ids of a bounded size CacheMaxSize. It is
+    // hoped for that the number of unique TArtifactKey keys will rarely exceed CacheMaxSize.
+    static constexpr size_t CacheMaxSize = 100'000;
+    static TSimpleLruCache<TArtifactKey, TString> Cache(CacheMaxSize);
+    static YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CacheLock);
+
+    // NB. It is all right that guids can be evicted.
+
+    auto guard = Guard(CacheLock);
+    auto* guid = Cache.Find(*this);
+    if (!guid) {
+        guid = Cache.Insert(*this, ToString(TGuid::Create()));
+    }
+
+    return *guid;
 }
 
 void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf /*spec*/)

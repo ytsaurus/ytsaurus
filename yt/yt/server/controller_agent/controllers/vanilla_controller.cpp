@@ -6,8 +6,8 @@
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/config.h>
-#include <yt/yt/server/controller_agent/operation.h>
 #include <yt/yt/server/controller_agent/helpers.h>
+#include <yt/yt/server/controller_agent/operation.h>
 
 #include <yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
 
@@ -402,8 +402,14 @@ void TVanillaTask::InitJobSpecTemplate()
 
     jobSpecExt->set_io_config(ToProto(ConvertToYsonString(Spec_->JobIO)));
 
+    auto* userJobSpec = jobSpecExt->mutable_user_job_spec();
+
+    if (Spec_->RestartExitCode) {
+        userJobSpec->set_restart_exit_code(*Spec_->RestartExitCode);
+    }
+
     TaskHost_->InitUserJobSpecTemplate(
-        jobSpecExt->mutable_user_job_spec(),
+        userJobSpec,
         Spec_,
         TaskHost_->GetUserFiles(Spec_),
         TaskHost_->GetSpec()->DebugArtifactsAccount);
@@ -985,6 +991,8 @@ private:
 
     const TOperationEventReporterPtr& GetOperationEventReporter() const;
 
+    void LogOperationIncarnationStarted(const TIncarnationSwitchData& data);
+
     void ReportGangRankToArchive(const TGangJobletPtr& joblet) const;
 
     void OnJobStarted(const TJobletPtr& joblet) final;
@@ -1469,7 +1477,7 @@ bool TGangOperationController::OnJobAborted(
         return false;
     }
 
-    if (gangJoblet.Rank) {
+    if (gangJoblet.Rank && gangJoblet.IsStarted()) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
 
         auto incarnationData = TIncarnationSwitchData{
@@ -1643,7 +1651,10 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
                         continue;
                     }
 
-                    YT_LOG_WARNING("Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %d)", jobId, Options_->GangManager->JobReincarnationTimeout);
+                    YT_LOG_WARNING(
+                        "Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %v)",
+                        jobId,
+                        Options_->GangManager->JobReincarnationTimeout);
 
                     allocation->NewJobsForbiddenReason = EScheduleFailReason::Timeout;
                     AbortJob(jobId, EAbortReason::WaitingTimeout);
@@ -1716,6 +1727,15 @@ void TGangOperationController::ReportOperationIncarnationStartedEventToArchive(T
 const TOperationEventReporterPtr& TGangOperationController::GetOperationEventReporter() const
 {
     return Host_->GetOperationEventReporter();
+}
+
+void TGangOperationController::LogOperationIncarnationStarted(const TIncarnationSwitchData& data)
+{
+    LogEventFluently(ELogEventType::OperationIncarnationStarted)
+        .Item("operation_id").Value(GetOperationId())
+        .Item("operation_incarnation").Value(Incarnation_.Underlying())
+        .OptionalItem("incarnation_switch_reason", data.IncarnationSwitchReason)
+        .Item("incarnation_switch_info").Value(data.IncarnationSwitchInfo);
 }
 
 void TGangOperationController::ReportGangRankToArchive(const TGangJobletPtr& joblet) const
@@ -1903,6 +1923,7 @@ void TGangOperationController::CustomMaterialize()
         TotalGangSize_ += static_cast<const TGangTask*>(task.Get())->GetGangSize();
     }
 
+    LogOperationIncarnationStarted(TIncarnationSwitchData{});
     ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData{});
 }
 
@@ -1914,6 +1935,7 @@ void TGangOperationController::OnOperationIncarnationChanged(bool operationIsRev
 
     OperationIncarnationSwitchCounters[data.GetSwitchReason()].Increment();
 
+    LogOperationIncarnationStarted(data);
     ReportOperationIncarnationStartedEventToArchive(std::move(data));
 
     RestartAllRunningJobsPreservingAllocations(operationIsReviving);

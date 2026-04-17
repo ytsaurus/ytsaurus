@@ -26,8 +26,8 @@ public:
     void PushBack(T value);
     void PopBack();
 
-    T& operator [] (size_t index);
-    const T& operator [] (size_t index) const;
+    T& operator[](size_t index);
+    const T& operator[](size_t index) const;
 
 private:
     struct TChunk

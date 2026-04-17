@@ -9,7 +9,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     alter_table, authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
-    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_uuid,
+    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_timestamp, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
 
@@ -2658,11 +2658,11 @@ class TestQuery(DynamicTablesBase):
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
 
         assert select_rows("""
-            cardinality_merge(Subquery_2.x) AS c
+            uniq_merge(Subquery_2.x) AS c
             FROM (
-                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                SELECT uniq_merge_state(Subquery_1.y) AS x
                 FROM (
-                    SELECT cardinality_state(k_2) as y, g
+                    SELECT uniq_state(k_2) as y, g
                     FROM `//tmp/t`
                     GROUP BY k_1 as g
                 ) AS Subquery_1
@@ -2944,12 +2944,14 @@ class TestQueryRpcProxy(TestQuery):
             name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
-        def check():
-            def _check(select_duration_histogram):
+        def check(select_duration_histogram):
+            prev_bin_counters_sum = sum(bin["count"] for bin in select_duration_histogram.get_bins(verbose=True))
+
+            def _check():
                 try:
                     bins = select_duration_histogram.get_bins(verbose=True)
                     bin_counters = [bin["count"] for bin in bins]
-                    if sum(bin_counters) != 1:
+                    if sum(bin_counters) == prev_bin_counters_sum:
                         return False
                     if len(bin_counters) < 20:
                         return False
@@ -2962,13 +2964,14 @@ class TestQueryRpcProxy(TestQuery):
             assert select_rows("""* from [//tmp/t]""", driver=rpc_driver) == rows
 
             try:
-                wait(lambda: _check(node_select_duration_histogram), iter=5, sleep_backoff=0.5)
-                wait(lambda: _check(proxy_select_duration_histogram), iter=5, sleep_backoff=0.5)
+                wait(lambda: _check(), iter=5, sleep_backoff=0.5)
                 return True
             except WaitFailed:
                 return False
 
-        wait(lambda: check())
+        wait(lambda: check(node_select_duration_histogram))
+        wait(lambda: check(proxy_select_duration_histogram))
+
         assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/select_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
@@ -3054,6 +3057,32 @@ class TestQueryRpcProxy(TestQuery):
         sync_enable_table_replica(replica_id)  # enable cain.
 
         assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
+
+    @authors("dtorilov")
+    def test_yt_27169(self):
+        sync_create_cells(1)
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", True)
+        self._create_table("//tmp/l", [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}], [], "scan")
+        self._create_table("//tmp/r", [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}], [], "scan")
+        insert_rows("//tmp/l", [{"k": 1, "v": "old"}])
+        insert_rows("//tmp/r", [{"k": 1, "v": "old"}])
+        old_timestamp = generate_timestamp()
+        insert_rows("//tmp/l", [{"k": 1, "v": "new"}], update=True)
+        insert_rows("//tmp/r", [{"k": 1, "v": "new"}], update=True)
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k""", timestamp=old_timestamp)
+        expected = [{"l.v": "old", "r.v": "new"}]
+        assert result == expected
+        new_timestamp = generate_timestamp()
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k """, timestamp=new_timestamp)
+        expected = [{"l.v": "new", "r.v": "new"}]
+        assert result == expected
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_join_with_async_last_committed_timestamp_if_require_sync_replica_is_false", False)
+        time.sleep(1)
+        result = select_rows("""l.v, r.v from [//tmp/l] l join [//tmp/r] r with hint "{require_sync_replica=%false}" on l.k = r.k """, timestamp=old_timestamp)
+        expected = [{"l.v": "old", "r.v": "old"}]
+        assert result == expected
 
     @authors("dtorilov")
     def test_select_with_limit_read_data_weight(self):

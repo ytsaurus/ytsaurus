@@ -70,23 +70,17 @@ public:
         std::optional<TInstant> /*previousMarkTime*/) override
     { }
 
-    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TNodeId>& nodeIds) const override
+    THashMap<TNodeId, TInstant> RetrieveSuspicionMarkTimes(
+        TRange<TNodeId> nodeIds) const override
     {
         auto suspiciousNodeCount = SuspiciousNodeCount_.exchange(0);
 
-        std::vector<std::optional<TInstant>> result(nodeIds.size());
+        THashMap<TNodeId, TInstant> result;
         for (int index = 0; index < std::min<int>(suspiciousNodeCount, std::ssize(nodeIds)); ++index) {
-            result[index] = TInstant::Now();
+            result[nodeIds[index]] = TInstant::Now();
         }
 
         return result;
-    }
-
-    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
-        const std::vector<TNodeId>& /*nodeIds*/) const override
-    {
-        YT_UNIMPLEMENTED();
     }
 
     bool ShouldMarkNodeSuspicious(const TError& /*error*/) const override
@@ -407,9 +401,7 @@ std::vector<TSharedRef> CreateBlocks(int count, TRandomGenerator* generator)
     return blocks;
 }
 
-TChunkReaderHostPtr GetChunkReaderHost(
-    const NApi::NNative::IConnectionPtr connection,
-    INodeStatusDirectoryPtr nodeStatusDirectory)
+TChunkReaderHostPtr CreateChunkReaderHost(const NApi::NNative::IConnectionPtr& connection)
 {
     auto localDescriptor = NNodeTrackerClient::TNodeDescriptor(
         {std::pair("default", "localhost")},
@@ -424,10 +416,9 @@ TChunkReaderHostPtr GetChunkReaderHost(
             EBlockType::CompressedData,
             GetNullMemoryUsageTracker()),
         /*chunkMetaCache*/ nullptr,
-        std::move(nodeStatusDirectory),
-        NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::GetUnlimitedThrottler(),
+        /*bandwidthThrottlerProvider*/ TPerCategoryThrottlerProvider(),
+        /*rpsThrottler*/ nullptr,
+        /*mediumThrottler*/ nullptr,
         /*trafficMeter*/ nullptr);
 }
 
@@ -505,10 +496,16 @@ TEST_P(TReplicationReaderTest, ReadTest)
     options->AllowFetchingSeedsFromMaster = false;
 
     auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<std::string, IServicePtr>());
+
+    auto nodeStatusDirectory = testCase.MarkSomeNodesSuspicious
+        ? New<TTestNodeStatusDirectory>()
+        : nullptr;
+
     auto connection = CreateConnection(
         std::move(channelFactory),
         {"default"},
         std::move(nodeDirectory),
+        nodeStatusDirectory,
         invoker,
         memoryTracker);
 
@@ -523,11 +520,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_CALL(*connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
     EXPECT_CALL(*connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
 
-    auto nodeStatusDirectory = testCase.MarkSomeNodesSuspicious
-        ? New<TTestNodeStatusDirectory>()
-        : nullptr;
-
-    auto readerHost = GetChunkReaderHost(connection, nodeStatusDirectory);
+    auto readerHost = CreateChunkReaderHost(connection);
 
     auto config = New<TReplicationReaderConfig>();
     config->UseChunkProber = testCase.EnableChunkProber;

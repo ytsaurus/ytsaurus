@@ -294,15 +294,15 @@ void TReplicatedStoreManager::Remount(const TTableSettings& settings)
 }
 
 void TReplicatedStoreManager::PopulateReplicateTabletContentRequest(
-    NProto::TReqReplicateTabletContent* /*request*/)
+    NProto::TReqReplicateTabletContent* request)
 {
-    YT_ABORT();
+    LogStoreManager_->PopulateReplicateTabletContentRequest(request);
 }
 
 void TReplicatedStoreManager::LoadReplicatedContent(
-    const NProto::TReqReplicateTabletContent* /*request*/)
+    const NProto::TReqReplicateTabletContent* request)
 {
-    YT_ABORT();
+    LogStoreManager_->LoadReplicatedContent(request);
 }
 
 ISortedStoreManagerPtr TReplicatedStoreManager::AsSorted()
@@ -332,6 +332,18 @@ void TReplicatedStoreManager::MergePartitions(
 void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     TPartition* /*partition*/,
     const TSharedRange<TLegacyKey>& /*keys*/)
+{
+    YT_ABORT();
+}
+
+void TReplicatedStoreManager::AddUnleashedBackingStore(
+    TSortedDynamicStorePtr /*unleashedBackingStore*/)
+{
+    YT_ABORT();
+}
+
+void TReplicatedStoreManager::ReleaseUnleashedBackingStore(
+    TDynamicStoreId /*backingStoreId*/)
 {
     YT_ABORT();
 }

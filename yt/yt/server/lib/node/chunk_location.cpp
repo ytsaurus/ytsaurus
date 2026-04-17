@@ -195,7 +195,7 @@ TChunkLocationUuid TChunkLocationBase::GetUuid() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Uuid_;
+    return Uuid_.Load();
 }
 
 TChunkLocationIndex TChunkLocationBase::GetIndex() const
@@ -207,13 +207,13 @@ void TChunkLocationBase::SetIndex(TChunkLocationIndex index)
 {
     if (Index_ != NNodeTrackerClient::InvalidChunkLocationIndex && Index_ != index) {
         YT_LOG_ALERT(
-            "Chunk location index has been changed (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
-            Uuid_,
+            "Attempted to change chunk location index (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
+            Uuid_.Load(),
             Index_,
             index);
 
-        THROW_ERROR_EXCEPTION("Chunk location index has been changed")
-            << TErrorAttribute("location_uuid", Uuid_)
+        THROW_ERROR_EXCEPTION("Attempted to change chunk location index")
+            << TErrorAttribute("location_uuid", Uuid_.Load())
             << TErrorAttribute("old_index", Index_)
             << TErrorAttribute("new_index", index);
     }
@@ -508,25 +508,29 @@ void TChunkLocationBase::InitializeUuid()
         }
     }
 
+    TChunkLocationUuid uuid;
+
     if (Exists(uuidPath)) {
         TUnbufferedFileInput file(uuidPath);
         auto uuidString = file.ReadAll();
-        if (!TCellId::FromString(uuidString, &Uuid_)) {
+        if (!TCellId::FromString(uuidString, &uuid)) {
             THROW_ERROR_EXCEPTION(
                 "Failed to parse chunk location uuid %Qv",
                 uuidString);
         }
     } else {
         do {
-            Uuid_ = TChunkLocationUuid::Create();
-        } while (Uuid_ == EmptyChunkLocationUuid || Uuid_ == InvalidChunkLocationUuid);
+            uuid = TChunkLocationUuid::Create();
+        } while (uuid == EmptyChunkLocationUuid || uuid == InvalidChunkLocationUuid);
         YT_LOG_INFO(
             "Chunk location uuid file is not found, creating (LocationUuid: %v)",
-            Uuid_);
+            uuid);
         TFile file(uuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput output(file);
-        output.Write(ToString(Uuid_));
+        output.Write(ToString(uuid));
     }
+
+    Uuid_.Store(uuid);
 }
 
 bool TChunkLocationBase::IsSick() const
@@ -600,8 +604,9 @@ void TChunkLocationBase::MarkLocationDiskFailed()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_WARNING(
-        "Disk with store location failed (LocationUuid: %v, DiskName: %v)",
+        "Disk with store location failed (LocationUuid: %v, LocationIndex: %v, DiskName: %v)",
         GetUuid(),
+        GetIndex(),
         StaticConfig_->DeviceName);
 
     LocationDiskFailedAlert_.Store(
@@ -856,8 +861,9 @@ bool TChunkLocationBase::StartDestroy()
     }
 
     YT_LOG_INFO(
-        "Starting location destruction (LocationUuid: %v, DiskName: %v)",
+        "Starting location destruction (LocationUuid: %v, LocationIndex: %v, DiskName: %v)",
         GetUuid(),
+        GetIndex(),
         StaticConfig_->DeviceName);
     return true;
 }
@@ -874,8 +880,9 @@ bool TChunkLocationBase::FinishDestroy(
         }
 
         YT_LOG_INFO(
-            "Finish location destruction (LocationUuid: %v, DiskName: %v)",
+            "Finish location destruction (LocationUuid: %v, LocationIndex: %v, DiskName: %v)",
             GetUuid(),
+            GetIndex(),
             StaticConfig_->DeviceName);
     } else {
         if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying)) {

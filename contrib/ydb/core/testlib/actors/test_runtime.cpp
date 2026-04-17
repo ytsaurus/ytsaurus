@@ -21,6 +21,7 @@
 #include <contrib/ydb/core/protos/key.pb.h>
 #include <contrib/ydb/core/protos/netclassifier.pb.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
+#include <contrib/ydb/core/protos/schemeshard_config.pb.h>
 #include <contrib/ydb/core/protos/stream.pb.h>
 #include <contrib/ydb/core/protos/workload_manager_config.pb.h>
 

@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.73.0)
+VERSION(v1.79.3)
 
 SRCS(
     experimental.go
@@ -30,6 +30,12 @@ ENDIF()
 IF (OS_ANDROID)
     SRCS(
         tcp_keepalive_unix.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        tcp_keepalive_others.go
     )
 ENDIF()
 

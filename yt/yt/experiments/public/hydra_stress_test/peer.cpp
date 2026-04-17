@@ -14,6 +14,7 @@
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -43,6 +44,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Cas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Sequence));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrowException));
     }
 
 private:
@@ -82,6 +84,14 @@ private:
             request->count(),
             request->id());
         auto future = Peer_->AutomatonPart_->CreateSequenceMutation(context)->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYT::NProto, ThrowException)
+    {
+        Y_UNUSED(response);
+        ValidatePeer(EPeerKind::Leader);
+
+        auto future = Peer_->AutomatonPart_->CreateThrowExceptionMutation(context)->CommitAndReply(context);
     }
 };
 
@@ -195,11 +205,10 @@ bool TPeer::IsActive() const
 
 bool TPeer::IsRecovery() const
 {
-    return BIND(&IHydraManager::IsRecovery, HydraManager_)
+    auto future = BIND(&IHydraManager::IsRecovery, HydraManager_)
         .AsyncVia(AutomatonQueue_->GetInvoker())
-        .Run()
-        .Get()
-        .ValueOrThrow();
+        .Run();
+    return WaitFor(future).ValueOrThrow();
 }
 
 bool TPeer::IsVoting() const
@@ -209,11 +218,10 @@ bool TPeer::IsVoting() const
 
 NHydra::EPeerState TPeer::GetAutomatonState() const
 {
-    return BIND(&IHydraManager::GetAutomatonState, HydraManager_)
+    auto future = BIND(&IHydraManager::GetAutomatonState, HydraManager_)
         .AsyncVia(AutomatonQueue_->GetInvoker())
-        .Run()
-        .Get()
-        .ValueOrThrow();
+        .Run();
+    return WaitFor(future).ValueOrThrow();
 }
 
 IChannelPtr TPeer::GetChannel() const

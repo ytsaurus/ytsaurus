@@ -97,6 +97,7 @@ private:
                 YT_LOG_DEBUG("Scan of tablet is backed off (TabletId: %v, RemainingBackoffTime: %v)",
                     Tablet_->GetId(),
                     (scanBackoffInstant - TInstant::Now()).Seconds());
+                Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
                 return;
             }
 
@@ -118,6 +119,8 @@ private:
                     << TErrorAttribute("tablet_id", Tablet_->GetId())
                     << error;
                 YT_LOG_ERROR(wrappedError);
+
+                Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
             }
         }
 
@@ -227,6 +230,7 @@ private:
             // NB: Active store could have been changed during stores allocation.
             if (!Tablet_->GetActiveStore() || Tablet_->GetActiveStore() == activeStore) {
                 Tablet_->RotateActiveStore();
+                Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreRotationCount.Increment(1);
             }
         }
 
@@ -234,6 +238,11 @@ private:
         {
             std::vector<TStoreId> storeIdsToMarkSealable;
             for (const auto& store : Tablet_->PassiveStores()) {
+                // NB: Wait until store is closed, because sealing forcefully closes write sessions.
+                if (store->IsClosing()) {
+                    continue;
+                }
+
                 if (!store->GetMarkedSealable()) {
                     YT_LOG_DEBUG("Passive store is not marked as sealable; marking (StoreId: %v)",
                         store->GetId());
@@ -255,6 +264,8 @@ private:
             auto transaction = CreateTransaction();
             AddTransactionAction(transaction, actionRequest);
             CommitTransaction(transaction);
+
+            Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreSealCount.Increment(storeIdsToMarkSealable.size());
         }
 
         void MaybeRemoveStores()
@@ -297,6 +308,8 @@ private:
             auto transaction = CreateTransaction();
             AddTransactionAction(transaction, actionRequest);
             CommitTransaction(transaction);
+
+            Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreRemovalCount.Increment(storeIdsToRemove.size());
         }
 
         NApi::NNative::ITransactionPtr CreateTransaction()
@@ -353,7 +366,7 @@ private:
                 }
             }
 
-            auto error = TError("Transaction commit wait failed")
+            auto error = TError("Hunk tablet scanner transaction commit wait failed")
                 << TErrorAttribute("transaction_id", transaction->GetId());
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
@@ -397,6 +410,8 @@ private:
 
             AddTransactionAction(transaction, actionRequest);
             CommitTransaction(transaction);
+
+            Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreAllocationCount.Increment(chunkIds.size());
         }
 
         std::vector<TSessionId> DoCreateChunks(
@@ -409,6 +424,8 @@ private:
                 NApi::EMasterChannelKind::Leader,
                 /*cellTag*/ CellTagFromId(Tablet_->GetId()));
             TChunkServiceProxy proxy(masterChannel);
+
+            NProfiling::TEventTimerGuard timingGuard(Tablet_->Profiler()->GetJournalWriterCounters()->CreateChunkTimer);
 
             std::vector<TSessionId> chunkIds;
             chunkIds.reserve(chunkCount);

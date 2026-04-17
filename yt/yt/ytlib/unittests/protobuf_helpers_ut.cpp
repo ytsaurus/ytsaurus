@@ -36,7 +36,7 @@ TEST(TParsingTest, CellDirectoryItem)
     endpoints.set_endpoint_set_id("a-b-c-d");
     endpoints.set_update_period(21);
 
-    NProto::TCellDirectoryItem expectedConfigProto;
+    NProto::TMasterCellConnectionConfig expectedConfigProto;
     expectedConfigProto.set_rpc_timeout(128);
     ToProto(expectedConfigProto.mutable_cell_id(), NObjectClient::TCellId(42, 43, 44, 45));
     expectedConfigProto.set_ignore_peer_state(true);
@@ -68,7 +68,7 @@ TEST(TParsingTest, CellDirectoryItem)
     expectedConfigProto.set_retry_timeout(95);
 
     {
-        NProto::TCellDirectoryItem resultedConfigProto;
+        NProto::TMasterCellConnectionConfig resultedConfigProto;
         NApi::NNative::TMasterConnectionConfigPtr parsedConfig;
         FromProto(&parsedConfig, expectedConfigProto);
         ToProto(&resultedConfigProto, parsedConfig);
@@ -76,7 +76,7 @@ TEST(TParsingTest, CellDirectoryItem)
     }
 
     {
-        NProto::TCellDirectoryItem resultedConfigProto;
+        NProto::TMasterCellConnectionConfig resultedConfigProto;
         NApi::NNative::TMasterConnectionConfigPtr parsedConfig;
         expectedConfigProto.clear_addresses();
         *expectedConfigProto.mutable_endpoints() = std::move(endpoints);

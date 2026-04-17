@@ -33,7 +33,7 @@ public:
         Opts_.AddLongOption("proxy-address").StoreResult(&ProxyAddress_);
         Opts_.AddLongOption("path").StoreResult(&Path_).Required();
         Opts_.AddLongOption("fallback-format").StoreResult(&FallbackFormat_);
-        Opts_.AddLongOption("hexify-format").StoreResult(&HexifyFormat_).NoArgument()   ;
+        Opts_.AddLongOption("hexify-format").StoreResult(&HexifyFormat_).NoArgument();
     }
 
 protected:

@@ -660,24 +660,10 @@ private:
             CachedHydraFileInfos_.begin() + NextCellIndexToFetchHydraFileIds_,
             CachedHydraFileInfos_.begin() + lastCellIndex);
 
-        // COMPAT(danilalexeev)
-        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage;
-        try {
-            checkSecondaryStorage = !Bootstrap_->GetDynamicConfig()->TabletManager->SafeCheckSecondaryCellStorage
-                ? CheckLegacyCellMapNodeTypesOrThrow(Bootstrap_->GetCypressManager())
-                : TEnumIndexedArray<ECellarType, bool>{
-                    {ECellarType::Tablet, true},
-                    {ECellarType::Chaos, true}
-                };
-        } catch (const TErrorException& ex) {
-            YT_LOG_WARNING(ex, "Error checking cell map node types");
-            return;
-        }
-
         auto asyncResult = BIND(
             &TCellHydraPersistenceSynchronizer::DoUpdateHydraFileIds,
             MakeWeak(this),
-            Passed(std::move(pickedCellInfos)), checkSecondaryStorage)
+            Passed(std::move(pickedCellInfos)))
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .Run();
 
@@ -690,9 +676,7 @@ private:
         }
     }
 
-    void DoUpdateHydraFileIds(
-        std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos,
-        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage)
+    void DoUpdateHydraFileIds(std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos)
     {
         std::vector<TCellId> cellIds;
         cellIds.reserve(cellInfos.size());
@@ -702,7 +686,7 @@ private:
 
         NProto::TReqSetMaxHydraFileIds request;
 
-        auto maxHydraFileIds = GetMaxHydraFileIds(cellIds, checkSecondaryStorage);
+        auto maxHydraFileIds = GetMaxHydraFileIds(cellIds);
         YT_VERIFY(ssize(maxHydraFileIds) == ssize(cellInfos));
 
         for (int index = 0; index < ssize(maxHydraFileIds); ++index) {
@@ -727,21 +711,12 @@ private:
             request.entries_size());
     }
 
-    std::vector<THydraFileInfo> GetMaxHydraFileIds(
-        const std::vector<TCellId>& cellIds,
-        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage) const
+    std::vector<THydraFileInfo> GetMaxHydraFileIds(const std::vector<TCellId>& cellIds) const
     {
         auto proxy = CreateObjectServiceReadProxy(
             Bootstrap_->GetRootClient(),
             EMasterChannelKind::Follower);
 
-        // For each cell, requests the following directory listings:
-        //   - Primary storage path:
-        //       * <primary_path>/snapshots
-        //       * <primary_path>/changelogs
-        //   - Secondary storage path (if relevant):
-        //       * <secondary_path>/snapshots
-        //       * <secondary_path>/changelogs
         auto batchReq = proxy.ExecuteBatch();
 
         for (auto cellId : cellIds) {
@@ -749,12 +724,6 @@ private:
                 GetCellHydraPersistencePath(cellId) + "/snapshots"));
             batchReq->AddRequest(TYPathProxy::List(
                 GetCellHydraPersistencePath(cellId) + "/changelogs"));
-            if (checkSecondaryStorage[GetCellarTypeFromCellId(cellId)]) {
-                batchReq->AddRequest(TYPathProxy::List(
-                    GetCellPath(cellId) + "/snapshots"));
-                batchReq->AddRequest(TYPathProxy::List(
-                    GetCellPath(cellId) + "/changelogs"));
-            }
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -784,18 +753,11 @@ private:
         std::vector<THydraFileInfo> result;
         result.reserve(ssize(cellIds));
 
-        int currentIndex = 0;
-        for (auto cellId : cellIds) {
-            auto requestExtended = checkSecondaryStorage[GetCellarTypeFromCellId(cellId)];
+        for (int index = 0; index < std::ssize(cellIds); ++index) {
             result.push_back({
-                .MaxSnapshotId = std::max(
-                    getMaxId(currentIndex + 0),
-                    requestExtended ? getMaxId(currentIndex + 2) : -1),
-                .MaxChangelogId = std::max(
-                    getMaxId(currentIndex + 1),
-                    requestExtended ? getMaxId(currentIndex + 3) : -1),
+                .MaxSnapshotId = getMaxId(/*subrequestIndex*/ 2 * index),
+                .MaxChangelogId = getMaxId(/*subrequestIndex*/ 2 * index + 1),
             });
-            currentIndex += requestExtended ? 4 : 2;
         }
 
         return result;

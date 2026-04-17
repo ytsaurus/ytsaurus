@@ -10,10 +10,6 @@ namespace NYT::NCellServer {
 
 int GetCellShardIndex(NHydra::TCellId cellId);
 
-// COMPAT(danilalexeev)
-TEnumIndexedArray<NCellarClient::ECellarType, bool> CheckLegacyCellMapNodeTypesOrThrow(
-    const NCypressServer::ICypressManagerPtr& cypressManager);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellServer

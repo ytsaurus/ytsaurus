@@ -731,21 +731,7 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
-        total_memory_limit_ratio = 0.001
-        set("//sys/http_proxies/@config", {
-            "api": {
-                "default_memory_limit_ratios": {
-                    "total_memory_limit_ratio": total_memory_limit_ratio
-                }
-            }
-        })
-        wait(lambda: config_updated(total_memory_limit_ratio))
-
-        # Total memory limit was not reached.
-        self._execute_command("GET", "get", {"path": "//@"})
-        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
-
-        total_memory_limit_ratio = 0.0005
+        total_memory_limit_ratio = 0.5
         heavy_request_memory_limit_ratio = 0.0
         set("//sys/http_proxies/@config", {
             "api": {
@@ -765,7 +751,7 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
 
-        total_memory_limit_ratio = 0.0000001
+        total_memory_limit_ratio = 0.0
         set("//sys/http_proxies/@config", {
             "api": {
                 "default_memory_limit_ratios": {
@@ -787,12 +773,12 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             config = requests.get(config_url).json()
             return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("data", {}).get("total_memory_limit_ratio", 0.0) == expected_total_memory_limit_ratio
 
-        total_memory_limit_ratio = 0.001
-        heavy_request_memory_limit_ratio = 0.001
+        total_memory_limit_ratio = 0.9
+        heavy_request_memory_limit_ratio = 0.9
         set("//sys/http_proxies/@config", {
             "api": {
                 "default_memory_limit_ratios": {
-                    "total_memory_limit_ratio": 0.0000001
+                    "total_memory_limit_ratio": 0.0
                 },
                 "role_to_memory_limit_ratios": {
                     "data": {

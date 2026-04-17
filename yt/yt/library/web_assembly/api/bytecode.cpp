@@ -4,7 +4,7 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TModuleBytecode::operator == (const TModuleBytecode& other) const
+bool TModuleBytecode::operator==(const TModuleBytecode& other) const
 {
     return Format == other.Format && Data.ToStringBuf() == other.Data.ToStringBuf();
 }

@@ -34,6 +34,12 @@ IF (OS_ANDROID)
     )
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        atime_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

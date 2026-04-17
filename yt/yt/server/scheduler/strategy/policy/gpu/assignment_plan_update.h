@@ -36,6 +36,8 @@ private:
     int ReservedNodeCount_ = 0;
 };
 
+using TModuleStateMap = THashMap<std::string, TModuleState>;
+
 void FormatValue(TStringBuilderBase* builder, const TModuleState& state, TStringBuf spec);
 void Serialize(const TModuleState& state, NYson::IYsonConsumer* consumer);
 
@@ -49,7 +51,7 @@ struct TOperationModuleBindingOutcome
     const std::vector<TOperation*> OperationsToEvict;
 };
 
-bool operator <(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
+bool operator<(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutcome& outcome, TStringBuf spec);
 
@@ -59,12 +61,13 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAssignmentPlanContext
+struct IAssignmentPlanUpdateContext
 {
-    virtual ~IAssignmentPlanContext() = default;
+    virtual ~IAssignmentPlanUpdateContext() = default;
 
     virtual const TOperationMap& Operations() const = 0;
     virtual const TNodeMap& Nodes() const = 0;
+    virtual const TGpuPlanUpdateStatisticsPtr& GetStatistics() const = 0;
 
     virtual void AddPlannedAssignment(
         std::string allocationGroupName,
@@ -76,7 +79,10 @@ struct IAssignmentPlanContext
     virtual void PreemptAssignment(
         const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
-        std::string preemptionDescription) = 0;
+        const std::string& preemptionDescription,
+        std::optional<TOperationId> preemptedForOperationId = {}) = 0;
+
+    virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +92,7 @@ class TGpuAllocationAssignmentPlanUpdateExecutor
 {
 public:
     TGpuAllocationAssignmentPlanUpdateExecutor(
-        IAssignmentPlanContext* context,
+        IAssignmentPlanUpdateContext* context,
         TInstant now,
         TGpuSchedulingPolicyConfigPtr config,
         NLogging::TLogger logger);
@@ -94,7 +100,7 @@ public:
     void Run();
 
 private:
-    IAssignmentPlanContext* const Context_;
+    IAssignmentPlanUpdateContext* const Context_;
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
     const TInstant Now_;
@@ -105,7 +111,7 @@ private:
     // NB(eshcherbin): This vector can and will be sorted in-place.
     // TODO(eshcherbin): Optimize by using set or heap instead of sorting the vector every time.
     std::vector<TNode*> SchedulableNodes_;
-    THashMap<std::string, NDetail::TModuleState> ModuleStates_;
+    NDetail::TModuleStateMap ModuleStates_;
 
     void InitializeModuleStates();
 
@@ -119,6 +125,8 @@ private:
     bool ShouldUseFullHostAggressivePreemption(const TOperationPtr& operation) const;
     bool ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const;
 
+    bool ShouldResetModule(const TOperationPtr& operation) const;
+    void EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription);
     bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
 
     std::optional<NDetail::TOperationModuleBindingOutcome> ConsiderModuleForFullHostOperation(
@@ -143,23 +151,27 @@ private:
 
     NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(const TAssignmentPtr& assignment) const;
 
+    int GetLimitedAllocationCount(
+        const TOperationPtr& operation,
+        const std::string& allocationGroupName,
+        const TAllocationGroupResources& allocationGroupResources) const;
+
     //! NB: These methods sort |availableNodes| in-place.
     void PlanAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes);
     void PlanAllocationGroupWithPreemption(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption = false);
     void PlanPreemptibleAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
-        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes);
+
+    void DumpModuleStatistics() const;
 
     class TAllocationGroupPlannerBase
     {
@@ -180,7 +192,7 @@ private:
     protected:
         const TOperationPtr& Operation_;
         const std::string& AllocationGroupName_;
-        const TAllocationGroupResources& AllocationGroupResources_;
+        const TAllocationGroupResources AllocationGroupResources_;
         TGpuAllocationAssignmentPlanUpdateExecutor* const Host_;
 
         bool CanAddAssignmentToNode(

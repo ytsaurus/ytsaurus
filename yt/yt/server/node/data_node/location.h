@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -123,10 +124,10 @@ class TLocationMemoryGuard
 {
 public:
     TLocationMemoryGuard() = default;
-    TLocationMemoryGuard(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept;
     ~TLocationMemoryGuard();
 
-    void Release();
+    void Release() noexcept;
 
     i64 GetSize() const;
     bool GetUseLegacyUsedMemory() const;
@@ -135,7 +136,7 @@ public:
     void IncreaseSize(i64 delta);
     void DecreaseSize(i64 delta);
 
-    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other) noexcept;
 
     explicit operator bool() const;
 
@@ -151,7 +152,7 @@ private:
         i64 size,
         TChunkLocationPtr owner);
 
-    void MoveFrom(TLocationMemoryGuard&& other);
+    void MoveFrom(TLocationMemoryGuard&& other) noexcept;
 
     TMemoryUsageTrackerGuard MemoryGuard_;
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
@@ -187,20 +188,17 @@ public:
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     void UpdateMediumDescriptor(
-        const NChunkClient::TMediumDescriptor& mediumDescriptor,
+        const NChunkClient::TMediumDescriptorPtr& mediumDescriptor,
         bool onInitialize);
 
     //! Returns the medium name.
     std::string GetMediumName() const;
 
     //! Returns the medium descriptor.
-    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
+    NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
 
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
-
-    //! Returns the IO weight of the location.
-    double GetIOWeight() const;
 
     //! Does the node need to tell the master about this location.
     bool CanPublish() const;
@@ -308,6 +306,8 @@ public:
     //! This method returns memory limit fraction.
     double GetMemoryLimitFractionForStartingNewSessions() const;
 
+    bool ShouldUseUncategorizedThrottler() const;
+
     const TChunkStorePtr& GetChunkStore() const;
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
@@ -342,8 +342,6 @@ private:
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
-    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
-
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
     // TODO(vvshlyaga): Change to fair share queue.
@@ -357,7 +355,7 @@ private:
     TChunkLocationUuid Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
-    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TGauge MediumFlag_;
 
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> ReconfigurableThrottlers_;
@@ -365,7 +363,6 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    bool EnableUncategorizedThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
     NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
 
@@ -387,9 +384,6 @@ private:
     void DecreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
-
-    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
-    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 
     void UpdateMediumTag();
 
@@ -427,6 +421,9 @@ public:
 
     //! Returns the static config.
     const TStoreLocationConfigPtr& GetStaticConfig() const;
+
+    //! Returns the IO weight of the location.
+    double GetIOWeight() const;
 
     //! Returns the runtime config.
     TStoreLocationConfigPtr GetRuntimeConfig() const;
@@ -472,6 +469,8 @@ public:
 
 private:
     const TStoreLocationConfigPtr StaticConfig_;
+
+    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
 
     const IJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
@@ -531,6 +530,9 @@ private:
     std::vector<NNode::TChunkDescriptor> DoScan() override;
     void DoScanTrash();
     void DoAsyncScanTrash();
+
+    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
+    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

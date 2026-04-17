@@ -19,7 +19,7 @@ PROC_TIMEOUT = 30
 NODE_ID_TO_PATH = "node_id_to_path"
 NODE_FORKS = "node_forks"
 NODE_SNAPSHOTS = "node_snapshots"
-CHILD_NODE = "child_node"
+CHILD_NODES = "child_nodes"
 CHILD_FORKS = "child_forks"
 TRANSACTIONS = "transactions"
 TRANSACTION_DESCENDANTS = "transaction_descendants"
@@ -33,7 +33,7 @@ TABLE_NAMES = [
     NODE_ID_TO_PATH,
     NODE_FORKS,
     NODE_SNAPSHOTS,
-    CHILD_NODE,
+    CHILD_NODES,
     TRANSACTIONS,
     CHILD_FORKS,
     TRANSACTION_REPLICAS,

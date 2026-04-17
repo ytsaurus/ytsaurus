@@ -394,6 +394,36 @@ public:
         });
     }
 
+    void SetTimeout(std::optional<TDuration> timeout) override
+    {
+        Timeout_ = timeout;
+    }
+
+    virtual void SetDeadline(std::optional<TInstant> deadline) override
+    {
+        if (!deadline || *deadline == TInstant::Max()) {
+            Timeout_ = std::nullopt;
+        } else {
+            Timeout_ = *deadline - TInstant::Now();
+        }
+    }
+
+    void StartDeadlineTimer() override
+    {
+        if (!Timeout_) {
+            Deadline_ = std::nullopt;
+        } else {
+            Deadline_ = Runtime::getInstant();
+            Deadline_->tv_sec += static_cast<time_t>(Timeout_->Seconds());
+            Deadline_->tv_nsec += static_cast<long>(Timeout_->NanoSecondsOfSecond());
+        }
+    }
+
+    std::optional<struct timespec> GetDeadline() const
+    {
+        return Deadline_;
+    }
+
     void* GetHostPointer(uintptr_t offset, size_t length) override
     {
         char* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, std::bit_cast<ui64>(offset), length);
@@ -457,6 +487,9 @@ private:
     Runtime::GCPointer<Runtime::ExceptionType> ExceptionType_;
 
     bool Stripped_ = false;
+
+    std::optional<TDuration> Timeout_;
+    std::optional<struct timespec> Deadline_;
 
     void AddExportsToGlobalOffsetTable(const IR::Module& irModule);
     void InstantiateModule(const Runtime::ModuleRef& wavmModule, const Runtime::LinkResult& linkResult, TStringBuf debugName);
@@ -815,13 +848,13 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
         }
     }
 
-    int offset = 0;
+    Uptr baseOffset = Runtime::getTableNumElements(GetGlobalOffsetTable());
     for (const auto& elementSegment : irModule.elemSegments) {
         for (int index = 0; index < std::ssize(elementSegment.contents->elemIndices); index++) {
             int functionIndex = elementSegment.contents->elemIndices[index];
             auto& functionName = disassemblyNames.functions[functionIndex].name;
             if (exportedFunctions.contains(functionName)) {
-                int globalOffsetTableIndex = offset + index;
+                int globalOffsetTableIndex = baseOffset + index;
                 GlobalOffsetTableElements_.Functions[functionName] = globalOffsetTableIndex;
             }
         }
@@ -893,7 +926,13 @@ void TWebAssemblyCompartment::ApplyDataRelocationsAndCallConstructors(Runtime::I
         if (auto* function = getTypedInstanceExport(instance, name, signature)) {
             auto arguments = std::array<IR::UntaggedValue, 0>{};
             SaveAndRestoreCompartment(this, [&] {
-                Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+                try {
+                    Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+                } catch (WAVM::Runtime::Exception* ex) {
+                    auto description = WAVM::Runtime::describeException(ex);
+                    WAVM::Runtime::destroyException(ex);
+                    THROW_ERROR_EXCEPTION("WAVM Runtime Exception: %Qv", description);
+                }
             });
         }
     };
@@ -926,6 +965,10 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
     destination->MemoryLayoutData_.LinearMemory = *destination->Compartment_->memories.get(0);
     destination->MemoryLayoutData_.GlobalOffsetTable = *destination->Compartment_->tables.get(0);
     destination->GlobalOffsetTableElements_ = source.GlobalOffsetTableElements_;
+
+    destination->MemoryLayoutData_.MemoryBases = source.MemoryLayoutData_.MemoryBases;
+    destination->MemoryLayoutData_.TableBases = source.MemoryLayoutData_.TableBases;
+    destination->Modules_ = source.Modules_;
 
     if (source.ExceptionType_) {
         destination->ExceptionType_ = destination->Compartment_->exceptionTypes[source.ExceptionType_->id];
@@ -991,11 +1034,26 @@ Runtime::ModuleRef LoadBuiltinUdfs()
     return LoadModuleFromBytecode(bytecode.Data);
 }
 
+namespace {
+
+void CheckStackDepth()
+{
+    static const int MinimumStackFreeSpace = 8_KB;
+
+    if (!NConcurrency::CheckFreeStackSpace(MinimumStackFreeSpace)) {
+        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+    }
+}
+
+} // namespace
+
 std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
 {
     auto compartment = std::make_unique<TWebAssemblyCompartment>();
     compartment->Compartment_ = Runtime::createCompartment();
     compartment->Context_ = Runtime::createContext(compartment->Compartment_);
+    Runtime::setCheckStackDepthCallback(compartment->Context_, CheckStackDepth);
+
     compartment->MemoryLayoutData_ = BuildMemoryLayoutData(compartment->Compartment_);
 
     if (image == EKnownImage::MinimalRuntime) {
@@ -1160,9 +1218,12 @@ void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
             static_cast<TWebAssemblyCompartment*>(compartment)->GetGlobalOffsetTable());
         Runtime::Memory::setCurrentMemory(
             static_cast<TWebAssemblyCompartment*>(compartment)->GetLinearMemory());
+        Runtime::setCurrentDeadline(
+            static_cast<TWebAssemblyCompartment*>(compartment)->GetDeadline());
     } else {
         Runtime::Table::setCurrentTable(nullptr);
         Runtime::Memory::setCurrentMemory(nullptr);
+        Runtime::setCurrentDeadline(std::nullopt);
     }
 }
 

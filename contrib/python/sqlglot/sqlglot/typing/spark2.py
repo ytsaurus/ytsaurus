@@ -44,12 +44,40 @@ def _annotate_by_similar_args(
 
 EXPRESSION_METADATA: ExpressionMetadataType = {
     **HIVE_EXPRESSION_METADATA,
-    exp.Substring: {"annotator": lambda self, e: self._annotate_by_args(e, "this")},
+    **{
+        expr_type: {"returns": exp.DataType.Type.DOUBLE}
+        for expr_type in {
+            exp.Atan2,
+            exp.Randn,
+        }
+    },
+    **{
+        exp_type: {"returns": exp.DataType.Type.VARCHAR}
+        for exp_type in {
+            exp.Format,
+            exp.Right,
+        }
+    },
+    **{
+        expr_type: {"annotator": lambda self, e: self._annotate_by_args(e, "this")}
+        for expr_type in {
+            exp.ArrayFilter,
+            exp.Substring,
+        }
+    },
+    exp.AddMonths: {"returns": exp.DataType.Type.DATE},
+    exp.ApproxQuantile: {
+        "annotator": lambda self, e: self._annotate_by_args(
+            e, "this", array=e.args["quantile"].is_type(exp.DataType.Type.ARRAY)
+        )
+    },
+    exp.AtTimeZone: {"returns": exp.DataType.Type.TIMESTAMP},
     exp.Concat: {
         "annotator": lambda self, e: _annotate_by_similar_args(
             self, e, "expressions", target_type=exp.DataType.Type.TEXT
         )
     },
+    exp.NextDay: {"returns": exp.DataType.Type.DATE},
     exp.Pad: {
         "annotator": lambda self, e: _annotate_by_similar_args(
             self, e, "this", "fill_pattern", target_type=exp.DataType.Type.TEXT

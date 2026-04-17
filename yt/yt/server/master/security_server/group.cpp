@@ -40,11 +40,6 @@ void TGroup::Load(NCellMaster::TLoadContext& context)
     Load(context, Members_);
 }
 
-void TGroup::SetId(NObjectServer::TObjectId id)
-{
-    Id_ = id;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

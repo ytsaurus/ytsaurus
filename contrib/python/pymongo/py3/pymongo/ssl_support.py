@@ -4,7 +4,7 @@
 # may not use this file except in compliance with the License.  You
 # may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,185 +13,134 @@
 # permissions and limitations under the License.
 
 """Support for SSL in PyMongo."""
+from __future__ import annotations
 
-import atexit
-import sys
-import threading
+import types
+import warnings
+from typing import Any, Optional, Union
 
-from bson.py3compat import string_type
 from pymongo.errors import ConfigurationError
 
 HAVE_SSL = True
+HAVE_PYSSL = True
 
 try:
-    import pymongo.pyopenssl_context as _ssl
-except ImportError:
-    try:
-        import pymongo.ssl_context as _ssl
-    except ImportError:
-        HAVE_SSL = False
-
-HAVE_CERTIFI = False
+    import pymongo.pyopenssl_context as _pyssl
+except (ImportError, AttributeError) as exc:
+    HAVE_PYSSL = False
+    if isinstance(exc, AttributeError):
+        warnings.warn(
+            "Failed to use the installed version of PyOpenSSL. "
+            "Falling back to stdlib ssl, disabling OCSP support. "
+            "This is likely caused by incompatible versions "
+            "of PyOpenSSL < 23.2.0 and cryptography >= 42.0.0. "
+            "Try updating PyOpenSSL >= 23.2.0 to enable OCSP.",
+            UserWarning,
+            stacklevel=2,
+        )
 try:
-    import certifi
-
-    HAVE_CERTIFI = True
+    import pymongo.ssl_context as _ssl
 except ImportError:
-    pass
+    HAVE_SSL = False
 
-HAVE_WINCERTSTORE = False
-try:
-    from wincertstore import CertFile
-
-    HAVE_WINCERTSTORE = True
-except ImportError:
-    pass
-
-_WINCERTSLOCK = threading.Lock()
-_WINCERTS = None
 
 if HAVE_SSL:
     # Note: The validate* functions below deal with users passing
     # CPython ssl module constants to configure certificate verification
     # at a high level. This is legacy behavior, but requires us to
     # import the ssl module even if we're only using it for this purpose.
-    import ssl as _stdlibssl
-    from ssl import CERT_NONE, CERT_OPTIONAL, CERT_REQUIRED
+    import ssl as _stdlibssl  # noqa: F401
+    from ssl import CERT_NONE, CERT_REQUIRED
 
-    HAS_SNI = _ssl.HAS_SNI
-    IPADDR_SAFE = _ssl.IS_PYOPENSSL or sys.version_info[:2] >= (3, 7)
-    SSLError = _ssl.SSLError
+    IPADDR_SAFE = True
 
-    def validate_cert_reqs(option, value):
-        """Validate the cert reqs are valid. It must be None or one of the
-        three values ``ssl.CERT_NONE``, ``ssl.CERT_OPTIONAL`` or
-        ``ssl.CERT_REQUIRED``.
-        """
-        if value is None:
-            return value
-        if isinstance(value, string_type) and hasattr(_stdlibssl, value):
-            value = getattr(_stdlibssl, value)
-
-        if value in (CERT_NONE, CERT_OPTIONAL, CERT_REQUIRED):
-            return value
-        raise ValueError(
-            "The value of %s must be one of: "
-            "`ssl.CERT_NONE`, `ssl.CERT_OPTIONAL` or "
-            "`ssl.CERT_REQUIRED`" % (option,)
+    if HAVE_PYSSL:
+        PYSSLError: Any = _pyssl.SSLError
+        BLOCKING_IO_ERRORS: tuple = (  # type: ignore[type-arg]
+            _ssl.BLOCKING_IO_ERRORS + _pyssl.BLOCKING_IO_ERRORS
         )
+        BLOCKING_IO_READ_ERROR: tuple = (  # type: ignore[type-arg]
+            _pyssl.BLOCKING_IO_READ_ERROR,
+            _ssl.BLOCKING_IO_READ_ERROR,
+        )
+        BLOCKING_IO_WRITE_ERROR: tuple = (  # type: ignore[type-arg]
+            _pyssl.BLOCKING_IO_WRITE_ERROR,
+            _ssl.BLOCKING_IO_WRITE_ERROR,
+        )
+    else:
+        PYSSLError = _ssl.SSLError
+        BLOCKING_IO_ERRORS: tuple = _ssl.BLOCKING_IO_ERRORS  # type: ignore[type-arg, no-redef]
+        BLOCKING_IO_READ_ERROR: tuple = (_ssl.BLOCKING_IO_READ_ERROR,)  # type: ignore[type-arg, no-redef]
+        BLOCKING_IO_WRITE_ERROR: tuple = (_ssl.BLOCKING_IO_WRITE_ERROR,)  # type: ignore[type-arg, no-redef]
+    SSLError = _ssl.SSLError
+    BLOCKING_IO_LOOKUP_ERROR = BLOCKING_IO_READ_ERROR
 
-    def validate_allow_invalid_certs(option, value):
-        """Validate the option to allow invalid certificates is valid."""
-        # Avoid circular import.
-        from pymongo.common import validate_boolean_or_string
+    def _has_sni(is_sync: bool) -> bool:
+        if is_sync and HAVE_PYSSL:
+            return _pyssl.HAS_SNI
+        return _ssl.HAS_SNI
 
-        boolean_cert_reqs = validate_boolean_or_string(option, value)
-        if boolean_cert_reqs:
-            return CERT_NONE
-        return CERT_REQUIRED
-
-    def _load_wincerts():
-        """Set _WINCERTS to an instance of wincertstore.Certfile."""
-        global _WINCERTS
-
-        certfile = CertFile()
-        certfile.addstore("CA")
-        certfile.addstore("ROOT")
-        atexit.register(certfile.close)
-
-        _WINCERTS = certfile
-
-    def get_ssl_context(*args):
+    def get_ssl_context(
+        certfile: Optional[str],
+        passphrase: Optional[str],
+        ca_certs: Optional[str],
+        crlfile: Optional[str],
+        allow_invalid_certificates: bool,
+        allow_invalid_hostnames: bool,
+        disable_ocsp_endpoint_check: bool,
+        is_sync: bool,
+    ) -> Union[_pyssl.SSLContext, _ssl.SSLContext]:  # type: ignore[name-defined]
         """Create and return an SSLContext object."""
-        (
-            certfile,
-            keyfile,
-            passphrase,
-            ca_certs,
-            cert_reqs,
-            crlfile,
-            match_hostname,
-            check_ocsp_endpoint,
-        ) = args
-        verify_mode = CERT_REQUIRED if cert_reqs is None else cert_reqs
-        ctx = _ssl.SSLContext(_ssl.PROTOCOL_SSLv23)
-        # SSLContext.check_hostname was added in CPython 2.7.9 and 3.4.
-        if hasattr(ctx, "check_hostname"):
-            if _ssl.CHECK_HOSTNAME_SAFE and verify_mode != CERT_NONE:
-                ctx.check_hostname = match_hostname
-            else:
-                ctx.check_hostname = False
+        if is_sync and HAVE_PYSSL:
+            ssl: types.ModuleType = _pyssl
+        else:
+            ssl = _ssl
+        verify_mode = CERT_NONE if allow_invalid_certificates else CERT_REQUIRED
+        ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        if verify_mode != CERT_NONE:
+            ctx.check_hostname = not allow_invalid_hostnames
+        else:
+            ctx.check_hostname = False
         if hasattr(ctx, "check_ocsp_endpoint"):
-            ctx.check_ocsp_endpoint = check_ocsp_endpoint
+            ctx.check_ocsp_endpoint = not disable_ocsp_endpoint_check
         if hasattr(ctx, "options"):
             # Explicitly disable SSLv2, SSLv3 and TLS compression. Note that
             # up to date versions of MongoDB 2.4 and above already disable
             # SSLv2 and SSLv3, python disables SSLv2 by default in >= 2.7.7
             # and >= 3.3.4 and SSLv3 in >= 3.4.3.
-            ctx.options |= _ssl.OP_NO_SSLv2
-            ctx.options |= _ssl.OP_NO_SSLv3
-            ctx.options |= _ssl.OP_NO_COMPRESSION
-            ctx.options |= _ssl.OP_NO_RENEGOTIATION
+            ctx.options |= ssl.OP_NO_SSLv2
+            ctx.options |= ssl.OP_NO_SSLv3
+            ctx.options |= ssl.OP_NO_COMPRESSION
+            ctx.options |= ssl.OP_NO_RENEGOTIATION
         if certfile is not None:
             try:
-                ctx.load_cert_chain(certfile, keyfile, passphrase)
-            except _ssl.SSLError as exc:
-                raise ConfigurationError("Private key doesn't match certificate: %s" % (exc,))
+                ctx.load_cert_chain(certfile, None, passphrase)
+            except ssl.SSLError as exc:
+                raise ConfigurationError(f"Private key doesn't match certificate: {exc}") from None
         if crlfile is not None:
-            if _ssl.IS_PYOPENSSL:
-                raise ConfigurationError("ssl_crlfile cannot be used with PyOpenSSL")
-            if not hasattr(ctx, "verify_flags"):
-                raise ConfigurationError(
-                    "Support for ssl_crlfile requires " "python 2.7.9+ (pypy 2.5.1+) or  3.4+"
-                )
+            if ssl.IS_PYOPENSSL:
+                raise ConfigurationError("tlsCRLFile cannot be used with PyOpenSSL")
             # Match the server's behavior.
-            ctx.verify_flags = getattr(_ssl, "VERIFY_CRL_CHECK_LEAF", 0)
+            ctx.verify_flags = getattr(ssl, "VERIFY_CRL_CHECK_LEAF", 0)
             ctx.load_verify_locations(crlfile)
         if ca_certs is not None:
             ctx.load_verify_locations(ca_certs)
-        elif cert_reqs != CERT_NONE:
-            # CPython >= 2.7.9 or >= 3.4.0, pypy >= 2.5.1
-            if hasattr(ctx, "load_default_certs"):
-                ctx.load_default_certs()
-            # Python >= 3.2.0, useless on Windows.
-            elif sys.platform != "win32" and hasattr(ctx, "set_default_verify_paths"):
-                ctx.set_default_verify_paths()
-            elif sys.platform == "win32" and HAVE_WINCERTSTORE:
-                with _WINCERTSLOCK:
-                    if _WINCERTS is None:
-                        _load_wincerts()
-                ctx.load_verify_locations(_WINCERTS.name)
-            elif HAVE_CERTIFI:
-                ctx.load_verify_locations(certifi.where())
-            else:
-                raise ConfigurationError(
-                    "`ssl_cert_reqs` is not ssl.CERT_NONE and no system "
-                    "CA certificates could be loaded. `ssl_ca_certs` is "
-                    "required."
-                )
+        elif verify_mode != CERT_NONE:
+            ctx.load_default_certs()
         ctx.verify_mode = verify_mode
         return ctx
 
-
 else:
 
-    class SSLError(Exception):
+    class SSLError(Exception):  # type: ignore
         pass
 
-    HAS_SNI = False
     IPADDR_SAFE = False
+    BLOCKING_IO_ERRORS: tuple = ()  # type: ignore[type-arg, no-redef]
 
-    def validate_cert_reqs(option, dummy):
-        """No ssl module, raise ConfigurationError."""
-        raise ConfigurationError(
-            "The value of %s is set but can't be "
-            "validated. The ssl module is not available" % (option,)
-        )
+    def _has_sni(is_sync: bool) -> bool:  # noqa: ARG001
+        return False
 
-    def validate_allow_invalid_certs(option, dummy):
+    def get_ssl_context(*dummy):  # type: ignore
         """No ssl module, raise ConfigurationError."""
-        return validate_cert_reqs(option, dummy)
-
-    def get_ssl_context(*dummy):
-        """No ssl module, raise ConfigurationError."""
-        raise ConfigurationError("The ssl module is not available.")
+        raise ConfigurationError("The ssl module is not available")

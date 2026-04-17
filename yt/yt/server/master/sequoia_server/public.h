@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(IGroundUpdateQueueManager)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTableUpdateQueueConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicGroundUpdateQueueManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCypressProxyTrackerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaManagerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

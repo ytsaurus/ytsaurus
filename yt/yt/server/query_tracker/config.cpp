@@ -65,28 +65,6 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_cluster", &TThis::DefaultCluster)
         .Default();
-    registrar.Parameter("default_discovery_path", &TThis::DefaultDiscoveryPath)
-        .Default();
-    registrar.Parameter("default_discovery_group", &TThis::DefaultDiscoveryGroup)
-        .Default("spyt_public");
-    registrar.Parameter("spyt_home", &TThis::SpytHome)
-        .Default("//home/spark");
-    registrar.Parameter("http_client", &TThis::HttpClient)
-        .DefaultNew();
-    registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
-        .Default(TDuration::Minutes(20));
-    registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
-        .Default(TDuration::Minutes(10));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSpytConnectEngineConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("default_cluster", &TThis::DefaultCluster)
-        .Default();
     registrar.Parameter("use_squashfs", &TThis::UseSquashfs)
         .Default(false);
     registrar.Parameter("prefer_ipv6", &TThis::PreferIpv6)
@@ -101,18 +79,32 @@ void TSpytConnectEngineConfig::Register(TRegistrar registrar)
         .Default("spark-launch-conf");
     registrar.Parameter("grpc_port", &TThis::GrpcPort)
         .Default(27080);
+    registrar.Parameter("http_client", &TThis::HttpClient)
+        .DefaultNew();
     registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("proxy_config", &TThis::ProxyConfig)
+        .DefaultNew();
 
-    registrar.Postprocessor([&] (TSpytConnectEngineConfig* config) {
+    registrar.Postprocessor([&] (TSpytEngineConfig* config) {
         if (!(config->SparkVersion.empty() || config->SparkVersion.starts_with("3.5"))) {
             THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x is supported");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSpytProxyConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("clusters", &TThis::Clusters)
+        .Default({});
+    registrar.Parameter("default_settings", &TThis::DefaultSettings)
+        .Default(NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,14 +143,10 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("spyt_engine", &TThis::SpytEngine)
         .DefaultNew();
-    registrar.Parameter("spyt_connect_engine", &TThis::SpytConnectEngine)
-        .DefaultNew();
     registrar.Parameter("mock_engine", &TThis::MockEngine)
         .DefaultNew();
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
-    registrar.Parameter("use_spyt_connect_engine", &TThis::UseSpytConnectEngine)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

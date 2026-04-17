@@ -123,24 +123,6 @@ enum EAttributeSensorPolicy
     ASP_UPDATE = 2;
 }
 
-enum EObjectWithReferenceRemovalPolicy
-{
-    // Both sides of reference can be removed independently. The reference between them also gets removed.
-    OWRRP_REMOVAL_ALLOWED = 0;
-
-    // Removal of the defined part of the reference is forbidden.
-    //
-    // E.g. in the one-to-many reference removal of `one` part is forbidden
-    // if there exists any `many` object connected to it.
-    OWRRP_SOURCE_REMOVAL_FORBIDDEN = 1;
-
-    // Removal of generated part of the reference is forbidden.
-    OWRRP_TARGET_REMOVAL_FORBIDDEN = 2;
-
-    // Both sides of reference cannot be removed until the reference itself is removed.
-    OWRRP_REMOVAL_FORBIDDEN = 3;
-}
-
 enum ECascadingRemovalPolicy
 {
     // Remove object with all its descendants.
@@ -209,7 +191,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 58.
+// Next field number 60.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -324,6 +306,19 @@ message TObjectTypeOption
 
     // Attributes allowed to update when object is finalizing.
     repeated string update_allowed_while_finalizing = 57;
+
+    // When an object is removed, keep it in the object table for a while, in which case
+    // non-empty non-zero value of removal_time column actually marks the object as removed.
+    // Object-specific *_pending_removals table holds the keys of removed objects and is used
+    // to sweep the removed objects from the object table after a period of time set by
+    // "removed_objects_grace_timeout" object manager config option.
+    // If true, mode can be overridden with "remove_mode" object manager config option.
+    optional bool enable_asynchronous_removals = 58;
+    // Add additional computed column "hash" to *_pending_removals table with expression
+    // "removal_time % mod", where "mod" is the value of this option.
+    // This is done to balance the load when too many objects are removed at once, because
+    // removal_time will be consecutive and point to the same tablet unless sharded this way.
+    optional int32 pending_removals_shards = 59;
 }
 
 message TIndexKeyPart
@@ -359,6 +354,7 @@ message TIndexOption
     optional bool unique = 7;
     optional string predicate = 8;
     optional string custom_table_name = 9;
+    optional bool native = 12; // Native-index support is under development. Do not use it in your ORM.
 }
 
 enum EHistoryCommitTime
@@ -441,7 +437,14 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
-// Next field 30057.
+message TEtcOptions
+{
+    optional string lock_group = 1;
+    optional string data_group = 2;
+    optional uint64 max_inline_hunk_size = 3;
+}
+
+// Next field 30058.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -511,10 +514,12 @@ extend google.protobuf.FileOptions
     // Default policy is CRP_CLEAR.
     optional ECascadingRemovalPolicy generated_backref_removal_policy = 30048;
 
-    // Whether to create and use by default pending_removals table for object deletion.
-    // If true, mode can be overridden with remove_mode option in object manager.
-    optional bool enable_asynchronous_removals = 30033 [default = true];
-    // Only actual with `enable_asynchronous_removals=false` option.
+    // Enable asynchronous removals for all object types (see respective object type option for details).
+    optional bool enable_asynchronous_removals = 30033;
+    // Enable asynchronous removals for all object types. A global pending_removals table
+    // will be used for objects without enable_asynchronous_removals option.
+    optional bool enable_communal_asynchronous_removals = 30057 [default = true];
+    // For compatibility, keep removal_time column even when asynchronous removals are off.
     optional bool keep_removal_time = 30049;
 
     optional bool enable_finalizers = 30030;
@@ -972,7 +977,7 @@ extend google.protobuf.FieldOptions
     optional bool ephemeral = 31060;
 }
 
-// Next field 32016.
+// Next field 32017.
 extend google.protobuf.MessageOptions
 {
     optional string message_lock_group = 32001;
@@ -1015,6 +1020,9 @@ extend google.protobuf.MessageOptions
 
     // Set alwaysScheduleLoadOnStore flag when creating corresponding etc attribute descriptor(s).
     optional bool always_schedule_load_on_etc_store = 32014;
+
+    // Set etc options. Duplicate values of pair (lock_group, data_group) is not allowed.
+    repeated TEtcOptions etc_options = 32016;
 }
 
 extend google.protobuf.EnumOptions

@@ -77,7 +77,7 @@ TCGValue::TCGValue(TCGValue&& other) noexcept
     other.Reset();
 }
 
-TCGValue& TCGValue::operator=(TCGValue&& other)
+TCGValue& TCGValue::operator=(TCGValue&& other) noexcept
 {
     IsNull_ = other.IsNull_;
     IsAggregate_ = other.IsAggregate_;
@@ -799,7 +799,7 @@ Value* TCGOperatorContext::GetExecutionContext() const
     return Builder_->ViaClosure(ExecutionContext_, "executionContext");
 }
 
-TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
+TCodegenConsumer& TCGOperatorContext::operator[](size_t index) const
 {
     if (!(*Consumers_)[index]) {
         (*Consumers_)[index] = std::make_shared<TCodegenConsumer>();

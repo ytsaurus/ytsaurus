@@ -62,23 +62,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError ValidateDictionaryName(const std::string& name)
-{
-    try {
-        auto richPath = TRichYPath::Parse(name);
-        auto path = richPath.GetPath();
-        if (path.StartsWith("//") || path.StartsWith("#")) {
-            return TError("Dictionary name cannot start with \"//\" and \"#\" to avoid collisions with a valid YPath.");
-        }
-    } catch (const std::exception& /*ex*/) { }
-
-    // If we caught an exception when parsing TRichYPath,
-    // it means that our name is not a valid path and can be safely used as a dictionary name.
-    return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCypressDictionaryConfigRepository::TCypressDictionaryConfigRepository(
     NNative::IClientPtr client,
     TDictionaryRepositoryConfigPtr config)
@@ -133,32 +116,28 @@ DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary
 
 void TCypressDictionaryConfigRepository::WriteDictionary(
     const DB::ContextPtr& context,
-    const std::string& name,
+    const DB::StorageID& storageId,
     const DB::LoadablesConfigurationPtr& config)
 {
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
 
-    host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
-
-    if (auto error = ValidateDictionaryName(name); !error.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while creating dictionary %Qv", name) << error;
-    }
+    auto configName = storageId.table_name;
 
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
-    auto path = GetPathToConfig(name);
+    auto path = GetPathToConfig(configName);
     NApi::TCreateNodeOptions options;
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("value", parsedConfigStream.str());
 
     auto resultOrError = WaitFor(client->CreateNode(path, NCypressClient::EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", name) << resultOrError;
+        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", configName) << resultOrError;
     }
 
-    host->ReloadDictionaryGlobally(name);
+    host->ReloadDictionaryGlobally(configName);
 }
 
 void TCypressDictionaryConfigRepository::DeleteDictionary(
@@ -171,7 +150,7 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
     const auto& externalDictionariesLoader = context->getExternalDictionariesLoader();
-    if (!externalDictionariesLoader.has(storageId.getFullTableName())) {
+    if (!externalDictionariesLoader.has(storageId.getInternalDictionaryName())) {
         return;
     }
 

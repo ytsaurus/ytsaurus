@@ -1,26 +1,26 @@
 #include "client.h"
 
 #include "helpers.h"
+#include "private.h"
 #include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction.h"
-#include "private.h"
 
-#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
 #include <yt/yt/client/table_client/record_descriptor.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NSequoiaClient {
 
@@ -139,8 +139,7 @@ private:
 
     NNative::IClientPtr GetGroundClientOrThrow()
     {
-        YT_VERIFY(GroundClientFuture_.IsSet());
-        return GroundClientFuture_.Get().ValueOrThrow();
+        return GroundClientFuture_.GetOrCrash().ValueOrThrow();
     }
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
@@ -167,8 +166,7 @@ private:
             GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
-            options)
-            .AsUnique().Apply(BIND(MaybeWrapSequoiaRetriableError<TUnversionedLookupRowsResult>));
+            options);
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -202,7 +200,7 @@ private:
         } else if (!query.OrderBy.empty()) {
             // TODO(h0pless): This is an arbitrary value. Remove it once ORDER BY will work with an unspecified limit.
             // For details see YT-16489.
-            builder.SetLimit(100'000);
+            builder.SetLimit(100'000'000);
         }
 
         NApi::TSelectRowsOptions options;
@@ -211,8 +209,7 @@ private:
         options.Timestamp = timestamp;
 
         return GetGroundClientOrThrow()
-            ->SelectRows(builder.Build(), options)
-            .AsUnique().Apply(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
+            ->SelectRows(builder.Build(), options);
     }
 
     TFuture<void> DoTrimTable(

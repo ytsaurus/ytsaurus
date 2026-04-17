@@ -1735,7 +1735,7 @@ class TestJobTraceEvents(YTEnvSetup):
 
         def add_events(self, pid, count=1):
             for _ in range(count):
-                profile = f"{{\"event\": \"profile\", \"ts\": {self.current_time:.1f}, \"tid\": 1, \"pid\": {pid}}}"
+                profile = f"{{\"event\": \"profile\", \"ts\": {self.current_time:.1f}, \"tid\": 10000000000, \"pid\": {pid}}}"
                 self._add_command(profile)
             return self
 
@@ -1937,7 +1937,7 @@ class TestJobTraceEvents(YTEnvSetup):
         ]
 
         for profile in profiles:
-            op = self._start_vanilla_operation(profile, should_sleep=False)
+            op = self._start_vanilla_operation(profile, should_sleep=False, write_count=1)
             op.wait_for_state("completed")
 
         events = select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")

@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/misc/enum.h>
 
+#include <util/generic/size_literals.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,8 +55,9 @@ YT_DEFINE_ERROR_ENUM(
     ((WaitingForJobCleanupTimeout)           (1144))
     ((InterruptionFailed)                    (1145))
     ((SimpleVolumeManagerFailure)            (1146))
-    ((TmpfsVolumePreparationFailed)          (1147))
-    ((TmpfsVolumeLinkingFailed)              (1148))
+    ((NonRootVolumePreparationFailed)        (1147))
+    ((NonRootVolumeLinkingFailed)            (1148))
+    ((NbdServerDisabledOnNode)               (1149))
 );
 
 DEFINE_ENUM(EJobPhase,
@@ -64,8 +67,7 @@ DEFINE_ENUM(EJobPhase,
     ((PreparingNodeDirectory)       (  5))
     ((DownloadingArtifacts)         ( 10))
     ((CachingArtifacts)             ( 11))
-    ((PreparingRootVolume)          ( 15))
-    ((PreparingTmpfsVolumes)        ( 16))
+    ((PreparingVolumes)             ( 15))
     ((PreparingGpuCheckVolume)      ( 20))
     ((LinkingVolumes)               ( 21))
     ((ValidatingRootFS)             ( 22))
@@ -85,6 +87,10 @@ DEFINE_ENUM(EJobPhase,
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EJobPhase, Missing);
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr i64 MaxNbdDiskSize = 60_GB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,6 +8,27 @@ analytics:
       text: "Ok"
       theme: "accent"
       size: "xl"
+navigation:
+  logo:
+    url: "https://ytsaurus.tech/"
+    dark:
+      icon: "https://ytsaurus.tech/assets/logo-dark.svg"
+    light:
+      icon: "https://ytsaurus.tech/assets/logo-light.svg"
+  header:
+    rightItems:
+      - text: "How it works"
+        type: "link"
+        url: "overview/about"
+      - text: "Telegram"
+        type: "link"
+        url: "https://t.me/ytsaurus"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-telegram.svg"
+      - text: "GitHub"
+        type: "link"
+        url: "https://github.com/ytsaurus/ytsaurus"
+        icon: "https://storage.yandexcloud.net/ytsaurus-www/assets/favicon-github.svg"
+      - type: controls
 items:
    - name: " {{product-name}} "
      when: audience == "public"
@@ -59,6 +80,8 @@ items:
                  href: user-guide/storage/access-control.md
                - name: Managing access to table columns
                  href: user-guide/storage/columnar-acl.md
+               - name: Managing row-level access to tables
+                 href: user-guide/storage/row-level-security.md
            - name: Resource quotas
              items:
                - name: Quotas
@@ -121,7 +144,7 @@ items:
          - name: Replicated tables
            href: user-guide/dynamic-tables/replicated-dynamic-tables.md
          - name: Chaos replicated tables
-           href: user-guide/dynamic-tables/chaos-dynamic-tables.md   
+           href: user-guide/dynamic-tables/chaos-dynamic-tables.md
          - name: Multi-versioning and transactions of dynamic tables
            href: user-guide/dynamic-tables/transactions.md
          - name: Sharding
@@ -216,6 +239,9 @@ items:
          - name: Operation options
            when: audience == "public"
            href: user-guide/data-processing/operations/operations-options.md
+         - name: Job Collectives
+           when: audience == "public"
+           href: user-guide/data-processing/operations/job-collectives.md
          - name: Chunk auto-merge at operation output
            when: audience == "public"
            href: user-guide/data-processing/operations/automerge.md
@@ -321,6 +347,8 @@ items:
                href: user-guide/data-processing/spyt/structured-streaming.md
              - name: Spark SQL
                href: user-guide/data-processing/spyt/spark-sql.md
+             - name: Spark UI
+               href: user-guide/data-processing/spyt/spark-ui.md
              - name: Using the {{product-name}} Shuffle service
                href: user-guide/data-processing/spyt/shuffle.md
              - name: API
@@ -349,6 +377,15 @@ items:
                    href: user-guide/data-processing/spyt/thesaurus/gpu-usage.md
              - name: Best practices
                href: user-guide/data-processing/spyt/best-practices.md
+         - name: FLYT
+           when: audience == "public"
+           items:
+             - name: Overview
+               href: user-guide/data-processing/flyt/overview.md
+             - name: Apache Flink Connector {{product-name}}
+               href: user-guide/data-processing/flyt/flink-connector-ytsaurus.md
+             - name: Apache Flink YSON Formatter
+               href: user-guide/data-processing/flyt/flink-yson.md
          - name: YQL
            when: audience == "public"
            items:
@@ -363,14 +400,16 @@ items:
          items:
          - name: Overview
            href: user-guide/proxy/about.md
-         - name: HTTP-proxy
+         - name: HTTP proxy
            href: user-guide/proxy/http.md
-         - name: RPC-proxy
+         - name: RPC proxy
            href: user-guide/proxy/rpc.md
-         - name: HTTP-proxy reference
+         - name: HTTP proxy reference
            href: user-guide/proxy/http-reference.md
-         - name: gRPC-proxy
+         - name: gRPC proxy
            href: user-guide/proxy/grpc.md
+         - name: Task proxy
+           href: user-guide/proxy/task.md
        - name: Problems
          when: audience == "public"
          items:
@@ -467,20 +506,30 @@ items:
              href: admin-guide/install-cron.md
            - name: Odin
              href: admin-guide/install-odin.md
+           - name: Excel-integration
+             href: admin-guide/install-excel.md
            - name: Tutorial
              href: admin-guide/install-tutorial.md
            - name: Microservices
              href: admin-guide/install-ytmsvc.md
+           - name: Monitoring
+             href: admin-guide/install-monitoring.md
+           - name: Task-proxy
+             href: admin-guide/install-task-proxy.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description
             href: admin-guide/prepare-spec.md
+          - name: Configuration overrides
+            href: admin-guide/config-overrides.md
           - name: Setting up locations
             href: admin-guide/locations.md
           - name: Configuring server component logging
             href: admin-guide/logging.md
           - name: Uploading snapshots to Cypress
             href: admin-guide/persistence-uploader.md
+       - name: Configuring external access to cluster
+         include: { mode: link, path: admin-guide/cluster-access-proxy/toc_i.yaml }
        - name: Setting up SSO
          href: admin-guide/oauth.md
          when: audience == "public"
@@ -488,6 +537,8 @@ items:
          href: admin-guide/monitoring.md
        - name: Updating YTsaurus server components
          href: admin-guide/update-ytsaurus.md
+       - name: Updating volumes
+         href: admin-guide/update-volumes.md
        - name: Cluster operation
          href: admin-guide/cluster-operations.md
        - name: Node administration
@@ -509,12 +560,19 @@ items:
        - name: Integrating CHYT with external systems
          href: admin-guide/integration-chyt.md
          when: audience == "public"
+       - name: Isolating queries within a YQL-agent
+         when: audience == "public"
+         href: admin-guide/yql-query-isolation.md
+       - name: Encryption in the native protocol
+         href: admin-guide/native-encryption.md
        - name: Misc
          items:
            - name: Reading from remote clusters via RPC proxy
              href: admin-guide/multiproxy.md
    - name: Release notes
      href: admin-guide/releases.md
+   - name: Compatibility of cluster components
+     href: admin-guide/compatibility.md
    - name: FAQ
      when: audience == "public"
      href: faq/index.md

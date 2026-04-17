@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.3.12)
+VERSION(v0.3.16)
 
 SRCS(
     sysconf.go
@@ -77,6 +77,12 @@ IF (OS_ANDROID)
     GO_XTEST_SRCS(
         example_test.go
         sysconf_test.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        sysconf_unsupported.go
     )
 ENDIF()
 

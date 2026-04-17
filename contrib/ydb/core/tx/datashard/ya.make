@@ -60,6 +60,8 @@ SRCS(
     datashard__get_state_tx.cpp
     datashard__init.cpp
     datashard__kqp_scan.cpp
+    datashard__lock_rows.cpp
+    datashard__lock_rows.h
     datashard__migrate_schemeshard.cpp
     datashard__mon_reset_schema_version.cpp
     datashard__monitoring.cpp
@@ -178,11 +180,14 @@ SRCS(
     memory_state_migration.cpp
     move_index_unit.cpp
     move_table_unit.cpp
+    multi_txids.cpp
+    multi_txids.h
     operation.cpp
     operation.h
     plan_queue_unit.cpp
     prepare_data_tx_in_rs_unit.cpp
     prepare_distributed_erase_tx_in_rs_unit.cpp
+    prepare_index_validation_unit.cpp
     prepare_kqp_data_tx_in_rs_unit.cpp
     prepare_scheme_tx_in_rs_unit.cpp
     prepare_write_tx_in_rs_unit.cpp
@@ -213,8 +218,10 @@ SRCS(
     store_snapshot_tx_unit.cpp
     store_write_unit.cpp
     stream_scan_common.cpp
+    truncate_unit.cpp
     type_serialization.cpp
     upload_stats.cpp
+    validate_row_condition.cpp
     volatile_tx.cpp
     volatile_tx_mon.cpp
     wait_for_plan_unit.cpp
@@ -272,6 +279,7 @@ PEERDIR(
     contrib/ydb/core/persqueue/writer
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
+    contrib/ydb/core/split
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/tx/long_tx_service/public
@@ -280,6 +288,7 @@ PEERDIR(
     contrib/ydb/core/wrappers
     contrib/ydb/core/ydb_convert
     contrib/ydb/library/aclib
+    contrib/ydb/library/actors/async
     contrib/ydb/library/actors/core
     contrib/ydb/library/actors/http
     contrib/ydb/library/chunks_limiter
@@ -306,7 +315,6 @@ ELSE()
     SRCS(
         export_s3_buffer.cpp
         export_s3_uploader.cpp
-        extstorage_usage_config.cpp
         import_s3.cpp
     )
 ENDIF()
@@ -315,7 +323,7 @@ END()
 
 RECURSE_FOR_TESTS(
     build_index/ut
-    ut_background_compaction
+    ut_borrowed_compaction
     ut_change_collector
     ut_change_exchange
     ut_column_stats
@@ -332,6 +340,7 @@ RECURSE_FOR_TESTS(
     ut_kqp
     ut_kqp_errors
     ut_kqp_scan
+    ut_lock_rows
     ut_locks
     ut_minikql
     ut_minstep
@@ -348,8 +357,10 @@ RECURSE_FOR_TESTS(
     ut_snapshot_isolation
     ut_stats
     ut_trace
+    ut_truncate
     ut_upload_rows
     ut_vacuum
+    ut_validate_row_condition
     ut_volatile
     ut_write
 )

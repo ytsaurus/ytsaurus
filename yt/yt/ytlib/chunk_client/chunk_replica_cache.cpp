@@ -68,7 +68,7 @@ public:
                 connection->GetConfig()->ChunkReplicaCache));
     }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         ExpirationExecutor_->Start();
         ScheduleRefreshRound(TDuration::Zero());
@@ -405,8 +405,8 @@ public:
             // Try to preserve it as long as the replica set remains same.
             if (entry->Future &&
                 entry->Future.IsSet() &&
-                entry->Future.Get().IsOK() &&
-                entry->Future.Get().Value() == canonicalReplicas)
+                entry->Future.GetOrCrash().IsOK() &&
+                entry->Future.GetOrCrash().Value() == canonicalReplicas)
             {
                 return;
             }
@@ -623,8 +623,8 @@ private:
 
         return AllSucceeded(std::vector{approvedReplicasFuture.AsVoid(), unapprovedReplicasFuture.AsVoid()})
             .Apply(BIND([=] {
-                const auto& approvedReplicas = approvedReplicasFuture.Get().Value();
-                const auto& unapprovedReplicas = unapprovedReplicasFuture.Get().Value();
+                const auto& approvedReplicas = approvedReplicasFuture.GetOrCrash().Value();
+                const auto& unapprovedReplicas = unapprovedReplicasFuture.GetOrCrash().Value();
                 YT_VERIFY(approvedReplicas.size() == unapprovedReplicas.size());
 
                 std::vector<std::optional<TAllyReplicasInfo>> results;
@@ -945,12 +945,10 @@ IChunkReplicaCachePtr CreateChunkReplicaCache(
     TProfiler profiler,
     IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    auto cache = New<TChunkReplicaCache>(
+    return New<TChunkReplicaCache>(
         std::move(connection),
         std::move(profiler),
         std::move(memoryUsageTracker));
-    cache->Initialize();
-    return cache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -42,9 +42,9 @@ kubectl create secret generic odin-secrets \
     -n <namespace>
 ```
 
-#### Preparing `values.yaml`
+#### Preparing `values.yaml` {#prepare-values}
 
-A minimal example of Odin configuration for connecting to {{produce-name}} via HTTP proxy and exposing Odin’s web service on port 9002:
+A minimal example of Odin configuration for connecting to {{product-name}} via HTTP proxy and exposing Odin’s web service on port 9002:
 
 ```yaml
 config:
@@ -70,7 +70,7 @@ webservice:
   * `tokenEnvVariable` — environment variable name in the container to read the token from (see secrets above).
 * `webservice.service.port` — Odin web service port.
 
-> Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace. 
+> Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace.
 
 By default, an Init Job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
 

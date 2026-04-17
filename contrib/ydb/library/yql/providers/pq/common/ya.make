@@ -8,6 +8,7 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/library/actors/core
+    contrib/ydb/library/yql/providers/pq/proto
     contrib/ydb/public/sdk/cpp/src/client/topic
     yql/essentials/public/types
 )

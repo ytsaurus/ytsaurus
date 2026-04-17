@@ -2,13 +2,12 @@
 
 PY3_LIBRARY()
 
-VERSION(4.12.1)
+VERSION(4.13.0)
 
 LICENSE(MIT)
 
 PEERDIR(
     contrib/python/idna
-    contrib/python/typing-extensions
 )
 
 NO_LINT()

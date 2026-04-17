@@ -1,7 +1,8 @@
 #pragma once
 
-#include "artifact_cache.h"
+#include "preparation_options.h"
 #include "public.h"
+#include "volume_artifact.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -11,61 +12,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVolumeArtifact
-    : public TRefCounted
-{
-    virtual const std::string& GetFileName() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IVolumeArtifactCache
-    : public TRefCounted
-{
-    virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
-        const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TVolumeId = TGuid;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IVolume
-    : public virtual TRefCounted
-{
-    //! Get unique volume id.
-    virtual const TVolumeId& GetId() const = 0;
-    //! Get absolute path to volume mount point.
-    virtual const std::string& GetPath() const = 0;
-    //! Overlayfs stores its upper/work directories in root volume.
-    virtual bool IsRootVolume() const = 0;
-    //! Link volume mount point to target.
-    virtual TFuture<void> Link(
-        TGuid tag,
-        const TString& target) = 0;
-    //! Remove volume and links where it points to.
-    virtual TFuture<void> Remove() = 0;
-
-    virtual bool IsCached() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Creates volumes from different layers.
-//! Useful for creation of rootfs volumes.
+//! This class creates all volumes for job.
 struct IVolumeManager
     : public virtual TRefCounted
 {
@@ -74,19 +21,30 @@ struct IVolumeManager
         const std::vector<TArtifactKey>& artifactKeys,
         const TVolumePreparationOptions& options) = 0;
 
-    //! Prepare tmpfs volumes.
-    virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+    //! Prepare non-root volumes.
+    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<TString>& sandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+        const TJobId& jobId,
+        const std::vector<TBaseVolumeParamsPtr>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
 
+    //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
         const TString& slotPath) = 0;
 
-    //! Link tmpfs volumes into destination directory.
-    virtual TFuture<void> LinkTmpfsVolumes(
+    //! Link volumes into destination directory.
+    virtual TFuture<void> LinkVolumes(
         const TString& destinationDirectory,
-        const std::vector<TTmpfsVolumeResult>& volumes) = 0;
+        const std::vector<TVolumeResultPtr>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+
+    //! Remove volumes planted at a given place.
+    virtual TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) = 0;
+
+    //! Remove layers planted at a given place.
+    virtual TFuture<void> RemoveLayers(const TString& place, TDuration timeout) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 

@@ -72,7 +72,7 @@ TString ConnectorToString(const TConnector& connector) {
 template <>
 struct THash<NRoren::NPrivate::TOperationConnector>
 {
-    size_t operator() (const NRoren::NPrivate::TOperationConnector& connector) {
+    size_t operator()(const NRoren::NPrivate::TOperationConnector& connector) {
         using namespace NRoren::NPrivate;
         return std::visit([] (const auto& connector) -> size_t {
             using TType = std::decay_t<decltype(connector)>;

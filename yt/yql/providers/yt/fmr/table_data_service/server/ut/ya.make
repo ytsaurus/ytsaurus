@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yql/providers/yt/fmr/request_options
     yt/yql/providers/yt/fmr/test_tools/table_data_service
     yql/essentials/utils
 )

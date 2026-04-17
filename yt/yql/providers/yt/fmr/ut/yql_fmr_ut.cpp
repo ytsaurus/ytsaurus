@@ -106,7 +106,6 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
 
     TProgramFactory factory(false, functionRegistry.Get(), 0ULL, dataProvidersInit, "ut");
     factory.SetModules(moduleResolver);
-
     TProgramPtr program = factory.Create("-stdin-", query, "", EHiddenMode::Disable);
 
     if (runSettings.IsSql || runSettings.IsPg) {

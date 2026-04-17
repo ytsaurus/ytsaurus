@@ -20,6 +20,7 @@ class VersionComponent:
     version: str
     source: Source
     constraints: Optional[Dict[str, str]]
+    show_in_matrix: bool
 
 
 class VersionComponentRegistry:
@@ -47,6 +48,7 @@ class VersionComponentRegistry:
                         image_tag=origins[source]["image_tag"],
                     ),
                     constraints=settings.get("constraints"),
+                    show_in_matrix=settings.get("show_in_matrix", True),
                 )
 
     def get_components(self):
@@ -71,3 +73,10 @@ class VersionComponentRegistry:
 
     def get_constraints(self, name, version):
         return self.get_component(name, version).constraints
+
+    def get_matrix_versions(self, name):
+        versions = self._components.get(name)
+        if versions:
+            return [v for v, c in versions.items() if c.show_in_matrix]
+
+        raise ValueError(f"Versions list for {name} is empty")

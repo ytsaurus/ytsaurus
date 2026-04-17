@@ -35,6 +35,20 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestConfig
+    : public NYTree::TYsonStruct
+{
+    bool DuplicateDirectoryUpdate;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCellDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
@@ -48,6 +62,9 @@ struct TCellDirectorySynchronizerConfig
 
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
+
+    // NB: Section for testing purposes.
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
 

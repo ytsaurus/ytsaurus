@@ -31,6 +31,7 @@ target_include_directories(restricted-aws-aws-checksums PUBLIC
 
 target_link_libraries(restricted-aws-aws-checksums PUBLIC
   linux-headers-generic::linux-headers-generic
+  contrib-libs-xxhash
   restricted-aws-aws-c-common
 )
 
@@ -42,6 +43,7 @@ target_sources(restricted-aws-aws-checksums PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_sw.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_util.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/intel/asm/crc32c_sse42_asm.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/xxhash.c
 )
 
 
@@ -96,6 +98,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/intel/asm/crc32c_sse42_asm.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/xxhash.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

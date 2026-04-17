@@ -8,6 +8,7 @@ SIZE(LARGE)
 TAG(ya:fat)
 
 PEERDIR(
+    library/python/port_manager
     yt/python/yt/wrapper/testlib
     yt/yt/tests/library
 )

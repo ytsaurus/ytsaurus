@@ -35,6 +35,54 @@ Before using this tool you must create a dashboard in the corresponding system. 
 
 `callback` is a function that returns a generated dashboard. `args` will be provided to callback in expanded form (that is, `callback(*args)`). Postprocessors are not documented yet, sorry. Dashboard id is taken from the URL, it looks like `smth-human-readable` in Solomon, `mong0ik4jjrpnp1mrdtq` in Monitoring and `t141_FDVz` in Grafana.
 
+## Custom configuration via json
+
+If you prefer to have a single configuration file with all of dashboard ids for your backend of choice,
+you can provide configuration using `--config` parameter, which should be a path to your configuration.
+
+The format is as follows:
+```js
+{
+    "<dashboard-name>": {
+        "<backend-name>": "<dashboard-id>"
+    }
+    // ...
+}
+```
+
+### Test dashboard
+
+Dashboard `test-dashboard` has a special meaning, it is the dashboard you can use to test some dashboard.
+If you specify `--use-test-dashboard-id` option, then the selected dashboard will be uploaded using `test-dashboard` id.
+
+### Dashboard customization
+
+Some dashboards may choose to support additional configuration via the same json file.
+All dashboards should ideally provide a sane default config, so you should only really be using it in case
+you want to override default for some reason.
+
+Configuration for such dashboards has different format:
+```js
+{
+    // ...
+    "<configurable-dashboard-name>": {
+        "<backend-name>": {
+            "id": "<dashboard-id>",
+            "config": {
+                // Dashboard config goes here.
+            }
+        }
+    }
+    // ...
+}
+```
+
+
+Another option to specify dashboard config is to use either `--dashboard-config` option, which accepts json value directly or
+`--dashboard-config-path` if dashboard config is located in a file.
+
+This option always takes priority over the config from the file from `--config`, but can only be used iff you select a specific dashboard.
+
 ## Supported commands
 
 Except for `list`, all commands take a repeated positional argument representing dashboard short name and a repeated `--backend` argument.

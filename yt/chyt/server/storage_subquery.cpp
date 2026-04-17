@@ -33,8 +33,8 @@ std::vector<TColumnSchema> GetColumnSchemas(
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames)
 {
-    std::vector<TColumnSchema> result;
-    result.reserve(columnNames.size());
+    std::vector<TColumnSchema> schemas;
+    schemas.reserve(columnNames.size());
 
     TTableSchemaPtr virtualValueSchema;
     if (!subquerySpec.DataSourceDirectory->DataSources().empty()) {
@@ -57,15 +57,15 @@ std::vector<TColumnSchema> GetColumnSchemas(
 
     for (const auto& columnName : columnNames) {
         if (const auto* column = subquerySpec.ReadSchema->FindColumn(columnName)) {
-            result.push_back(*column);
+            schemas.emplace_back(*column);
         } else if (const auto* column = virtualValueSchema ? virtualValueSchema->FindColumn(columnName) : nullptr) {
-            result.push_back(*column);
+            schemas.emplace_back(*column);
         } else {
             THROW_ERROR_EXCEPTION("No such column %Qv", columnName);
         }
     }
 
-    return result;
+    return schemas;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,14 +213,14 @@ public:
         TReadPlanWithFilterPtr readPlan;
         if (queryInfo.prewhere_info) {
             readPlan = BuildReadPlanWithPrewhere(
-                columnSchemas,
+                std::move(columnSchemas),
                 queryInfo.prewhere_info,
                 context->getSettingsRef());
         } else {
-            readPlan = BuildSimpleReadPlan(columnSchemas);
+            readPlan = BuildSimpleReadPlan(std::move(columnSchemas));
         }
-        SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Composite);
-        QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead);
+        SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Composite);
+        QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization);
 
         if (SubquerySpec_.InputSpecsTruncated) {
             // As part of the native clickhouse protocol, tcp handler hooks a callback to the context,
@@ -230,7 +230,7 @@ public:
             perThreadDataSliceDescriptors.clear();
         }
 
-        if (SubquerySpec_.QuerySettings->Execution->EnableMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
+        if (SubquerySpec_.SubqueryOptions.UseMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
             YT_VERIFY(readPlan->Steps.size() == 1);
             TUnversionedRowsBuilder rowsBuilder;
             auto addValues = [&rowsBuilder, &readPlan](const std::vector<TUnversionedOwningValue>& values) {

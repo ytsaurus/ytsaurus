@@ -44,8 +44,7 @@
 
 class TLogElement;
 
-namespace NYql {
-namespace NLog {
+namespace NYql::NLog {
 
 namespace NImpl {
 
@@ -156,7 +155,7 @@ template <size_t Size>
 class TLogContext: public NImpl::TLogContextListItem {
 public:
     template <typename... TArgs>
-    TLogContext(TArgs... args)
+    explicit TLogContext(TArgs... args)
         : TLogContextListItem(Size)
         , Names_{{TString{std::forward<TArgs>(args)}...}}
     {
@@ -183,7 +182,7 @@ template <size_t Size>
 class TRootLogContext: public NImpl::TLogContextSessionItem {
 public:
     template <typename... TArgs>
-    TRootLogContext(const TString& sessionId, TArgs... args)
+    explicit TRootLogContext(const TString& sessionId, TArgs... args)
         : TLogContextSessionItem(Size, !sessionId.empty())
         , Names_{{sessionId, TString{std::forward<TArgs>(args)}...}}
     {
@@ -258,7 +257,7 @@ void OutputLogCtx(IOutputStream* out, bool withBraces, bool skipSessionId = fals
  */
 class TYqlLogContextLocation {
 public:
-    TYqlLogContextLocation(const TSourceLocation& location)
+    explicit TYqlLogContextLocation(const TSourceLocation& location)
         : Location_(location.File, location.Line)
     {
     }
@@ -275,5 +274,4 @@ private:
     TSourceLocation Location_;
 };
 
-} // namespace NLog
-} // namespace NYql
+} // namespace NYql::NLog

@@ -54,7 +54,6 @@ class TestBulkInsert(DynamicTablesBase):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
@@ -1124,6 +1123,18 @@ class TestBulkInsert(DynamicTablesBase):
                 command="cat",
             )
 
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat",
+            spec={
+                "update_secondary_index": False
+            }
+        )
+
+        assert select_rows("* from [//tmp/t_output_index]") == []
+        assert select_rows("* from [//tmp/t_output]") == [{"key": 1, "value": "1"}]
+
     @pytest.mark.parametrize("schema_inference_mode", ["from_input", "from_output"])
     def test_inference_mode(self, schema_inference_mode):
         sync_create_cells(1)
@@ -1514,7 +1525,6 @@ class TestBulkInsertLockConfirmation(DynamicTablesBase):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "dynamic_table_lock_checking_attempt_count_limit": 3,
@@ -1564,7 +1574,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    ENABLE_BULK_INSERT = True
 
     MISSING_FLAG = 0x1
     AGGREGATE_FLAG = 0x2

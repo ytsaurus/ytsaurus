@@ -20,7 +20,6 @@ using testing::Ne;
 using testing::NotNull;
 using testing::Pointee;
 using testing::Return;
-using testing::ReturnRef;
 using testing::SizeIs;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +200,7 @@ TEST_F(TKeyRotatorTest, MultipleReconfigures)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TKeyRotatorTest, GetNextRotation)
+TEST_F(TKeyRotatorTest, GetNextRotationFuture)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
         .Times(Between(2, 5))
@@ -214,7 +213,7 @@ TEST_F(TKeyRotatorTest, GetNextRotation)
         .ThrowOnError();
     auto firstKey = Generator->KeyInfo();
 
-    auto nextRotationFuture = Rotator->GetNextRotation();
+    auto nextRotationFuture = Rotator->GetNextRotationFuture();
     WaitFor(nextRotationFuture)
         .ThrowOnError();
 
@@ -236,7 +235,7 @@ TEST_F(TKeyRotatorTest, GetNextRotationWithReconfigure)
     WaitFor(Rotator->Start())
         .ThrowOnError();
 
-    auto nextRotationFuture = Rotator->GetNextRotation();
+    auto nextRotationFuture = Rotator->GetNextRotationFuture();
 
     // Reconfigure with short interval should trigger immediate rotation.
     auto newConfig = New<TKeyRotatorConfig>();

@@ -12,39 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tools for working with MongoDB `ObjectIds
-<http://dochub.mongodb.org/core/objectids>`_.
-"""
+"""Tools for working with MongoDB ObjectIds."""
+from __future__ import annotations
 
-import binascii
-import calendar
 import datetime
 import os
 import struct
 import threading
 import time
 from random import SystemRandom
+from typing import Any, NoReturn, Optional, Type, Union
 
+from bson.datetime_ms import _datetime_to_millis
 from bson.errors import InvalidId
-from bson.py3compat import PY3, bytes_from_hex, string_type, text_type
 from bson.tz_util import utc
 
 _MAX_COUNTER_VALUE = 0xFFFFFF
+_PACK_INT = struct.Struct(">I").pack
+_PACK_INT_RANDOM = struct.Struct(">I5s").pack
+_UNPACK_INT = struct.Struct(">I").unpack
 
 
-def _raise_invalid_id(oid):
+def _raise_invalid_id(oid: str) -> NoReturn:
     raise InvalidId(
         "%r is not a valid ObjectId, it must be a 12-byte input"
         " or a 24-character hex string" % oid
     )
 
 
-def _random_bytes():
+def _random_bytes() -> bytes:
     """Get the 5-byte random field of an ObjectId."""
     return os.urandom(5)
 
 
-class ObjectId(object):
+class ObjectId:
     """A MongoDB ObjectId."""
 
     _pid = os.getpid()
@@ -58,7 +59,7 @@ class ObjectId(object):
 
     _type_marker = 7
 
-    def __init__(self, oid=None):
+    def __init__(self, oid: Optional[Union[str, ObjectId, bytes]] = None) -> None:
         """Initialize a new ObjectId.
 
         An ObjectId is a 12-byte unique identifier consisting of:
@@ -69,7 +70,7 @@ class ObjectId(object):
 
         By default, ``ObjectId()`` creates a new unique identifier. The
         optional parameter `oid` can be an :class:`ObjectId`, or any 12
-        :class:`bytes` or, in Python 2, any 12-character :class:`str`.
+        :class:`bytes`.
 
         For example, the 12 bytes b'foo-bar-quux' do not follow the ObjectId
         specification but they are acceptable input::
@@ -77,22 +78,17 @@ class ObjectId(object):
           >>> ObjectId(b'foo-bar-quux')
           ObjectId('666f6f2d6261722d71757578')
 
-        `oid` can also be a :class:`unicode` or :class:`str` of 24 hex digits::
+        `oid` can also be a :class:`str` of 24 hex digits::
 
           >>> ObjectId('0123456789ab0123456789ab')
-          ObjectId('0123456789ab0123456789ab')
-          >>>
-          >>> # A u-prefixed unicode literal:
-          >>> ObjectId(u'0123456789ab0123456789ab')
           ObjectId('0123456789ab0123456789ab')
 
         Raises :class:`~bson.errors.InvalidId` if `oid` is not 12 bytes nor
         24 hex digits, or :class:`TypeError` if `oid` is not an accepted type.
 
-        :Parameters:
-          - `oid` (optional): a valid ObjectId.
+        :param oid: a valid ObjectId.
 
-        .. seealso:: The MongoDB documentation on `ObjectIds`_.
+        .. seealso:: The MongoDB documentation on  `ObjectIds <http://dochub.mongodb.org/core/objectids>`_.
 
         .. versionchanged:: 3.8
            :class:`~bson.objectid.ObjectId` now implements the `ObjectID
@@ -101,14 +97,30 @@ class ObjectId(object):
            objectid.rst>`_.
         """
         if oid is None:
-            self.__generate()
+            # Generate a new value for this ObjectId.
+            with ObjectId._inc_lock:
+                inc = ObjectId._inc
+                ObjectId._inc = (inc + 1) % (_MAX_COUNTER_VALUE + 1)
+
+            # 4 bytes current time, 5 bytes random, 3 bytes inc.
+            self.__id = _PACK_INT_RANDOM(int(time.time()), ObjectId._random()) + _PACK_INT(inc)[1:4]
         elif isinstance(oid, bytes) and len(oid) == 12:
             self.__id = oid
+        elif isinstance(oid, str):
+            if len(oid) == 24:
+                try:
+                    self.__id = bytes.fromhex(oid)
+                except (TypeError, ValueError):
+                    _raise_invalid_id(oid)
+            else:
+                _raise_invalid_id(oid)
+        elif isinstance(oid, ObjectId):
+            self.__id = oid.binary
         else:
-            self.__validate(oid)
+            raise TypeError(f"id must be an instance of (bytes, str, ObjectId), not {type(oid)}")
 
     @classmethod
-    def from_datetime(cls, generation_time):
+    def from_datetime(cls: Type[ObjectId], generation_time: datetime.datetime) -> ObjectId:
         """Create a dummy ObjectId instance with a specific generation time.
 
         This method is useful for doing range queries on a field
@@ -131,22 +143,20 @@ class ObjectId(object):
         >>> dummy_id = ObjectId.from_datetime(gen_time)
         >>> result = collection.find({"_id": {"$lt": dummy_id}})
 
-        :Parameters:
-          - `generation_time`: :class:`~datetime.datetime` to be used
+        :param generation_time: :class:`~datetime.datetime` to be used
             as the generation time for the resulting ObjectId.
         """
-        if generation_time.utcoffset() is not None:
-            generation_time = generation_time - generation_time.utcoffset()
-        timestamp = calendar.timegm(generation_time.timetuple())
-        oid = struct.pack(">I", int(timestamp)) + b"\x00\x00\x00\x00\x00\x00\x00\x00"
+        oid = (
+            _PACK_INT(_datetime_to_millis(generation_time) // 1000)
+            + b"\x00\x00\x00\x00\x00\x00\x00\x00"
+        )
         return cls(oid)
 
     @classmethod
-    def is_valid(cls, oid):
+    def is_valid(cls: Type[ObjectId], oid: Any) -> bool:
         """Checks if a `oid` string is valid or not.
 
-        :Parameters:
-          - `oid`: the object id to validate
+        :param oid: the object id to validate
 
         .. versionadded:: 2.3
         """
@@ -160,7 +170,7 @@ class ObjectId(object):
             return False
 
     @classmethod
-    def _random(cls):
+    def _random(cls) -> bytes:
         """Generate a 5-byte random number once per process."""
         pid = os.getpid()
         if pid != cls._pid:
@@ -168,57 +178,13 @@ class ObjectId(object):
             cls.__random = _random_bytes()
         return cls.__random
 
-    def __generate(self):
-        """Generate a new value for this ObjectId."""
-
-        # 4 bytes current time
-        oid = struct.pack(">I", int(time.time()))
-
-        # 5 bytes random
-        oid += ObjectId._random()
-
-        # 3 bytes inc
-        with ObjectId._inc_lock:
-            oid += struct.pack(">I", ObjectId._inc)[1:4]
-            ObjectId._inc = (ObjectId._inc + 1) % (_MAX_COUNTER_VALUE + 1)
-
-        self.__id = oid
-
-    def __validate(self, oid):
-        """Validate and use the given id for this ObjectId.
-
-        Raises TypeError if id is not an instance of
-        (:class:`basestring` (:class:`str` or :class:`bytes`
-        in python 3), ObjectId) and InvalidId if it is not a
-        valid ObjectId.
-
-        :Parameters:
-          - `oid`: a valid ObjectId
-        """
-        if isinstance(oid, ObjectId):
-            self.__id = oid.binary
-        # bytes or unicode in python 2, str in python 3
-        elif isinstance(oid, string_type):
-            if len(oid) == 24:
-                try:
-                    self.__id = bytes_from_hex(oid)
-                except (TypeError, ValueError):
-                    _raise_invalid_id(oid)
-            else:
-                _raise_invalid_id(oid)
-        else:
-            raise TypeError(
-                "id must be an instance of (bytes, %s, ObjectId), "
-                "not %s" % (text_type.__name__, type(oid))
-            )
-
     @property
-    def binary(self):
+    def binary(self) -> bytes:
         """12-byte binary representation of this ObjectId."""
         return self.__id
 
     @property
-    def generation_time(self):
+    def generation_time(self) -> datetime.datetime:
         """A :class:`datetime.datetime` instance representing the time of
         generation for this :class:`ObjectId`.
 
@@ -226,18 +192,18 @@ class ObjectId(object):
         represents the generation time in UTC. It is precise to the
         second.
         """
-        timestamp = struct.unpack(">I", self.__id[0:4])[0]
+        timestamp = _UNPACK_INT(self.__id[0:4])[0]
         return datetime.datetime.fromtimestamp(timestamp, utc)
 
-    def __getstate__(self):
-        """return value of object for pickling.
+    def __getstate__(self) -> bytes:
+        """Return value of object for pickling.
         needed explicitly because __slots__() defined.
         """
         return self.__id
 
-    def __setstate__(self, value):
-        """explicit state set from pickling"""
-        # Provide backwards compatability with OIDs
+    def __setstate__(self, value: Any) -> None:
+        """Explicit state set from pickling"""
+        # Provide backwards compatibility with OIDs
         # pickled with pymongo-1.9 or older.
         if isinstance(value, dict):
             oid = value["_ObjectId__id"]
@@ -246,49 +212,47 @@ class ObjectId(object):
         # ObjectIds pickled in python 2.x used `str` for __id.
         # In python 3.x this has to be converted to `bytes`
         # by encoding latin-1.
-        if PY3 and isinstance(oid, text_type):
+        if isinstance(oid, str):
             self.__id = oid.encode("latin-1")
         else:
             self.__id = oid
 
-    def __str__(self):
-        if PY3:
-            return binascii.hexlify(self.__id).decode()
-        return binascii.hexlify(self.__id)
+    def __str__(self) -> str:
+        return self.__id.hex()
 
-    def __repr__(self):
-        return "ObjectId('%s')" % (str(self),)
+    def __repr__(self) -> str:
+        return f"ObjectId('{self!s}')"
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, ObjectId):
             return self.__id == other.binary
         return NotImplemented
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         if isinstance(other, ObjectId):
             return self.__id != other.binary
         return NotImplemented
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         if isinstance(other, ObjectId):
             return self.__id < other.binary
         return NotImplemented
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> bool:
         if isinstance(other, ObjectId):
             return self.__id <= other.binary
         return NotImplemented
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         if isinstance(other, ObjectId):
             return self.__id > other.binary
         return NotImplemented
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> bool:
         if isinstance(other, ObjectId):
             return self.__id >= other.binary
         return NotImplemented
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         """Get a hash value for this :class:`ObjectId`."""
         return hash(self.__id)

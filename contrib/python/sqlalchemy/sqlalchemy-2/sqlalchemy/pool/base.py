@@ -1,5 +1,5 @@
 # pool/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -34,6 +34,7 @@ from .. import log
 from .. import util
 from ..util.typing import Literal
 from ..util.typing import Protocol
+from ..util.typing import Self
 
 if TYPE_CHECKING:
     from ..engine.interfaces import DBAPIConnection
@@ -599,7 +600,7 @@ class ConnectionPoolEntry(ManagesConnection):
     connection on behalf of a :class:`_pool.Pool` instance.
 
     The :class:`.ConnectionPoolEntry` object represents the long term
-    maintainance of a particular connection for a pool, including expiring or
+    maintenance of a particular connection for a pool, including expiring or
     invalidating that connection to have it replaced with a new one, which will
     continue to be maintained by that same :class:`.ConnectionPoolEntry`
     instance. Compared to :class:`.PoolProxiedConnection`, which is the
@@ -1123,6 +1124,13 @@ class PoolProxiedConnection(ManagesConnection):
 
         """
         raise NotImplementedError()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        self.close()
+        return None
 
 
 class _AdhocProxiedConnection(PoolProxiedConnection):

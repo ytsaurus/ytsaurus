@@ -24,6 +24,7 @@ target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(yt-server-cypress_proxy PUBLIC
@@ -40,7 +41,9 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   server-lib-admin
   server-lib-misc
   server-lib-object_server
+  server-lib-cypress_proxy
   server-lib-sequoia
+  server-lib-cross_cluster_replicated_state
 )
 
 target_sources(yt-server-cypress_proxy PRIVATE
@@ -49,7 +52,7 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/actions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/action_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/ban_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/cypress_proxy_service_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/cypress_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp

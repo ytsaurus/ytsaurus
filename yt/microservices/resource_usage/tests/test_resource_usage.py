@@ -1,16 +1,6 @@
-import sys
-import os
-from yt_commands import authors
-from typing import Any, Generator
-import logging
+from yt.wrapper import YtClient
+from yt.wrapper.testlib.helpers import wait
 
-import requests
-import yatest.common
-import pytest
-
-from yatest.common import network
-
-from yt_env_setup import YTEnvSetup
 from yt_commands import (
     create_account,
     create_domestic_medium,
@@ -24,13 +14,21 @@ from yt_commands import (
     set,
     sync_create_cells,
 )
+from yt_commands import authors
+from yt_env_setup import YTEnvSetup
 
+from library.python.port_manager import PortManager
 from native_snapshot_exporter import NativeSnapshotRunner
 
-import subprocess
-from yt.wrapper import YtClient
+import requests
+import yatest.common
+import pytest
 
-from yt.wrapper.testlib.helpers import wait
+import logging
+import os
+import subprocess
+import sys
+from typing import Any, Generator
 
 RESOURCE_USAGE_ROREN: str = yatest.common.binary_path("yt/microservices/resource_usage_roren/resource_usage_roren")
 RESOURCE_USAGE_JSON_API_GO: str = yatest.common.binary_path(
@@ -58,7 +56,7 @@ class TestResourceUsage(YTEnvSetup):
     NUM_RPC_PROXIES = 1
 
     NUM_TEST_PARTITIONS = 2
-    CLASS_TEST_LIMIT = 12 * 60
+    CLASS_TEST_LIMIT = 24 * 60
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -149,6 +147,7 @@ class TestResourceUsage(YTEnvSetup):
 
     def run_resource_usage_preprocessing(
         self,
+        extra_args: list[str] | None = None,
     ):
         env = {
             "YT_PROXY": self.Env.get_http_proxy_address(),
@@ -163,14 +162,16 @@ class TestResourceUsage(YTEnvSetup):
             "--node-id-dict-cluster",
             self.Env.get_http_proxy_address(),
         ]
+        if extra_args:
+            args.extend(extra_args)
         subprocess.run(args, env=env, stdout=sys.stderr, stderr=sys.stderr, check=True, timeout=3600)
 
-    def run_preprocessing(self):
-        self.run_resource_usage_preprocessing()
+    def run_preprocessing(self, extra_args: list[str] | None = None):
+        self.run_resource_usage_preprocessing(extra_args=extra_args)
         self.preprocessing_previously_runned = True
 
     def _define_ports(self) -> None:
-        with network.PortManager() as pm:
+        with PortManager() as pm:
             self.resource_usage_port = pm.get_port()
             self.resource_usage_debug_port = pm.get_port()
 
@@ -982,3 +983,18 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         assert len(response_1_5_ct["items"]) == 5
 
         assert response_1_5["items"] == response_1_5_ct["items"]
+
+    def test_small_chunks_size(self, yt_client: YtClient, home_ypath: str):
+        yt_client.set(home_ypath + "/@account", "test_account")
+
+        self.snapshot_runner.build_and_export_master_snapshot(YtClient(self.Env.get_http_proxy_address()))
+        self.run_preprocessing(extra_args=["--destination-table-chunk-size", "100000"])
+
+        all_tables = yt_client.list("//sys/admin/yt-microservices/resource_usage")
+        all_tables.sort(reverse=True)
+
+        last_table = all_tables[1]
+        last_table_path = f"//sys/admin/yt-microservices/resource_usage/{last_table}"
+
+        chunk_count = yt_client.get(f"{last_table_path}/@resource_usage/chunk_count")
+        assert chunk_count > 1

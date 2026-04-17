@@ -270,6 +270,11 @@ public:
     /// Return pointer to the end of the serialization data.
     virtual char * serializeValueIntoMemory(size_t /* n */, char * /* memory */) const;
 
+    /// Returns size in bytes required to serialize value into memory using the previous method.
+    /// If size cannot be calculated in advance, return nullopt. In this case serializeValueIntoMemory
+    /// cannot be used and serializeValueIntoArena should be used instead,
+    virtual std::optional<size_t> getSerializedValueSize(size_t n) const { return byteSizeAt(n); }
+
     /// Nullable variant to avoid calling virtualized method inside ColumnNullable.
     virtual StringRef
     serializeValueIntoArenaWithNull(size_t /* n */, Arena & /* arena */, char const *& /* begin */, const UInt8 * /* is_null */) const;
@@ -594,6 +599,10 @@ public:
     /// For columns with dynamic subcolumns this method takes dynamic structure from source columns
     /// and creates proper resulting dynamic structure in advance for merge of these source columns.
     virtual void takeDynamicStructureFromSourceColumns(const std::vector<Ptr> & /*source_columns*/) {}
+    /// For columns with dynamic subcolumns this method takes the exact dynamic structure from provided column.
+    virtual void takeDynamicStructureFromColumn(const ColumnPtr & /*source_column*/) {}
+    /// For columns with dynamic subcolumns fix current dynamic structure so later inserts into this column won't change it.
+    virtual void fixDynamicStructure() {}
 
     /** Some columns can contain another columns inside.
       * So, we have a tree of columns. But not all combinations are possible.

@@ -165,6 +165,9 @@ struct TYqlPluginConfig
     //! Fields from NYql::PQGatewayConfig with snake case keys.
     NYTree::INodePtr PQGatewayConfig;
 
+    //! Fields from NYql::SolomonGatewayConfig with snake case keys.
+    NYTree::INodePtr SolomonGatewayConfig;
+
     //! Fields from NYT::NYqlPlugin::TDQManagerConfig with snake case keys.
     TDQManagerConfigPtr DQManagerConfig;
 

@@ -13,6 +13,9 @@ spec:
     name:
       minisaurus
   image: ghcr.io/ytsaurus/spyt:{{spyt-version}}
+  sparkVersions:
+    - "3.5.7"
+    - "3.2.2"
 ```
 
 Запушить спецификацию можно с помощью `kubectl`:
@@ -39,3 +42,5 @@ myspyt   Finished
 ```
 
 После успешного выполнения всех джобов (когда `RELEASESTATUS` перешел в `Finished`), можно запускать `SPYT`. Подробнее можно почитать [в отдельном разделе](../../user-guide/data-processing/spyt/launch).
+
+Для открытия Spark UI в браузере можно установить [Task proxy](../../admin-guide/install-task-proxy.md).

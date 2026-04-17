@@ -237,7 +237,7 @@ class Logger:
                     ValueError,
                     TypeError
             ) as exc:
-                raise RuntimeError(str(exc))
+                raise RuntimeError(str(exc)) from exc
         elif cfg.logconfig_json:
             config = CONFIG_DEFAULTS.copy()
             if os.path.exists(cfg.logconfig_json):
@@ -252,7 +252,7 @@ class Logger:
                     ValueError,
                     TypeError
                 ) as exc:
-                    raise RuntimeError(str(exc))
+                    raise RuntimeError(str(exc)) from exc
         elif cfg.logconfig:
             if os.path.exists(cfg.logconfig):
                 defaults = CONFIG_DEFAULTS.copy()
@@ -341,14 +341,24 @@ class Logger:
 
         return atoms
 
+    @property
+    def access_log_enabled(self):
+        """Check if access logging is enabled.
+
+        Used by protocol handlers to skip building log data when logging is disabled.
+        """
+        return bool(
+            self.cfg.accesslog or self.cfg.logconfig or
+            self.cfg.logconfig_dict or self.cfg.logconfig_json or
+            (self.cfg.syslog and not self.cfg.disable_redirect_access_to_syslog)
+        )
+
     def access(self, resp, req, environ, request_time):
         """ See http://httpd.apache.org/docs/2.0/logs.html#combined
         for format details
         """
 
-        if not (self.cfg.accesslog or self.cfg.logconfig or
-           self.cfg.logconfig_dict or self.cfg.logconfig_json or
-           (self.cfg.syslog and not self.cfg.disable_redirect_access_to_syslog)):
+        if not self.access_log_enabled:
             return
 
         # wrap atoms:
@@ -442,8 +452,8 @@ class Logger:
         # syslog facility
         try:
             facility = SYSLOG_FACILITIES[cfg.syslog_facility.lower()]
-        except KeyError:
-            raise RuntimeError("unknown facility name")
+        except KeyError as exc:
+            raise RuntimeError("unknown facility name") from exc
 
         # parse syslog address
         socktype, addr = parse_syslog_address(cfg.syslog_addr)

@@ -8,8 +8,6 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/yt/client/api/private.h>
-
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NNbd {
@@ -51,8 +49,6 @@ IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
     std::string path,
     NChunkClient::TChunkReaderHostPtr readerHost,
-    NConcurrency::IThroughputThrottlerPtr inThrottler,
-    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 

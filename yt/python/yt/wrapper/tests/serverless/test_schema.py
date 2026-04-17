@@ -55,6 +55,14 @@ def test_column_schema():
     assert a_expression.to_yson_type() == {"name": "a", "type_v3": "int64", "expression": "farm_hash(b)"}
     assert ColumnSchema.from_yson_type(a_expression.to_yson_type()) == a_expression
 
+    a_lock = ColumnSchema("a", typing.Int64, lock="lock_group_1")
+    assert a_lock.to_yson_type() == {"name": "a", "type_v3": "int64", "lock": "lock_group_1"}
+    assert ColumnSchema.from_yson_type(a_lock.to_yson_type()) == a_lock
+
+    a_group = ColumnSchema("a", typing.Int64, group="group_1")
+    assert a_group.to_yson_type() == {"name": "a", "type_v3": "int64", "group": "group_1"}
+    assert ColumnSchema.from_yson_type(a_group.to_yson_type()) == a_group
+
 
 @authors("levysotsky")
 def test_table_schema():

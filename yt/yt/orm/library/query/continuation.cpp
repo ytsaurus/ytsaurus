@@ -1,4 +1,4 @@
-#include <yt/yt/orm/library/query/continuation.h>
+#include "continuation.h"
 
 #include <yt/yt/orm/client/misc/public.h>
 

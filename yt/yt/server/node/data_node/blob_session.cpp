@@ -111,16 +111,14 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         TRefCountedChunkMetaPtr chunkMeta,
-        TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlockCount)
+        TFairShareSlotId fairShareSlotId)
     {
         return EnqueueCommand(
             BIND(&TBlobWritePipeline::DoClose,
                  MakeStrong(this),
                  options,
                  std::move(chunkMeta),
-                 fairShareSlotId,
-                 truncateBlockCount));
+                 fairShareSlotId));
     }
 
     TFuture<void> Abort()
@@ -274,8 +272,7 @@ private:
     TFuture<void> DoClose(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TRefCountedChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlockCount)
+        TFairShareSlotId fairShareSlotId)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -287,7 +284,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, fairShareSlotId, truncateBlockCount).Apply(
+        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, fairShareSlotId).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
@@ -398,8 +395,7 @@ void TBlobSession::OnStarted(const TError& error)
 
 TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount,
-    bool truncateExtraBlocks)
+    std::optional<int> blockCount)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(chunkMeta);
@@ -410,16 +406,11 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     }
 
     auto currentBlockCount = BlockCount_.load();
-    std::optional<int> truncateBlockCount;
     if (*blockCount != currentBlockCount) {
-        if (truncateExtraBlocks && *blockCount < currentBlockCount) {
-            truncateBlockCount = blockCount;
-        } else {
-            return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
-                SessionId_,
-                currentBlockCount,
-                *blockCount));
-        }
+        return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
+            SessionId_,
+            currentBlockCount,
+            *blockCount));
     }
 
     for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
@@ -455,7 +446,7 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
 
     auto slotId = fairShareQueueSlot->GetSlot()->GetSlotId();
-    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, slotId, truncateBlockCount)
+    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, slotId)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this), Passed(std::move(fairShareQueueSlot)))
             .AsyncVia(SessionInvoker_));
 }
@@ -631,9 +622,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         useCumulativeBlockSize,
         enableCaching)
         .Apply(BIND([this, this_ = MakeStrong(this),
-            fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
-
-            auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures);
+            fairShareQueueSlot = std::move(fairShareQueueSlot), allPrecedingBlocksReceivedFuture = AllSucceeded(std::move(precedingBlockReceivedFutures))] () {
 
             if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived) {
                 auto allPrecedingBlocksReceivedFutureWithTimeout = allPrecedingBlocksReceivedFuture
@@ -653,20 +642,24 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                     .AsyncVia(SessionInvoker_));
 
                 return allPrecedingBlocksReceivedFutureWithTimeout.Apply(BIND([this, this_ = MakeStrong(this),
-                    fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
+                    fairShareQueueSlot = std::move(fairShareQueueSlot)] () mutable {
                         DoPerformPutBlocks(std::move(fairShareQueueSlot));
                         return NIO::TIOCounters{};
                     }).AsyncVia(SessionInvoker_));
             } else {
-                YT_UNUSED_FUTURE(allPrecedingBlocksReceivedFuture.Apply(BIND([this, this_ = MakeStrong(this),
-                    fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] (const TError& error) mutable {
+                allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
+                    fairShareQueueSlot = std::move(fairShareQueueSlot)] (const TError& error) mutable {
+                        if (Canceled_.load()) {
+                            return;
+                        }
+
                         if (error.IsOK()) {
                             DoPerformPutBlocks(std::move(fairShareQueueSlot));
                         } else {
                             YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
                             Cancel(error);
                         }
-                    }).AsyncVia(SessionInvoker_)));
+                    }).Via(SessionInvoker_));
                 return MakeFuture(NIO::TIOCounters{});
             }
         }));
@@ -702,6 +695,11 @@ TFuture<void> TBlobSession::PreparePutBlocks(
 
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
+            if (slot.State == ESlotState::Released) {
+                YT_LOG_WARNING("Skipped already flushed block (Block: %v)", blockIndex);
+                continue;
+            }
+
             if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
                 YT_LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
                 continue;
@@ -784,11 +782,10 @@ TFuture<void> TBlobSession::PreparePutBlocks(
         MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
 
-    if (auto sleepBeforePerformPutBlocks =
-        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks;
-        sleepBeforePerformPutBlocks.has_value()) {
-            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", sleepBeforePerformPutBlocks.value());
-            TDelayedExecutor::WaitForDuration(sleepBeforePerformPutBlocks.value());
+    if (auto delay =
+        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks) {
+            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", delay.value());
+            TDelayedExecutor::WaitForDuration(delay.value());
     }
 
     const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);

@@ -50,6 +50,12 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(examples_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        fs_default.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

@@ -10,19 +10,18 @@
 #include <yt/yt/ytlib/chunk_client/memory_writer.h>
 #include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
 
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
+
 #include <yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_index_read_controller.h>
+#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
-
-#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
-
-#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -36,16 +35,18 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
-#include <yt/yt/library/query/engine_api/config.h>
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-
-#include <yt/yt/library/numeric/algorithm_helpers.h>
-
 #include <yt/yt/core/compression/public.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/random.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <util/random/shuffle.h>
 
@@ -77,26 +78,30 @@ struct TTestOptions
     // Cache based mode.
     bool CacheBased = false;
     bool SkipValueBlocksForMissingKeys = false;
+    bool CompressBlockLastKeys = false;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTestOptions& options, TStringBuf /*spec*/)
 {
     Format(
         builder,
-        "%v%v%v%v%v%v%v",
+        "%v%v%v%v%v%v%v%v",
         options.OptimizeFor,
         options.ChunkFormat ? ToString(*options.ChunkFormat) : "",
         options.UseNewReader ? "New" : "",
         options.UseIndexedReaderForLookup ? "IndexedReader" : "",
         (options.UseBlockCacheForIndexedReader && options.UseIndexedReaderForLookup) ? "WithBlockCache" : "",
         options.CacheBased ? "CacheBased" : "",
-        options.SkipValueBlocksForMissingKeys ? "SkipValueBlocksForMissingKeys" : "");
+        options.SkipValueBlocksForMissingKeys ? "SkipValueBlocksForMissingKeys" : "",
+        options.CompressBlockLastKeys ? "CompressBlockLastKeys" : "");
 }
 
 const auto TestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CompressBlockLastKeys = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true, .CompressBlockLastKeys = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed},
@@ -349,7 +354,7 @@ protected:
             memoryPool.Clear();
         }
 
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         // Initialize reader.
         MemoryReader = CreateMemoryReader(
@@ -369,12 +374,13 @@ protected:
     {
         WriteManyRows(testOptions);
 
-        auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(MemoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
-                &TCachedVersionedChunkMeta::Create,
+                &(testOptions.CompressBlockLastKeys
+                    ? TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                    : TCachedVersionedChunkMeta::Create),
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .Get()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         {
@@ -515,8 +521,8 @@ protected:
                     /*produceAllVersions*/ false);
             }
 
-            EXPECT_TRUE(versionedReader->Open().Get().IsOK());
-            EXPECT_TRUE(versionedReader->GetReadyEvent().Get().IsOK());
+            EXPECT_TRUE(WaitForFast(versionedReader->Open()).IsOK());
+            EXPECT_TRUE(WaitForFast(versionedReader->GetReadyEvent()).IsOK());
 
             CheckResult(std::move(expectedRows), versionedReader);
         }
@@ -534,6 +540,8 @@ const auto LookupTestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CompressBlockLastKeys = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true, .CompressBlockLastKeys = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed},
@@ -557,8 +565,7 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
         .ChunkFormat = EChunkFormat::TableVersionedIndexed,
     });
 
-    auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
-        .Get()
+    auto chunkMeta = WaitForFast(MemoryReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(
@@ -817,7 +824,7 @@ protected:
             /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(initialRows));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         return CreateMemoryReader(
             memoryWriter->GetChunkMeta(),
@@ -846,12 +853,13 @@ protected:
             GetTestOptions().UseNewReader,
             &memoryPool);
 
-        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
-                &TCachedVersionedChunkMeta::Create,
+                &(GetTestOptions().CompressBlockLastKeys
+                    ? TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                    : TCachedVersionedChunkMeta::Create),
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .Get()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(TChunkState{
@@ -974,12 +982,13 @@ protected:
             GetTestOptions().UseNewReader,
             &memoryPool);
 
-        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
-                &TCachedVersionedChunkMeta::Create,
+                &(GetTestOptions().CompressBlockLastKeys
+                    ? TCachedVersionedChunkMeta::CreateWithCompressedBlockLastKeys
+                    : TCachedVersionedChunkMeta::Create),
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .Get()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(TChunkState{
@@ -1096,8 +1105,8 @@ protected:
             }
         }
 
-        EXPECT_TRUE(versionedReader->Open().Get().IsOK());
-        EXPECT_TRUE(versionedReader->GetReadyEvent().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(versionedReader->Open()).IsOK());
+        EXPECT_TRUE(WaitForFast(versionedReader->GetReadyEvent()).IsOK());
 
         CheckResult(std::move(expectedRows), versionedReader);
     }
@@ -1106,12 +1115,11 @@ protected:
     {
         auto blockCache = GetPreloadedBlockCache(memoryReader);
 
-        auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
+        auto chunkMeta = WaitFor(memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr))
-            .Get()
+                /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
         return CreateChunkLookupHashTable(
@@ -1755,7 +1763,7 @@ protected:
             /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(InitialRows_));
-        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+        EXPECT_TRUE(WaitForFast(chunkWriter->Close()).IsOK());
 
         for (const auto& block : memoryWriter->GetBlocks()) {
             EXPECT_LE(block.Size(), config->BlockSize + overhead);
@@ -2597,6 +2605,9 @@ const auto StressTestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .SkipValueBlocksForMissingKeys = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CompressBlockLastKeys = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true, .CompressBlockLastKeys = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .SkipValueBlocksForMissingKeys = true, .CompressBlockLastKeys = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
 #if !defined(_asan_enabled_) && !defined(_msan_enabled_)

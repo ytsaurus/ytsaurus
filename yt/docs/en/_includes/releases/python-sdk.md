@@ -8,6 +8,52 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.48**" %}
+
+**Release date:** 2026-03-27
+
+
+##### Features
+- Add `read_from` parameter to `lookup_rows` and `select_rows` [2f0b0b0ae0aa23390785c7913866202ae03dbcf8]
+- Add `--no-enable-slicing` option to `reshard-table` CLI command [62c8c5ab4ce0c6efd8b4ac190279ca55d9c69b2e]
+- Add type hints to `lock` command [a3ac56216b9c9ddc860df1ff9942d532051e42b0]
+
+##### Fixes
+- Fix native driver to use address resolver config in server format [2816f6fe94f7feffc04d3ff547333cc4ffc1b8e8]
+- Fix `make_read_request` to raise original error instead of possible abort transaction error [c223a8f738c04524828fb7268fd757beb4dd93cc]
+- Fix retry logic when `retry_count` is `None` [db1ab343327831b0ea499e6e5c7a47db77fa08df]
+
+{% endcut %}
+
+
+{% cut "**0.13.47**" %}
+
+**Release date:** 2026-02-16
+
+
+#### Features
+- Add `run-job-shell-command` to CLI [394c049deb1460f767be591036f5d55b7d5d58db]
+- Add `lock` attribute support for `ColumnSchema` [87a9d8809a144c64d72fc767999c8c9d25616911]
+- Add support for distributed reads in `read_parallel` mode [01912a6703b7fea296efc3eb5fbaebd69ea2d046]
+
+#### Fixes
+- Fix Docker image preparation using CLI [2788466412f56e941044e833dbfc201d1937807f]
+
+{% endcut %}
+
+
+{% cut "**0.13.46**" %}
+
+**Release date:** 2026-01-18
+
+
+#### Fixes
+- Fixed `yt execute` for commands without input data
+- Removed display of authorization headers in logs
+
+{% endcut %}
+
+
 {% cut "**0.13.45**" %}
 
 **Release date:** 2025-12-29

@@ -30,5 +30,18 @@ ELSEIF (OS_WINDOWS AND ARCH_X86_64 AND RACE AND CGO_ENABLED OR OS_WINDOWS AND AR
         testing.go
         testing_windows.go
     )
+ELSEIF (OS_EMSCRIPTEN AND ARCH_WASM32 AND RACE AND CGO_ENABLED OR OS_EMSCRIPTEN AND ARCH_WASM32 AND RACE AND NOT CGO_ENABLED OR OS_EMSCRIPTEN AND ARCH_WASM32 AND NOT RACE AND CGO_ENABLED OR OS_EMSCRIPTEN AND ARCH_WASM32 AND NOT RACE AND NOT CGO_ENABLED)
+    SRCS(
+        allocs.go
+        benchmark.go
+        cover.go
+        example.go
+        fuzz.go
+        match.go
+        newcover.go
+        run_example_wasm.go
+        testing.go
+        testing_other.go
+    )
 ENDIF()
 END()

@@ -17,16 +17,39 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVersionedRowDigest::TVersionedRowDigest(const TTDigestConfigPtr& config)
+    : LastTimestampDigest(CreateTDigest(config))
+    , AllButLastTimestampDigest(CreateTDigest(config))
+    , FirstTimestampDigest(CreateTDigest(config))
+{ }
+
+void TVersionedRowDigest::MergeWith(const TVersionedRowDigestPtr& other)
+{
+    LastTimestampDigest->MergeWith(other->LastTimestampDigest);
+    AllButLastTimestampDigest->MergeWith(other->AllButLastTimestampDigest);
+    if (FirstTimestampDigest && other->FirstTimestampDigest) {
+        FirstTimestampDigest->MergeWith(other->FirstTimestampDigest);
+    }
+
+    EarliestNthTimestamp.reserve(other->EarliestNthTimestamp.size());
+    for (int index = 0; index < ssize(other->EarliestNthTimestamp); ++index) {
+        if (ssize(EarliestNthTimestamp) > index) {
+            EarliestNthTimestamp[index] = std::min(EarliestNthTimestamp[index], other->EarliestNthTimestamp[index]);
+        } else {
+            EarliestNthTimestamp.push_back(other->EarliestNthTimestamp[index]);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedRowDigestBuilder
     : public IVersionedRowDigestBuilder
 {
 public:
-    explicit TVersionedRowDigestBuilder(const TVersionedRowDigestConfigPtr& config)
-    {
-        Digest_.LastTimestampDigest = CreateTDigest(config->TDigest);
-        Digest_.AllButLastTimestampDigest = CreateTDigest(config->TDigest);
-        Digest_.FirstTimestampDigest = CreateTDigest(config->TDigest);
-    }
+    explicit TVersionedRowDigestBuilder(const TTDigestConfigPtr& config)
+        : Digest_(New<TVersionedRowDigest>(config))
+    { }
 
     void OnRow(TVersionedRow row) override
     {
@@ -39,19 +62,19 @@ public:
                 ++currentValueEnd;
             }
 
-            Digest_.LastTimestampDigest->AddValue(TimestampToSecond(currentValueBegin->Timestamp));
+            Digest_->LastTimestampDigest->AddValue(TimestampToSecond(currentValueBegin->Timestamp));
             for (auto* value = currentValueBegin + 1; value < currentValueEnd; ++value) {
-                Digest_.AllButLastTimestampDigest->AddValue(TimestampToSecond(value->Timestamp));
+                Digest_->AllButLastTimestampDigest->AddValue(TimestampToSecond(value->Timestamp));
             }
-            Digest_.FirstTimestampDigest->AddValue(TimestampToSecond(std::prev(currentValueEnd)->Timestamp));
+            Digest_->FirstTimestampDigest->AddValue(TimestampToSecond(std::prev(currentValueEnd)->Timestamp));
 
             int timestampCount = currentValueEnd - currentValueBegin;
             for (int logIndex = 0; (1 << logIndex) - 1 < timestampCount; ++logIndex) {
-                if (logIndex == ssize(Digest_.EarliestNthTimestamp)) {
-                    Digest_.EarliestNthTimestamp.push_back(TimestampToSecond(MaxTimestamp));
+                if (logIndex == ssize(Digest_->EarliestNthTimestamp)) {
+                    Digest_->EarliestNthTimestamp.push_back(TimestampToSecond(MaxTimestamp));
                 }
-                Digest_.EarliestNthTimestamp[logIndex] = std::min(
-                    Digest_.EarliestNthTimestamp[logIndex],
+                Digest_->EarliestNthTimestamp[logIndex] = std::min(
+                    Digest_->EarliestNthTimestamp[logIndex],
                     TimestampToSecond(currentValueBegin[(1 << logIndex) - 1].Timestamp));
             }
 
@@ -59,22 +82,22 @@ public:
         }
 
         for (int logIndex = 0; (1 << logIndex) - 1 < row.GetDeleteTimestampCount(); ++logIndex) {
-            if (logIndex == ssize(Digest_.EarliestNthTimestamp)) {
-                Digest_.EarliestNthTimestamp.push_back(TimestampToSecond(MaxTimestamp));
+            if (logIndex == ssize(Digest_->EarliestNthTimestamp)) {
+                Digest_->EarliestNthTimestamp.push_back(TimestampToSecond(MaxTimestamp));
             }
-            Digest_.EarliestNthTimestamp[logIndex] = std::min(
-                Digest_.EarliestNthTimestamp[logIndex],
+            Digest_->EarliestNthTimestamp[logIndex] = std::min(
+                Digest_->EarliestNthTimestamp[logIndex],
                 TimestampToSecond(row.DeleteTimestamps()[(1 << logIndex) - 1]));
         }
     }
 
-    TVersionedRowDigest FlushDigest() override
+    TVersionedRowDigestPtr FlushDigest() override
     {
         return std::move(Digest_);
     }
 
 private:
-    TVersionedRowDigest Digest_;
+    TVersionedRowDigestPtr Digest_;
 
     static i64 TimestampToSecond(TTimestamp timestamp)
     {
@@ -85,11 +108,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedRowDigestBuilderPtr CreateVersionedRowDigestBuilder(
-    const TVersionedRowDigestConfigPtr& config)
+    const TTDigestConfigPtr& config)
 {
-    if (!config->Enable) {
+    if (!config) {
         return nullptr;
     }
+
     return New<TVersionedRowDigestBuilder>(config);
 }
 

@@ -2,12 +2,11 @@
 #include <yql/essentials/minikql/computation/mkql_computation_node_impl.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>
 
-namespace NKikimr {
-namespace NMiniKQL {
+namespace NKikimr::NMiniKQL {
 
 class TCustomListValue: public TComputationValue<TCustomListValue> {
 public:
-    TCustomListValue(TMemoryUsageInfo* memInfo)
+    explicit TCustomListValue(TMemoryUsageInfo* memInfo)
         : TComputationValue(memInfo)
         , Length(Length_)
         , HasItems(HasItems_)
@@ -126,5 +125,4 @@ private:
     ui32 Index_ = 0;
 };
 
-} // namespace NMiniKQL
-} // namespace NKikimr
+} // namespace NKikimr::NMiniKQL

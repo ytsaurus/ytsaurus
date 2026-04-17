@@ -76,7 +76,7 @@ public:
             CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
 
         const auto& dynamicConfigManager = GetDynamicConfigManger();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterCachePartBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMasterCachePartBootstrap::OnDynamicConfigChanged, Unretained(this)));
         connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TMasterCachePartBootstrap::OnMasterCellDirectoryChanged, Unretained(this)));
     }
 

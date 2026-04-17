@@ -56,8 +56,10 @@ PEERDIR(
     contrib/ydb/core/blobstorage/bridge/syncer
     contrib/ydb/core/blobstorage/common
     contrib/ydb/core/blobstorage/crypto
+    contrib/ydb/core/blobstorage/ddisk
     contrib/ydb/core/blobstorage/groupinfo
     contrib/ydb/core/blobstorage/pdisk
+    contrib/ydb/core/blobstorage/vdisk
     contrib/ydb/core/control/lib
     contrib/ydb/library/pdisk_io
     contrib/ydb/library/yaml_config

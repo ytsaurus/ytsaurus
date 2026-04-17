@@ -11,21 +11,21 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNormalizedContraints
+{
+    std::vector<TTypeSet> TypeConstraints;
+    std::vector<int> FormalArguments;
+    std::optional<std::pair<int, bool>> RepeatedType;
+    int StateType = -1;
+    int ReturnType;
+};
+
 struct ITypeInferrer
     : public virtual TRefCounted
 {
     virtual bool IsAggregate() const = 0;
 
-    virtual int GetNormalizedConstraints(
-        std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* formalArguments,
-        std::optional<std::pair<int, bool>>* repeatedType,
-        TStringBuf functionName) const = 0;
-
-    virtual std::pair<int, int> GetNormalizedConstraints(
-        std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* argumentConstraintIndexes,
-        TStringBuf functionName) const = 0;
+    virtual TNormalizedContraints GetNormalizedConstraints(TStringBuf functionName) const = 0;
 
     virtual std::vector<TTypeId> InferTypes(
         TTypingCtx* typingCtx,
@@ -46,6 +46,7 @@ ITypeInferrerPtr CreateFunctionTypeInferrer(
 ITypeInferrerPtr CreateAggregateTypeInferrer(
     TType resultType,
     std::vector<TType> argumentTypes,
+    TType repeatedArgType,
     TType stateType,
     std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints = {});
 

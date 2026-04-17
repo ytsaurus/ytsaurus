@@ -96,17 +96,12 @@ struct TSlotManagerConfig
     //! Root path for slot directories.
     std::vector<TSlotLocationConfigPtr> Locations;
 
-    //! Enable using tmpfs on the node.
-    bool EnableTmpfs;
-
     //! Use MNT_DETACH when tmpfs umount called. When option enabled the "Device is busy" error is impossible,
     //! because actual umount will be performed by Linux core asynchronously.
     bool DetachedTmpfsUmount;
 
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
-
-    bool EnableReadWriteCopy;
 
     bool EnableArtifactCopyTracking;
 
@@ -171,6 +166,12 @@ struct TSlotManagerDynamicConfig
 
     TDuration VolumeReleaseTimeout;
 
+    //! Timeout for removing volumes from porto place during slot cleanup.
+    TDuration RemoveVolumesFromPortoPlaceTimeout;
+
+    //! Timeout for removing layers from porto place during slot cleanup.
+    TDuration RemoveLayersFromPortoPlaceTimeout;
+
     bool AbortOnFreeVolumeSynchronizationFailed;
 
     bool AbortOnJobsDisabled;
@@ -180,6 +181,9 @@ struct TSlotManagerDynamicConfig
     bool RestartContainerAfterFailedDeviceCheck;
 
     NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
+    //! Copy artifacts without blocking any of the slot location IO invokers.
+    bool EnableAsyncArtifactCopy;
 
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
@@ -536,6 +540,8 @@ struct TTestingConfig
     : public NYTree::TYsonStruct
 {
     bool FailAddressResolve;
+
+    std::optional<TDuration> DelayInArtifactsCaching;
 
     REGISTER_YSON_STRUCT(TTestingConfig);
 

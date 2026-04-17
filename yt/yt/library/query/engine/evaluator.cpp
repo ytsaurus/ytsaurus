@@ -51,7 +51,7 @@ public:
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
-        const std::vector<IJoinProfilerPtr>& joinProfilers,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const NWebAssembly::TModuleBytecode& sdk,
@@ -60,14 +60,26 @@ public:
         const TFeatureFlags& requestFeatureFlags,
         TFuture<TFeatureFlags> responseFeatureFlags) override
     {
-        CheckQueryOptions(options);
+        CheckQueryOptions(query, options);
 
         auto queryFingerprint = InferName(query, {.OmitValues = true});
 
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
-            traceContext->AddTag("query_fingerprint", queryFingerprint);
+
+            if (options.TruncatedQueryLengthForTracing &&
+                std::ssize(queryFingerprint) >
+                    *options.TruncatedQueryLengthForTracing + std::ssize(DefaultTruncatedMessage))
+            {
+                traceContext->AddTag(
+                    "query_fingerprint",
+                    queryFingerprint
+                        .substr(0, *options.TruncatedQueryLengthForTracing)
+                        .append(DefaultTruncatedMessage));
+            } else {
+                traceContext->AddTag("query_fingerprint", queryFingerprint);
+            }
         });
 
         auto Logger = MakeQueryLogger(query);
@@ -94,7 +106,7 @@ public:
             auto queryInstance = Codegen(
                 query,
                 fragmentParams,
-                joinProfilers,
+                joinProfilerRegistry,
                 functionProfilers,
                 aggregateProfilers,
                 sdk,
@@ -124,7 +136,7 @@ public:
                 .MaxJoinBatchSize = options.MaxJoinBatchSize,
                 .Offset = query->Offset,
                 .Limit = query->Limit,
-                .Ordered = query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
+                .ScanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
                 .IsMerge = dynamic_cast<const TFrontQuery*>(query.Get()) != nullptr,
                 .MemoryChunkProvider = memoryChunkProvider,
                 .RequestFeatureFlags = &requestFeatureFlags,
@@ -132,6 +144,8 @@ public:
             };
 
             YT_LOG_DEBUG("Evaluating query");
+
+            queryInstance.SetDeadline(options.Deadline);
 
             queryInstance.Run(
                 fragmentParams.GetLiteralValues(),
@@ -161,7 +175,7 @@ private:
     TCGQueryInstance Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
-        const std::vector<IJoinProfilerPtr>& joinProfilers,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const NWebAssembly::TModuleBytecode& sdk,
@@ -179,7 +193,7 @@ private:
             query,
             &id,
             &variables,
-            joinProfilers,
+            joinProfilerRegistry,
             useCanonicalNullRelations,
             executionBackend,
             optimizationLevel,
@@ -192,7 +206,7 @@ private:
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = query->IsOrdered(allowUnorderedGroupByWithLimit) && !query->GroupClause;
+        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,
@@ -211,10 +225,25 @@ private:
         return cachedQueryImage->Image.Instantiate();
     }
 
-    static void CheckQueryOptions(const TQueryBaseOptions& options)
+    static void CheckQueryOptions(const TConstBaseQueryPtr& query, const TQueryBaseOptions& options)
     {
         THROW_ERROR_EXCEPTION_IF(options.InputRowLimit < 0, "Negative input row limit is forbidden");
         THROW_ERROR_EXCEPTION_IF(options.OutputRowLimit < 0, "Negative output row limit is forbidden");
+
+        if (query->Offset < 0) {
+            THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
+                << TErrorAttribute("offset", query->Offset);
+        }
+
+        if (query->Limit < 0) {
+            THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
+                << TErrorAttribute("limit", query->Limit);
+        }
+
+        if (query->Offset + query->Limit < 0) {
+            THROW_ERROR_EXCEPTION("Negative OFFSET + LIMIT is forbidden")
+                << TErrorAttribute("offset_limit_sum", query->Offset + query->Limit);
+        }
     }
 };
 

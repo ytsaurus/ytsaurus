@@ -774,13 +774,13 @@ TQueueExportProfilingCountersOld::TQueueExportProfilingCountersOld(const TProfil
 
 TQueueExporterOld::TQueueExporterOld(
     TString exportName,
-    TCrossClusterReference queue,
+    TTablePath queue,
     const TQueueStaticExportConfigPtr& exportConfig,
     const TQueueExporterDynamicConfig& dynamicConfig,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IAlertCollectorPtr alertCollector,
-    const TProfiler& queueProfiler,
+    IQueueExporterProfileManagerPtr profileManager,
     const TLogger& logger)
     : ExportName_(std::move(exportName))
     , Queue_(std::move(queue))
@@ -790,7 +790,7 @@ TQueueExporterOld::TQueueExporterOld(
     , ClientDirectory_(std::move(clientDirectory))
     , Invoker_(std::move(invoker))
     , AlertCollector_(std::move(alertCollector))
-    , ProfilingCounters_(New<TQueueExportProfilingCountersOld>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
+    , ProfilingCounters_(New<TQueueExportProfilingCountersOld>(profileManager->GetProfiler(EProfilerScope::Object)))
     , Executor_(New<TScheduledExecutor>(
             Invoker_,
             BIND_NO_PROPAGATE(&TQueueExporterOld::Export, MakeWeak(this)),
@@ -841,11 +841,10 @@ void TQueueExporterOld::Export()
 void TQueueExporterOld::GuardedExport()
 {
     auto config = GetConfig();
-
     auto exportTask = New<TQueueExportTaskOld>(
-        ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
+        ClientDirectory_->GetClientOrThrow(Queue_.GetCluster().value()),
         ProfilingCounters_,
-        Queue_.Path,
+        Queue_.GetPath(),
         config,
         Logger);
 

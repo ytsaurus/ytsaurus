@@ -22,6 +22,7 @@ struct ITabletActionManagerHost
     virtual const TDynamicTabletManagerConfigPtr& GetDynamicConfig() const = 0;
 
     virtual TTableSettings GetTableSettings(NTableServer::TTableNode* table) const = 0;
+    virtual THunkStorageSettings ValidateAndGetHunkStorageSettings(THunkStorageNode* hunkStorage) const = 0;
 
     virtual void ValidateBundleUsePermission(TTabletCellBundle* bundle) const = 0;
 
@@ -45,16 +46,22 @@ struct ITabletActionManagerHost
         TTabletBase* tablet,
         bool force,
         bool onDestroy,
-        bool retainPreloadedChunks = false) = 0;
+        TUnmountTabletOptions options) = 0;
 
     virtual void DoFreezeTablet(TTabletBase* tablet) = 0;
     virtual void DoUnfreezeTablet(TTabletBase* tablet) = 0;
 
     virtual void RequestProvisionalFlush(TTabletBase* tablet) = 0;
 
+    virtual void SendReshardRedirectionHint(
+        TTabletCellId cellId,
+        const std::vector<TTabletBaseRawPtr>& newTablets,
+        const std::vector<TTabletBaseRawPtr>& oldTablets,
+        const std::vector<NHydra::TRevision>& oldTabletMountRevisions) = 0;
+
     virtual void DoMountTablets(
         TTabletOwnerBase* table,
-        const TSerializedTabletOwnerSettings& serializedTableSettings,
+        const TSerializedTabletOwnerSettings& serializedSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
         bool useRetainedPreloadedChunks = false,

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "path.h"
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
@@ -13,6 +15,7 @@ namespace NYT::NQueueClient {
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentStageChannelConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerBatchLookupConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerConfig)
 
@@ -51,7 +54,6 @@ struct TQueueTableRow;
 struct TConsumerTableRow;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
-using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

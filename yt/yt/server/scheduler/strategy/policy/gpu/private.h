@@ -14,6 +14,19 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, GpuSchedulingPolicyLogger, "GpuSchedul
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EGpuSchedulingLogEventType,
+    (OperationRegistered)
+    (OperationUnregistered)
+    (AssignmentAdded)
+    (AssignmentPreempted)
+    (OperationBoundToModule)
+    (ModulesInfo)
+    (NodesInfo)
+    (OperationsInfo)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TSchedulingModule = std::string;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -63,13 +63,13 @@ public:
         : Logger(logger)
     {
         profiler.AddFuncGauge("/response_keeper/kept_response_count", MakeStrong(this), [this] {
-            return FinishedResponseCount_;
+            return FinishedResponseCount_.load(std::memory_order::relaxed);
         });
         profiler.AddFuncGauge("/response_keeper/kept_response_space", MakeStrong(this), [this] {
-            return FinishedResponseSpace_;
+            return FinishedResponseSpace_.load(std::memory_order::relaxed);
         });
         profiler.AddFuncGauge("/response_keeper/pending_response_count", MakeStrong(this), [this] {
-            return PendingResponseCount_;
+            return PendingResponseCount_.load(std::memory_order::relaxed);
         });
     }
 
@@ -135,8 +135,12 @@ public:
 
                 ResponseEvictionQueue_.emplace_back(id, mutationContext->GetTimestamp());
 
-                ++FinishedResponseCount_;
-                FinishedResponseSpace_ += space;
+                // Technically, memory_order::relaxed would've sufficed here because
+                // every access to these atomics is done from Automaton - except for
+                // profiling, which is fine with relaxed memory order, obviously.
+                // But let's stick with acquire-release for future-proofing.
+                FinishedResponseCount_.fetch_add(1, std::memory_order::acq_rel);
+                FinishedResponseSpace_.fetch_add(space, std::memory_order::acq_rel);
 
                 YT_LOG_DEBUG("Response added to persistent response keeper "
                     "(MutationId: %v, ResponseHash: %v)",
@@ -191,7 +195,7 @@ public:
         auto guard = WriterGuard(Lock_);
 
         auto pendingResponses = std::move(PendingResponses_);
-        PendingResponseCount_ = 0;
+        PendingResponseCount_.store(0, std::memory_order::release);
 
         guard.Release();
 
@@ -205,8 +209,8 @@ public:
     void Clear() override
     {
         FinishedResponses_.clear();
-        FinishedResponseCount_ = 0;
-        FinishedResponseSpace_ = 0;
+        FinishedResponseCount_.store(0, std::memory_order::release);
+        FinishedResponseSpace_.store(0, std::memory_order::release);
         ResponseEvictionQueue_.clear();
     }
 
@@ -215,8 +219,8 @@ public:
         using NYT::Save;
 
         Save(context, FinishedResponses_);
-        Save(context, FinishedResponseCount_);
-        Save(context, FinishedResponseSpace_);
+        Save(context, FinishedResponseCount_.load(std::memory_order::acquire));
+        Save(context, FinishedResponseSpace_.load(std::memory_order::acquire));
         Save(context, ResponseEvictionQueue_);
     }
 
@@ -225,8 +229,12 @@ public:
         using NYT::Load;
 
         Load(context, FinishedResponses_);
-        Load(context, FinishedResponseCount_);
-        Load(context, FinishedResponseSpace_);
+        FinishedResponseCount_.store(
+            Load<decltype(FinishedResponseCount_)::value_type>(context),
+            std::memory_order::release);
+        FinishedResponseSpace_.store(
+            Load<decltype(FinishedResponseSpace_)::value_type>(context),
+            std::memory_order::release);
         Load(context, ResponseEvictionQueue_);
     }
 
@@ -245,13 +253,16 @@ public:
         auto deadline = GetCurrentMutationContext()->GetTimestamp() - expirationTimeout;
         while (!ResponseEvictionQueue_.empty()) {
             const auto& item = ResponseEvictionQueue_.front();
-            if (item.When > deadline && FinishedResponseSpace_ <= maxResponsesSpace) {
+            if (item.When > deadline &&
+                FinishedResponseSpace_.load(std::memory_order::acquire) <= maxResponsesSpace) {
                 break;
             }
 
             if (counter > maxResponseCountPerEvictionPass) {
                 YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
-                    counter, FinishedResponseCount_, FinishedResponseSpace_);
+                    counter,
+                    FinishedResponseCount_.load(std::memory_order::acquire),
+                    FinishedResponseSpace_.load(std::memory_order::acquire));
                 break;
             }
 
@@ -259,8 +270,9 @@ public:
             YT_VERIFY(it != FinishedResponses_.end());
 
             ++counter;
-            --FinishedResponseCount_;
-            FinishedResponseSpace_ -= static_cast<i64>(GetByteSize(it->second));
+            FinishedResponseCount_.fetch_sub(1, std::memory_order::acq_rel);
+            FinishedResponseSpace_.fetch_sub(
+                static_cast<i64>(GetByteSize(it->second)), std::memory_order::acq_rel);
 
             FinishedResponses_.erase(it);
             ResponseEvictionQueue_.pop_front();
@@ -276,13 +288,16 @@ private:
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
-    i64 PendingResponseCount_ = 0;
+    // For profiling only.
+    std::atomic<i64> PendingResponseCount_ = 0;
 
     // Persistent.
     using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
     TFinishedResponseMap FinishedResponses_;
-    int FinishedResponseCount_ = 0;
-    i64 FinishedResponseSpace_ = 0;
+    // For profiling only. Saved to snapshot to avoid recomputing after loading.
+    std::atomic<int> FinishedResponseCount_ = 0;
+    // For limiting memory footprint and profiling. Saved to snapshot to avoid recomputing after loading.
+    std::atomic<i64> FinishedResponseSpace_ = 0;
     // Serializable queue.
     std::deque<TEvictionItem> ResponseEvictionQueue_;
 
@@ -297,7 +312,7 @@ private:
 
         auto promise = std::move(pendingIt->second);
         PendingResponses_.erase(pendingIt);
-        --PendingResponseCount_;
+        PendingResponseCount_.fetch_sub(1, std::memory_order::acq_rel);
 
         return promise;
     }
@@ -311,7 +326,7 @@ private:
         auto result = DoFindRequest(id, isRetry);
         if (!result) {
             EmplaceOrCrash(PendingResponses_, std::pair(id, NewPromise<TSharedRefArray>()));
-            ++PendingResponseCount_;
+            PendingResponseCount_.fetch_add(1, std::memory_order::acq_rel);
         }
         return result;
     }

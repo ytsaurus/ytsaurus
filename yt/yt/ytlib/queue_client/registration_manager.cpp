@@ -37,6 +37,8 @@ using namespace NYTree;
 
 TQueueConsumerRegistrationManagerProfilingCounters::TQueueConsumerRegistrationManagerProfilingCounters(const TProfiler& profiler)
     : ListAllRegistrationsRequestCount(profiler.Counter("/list_all_registrations_request_count"))
+    , ResolveReplicatedTableReplicaRequestCount(profiler.Counter("/resolve_replicated_table_replica_request_count"))
+    , ResolveReplicatedTableReplicaFailedRequestCount(profiler.Counter("/resolve_replicated_table_replica_failed_request_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,7 +259,7 @@ private:
         Registrations_.clear();
 
         for (const auto& registration : registrations) {
-            Registrations_[std::pair{TRichYPath{registration.Queue}, TRichYPath{registration.Consumer}}] = registration;
+            Registrations_.emplace(std::pair{registration.Queue, registration.Consumer}, registration);
         }
 
         YT_LOG_DEBUG("Queue consumer registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
@@ -281,7 +283,7 @@ private:
 
         for (const auto& replicatedTableInfo : replicatedTableMapping) {
             for (const auto& replica : replicatedTableInfo.GetReplicas()) {
-                ReplicaToReplicatedTable_[replica] = replicatedTableInfo.Ref;
+                ReplicaToReplicatedTable_[replica] = replicatedTableInfo.Path;
             }
         }
 

@@ -79,11 +79,13 @@ protected:
     template <class TRequest>
     void RegisterMethod(
         TCallback<void(TRequest*)> callback,
-        const std::vector<TString>& aliases = {});
+        const std::vector<TString>& aliases = {},
+        bool exceptionsAreNormal = false);
     template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
     void RegisterMethod(
         TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
-        const std::vector<TString>& aliases = {});
+        const std::vector<TString>& aliases = {},
+        bool exceptionsAreNormal = false);
 
     bool IsLeader() const;
     bool IsActiveLeader() const;
@@ -98,6 +100,7 @@ protected:
 
     virtual void OnBeforeSnapshotLoaded();
     virtual void OnAfterSnapshotLoaded();
+    virtual void OnReignChanged(TReign previousReign);
 
     virtual void OnStartLeading();
     virtual void OnLeaderRecoveryComplete();
@@ -121,8 +124,6 @@ private:
 
     void StartEpoch();
     void StopEpoch();
-
-    void LogHandlerError(const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
@@ -181,15 +182,18 @@ protected:
     template <class TRequest>
     void RegisterMethod(
         TCallback<void(TRequest*)> callback,
-        const std::vector<TString>& aliases = {});
+        const std::vector<TString>& aliases = {},
+        bool exceptionsAreNormal = false);
     template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
     void RegisterMethod(
         TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
-        const std::vector<TString>& aliases = {});
+        const std::vector<TString>& aliases = {},
+        bool exceptionsAreNormal = false);
 
     void RegisterMethod(
         const TString& name,
-        TCallback<void(TMutationContext*)> callback);
+        TCallback<void(TMutationContext*)> callback,
+        bool exceptionsAreNormal);
 
 private:
     using TThis = TCompositeAutomaton;
@@ -207,6 +211,8 @@ private:
         NProfiling::TGauge RequestSizeCounter;
 
         NYTProf::TProfilerTagPtr CpuProfilerTag;
+
+        bool ExceptionsAreAllowed;
     };
 
     struct TSaverDescriptorBase
@@ -271,7 +277,6 @@ private:
 
     TMethodDescriptor* GetMethodDescriptor(const TString& mutationType);
     std::vector<TCompositeAutomatonPartPtr> GetParts();
-    void LogHandlerError(const TError& error);
     void DeserializeRequestAndProfile(
         google::protobuf::MessageLite* requestMessage,
         TRef requestData,
@@ -280,6 +285,7 @@ private:
     bool IsRecovery() const;
 
     void HydraResetStateHash(NProto::TReqResetStateHash* request);
+    void HydraReportReignChange(NProto::TReqReportReignChange* request);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)

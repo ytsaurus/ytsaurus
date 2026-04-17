@@ -61,9 +61,9 @@ public:
     size_t GetHash() const;
 
     bool operator==(TAugmentedPtr other) const;
-    bool operator< (TAugmentedPtr other) const;
+    bool operator<(TAugmentedPtr other) const;
     bool operator<=(TAugmentedPtr other) const;
-    bool operator> (TAugmentedPtr other) const;
+    bool operator>(TAugmentedPtr other) const;
     bool operator>=(TAugmentedPtr other) const;
 
     template <class C>
@@ -262,6 +262,13 @@ NYson::TYsonString GetReplicasListYson(const std::vector<TChunkReplicaWithLocati
 NYson::TYsonString GetReplicasYson(
     const std::vector<TChunkReplicaWithLocationIndex>& replicasToAdd,
     const std::vector<TChunkReplicaWithLocationIndex>& replicasToRemove);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkReplicaWithLocationIndexFormatter
+{
+    void operator()(TStringBuilderBase* builder, const TChunkReplicaWithLocationIndex& replica) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

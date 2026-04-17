@@ -8,6 +8,8 @@ namespace NYT {
 
 DECLARE_REFCOUNTED_CLASS(TMinHashDigest);
 
+DECLARE_REFCOUNTED_STRUCT(TMinHashSimilarityConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -129,27 +129,24 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, HunkReplication_);
     Load(context, HunkPrimaryMediumIndex_);
 
-    // COMPAT(shakurov): IsTrunk() check should not be necessary after EMasterReign::ResetHunkMediaOnBranchedNodes is rolled out.
-    if (IsTrunk() || context.GetVersion() > EMasterReign::ResetHunkMediaOnBranchedNodes) {
-        // Check invariant: null hunk primary medium index <=> empty hunk replication.
-        if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
-            if (HunkReplication().GetSize() == 0) {
-                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
-                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                    GetVersionedId(),
-                    hunkPrimaryMediumIndex);
-            } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
-                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
-                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                    GetVersionedId(),
-                    hunkPrimaryMediumIndex);
-            }
-        } else if (HunkReplication().GetSize() != 0) {
-            YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
-                "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
+    // Check invariant: null hunk primary medium index <=> empty hunk replication.
+    if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
+        if (HunkReplication().GetSize() == 0) {
+            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
+                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
                 GetVersionedId(),
-                HunkReplication());
+                hunkPrimaryMediumIndex);
+        } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
+            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
+                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                GetVersionedId(),
+                hunkPrimaryMediumIndex);
         }
+    } else if (HunkReplication().GetSize() != 0) {
+        YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
+            "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
+            GetVersionedId(),
+            HunkReplication());
     }
 }
 
@@ -324,6 +321,9 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
         return HunkReplication_;
     }
 }
+
+void TChunkOwnerBase::ValidateBeginUpload(const TBeginUploadContext& /*context*/)
+{ }
 
 void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {

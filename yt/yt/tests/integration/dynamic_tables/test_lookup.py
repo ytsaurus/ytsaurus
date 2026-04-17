@@ -1,5 +1,7 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
+from yt_env_setup import is_sanitizer_build
+
 from yt_helpers import profiler_factory
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
@@ -12,7 +14,7 @@ from yt_commands import (
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_node_banned,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
     wait_for_cells, build_snapshot, sort, merge, create_tablet_cell_bundle,
-    AsyncLastCommittedTimestamp, create_user, make_ace)
+    AsyncLastCommittedTimestamp, create_user, make_ace, enable_local_throttling)
 
 from yt_type_helpers import make_schema
 
@@ -1694,14 +1696,27 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         for use_lookup_cache in [False, True, True]:
             assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
 
-    @authors("akozhikhov")
-    def test_error_upon_net_throttler_overdraft(self):
-        return
+    @authors("akozhikhov", "tea-mur")
+    @pytest.mark.parametrize("throttler_type", ["net", "disk"])
+    def test_read_throttling(self, throttler_type):
+        if throttler_type == "disk":
+            bundle_dynamic_config = {
+                "%true": {
+                    "config_annotation": "foo",
+                    "medium_throughput_limits" : {
+                        "default" : {
+                            "read_byte_rate" : 50
+                        }
+                    }
+                }
+            }
+            set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
 
         sync_create_cells(1)
+        # TODO(tea-mur): Unconditionally account disk usage in medium throttlers for collocated data nodes, YT-24813
+        enable_local_throttling()
 
         self._create_simple_table("//tmp/t", chunk_reader={
-            "enable_local_throttling": True,
             "use_block_cache": False,
             "use_uncompressed_block_cache": False,
             "prefer_local_replicas": False,
@@ -1712,19 +1727,41 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", row)
         sync_flush_table("//tmp/t")
 
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "throttlers": {
+        def _get_lookup_time(lookup_count=1):
+            start_time = time.time()
+
+            for _ in range(lookup_count):
+                assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+            return time.time() - start_time
+
+        if is_sanitizer_build():
+            assert _get_lookup_time(lookup_count=5) < 1.5
+        else:
+            assert _get_lookup_time(lookup_count=5) < 1
+
+        if throttler_type == "disk":
+            update_nodes_dynamic_config({
+                "tablet_node" : {
+                    "medium_throttlers" : {
+                        "enable_blob_throttling" : True,
+                    }
+                }
+            })
+        elif throttler_type == "net":
+            update_nodes_dynamic_config({
+                "in_throttlers": {
                     "user_backend_in": {
                         "limit": 50,
                     }
                 }
-            }
-        })
+            })
 
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-        with raises_yt_error(yt_error_codes.RequestThrottled):
-            lookup_rows("//tmp/t", [{"key": 1}])
+        # Wait for throttler to update inner state
+        wait(lambda: _get_lookup_time() > 3)
+
+        # Verify that timings are consistent
+        assert _get_lookup_time() > 3
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("enable_data_node_lookup, enable_hash_chunk_index", [
@@ -1832,6 +1869,16 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         remount_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(0, 100)]) == rows
 
+    @authors("akozhikhov")
+    def test_indexed_format_and_hunk_erasure_incompatibility(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        self._enable_hash_chunk_index("//tmp/t")
+        set("//tmp/t/@erasure_codec", "isa_reed_solomon_6_3")
+        with raises_yt_error('only for tables with null "erasure_codec"'):
+            sync_mount_table("//tmp/t")
+
 
 @pytest.mark.enabled_multidaemon
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
@@ -1850,7 +1897,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
             "use_block_cache": False,
             "use_uncompressed_block_cache": False,
             "prefer_local_replicas": False
-        })
+        }, optimize_for="lookup")
 
         sync_mount_table("//tmp/t")
 

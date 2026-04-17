@@ -22,8 +22,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.artifacts_path = None
         self.subprocesses_count = None
         self.env = None
+        self.remote_envs = []
 
-    def prepare(self, env, config):
+    def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
 
         if "path" in config:
@@ -32,6 +33,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.libraries = config.get("libraries", {})
         self.config = config
         self.env = env
+        self.remote_envs = remote_envs
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
@@ -145,19 +147,29 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "slots_root_path": yql_agent_plugin_slots_path
             }
 
+        cluster_mapping = [
+            {
+                "name": self.env.id,
+                "cluster": self.env.get_http_proxy_address(),
+                "default": True,
+                "settings": [{"name": "_AllowRemoteClusterInput", "value": "true" if len(self.remote_envs) > 0 else "false"}]
+            }
+        ]
+
+        for env in self.remote_envs:
+            cluster_mapping.append({
+                "name": env.id,
+                "cluster": env.get_http_proxy_address(),
+                "default": False
+            })
+
         config = {
             "user": self.USER_NAME,
             "yql_agent": {
                 "gateway_config": {
                     "mr_job_bin": mr_job_bin,
                     "mr_job_udfs_dir": mr_job_udfs_dir,
-                    "cluster_mapping": [
-                        {
-                            "name": self.env.id,
-                            "cluster": self.env.get_http_proxy_address(),
-                            "default": True,
-                        }
-                    ],
+                    "cluster_mapping": cluster_mapping,
                     "default_settings": [{"name": "DefaultCalcMemoryLimit", "value": "2G"}]
                 },
                 # Slightly change the defaults to check if they can be overwritten.

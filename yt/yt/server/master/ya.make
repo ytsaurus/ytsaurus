@@ -8,6 +8,7 @@ SRCS(
     cell_master/alert_manager.cpp
     cell_master/automaton.cpp
     cell_master/bootstrap.cpp
+    cell_master/cell_master_service.cpp
     cell_master/cell_statistics.cpp
     cell_master/config_manager.cpp
     cell_master/config.cpp
@@ -428,6 +429,7 @@ SRCS(
     transaction_server/config.cpp
     transaction_server/cypress_integration.cpp
     transaction_server/cypress_transaction_service.cpp
+    transaction_server/helpers.cpp
     transaction_server/sequoia_integration.cpp
     transaction_server/transaction_finisher.cpp
     transaction_server/transaction_manager.cpp
@@ -457,20 +459,21 @@ PEERDIR(
     yt/yt/server/lib/cell_server
     yt/yt/server/lib/cellar_agent
     yt/yt/server/lib/chunk_server
+    yt/yt/server/lib/cypress_proxy
     yt/yt/server/lib/discovery_server
     yt/yt/server/lib/hive
-    yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/hydra
+    yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/incumbent_client
     yt/yt/server/lib/node_tracker_server
     yt/yt/server/lib/object_server
     yt/yt/server/lib/security_server
+    yt/yt/server/lib/sequoia
     yt/yt/server/lib/table_server
     yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/tablet_server
     yt/yt/server/lib/timestamp_server
     yt/yt/server/lib/transaction_supervisor
-    yt/yt/server/lib/sequoia
 
     # TODO(max42): eliminate.
     yt/yt/server/lib/scheduler

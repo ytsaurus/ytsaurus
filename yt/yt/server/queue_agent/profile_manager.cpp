@@ -111,46 +111,46 @@ struct TQueuePartitionProfilingCounters
 };
 
 class TQueueProfileManager
-    : public IQueueProfileManager
+    : public NDetail::TProfileManagerBase<TQueueSnapshotPtr>
 {
 public:
-    explicit TQueueProfileManager(
+    TQueueProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
-        const TTagSet& managerTags,
-        const TTagSet& passTags,
-        const TTagSet& alertManagerTags)
-        : QueueProfiler_(profiler
-            .WithGlobal()
-            .WithPrefix("/queue")
-            .WithTags(managerTags))
-        , QueuePartitionProfiler_(profiler
-            .WithGlobal()
-            .WithPrefix("/queue_partition")
-            .WithTags(managerTags))
-        , QueuePassProfiler_(profiler
-            .WithPrefix("/queue")
-            .WithTags(passTags))
-        , QueueAlertManagerProfiler_(profiler
-            .WithGlobal()
-            .WithTags(alertManagerTags))
+        const TQueueTableRow& row,
+        bool leading)
+        : TProfileManagerBase(
+            {
+                {
+                    EProfilerScope::Object,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row))
+                        .WithGlobal()
+                        .WithPrefix("/queue"),
+                },
+                {
+                    EProfilerScope::ObjectPartition,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row))
+                        .WithGlobal()
+                        .WithPrefix("/queue_partition"),
+                },
+                {
+                    EProfilerScope::ObjectPass,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row, /*enablePathAggregation*/ true, /*addObjectType*/ true, leading))
+                        .WithPrefix("/queue/controller"),
+                },
+                {
+                    EProfilerScope::AlertManager,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row, /*enablePathAggregation*/ true))
+                        .WithGlobal()
+                        .WithPrefix("/queue/controller"),
+                },
+            })
         , Logger(logger)
     { }
-
-    const TProfiler& GetQueueProfiler() const override
-    {
-        return QueueProfiler_;
-    }
-
-    const TProfiler& GetAlertManagerProfiler() const override
-    {
-        return QueueAlertManagerProfiler_;
-    }
-
-    const TProfiler& GetPassProfiler() const override
-    {
-        return QueuePassProfiler_;
-    }
 
     void Profile(
         const TQueueSnapshotPtr& previousQueueSnapshot,
@@ -215,14 +215,7 @@ public:
     }
 
 private:
-    const TProfiler QueueProfiler_;
-    const TProfiler QueuePartitionProfiler_;
-
-    const TProfiler QueuePassProfiler_;
-
-    const TProfiler QueueAlertManagerProfiler_;
-
-    TLogger Logger;
+    const TLogger Logger;
 
     std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
     std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
@@ -248,10 +241,10 @@ private:
         auto partitionCount = queueSnapshot->PartitionCount;
 
         if (!QueueProfilingCounters_) {
-            QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(QueueProfiler_);
+            QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(GetProfiler(EProfilerScope::Object));
         }
 
-        ResizePartitionCounters(QueuePartitionProfilingCounters_, QueuePartitionProfiler_, partitionCount, Logger);
+        ResizePartitionCounters(QueuePartitionProfilingCounters_, GetProfiler(EProfilerScope::ObjectPartition), partitionCount, Logger);
     }
 };
 
@@ -294,32 +287,40 @@ struct TConsumerPartitionProfilingCounters
 };
 
 class TConsumerProfileManager
-    : public IConsumerProfileManager
+    : public NDetail::TProfileManagerBase<TConsumerSnapshotPtr>
 {
 public:
-    explicit TConsumerProfileManager(
+    TConsumerProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
-        const TTagSet& consumerTags,
-        const TTagSet& consumerPassTags)
-        : ConsumerProfiler_(profiler
-            .WithGlobal()
-            .WithTags(consumerTags)
-            .WithPrefix("/consumer"))
-        , ConsumerPartitionProfiler_(profiler
-            .WithGlobal()
-            .WithTags(consumerTags)
-            .WithPrefix("/consumer_partition"))
-        , ConsumerPassProfiler_(profiler
-            .WithTags(consumerPassTags)
-            .WithPrefix("/consumer"))
+        const TConsumerTableRow& row,
+        bool leading)
+        : TProfileManagerBase(
+            {
+                {
+                    EProfilerScope::Object,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(row))
+                        .WithGlobal()
+                        .WithPrefix("/consumer"),
+                },
+                {
+                    EProfilerScope::ObjectPartition,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(row))
+                        .WithGlobal()
+                        .WithPrefix("/consumer_partition"),
+                },
+                {
+                    EProfilerScope::ObjectPass,
+                    profiler
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(row, /*enablePathAggregation*/ true, /*addObjectType*/ true, leading))
+                        .WithPrefix("/consumer/controller"),
+                },
+                {EProfilerScope::AlertManager, profiler},
+            })
         , Logger(logger)
     { }
-
-    const TProfiler& GetPassProfiler() const override
-    {
-        return ConsumerPassProfiler_;
-    }
 
     void Profile(
         const TConsumerSnapshotPtr& previousConsumerSnapshot,
@@ -343,32 +344,32 @@ public:
 
         YT_LOG_DEBUG("Profiling consumer (SubConsumerSnapshots: %v)", currentConsumerSnapshot->SubSnapshots.size());
 
-        for (const auto& queueRef : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
-            const auto& previousSubSnapshot = previousConsumerSnapshot->SubSnapshots[queueRef];
-            const auto& currentSubSnapshot = currentConsumerSnapshot->SubSnapshots[queueRef];
+        for (const auto& queuePath : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
+            const auto& previousSubSnapshot = previousConsumerSnapshot->SubSnapshots[queuePath];
+            const auto& currentSubSnapshot = currentConsumerSnapshot->SubSnapshots[queuePath];
 
             auto partitionCount = currentSubSnapshot->PartitionCount;
 
             if (auto snapshotError = GetSnapshotError(previousSubSnapshot->Error, currentSubSnapshot->Error); !snapshotError.IsOK()) {
                 YT_LOG_DEBUG(
                     "Skipping sub-consumer snapshot in profiling due to error (Queue: %v, Error: %v)",
-                    queueRef,
+                    queuePath,
                     snapshotError);
                 continue;
             }
 
             // NB: It is important to perform this call after validating that the snapshot doesn't contain errors.
             // Otherwise, we might end up using incorrect default values from the snapshot.
-            EnsureConsumerPartitionCounters(queueRef, currentSubSnapshot);
+            EnsureConsumerPartitionCounters(queuePath, currentSubSnapshot);
 
             const auto& previousPartitionSnapshots = previousSubSnapshot->PartitionSnapshots;
             const auto& currentPartitionSnapshots = currentSubSnapshot->PartitionSnapshots;
 
-            auto& subConsumerProfilingCounters = ConsumerPartitionProfilingCounters_[queueRef].Counters;
+            auto& subConsumerProfilingCounters = ConsumerPartitionProfilingCounters_[queuePath].Counters;
 
             YT_LOG_DEBUG(
                 "Profiling partitions for sub-consumer (Queue: %v, Partitions: %v)",
-                queueRef,
+                queuePath,
                 partitionCount);
 
             for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
@@ -378,7 +379,7 @@ public:
                 if (auto snapshotError = GetSnapshotError(previousConsumerPartitionSnapshot->Error, currentConsumerPartitionSnapshot->Error); !snapshotError.IsOK()) {
                     YT_LOG_DEBUG(
                         "Skipping partition in profiling due to error (Queue: %v, Partition: %v, Error: %v)",
-                        queueRef,
+                        queuePath,
                         partitionIndex,
                         snapshotError);
                     continue;
@@ -398,7 +399,7 @@ public:
                     YT_LOG_DEBUG(
                         "Consumer for queue with cumulative data weight support could not export data weight consumed "
                         "(Queue: %v, Partition: %v, CumulativeDataWeight: %v -> %v, NextRowIndex: %v -> %v, RowsConsumed: %v, UnreadRowCount: %v -> %v, UnreadDataWeight: %v -> %v)",
-                        queueRef,
+                        queuePath,
                         partitionIndex,
                         previousConsumerPartitionSnapshot->CumulativeDataWeight,
                         currentConsumerPartitionSnapshot->CumulativeDataWeight,
@@ -422,99 +423,96 @@ public:
     }
 
 private:
-    const TProfiler ConsumerProfiler_;
-    const TProfiler ConsumerPartitionProfiler_;
-
-    const TProfiler ConsumerPassProfiler_;
-
-    TLogger Logger;
+    const TLogger Logger;
 
     std::unique_ptr<TConsumerProfilingCounters> ConsumerProfilingCounters_;
 
-    struct PartitionProfiler {
-        std::string CurrentQueueTag;
+    struct TPartitionProfiler
+    {
+        std::optional<std::string> CurrentQueueTag;
         std::vector<TConsumerPartitionProfilingCounters> Counters{};
     };
 
-    THashMap<TCrossClusterReference, PartitionProfiler> ConsumerPartitionProfilingCounters_;
+    THashMap<TTablePath, TPartitionProfiler> ConsumerPartitionProfilingCounters_;
 
     void EnsureCounters(const TConsumerSnapshotPtr& currentConsumerSnapshot)
     {
         if (!ConsumerProfilingCounters_) {
-            ConsumerProfilingCounters_ = std::make_unique<TConsumerProfilingCounters>(ConsumerProfiler_);
+            ConsumerProfilingCounters_ = std::make_unique<TConsumerProfilingCounters>(GetProfiler(EProfilerScope::Object));
         }
 
         // Remove counters for outdated registrations.
         decltype(ConsumerPartitionProfilingCounters_) newConsumerPartitionProfilingCounters;
-        for (const auto& queueRef : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
-            if (ConsumerPartitionProfilingCounters_.contains(queueRef)) {
-                newConsumerPartitionProfilingCounters[queueRef] = ConsumerPartitionProfilingCounters_[queueRef];
+        for (const auto& queuePath : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
+            if (ConsumerPartitionProfilingCounters_.contains(queuePath)) {
+                newConsumerPartitionProfilingCounters[queuePath] = ConsumerPartitionProfilingCounters_[queuePath];
             }
         }
         ConsumerPartitionProfilingCounters_ = std::move(newConsumerPartitionProfilingCounters);
     }
 
-    void EnsureConsumerPartitionCounters(const TCrossClusterReference& queueRef, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
+    void EnsureConsumerPartitionCounters(const TTablePath& queuePath, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
     {
-        auto queueTag = subConsumerSnapshot->QueueProfilingTag.value_or(NoneProfilingTag);
-        auto profiler = ConsumerPartitionProfiler_;
+        auto profiler = GetProfiler(EProfilerScope::ObjectPartition);
         TTagSet tagSet;
-        tagSet.AddRequiredTag({"queue_cluster", queueRef.Cluster});
-        tagSet.AddRequiredTag({"queue_path", TrimProfilingTagValue(queueRef.Path)});
-        tagSet.AddRequiredTag({"queue_tag", queueTag});
+        tagSet.AddRequiredTag({"queue_cluster", queuePath.GetCluster().value()});
+        tagSet.AddRequiredTag({"queue_path", TrimProfilingTagValue(queuePath.GetPath())});
+        tagSet.AddRequiredTag({"queue_tag", subConsumerSnapshot->QueueProfilingTag.value_or(NoneProfilingTag)});
         profiler = profiler.WithTags(tagSet);
 
-        if (!ConsumerPartitionProfilingCounters_.contains(queueRef)) {
-            ConsumerPartitionProfilingCounters_[queueRef] = PartitionProfiler{
-                .CurrentQueueTag = queueTag,
+        if (!ConsumerPartitionProfilingCounters_.contains(queuePath)) {
+            ConsumerPartitionProfilingCounters_[queuePath] = TPartitionProfiler{
+                .CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag,
             };
         }
 
-        auto& partitionProfiler = ConsumerPartitionProfilingCounters_[queueRef];
+        auto& partitionProfiler = ConsumerPartitionProfilingCounters_[queuePath];
 
-        if (partitionProfiler.CurrentQueueTag != queueTag) {
+        if (partitionProfiler.CurrentQueueTag != subConsumerSnapshot->QueueProfilingTag) {
             YT_LOG_DEBUG(
-                "Updating consumer partition counters (Queue: %v, Partitions: %v, queueTag: %v -> %v)",
-                queueRef,
+                "Updating consumer partition counters (Queue: %v, Partitions: %v, QueueTag: %v -> %v)",
+                queuePath,
                 subConsumerSnapshot->PartitionCount,
                 partitionProfiler.CurrentQueueTag,
-                queueTag);
-            partitionProfiler.CurrentQueueTag = queueTag;
+                subConsumerSnapshot->QueueProfilingTag);
 
-            /// TODO: impl update
+            partitionProfiler.CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag;
+            partitionProfiler.Counters = {};
         }
 
         ResizePartitionCounters(
             partitionProfiler.Counters,
             profiler,
             subConsumerSnapshot->PartitionCount,
-            Logger().WithTag("Queue: %v", queueRef));
+            Logger().WithTag("Queue: %v", queuePath));
     }
 
     TError CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const
     {
-        auto getQueueRefsAndPartitionCounts = [] (const TConsumerSnapshotPtr& snapshot) {
-        std::vector<std::pair<TCrossClusterReference, int>> result;
-            for (const auto& [queueRef, subSnapshot] : snapshot->SubSnapshots) {
-                result.emplace_back(queueRef, subSnapshot->PartitionCount);
+        auto getQueuePathsAndPartitionCounts = [] (const TConsumerSnapshotPtr& snapshot) {
+            std::vector<std::pair<TTablePath, int>> result;
+            for (const auto& [queuePath, subSnapshot] : snapshot->SubSnapshots) {
+                result.emplace_back(queuePath, subSnapshot->PartitionCount);
             }
-            std::sort(result.begin(), result.end());
+            std::ranges::sort(result);
             return result;
         };
 
-        auto previousQueueRefsAndPartitions = getQueueRefsAndPartitionCounts(previousConsumerSnapshot);
-        auto currentQueueRefsAndPartitions = getQueueRefsAndPartitionCounts(currentConsumerSnapshot);
+        auto previousQueuePathsAndPartitions = getQueuePathsAndPartitionCounts(previousConsumerSnapshot);
+        auto currentQueuePathsAndPartitions = getQueuePathsAndPartitionCounts(currentConsumerSnapshot);
 
-        if (previousQueueRefsAndPartitions != currentQueueRefsAndPartitions) {
+        if (previousQueuePathsAndPartitions != currentQueuePathsAndPartitions) {
             return TError(
                 "Queue refs and partitions differ: %v != %v",
-                previousQueueRefsAndPartitions,
-                currentQueueRefsAndPartitions);
+                previousQueuePathsAndPartitions,
+                currentQueuePathsAndPartitions);
         }
 
         return {};
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TConsumerProfileManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -524,34 +522,7 @@ IQueueProfileManagerPtr CreateQueueProfileManager(
     const TQueueTableRow& row,
     bool leading)
 {
-    auto queueTag = row.QueueProfilingTag.value_or(NoneProfilingTag);
-    auto objectTypeString = ToOptionalString(row.ObjectType).value_or(NoneObjectType);
-    auto trimmedPath = TrimProfilingTagValue(row.Ref.Path);
-
-    TTagSet managerTags;
-    managerTags.AddRequiredTag({"queue_cluster", row.Ref.Cluster});
-    managerTags.AddRequiredTag({"queue_path", trimmedPath});
-    managerTags.AddRequiredTag({"queue_tag", queueTag});
-
-    TTagSet passTags;
-    passTags.AddRequiredTag({"queue_cluster", row.Ref.Cluster});
-    passTags.AddTag({"queue_path", trimmedPath}, /*parent*/ -1); /// parent is queue_cluster
-    passTags.AddTag({"queue_tag", queueTag}, /*parent*/ -2); /// parent is queue_cluster
-    passTags.AddTag({"object_type", objectTypeString}, /*parent*/ -3); /// parent is queue_cluster
-    passTags.AddRequiredTag({"leading", leading ? "true" : "false"}); // parent is queue_cluster
-
-    TTagSet alertManagerTags;
-    alertManagerTags.AddTag({"queue_cluster", row.Ref.Cluster});
-    alertManagerTags.AddTag({"queue_path", trimmedPath}, /*parent*/ -1); /// parent is queue_cluster
-    alertManagerTags.AddTag({"queue_tag", queueTag}, /*parent*/ -2); /// parent is queue_cluster
-    alertManagerTags.AddTag({"object_type", objectTypeString}, /*parent*/ -3); /// parent is queue_cluster
-
-    return New<TQueueProfileManager>(
-        profiler,
-        logger,
-        managerTags,
-        passTags,
-        alertManagerTags);
+    return New<TQueueProfileManager>(profiler, logger, row, leading);
 }
 
 IConsumerProfileManagerPtr CreateConsumerProfileManager(
@@ -560,26 +531,7 @@ IConsumerProfileManagerPtr CreateConsumerProfileManager(
     const TConsumerTableRow& row,
     bool leading)
 {
-    auto consumerTag = row.QueueConsumerProfilingTag.value_or(NoneProfilingTag);
-    auto pathTag = TrimProfilingTagValue(row.Ref.Path);
-
-    TTagSet consumerTags;
-    consumerTags.AddRequiredTag({"consumer_cluster", row.Ref.Cluster});
-    consumerTags.AddRequiredTag({"consumer_path", pathTag});
-    consumerTags.AddRequiredTag({"consumer_tag", consumerTag});
-
-    TTagSet consumerPassTags;
-    consumerPassTags.AddRequiredTag({"consumer_cluster", row.Ref.Cluster});
-    consumerPassTags.AddTag({"consumer_path", pathTag}, /*parent*/ -1); // parent is consumer_cluster
-    consumerPassTags.AddTag({"consumer_tag", consumerTag}, /*parent*/ -2); // parent is consumer_cluster
-    consumerPassTags.AddTag({"object_type", ToOptionalString(row.ObjectType).value_or(NoneObjectType)}, /*parent*/ -3); // parent is consumer_cluster
-    consumerPassTags.AddRequiredTag({"leading", leading ? "true" : "false"}); // parent is consumer_cluster
-
-    return New<TConsumerProfileManager>(
-        profiler,
-        logger,
-        consumerTags,
-        consumerPassTags);
+    return New<TConsumerProfileManager>(profiler, logger, row, leading);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

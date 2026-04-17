@@ -1201,4 +1201,18 @@ TString FormatBlocks(int startBlockIndex, int endBlockIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsJournalFormat(EChunkFormat format) noexcept
+{
+    switch (format) {
+        case EChunkFormat::JournalDefault:
+        case EChunkFormat::JournalDistributed:
+        case EChunkFormat::HunkJournal:
+            return true;
+        default:
+            return false;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

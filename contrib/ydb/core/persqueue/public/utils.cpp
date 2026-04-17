@@ -2,6 +2,7 @@
 #include "constants.h"
 
 #include <contrib/ydb/core/base/appdata.h>
+#include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/library/yverify_stream/yverify_stream.h>
 #include <util/generic/algorithm.h>
 #include <util/string/builder.h>

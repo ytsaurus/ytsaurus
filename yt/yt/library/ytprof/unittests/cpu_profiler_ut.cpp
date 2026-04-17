@@ -91,7 +91,7 @@ void RunUnderProfiler(
         ASSERT_EQ(expectEmpty, profile.sampleSize() == 0);
     }
 
-    Symbolize(&profile, true);
+    Symbolize(&profile, { .SymbolizeExistingFunctions = false });
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
     SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
         .TmpDir = GetOutputPath().GetPath(),
@@ -264,7 +264,7 @@ TEST_F(TCpuProfilerTest, TraceContext)
     RunUnderProfiler("trace_context.pb.gz", [] {
         auto actionQueue = New<TActionQueue>("CpuProfileTest");
 
-        BIND([] {
+        NConcurrency::WaitFor(BIND([] {
             auto rootTraceContext = TTraceContext::NewRoot("");
             rootTraceContext->AddProfilingTag("user", "prime");
             TCurrentTraceContextGuard guard(rootTraceContext);
@@ -285,8 +285,8 @@ TEST_F(TCpuProfilerTest, TraceContext)
                 .ThrowOnError();
         })
             .AsyncVia(actionQueue->GetInvoker())
-            .Run()
-            .Get();
+            .Run())
+            .ThrowOnError();
 
         actionQueue->Shutdown();
     });
@@ -319,7 +319,7 @@ TEST_F(TCpuProfilerTest, SlowActions)
         auto future = BIND(busyWait, TraceThreshold / 2)
             .AsyncVia(threadPool->GetInvoker())
             .Run();
-        future.Get();
+        WaitUntilSet(future);
     },
     true,
     filters,
@@ -331,7 +331,7 @@ TEST_F(TCpuProfilerTest, SlowActions)
         auto future = BIND(busyWait, TraceThreshold * 3)
             .AsyncVia(threadPool->GetInvoker())
             .Run();
-        future.Get();
+        WaitUntilSet(future);
     },
     true,
     filters);

@@ -78,7 +78,7 @@ public:
         if (!blocksToRead.empty()) {
             // Read blocks from the table.
             TSharedRange<TUnversionedRow> rows;
-            if (blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1) {
+            if (blocksToRead.begin()->first + std::ssize(blocksToRead) - 1 == blocksToRead.rbegin()->first) {
                 // The range is contiguous.
                 rows = SelectRows(blocksToRead, options.Cookie);
             } else {
@@ -219,7 +219,7 @@ private:
     TSharedRange<TUnversionedRow> SelectRows(const std::map<i64, TSharedMutableRef>& blocksToRead, ui64 cookie)
     {
         YT_VERIFY(!blocksToRead.empty());
-        YT_VERIFY(blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1);
+        YT_VERIFY(blocksToRead.begin()->first + std::ssize(blocksToRead) - 1 == blocksToRead.rbegin()->first);
 
         YT_LOG_DEBUG("Start select (Blocks: %v, Cookie: %x)",
             blocksToRead.size(),

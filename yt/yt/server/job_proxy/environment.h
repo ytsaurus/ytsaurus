@@ -4,10 +4,9 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/yt/library/containers/public.h>
-#include <yt/yt/library/containers/porto_resource_tracker.h>
-
 #include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/containers/porto_resource_tracker.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -111,7 +110,7 @@ public:
         TWeakPtr<IJobProxyEnvironment> jobProxy,
         std::function<void(TError)> failedSidecarCallback);
 
-    virtual void StartSidecar() = 0;
+    virtual TFuture<void> StartSidecar() = 0;
     virtual TFuture<void> ShutdownSidecar() = 0;
     virtual void RestartSidecar() = 0;
     virtual bool IsAlive() = 0;

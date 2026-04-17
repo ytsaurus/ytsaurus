@@ -34,11 +34,11 @@ class Mapper():
 
         for row in rows:
             for column in self.columns:
-                if column not in row or not row[column]:
+                if column not in row or row[column] is None:
                     index = 0
                     size = 0
                 else:
-                    size = len(str(row[column]))
+                    size = len(yson.get_bytes(row[column]))
                     index = self.compute_bucket_index(size)
                 column_bucket_sizes[column][index] += 1
                 column_bucket_data_sizes[column][index] += size
@@ -322,8 +322,12 @@ if __name__ == "__main__":
 
     common_parser_group.add_argument("--proxy", type=yt.config.set_proxy, help="YT proxy", required=True)
     common_parser_group.add_argument("--table-path", type=str, help="Table path", required=True)
-    common_parser_group.add_argument("--sampling-rate", type=float, default=1., help="Analyzer sampling rate")
-    common_parser_group.add_argument("--result-file", type=str, help="Result file name", required=True)
+    common_parser_group.add_argument("--sampling-rate", type=float, default=1., help="Analyzer sampling rate, default 1.0 that equals 100%")
+    common_parser_group.add_argument(
+        "--result-file",
+        type=str,
+        help="Result file name. Supported formats file ext: eps, jpeg, jpg, pdf, pgf, png, ps, raw, rgba, svg, svgz, tif, tiff, webp",
+        required=True)
 
     subparsers = parser.add_subparsers(dest="mode", help="Mode specific arguments")
 
@@ -332,7 +336,7 @@ if __name__ == "__main__":
         parents=[common_parser],
         help="Computes inline weight ratio")
     compute_weight_parser_group = compute_weight_parser.add_argument_group("Compute weight params")
-    compute_weight_parser_group.add_argument("--computation-path", type=str, help="Path for intermediate computation results", required=True)
+    compute_weight_parser_group.add_argument("--computation-path", type=str, help="YT directory path for intermediate computation results", required=True)
 
     compute_saturation_parser = subparsers.add_parser(
         "compute_saturation",

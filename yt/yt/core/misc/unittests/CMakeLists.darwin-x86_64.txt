@@ -36,6 +36,7 @@ target_compile_options(unittester-core-misc PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(unittester-core-misc PUBLIC
@@ -115,7 +116,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/pool_allocator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/proc_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/random_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/range_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ref_counted_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/relaxed_mpsc_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ring_queue_ut.cpp

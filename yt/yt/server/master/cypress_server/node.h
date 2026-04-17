@@ -386,7 +386,6 @@ public:
     std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeoutUser() const;
     std::optional<TInstant> GetExpirationTimeoutLastResetTime() const;
 
-
     //! Returns the static type of the node.
     /*!
      *  \see NYT::NYTree::INode::GetType

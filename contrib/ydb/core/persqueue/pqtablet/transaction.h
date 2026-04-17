@@ -1,5 +1,6 @@
 #pragma once
 
+#include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 #include <contrib/ydb/core/protos/msgbus_kv.pb.h>
@@ -35,9 +36,11 @@ struct TDistributedTransaction {
                    std::unique_ptr<TEvTxProcessing::TEvReadSetAck> ack);
     void OnReadSetAck(const NKikimrTx::TEvReadSetAck& event);
     void OnReadSetAck(ui64 tabletId);
-    void OnTxCommitDone(const TEvPQ::TEvTxCommitDone& event);
+    void OnTxDone(const TEvPQ::TEvTxDone& event);
 
     void SendPlanStepAcksAfterCompletion(const TActorId& sender, std::unique_ptr<TEvTxProcessing::TEvPlanStep>&& event);
+
+    bool GetSkipSrcIdInfo() const;
 
     using EDecision = NKikimrTx::TReadSetData::EDecision;
     using EState = NKikimrPQ::TTransaction::EState;

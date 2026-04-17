@@ -1067,6 +1067,7 @@ class BuildsStrategy(SearchStrategy[Ex]):
             with context.track_arg_label(k) as arg_label:
                 kwargs[k] = data.draw(v)
             arg_labels |= arg_label
+
         try:
             obj = self.target(*args, **kwargs)
         except TypeError as err:
@@ -1517,7 +1518,7 @@ def _from_type(thing: type[Ex]) -> SearchStrategy[Ex]:
 
     # If there's no explicitly registered strategy, maybe a subtype of thing
     # is registered - if so, we can resolve it to the subclass strategy.
-    # We'll start by checking if thing is from from the typing module,
+    # We'll start by checking if thing is from the typing module,
     # because there are several special cases that don't play well with
     # subclass and instance checks.
     if (
@@ -1857,18 +1858,16 @@ def recursive(
     base: SearchStrategy[Ex],
     extend: Callable[[SearchStrategy[Any]], SearchStrategy[T]],
     *,
-    min_leaves: int = 1,
+    min_leaves: int | None = None,
     max_leaves: int = 100,
 ) -> SearchStrategy[T | Ex]:
     """base: A strategy to start from.
 
     extend: A function which takes a strategy and returns a new strategy.
 
-    min_leaves: The minimum number of elements to be drawn from base on a given
-    run.
+    min_leaves: The minimum number of elements to be drawn from base on a given run.
 
-    max_leaves: The maximum number of elements to be drawn from base on a given
-    run.
+    max_leaves: The maximum number of elements to be drawn from base on a given run.
 
     This returns a strategy ``S`` such that ``S = extend(base | S)``. That is,
     values may be drawn from base, or from any strategy reachable by mixing
@@ -1882,9 +1881,7 @@ def recursive(
     Examples from this strategy shrink by trying to reduce the amount of
     recursion and by shrinking according to the shrinking behaviour of base
     and the result of extend.
-
     """
-
     return RecursiveStrategy(base, extend, min_leaves, max_leaves)
 
 
@@ -2499,6 +2496,7 @@ def register_type_strategy(
         )
     if (
         "pydantic.generics" in sys.modules
+        and isinstance(custom_type, type)
         and issubclass(custom_type, sys.modules["pydantic.generics"].GenericModel)
         and not re.search(r"[A-Za-z_]+\[.+\]", repr(custom_type))
         and callable(strategy)

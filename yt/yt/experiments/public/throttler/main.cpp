@@ -1,6 +1,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/config.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -9,6 +10,8 @@
 #include <vector>
 
 namespace NYT {
+
+using namespace NConcurrency;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ThrottlerTest");
 static auto DonePromise = NewPromise<void>();
@@ -91,7 +94,7 @@ void Main(ERunMode mode, double limit, i64 iterCount, i64 iterSize)
             YT_ABORT();
     }
 
-    DonePromise.ToFuture().Get();
+    WaitFor(DonePromise.ToFuture()).ThrowOnError();
 
     Cout << "The run took " << timer.GetElapsedTime().SecondsFloat() << " s." << Endl;
 }

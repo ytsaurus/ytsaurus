@@ -41,6 +41,16 @@ struct ITransactionSupervisor
 
     //! Returns future which is set when all currently prepared transactions are
     //! finished.
+    /*!
+     *  The main usage of this function is to ensure that effects of committed
+     *  (from client's point of view) Sequoia transaction will be observed:
+     *  coordinator replies to commit request after transaction is prepared on
+     *  every participant but not necessary committed.
+     *
+     *  Note that this method isn't needed to observe effects of transactions
+     *  coordinated by current cell due to late prepare: cordinator prepare
+     *  happens in the same mutation as commit.
+     */
     virtual TFuture<void> WaitUntilPreparedTransactionsFinished() = 0;
 
     virtual TTimestamp GetLastCoordinatorCommitTimestamp() = 0;
@@ -49,6 +59,9 @@ struct ITransactionSupervisor
     virtual void RecomputeStronglyOrderedTransactionRefsOnCoordinator() = 0;
 
     virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) = 0;
+
+    virtual void SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(
+        std::optional<TDuration> delay) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

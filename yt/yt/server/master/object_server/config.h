@@ -79,9 +79,6 @@ struct TDynamicObjectManagerConfig
 
     bool ProhibitPrerequisiteRevisionsDifferFromExecutionPaths;
 
-    // COMPAT(cherepashka)
-    bool FixResolvePrerequisitePathToLocalObjectForSymlinks;
-
     REGISTER_YSON_STRUCT(TDynamicObjectManagerConfig);
 
     static void Register(TRegistrar registrar);

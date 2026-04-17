@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
+#include <yt/yt/library/dynamic_config/public.h>
+
 #include <yt/yt/library/server_program/config.h>
 
 namespace NYT::NCellBalancer {
@@ -55,6 +57,7 @@ struct TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
     std::string Cluster;
+    bool UseDedicatedUserName;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
     // TODO(grachevkirill): Rename to AllocatorRequestTimeout
@@ -103,6 +106,43 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNodeTrackerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    TDuration HeartbeatTimeout;
+
+    REGISTER_YSON_STRUCT(TNodeTrackerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeTrackerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleControllerDynamicConfig
+    : public TSingletonsDynamicConfig
+{
+    std::optional<TDuration> BundleScanPeriod;
+
+    TNodeTrackerDynamicConfigPtr NodeTracker;
+
+    bool RemoveTagsFromOfflineNodes;
+
+    std::optional<TDuration> RemoveInstanceCypressNodeAfter;
+    std::optional<TDuration> OfflineInstanceGracePeriod;
+
+    REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleControllerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCellBalancerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
@@ -115,6 +155,9 @@ struct TCellBalancerBootstrapConfig
 
     bool EnableBundleController;
     TBundleControllerConfigPtr BundleController;
+
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    TString DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 

@@ -117,7 +117,9 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
-    YT_VERIFY(user != rootUser);
+
+    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+        "Cannot set user request rate limit for root");
 
     user->SetRequestRateLimit(limit, type);
     ReconfigureUserRequestRateThrottlers(user);
@@ -129,7 +131,9 @@ void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfig
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* rootUser = securityManager->GetRootUser();
-    YT_VERIFY(user != rootUser);
+
+    YT_LOG_ALERT_AND_THROW_IF(user == rootUser,
+        "Cannot set request rate limits for root");
 
     user->SetObjectServiceRequestLimits(std::move(config));
     ReconfigureUserRequestRateThrottlers(user);

@@ -29,7 +29,6 @@ SIZE(LARGE)
 
 REQUIREMENTS(
     yav:YT_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:yt_token
-    yav:ARC_TOKEN=value:sec-01gg4hcd881t1nncr04nmbeg04:arc_token
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

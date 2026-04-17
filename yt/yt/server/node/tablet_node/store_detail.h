@@ -4,8 +4,6 @@
 #include "dynamic_store_bits.h"
 #include "store.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -41,6 +39,7 @@ public:
     // IStore implementation.
     TStoreId GetId() const override;
     TTablet* GetTablet() const override;
+    TTabletId GetTabletId() const override;
 
     bool IsEmpty() const override;
 
@@ -58,8 +57,6 @@ public:
     void BuildOrchidYson(bool opaque, NYTree::TFluentAny fluent) override final;
 
     const NLogging::TLogger& GetLogger() const;
-
-    TTabletId GetTabletId() const;
 
 protected:
     const TStoreId StoreId_;
@@ -94,6 +91,10 @@ protected:
     void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
 
     virtual void DoBuildOrchidYson(NYTree::TFluentMap fluent);
+
+    void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) override;
 
 private:
     i64 DynamicMemoryUsage_ = 0;
@@ -262,7 +263,7 @@ public:
     TBackendReaders GetBackendReaders(
         std::optional<EWorkloadCategory> workloadCategory) override;
     void InvalidateCachedReaders(
-        const TTableSettings& settings) override;
+        const TTabletStoreReaderConfigPtr& storeReaderConfig) override;
     NChunkClient::TChunkReplicaWithMediumSlimList GetReplicas(
         NNodeTrackerClient::TNodeId localNodeId) override;
 
@@ -287,13 +288,19 @@ public:
 
     // Fast path.
     NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
-        bool prepareColumnarMeta);
+        bool prepareColumnarMeta,
+        bool compressBlockLastKeys);
 
     // Slow path.
     TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetCachedVersionedChunkMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        bool prepareColumnarMeta);
+        bool prepareColumnarMeta,
+        bool compressBlockLastKeys);
+
+    void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& oldConfig,
+        const TTabletNodeDynamicConfigPtr& newConfig) override;
 
 protected:
     std::vector<THunkChunkRef> HunkChunkRefs_;
@@ -320,7 +327,7 @@ protected:
 
     TTimestamp OverrideTimestamp_;
 
-    std::atomic<int> MinHashDigestBlockIndex_;
+    std::atomic<int> MinHashDigestBlockIndex_ = TMinHashDigestBlockIndex::NotFetched;
 
     void OnLocalReaderFailed();
 
@@ -339,6 +346,7 @@ protected:
 private:
     const IBackendChunkReadersHolderPtr BackendReadersHolder_;
 
+    std::atomic<bool> CachedReadersInvalidationNeeded_ = false;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     IDynamicStorePtr BackingStore_;
 

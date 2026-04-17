@@ -33,7 +33,7 @@ bool DelegateInvocation(
     auto clientRequest = New<TClientRequest>(context->RequestHeader());
     clientRequest->MergeFrom(*serverRequest);
 
-    auto clientResponseOrError = ExecuteVerb(service, clientRequest).Get();
+    auto clientResponseOrError = ExecuteVerb(service, clientRequest).GetOrCrash();
 
     if (clientResponseOrError.IsOK()) {
         const auto& clientResponse = clientResponseOrError.Value();

@@ -67,6 +67,13 @@ struct TAccessControlDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMissingNodeTag
+{ };
+
+using TNodeIdToAttributes = THashMap<NCypressClient::TNodeId, std::variant<TMissingNodeTag, NYTree::IAttributeDictionaryPtr, NYTree::INodePtr>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressProxyLogger, "CypressProxy");
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, CypressProxyProfiler, "/cypress_proxy");
 

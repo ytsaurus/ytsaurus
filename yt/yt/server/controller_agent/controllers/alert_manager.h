@@ -1,5 +1,4 @@
 #include "private.h"
-
 #include "task.h"
 
 #include <yt/yt/core/actions/invoker_pool.h>
@@ -33,6 +32,11 @@ struct IAlertManagerHost
     virtual const TScheduleAllocationStatisticsPtr& GetScheduleAllocationStatistics() const = 0;
     virtual const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const = 0;
     virtual const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const = 0;
+
+    //! Fingerprint of thread-count alert state; changes when a new violating task is added or the formula changes.
+    virtual int GetHighJobThreadCountAlertFingerprint() const = 0;
+
+    virtual TError BuildHighJobThreadCountAlert() const = 0;
 
     virtual std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const = 0;
 

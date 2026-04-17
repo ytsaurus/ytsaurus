@@ -301,10 +301,10 @@ private:
                 << TErrorAttribute("table_id", TableInfo_->TableId)
                 << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
                 << TErrorAttribute("cell_id", TabletInfo_->CellId)
+                << TErrorAttribute("batch_index", commitContext->BatchIndex)
                 << rspOrError;
             YT_LOG_DEBUG(error);
-            const auto& tableMountCache = Client_->GetTableMountCache();
-            tableMountCache->InvalidateOnError(error, /*forceRetry*/ true);
+            Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
             commitContext->CommitPromise.Set(error);
             return;
         }

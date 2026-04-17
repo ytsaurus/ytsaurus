@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.35.0)
+VERSION(v0.41.0)
 
 SRCS(
     term.go
@@ -37,6 +37,12 @@ IF (OS_ANDROID)
     SRCS(
         term_unix.go
         term_unix_other.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        term_unsupported.go
     )
 ENDIF()
 

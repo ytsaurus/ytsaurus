@@ -115,7 +115,7 @@ NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString GetAclFromAcoName(
+NSecurityClient::TSerializableAccessControlList GetAclFromAcoName(
     const NApi::NNative::IClientPtr& client,
     const std::string& acoName);
 
@@ -148,6 +148,8 @@ public:
 
     TString GetAclString() const;
 
+    void Persist(const TStreamPersistenceContext& context);
+
 private:
     std::variant<NSecurityClient::TSerializableAccessControlList, std::string> AccessControlRule_;
 };
@@ -173,7 +175,7 @@ TError CheckOperationAccessByAcl(
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
-    const NApi::IClientPtr& client,
+    const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
 void ValidateOperationAccess(
@@ -350,7 +352,7 @@ void ToProto(
 
 void FromProto(
     TStorageRequestConfig* diskRequestConfig,
-    const NProto::TOldDiskRequest& protoDiskRequestConfig);
+    const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig);
 
 template <class TProtoDiskRequest>
 void FromProto(
@@ -364,9 +366,7 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths);
-
-int CountOfNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes);
+bool IsDiskRequestTmpfs(const std::optional<NScheduler::TStorageRequestConfig>& diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

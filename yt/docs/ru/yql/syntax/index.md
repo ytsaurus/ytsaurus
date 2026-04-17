@@ -8,7 +8,7 @@
 * [CREATE TABLE](create_table.md)
 * [DROP TABLE](drop_table.md)
 * [INSERT](insert_into.md)
-{% if audience == "internal" %}[REPLACE](replace_into.md){% endif %}
+* [REPLACE](replace_into.md)
 * [GROUP BY](group_by.md)
 * [JOIN](join.md)
 * [WINDOW](window.md)

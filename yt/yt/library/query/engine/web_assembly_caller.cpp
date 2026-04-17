@@ -124,6 +124,8 @@ void TCGWebAssemblyCaller<TCGQuerySignature, TCGPIQuerySignature>::Run(
 
     auto* function = static_cast<WAVM::Runtime::Function*>(compartment->GetFunction(FunctionName_));
 
+    compartment->StartDeadlineTimer();
+
     InvokeWebAssemblyAndWrapExceptions(compartment, function, runtimeType, arguments.data());
 }
 

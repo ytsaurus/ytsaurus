@@ -15,7 +15,10 @@ void TAuthCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("cache_ttl", &TThis::CacheTtl)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
-        .Default(TDuration::Hours(1));
+        .Default(TDuration::Minutes(60));
+    registrar.Parameter("optimistic_cache_ttl_jitter", &TThis::OptimisticCacheTtlJitter)
+        .Default(0.1)
+        .InRange(0.0, 1.0);
     registrar.Parameter("error_ttl", &TThis::ErrorTtl)
         .Default(TDuration::Seconds(15));
 }
@@ -395,6 +398,8 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
         .Default(true);
+    registrar.Parameter("add_user_to_groups", &TThis::AddUserToGroups)
+        .Default(true);
 
     registrar.Parameter("default_user_tags", &TThis::DefaultUserTags)
         .Default({"iam_user"});
@@ -403,9 +408,6 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("retry_status_codes", &TThis::RetryStatusCodes)
         .Default();
-
-    registrar.Parameter("authenticate_login_field", &TThis::AuthenticateLoginField)
-        .Default("subject");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

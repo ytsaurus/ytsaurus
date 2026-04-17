@@ -190,6 +190,9 @@ public:
 
         for (int index = 0; index < Config_->WriterCount; ++index) {
             WritersQueue_.push_back(std::make_shared<TNonblockingQueue<TRequestInfo>>());
+        }
+
+        for (int index = 0; index < Config_->WriterCount; ++index) {
             invoker->Invoke(BIND(&TRandomWriter::RunWriter, MakeStrong(this), index));
         }
     }
@@ -1072,8 +1075,8 @@ private:
                 Results_.begin(),
                 Results_.end(),
                 [&] (const TFuture<TDuration>& future) {
-                    if (future.IsSet() && !future.Get().IsOK()) {
-                        YT_LOG_DEBUG(future.Get(), "Request is failed");
+                    if (future.IsSet() && !future.GetOrCrash().IsOK()) {
+                        YT_LOG_DEBUG(future.GetOrCrash(), "Request is failed");
                     }
                     return future.IsSet();
                 }),

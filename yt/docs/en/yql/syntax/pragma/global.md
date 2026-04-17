@@ -56,7 +56,7 @@ Lets you change the computation logging level (for example, for UDFs) at query r
 | --- | --- |
 | Flag | false |
 
-`EACH` uses [TablePathPrefix](#table-path-prefix) for each list item.
+`EACH`/`PARTITION_LIST` use [TablePathPrefix](#table-path-prefix) for each list item.
 
 ## Warning {#warning}
 
@@ -141,9 +141,9 @@ Controls implicit Coalesce for the key `JOIN` columns in the SimpleColumns mode.
 | Flag | false |
 
 If the flag is set, [JOIN](../join.md) will require a strict match of key types.
-By default, JOIN preconverts keys to a shared type, which might result in performance degradation.
+By default, `JOIN` preconverts keys to a shared type, which might result in performance degradation.
 
-StrictJoinKeyTypes is a [scoped](#pragmascope) setting.
+`StrictJoinKeyTypes` is a [scoped](#pragmascope) setting.
 
 
 ## AnsiInForEmptyOrNullableItemsCollections
@@ -166,7 +166,7 @@ For more information about the `IN` behavior when operands include NULLs, see [h
 | --- | --- |
 | Flag | false |
 
-Aligns the RANK/DENSE_RANK behavior with the standard if there are optional types in the window sort keys or in the argument of such window functions. It means that:
+Aligns the ``RANK`/`DENSE_RANK` behavior with the standard if there are optional types in the window sort keys or in the argument of such window functions. It means that:
 
 * The result type is always Uint64 rather than Uint64?;
 * NULLs in keys are treated as equal to each other (the current implementation returns NULL).
@@ -181,7 +181,7 @@ You can explicitly select the old behavior by specifying the pragma `DisableAnsi
 
 Aligns the implicit setting of a window frame with the standard if there is [ORDER BY](../select/order_by.md).
 
-If AnsiCurrentRow is not set, the `(ORDER BY key)` window is equivalent to `(ORDER BY key ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`. The standard requires that such window behaves as `(ORDER BY key RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`.
+If `AnsiCurrentRow` is not set, the `(ORDER BY key)` window is equivalent to `(ORDER BY key ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`. The standard requires that such window behaves as `(ORDER BY key RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`.
 
 The difference is in `CURRENT ROW` interpretation. In `ROWS` mode, `CURRENT ROW` is interpreted literally: the current string in the partition.
 And in `RANGE` mode, the end of the `CURRENT ROW` frame means "the last row in the partition with the sorting key equal to the current row".
@@ -250,13 +250,26 @@ When the mode is enabled, string literals without a suffix like "foo"/'bar'/@@mu
 
 `WarnUntypedStringLiterals` is a [scoped](#pragmascope) setting.
 
+## SimplePg
+
+`SimplePg`/`DisableSimplePg`
+
+| Value type | By default |
+| --- | --- |
+| Flag | false |
+
+When the mode is enabled, all functions from the [SimplePg module](../../udf/list/simple_pg.md) are imported into the global function space.
+When the mode is disabled, these functions require the `SimplePg::` prefix to be called.
+
+`SimplePg` is a [scoped](#pragmascope) setting.
+
 ## AllowDotInAlias
 
 | Value type | By default |
 | --- | --- |
 | Flag | false |
 
-Enable dot in names of result columns. This behavior is disabled by default, since the further use of such columns in JOIN is not fully implemented.
+Enable dot in names of result columns. This behavior is disabled by default, since the further use of such columns in `JOIN` is not fully implemented.
 
 ## WarnUnnamedColumns
 

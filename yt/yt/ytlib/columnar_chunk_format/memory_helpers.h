@@ -23,9 +23,9 @@ public:
     TMemoryHolderBase(const TMemoryHolderBase&) = delete;
     void operator=(const TMemoryHolderBase&) = delete;
 
-    TMemoryHolderBase(TMemoryHolderBase&& other);
+    TMemoryHolderBase(TMemoryHolderBase&& other) noexcept;
 
-    void operator=(TMemoryHolderBase&& other);
+    void operator=(TMemoryHolderBase&& other) noexcept;
 
     void Reset();
 
@@ -59,9 +59,9 @@ public:
 
     const T* GetData() const;
 
-    T& operator[] (size_t index);
+    T& operator[](size_t index);
 
-    const T& operator[] (size_t index) const;
+    const T& operator[](size_t index) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -117,7 +117,7 @@ protected:
         TStringBuf query,
         const TSplitMap& dataSplits,
         NYson::TYsonStringBuf placeholderValues,
-        int syntaxVersion);
+        const TPreparePlanFragmentOptions& options = {});
 
     std::pair<TQueryPtr, TQueryStatistics> DoEvaluate(
         TStringBuf query,
@@ -140,12 +140,12 @@ protected:
         const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher);
 
-    TSchemafulPipePtr RunOnNodeThread(
+    ISchemafulPipePtr RunOnNodeThread(
         TConstQueryPtr query,
         const TSource& rows,
         NCodegen::EExecutionBackend executionBackend);
 
-    TSchemafulPipePtr RunOnNode(
+    ISchemafulPipePtr RunOnNode(
         TConstQueryPtr nodeQuery,
         const std::vector<TSource>& tabletData,
         NCodegen::EExecutionBackend executionBackend);

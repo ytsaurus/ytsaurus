@@ -88,11 +88,20 @@ func TOrNil[T comparable](v T) *T {
 	return &v
 }
 
-// Value returns value from pointer
+// Value returns value from pointer or zero value for T if pointer is nil.
 func Value[T any](v *T) T {
 	if v == nil {
 		var zero T
 		return zero
+	}
+
+	return *v
+}
+
+// ValueOr returns value from pointer or defaultValue if pointer is nil.
+func ValueOr[T any](v *T, defaultValue T) T {
+	if v == nil {
+		return defaultValue
 	}
 
 	return *v

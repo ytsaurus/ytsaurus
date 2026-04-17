@@ -43,20 +43,8 @@
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 #include <yt/yt/server/node/exec_node/supervisor_service.h>
 
-#include <yt/yt/server/node/tablet_node/backing_store_cleaner.h>
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
-#include <yt/yt/server/node/tablet_node/hint_manager.h>
-#include <yt/yt/server/node/tablet_node/master_connector.h>
-#include <yt/yt/server/node/tablet_node/partition_balancer.h>
-#include <yt/yt/server/node/tablet_node/slot_manager.h>
-#include <yt/yt/server/node/tablet_node/store_compactor.h>
-#include <yt/yt/server/node/tablet_node/store_flusher.h>
-#include <yt/yt/server/node/tablet_node/store_trimmer.h>
-#include <yt/yt/server/node/tablet_node/hunk_chunk_sweeper.h>
-#include <yt/yt/server/node/tablet_node/lsm_interop.h>
-#include <yt/yt/server/node/tablet_node/structured_logger.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_service.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -288,7 +276,7 @@ public:
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
     }
 
@@ -837,7 +825,8 @@ private:
             New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger(),
-            ClusterNodeProfiler().WithPrefix("/memory_usage"));
+            ClusterNodeProfiler().WithPrefix("/memory_usage"),
+            GetControlInvoker());
 
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
@@ -857,7 +846,8 @@ private:
 
         // Cycles are fine for bootstrap.
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this))
+            .Via(GetControlInvoker()));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
@@ -984,11 +974,11 @@ private:
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
         // Cycles are fine for bootstrap.
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
         // Cycles are fine for bootstrap.
-        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+        BundleDynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -1209,6 +1199,8 @@ private:
         }
 
         NodeResourceManager_->Start();
+
+        NodeMemoryUsageTracker_->Start();
 
         JobResourceManager_->Start();
 
@@ -1667,16 +1659,28 @@ private:
     }
 
     void OnMasterCellDirectoryChanged(
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& potentiallyNewSecondaryMasterConfigs,
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_ALERT_UNLESS(
             removedSecondaryMasterCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryMasterCellTags);
+
+        TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
+        {
+            // NB: Attempt to update masters configuration with same diff could happen, so filter out already appended masters.
+            // If "new" masters connection configuration change, further updates will change it too.
+            auto guard = ReaderGuard(SecondaryMasterConnectionLock_);
+            for (const auto& [cellTag, masterConfig] : potentiallyNewSecondaryMasterConfigs) {
+                if (!SecondaryMasterConnectionConfigs_.contains(cellTag)) {
+                    EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, masterConfig);
+                }
+            }
+        }
 
         const auto& hiveCellDirectory = Connection_->GetCellDirectory();
 
@@ -1716,6 +1720,18 @@ private:
         // for this purpose there are two signals: the first triggers different node-flavors state update and the second performs change of heartbeats to masters.
         SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
         ReadyToUpdateHeartbeatStream_.Fire(newSecondaryMasterConfigs);
+
+        if (NeedDataNodeBootstrap() && !newSecondaryMasterConfigs.empty()) {
+            const auto& dataNodeBootstrap = GetDataNodeBootstrap();
+            if (GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector->CheckChunksCellTagsAfterReceivingNewMasterCellConfigs) {
+                YT_UNUSED_FUTURE(
+                    // NB: Master cell tags were updated during firing the above signals.
+                    BIND([this_ = MakeStrong(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
+                        dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
+                    }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                    .Run());
+            }
+        }
 
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);

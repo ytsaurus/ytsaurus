@@ -10,10 +10,12 @@
 #include <yt/yt/core/crypto/config.h>
 
 #include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT {
 
 using namespace NBus;
+using namespace NConcurrency;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");
 
@@ -138,7 +140,7 @@ protected:
         YT_LOG_INFO("Getting ready future");
 
         auto readyFuture = bus->GetReadyFuture();
-        auto res = readyFuture.Get();
+        auto res = WaitFor(readyFuture);
         if (!res.IsOK()) {
             YT_LOG_INFO("bus is NOT ready for use %v", res.GetMessage());
             return;
@@ -160,7 +162,7 @@ protected:
             }
         }));
 
-        handler->GetFuture().Get();
+        WaitFor(handler->GetFuture()).ThrowOnError();
     }
 
 private:

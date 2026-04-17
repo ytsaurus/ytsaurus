@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package NYT.NKafkaProxy.NProto;
+
+option go_package = "go.ytsaurus.tech/yt/go/proto/client/";
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Error code enums matching kafka error codes.
+enum EErrorCode {
+    UNKNOWN_SERVER_ERROR = 0;
+    NONE = 1;
+    NOT_COORDINATOR = 2;
+    ILLEGAL_GENERATION = 3;
+    INCONSISTENT_GROUP_PROTOCOL = 4;
+    REBALANCE_IN_PROGRESS = 5;
+    TOPIC_AUTHORIZATION_FAILED = 6;
+    GROUP_AUTHORIZATION_FAILED = 7;
+    SASL_AUTHENTICATION_FAILED = 8;
+    INVALID_TIMESTAMP = 9;
+    UNSUPPORTED_SASL_MECHANISM = 10;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqJoinGroupProtocol {
+    string name = 1;
+    bytes metadata = 2;
+}
+
+message TReqJoinGroup {
+    string group_id = 1;
+    int32 session_timeout_ms = 2;
+    string member_id = 3;
+    string protocol_type = 4;
+    repeated TReqJoinGroupProtocol protocols = 5;
+}
+
+message TRspJoinGroupMember {
+    string member_id = 1;
+    bytes metadata = 2;
+}
+
+message TRspJoinGroup {
+    EErrorCode error_code = 1;
+    int32 generation_id = 2;
+    string protocol_name = 3;
+    string leader = 4;
+    string member_id = 5;
+    repeated TRspJoinGroupMember members = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSyncGroupAssignment {
+    string member_id = 1;
+    bytes assignment = 2;
+}
+
+message TReqSyncGroup {
+    string group_id = 1;
+    int32 generation_id = 2;
+    string member_id = 3;
+    repeated TReqSyncGroupAssignment assignments = 4;
+}
+
+message TRspSyncGroup {
+    EErrorCode error_code = 1;
+    bytes assignment = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHeartbeat {
+    string group_id = 1;
+    int32 generation_id = 2;
+    string member_id = 3;
+}
+
+message TRspHeartbeat {
+    EErrorCode error_code = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLeaveGroup {
+    string group_id = 1;
+    string member_id = 2;
+}
+
+message TRspLeaveGroup {
+    EErrorCode error_code = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

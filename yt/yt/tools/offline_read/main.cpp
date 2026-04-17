@@ -151,10 +151,12 @@ std::tuple<std::function<IVersionedReaderPtr(int)>, std::vector<TLegacyOwningKey
         });
 
         if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-            auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                TChunkReaderConfig::GetDefault(),
+                chunkReader,
                 chunkState->BlockCache,
-                chunkState->ChunkMeta,
-                chunkReader->GetChunkId());
+                /*chunkReadOptions*/ {},
+                cachedVersionedChunkMeta);
 
             return NColumnarChunkFormat::CreateVersionedChunkReader(
                 MakeSingletonRowRange(lowerKey, upperKey),
@@ -276,8 +278,7 @@ void PrintHunkChunkMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileNa
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*chunkReadOptions*/{})
-        .Get()
+    auto meta = WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/{}))
         .ValueOrThrow();
     auto hunkMiscExt = GetProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(meta->extensions());
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
@@ -295,8 +296,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*options*/{})
-        .Get()
+    auto meta = WaitFor(chunkReader->GetMeta(/*options*/{}))
         .ValueOrThrow();
 
     if (FromProto<EChunkFormat>(meta->format()) == EChunkFormat::HunkDefault) {
@@ -347,10 +347,10 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     }
 
     if (maybeVersionedRowDigestExt) {
-        TVersionedRowDigest digest;
-        FromProto(&digest, *maybeVersionedRowDigestExt);
+        auto digest = New<TVersionedRowDigest>();
+        FromProto(digest.Get(), *maybeVersionedRowDigestExt);
         Cout << "  Earliest nth timestamps:";
-        for (auto x : digest.EarliestNthTimestamp) {
+        for (auto x : digest->EarliestNthTimestamp) {
             Cout << " " << x;
         }
         Cout << Endl;
@@ -358,7 +358,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
         Cout << "  Last timestamp percentiles (in seconds from now):" << Endl;
         auto now = TInstant::Now();
         for (int p : {1, 10, 20, 50, 80, 90, 99}) {
-            auto ts = TInstant::Seconds(digest.LastTimestampDigest->GetQuantile(p * 0.01));
+            auto ts = TInstant::Seconds(digest->LastTimestampDigest->GetQuantile(p * 0.01));
             auto diff = now - ts;
             Cout << Format("  %2d%%: %v", p, diff) << Endl;
         }
@@ -426,6 +426,41 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const std::vector<TString>& chunkFi
     for (const auto& chunkFileName : chunkFileNames) {
         PrintMeta(ioEngine, chunkFileName);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<IChunkReaderPtr, NYT::NErasure::ICodec*> CreateErasureReader(
+    const IIOEnginePtr& ioEngine,
+    const std::vector<TString>& chunkFileNames)
+{
+    NYT::NErasure::ICodec* codec;
+
+    {
+        auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
+            .ValueOrThrow();
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+        auto codecId = FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec());
+        codec = NYT::NErasure::GetCodec(codecId);
+    }
+    YT_VERIFY(std::ssize(chunkFileNames) == codec->GetTotalPartCount());
+
+    std::vector<IChunkReaderAllowingRepairPtr> readers;
+    for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
+        readers.push_back(GetChunkReader(ioEngine, chunkFileNames[partIndex]));
+    }
+
+    auto config = New<TErasureReaderConfig>();
+    config->EnableAutoRepair = false;
+    auto repairingReader = CreateAdaptiveRepairingErasureReader(
+        NullChunkId,
+        codec,
+        config,
+        readers,
+        /*testingOptions*/ std::nullopt);
+
+    return {repairingReader, codec};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,8 +583,7 @@ std::unique_ptr<IUniversalReader> CreateUnversionedUniversalReader(
     }
 
     auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-    auto chunkMeta = chunkReader->GetMeta(/*options*/ {})
-        .Get()
+    auto chunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     TChunkSpec chunkSpec;
@@ -600,13 +634,20 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
     IBlockCachePtr blockCache,
     TTableSchemaPtr schema,
     TLegacyOwningKey lowerKey,
-    TLegacyOwningKey upperKey)
+    TLegacyOwningKey upperKey,
+    bool erasureChunk = false)
 {
-    if (chunkFileNames.size() != 1) {
+    if (!erasureChunk && chunkFileNames.size() != 1) {
         THROW_ERROR_EXCEPTION("Only one chunk is supported in this mode");
     }
 
-    auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
+    IChunkReaderPtr chunkReader;
+    if (erasureChunk) {
+        chunkReader = CreateErasureReader(ioEngine, chunkFileNames).first;
+    } else {
+        chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
+    }
+
     auto chunkMeta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
@@ -640,10 +681,12 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
     IVersionedReaderPtr versionedReader;
 
     if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+        auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+            TChunkReaderConfig::GetDefault(),
+            chunkReader,
             chunkState->BlockCache,
-            chunkState->ChunkMeta,
-            chunkReader->GetChunkId());
+            /*chunkReadOptions*/ {},
+            cachedVersionedChunkMeta);
         versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
             MakeSingletonRowRange(lowerKey, upperKey),
             AllCommittedTimestamp,
@@ -680,9 +723,10 @@ std::unique_ptr<IUniversalReader> CreateNativeUniversalReader(
     IBlockCachePtr blockCache,
     TTableSchemaPtr schema,
     TLegacyOwningKey lowerKey,
-    TLegacyOwningKey upperKey)
+    TLegacyOwningKey upperKey,
+    bool erasureChunk = false)
 {
-    if (chunkFileNames.size() != 1) {
+    if (!erasureChunk && chunkFileNames.size() != 1) {
         THROW_ERROR_EXCEPTION("Only one chunk is supported in this mode");
     }
 
@@ -711,7 +755,8 @@ std::unique_ptr<IUniversalReader> CreateNativeUniversalReader(
                 std::move(blockCache),
                 schema,
                 lowerKey,
-                upperKey);
+                upperKey,
+                erasureChunk);
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv", format);
@@ -835,7 +880,8 @@ std::unique_ptr<IUniversalReader> CreateUniversalReader(
     IBlockCachePtr blockCache,
     TTableSchemaPtr schema,
     TLegacyOwningKey lowerKey,
-    TLegacyOwningKey upperKey)
+    TLegacyOwningKey upperKey,
+    bool erasureChunk = false)
 {
     if (mode == "native") {
         return CreateNativeUniversalReader(
@@ -844,7 +890,8 @@ std::unique_ptr<IUniversalReader> CreateUniversalReader(
             blockCache,
             schema,
             lowerKey,
-            upperKey);
+            upperKey,
+            erasureChunk);
     } else if (mode == "unversioned") {
         return CreateUnversionedUniversalReader(
             ioEngine,
@@ -891,23 +938,13 @@ void ExtractErasureBlocks(
 {
     YT_VERIFY(!chunkFileNames.empty());
 
-    NYT::NErasure::ICodec* codec;
-    {
-        auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[0]);
-        auto meta = chunkReader->GetMeta(/*options*/ {}).Get()
-            .ValueOrThrow();
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
-        auto codecId = FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec());
-        codec = NYT::NErasure::GetCodec(codecId);
-    }
-    YT_VERIFY(std::ssize(chunkFileNames) == codec->GetTotalPartCount());
+    auto [repairingReader, codec] = CreateErasureReader(ioEngine, chunkFileNames);
 
     int totalBlockCount = 0;
     std::vector<int> blockIndices;
-    std::vector<IChunkReaderAllowingRepairPtr> readers;
     for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[partIndex]);
-        auto meta = chunkReader->GetMeta(/*options*/ {}).Get()
+        auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
         auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(meta->extensions());
@@ -920,17 +957,7 @@ void ExtractErasureBlocks(
             blockIndices.push_back(totalBlockCount + blockIndex);
         }
         totalBlockCount += blockCount;
-        readers.push_back(std::move(chunkReader));
     }
-
-    auto config = New<TErasureReaderConfig>();
-    config->EnableAutoRepair = false;
-    auto repairingReader = CreateAdaptiveRepairingErasureReader(
-        NullChunkId,
-        codec,
-        config,
-        readers,
-        /*testingOptions*/ std::nullopt);
 
     auto blocks = WaitFor(repairingReader->ReadBlocks(
         /*options*/ {},
@@ -951,6 +978,7 @@ void ExtractErasureBlocks(
 
     std::mt19937 gen;
     std::uniform_int_distribution<int> dist(0, codec->GetTotalPartCount() - 1);
+    std::vector<IChunkReaderAllowingRepairPtr> readers;
     constexpr int iterCount = 100;
     for (int iter = 0; iter < iterCount; ++iter) {
         bool dataPartErased = false;
@@ -1021,8 +1049,7 @@ void ExtractBlocks(
     const TString& chunkFileName)
 {
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*options*/ {})
-        .Get()
+    auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
@@ -1077,8 +1104,7 @@ void SliceChunk(
     int keyColumnCount)
 {
     auto chunkReader = GetChunkReader(ioEngine, chunkFileName);
-    auto meta = chunkReader->GetMeta(/*options*/ {})
-        .Get()
+    auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
         .ValueOrThrow();
 
     NChunkClient::NProto::TSliceRequest req;
@@ -1217,9 +1243,6 @@ void GuardedMain(int argc, char** argv)
         THROW_ERROR_EXCEPTION("Erasure codec validation requires erasure-chunk option to be set");
     }
     if (erasureChunk) {
-        if (actionDump || actionBenchmark || actionLoop) {
-            THROW_ERROR_EXCEPTION("Dump, benchmark and loop actions are not supported for erasure chunks");
-        }
         if (chunkFileNames.size() != 1) {
             THROW_ERROR_EXCEPTION("Only one chunk should be specified in case of erasure");
         }
@@ -1272,10 +1295,6 @@ void GuardedMain(int argc, char** argv)
         PrintMeta(ioEngine, chunkFileNames);
     }
 
-    if (erasureChunk) {
-        return;
-    }
-
     auto reader = CreateUniversalReader(
         ioEngine,
         mode,
@@ -1283,7 +1302,8 @@ void GuardedMain(int argc, char** argv)
         blockCache,
         schema,
         lowerKey,
-        upperKey);
+        upperKey,
+        erasureChunk);
 
     if (actionDump) {
         reader->DumpRows();
@@ -1306,7 +1326,8 @@ void GuardedMain(int argc, char** argv)
                 blockCache,
                 schema,
                 lowerKey,
-                upperKey);
+                upperKey,
+                erasureChunk);
             reader->SweepRows();
         }
     }

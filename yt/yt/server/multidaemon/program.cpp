@@ -31,7 +31,6 @@
 #include <yt/yt/server/controller_agent/config.h>
 
 #include <yt/yt/server/cypress_proxy/bootstrap.h>
-#include <yt/yt/server/cypress_proxy/config.h>
 
 #include <yt/yt/server/discovery_server/bootstrap.h>
 #include <yt/yt/server/discovery_server/config.h>
@@ -59,6 +58,8 @@
 
 #include <yt/yt/server/timestamp_provider/bootstrap.h>
 #include <yt/yt/server/timestamp_provider/config.h>
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
@@ -214,7 +215,7 @@ private:
         YT_LOG_INFO("Waiting for daemon to start");
 
         AllSucceeded(std::move(startFutures))
-            .Get()
+            .BlockingGet()
             .ThrowOnError();
 
         YT_LOG_INFO("Multidaemon is running");

@@ -178,7 +178,7 @@ private:
             TStatusCodeCounter StatusCodeCounter;
         };
 
-        explicit TProfiling(const TProfiler& profiler, bool enablePerPathRequestProfiling)
+        TProfiling(const TProfiler& profiler, bool enablePerPathRequestProfiling)
             : ConnectionsActive(profiler.Gauge("/connections_active"))
             , ConnectionsAccepted(profiler.Counter("/connections_accepted"))
             , ConnectionsDropped(profiler.Counter("/connections_dropped"))
@@ -412,6 +412,8 @@ private:
             EMessageType::Response,
             Config_);
 
+        auto establishedAt = TInstant::Now();
+
         while (true) {
             auto requestId = TRequestId::Create();
             request->SetRequestId(requestId);
@@ -430,6 +432,12 @@ private:
             };
 
             if (!Config_->EnableKeepAlive) {
+                break;
+            }
+
+            if (Config_->MaxConnectionAge.has_value() &&
+                TInstant::Now() > establishedAt + *Config_->MaxConnectionAge)
+            {
                 break;
             }
 

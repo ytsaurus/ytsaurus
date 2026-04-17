@@ -319,14 +319,13 @@ protected:
 private:
     void SetReplicationFactor(int replicationFactor);
 
-    template <bool IsHunk>
-    void SetPrimaryMedium(const std::string& primaryMediumName);
+    void SetPrimaryMedium(bool isHunk, const std::string& primaryMediumName);
 
-    template <bool IsHunk>
-    void RemovePrimaryMedium();
+    void RemovePrimaryMedium(bool isHunk);
 
-    template <bool IsHunk>
-    void SetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
+    void SetMedia(
+        bool isHunk,
+        const NChunkServer::TSerializableChunkReplication& serializableReplication);
 
     void ThrowReplicationFactorMismatch(int mediumIndex) const;
 };
@@ -556,6 +555,7 @@ public:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
+    // NB: Used at Cypress Proxies to trace access.
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 

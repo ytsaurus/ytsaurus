@@ -2,14 +2,15 @@
 
 #include "expression_context.h"
 #include "position_independent_value.h"
-#include "join_profiler.h"
+#include <yt/yt/library/query/base/join_profiler.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
 
-#include <yt/yt/library/query/misc/alloc.h>
+#include <yt/yt/library/query/misc/allocator.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
 #include <yt/yt/library/query/misc/function_context.h>
 
@@ -37,9 +38,6 @@ struct TOutputBufferTag
 struct TIntermediateBufferTag
 { };
 
-struct TPermanentBufferTag
-{ };
-
 struct TForeignExecutorBufferTag
 { };
 
@@ -59,7 +57,7 @@ public:
     // Intentionally implicit.
     TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> hasher);
 
-    ui64 operator () (const TPIValue* row) const;
+    ui64 operator()(const TPIValue* row) const;
 
 private:
     NWebAssembly::TCompartmentFunction<THasherFunction> Hasher_;
@@ -80,7 +78,7 @@ public:
     // Intentionally implicit.
     TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer);
 
-    bool operator () (const TPIValue* lhs, const TPIValue* rhs) const;
+    bool operator()(const TPIValue* lhs, const TPIValue* rhs) const;
 
 private:
     NWebAssembly::TCompartmentFunction<TComparerFunction> Comparer_;
@@ -91,8 +89,7 @@ private:
 using TGroupRows = google::dense_hash_set<
     const TPIValue*,
     NDetail::TGroupHasher,
-    NDetail::TRowComparer,
-    TAllocatorOverChunkProvider<const TPIValue*>>;
+    NDetail::TRowComparer>;
 
 using TGroupVector = std::vector<const TPIValue*, TAllocatorOverChunkProvider<const TPIValue*>>;
 
@@ -151,6 +148,9 @@ struct TMultiJoinParameters
 
 struct TMultiJoinClosure
 {
+    struct TBufferTag
+    { };
+
     using THashJoinLookup = google::dense_hash_set<
         TPIValue*,
         NDetail::TGroupHasher,
@@ -158,6 +158,9 @@ struct TMultiJoinClosure
 
     struct TItem
     {
+        struct TMultiJoinClosureItemBufferTag
+        { };
+
         TExpressionContext Context;
         size_t KeySize;
         NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
@@ -231,7 +234,7 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit = std::numeric_limits<i64>::max();
 
-    bool Ordered = false;
+    EScanOrder ScanOrder = EScanOrder::Unordered;
     bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;
@@ -328,6 +331,8 @@ public:
         TRange<void*> opaqueData,
         TRange<size_t> opaqueDataSizes,
         TExecutionContext* context) const;
+
+    void SetDeadline(TInstant deadline);
 
 private:
     const TCGQueryCallback Callback_;

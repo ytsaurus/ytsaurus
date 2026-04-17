@@ -1,21 +1,16 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, inject_http_error, get_tests_sandbox, set_cypress_attribute
 
 import yt.json_wrapper as json
+import yt.type_info as ti
+import yt.wrapper as yt
+import yt.wrapper.cli_impl as cli_impl
 import yt.yson as yson
 
 from yt.common import datetime_to_string, YtResponseError, utcnow
-import yt.wrapper.cli_impl as cli_impl
-import yt.wrapper as yt
+from yt.packages import requests
 from yt.wrapper.schema import TableSchema, ColumnSchema
-
 from yt.wrapper.file_commands import upload_file_to_cache
-
-import yt.type_info as ti
 
 from contextlib import contextmanager
 from flaky import flaky
@@ -828,6 +823,22 @@ class TestCypressCommands(object):
         yt.create("table", path, recursive=True, attributes={"schema": expected_schema})
         retrieved_schema = yt.get_table_schema(path)
         assert expected_schema == retrieved_schema
+
+    @authors("denvr")
+    def test_simpel_retries(self):
+        if yt.config["api_version"] != "v4" or yt.config["backend"] != "http":
+            pytest.skip()
+        default_config = yt.default_config.get_default_config()
+        default_config["proxy"]["url"] = yt.config["proxy"]["url"]
+        default_config["backend"] = yt.config["backend"]
+        client = yt.YtClient(config=default_config)
+
+        client.config["proxy"]["retries"]["total_timeout"] = 1
+        with pytest.raises(requests.ConnectionError):
+            with inject_http_error(client, filter_url="api/v4/exists", interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=True) as calls_cnt:
+                client.exists("/")
+        assert calls_cnt.filtered_total_calls == 1
+        assert calls_cnt.filtered_raises == 1
 
 
 @pytest.mark.usefixtures("test_environment_multicell")

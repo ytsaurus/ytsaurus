@@ -1,0 +1,55 @@
+LIBRARY()
+
+SRCS(
+    yql_ydb_datasink.cpp
+    yql_ydb_datasink_execution.cpp
+    yql_ydb_datasink_type_ann.cpp
+    yql_ydb_datasource.cpp
+    yql_ydb_datasource_type_ann.cpp
+    yql_ydb_dq_integration.cpp
+    yql_ydb_exec.cpp
+    yql_ydb_io_discovery.cpp
+    yql_ydb_load_meta.cpp
+    yql_ydb_logical_opt.cpp
+    yql_ydb_physical_opt.cpp
+    yql_ydb_mkql_compiler.cpp
+    yql_ydb_provider.cpp
+    yql_ydb_provider_impl.cpp
+    yql_ydb_settings.cpp
+)
+
+PEERDIR(
+    library/cpp/random_provider
+    library/cpp/time_provider
+    library/cpp/yson/node
+    contrib/ydb/core/fq/libs/common
+    yql/essentials/ast
+    yql/essentials/minikql/comp_nodes
+    yql/essentials/providers/common/structured_token
+    contrib/ydb/library/yql/providers/common/token_accessor/client
+    yql/essentials/core
+    yql/essentials/core/type_ann
+    contrib/ydb/library/yql/dq/expr_nodes
+    yql/essentials/core/dq_integration
+    yql/essentials/providers/common/config
+    contrib/ydb/library/yql/providers/common/db_id_async_resolver
+    yql/essentials/providers/common/dq
+    yql/essentials/providers/common/mkql
+    yql/essentials/providers/common/proto
+    yql/essentials/providers/common/provider
+    yql/essentials/providers/common/schema/expr
+    yql/essentials/providers/common/transform
+    contrib/ydb/library/yql/providers/dq/common
+    contrib/ydb/library/yql/providers/dq/expr_nodes
+    yql/essentials/providers/result/expr_nodes
+    contrib/ydb/library/yql/providers/ydb/expr_nodes
+    contrib/ydb/library/yql/providers/ydb/proto
+    contrib/ydb/public/lib/experimental
+    contrib/ydb/public/sdk/cpp/adapters/issue
+    contrib/ydb/public/sdk/cpp/src/client/driver
+    contrib/ydb/public/sdk/cpp/src/client/table
+)
+
+YQL_LAST_ABI_VERSION()
+
+END()

@@ -141,13 +141,16 @@ TEST(DistributedWriteTable, WithTransaction)
 
 TEST(DistributedWriteTable, ExceedTimeout)
 {
+    // NB(achains): Or remove and run with -DYT_RECIPE_BUILD_FROM_SOURCE=1
+    SKIP_TEST_IF(true, "Enable test after YT-27085 deploy");
+
     TTestDistributedWriteTableFixture fixture;
 
     auto client = fixture.GetClient();
     auto path = fixture.GetTablePath();
 
     TStartDistributedWriteTableOptions options;
-    options.Timeout(TDuration::Seconds(1));
+    options.SessionTimeout(TDuration::Seconds(1));
 
     auto session = client->StartDistributedWriteTableSession(path, /*cookieCount*/ 1, options);
     EXPECT_EQ(std::ssize(session.Cookies_), 1);

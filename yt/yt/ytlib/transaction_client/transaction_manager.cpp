@@ -258,7 +258,7 @@ private:
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashSet<TTransaction::TImpl*> AliveTransactions_;
+    THashSet<TWeakPtr<TTransaction::TImpl>, TTransparentWeakPtrHasher, TEqualTo<>> AliveTransactions_;
 
     NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
@@ -277,7 +277,7 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
-                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
 
@@ -397,7 +397,7 @@ public:
                     auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
 
                     if (syncFuture.IsSet()) {
-                        if (!syncFuture.Get().IsOK()) {
+                        if (!syncFuture.GetOrCrash().IsOK()) {
                             return syncFuture;
                         }
                     } else {
@@ -841,7 +841,7 @@ private:
     {
         if (AutoAbort_) {
             auto guard = Guard(Owner_->SpinLock_);
-            YT_VERIFY(Owner_->AliveTransactions_.insert(this).second);
+            InsertOrCrash(Owner_->AliveTransactions_, MakeWeak(this));
         }
     }
 
@@ -851,7 +851,10 @@ private:
             {
                 auto guard = Guard(Owner_->SpinLock_);
                 // NB: Instance is not necessarily registered.
-                Owner_->AliveTransactions_.erase(this);
+                auto it = Owner_->AliveTransactions_.find(this);
+                if (it != Owner_->AliveTransactions_.end()) {
+                    Owner_->AliveTransactions_.erase(it);
+                }
             }
 
             if (State_ == ETransactionState::Active) {
@@ -1197,8 +1200,17 @@ private:
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
         // NB: The server side only supports these for simple (non-distributed) commits, but set them anyway.
-        // COMPAT(h0pless): It should be safe to remove prerequisites here when CTxS will be used on masters.
+        // COMPAT(h0pless, tea-mur): It should be safe to remove prerequisites here when CTxS will be used on masters.
         SetPrerequisites(req, options);
+
+        // NB: Cypress transactions are now committed via CypressTransactionService which
+        // handles prerequisites on its own.
+        // Tablet transactions do not use prerequisite transaction ids in commit phase:
+        // 1. Master prerequisite transactions are handled at data sending stage (TReqWrite)
+        // 2. Chaos leases are passed to tx coordinator in transaction action data
+        // Remaining transactions do not use prerequisite transaction ids.
+        YT_VERIFY(options.PrerequisiteTransactionIds.empty());
+
         ToProto(req->mutable_transaction_id(), Id_);
         ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
         ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
@@ -1331,7 +1343,9 @@ private:
         TError error)
     {
         UpdateDownedParticipants();
-        auto wrappedError = TError("Error committing transaction %v at cell %v",
+        auto wrappedError = TError(
+            NTransactionClient::EErrorCode::AtomicTransactionCommitFailure,
+            "Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
             << std::move(error);
@@ -1907,10 +1921,9 @@ void TTransactionManager::TImpl::AbortAll()
     std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {
         auto guard = Guard(SpinLock_);
-        for (auto* rawTransaction : AliveTransactions_) {
-            auto transaction = DangerousGetPtr(rawTransaction);
-            if (transaction) {
-                transactions.push_back(transaction);
+        for (const auto& weakTransaction : AliveTransactions_) {
+            if (auto transaction = weakTransaction.Lock()) {
+                transactions.push_back(std::move(transaction));
             }
         }
     }

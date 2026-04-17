@@ -163,7 +163,10 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
 
-    void ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLimitRatiosConfigPtr& memoryLimitRatios);
+    void ReconfigureMemoryUsageTracker(
+        i64 memoryLimit,
+        const TMemoryLimitRatiosConfigPtr& memoryLimitRatios,
+        const TNodeMemoryTrackerConfigPtr& newConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/future.h>
@@ -120,11 +121,11 @@ TEST(TBacktraceIntrospectorTest, Fibers)
     EXPECT_EQ(expectedHeavyTraceIds, actualHeavyTraceIds);
 
     for (const auto& future : heavyFutures) {
-        future.Get().ThrowOnError();
+        WaitForFast(future).ThrowOnError();
     }
 
     for (const auto& future : lightFutures) {
-        future.Get().ThrowOnError();
+        WaitForFast(future).ThrowOnError();
     }
 
     for (const auto& queue : heavyQueues) {
@@ -185,7 +186,7 @@ TEST(TBacktraceIntrospectorTest, Threads)
     EXPECT_EQ(expectedTraceIds, actualTraceIds);
 
     for (const auto& future : futures) {
-        future.Get().ThrowOnError();
+        WaitForFast(future).ThrowOnError();
     }
     for (const auto& queue : queues) {
         queue->Shutdown(/*graceful*/ true);

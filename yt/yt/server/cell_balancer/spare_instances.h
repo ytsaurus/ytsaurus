@@ -61,6 +61,10 @@ struct ISpareInstanceAllocator
     virtual bool HasInstances(
         const std::string& zoneName,
         const std::string& dataCenterName) const = 0;
+
+    virtual int GetFreeInstanceCount(
+        const std::string& zoneName,
+        const std::string& dataCenterName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISpareInstanceAllocator)
@@ -71,8 +75,10 @@ template <class TSpareInstance>
 struct TSpareInstanceAllocator
     : public ISpareInstanceAllocator
 {
+private:
     using TZoneToDataCenterToInfo = THashMap<std::string, THashMap<std::string, TSpareInstance>>;
 
+public:
     explicit TSpareInstanceAllocator(TZoneToDataCenterToInfo& spareInstances);
 
     TZoneToDataCenterToInfo& SpareInstances;
@@ -83,6 +89,10 @@ struct TSpareInstanceAllocator
         const std::string& bundleName) override;
 
     bool HasInstances(
+        const std::string& zoneName,
+        const std::string& dataCenterName) const override;
+
+    int GetFreeInstanceCount(
         const std::string& zoneName,
         const std::string& dataCenterName) const override;
 };

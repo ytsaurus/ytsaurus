@@ -47,7 +47,7 @@ void TSecurityTags::Validate()
     }
 }
 
-TSecurityTags operator + (const TSecurityTags& a, const TSecurityTags& b)
+TSecurityTags operator+(const TSecurityTags& a, const TSecurityTags& b)
 {
     if (a.Items.empty()) {
         return b;

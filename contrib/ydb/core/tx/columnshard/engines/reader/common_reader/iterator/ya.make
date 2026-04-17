@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    GLOBAL dictionary_fetching.cpp
     GLOBAL sub_columns_fetching.cpp
     GLOBAL default_fetching.cpp
     constructor.cpp
@@ -14,6 +15,8 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/core/tx/columnshard/engines/scheme
+    contrib/ydb/core/formats/arrow/accessor/dictionary
+    contrib/ydb/core/formats/arrow/accessor/plain
     contrib/ydb/core/formats/arrow/accessor/sub_columns
     yql/essentials/minikql
     contrib/ydb/core/util/evlog

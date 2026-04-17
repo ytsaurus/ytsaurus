@@ -100,7 +100,7 @@ func TestWriterMemUsage(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						_ = zr.EncodeAll(data, dst[:0])
 					}
 				})
@@ -109,8 +109,6 @@ func TestWriterMemUsage(t *testing.T) {
 		}
 	})
 }
-
-var data = []byte{1, 2, 3}
 
 func newZstdWriter() (*Encoder, error) {
 	return NewWriter(
@@ -123,6 +121,7 @@ func newZstdWriter() (*Encoder, error) {
 }
 
 func BenchmarkMem(b *testing.B) {
+	var data = []byte{1, 2, 3}
 	b.Run("flush", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -131,7 +130,7 @@ func BenchmarkMem(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			for j := 0; j < 16; j++ {
+			for range 16 {
 				w.Reset(io.Discard)
 
 				if _, err := w.Write(data); err != nil {
@@ -157,7 +156,7 @@ func BenchmarkMem(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			for j := 0; j < 16; j++ {
+			for range 16 {
 				w.Reset(io.Discard)
 
 				if _, err := w.Write(data); err != nil {

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/ytlib/chaos_client/public.h>
@@ -28,6 +26,9 @@ struct IChaosAgent
     virtual void ReconfigureTablet() = 0;
     virtual void RefreshEra(NChaosClient::TReplicationEra newEra) = 0;
     virtual NConcurrency::TAsyncSemaphoreGuard TryGetConfigLockGuard() = 0;
+    virtual TFuture<void> GetFutureEra(
+        NChaosClient::TReplicationEra currentEra,
+        const TTabletSnapshotPtr& tabletSnapshot) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosAgent)

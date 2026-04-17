@@ -56,6 +56,36 @@ DEFINE_ENUM(EDirectIOFlag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(cherepashka): move these usings below somewhere more suitable for S3 chunk readers & writers.
+using TOnBrokenMetaCallback = TCallback<void(TRef /*block*/)>;
+using TOnBrokenBlockCallback = TCallback<void(int /*blockIndex*/, const NIO::TBlockInfo& /*blockInfo*/, TRef /*block*/)>;
+
+//! Deserializes chunk meta from blob with format validation.
+//! For chunk meta version 2+, the local chunk id is validated against the one
+//! stored in the meta file. Passing NullChunkId to this function suppresses this check.
+NChunkClient::TRefCountedChunkMetaPtr DeserializeChunkMeta(
+    TSharedRef metaFileBlob,
+    const std::string& chunkMetaFilename,
+    NChunkClient::TChunkId chunkId,
+    TOnBrokenMetaCallback onBrokenMeta);
+
+struct TBlockRange
+{
+    i64 StartBlockIndex = 0;
+    i64 EndBlockIndex = 0;
+};
+
+//! Deserializes chunk blocks from blob with optional checksum validation.
+std::vector<NChunkClient::TBlock> DeserializeBlocks(
+    TSharedRef blocksBlob,
+    TBlockRange blockRange,
+    bool validateBlockChecksums,
+    const std::string& chunkFileName,
+    const TBlocksExtPtr& blocksExt,
+    TOnBrokenBlockCallback onBrokenBlock);
+
+////////////////////////////////////////////////////////////////////////////
+
 class TChunkFileReader
     : public virtual TRefCounted
 {

@@ -33,6 +33,7 @@ AllWritesDisabled = 1703
 InvalidTabletState = 1706
 BundleResourceLimitExceeded = 1720
 RequestThrottled = 1725
+CannotCheckConflictsAgainstChunkStore = 1729
 SyncReplicaNotInSync = 1732
 BackupCheckpointRejected = 1733
 NoInSyncReplicas = 1736
@@ -68,6 +69,7 @@ ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
 QueueAgentRetriableError = 3104
 ChaosCellIsNotEnabled = 3209
+InactiveObjectLifeStage = 1001
 
 
 class Scheduler(object):

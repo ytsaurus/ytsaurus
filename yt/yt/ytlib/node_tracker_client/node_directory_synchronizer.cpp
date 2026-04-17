@@ -49,6 +49,11 @@ public:
         SyncExecutor_->Start();
     }
 
+    bool IsStarted() const override
+    {
+        return SyncExecutor_->IsStarted();
+    }
+
     TFuture<void> Stop() const override
     {
         return SyncExecutor_->Stop();

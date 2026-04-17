@@ -1,5 +1,5 @@
 # sql/elements.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1065,7 +1065,7 @@ class SQLCoreOperations(Generic[_T_co], ColumnOperators, TypingOnly):
         def all_(self) -> CollectionAggregate[Any]: ...
 
         # numeric overloads.  These need more tweaking
-        # in particular they all need to have a variant for Optiona[_T]
+        # in particular they all need to have a variant for Optional[_T]
         # because Optional only applies to the data side, not the expression
         # side
 
@@ -2380,7 +2380,7 @@ class TextClause(
 
         The :meth:`_expression.TextClause.bindparams`
         method can be called repeatedly,
-        where it will re-use existing :class:`.BindParameter` objects to add
+        where it will reuse existing :class:`.BindParameter` objects to add
         new information.  For example, we can call
         :meth:`_expression.TextClause.bindparams`
         first with typing information, and a

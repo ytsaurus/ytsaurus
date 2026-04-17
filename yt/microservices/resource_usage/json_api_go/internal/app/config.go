@@ -26,6 +26,9 @@ type ConfigBase struct {
 	// Defines a base path (prefix) for all API routes.
 	ApiPrefix string `yaml:"api_prefix"`
 
+	// Enable Swagger UI.
+	EnableSwagger bool `yaml:"enable_swagger"`
+
 	// CORS settings.
 	CORS *ytmsvc.CORSConfig `yaml:"cors"`
 

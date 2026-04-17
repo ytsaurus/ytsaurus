@@ -1,0 +1,19 @@
+<tmp_path>/program.sql:<main>: Warning: Parse Sql
+
+    <tmp_path>/program.sql:<main>:16:17: Warning: Using subrequest in scalar context after IN, perhaps you should remove parenthesis here
+    	WHERE subkey in ($subq)
+	                ^
+<tmp_path>/program.sql:<main>: Warning: Type annotation
+
+    <tmp_path>/program.sql:<main>:11:1: Warning: At function: RemovePrefixMembers, At function: Sort, At function: PersistableRepr, At function: OrderedSqlProject
+    	SELECT
+	^
+        <tmp_path>/program.sql:<main>:15:6: Warning: At function: OrderedFilter, At lambda, At function: Coalesce
+        	FROM Input
+	     ^
+            <tmp_path>/program.sql:<main>:16:7: Warning: At function: SqlIn
+            	WHERE subkey in ($subq)
+	      ^
+                <tmp_path>/program.sql:<main>:16:7: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                	WHERE subkey in ($subq)
+	      ^

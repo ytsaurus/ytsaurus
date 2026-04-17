@@ -25,13 +25,15 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/library/program/config.h>
-
 #include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -73,6 +75,8 @@ struct TTestingOptions
     std::optional<TDuration> DelayInHandshake;
 
     bool AbortOutputTransactionAfterCompletionTransactionCommit;
+
+    bool EnableEventsOnFs;
 
     REGISTER_YSON_STRUCT(TTestingOptions);
 
@@ -598,7 +602,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-
     TDuration JobReincarnationTimeout;
 
     REGISTER_YSON_STRUCT(TGangManagerConfig);
@@ -1068,6 +1071,7 @@ struct TControllerAgentConfig
     bool EnableSortedMergeInSortJobSizeAdjustment;
 
     bool EnableMapJobSizeAdjustment;
+    bool EnableOrderedMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
     // TODO(gritukan): Remove it.
@@ -1151,6 +1155,10 @@ struct TControllerAgentConfig
     i64 MaxTotalSliceCount;
 
     TAlertManagerConfigPtr AlertManager;
+
+    //! User job thread count to add operation alert as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
+    //! Empty formula disables the corresponding operation alert.
+    TArithmeticFormula MaxJobThreadCountFormula;
 
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
@@ -1334,6 +1342,8 @@ struct TControllerAgentConfig
     bool EnableDynamicTableOutputChunkConstraintValidation;
 
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
+
+    bool FailOperationsInEmptyTrees;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

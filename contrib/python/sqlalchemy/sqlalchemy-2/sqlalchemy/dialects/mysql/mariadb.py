@@ -1,5 +1,5 @@
 # dialects/mysql/mariadb.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from typing import Any
-from typing import Callable
 
 from .base import MariaDBIdentifierPreparer
 from .base import MySQLDialect
@@ -51,7 +50,7 @@ class MariaDBDialect(MySQLDialect):
     type_compiler_cls = MariaDBTypeCompiler
 
 
-def loader(driver: str) -> Callable[[], type[MariaDBDialect]]:
+def loader(driver: str) -> type[MariaDBDialect]:
     dialect_mod = __import__(
         "sqlalchemy.dialects.mysql.%s" % driver
     ).dialects.mysql

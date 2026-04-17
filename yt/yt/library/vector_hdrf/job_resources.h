@@ -89,23 +89,23 @@ double GetMaxResourceRatio(
     const TJobResources& denominator);
 
 TJobResources  operator +  (const TJobResources& lhs, const TJobResources& rhs);
-TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs);
+TJobResources& operator+=(TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources  operator -  (const TJobResources& lhs, const TJobResources& rhs);
-TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs);
+TJobResources& operator-=(TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources  operator *  (const TJobResources& lhs, i64 rhs);
 TJobResources  operator *  (const TJobResources& lhs, int rhs);
 TJobResources  operator *  (const TJobResources& lhs, double rhs);
-TJobResources& operator *= (TJobResources& lhs, i64 rhs);
-TJobResources& operator *= (TJobResources& lhs, int rhs);
-TJobResources& operator *= (TJobResources& lhs, double rhs);
+TJobResources& operator*=(TJobResources& lhs, i64 rhs);
+TJobResources& operator*=(TJobResources& lhs, int rhs);
+TJobResources& operator*=(TJobResources& lhs, double rhs);
 
 TJobResources  operator -  (const TJobResources& resources);
 
-bool operator == (const TJobResources& lhs, const TJobResources& rhs);
+bool operator==(const TJobResources& lhs, const TJobResources& rhs);
 
-std::ostream& operator << (std::ostream& os, const TJobResources& jobResources);
+std::ostream& operator<<(std::ostream& os, const TJobResources& jobResources);
 
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 bool StrictlyDominates(const TJobResources& lhs, const TJobResources& rhs);

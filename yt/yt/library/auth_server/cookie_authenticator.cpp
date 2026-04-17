@@ -35,7 +35,7 @@ struct TCookieAuthenticatorCacheKey
         return result;
     }
 
-    bool operator == (const TCookieAuthenticatorCacheKey&) const = default;
+    bool operator==(const TCookieAuthenticatorCacheKey&) const = default;
 };
 
 class TCachingCookieAuthenticator

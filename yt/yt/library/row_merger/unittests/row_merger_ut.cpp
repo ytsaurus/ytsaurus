@@ -38,7 +38,7 @@ struct TIdentityComparableVersionedRow
     TVersionedRow Row;
 };
 
-bool operator == (TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
+bool operator==(TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
 {
     return TBitwiseVersionedRowEqual()(lhs.Row, rhs.Row);
 }
@@ -131,7 +131,7 @@ protected:
         TTableSchema schema({
             TColumnSchema("watermark", EValueType::Uint64, ESortOrder::Ascending),
             TColumnSchema("m", EValueType::Int64),
-            TColumnSchema("n", EValueType::Int64)
+            TColumnSchema("n", EValueType::Int64),
         });
         return schema;
     }
@@ -557,7 +557,7 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
         schema.Columns().size(),
         schema.GetKeyColumnCount(),
         evaluator,
-        GetNestedColumnsSchema(schemaPtr));
+        GetNestedColumnsSchema(*schemaPtr));
 
     {
         auto row = BuildUnversionedRow("<id=0>0; <id=1;>0; <id=2;aggregate=true>[]; <id=3;aggregate=true>[]");
@@ -619,7 +619,7 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns2)
         schema.Columns().size(),
         schema.GetKeyColumnCount(),
         evaluator,
-        GetNestedColumnsSchema(schemaPtr));
+        GetNestedColumnsSchema(*schemaPtr));
 
     {
         auto row = BuildUnversionedRow("<id=0>0; <id=1;aggregate=true>[1;1;1]; <id=2;aggregate=true>[1;2;3]");

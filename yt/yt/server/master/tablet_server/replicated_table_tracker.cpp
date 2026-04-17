@@ -438,7 +438,7 @@ private:
                 .Via(CheckerInvoker_));
         }
 
-        bool operator == (const TReplica& other) const
+        bool operator==(const TReplica& other) const
         {
             return Id_ == other.Id_
                 && ClusterName_ == other.ClusterName_
@@ -570,7 +570,7 @@ private:
             auto now = NProfiling::GetInstant();
             auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
 
-            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.Get().IsOK())
+            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.GetOrCrash().IsOK())
                 ? RetryOnFailureInterval_
                 : TabletCellBundleNameTtl_;
 

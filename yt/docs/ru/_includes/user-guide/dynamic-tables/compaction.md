@@ -191,7 +191,7 @@ yt remount-table //path/to/table
 В этом разделе описано строение таблета. Оно не обязательно для прочтения, но облегчит понимание тем, кто захочет самостоятельно менять какие-то настройки.
 
 {% if audience == "internal" %}
-Для дальнейшего изучения можно обратиться к [презентации](https://docs.yandex.ru/docs/view?url=ya-disk-public%3A%2F%2Fi847DzRWoKk%2Fi0Xox19Rn1ITfuoLOyZvivqdJcyuW%2Bc%3D&name=dyntables.pdf&nosw=1) [отсюда](dynamic_tables_internals#2018:-arhitektura-dinamicheskih-tablic), страница 73 и далее.
+Для дальнейшего изучения можно обратиться к [презентации](https://docs.yandex.ru/docs/view?url=ya-disk-public%3A%2F%2Fi847DzRWoKk%2Fi0Xox19Rn1ITfuoLOyZvivqdJcyuW%2Bc%3D&name=dyntables.pdf&nosw=1) [отсюда](../../../other/video-posts.md#2018-arhitektura-dinamicheskih-tablic), страница 73 и далее.
 {% endif %}
 
 ### Устройство { #tablet_description }

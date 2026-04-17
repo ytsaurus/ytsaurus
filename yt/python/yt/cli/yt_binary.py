@@ -975,8 +975,6 @@ def reshard_table(**kwargs):
         del kwargs["pivot_keys"]
     if kwargs.get("uniform") is False:
         del kwargs["uniform"]
-    if kwargs.get("enable_slicing") is False:
-        del kwargs["enable_slicing"]
     yt.reshard_table(**kwargs)
 
 
@@ -987,9 +985,13 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("--tablet-count", type=int)
     parser.add_argument("--sync", action="store_true")
     parser.add_argument("--uniform", action="store_true")
-    parser.add_argument("--enable-slicing", action="store_true")
     parser.add_argument("--slicing-accuracy", type=float)
     parser.add_argument("--trimmed-row-counts", type=int, nargs="+")
+    enable_slicing_parser = parser.add_mutually_exclusive_group(required=False)
+    enable_slicing_parser.add_argument(
+        "--enable-slicing", dest="enable_slicing", default=None, action="store_true")
+    enable_slicing_parser.add_argument(
+        "--no-enable-slicing", dest="enable_slicing", default=None, action="store_false")
 
 
 def add_reshard_table_automatic_parser(add_parser):
@@ -2540,19 +2542,19 @@ def remove_maintenance(**kwargs):
 def add_maintenance_request_parsers(add_parser):
     parser = add_parser("add-maintenance", add_maintenance)
     parser.add_argument("-c", "--component", type=str)
-    parser.add_argument("-a", "--address", type=str)
-    parser.add_argument("-t", "--type", type=str)
+    parser.add_argument("-a", "--address", type=str, help="Component address")
+    parser.add_argument("-t", "--type", type=str, help="Maintenance type")
     parser.add_argument("--comment", type=str)
 
     parser = add_parser("remove-maintenance", remove_maintenance)
     parser.add_argument("-c", "--component", type=str)
-    parser.add_argument("-a", "--address", type=str)
+    parser.add_argument("-a", "--address", type=str, help="Component address")
     parser.add_argument("--id", default=None)
     add_structured_argument(parser, "--ids", default=None)
-    parser.add_argument("-t", "--type", default=None)
+    parser.add_argument("-t", "--type", default=None, help="Maintenance type")
     parser.add_argument("-u", "--user", default=None)
-    parser.add_argument("--mine", default=False)
-    parser.add_argument("--all", default=False)
+    parser.add_argument("--mine", action="store_true")
+    parser.add_argument("--all", action="store_true")
 
 
 def add_admin_parser(root_subparsers):
@@ -2778,7 +2780,7 @@ def add_flow_set_pipeline_spec_parser(add_parser):
                         help="Set spec even if pipeline is paused")
     parser.add_argument("--spec-path", help="Path inside pipeline spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
-                        help="new spec attribute value")
+                        help="New spec attribute value; if it is not set, it will be read from stdin")
 
 
 def add_flow_remove_pipeline_spec_parser(add_parser):
@@ -2809,7 +2811,7 @@ def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
-                        help="new spec attribute value")
+                        help="New spec attribute value; if it is not set, it will be read from stdin")
 
 
 def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
@@ -2910,9 +2912,9 @@ def add_flow_execute_parser(add_parser):
                         help="Execute YT Flow specific command")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_hybrid_argument(parser, "flow_command", group_required=True,
-                        help="name of the command to execute")
+                        help="Name of the command to execute; use command 'list' to list all available commands")
     add_hybrid_argument(parser, "flow_argument", group_required=False,
-                        help="argument of the command (optional)")
+                        help="Argument of the command (optional)")
     add_structured_format_argument(parser, "--input-format")
     add_structured_format_argument(parser, "--output-format")
 

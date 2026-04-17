@@ -185,6 +185,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     if (chunkFormat != EChunkFormat::TableVersionedSimple &&
         chunkFormat != EChunkFormat::TableVersionedIndexed &&
+        chunkFormat != EChunkFormat::TableVersionedSlim &&
         chunkFormat != EChunkFormat::TableUnversionedSchemalessHorizontal)
     {
         YT_LOG_INFO("Cannot create lookup hash table for improper chunk format "
@@ -269,8 +270,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     blockMeta,
                     GetCompositeColumnFlags(chunkMeta->ChunkSchema()),
                     GetHunkColumnFlags(chunkMeta->GetChunkFormat(), chunkMeta->GetChunkFeatures(), chunkMeta->ChunkSchema()),
-                    chunkMeta->HunkChunkMetas(),
-                    chunkMeta->HunkChunkRefs(),
+                    &chunkMeta->HunkChunkMetas(),
+                    &chunkMeta->HunkChunkRefs(),
                     TChunkColumnMapping(tableSchema, chunkMeta->ChunkSchema())
                         .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
                     sortOrders,

@@ -20,8 +20,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -272,12 +272,13 @@ void TInputManager::InitializeClients(IClientPtr client)
 
 void TInputManager::InitializeStructures(
     IClientPtr client,
-    const TInputTransactionManagerPtr& inputTransactionManager)
+    const TInputTransactionManagerPtr& inputTransactionManager,
+    TClusterResolverPtr clusterResolver)
 {
     YT_VERIFY(inputTransactionManager);
     InputTables_.clear();
     Clusters_.clear();
-    ClusterResolver_ = inputTransactionManager->GetClusterResolver();
+    ClusterResolver_ = std::move(clusterResolver);
 
     auto ensureCluster = [&](const auto& name) {
         if (!Clusters_.contains(name)) {
@@ -1095,9 +1096,14 @@ void TInputManager::InitInputChunkScrapers()
 
 bool TInputManager::CanInterruptJobs() const
 {
-    // TODO(galtsev): hot fix for YT-23460, see also YT-17003
     for (auto& table : InputTables_) {
+        // TODO(galtsev): Hot fix for YT-23460, see also YT-17003.
         if (table->Path.GetForeign() && table->Path.GetNewRanges(table->Comparator).size() > 1) {
+            return false;
+        }
+
+        // TODO(dave11ar): Hot fix for YT-26795.
+        if (table->Path.GetVersionedReadOptions().ReadMode != EVersionedIOMode::Default) {
             return false;
         }
     }
@@ -1503,12 +1509,12 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
             cluster->Client(),
             Logger);
 
-        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ false, clusterName)) {
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned*/ false, clusterName)) {
             if (!chunk->IsDynamicStore()) {
                 samplesFetcher->AddChunk(chunk);
             }
         }
-        for (const auto& chunk : CollectPrimaryChunks(/*versioned=*/ true, clusterName)) {
+        for (const auto& chunk : CollectPrimaryChunks(/*versioned*/ true, clusterName)) {
             if (!chunk->IsDynamicStore()) {
                 samplesFetcher->AddChunk(chunk);
             }

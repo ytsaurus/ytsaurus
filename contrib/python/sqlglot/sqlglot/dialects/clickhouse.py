@@ -11,6 +11,7 @@ from sqlglot.dialects.dialect import (
     build_formatted_time,
     build_like,
     inline_array_sql,
+    jarowinkler_similarity,
     json_extract_segments,
     json_path_key_only_name,
     length_or_char_length_sql,
@@ -30,6 +31,7 @@ from sqlglot.generator import Generator
 from sqlglot.helper import is_int, seq_get
 from sqlglot.tokens import Token, TokenType
 from sqlglot.generator import unsupported_args
+from sqlglot.typing.clickhouse import EXPRESSION_METADATA
 
 DATEΤΙΜΕ_DELTA = t.Union[exp.DateAdd, exp.DateDiff, exp.DateSub, exp.TimestampSub, exp.TimestampAdd]
 
@@ -243,6 +245,8 @@ class ClickHouse(Dialect):
     # https://github.com/ClickHouse/ClickHouse/issues/33935#issue-1112165779
     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_SENSITIVE
 
+    EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+
     UNESCAPED_SEQUENCES = {
         "\\0": "\0",
     }
@@ -352,13 +356,19 @@ class ClickHouse(Dialect):
                 for unit in TIMESTAMP_TRUNC_UNITS
             },
             "ANY": exp.AnyValue.from_arg_list,
+            "ARRAYCOMPACT": exp.ArrayCompact.from_arg_list,
+            "ARRAYCONCAT": exp.ArrayConcat.from_arg_list,
+            "ARRAYDISTINCT": exp.ArrayDistinct.from_arg_list,
             "ARRAYSUM": exp.ArraySum.from_arg_list,
+            "ARRAYMAX": exp.ArrayMax.from_arg_list,
+            "ARRAYMIN": exp.ArrayMin.from_arg_list,
             "ARRAYREVERSE": exp.ArrayReverse.from_arg_list,
             "ARRAYSLICE": exp.ArraySlice.from_arg_list,
             "CURRENTDATABASE": exp.CurrentDatabase.from_arg_list,
             "CURRENTSCHEMAS": exp.CurrentSchemas.from_arg_list,
             "COUNTIF": _build_count_if,
             "COSINEDISTANCE": exp.CosineDistance.from_arg_list,
+            "VERSION": exp.CurrentVersion.from_arg_list,
             "DATE_ADD": build_date_delta(exp.DateAdd, default_unit=None),
             "DATEADD": build_date_delta(exp.DateAdd, default_unit=None),
             "DATE_DIFF": build_date_delta(exp.DateDiff, default_unit=None, supports_timezone=True),
@@ -397,7 +407,9 @@ class ClickHouse(Dialect):
             "SUBSTRINGINDEX": exp.SubstringIndex.from_arg_list,
             "TOTYPENAME": exp.Typeof.from_arg_list,
             "EDITDISTANCE": exp.Levenshtein.from_arg_list,
+            "JAROWINKLERSIMILARITY": exp.JarowinklerSimilarity.from_arg_list,
             "LEVENSHTEINDISTANCE": exp.Levenshtein.from_arg_list,
+            "UTCTIMESTAMP": exp.UtcTimestamp.from_arg_list,
         }
         FUNCTIONS.pop("TRANSFORM")
         FUNCTIONS.pop("APPROX_TOP_SUM")
@@ -565,6 +577,8 @@ class ClickHouse(Dialect):
             "MEDIAN": lambda self: self._parse_quantile(),
             "COLUMNS": lambda self: self._parse_columns(),
             "TUPLE": lambda self: exp.Struct.from_arg_list(self._parse_function_args(alias=True)),
+            "AND": lambda self: exp.and_(*self._parse_function_args(alias=False)),
+            "OR": lambda self: exp.or_(*self._parse_function_args(alias=False)),
         }
 
         FUNCTION_PARSERS.pop("MATCH")
@@ -749,8 +763,8 @@ class ClickHouse(Dialect):
 
         def _parse_global_in(self, this: t.Optional[exp.Expression]) -> exp.Not | exp.In:
             is_negated = self._match(TokenType.NOT)
-            this = self._match(TokenType.IN) and self._parse_in(this, is_global=True)
-            return self.expression(exp.Not, this=this) if is_negated else this
+            in_expr = self._parse_in(this, is_global=True) if self._match(TokenType.IN) else None
+            return self.expression(exp.Not, this=in_expr) if is_negated else t.cast(exp.In, in_expr)
 
         def _parse_table(
             self,
@@ -804,18 +818,18 @@ class ClickHouse(Dialect):
         def _parse_join_parts(
             self,
         ) -> t.Tuple[t.Optional[Token], t.Optional[Token], t.Optional[Token]]:
-            is_global = self._match(TokenType.GLOBAL) and self._prev
-            kind_pre = self._match_set(self.JOIN_KINDS, advance=False) and self._prev
+            is_global = self._prev if self._match(TokenType.GLOBAL) else None
+            kind_pre = self._prev if self._match_set(self.JOIN_KINDS, advance=False) else None
 
             if kind_pre:
-                kind = self._match_set(self.JOIN_KINDS) and self._prev
-                side = self._match_set(self.JOIN_SIDES) and self._prev
+                kind = self._prev if self._match_set(self.JOIN_KINDS) else None
+                side = self._prev if self._match_set(self.JOIN_SIDES) else None
                 return is_global, side, kind
 
             return (
                 is_global,
-                self._match_set(self.JOIN_SIDES) and self._prev,
-                self._match_set(self.JOIN_KINDS) and self._prev,
+                self._prev if self._match_set(self.JOIN_SIDES) else None,
+                self._prev if self._match_set(self.JOIN_KINDS) else None,
             )
 
         def _parse_join(
@@ -914,10 +928,15 @@ class ClickHouse(Dialect):
             return super()._parse_wrapped_id_vars(optional=True)
 
         def _parse_primary_key(
-            self, wrapped_optional: bool = False, in_props: bool = False
+            self,
+            wrapped_optional: bool = False,
+            in_props: bool = False,
+            named_primary_key: bool = False,
         ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:
             return super()._parse_primary_key(
-                wrapped_optional=wrapped_optional or in_props, in_props=in_props
+                wrapped_optional=wrapped_optional or in_props,
+                in_props=in_props,
+                named_primary_key=named_primary_key,
             )
 
         def _parse_on_property(self) -> t.Optional[exp.Expression]:
@@ -1147,6 +1166,8 @@ class ClickHouse(Dialect):
             exp.ArrayReverse: rename_func("arrayReverse"),
             exp.ArraySlice: rename_func("arraySlice"),
             exp.ArraySum: rename_func("arraySum"),
+            exp.ArrayMax: rename_func("arrayMax"),
+            exp.ArrayMin: rename_func("arrayMin"),
             exp.ArgMax: arg_max_or_min_no_count("argMax"),
             exp.ArgMin: arg_max_or_min_no_count("argMin"),
             exp.Array: inline_array_sql,
@@ -1160,6 +1181,7 @@ class ClickHouse(Dialect):
             exp.ComputedColumnConstraint: lambda self,
             e: f"{'MATERIALIZED' if e.args.get('persisted') else 'ALIAS'} {self.sql(e, 'this')}",
             exp.CurrentDate: lambda self, e: self.func("CURRENT_DATE"),
+            exp.CurrentVersion: rename_func("VERSION"),
             exp.DateAdd: _datetime_delta_sql("DATE_ADD"),
             exp.DateDiff: _datetime_delta_sql("DATE_DIFF"),
             exp.DateStrToDate: rename_func("toDate"),
@@ -1168,6 +1190,7 @@ class ClickHouse(Dialect):
             exp.FarmFingerprint: rename_func("farmFingerprint64"),
             exp.Final: lambda self, e: f"{self.sql(e, 'this')} FINAL",
             exp.IsNan: rename_func("isNaN"),
+            exp.JarowinklerSimilarity: jarowinkler_similarity("jaroWinklerSimilarity"),
             exp.JSONCast: lambda self, e: f"{self.sql(e, 'this')}.:{self.sql(e, 'to')}",
             exp.JSONExtract: json_extract_segments("JSONExtractString", quoted_index=False),
             exp.JSONExtractScalar: json_extract_segments("JSONExtractString", quoted_index=False),
@@ -1184,6 +1207,7 @@ class ClickHouse(Dialect):
             exp.Rand: rename_func("randCanonical"),
             exp.StartsWith: rename_func("startsWith"),
             exp.Struct: rename_func("tuple"),
+            exp.Trunc: rename_func("trunc"),
             exp.EndsWith: rename_func("endsWith"),
             exp.EuclideanDistance: rename_func("L2Distance"),
             exp.StrPosition: lambda self, e: strposition_sql(

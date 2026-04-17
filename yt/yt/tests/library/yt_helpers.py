@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from dateutil import parser
 from dateutil.tz import tzlocal
+from fnmatch import fnmatchcase
 
 import inspect
 import json
@@ -412,3 +413,44 @@ def calculate_object_diff(obj1, obj2) -> ObjectDiff:
             diff_left[key] = diff_l
             diff_right[key] = diff_r
     return ObjectDiff(diff_left=diff_left, diff_right=diff_right)
+
+
+def validate_operation_statistics_descriptions(statistics):
+    descriptions = get("//sys/scheduler/orchid/scheduler/supported_features/operation_statistics_descriptions")
+    pattern_statistics = [statistic_path for statistic_path in descriptions if "*" in statistic_path]
+
+    def _walk_statistics(statistics, base_path=""):
+        # TODO(khlebnikov): Handle v1 aggregates.
+        for name, value in statistics.items():
+            path = f"{base_path}/{name}" if base_path else name
+            if isinstance(value, dict):
+                if "count" in value:
+                    yield None, path, value
+                else:
+                    yield from _walk_statistics(value, path)
+            elif isinstance(value, list):
+                for group in value:
+                    yield group["tags"], path, group["summary"]
+
+    reported = builtins.set()
+    for _, path, _ in _walk_statistics(statistics):
+        reported.add(path)
+
+    def _check_statistic(path):
+        if path.startswith("custom/"):
+            return True
+        if path in descriptions:
+            return True
+        for pattern in pattern_statistics:
+            if fnmatchcase(path, pattern):
+                return True
+        return False
+
+    undescribed = builtins.set()
+    for path in reported:
+        if path.startswith("custom/"):
+            continue
+        if not _check_statistic(path):
+            undescribed.add(path)
+
+    assert not undescribed, f"Undescribed operation statistics: {undescribed}"

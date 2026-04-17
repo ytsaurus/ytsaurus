@@ -23,15 +23,19 @@ struct IFunctionCodegen
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
-    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const
-    {
-        return true;
-    }
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const = 0;
 
     virtual NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
+
+class TFunctionCodegenBase
+    : public IFunctionCodegen
+{
+public:
+    bool IsNullable(const std::vector<bool>& nullableArgs) const override;
+};
 
 struct IAggregateCodegen
     : public TRefCounted
@@ -126,7 +130,7 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExternalFunctionCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TExternalFunctionCodegen(
@@ -190,14 +194,19 @@ public:
     TExternalAggregateCodegen(
         const std::string& aggregateName,
         const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
-        ECallingConvention callingConvention,
+        int repeatedArgIndex,
+        TType repeatedArgType,
         bool isFirst,
         TSharedRef fingerprint)
         : AggregateName_(aggregateName)
         , ImplementationFiles_(implementationFiles)
-        , CallingConvention_(GetCallingConvention(callingConvention))
+        , CallingConvention_(GetCallingConvention(ECallingConvention::UnversionedValue))
+        , UpdateCallingConvention_(GetCallingConvention(
+            ECallingConvention::UnversionedValue,
+            repeatedArgIndex,
+            std::move(repeatedArgType)))
         , IsFirst_(isFirst)
-        , Fingerprint_(fingerprint)
+        , Fingerprint_(std::move(fingerprint))
     { }
 
     TCodegenAggregate Profile(
@@ -216,6 +225,7 @@ private:
     const std::string AggregateName_;
     const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> ImplementationFiles_;
     const ICallingConventionPtr CallingConvention_;
+    const ICallingConventionPtr UpdateCallingConvention_;
     const bool IsFirst_;
     const TSharedRef Fingerprint_;
 };

@@ -8,19 +8,58 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IQueueProfileManager
+DEFINE_ENUM(EProfilerScope,
+    (Object)
+    (ObjectPartition)
+    (ObjectPass)
+    (AlertManager)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TSnapshotPtr>
+struct IProfileManager
     : public TRefCounted
 {
     virtual void Profile(
-        const TQueueSnapshotPtr& previousQueueSnapshot,
-        const TQueueSnapshotPtr& currentQueueSnapshot) = 0;
+        const TSnapshotPtr& previousQueueSnapshot,
+        const TSnapshotPtr& currentQueueSnapshot) = 0;
 
-    virtual const NProfiling::TProfiler& GetQueueProfiler() const = 0;
-    virtual const NProfiling::TProfiler& GetAlertManagerProfiler() const = 0;
-    virtual const NProfiling::TProfiler& GetPassProfiler() const = 0;
+    virtual const NProfiling::TProfiler& GetProfiler(EProfilerScope scope) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IQueueProfileManager)
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <EObjectKind Kind, typename TRow>
+NProfiling::TTagSet CreateObjectProfilingTags(
+    const TRow& row,
+    bool enablePathAggregation = false,
+    bool addObjectType = false,
+    std::optional<bool> leading = std::nullopt);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TSnapshotPtr>
+class TProfileManagerBase
+    : public IProfileManager<TSnapshotPtr>
+{
+public:
+    TProfileManagerBase(
+        std::initializer_list<std::pair<EProfilerScope, NProfiling::TProfiler>> profilerByScope);
+
+    const NProfiling::TProfiler& GetProfiler(EProfilerScope scope) const;
+
+private:
+    TEnumIndexedArray<EProfilerScope, NProfiling::TProfiler> ProfilerByScope_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,20 +68,6 @@ IQueueProfileManagerPtr CreateQueueProfileManager(
     const NLogging::TLogger& logger,
     const NQueueClient::TQueueTableRow& row,
     bool leading);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IConsumerProfileManager
-    : public TRefCounted
-{
-    virtual void Profile(
-        const TConsumerSnapshotPtr& previousConsumerSnapshot,
-        const TConsumerSnapshotPtr& currentConsumerSnapshot) = 0;
-
-    virtual const NProfiling::TProfiler& GetPassProfiler() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IConsumerProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,3 +80,7 @@ IConsumerProfileManagerPtr CreateConsumerProfileManager(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueAgent
+
+#define PROFILE_MANAGER_INL_H_
+#include "profile_manager-inl.h"
+#undef PROFILE_MANAGER_INL_H_

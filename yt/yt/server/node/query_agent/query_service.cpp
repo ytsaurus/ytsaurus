@@ -21,16 +21,14 @@
 #include <yt/yt/server/node/tablet_node/helpers.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
-#include <yt/yt/server/node/tablet_node/security_manager.h>
-#include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/puller_replica_cache.h>
 #include <yt/yt/server/node/tablet_node/replication_log.h>
+#include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
-#include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -58,7 +56,6 @@
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/tracked_memory_chunk_provider.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -71,6 +68,7 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -92,23 +90,23 @@
 
 namespace NYT::NQueryAgent {
 
-using namespace NClusterNode;
 using namespace NChaosClient;
 using namespace NChunkClient;
+using namespace NClusterNode;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
-using namespace NObjectClient;
 using namespace NRpc;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
-using namespace NServer;
 
 using NChunkClient::NProto::TMiscExt;
 using NYT::ToProto;
@@ -261,7 +259,7 @@ public:
             .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
             .SetHandleMethodError(true));
 
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
             MakeWeak(this)));
         SubscribeLoadAdjusted();
@@ -531,6 +529,7 @@ private:
             .MemoryUsageTracker = Bootstrap_
                 ->GetNodeMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Lookup),
+            .InitialQueryKind = EInitialQueryKind::LookupRows,
         };
 
         TRetentionConfigPtr retentionConfig;
@@ -558,8 +557,12 @@ private:
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(requestHeaderExt.in_memory_mode());
 
+        auto versionedReadOptions = request->has_versioned_read_options()
+            ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
+            : TVersionedReadOptions();
+
         context->SetRequestInfo("TabletIds: %v, Timestamp: %v, RetentionTimestamp: %v, RequestCodec: %v, ResponseCodec: %v, "
-            "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v",
+            "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v, VersionedReadMode: %v",
             MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
             }),
@@ -569,7 +572,8 @@ private:
             responseCodecId,
             chunkReadOptions.ReadSessionId,
             inMemoryMode,
-            retentionConfig);
+            retentionConfig,
+            versionedReadOptions.ReadMode);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
@@ -604,9 +608,7 @@ private:
             std::move(chunkReadOptions),
             std::move(retentionConfig),
             request->enable_partial_result(),
-            request->has_versioned_read_options()
-                ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
-                : TVersionedReadOptions(),
+            std::move(versionedReadOptions),
             Bootstrap_->GetTabletSnapshotStore(),
             GetCurrentProfilingUser(),
             GetCurrentInvoker());
@@ -665,9 +667,10 @@ private:
             : std::numeric_limits<i64>::max();
         auto requestTimeout = context->GetTimeout()
             .value_or(Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout);
-        auto pullerTabletId = request->has_puller_tablet_id()
-            ? std::make_optional(FromProto<TTabletId>(request->puller_tablet_id()))
-            : std::nullopt;
+        TTabletId pullerTabletId;
+        if (request->has_puller_tablet_id()) {
+            pullerTabletId = FromProto<TTabletId>(request->puller_tablet_id());
+        }
         auto maxAllowedCommitInstant = request->has_max_allowed_commit_instant()
             ? FromProto<TInstant>(request->max_allowed_commit_instant())
             : TInstant::Max();
@@ -676,6 +679,7 @@ private:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
             .ReadSessionId = TReadSessionId::Create(),
+            .InitialQueryKind = EInitialQueryKind::PullRows,
         };
 
         TRowBatchReadOptions rowBatchReadOptions{
@@ -739,7 +743,7 @@ private:
                 profilerGuard.Start(serviceCounters->PullRows);
 
                 if (pullerTabletId) {
-                    tabletSnapshot->TabletChaosData->PullerReplicaCache.Acquire()->OnPull(*pullerTabletId);
+                    tabletSnapshot->TabletChaosData->PullerReplicaCache.Acquire()->OnPull(pullerTabletId);
                 }
 
                 snapshotStore->ValidateTabletAccess(tabletSnapshot, AsyncLastCommittedTimestamp);
@@ -1599,6 +1603,7 @@ private:
         chunkReadOptions.MemoryUsageTracker = Bootstrap_
             ->GetNodeMemoryUsageTracker()
             ->WithCategory(EMemoryCategory::FetchTableRows);
+        chunkReadOptions.InitialQueryKind = EInitialQueryKind::FetchRows;
 
         auto resultFuture = FetchRowsFromOrderedStore(
             std::move(tabletSnapshot),

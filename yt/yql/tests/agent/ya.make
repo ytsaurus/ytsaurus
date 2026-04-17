@@ -26,6 +26,8 @@ DEPENDS(
 )
 
 PEERDIR(
+    library/python/port_manager
+    yql/library/langver/python
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
 )
@@ -50,5 +52,7 @@ ENDIF()
 
 FORK_SUBTESTS()
 SPLIT_FACTOR(32)
+
+ENV(YT_LOCAL=1)
 
 END()

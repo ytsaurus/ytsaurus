@@ -8,7 +8,7 @@ SRCS(
     actions.cpp
     action_helpers.cpp
     bootstrap.cpp
-    config.cpp
+    ban_service.cpp
     cypress_proxy_service_base.cpp
     cypress_transaction_service.cpp
     dynamic_config_manager.cpp
@@ -46,7 +46,9 @@ PEERDIR(
     yt/yt/server/lib/admin
     yt/yt/server/lib/misc
     yt/yt/server/lib/object_server
+    yt/yt/server/lib/cypress_proxy
     yt/yt/server/lib/sequoia
+    yt/yt/server/lib/cross_cluster_replicated_state
 )
 
 END()

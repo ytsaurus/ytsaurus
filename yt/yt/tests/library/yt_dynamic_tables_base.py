@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
     disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug,
-    remove
+    remove, insert_rows, write_hunks
 )
 
 # Used by SmoothMovementHelper by name lookup.
@@ -18,6 +18,8 @@ import yt_smooth_movement_helper_base
 from yt.common import YtError
 
 import yt.yson as yson
+
+import yt_error_codes
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -455,6 +457,30 @@ class DynamicTablesBase(YTEnvSetup):
         wait(lambda: _do_init())
 
         return sensors[0]
+
+    def _insert_rows_with_hunk_storage(self, path, rows, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                insert_rows(path, rows)
+                return
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
+                    raise e
+
+    def _write_hunks_with_retries(self, path, rows, tablet_index=0, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                result = write_hunks(path, rows, tablet_index=tablet_index)
+                return result
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
+                    raise e
 
 
 ##################################################################

@@ -5,7 +5,7 @@
 #include <yt/microservices/id_to_path_mapping/id_to_path_updater/lib/messages.pb.h>
 
 template <typename T>
-class TLoggingDoFn : public NRoren::IDoFn<T, T>
+class TLoggingDoFn : public NRoren::IDoFn<T&&, T>
 {
 public:
     NYT::NLogging::TLogger Logger{"LogOnceInAWhile"};
@@ -22,13 +22,13 @@ public:
         Logged_ = false;
     }
 
-    void Do(const T& row, NRoren::TOutput<T>& output)
+    void Do(T&& row, NRoren::TOutput<T>& output)
     {
         if (!Logged_) {
             YT_LOG_INFO("Processing %v: %v", ObjectName_, ToString(row));
             Logged_ = true;
         }
-        output.Add(row);
+        output.Add(std::move(row));
     }
 
 private:
@@ -60,6 +60,7 @@ private:
     TString ObjectName_;
 };
 
-NRoren::TParDoApplicator<NJson::TJsonValue, TIdToPathRow> MakeUpdateItem(TString forceCluster = {});
-NRoren::TParDoApplicator<TIdToPathRow, TIdToPathRow> FilterClusters(THashSet<TString> clusterFilter);
+NRoren::TParDoApplicator<NJson::TJsonValue, TIdToPathRow> MakeUpdateItem(TString forceCluster);
+NRoren::TParDoApplicator<TIdToPathRow, TIdToPathRow> AllowClusters(THashSet<std::string> clusterFilter);
+NRoren::TParDoApplicator<TIdToPathRow, TIdToPathRow> DenyClusters(THashSet<std::string> clusterFilter);
 TLogOnceInAWhileTransform LogOnceInAWhile(TString objectName);

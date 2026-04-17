@@ -740,7 +740,9 @@ class StdMapPrinter:
         def __next__(self):
             item = next(self.rbiter)
             item = item.dereference()['__value_']
-            result = ('[%d] %s' % (self.count, str(item['__cc_']['first'])), item['__cc_']['second'])
+            if item.type.has_key('__cc_'):
+                item = item['__cc_']
+            result = ('[%d] %s' % (self.count, str(item['first'])), item['second'])
             self.count += 1
             return result
 
@@ -771,7 +773,9 @@ class StdMapIteratorPrinter:
     def to_string (self):
         internal = self.val['__i_']
         node_ptr_type = internal.type.template_argument(1)
-        entry = internal['__ptr_'].cast(node_ptr_type).dereference()['__value_']['__cc_']
+        entry = internal['__ptr_'].cast(node_ptr_type).dereference()['__value_']
+        if entry.type.has_key('__cc_'):
+            entry = entry['__cc_']
         return '[%s] %s' % (entry['first'], entry['second'])
 
 class HashtableIterator(Iterator):
@@ -815,7 +819,9 @@ class StdUnorderedMapIteratorPrinter:
     def to_string (self):
         internal = self.val['__i_']
         node_ptr_type = internal.type.template_argument(0)
-        entry = internal['__node_'].cast(node_ptr_type).dereference()['__value_']['__cc_']
+        entry = internal['__node_'].cast(node_ptr_type).dereference()['__value_']
+        if entry.type.has_key('__cc_'):
+            entry = entry['__cc_']
         return '[%s] %s' % (entry['first'], entry['second'])
 
 class UnorderedSetPrinter:

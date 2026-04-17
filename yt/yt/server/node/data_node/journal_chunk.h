@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/node/chunk.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,12 +77,18 @@ private:
     struct TReadBlockRangeSession
         : public TReadSessionBase
     {
-        int FirstBlockIndex;
-        int BlockCount;
+        int FirstBlockIndex = -1;
+        int BlockCount = -1;
         TPromise<std::vector<NChunkClient::TBlock>> Promise;
     };
 
     using TReadBlockRangeSessionPtr = TIntrusivePtr<TReadBlockRangeSession>;
+
+    struct TPrecachedBlockInfo
+    {
+        int BlockIndex = -1;
+        std::unique_ptr<NChunkClient::ICachedBlockCookie> Cookie;
+    };
 
     TFuture<void> AsyncRemove() override;
 
@@ -88,6 +96,22 @@ private:
 
     NHydra::IFileChangelogPtr GetChangelog();
     void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
+
+    TFuture<std::vector<NChunkClient::TBlock>> ReadCompleteBlockSetAndCache(
+        const std::vector<int>& blockIndexes,
+        const TChunkReadOptions& options);
+
+    TFuture<std::vector<NChunkClient::TBlock>> OnBlockRangeReadFromDisk(
+        const TChunkReadOptions& options,
+        std::vector<std::unique_ptr<NChunkClient::ICachedBlockCookie>> blockCookies,
+        int firstBlockIndex,
+        int blockCount,
+        std::vector<NChunkClient::TBlock> alreadyReadBlocks,
+        TErrorOr<std::vector<NChunkClient::TBlock>>&& blocksOrError);
+
+    void OnBlockReadFromDiskForPrecache(
+        TPrecachedBlockInfo precachedBlockInfo,
+        TErrorOr<std::vector<NChunkClient::TBlock>>&& blocksOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalChunk)

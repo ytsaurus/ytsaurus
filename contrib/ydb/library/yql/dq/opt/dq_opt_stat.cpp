@@ -238,6 +238,26 @@ bool NeedCalc(NNodes::TExprBase node) {
     return !node.Maybe<TCoDataCtor>();
 }
 
+bool IsLiteralDataExpr(NNodes::TExprBase node) {
+    auto type = node.Ref().GetTypeAnn();
+    if (type->IsSingleton()) {
+        return false;
+    }
+    if (node.Maybe<TCoDataCtor>()) {
+        return true;
+    }
+    if (node.Maybe<TCoNothing>()) {
+        return true;
+    }
+    if (auto maybeJust = node.Maybe<TCoJust>()) {
+        return IsLiteralDataExpr(maybeJust.Cast().Input());
+    }
+    if (node.Maybe<TCoPgConst>()) {
+        return true;
+    }
+    return false;
+}
+
 bool IsConstantExprPg(const TExprNode::TPtr& input) {
     if (input->GetTypeAnn()->GetKind() == ETypeAnnotationKind::Pg) {
         if (input->IsCallable("PgConst")) {
@@ -495,6 +515,72 @@ void InferStatisticsForGraceJoin(
     }
 
     YQL_CLOG(TRACE, CoreDq) << "Infer statistics for GraceJoin with labels: " << "[" << JoinSeq(", ", unionOfLabels) << "]" << ", stats: " << resStats->ToString();
+    typeCtx->SetStats(join.Raw(), std::move(resStats));
+}
+
+void InferStatisticsForBlockHashJoin(
+    const TExprNode::TPtr& input,
+    TTypeAnnotationContext* typeCtx,
+    const IProviderContext& ctx,
+    TOptimizerHints hints
+) {
+    auto inputNode = TExprBase(input);
+    auto join = inputNode.Cast<TDqBlockHashJoinCore>();
+
+    auto leftArg = join.LeftInput();
+    auto rightArg = join.RightInput();
+
+    auto leftStats = typeCtx->GetStats(leftArg.Raw());
+    auto rightStats = typeCtx->GetStats(rightArg.Raw());
+
+    if (!leftStats || !rightStats) {
+        return;
+    }
+
+    auto leftLabels = InferLabels(leftStats, join.LeftKeysColumnNames());
+    auto rightLabels = InferLabels(rightStats, join.RightKeysColumnNames());
+
+    leftStats = ApplyRowsHints(leftStats, leftLabels, *hints.CardinalityHints);
+    rightStats = ApplyRowsHints(rightStats, rightLabels, *hints.CardinalityHints);
+
+    leftStats = ApplyBytesHints(leftStats, leftLabels, *hints.BytesHints);
+    rightStats = ApplyBytesHints(rightStats, rightLabels, *hints.BytesHints);
+
+    TVector<TJoinColumn> leftJoinKeys;
+    TVector<TJoinColumn> rightJoinKeys;
+
+    for (size_t i = 0; i < join.LeftKeysColumnNames().Size(); i++) {
+        auto alias = ExtractAlias(join.LeftKeysColumnNames().Item(i).StringValue());
+        auto attrName = RemoveAliases(join.LeftKeysColumnNames().Item(i).StringValue());
+        leftJoinKeys.push_back(TJoinColumn(alias, attrName));
+    }
+    for (size_t i = 0; i < join.RightKeysColumnNames().Size(); i++) {
+        auto alias = ExtractAlias(join.RightKeysColumnNames().Item(i).StringValue());
+        auto attrName = RemoveAliases(join.RightKeysColumnNames().Item(i).StringValue());
+        rightJoinKeys.push_back(TJoinColumn(alias, attrName));
+    }
+
+    auto unionOfLabels = UnionLabels(leftLabels, rightLabels);
+
+    auto resStats = std::make_shared<TOptimizerStatistics>(
+        ctx.ComputeJoinStatsV2(
+            *leftStats,
+            *rightStats,
+            leftJoinKeys,
+            rightJoinKeys,
+            EJoinAlgoType::GraceJoin,
+            ConvertToJoinKind(join.JoinKind().StringValue()),
+            FindCardHint(unionOfLabels, *hints.CardinalityHints),
+            join.LeftInput().Maybe<TDqCnHashShuffle>().IsValid(),
+            join.RightInput().Maybe<TDqCnHashShuffle>().IsValid(),
+            FindBytesHint(unionOfLabels, *hints.BytesHints)
+        )
+    );
+
+    resStats->Labels = std::make_shared<TVector<TString>>();
+    resStats->Labels->insert(resStats->Labels->begin(), unionOfLabels.begin(), unionOfLabels.end());
+
+    YQL_CLOG(TRACE, CoreDq) << "Infer statistics for BlockHashJoin with labels: " << "[" << JoinSeq(", ", unionOfLabels) << "]" << ", stats: " << resStats->ToString();
     typeCtx->SetStats(join.Raw(), std::move(resStats));
 }
 

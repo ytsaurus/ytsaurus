@@ -435,7 +435,6 @@ if __name__ == '__main__':
         if "ENABLE_SCHEMA" in yt_cli.env:
             return
         script_reducer_content = """#!/usr/bin/env python3
-from __future__ import print_function
 import sys
 from itertools import groupby, starmap
 
@@ -458,7 +457,6 @@ if __name__ == '__main__':
         with open(script_reducer_path, "w") as file:
             file.write(script_reducer_content)
         script_order_content = """#!/usr/bin/env python3
-from __future__ import print_function
 import sys
 
 if __name__ == '__main__':

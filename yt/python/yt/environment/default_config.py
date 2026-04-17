@@ -17,7 +17,6 @@ def get_master_config():
         },
 
         "changelogs": {
-            "flush_period": 10,
             "io_engine": {
                 "enable_sync": False,
             }
@@ -77,6 +76,9 @@ def get_master_config():
 
 
 # COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
+# TODO(buyval01): switch use_location_indexes_in_sequoia_chunk_confirmation,
+# use_location_indexes_to_search_location_on_confirmation
+# and check_location_convergence_by_index_and_uuid_on_confirmation to True once CHYT 2.19 version migration is run.
 def get_dynamic_master_config():
     return {
         "chunk_manager": {
@@ -90,7 +92,14 @@ def get_dynamic_master_config():
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
-                "enable_chunk_replicas_throttling_in_heartbeats": True,
+                "enable_location_indexes_in_data_node_heartbeats": True,
+                "use_location_indexes_in_sequoia_chunk_confirmation": False,
+                "use_location_indexes_to_search_location_on_confirmation": False,
+                "check_location_convergence_by_index_and_uuid_on_confirmation": False,
+                "enable_validation_full_heartbeats": True,
+                "validation_full_heartbeat_period": 1000,
+                "validation_full_heartbeat_splay": 200,
+                "validate_sequoia_replicas": True,
             },
         },
 
@@ -107,11 +116,12 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
+            "return_master_cells_connection_configs_on_node_registration": True,
+            "return_master_cells_connection_configs_on_node_heartbeat": True,
         },
 
         "object_manager": {
             "gc_sweep_period": 10,
-            "fix_resolve_prerequisite_path_to_local_object_for_symlinks": True,
             "prohibit_prerequisite_revisions_differ_from_execution_paths": True,
         },
 
@@ -191,7 +201,11 @@ def get_dynamic_master_config():
             "enable_smooth_tablet_movement": True,
         },
 
-        "sequoia_manager": {},
+        "sequoia_manager": {
+            "enable_async_sequoia_transaction_start": True,
+            "use_shared_write_locks_for_cypress_transactions": False,
+            "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator": True,
+        },
 
         "cell_master": {
             "alert_update_period": 500,
@@ -800,7 +814,7 @@ def get_dynamic_node_config():
                 },
             },
             "job_resource_manager": {
-                "check_user_jobs_category_limit_on_resources_updating": True,
+                "check_user_jobs_category_limit_on_resource_update": True,
             },
             "node_memory_tracker": {
                 "check_per_category_limit_overcommit": True,
@@ -926,6 +940,10 @@ def get_cypress_proxy_config():
 
 
 def get_dynamic_cypress_proxy_config():
+    return {}
+
+
+def get_dynamic_rpc_proxy_config():
     return {}
 
 

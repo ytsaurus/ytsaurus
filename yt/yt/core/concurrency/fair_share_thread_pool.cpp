@@ -132,7 +132,7 @@ struct THeapItem
     }
 };
 
-bool operator < (const THeapItem& lhs, const THeapItem& rhs)
+bool operator<(const THeapItem& lhs, const THeapItem& rhs)
 {
     return lhs.Bucket->ExcessTime < rhs.Bucket->ExcessTime;
 }
@@ -251,6 +251,7 @@ public:
         for (const auto& item : Heap_) {
             item.Bucket->Drain();
         }
+        Heap_.clear();
     }
 
     bool BeginExecute(TEnqueuedAction* action, int index)

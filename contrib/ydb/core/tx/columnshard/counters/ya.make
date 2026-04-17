@@ -8,6 +8,7 @@ SRCS(
     columnshard.cpp
     common_data.cpp
     engine_logs.cpp
+    histogram_borders.cpp
     indexation.cpp
     req_tracer.cpp
     scan.cpp
@@ -25,6 +26,7 @@ PEERDIR(
     contrib/ydb/library/signals
     contrib/ydb/core/base
     contrib/ydb/library/actors/core
+    contrib/ydb/core/kqp/compute_actor
 )
 
 GENERATE_ENUM_SERIALIZATION_WITH_HEADER(columnshard.h)

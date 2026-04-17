@@ -1,3 +1,4 @@
+from yt_driver_bindings import Driver
 from yt_dynamic_tables_base import DynamicTablesBase, map_in_parallel
 
 from yt_commands import (
@@ -19,6 +20,8 @@ MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
 
 
 class ChaosTestBase(DynamicTablesBase):
+    SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG = True
+
     NUM_CLOCKS = 1
     NUM_MASTER_CACHES = 1
     NUM_NODES = 4
@@ -32,6 +35,14 @@ class ChaosTestBase(DynamicTablesBase):
                 }
             }
         }
+    }
+
+    DELTA_CHAOS_NODE_CONFIG = {
+        "chaos_node": {
+            "chaos_manager": {
+                "era_commencing_period": 2,
+            },
+        },
     }
 
     def _get_drivers(self):
@@ -131,6 +142,19 @@ class ChaosTestBase(DynamicTablesBase):
             return True
         wait(_check)
 
+    def _mount_replicas_list(self, replicas_list : list[tuple[str, Driver]]):
+        def mount_and_wait(replica_path_and_driver):
+            path, driver = replica_path_and_driver
+            mount_table(path, driver=driver)
+            wait_for_tablet_state(path, "mounted", driver=driver)
+
+        map_in_parallel(mount_and_wait, replicas_list)
+
+    def _mount_replicas(self, replicas : list[dict[str, any]]):
+        self._mount_replicas_list(
+            [(replica["replica_path"], get_driver(cluster=replica["cluster_name"])) for replica in replicas]
+        )
+
     def _sync_replication_card(self, card_id):
         def _check():
             card = get("#{0}/@".format(card_id))
@@ -176,12 +200,7 @@ class ChaosTestBase(DynamicTablesBase):
         map_in_parallel(wait_for_cell, created_cells)
 
         if mount_tables:
-            def mount_and_wait(created_table):
-                path, driver = created_table
-                mount_table(path, driver=driver)
-                wait_for_tablet_state(path, "mounted", driver=driver)
-
-            map_in_parallel(mount_and_wait, created_tables)
+            self._mount_replicas_list(created_tables)
 
     def _create_replica_tables(self, replicas, replica_ids,
                                create_tablet_cells=True,
@@ -424,6 +443,12 @@ class ChaosTestBase(DynamicTablesBase):
 
         map_in_parallel(init_tracker, self._get_drivers())
 
+    def _setup_bunlde_clock(self, bundle_name: str):
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        clock_tag_path = f"//sys/tablet_cell_bundles/{bundle_name}/@options/clock_cluster_tag"
+        for driver in self._get_drivers():
+            set(clock_tag_path, primary_cell_tag, driver=driver)
+
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
 
@@ -448,6 +473,9 @@ class ChaosTestBase(DynamicTablesBase):
                 set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_cache", driver=driver)
 
         map_in_parallel(setup_for_driver, self._get_drivers())
+
+        if self.SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG:
+            self._setup_bunlde_clock("default")
 
     def _get_schemas_by_name(self, schema_names):
         schemas = {

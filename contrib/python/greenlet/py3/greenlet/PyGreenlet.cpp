@@ -189,6 +189,27 @@ green_clear(PyGreenlet* self)
 static int
 _green_dealloc_kill_started_non_main_greenlet(BorrowedGreenlet self)
 {
+    // During interpreter finalization, we cannot safely throw GreenletExit
+    // into the greenlet. Doing so calls g_switch(), which performs a stack
+    // switch and runs Python code via _PyEval_EvalFrameDefault. On Python
+    // < 3.11, executing Python code in a partially-torn-down interpreter
+    // leads to SIGSEGV (greenlet 3.x) or SIGABRT (greenlet 2.x).
+    //
+    // Python 3.11+ restructured interpreter finalization internals (frame
+    // representation, data stack management, recursion tracking) so that
+    // g_switch() during finalization is safe. On older Pythons, we simply
+    // mark the greenlet dead without throwing, which avoids the crash at
+    // the cost of not running any cleanup code inside the greenlet.
+    //
+    // See: https://github.com/python-greenlet/greenlet/issues/411
+    //      https://github.com/python-greenlet/greenlet/issues/351
+#if !GREENLET_PY311
+    if (_Py_IsFinalizing()) {
+        self->murder_in_place();
+        return 1;
+    }
+#endif
+
     /* Hacks hacks hacks copied from instance_dealloc() */
     /* Temporarily resurrect the greenlet. */
     assert(self.REFCNT() == 0);

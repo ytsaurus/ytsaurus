@@ -6,13 +6,13 @@
 
 #include <yt/yt/server/node/job_agent/public.h>
 
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+
 #include <yt/yt/server/lib/job_agent/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
 #include <yt/yt/server/lib/nbd/server.h>
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 
@@ -74,6 +74,8 @@ struct IBootstrap
     virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
 
     virtual NSignature::ISignatureValidatorPtr GetSignatureValidator() const = 0;
+
+    virtual NConcurrency::IPollerPtr GetAuxPoller() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

@@ -9,12 +9,20 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVersionedRowDigest
+    : public TRefCounted
 {
+    TVersionedRowDigest() = default;
+    explicit TVersionedRowDigest(const TTDigestConfigPtr& config);
+
+    void MergeWith(const TVersionedRowDigestPtr& other);
+
     std::vector<i64> EarliestNthTimestamp;
     IQuantileDigestPtr LastTimestampDigest;
     IQuantileDigestPtr AllButLastTimestampDigest;
     IQuantileDigestPtr FirstTimestampDigest;
 };
+
+DEFINE_REFCOUNTED_TYPE(TVersionedRowDigest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +31,7 @@ struct IVersionedRowDigestBuilder
 {
     virtual void OnRow(TVersionedRow row) = 0;
 
-    virtual TVersionedRowDigest FlushDigest() = 0;
+    virtual TVersionedRowDigestPtr FlushDigest() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedRowDigestBuilder)
@@ -31,7 +39,7 @@ DEFINE_REFCOUNTED_TYPE(IVersionedRowDigestBuilder)
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedRowDigestBuilderPtr CreateVersionedRowDigestBuilder(
-    const TVersionedRowDigestConfigPtr& config);
+    const TTDigestConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

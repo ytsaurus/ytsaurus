@@ -6,7 +6,12 @@ ENV(YT_TEST_FILTER=SMALL)
 
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
-IF (SANITIZER_TYPE)
+IF (SANITIZER_TYPE == "thread")
+    REQUIREMENTS(
+        ram:34
+        cpu:50
+    )
+ELSEIF (SANITIZER_TYPE)
     REQUIREMENTS(
         ram:34
         cpu:46

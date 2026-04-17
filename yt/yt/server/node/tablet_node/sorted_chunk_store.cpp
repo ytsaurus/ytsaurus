@@ -7,9 +7,6 @@
 #include "tablet.h"
 #include "transaction.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-
 #include <yt/yt/server/node/query_agent/config.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -80,25 +77,11 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 using namespace NApi;
 using namespace NDataNode;
-using namespace NClusterNode;
 using namespace NQueryAgent;
 using namespace NQueryClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(
-    const TCompactionHints& compactionHints,
-    NYson::IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("chunk_view_size").Value(compactionHints.ChunkViewSize)
-            .Item("row_digest").Value(compactionHints.RowDigest)
-        .EndMap();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,6 +357,8 @@ void TSortedChunkStore::Initialize()
 
     ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
 
+    CompactionHints_.Initialize(this);
+
     if (UpperBoundKey_ < MinKey_) {
         // This may happen in a rare case when actual bounds look like
         // [ [x], [x, #] ) and table schema is wider than the upper key.
@@ -436,6 +421,15 @@ EStoreType TSortedChunkStore::GetType() const
     return EStoreType::SortedChunk;
 }
 
+void TSortedChunkStore::SetStoreState(EStoreState state)
+{
+    auto oldState = StoreState_;
+
+    TChunkStoreBase::SetStoreState(state);
+
+    Partition_->CompactionHints().OnStoreStateChanged(Partition_, this, oldState);
+}
+
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
 {
     return this;
@@ -449,6 +443,7 @@ void TSortedChunkStore::DoBuildOrchidYson(TFluentMap fluent)
         .Item("min_key").Value(GetMinKey())
         .Item("upper_bound_key").Value(GetUpperBoundKey())
         .Item("max_clip_timestamp").Value(MaxClipTimestamp_)
+        .Item("compaction_hint_fetch_pipelines").Value(CompactionHintFetchPipelines_)
         .Item("compaction_hints").Value(CompactionHints_);
 }
 
@@ -523,7 +518,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             underlyingReader,
             PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            EPerformanceCountedRequestType::Read);
+            chunkReadOptions.InitialQueryKind);
     };
 
     // Fast lane: check for in-memory reads.
@@ -562,12 +557,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions.MemoryUsageTracker);
     }
 
-    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true);
+    bool compressBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys;
+
+    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true, compressBlockLastKeys);
     if (!chunkMeta) {
         chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
             backendReaders.ChunkReader,
             chunkReadOptions,
-            /*prepareColumnMeta*/ true))
+            /*prepareColumnMeta*/ true,
+            compressBlockLastKeys))
             .ValueOrThrow();
     }
 
@@ -622,7 +620,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // timestamp resetting adapter.
     return wrapReaderWithPerformanceCounting(
         CreateVersionedChunkReader(
-        Context_->GetColumnEvaluatorCache(),
+            Context_->GetColumnEvaluatorCache(),
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState,
@@ -688,8 +686,14 @@ public:
     TSortedChunkStoreVersionedReader(
         IStoreContextPtr context,
         int skippedBefore,
-        int skippedAfter,
-        TSortedChunkStore* const chunk,
+        int skippedAfter)
+        : Context_(std::move(context))
+        , SkippedBefore_(skippedBefore)
+        , SkippedAfter_(skippedAfter)
+    { }
+
+    void Initialize(
+        TSortedChunkStore* chunk,
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
@@ -697,9 +701,6 @@ public:
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory)
-        : Context_(std::move(context))
-        , SkippedBefore_(skippedBefore)
-        , SkippedAfter_(skippedAfter)
     {
         InitializationFuture_ = InitializeUnderlyingReader(
             chunk,
@@ -835,7 +836,9 @@ private:
             return OKFuture;
         }
 
-        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true)) {
+        bool compressBlockLastKeys = tabletSnapshot->Settings.MountConfig->CompressBlockLastKeys;
+
+        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true, compressBlockLastKeys)) {
             return OnGotChunkMeta(
                 chunk,
                 tabletSnapshot,
@@ -850,7 +853,8 @@ private:
             return chunk->GetCachedVersionedChunkMeta(
                 backendReaders.ChunkReader,
                 chunkReadOptions,
-                /*prepareColumnMeta*/ true)
+                /*prepareColumnMeta*/ true,
+                compressBlockLastKeys)
                 .AsUnique().Apply(BIND([
                     =,
                     this,
@@ -1140,7 +1144,7 @@ private:
             std::move(underlyingReader),
             chunk->PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            chunkReaderOptions.RequestType);
+            chunkReaderOptions.InitialQueryKind);
         UnderlyingReaderInitialized_.store(true);
     }
 };
@@ -1193,7 +1197,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     chunkReadOptions),
                 PerformanceCounters_,
                 NTableClient::EDataSource::ChunkStore,
-                chunkReadOptions.RequestType);
+                chunkReadOptions.InitialQueryKind);
         }
 
         // Check for backing store.
@@ -1212,10 +1216,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         }
     }
 
-    return New<TSortedChunkStoreVersionedReader>(
+    auto reader = New<TSortedChunkStoreVersionedReader>(
         Context_,
         skippedBefore,
-        skippedAfter,
+        skippedAfter);
+    reader->Initialize(
         this,
         tabletSnapshot,
         std::move(filteredKeys),
@@ -1224,6 +1229,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         columnFilter,
         chunkReadOptions,
         workloadCategory);
+    return reader;
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(

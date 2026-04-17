@@ -39,6 +39,7 @@ const TQueryTrackerProxyConfigPtr Config = New<TQueryTrackerProxyConfig>();
 
 const TYsonString EmptyMap = TYsonString(TStringBuf("{}"));
 const TYsonString EmptyList = TYsonString(TStringBuf("[]"));
+const std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EmptyEngineProviders;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +108,7 @@ public:
         MockClient = New<TStrictMockClient>();
         MockTransaction = New<TStrictMockTransaction>();
 
-        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, 0);
+        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, EmptyEngineProviders, 0);
 
         EXPECT_CALL(*MockClient, StartTransaction(_, _))
             .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
@@ -286,7 +287,7 @@ public:
     {
         MockClient = New<TStrictMockClient>();
         MockClient->SetTimestampProvider(CreateNoopTimestampProvider());
-        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, 0);
+        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, EmptyEngineProviders, 0);
         ActionQueue = New<TActionQueue>("ListQueriesThread");
         Invoker = ActionQueue->GetInvoker();
     }

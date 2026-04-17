@@ -8,7 +8,7 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProto::TCellStatistics& operator += (NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs)
+NProto::TCellStatistics& operator+=(NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs)
 {
     // If some fields are absent, they will be set to zero.
     #define XX(name) lhs.set_##name(lhs.name() + rhs.name());

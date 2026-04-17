@@ -41,15 +41,15 @@ public:
 TResourceVolume Max(const TResourceVolume& lhs, const TResourceVolume& rhs);
 TResourceVolume Min(const TResourceVolume& lhs, const TResourceVolume& rhs);
 
-bool operator == (const TResourceVolume& lhs, const TResourceVolume& rhs);
-TResourceVolume& operator += (TResourceVolume& lhs, const TResourceVolume& rhs);
-TResourceVolume& operator -= (TResourceVolume& lhs, const TResourceVolume& rhs);
-TResourceVolume& operator *= (TResourceVolume& lhs, double rhs);
-TResourceVolume& operator /= (TResourceVolume& lhs, double rhs);
-TResourceVolume operator + (const TResourceVolume& lhs, const TResourceVolume& rhs);
-TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& rhs);
-TResourceVolume operator * (const TResourceVolume& lhs, double rhs);
-TResourceVolume operator / (const TResourceVolume& lhs, double rhs);
+bool operator==(const TResourceVolume& lhs, const TResourceVolume& rhs);
+TResourceVolume& operator+=(TResourceVolume& lhs, const TResourceVolume& rhs);
+TResourceVolume& operator-=(TResourceVolume& lhs, const TResourceVolume& rhs);
+TResourceVolume& operator*=(TResourceVolume& lhs, double rhs);
+TResourceVolume& operator/=(TResourceVolume& lhs, double rhs);
+TResourceVolume operator+(const TResourceVolume& lhs, const TResourceVolume& rhs);
+TResourceVolume operator-(const TResourceVolume& lhs, const TResourceVolume& rhs);
+TResourceVolume operator*(const TResourceVolume& lhs, double rhs);
+TResourceVolume operator/(const TResourceVolume& lhs, double rhs);
 
 void Serialize(const TResourceVolume& volume, NYson::IYsonConsumer* consumer);
 void Deserialize(TResourceVolume& volume, NYTree::INodePtr node);

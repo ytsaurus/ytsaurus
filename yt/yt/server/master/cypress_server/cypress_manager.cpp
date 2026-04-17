@@ -650,6 +650,9 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->MaterializeNode(context, this, sourceNodeId);
 
+        const auto& handler = cypressManager->GetHandler(TypeFromId(sourceNodeId));
+        handler->FillAttributes(clonedTrunkNode, inheritedAttributes, nullptr);
+
         auto* clonedNode = cypressManager->LockNode(
             clonedTrunkNode,
             Transaction_,
@@ -669,10 +672,8 @@ public:
             auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
             auto sourceNodeExternalizedTransactionId = transactionId;
 
-            if (CellTagFromId(transactionId) != sourceNodeNativeCellTag || Transaction_->IsNativeTxExternalizationEnabled()) {
-                sourceNodeExternalizedTransactionId =
-                    NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
-            }
+            sourceNodeExternalizedTransactionId =
+                NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
 
             TMasterTableSchemaId schemaId;
             if (IsTableType(clonedTrunkNode->GetType())) {
@@ -1187,7 +1188,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetAttributeOnTransactionCommit, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
@@ -1201,11 +1201,6 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(
             &TCypressManager::OnTransactionAborted,
             MakeStrong(this)));
-
-        transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit>({
-            .Prepare = BIND_NO_PROPAGATE(&TCypressManager::HydraPrepareSetAttributeOnTransactionCommit, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitSetAttributeOnTransactionCommit, Unretained(this)),
-        });
 
         transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode>({
             .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitMergeToTrunkAndUnlockNode, Unretained(this)),
@@ -2749,6 +2744,120 @@ public:
             });
     }
 
+    void UpdateGroundUpdateQueueManagerSequenceNumber(
+        TCypressNode* node,
+        i64 sequenceNumber) override
+    {
+        // TODO: replace all alerts with EmplaceOrCrashes, verifies, etc.
+
+        if (sequenceNumber < 0) {
+            return;
+        }
+
+        const auto& nodeId = node->GetVersionedId();
+
+        auto [nodeIt, inserted] = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.emplace(nodeId, sequenceNumber);
+        if (inserted) {
+            auto [it, nodeInserted] = GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber].insert(nodeId);
+            if (!nodeInserted) {
+                YT_LOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ "
+                    "(NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
+            }
+        } else {
+            auto oldSequenceNumber = nodeIt->second;
+            if (oldSequenceNumber < sequenceNumber) {
+                if (oldSequenceNumber < 0) {
+                    YT_LOG_ALERT("Negative sequence number was found in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                }
+                auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(oldSequenceNumber);
+                if (sequenceNumberIt == GroundUpdateQueueManagerSequenceNumberToNodeIds_.end()) {
+                    YT_LOG_ALERT("Old sequence number was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        oldSequenceNumber);
+                } else {
+                    auto& nodeIds = sequenceNumberIt->second;
+                    if (!nodeIds.erase(nodeId)) {
+                        YT_LOG_ALERT("Old sequence number node is was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ (NodeId: %v, SequenceNumber: %v)",
+                            nodeId,
+                            oldSequenceNumber);
+                    }
+                    if (nodeIds.empty()) {
+                        GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(sequenceNumberIt);
+                    }
+                }
+
+                auto [it, nodeInserted] = GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber].insert(nodeId);
+                if (!nodeInserted) {
+                    YT_LOG_ALERT("Node was already present GroundUpdateQueueManagerSequenceNumberToNodeIds_, but not in NodeIdToGroundUpdateQueueManagerSequenceNumbers_ "
+                        "(NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                }
+
+                nodeIt->second = sequenceNumber;
+            } else {
+                YT_LOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one "
+                    "(NodeId: %v, OldSequenceNumber: %v, NewSequenceNumber: %v)",
+                    nodeId,
+                    oldSequenceNumber,
+                    sequenceNumber);
+            }
+        }
+    }
+
+    void SetGroundUpdateQueueManagerSequenceNumberFromNode(
+        TCypressNode* target,
+        TCypressNode* source)
+    {
+        auto sequenceNumber = GetGroundUpdateQueueManagerSequenceNumber(source);
+        UpdateGroundUpdateQueueManagerSequenceNumber(target, sequenceNumber);
+    }
+
+    void DrainGroundUpdateQueueManagerSequenceNumber(i64 sequenceNumber) override
+    {
+        while (!GroundUpdateQueueManagerSequenceNumberToNodeIds_.empty() &&
+            GroundUpdateQueueManagerSequenceNumberToNodeIds_.begin()->first <= sequenceNumber)
+        {
+            auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.begin();
+            for (const auto& nodeId : sequenceNumberIt->second) {
+                auto nodeIt = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(nodeId);
+                if (nodeIt == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
+                    YT_LOG_ALERT("Node was not present in GroundUpdateQueueManagerSequenceNumberToNodeIds_ on drain "
+                        "(NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumberIt->first);
+                    continue;
+                }
+                // Maybe this actually should already be a verify.
+                if (nodeIt->second != sequenceNumberIt->first) {
+                    YT_LOG_ALERT("Node has different sequence numbers in different maps "
+                        "(NodeId: %v, NodeIdSequenceNumber: %v, SequenceNumberSequenceNumber: %v)",
+                        nodeId,
+                        nodeIt->second,
+                        sequenceNumberIt->first);
+                    continue;
+                }
+                NodeIdToGroundUpdateQueueManagerSequenceNumbers_.erase(nodeIt);
+            }
+            GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(sequenceNumberIt);
+        }
+    }
+
+    i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const override
+    {
+        auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(node->GetVersionedId());
+        if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
+            // Could be optional.
+            return -1;
+        }
+
+        return it->second;
+    }
+
 private:
     friend class TNodeTypeHandler;
     friend class TLockTypeHandler;
@@ -2788,19 +2897,41 @@ private:
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     const TIntrusivePtr<TRecursiveResourceUsageCache> RecursiveResourceUsageCache_;
 
-    // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
-    // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-
-    // COMPAT(danilalexeev): YT-21862.
-    bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
-
     // COMPAT(h0pless): FixSchemaDivergence.
     bool RecalculateSchemas_ = false;
 
     // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
     bool ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
+
+    //                                         ⡀       ⠈
+    //                           ⢀           ⣀⣤⣤⣤⣀                     ⠰
+    //                             ⢀⡀      ⣠⡿⠋⠁⡀ ⠙⢷⣄
+    //        ⠰           ⢀        ⠂     ⢀⣴⠟   ⣧   ⠙⢷⣄⡀     ⢀
+    //                               ⣀⣠⣤⡶⠟⠁⣾⡏⢣⡀⢻⣦⣀   ⠉⠛⠶⣄   ⠃
+    //                             ⣠⡿⠋⠉⠁   ⠘⣧⡀⠙⢬⡻⣿⣷⡀⢐⣶⣦⡀⠸⣇
+    //                            ⣰⡟⠁        ⠙⠲⢦⣄⣸⡟⠉⠉⠉⠙⢻⣆⢻⣮
+    //              ⠒           ⣀⣼⠿⡄⠈         ⡀⢻⡆  ⠤   ⠙⢷⣿⣦
+    //                    ⠈   ⢀⣴⡿⠋⠁⠈  ⢀   ⢤⣤⣄ ⠹⣼⣧       ⠠⠉⠙
+    //                       ⣤⣼⣯⠉            ⠉⢷⣆⣾⣿⡄        ⠄
+    //    ⢀                 ⣾⢏⠉⠉                 ⠹⡎⢿⣧        ⠃
+    //        ⠘     ⠉  ⠠   ⣾⣷                      ⠙⠈⣿
+    // ⠆                  ⢿⣻                       ⡀ ⢸⡏
+    //                   ⢀⡼⣷                         ⠘⢷⡀
+    //                   ⣿⣴                      ⡅ ⠆ ⠈⣿⡀
+    //                   ⢸⣷⣶ ⠁          ⡀⠈⠠  ⠒⣒⠒⠦⢤⣄⣄⣻⡇      ⢀⡀     ⡀
+    //                   ⣾⢃⣴                      ⠛⠛⠷⣬⡙⢻⣿⣄     ⠈   ⠄      ⠐
+    //      ⢸⡿⣧         ⠈⣿⡎⣿             ⠛⠋⢉⣁⡀    ⠒⠛⢋⣫⠽⠟⠛⢛⣛⣛⣳⣶⢾⣤⡀
+    //      ⠈⢷⡘⣧⣀⣀⡀⣄   ⣺⡾⠋ ⠉       ⣉⠥⠂⢀⣠⡾⠿⠶    ⣀⠤⢚⣩⣤⠴⠾⠛⠛⠋⠉⠙⠛⠻⠿⣝⣷⡀
+    //       ⠈⠳⣌⠻⣯⣻⡟⢷⡶⣿⠋⢳⡤⠶        ⣤⣶⠞⠋   ⢀⣀⠴⢀⣨⡴⠞⠋⠁           ⠈⠻⢿⡄
+    //         ⣟⠳⣬⡻⣿⣆⠹⠄  ⠆    ⠉⠑ ⠔⠚⡏    ⠤⠒⣉⣤⠶⠿⠛⠚⠓⠒⠶⢤⡀         ⢀⣠⡿⠁
+    //      ⠐⠂  ⣤⡌⠻⣮⡙⠿⣦⣄⣀⡀   ⢰     ⠸  ⢀⣤⠶⠋⠁    ⢀⢀⣀⣠⣤⣤⣤⣤⣄⣀⣀⣤⣤⠶⠞⠋⠁
+    //         ⣄   ⠈⠻⢦⣀⡉⠉⠻⠙⠁⠤⠬ ⠒ ⣀⣀⣤⡤⢾⠛⠳⠖⠒⢒⠶⠒⠒⠚⠛⠋⠉⠉
+    //         ⠈  ⠈ ⠤ ⠉⠛⠛⠲⠶⠾⠶⠶⠾⠛⠛⠉⠁  ⠆
+
+    // Maybe i64 should be enumed indexed vector.⠀⠀
+    THashMap<TVersionedNodeId, i64> NodeIdToGroundUpdateQueueManagerSequenceNumbers_;
+    // For removal.
+    std::map<i64, THashSet<TVersionedNodeId>> GroundUpdateQueueManagerSequenceNumberToNodeIds_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2823,6 +2954,10 @@ private:
         ShardMap_.SaveValues(context);
         AccessControlObjectNamespaceMap_.SaveValues(context);
         AccessControlObjectMap_.SaveValues(context);
+
+        Save(context, NodeIdToGroundUpdateQueueManagerSequenceNumbers_);
+        // Can be recomputed on after snapshot loaded.
+        Save(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -2862,19 +2997,11 @@ private:
             object->Namespace()->RegisterMember(object);
         }
 
-        // COMPAT(shakurov)
-        YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
-        if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
-            NeedResetHunkSpecificMediaOnTrunkNodes_ = true;
-            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
-        } else if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodesOnly) {
-            YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_); // Check and leave it false.
-            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
-        } // Else leave both of them false.
-
-        // COMPAT(danilalexeev): YT-21862.
-        if (context.GetVersion() < EMasterReign::DropLegacyCellMap) {
-            DropLegacyCellMapsOnSnapshotLoaded_ = true;
+        if ((context.GetVersion() > EMasterReign::KulenovClock && context.GetVersion() < EMasterReign::Start_26_1) ||
+            context.GetVersion() > EMasterReign::KulenovClock_26_1)
+        {
+            Load(context, NodeIdToGroundUpdateQueueManagerSequenceNumbers_);
+            Load(context, GroundUpdateQueueManagerSequenceNumberToNodeIds_);
         }
 
         auto normalClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::AddSchemaRevision &&
@@ -2887,6 +3014,72 @@ private:
 
         if (context.GetVersion() < EMasterReign::RerunUpdateModeMigration) {
             ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = true;
+        }
+
+        // Don't call it like that as it will probably lead to snapshot divergence.
+        // I'll do something better in the next pr.
+        // ValidateGroundUpdateQueueManagerSequenceNumbersMaps();
+    }
+
+    void ValidateGroundUpdateQueueManagerSequenceNumbersMaps()
+    {
+        for (auto [nodeId, sequenceNumber] : NodeIdToGroundUpdateQueueManagerSequenceNumbers_) {
+            auto it = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(sequenceNumber);
+            if (it == GroundUpdateQueueManagerSequenceNumberToNodeIds_.end()) {
+                YT_LOG_ALERT("Sequence number is not present in sequence number to node id map (NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
+                EmplaceOrCrash(GroundUpdateQueueManagerSequenceNumberToNodeIds_[sequenceNumber], nodeId);
+            } else {
+                if (it->second.insert(nodeId).second) {
+                    YT_LOG_ALERT("Node is not present in sequence number to node id map (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                }
+            }
+        }
+
+        std::vector<i64> sequenceNumbersToErase;
+        for (auto& [sequenceNumber, nodeIds] : GroundUpdateQueueManagerSequenceNumberToNodeIds_) {
+            std::vector<TVersionedNodeId> nodeIdsToErase;
+            for (auto nodeId : nodeIds) {
+                auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(nodeId);
+                if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
+                    YT_LOG_ALERT("Node is not present in node id to sequence number map (NodeId: %v, SequenceNumber: %v)",
+                        nodeId,
+                        sequenceNumber);
+                    nodeIdsToErase.push_back(nodeId);
+                } else {
+                    auto correctSequenceNumber = it->second;
+                    if (correctSequenceNumber != sequenceNumber) {
+                        YT_LOG_ALERT("Node has different sequence numbers in different maps (NodeId: %v, NodeIdToSequenceNumberSequenceNumber: %v, SequenceNumberToNodeIdSequenceNumber: %v)",
+                            nodeId,
+                            correctSequenceNumber,
+                            sequenceNumber);
+
+                        // It was just emplaced in the code above;
+                        auto sequenceNumberIt = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(correctSequenceNumber);
+                        YT_VERIFY(sequenceNumberIt != GroundUpdateQueueManagerSequenceNumberToNodeIds_.end());
+                        YT_VERIFY(sequenceNumberIt->second.contains(nodeId));
+                        nodeIdsToErase.push_back(nodeId);
+                    }
+                }
+            }
+
+            for (auto nodeId : nodeIdsToErase) {
+                nodeIds.erase(nodeId);
+            }
+
+            if (nodeIds.empty()) {
+                sequenceNumbersToErase.push_back(sequenceNumber);
+            }
+        }
+
+        for (auto sequenceNumber : sequenceNumbersToErase) {
+            auto it = GroundUpdateQueueManagerSequenceNumberToNodeIds_.find(sequenceNumber);
+            YT_VERIFY(it != GroundUpdateQueueManagerSequenceNumberToNodeIds_.end());
+            YT_VERIFY(it->second.empty());
+            GroundUpdateQueueManagerSequenceNumberToNodeIds_.erase(it);
         }
     }
 
@@ -2910,11 +3103,7 @@ private:
 
         RecursiveResourceUsageCache_->Clear();
 
-        NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
-        NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-        DropLegacyCellMapsOnSnapshotLoaded_ = false;
         RecalculateSchemas_ = false;
-        ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
     }
 
     void SetZeroState() override
@@ -3006,76 +3195,6 @@ private:
 
         InitBuiltins();
 
-        // COMPAT(shakurov)
-        YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);
-        if (NeedResetHunkSpecificMediaOnTrunkNodes_ ||
-            NeedResetHunkSpecificMediaOnBranchedNodes_)
-        {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node) && node->IsTrunk()) {
-                    continue;
-                }
-
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                if (node->IsTrunk() && !NeedResetHunkSpecificMediaOnTrunkNodes_) {
-                    continue;
-                }
-
-                // Just a reminder - already checked above.
-                YT_VERIFY(NeedResetHunkSpecificMediaOnBranchedNodes_);
-
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-                chunkOwnerNode->ResetHunkPrimaryMediumIndex();
-                chunkOwnerNode->HunkReplication().ClearEntries();
-                tabletManager->OnNodeStorageParametersUpdated(chunkOwnerNode);
-
-                // NB: resetting hunk media-related settings on branches won't
-                // reproduce invariants maintained by a running system. But since
-                // those settings cannot be modified under transaction, aren't
-                // merged back in and simply dropped at tx commit, the only
-                // thing affected by this is the decision, at commit time,
-                // to schedule (or not) a requisition update. This is hardly
-                // significant, seeing as the feature is still very fresh.
-            }
-        }
-
-        // COMPAT(danilalexeev): YT-21862.
-        if (DropLegacyCellMapsOnSnapshotLoaded_) {
-            for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
-                auto cellMapNodeProxy = ResolvePathToNodeProxy(
-                    NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
-                    /*service*/ "",
-                    /*method*/ "",
-                    /*transaction*/ nullptr);
-                if (cellMapNodeProxy->GetType() != ENodeType::Map) {
-                    continue;
-                }
-
-                auto descendants = ListSubtreeNodes(
-                    cellMapNodeProxy->GetTrunkNode(),
-                    /*transaction*/ nullptr,
-                    /*includeRoot*/ false);
-
-                for (auto* node : descendants) {
-                    THROW_ERROR_EXCEPTION_IF(
-                        node->GetType() == EObjectType::Journal ||
-                        node->GetType() == EObjectType::File,
-                        "Failed to migrate to new cell map nodes: found legacy"
-                        " object %v at %v. Before updating, ensure all data is"
-                        " migrated and legacy storage is empty.",
-                        node->GetId(),
-                        GetNodePath(node, /*transaction*/ nullptr));
-                }
-
-                cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
-                // Virtual Cell Map creation is delegated to World Initializer.
-            }
-        }
-
         // COMPAT(h0pless): FixSchemaDivergence.
         if (RecalculateSchemas_) {
             THashMap<TVersionedNodeId, TMasterTableSchemaId> nodeIdToSchemaId;
@@ -3142,35 +3261,6 @@ private:
             }
         }
 
-        // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
-        if (ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!IsChunkOwnerType(node->GetType())) {
-                    continue;
-                }
-
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-
-                auto chunkOwnerUpdateMode = chunkOwnerNode->GetUpdateMode();
-                if (node->IsTrunk() && chunkOwnerNode->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
-                    YT_LOG_ALERT("Resetting update mode on a trunk node (NodeId: %v, OldUpdateMode: %v, NewUpdateMode: %v)",
-                        nodeId,
-                        chunkOwnerNode->GetUpdateMode(),
-                        NChunkClient::EUpdateMode::None);
-                    chunkOwnerNode->SetUpdateMode(NChunkClient::EUpdateMode::None);
-
-                    // No need to set non-trivial security tags update mode on trunk nodes.
-                    continue;
-                }
-
-                // Migrate to security tags update mode.
-                if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Append) {
-                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Append);
-                } else if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Overwrite) {
-                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Overwrite);
-                }
-            }
-        }
     }
 
     void CheckInvariants() override
@@ -4327,6 +4417,8 @@ private:
 
         YT_VERIFY(branchedNode->GetLockMode() == request.Mode);
 
+        SetGroundUpdateQueueManagerSequenceNumberFromNode(branchedNode, originatingNode);
+
         // Register the branched node with the transaction.
         transaction->BranchedNodes().InsertOrCrash(branchedNode);
 
@@ -4371,6 +4463,8 @@ private:
             if (trunkNode == RootNode_ && !transaction->GetParent() && trunkNode->GetCreationTime() == TInstant::Zero()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
+
+            SetGroundUpdateQueueManagerSequenceNumberFromNode(originatingNode, branchedNode);
         } else {
             // Destroy the branched copy.
             handler->Zombify(branchedNode);
@@ -4844,105 +4938,6 @@ private:
         DoUnlockNode(trunkNode, transaction, explicitOnly);
     }
 
-    void HydraPrepareSetAttributeOnTransactionCommit(
-        TTransaction* /*transaction*/,
-        NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit* request,
-        const TTransactionPrepareOptions& /*prepareOptions*/)
-    {
-        auto nodeId = FromProto<TObjectId>(request->node_id());
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (CellTagFromId(nodeId) == multicellManager->GetCellTag()) {
-            GetNodeOrThrow(TVersionedNodeId(nodeId));
-        }
-
-        // NB: We cannot run this transaction action on native cell because this
-        // leads to distributed transaction commit which can not be done with
-        // preprequisite transactions. So just check in those rare cases where
-        // transaction coordinator is also a native cell for this map node.
-    }
-
-    void SetAttributeOnTransactionCommit(
-        TTransactionId transactionId,
-        TNodeId nodeId,
-        const std::string& attribute,
-        const TYsonString& value)
-    {
-        YT_VERIFY(HasMutationContext());
-
-        auto* node = FindNode(TVersionedNodeId(nodeId));
-        if (!IsObjectAlive(node)) {
-            YT_LOG_ALERT(
-                "Failed to set attribute on transaction commit: no such node "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                attribute);
-            return;
-        }
-
-        try {
-            node->GetMutableAttributes()->Set(attribute, value);
-        } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to set attribute on transaction commit "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                attribute);
-        }
-    }
-
-    void HydraCommitSetAttributeOnTransactionCommit(
-        TTransaction* transaction,
-        NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit* request,
-        const TTransactionCommitOptions& /*commitOptions*/)
-    {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto cellTag = CellTagFromId(nodeId);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (cellTag == multicellManager->GetCellTag()) {
-            SetAttributeOnTransactionCommit(
-                transaction->GetId(),
-                nodeId,
-                request->attribute(),
-                TYsonString(request->value()));
-            return;
-        }
-
-        NProto::TReqSetAttributeOnTransactionCommit message;
-        ToProto(message.mutable_transaction_id(),  transaction->GetId());
-        ToProto(message.mutable_node_id(), nodeId);
-        message.set_attribute(request->attribute());
-        message.set_value(request->value());
-
-        multicellManager->PostToMaster(message, cellTag);
-    }
-
-    void HydraSetAttributeOnTransactionCommit(
-        NProto::TReqSetAttributeOnTransactionCommit* request)
-    {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (CellTagFromId(nodeId) != multicellManager->GetCellTag()) {
-            YT_LOG_ALERT(
-                "Failed to set attribute on transaction commit: not a native cell "
-                "(TransactionId: %v, NodeId: %v, Attribute: %v)",
-                transactionId,
-                nodeId,
-                request->attribute());
-            return;
-        }
-
-        SetAttributeOnTransactionCommit(
-            transactionId,
-            nodeId,
-            request->attribute(),
-            TYsonString(request->value()));
-    }
-
     void HydraCommitMergeToTrunkAndUnlockNode(
         TTransaction* /*transaction*/,
         NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode* request,
@@ -4960,7 +4955,7 @@ private:
 
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
-            YT_LOG_ALERT("Skipping manual node unbranching: node is already trunk (NodeId: %v)", versionedId);
+            YT_LOG_DEBUG("Manual node unbranching failed: no such transaction (NodeId: %v)", versionedId);
             return;
         }
 
@@ -5035,37 +5030,16 @@ private:
         }
     }
 
-    void ResetCypressNodeReachability()
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        for (auto [nodeId, node] : NodeMap_) {
-            node->SetReachable(false);
-        }
-    }
-
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig() const
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
-
-        if (!oldConfig->CypressManager->DisableCypressNodeReachability &&
-            GetDynamicConfig()->DisableCypressNodeReachability)
-        {
-            ResetCypressNodeReachability();
-        }
-
-        if (oldConfig->CypressManager->DisableCypressNodeReachability &&
-            !GetDynamicConfig()->DisableCypressNodeReachability)
-        {
-            YT_LOG_ALERT("Cypress node reachability is enabled again");
-        }
     }
 };
 

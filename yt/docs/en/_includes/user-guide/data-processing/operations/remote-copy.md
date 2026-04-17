@@ -30,3 +30,25 @@ The RemoteCopy operation supports the following additional options (default valu
   cluster_name = "my_cool_remote_cluster";
 }
 ```
+
+## Dynamic tables
+
+The RemoteCopy (`remote_copy`) operation is supported only for [sorted tables](../../../../user-guide/dynamic-tables/sorted-dynamic-tables). To copy an ordered table, you need to convert it to a static one. It is impossible to copy an ordered table to another cluster with preserving tablets.
+
+{% if audience == "internal" %}
+
+{% note info "Note" %}
+
+For `remote_copy` of dynamic tables, it is recommended to use the script {{dynamic-tables.remote-copy.links.dyntable-remote-copy-script}}.
+
+{% endnote %}
+
+{% endif %}
+
+For dynamic tables, you need to prepare the table into which you plan to copy the data before copying. It is not possible to specify a non-existent path in `output_table_path`.
+
+The table must be created with the same schema as the input table, all user attributes and system settings from the input table must be copied and reshard by keys in advance if necessary.
+
+<!--During operation, system objects called chunk views may appear in the structure of a dynamic table. The `remote_copy` operation does not support them, so you need to delete them before running the operation by setting the `forced_chunk_view_compaction_revision` attribute to `1`, and then execute `remount-table`. For more details, see the section [Forced compaction](../../user-guide/dynamic-tables/compaction#forced_compaction).-->
+
+While working with dynamic tables, you may encounter system objects known as chunk views within the table structure. Since the remote copy operation doesn't support these objects, you must remove them before starting the operation. To do this, set the `forced_chunk_view_compaction_revision` attribute to 1 and then run `remount-table`. For more details, see [Forced compaction](....user-guidedynamic-tablescompaction#forced_compaction).

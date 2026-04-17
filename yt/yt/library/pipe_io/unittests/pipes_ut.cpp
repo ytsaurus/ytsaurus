@@ -7,8 +7,6 @@
 
 #include <yt/yt/core/net/connection.h>
 
-#include <yt/yt/library/backtrace_introspector/introspect.h>
-
 #include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/library/program/program.h>
@@ -39,8 +37,8 @@ TEST(TPipeIOHolderTest, CanInstantiate)
     auto readerHolder = pipe.CreateAsyncReader();
     auto writerHolder = pipe.CreateAsyncWriter();
 
-    readerHolder->Abort().Get();
-    writerHolder->Abort().Get();
+    WaitUntilSet(readerHolder->Abort());
+    WaitUntilSet(writerHolder->Abort());
 }
 
 TEST(TPipeTest, PrematureEOF)
@@ -49,7 +47,7 @@ TEST(TPipeTest, PrematureEOF)
     auto reader = pipe->CreateAsyncReader();
 
     auto buffer = TSharedMutableRef::Allocate(1024 * 1024);
-    EXPECT_THROW(reader->Read(buffer).WithTimeout(TDuration::Seconds(1)).Get().ValueOrThrow(), TErrorException);
+    EXPECT_THROW(WaitForFast(reader->Read(buffer).WithTimeout(TDuration::Seconds(1))).ValueOrThrow(), TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +63,7 @@ TBlob ReadAll(IConnectionReaderPtr reader, bool useWaitFor)
         if (useWaitFor) {
             result = WaitFor(future);
         } else {
-            result = future.Get();
+            result = WaitForFast(future);
         }
 
         if (result.ValueOrThrow() == 0) {
@@ -111,18 +109,18 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
     auto buffer = TSharedMutableRef::Allocate(length);
     ::memset(buffer.Begin(), 'a', buffer.Size());
 
-    auto writeResult = writer->Write(buffer).Get();
+    auto writeResult = WaitForFast(writer->Write(buffer));
 
     EXPECT_TRUE(writeResult.IsOK())
         << ToString(writeResult);
 
     auto error = writer->Close();
 
-    auto readResult = readFromPipe.Get();
+    auto readResult = WaitForFast(readFromPipe);
     ASSERT_TRUE(readResult.IsOK())
         << ToString(readResult);
 
-    auto closeStatus = error.Get();
+    auto closeStatus = WaitForFast(error);
 }
 
 TEST(TAsyncWriterTest, WriteFailed)
@@ -138,8 +136,8 @@ TEST(TAsyncWriterTest, WriteFailed)
     auto asyncWriteResult = writer->Write(buffer);
     YT_UNUSED_FUTURE(reader->Abort());
 
-    EXPECT_FALSE(asyncWriteResult.Get().IsOK())
-        << ToString(asyncWriteResult.Get());
+    EXPECT_FALSE(WaitForFast(asyncWriteResult).IsOK())
+        << ToString(WaitForFast(asyncWriteResult));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,14 +200,14 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
     std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
-    Writer->Write(buffer).Get().ThrowOnError();
-    Writer->Close().Get().ThrowOnError();
+    WaitForFast(Writer->Write(buffer)).ThrowOnError();
+    WaitForFast(Writer->Close()).ThrowOnError();
 
     auto data = TSharedMutableRef::Allocate(1);
     auto whole = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>());
 
     while (true) {
-        auto result = Reader->Read(data).Get();
+        auto result = WaitForFast(Reader->Read(data));
         if (result.ValueOrThrow() == 0) {
             break;
         }
@@ -226,14 +224,14 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
     std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
 
-    Writer->Write(buffer).Get().ThrowOnError();
-    Writer->Close().Get().ThrowOnError();
+    WaitForFast(Writer->Write(buffer)).ThrowOnError();
+    WaitForFast(Writer->Close()).ThrowOnError();
 
     auto data = TSharedMutableRef::Allocate(1);
     auto whole = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>());
 
     while (true) {
-        auto result = Reader->Read(data).Get();
+        auto result = WaitForFast(Reader->Read(data));
         if (result.ValueOrThrow() == 0) {
             break;
         }
@@ -247,7 +245,7 @@ TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
     std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
-    EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
+    EXPECT_TRUE(WaitForFast(Writer->Write(buffer)).IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
     auto whole = ReadAll(Reader, false);
@@ -260,7 +258,7 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingWait)
 
     std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
-    EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
+    EXPECT_TRUE(WaitForFast(Writer->Write(buffer)).IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
     auto whole = ReadAll(Reader, false);
@@ -271,12 +269,12 @@ TEST_F(TPipeReadWriteTest, ReadWrite)
 {
     std::string text("Hello cruel world!\n");
     auto buffer = TSharedRef::FromString(text);
-    Writer->Write(buffer).Get();
+    WaitUntilSet(Writer->Write(buffer));
     auto errorsOnClose = Writer->Close();
 
     auto textFromPipe = ReadAll(Reader, false);
 
-    auto error = errorsOnClose.Get();
+    auto error = WaitForFast(errorsOnClose);
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
     EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
@@ -287,12 +285,12 @@ TEST_F(TNamedPipeReadWriteTest, ReadWrite)
 
     std::string text("Hello cruel world!\n");
     auto buffer = TSharedRef::FromString(text);
-    Writer->Write(buffer).Get();
+    WaitUntilSet(Writer->Write(buffer));
     auto errorsOnClose = Writer->Close();
 
     auto textFromPipe = ReadAll(Reader, false);
 
-    auto error = errorsOnClose.Get();
+    auto error = WaitForFast(errorsOnClose);
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
     EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
@@ -306,10 +304,10 @@ TEST_F(TNamedPipeReadWriteTest, CapacityJustWorks)
     auto writeBuffer = TSharedRef::FromString(text);
 
     auto writeFuture = Writer->Write(writeBuffer);
-    EXPECT_TRUE(writeFuture.Get().IsOK());
+    EXPECT_TRUE(WaitForFast(writeFuture).IsOK());
 
     auto readBuffer = TSharedMutableRef::Allocate(5000, {.InitializeStorage = false});
-    auto readResult = Reader->Read(readBuffer).Get();
+    auto readResult = WaitForFast(Reader->Read(readBuffer));
 
     EXPECT_EQ(text, std::string(readBuffer.Begin(), readResult.Value()));
 }
@@ -329,7 +327,7 @@ TEST_F(TNamedPipeReadWriteTest, CapacityOverflow)
 
     auto readFuture = BIND([&] {
         auto readBuffer = TSharedMutableRef::Allocate(6000, {.InitializeStorage = false});
-        auto readResult = Reader->Read(readBuffer).Get();
+        auto readResult = WaitForFast(Reader->Read(readBuffer));
 
         EXPECT_TRUE(readResult.IsOK());
         EXPECT_EQ(text.substr(0, 4096), TStringBuf(readBuffer.Begin(), readResult.Value()));
@@ -337,8 +335,8 @@ TEST_F(TNamedPipeReadWriteTest, CapacityOverflow)
         .AsyncVia(readerQueue->GetInvoker())
         .Run();
 
-    EXPECT_TRUE(readFuture.Get().IsOK());
-    EXPECT_TRUE(writeFuture.Get().IsOK());
+    EXPECT_TRUE(WaitForFast(readFuture).IsOK());
+    EXPECT_TRUE(WaitForFast(writeFuture).IsOK());
 }
 
 TEST_F(TNamedPipeReadWriteTest, CapacityDontDiscardSurplus)
@@ -361,10 +359,10 @@ TEST_F(TNamedPipeReadWriteTest, CapacityDontDiscardSurplus)
         .AsyncVia(readerQueue->GetInvoker())
         .Run();
 
-    auto readResult = readFuture.Get().ValueOrThrow();
+    auto readResult = WaitForFast(readFuture).ValueOrThrow();
     EXPECT_EQ(text, TStringBuf(readResult.Begin(), readResult.End()));
 
-    EXPECT_TRUE(writeFuture.Get().IsOK());
+    EXPECT_TRUE(WaitForFast(writeFuture).IsOK());
 }
 
 #if defined(_linux_)
@@ -379,17 +377,17 @@ TEST_F(TNamedPipeReadWriteTest, DISABLED_DeliveryFencedWriteOldJustWorks)
     auto writeFuture = Writer->Write(writeBuffer);
 
     auto readBuffer = TSharedMutableRef::Allocate(2, {.InitializeStorage = false});
-    auto readResult = Reader->Read(readBuffer).Get();
+    auto readResult = WaitForFast(Reader->Read(readBuffer));
     EXPECT_EQ("aa", TStringBuf(readBuffer.Begin(), readResult.Value()));
 
     EXPECT_FALSE(writeFuture.IsSet());
 
     readBuffer = TSharedMutableRef::Allocate(10, {.InitializeStorage = false});
-    readResult = Reader->Read(readBuffer).Get();
+    readResult = WaitForFast(Reader->Read(readBuffer));
     EXPECT_EQ("bbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 
     // Future is set only after the entire buffer is read.
-    EXPECT_TRUE(writeFuture.Get().IsOK());
+    EXPECT_TRUE(WaitForFast(writeFuture).IsOK());
 }
 
 class TNewDeliveryFencedWriteTestFixture
@@ -432,20 +430,7 @@ protected:
     IConnectionWriterPtr Writer;
 };
 
-YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
-    if (!ok) {
-        NLogging::TLogger Logger("SignalBlocking");
-        YT_LOG_WARNING("Thread count is not 1, trying to get thread infos (ThreadCount: %v)", threadCount);
-        auto threadInfos = NYT::NBacktraceIntrospector::IntrospectThreads();
-        auto descripion = NYT::NBacktraceIntrospector::FormatIntrospectionInfos(threadInfos);
-        AbortProcessDramatically(
-            EProcessExitCode::GenericError,
-            Format(
-                "Thread count is not 1, threadCount: %v, threadInfos: %v",
-                threadCount,
-                descripion));
-    }
-});
+YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, NSignals::GetDefaultSignalBlockingCallback(NLogging::TLogger("PipesTest")));
 
 #define EXPECT_ERROR_IS_OK(...) do { \
         auto error = __VA_ARGS__; \
@@ -464,7 +449,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, JustWorks)
     auto writeFuture = Writer->Write(writeBuffer);
 
     auto readBuffer = TSharedMutableRef::Allocate(2, {.InitializeStorage = false});
-    auto readResult = Reader->Read(readBuffer).WithTimeout(TDuration::Seconds(5)).Get();
+    auto readResult = WaitForFast(Reader->Read(readBuffer).WithTimeout(TDuration::Seconds(5)));
     EXPECT_ERROR_IS_OK(readResult);
 
     EXPECT_EQ("aa", TStringBuf(readBuffer.Begin(), readResult.ValueOrThrow()));
@@ -474,11 +459,11 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, JustWorks)
     EXPECT_FALSE(writeFuture.IsSet());
 
     readBuffer = TSharedMutableRef::Allocate(10, {.InitializeStorage = false});
-    readResult = Reader->Read(readBuffer).Get();
+    readResult = WaitForFast(Reader->Read(readBuffer));
     EXPECT_EQ("bbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 
     // Future is set only after the entire buffer is read.
-    EXPECT_ERROR_IS_OK(writeFuture.WithTimeout(TDuration::Seconds(5)).Get());
+    EXPECT_ERROR_IS_OK(WaitForFast(writeFuture.WithTimeout(TDuration::Seconds(5))));
 }
 
 TEST_P(TNewDeliveryFencedWriteTestFixture, MultipleTimes)
@@ -497,13 +482,13 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, MultipleTimes)
             EXPECT_FALSE(writeFuture.IsSet());
 
             auto readBuffer = TSharedMutableRef::Allocate(1, {.InitializeStorage = false});
-            auto readResult = Reader->Read(readBuffer).WithTimeout(TDuration::Seconds(5)).Get();
+            auto readResult = WaitForFast(Reader->Read(readBuffer).WithTimeout(TDuration::Seconds(5)));
             EXPECT_ERROR_IS_OK(readResult);
 
             EXPECT_EQ(std::string(1, text[index]), std::string(readBuffer.Begin(), readResult.Value()));
         }
 
-        EXPECT_ERROR_IS_OK(writeFuture.WithTimeout(TDuration::Seconds(5)).Get());
+        EXPECT_ERROR_IS_OK(WaitForFast(writeFuture.WithTimeout(TDuration::Seconds(5))));
     }
 }
 
@@ -517,10 +502,10 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, ReadBeforeWrite)
     std::string text("aabbb");
 
     auto writeBuffer = TSharedRef::FromString(text);
-    auto writeResult = Writer->Write(writeBuffer).WithTimeout(TDuration::Seconds(5)).Get();
+    auto writeResult = WaitForFast(Writer->Write(writeBuffer).WithTimeout(TDuration::Seconds(5)));
     EXPECT_ERROR_IS_OK(writeResult);
 
-    auto readResult = readFuture.Get();
+    auto readResult = WaitForFast(readFuture);
     EXPECT_ERROR_IS_OK(readResult);
     EXPECT_EQ("aabbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 }
@@ -543,9 +528,8 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, HugeData)
 
         auto readBuffer = TSharedMutableRef::Allocate(ChunkSize);
 
-        auto readResult = Reader->Read(readBuffer)
-            .WithTimeout(TDuration::Seconds(10))
-            .Get();
+        auto readResult = WaitFor(Reader->Read(readBuffer)
+            .WithTimeout(TDuration::Seconds(10)));
 
         EXPECT_ERROR_IS_OK(readResult);
 
@@ -558,7 +542,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, HugeData)
 
     EXPECT_EQ(LargeDataSize, totalRead);
     EXPECT_EQ(largeData, receivedData);
-    EXPECT_ERROR_IS_OK(writeFuture.WithTimeout(TDuration::Seconds(5)).Get());
+    EXPECT_ERROR_IS_OK(WaitForFast(writeFuture.WithTimeout(TDuration::Seconds(5))));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -601,7 +585,7 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
         .AsyncVia(queue->GetInvoker())
         .Run();
 
-    auto textFromPipe = readFromPipe.Get().ValueOrThrow();
+    auto textFromPipe = WaitForFast(readFromPipe).ValueOrThrow();
     EXPECT_EQ(data.size(), textFromPipe.Size());
     auto result = std::mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
     EXPECT_TRUE(std::equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<

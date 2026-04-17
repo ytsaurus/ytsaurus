@@ -276,10 +276,16 @@ struct TDynamicDistributedHydraManagerConfig
 
     std::optional<bool> AlertOnSnapshotFailure;
 
+    std::optional<bool> ReportReignChange;
+
     std::optional<bool> EnableChangelogNetworkUsageAccounting;
     std::optional<bool> EnableSnapshotNetworkThrottling;
 
     std::optional<TDuration> ChangelogThrottlingStatisticsMovingAverageWindow;
+
+    std::optional<NLogging::ELogLevel> MutationHandlerFailureLogLevel;
+
+    std::optional<THashMap<std::string, NLogging::ELogLevel>> MutationHandlerFailureLogLevelOverrides;
 
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
 
@@ -499,6 +505,17 @@ struct TDistributedHydraManagerConfig
 
     //! Enables sanitizing of local host name in errors.
     bool EnableHostSanitizing;
+
+    //! If true, special mutation will be committed on each reign change.
+    //! The default value of this flag is passed through TDistributedHydraManagerOptions.
+    std::optional<bool> ReportReignChange;
+
+    //! Sets log level at which the exceptions which are not marked as acceptible
+    //! and thrown from mutation handlers are logged.
+    NLogging::ELogLevel MutationHandlerFailureLogLevel;
+
+    //! Sets per-mutation overrides for the log level above.
+    THashMap<std::string, NLogging::ELogLevel> MutationHandlerFailureLogLevelOverrides;
 
     TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);

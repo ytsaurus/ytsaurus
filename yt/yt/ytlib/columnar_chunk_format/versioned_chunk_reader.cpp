@@ -161,14 +161,14 @@ std::vector<TSpanMatching> BuildReadWindows(
         const int CommonKeyPrefix;
         const int KeyColumnCount;
 
-        bool operator() (const TRowRange* itemIt, const TLegacyKey* shardIt) const
+        bool operator()(const TRowRange* itemIt, const TLegacyKey* shardIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
                 ToKeyBoundRef(itemIt->second, true, KeyColumnCount));
         }
 
-        bool operator() (const TLegacyKey* shardIt, const TRowRange* itemIt) const
+        bool operator()(const TLegacyKey* shardIt, const TRowRange* itemIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
@@ -207,14 +207,14 @@ std::vector<TSpanMatching> BuildReadWindows(
     {
         const int CommonKeyPrefix;
 
-        bool operator() (const TItem* itemIt, const TLegacyKey* shardIt) const
+        bool operator()(const TItem* itemIt, const TLegacyKey* shardIt) const
         {
             return CompareWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
                 ToKeyRef(*itemIt)) >= 0;
         }
 
-        bool operator() (const TLegacyKey* shardIt, const TItem* itemIt) const
+        bool operator()(const TLegacyKey* shardIt, const TItem* itemIt) const
         {
             return CompareWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
@@ -323,10 +323,10 @@ public:
         , ReaderStatistics_(std::move(readerStatistics))
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , RowsetBuilder_(std::move(rowsetBuilder))
-        , WindowsList_(std::move(windowsList))
+        , WindowList_(std::move(windowsList))
         , SkipValueBlocksForMissingKeys_(skipValueBlocksForMissingKeys)
     {
-        std::reverse(WindowsList_.begin(), WindowsList_.end());
+        std::reverse(WindowList_.begin(), WindowList_.end());
     }
 
     bool ReadRows(std::vector<TMutableVersionedRow>* rows, ui32 readCount, ui64* dataWeight)
@@ -344,7 +344,7 @@ public:
         while (offset < readCount) {
             // Check that window is ready.
             if (NeedUpdateWindow_) {
-                if (WindowsList_.empty()) {
+                if (WindowList_.empty()) {
                     hasMoreRows = false;
                     break;
                 }
@@ -390,9 +390,10 @@ private:
 
     // Vector is used as a stack. No need to keep ReadRangeIndex and RowIndex.
     // Also use stack for WindowsList and do not keep NextWindowIndex.
-    std::vector<TSpanMatching> WindowsList_;
+    std::vector<TSpanMatching> WindowList_;
 
     const bool SkipValueBlocksForMissingKeys_;
+
     // State variable for ReadRows method.
     bool NeedUpdateWindow_ = true;
 
@@ -402,9 +403,9 @@ private:
     // Returns false if need wait for ready event.
     bool UpdateWindowSimple()
     {
-        YT_VERIFY(!WindowsList_.empty());
+        YT_VERIFY(!WindowList_.empty());
 
-        if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get())) {
+        if (!BlockManager_->TryUpdateWindow(WindowList_.back().Chunk.Lower, ReaderStatistics_.Get())) {
             return false;
         }
 
@@ -413,9 +414,9 @@ private:
             YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
 
             // Update read list.
-            RowsetBuilder_->BuildReadListForWindow(WindowsList_.back(), KeyFilterStatistics_);
+            RowsetBuilder_->BuildReadListForWindow(WindowList_.back(), KeyFilterStatistics_);
 
-            WindowsList_.pop_back();
+            WindowList_.pop_back();
         }
 
         return true;
@@ -428,9 +429,9 @@ private:
             return UpdateWindowSimple();
         }
 
-        YT_VERIFY(!WindowsList_.empty());
+        YT_VERIFY(!WindowList_.empty());
 
-        if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
+        if (!BlockManager_->TryUpdateWindow(WindowList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
             return false;
         }
 
@@ -440,19 +441,19 @@ private:
                 YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
 
                 // Update read list.
-                RowsetBuilder_->BuildReadListForWindow(WindowsList_.back(), KeyFilterStatistics_);
+                RowsetBuilder_->BuildReadListForWindow(WindowList_.back(), KeyFilterStatistics_);
             }
 
             // If read list is not empty TryUpdateWindow for value columns.
             if (!RowsetBuilder_->IsReadListEmpty()) {
                 OnlyKeyBlocks_ = false;
-                if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
+                if (!BlockManager_->TryUpdateWindow(WindowList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
                     return false;
                 }
             }
         }
 
-        WindowsList_.pop_back();
+        WindowList_.pop_back();
         OnlyKeyBlocks_ = true;
 
         return true;
@@ -763,13 +764,28 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto keyColumnIndexes = ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, IsKeys(readItems));
 
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-    auto windowsList = BuildReadWindows(
-        readItems,
-        chunkMeta->BlockLastKeys(),
-        preparedChunkMeta->BlockChunkRowCounts,
-        chunkMeta->Misc().row_count(),
-        tableKeyColumnCount,
-        chunkMeta->GetChunkKeyColumnCount());
+
+    std::vector<TSpanMatching> windowsList;
+    if constexpr (std::is_same_v<std::decay_t<TReadItems>, TKeysWithHints>) {
+        windowsList = BuildReadWindows(
+            readItems,
+            {},
+            preparedChunkMeta->BlockChunkRowCounts,
+            chunkMeta->Misc().row_count(),
+            {},
+            {});
+    } else if (const auto* compressedBlockLastKeys = chunkMeta->GetCompressedBlockLastKeys()) {
+        windowsList = compressedBlockLastKeys->BuildReadListForWindow(readItems, *tableSchema);
+    } else {
+        windowsList = BuildReadWindows(
+            readItems,
+            chunkMeta->BlockLastKeys(),
+            preparedChunkMeta->BlockChunkRowCounts,
+            chunkMeta->Misc().row_count(),
+            tableKeyColumnCount,
+            chunkMeta->GetChunkKeyColumnCount());
+    }
+
     readerStatistics->BuildReadWindowsTime = getDurationAndReset();
 
     auto valuesIdMapping = chunkColumnMapping

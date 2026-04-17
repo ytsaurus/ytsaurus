@@ -49,6 +49,7 @@ const (
 	TypeImageSVG  ContentType = "image/svg+xml"
 	TypeImageTIFF ContentType = "image/tiff"
 	TypeImageWebP ContentType = "image/webp"
+	TypeImageAVIF ContentType = "image/avif"
 
 	TypeVideoMPEG ContentType = "video/mpeg"
 	TypeVideoMP4  ContentType = "video/mp4"

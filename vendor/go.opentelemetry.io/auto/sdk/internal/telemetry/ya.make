@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.1.0)
+VERSION(v1.2.1)
 
 SRCS(
     attr.go
@@ -21,6 +21,8 @@ GO_TEST_SRCS(
     attr_test.go
     bench_test.go
     conv_test.go
+    id_test.go
+    number_test.go
     resource_test.go
     scope_test.go
     span_test.go

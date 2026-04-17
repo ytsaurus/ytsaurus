@@ -473,12 +473,14 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             create("table", "//tmp/t2", authenticated_user="u")
 
-    @authors("babenko")
+    @authors("kvk1920")
     def test_schema_acl2(self):
         create_user("u")
         start_transaction(authenticated_user="u")
         set("//sys/schemas/transaction/@acl/end", make_ace("deny", "u", "create"))
-        with pytest.raises(YtError):
+        with raises_yt_error(
+                "Access denied for user \"u\": \"create\" permission for \"transaction\" "
+                "schema is denied for \"u\" by ACE at \"transaction\" schema"):
             start_transaction(authenticated_user="u")
 
     @authors("danilalexeev")
@@ -847,6 +849,7 @@ class TestCypressAcls(CheckPermissionBase):
             "acl": [make_ace("allow", "u1", "read")]
         })
         set("//sys/users/u1/@name", "u2")
+        wait(lambda: get("//tmp/d/@acl/0/subjects/0") == "u2")
         assert get("//tmp/d", authenticated_user="u2") == {}
 
     @authors("babenko", "ignat")
@@ -1904,6 +1907,32 @@ class TestCypressAcls(CheckPermissionBase):
         with raises_yt_error("tag filter size limit exceeded"):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
 
+    @authors("danilalexeev")
+    @not_implemented_in_sequoia
+    def test_tag_filter_with_columnar_ace(self):
+        create_user("u")
+        set("//sys/users/u/@tags", ["u"])
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "secret", "type": "string"},
+                ],
+                "acl": [
+                    make_ace("allow", "everyone", "read", columns="secret", subject_tag_filter="!u"),
+                ],
+            },
+        )
+
+        read_table("//tmp/t{public}", authenticated_user="u")
+        with pytest.raises(YtError):
+            read_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError):
+            read_table("//tmp/t{secret}", authenticated_user="u")
+
     @authors("h0pless")
     @not_implemented_in_sequoia
     def test_disable_subject_tag_filters(self):
@@ -1944,18 +1973,6 @@ class TestCypressAcls(CheckPermissionBase):
                 "//tmp/uncool_dir/cool_table",
                 authenticated_user="George50",
             )
-
-        set("//sys/@config/security_manager/enable_subject_tag_filters", False)
-        create(
-            "table",
-            "//tmp/cool_dir/anohter_cool_table",
-            authenticated_user="George50",
-        )
-        create(
-            "table",
-            "//tmp/uncool_dir/another_cool_table",
-            authenticated_user="George50",
-        )
 
     @authors("kivedernikov")
     @not_implemented_in_sequoia
@@ -2206,8 +2223,13 @@ class TestRowAcls(YTEnvSetup):
         "11": {"roles": ["chunk_host"]},
     }
 
-    def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True):
-        return read_table(path, authenticated_user=user, omit_inaccessible_rows=omit_inaccessible_rows)
+    def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True, **kwargs):
+        return read_table(
+            path,
+            authenticated_user=user,
+            omit_inaccessible_rows=omit_inaccessible_rows,
+            **kwargs,
+        )
 
     def _rows(self, *int_seq):
         return [
@@ -2215,7 +2237,8 @@ class TestRowAcls(YTEnvSetup):
             for i in int_seq
         ]
 
-    def _create_and_write_table(self, acl, optimize_for="scan", schema=None):
+    def _create_and_write_table(self, acl, optimize_for="scan", schema=None, sorted=False):
+        sort_order = {"sort_order": "ascending"} if sorted else {}
         create(
             "table",
             "//tmp/t",
@@ -2223,7 +2246,7 @@ class TestRowAcls(YTEnvSetup):
                 "inherit_acl": False,
                 "acl": acl,
                 "schema": schema or [
-                    {"name": "col1", "type": "int64"},
+                    {"name": "col1", "type": "int64", **sort_order},
                     {"name": "col2", "type": "string"},
                 ],
                 "optimize_for": optimize_for,
@@ -2613,6 +2636,33 @@ class TestRowAcls(YTEnvSetup):
         )
 
         assert self._read("u") == self._rows(4, 5, 6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("use_columns", [False, True], ids=["use_columns", "no_use_columns"])
+    def test_extra_columns(self, optimize_for, use_columns):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+            ],
+            optimize_for,
+        )
+
+        path = "//tmp/t{col1,col2}" if use_columns else "//tmp/t"
+        actual = self._read(
+            "u",
+            path=path,
+            control_attributes={
+                "enable_row_index": True,
+            },
+        )
+        # Drop control attributes.
+        actual = [row for row in actual if not isinstance(row, yson.yson_types.YsonEntity)]
+        assert actual == self._rows(4, 5)
 
     @authors("coteeq")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

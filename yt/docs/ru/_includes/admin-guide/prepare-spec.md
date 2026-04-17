@@ -120,7 +120,7 @@ spec:
 | `coreImage`         | `string`        | Образ для основных серверных компонент, например, `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`. |
 | `uiImage`         | `string` | Образ для UI, например, `ghcr.io/ytsaurus/ui:stable`. |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Секреты, необходимые для скачивания образов из private registry. Подробности можно узнать [по ссылке](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
-| `configOverrides`  | `optional<LocalObjectReference>` | Конфигмапа для переопределения генерируемых статических конфигов. Нужно использовать только в редких случаях. |
+| `configOverrides`  | `optional<LocalObjectReference>` | Конфигмапа для переопределения генерируемых статических конфигов. Подробности см. в разделе [Переопределение конфигурации](../../admin-guide/config-overrides.md). |
 | `adminCredentials` | `optional<LocalObjectReference>` | Секрет с логином/паролем для админского аккаунта. |
 | `isManaged`         | `bool` | Флаг, позволяющий отключить все действия оператора над данным кластером, чтобы совершить с кластерам ручные действия при необходимости. |
 | `ephemeralCluster` | `bool` | Флаг позволяющий отключить antiaffinity contraints. Cтоит использовать только в сценариях тестовых кластеров и если в k8s-кластере нод меньше, чем количество мастер-серверов. |

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "row_layout.h"
 
 #include <yt/yt/core/phoenix/context.h>
 #include <yt/yt/core/phoenix/type_decl.h>
@@ -71,6 +72,7 @@ struct IRlsChecker
 {
     virtual NSecurityClient::ESecurityAction Check(
         TUnversionedRow row,
+        const TUnversionedRowLayout& layout,
         const TRowBufferPtr& rowBuffer) const = 0;
 
     virtual bool IsColumnNeeded(int indexInChunkNameTable) const = 0;

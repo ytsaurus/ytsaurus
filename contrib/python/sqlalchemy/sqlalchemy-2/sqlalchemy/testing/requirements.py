@@ -1,5 +1,5 @@
 # testing/requirements.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1655,6 +1655,11 @@ class SuiteRequirements(Requirements):
         return exclusions.skip_if(
             lambda: util.py314, "Python 3.14 or above not supported"
         )
+
+    @property
+    def pep649(self):
+        """pep649 deferred evaluation of annotations without future mode"""
+        return self.python314
 
     @property
     def cpython(self):

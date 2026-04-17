@@ -12,6 +12,7 @@ from sqlglot import exp
 from sqlglot.dialects import DIALECT_MODULE_NAMES
 from sqlglot.errors import ParseError
 from sqlglot.generator import Generator, unsupported_args
+from sqlglot.expressions import apply_index_offset
 from sqlglot.helper import (
     AutoName,
     flatten,
@@ -19,6 +20,7 @@ from sqlglot.helper import (
     seq_get,
     suggest_closest_match_and_fail,
     to_bool,
+    ensure_list,
 )
 from sqlglot.jsonpath import JSONPathTokenizer, parse as parse_json_path
 from sqlglot.parser import Parser
@@ -26,6 +28,8 @@ from sqlglot.time import TIMEZONES, format_time, subsecond_precision
 from sqlglot.tokens import Token, Tokenizer, TokenType
 from sqlglot.trie import new_trie
 from sqlglot.typing import EXPRESSION_METADATA
+
+from importlib.metadata import entry_points
 
 DATE_ADD_OR_DIFF = t.Union[
     exp.DateAdd,
@@ -65,6 +69,8 @@ UNESCAPED_SEQUENCES = {
     "\\v": "\v",
     "\\\\": "\\",
 }
+
+PLUGIN_GROUP_NAME = "sqlglot.dialects"
 
 
 class Dialects(str, Enum):
@@ -153,12 +159,54 @@ class _Dialect(type):
         if isinstance(key, Dialects):
             key = key.value
 
-        # This import will lead to a new dialect being loaded, and hence, registered.
-        # We check that the key is an actual sqlglot module to avoid blindly importing
-        # files. Custom user dialects need to be imported at the top-level package, in
-        # order for them to be registered as soon as possible.
+        # 1. Try standard sqlglot modules first
         if key in DIALECT_MODULE_NAMES:
+            module = importlib.import_module(f"sqlglot.dialects.{key}")
+            # If module was already imported, the class may not be in _classes
+            # Find and register the dialect class from the module
+            if key not in cls._classes:
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name, None)
+                    if (
+                        isinstance(attr, type)
+                        and issubclass(attr, Dialect)
+                        and attr.__name__.lower() == key
+                    ):
+                        cls._classes[key] = attr
+                        break
+            return
+
+        # 2. Try entry points (for plugins)
+        try:
+            all_eps = entry_points()
+            # Python 3.10+ has select() method, older versions use dict-like access
+            if hasattr(all_eps, "select"):
+                eps = all_eps.select(group=PLUGIN_GROUP_NAME, name=key)
+            else:
+                # For older Python versions, entry_points() returns a dict-like object
+                group_eps = all_eps.get(PLUGIN_GROUP_NAME, [])  # type: ignore
+                eps = [ep for ep in group_eps if ep.name == key]  # type: ignore
+
+            for entry_point in eps:
+                dialect_class = entry_point.load()
+                # Verify it's a Dialect subclass
+                # issubclass() returns False if not a subclass, TypeError only if not a class at all
+                if isinstance(dialect_class, type) and issubclass(dialect_class, Dialect):
+                    # Register the dialect using the entry point name (key)
+                    # The metaclass may have registered it by class name, but we need it by entry point name
+                    if key not in cls._classes:
+                        cls._classes[key] = dialect_class
+                    return
+        except ImportError:
+            # entry_point.load() failed (bad plugin - module/class doesn't exist)
+            pass
+
+        # 3. Try direct import (for backward compatibility)
+        # This allows namespace packages or explicit imports to work
+        try:
             importlib.import_module(f"sqlglot.dialects.{key}")
+        except ImportError:
+            pass
 
     @classmethod
     def __getitem__(cls, key: str) -> t.Type[Dialect]:
@@ -235,7 +283,12 @@ class _Dialect(type):
         klass.BYTE_START, klass.BYTE_END = get_start_end(TokenType.BYTE_STRING)
         klass.UNICODE_START, klass.UNICODE_END = get_start_end(TokenType.UNICODE_STRING)
 
-        if "\\" in klass.tokenizer_class.STRING_ESCAPES:
+        klass.STRINGS_SUPPORT_ESCAPED_SEQUENCES = "\\" in klass.tokenizer_class.STRING_ESCAPES
+        klass.BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES = (
+            "\\" in klass.tokenizer_class.BYTE_STRING_ESCAPES
+        )
+
+        if klass.STRINGS_SUPPORT_ESCAPED_SEQUENCES or klass.BYTE_STRINGS_SUPPORT_ESCAPED_SEQUENCES:
             klass.UNESCAPED_SEQUENCES = {
                 **UNESCAPED_SEQUENCES,
                 **klass.UNESCAPED_SEQUENCES,
@@ -650,6 +703,9 @@ class Dialect(metaclass=_Dialect):
     ARRAY_AGG_INCLUDES_NULLS: t.Optional[bool] = True
     """Whether ArrayAgg needs to filter NULL values."""
 
+    ARRAY_FUNCS_PROPAGATES_NULLS = False
+    """Whether Array update functions return NULL when the input array is NULL."""
+
     PROMOTE_TO_INFERRED_DATETIME_TYPE = False
     """
     This flag is used in the optimizer's canonicalize rule and determines whether x will be promoted
@@ -740,6 +796,21 @@ class Dialect(metaclass=_Dialect):
 
     For example, in BigQuery the default type of the NULL value is INT64.
     """
+
+    LEAST_GREATEST_IGNORES_NULLS = True
+    """
+    Whether LEAST/GREATEST functions ignore NULL values, e.g:
+    - BigQuery, Snowflake, MySQL, Presto/Trino: LEAST(1, NULL, 2) -> NULL
+    - Spark, Postgres, DuckDB, TSQL: LEAST(1, NULL, 2) -> 1
+    """
+
+    PRIORITIZE_NON_LITERAL_TYPES = False
+    """
+    Whether to prioritize non-literal types over literals during type annotation.
+    """
+
+    ALIAS_POST_VERSION = True
+    """Whether the table alias comes after version (timestamp or iceberg snapshot)."""
 
     # --- Autofilled ---
 
@@ -935,7 +1006,9 @@ class Dialect(metaclass=_Dialect):
 
             result = cls.get(dialect_name.strip())
             if not result:
-                suggest_closest_match_and_fail("dialect", dialect_name, list(DIALECT_MODULE_NAMES))
+                # Include both built-in dialects and any loaded dialects for better error messages
+                all_dialects = set(DIALECT_MODULE_NAMES) | set(cls._classes.keys())
+                suggest_closest_match_and_fail("dialect", dialect_name, all_dialects)
 
             assert result is not None
             return result(**kwargs)
@@ -1145,6 +1218,19 @@ def rename_func(name: str) -> t.Callable[[Generator, exp.Expression], str]:
     return lambda self, expression: self.func(name, *flatten(expression.args.values()))
 
 
+def bracket_to_element_at_sql(self: Generator, expression: exp.Bracket) -> str:
+    index = seq_get(
+        apply_index_offset(
+            expression.this,
+            expression.expressions,
+            1 - expression.args.get("offset", 0),
+            dialect=self.dialect,
+        ),
+        0,
+    )
+    return self.func("ELEMENT_AT", expression.this, index)
+
+
 @unsupported_args("accuracy")
 def approx_count_distinct_sql(self: Generator, expression: exp.ApproxDistinct) -> str:
     return self.func("APPROX_COUNT_DISTINCT", expression.this)
@@ -1280,6 +1366,138 @@ def struct_extract_sql(self: Generator, expression: exp.StructExtract) -> str:
     return (
         f"{self.sql(expression, 'this')}.{self.sql(exp.to_identifier(expression.expression.name))}"
     )
+
+
+def array_append_sql(
+    name: str, swap_params: bool = False
+) -> t.Callable[[Generator, exp.ArrayAppend | exp.ArrayPrepend], str]:
+    """
+    Transpile ARRAY_APPEND/ARRAY_PREPEND between dialects with different NULL propagation semantics.
+
+    Some dialects (Databricks, Spark, Snowflake) return NULL when the input array is NULL.
+    Others (DuckDB, Postgres) create a new single-element array instead.
+
+    Args:
+        name: Target dialect's function name (e.g., "ARRAY_APPEND", "ARRAY_PREPEND")
+        swap_params: If True, generate (element, array) order instead of (array, element).
+                     DuckDB LIST_PREPEND and Postgres ARRAY_PREPEND use (element, array).
+
+    Returns:
+        A callable that generates SQL with appropriate NULL handling for the target dialect.
+        Dialects that propagate NULLs need to set `ARRAY_FUNCS_PROPAGATES_NULLS` to True.
+    """
+
+    def _array_append_sql(self: Generator, expression: exp.ArrayAppend | exp.ArrayPrepend) -> str:
+        this = expression.this
+        element = expression.expression
+        args = [element, this] if swap_params else [this, element]
+        func_sql = self.func(name, *args)
+
+        source_null_propagation = bool(expression.args.get("null_propagation"))
+        target_null_propagation = self.dialect.ARRAY_FUNCS_PROPAGATES_NULLS
+
+        # No transpilation needed when source and target have matching NULL semantics
+        if source_null_propagation == target_null_propagation:
+            return func_sql
+
+        # Source propagates NULLs, target doesn't: wrap in conditional to return NULL explicitly
+        if source_null_propagation:
+            return self.sql(
+                exp.If(
+                    this=exp.Is(this=this, expression=exp.Null()),
+                    true=exp.Null(),
+                    false=func_sql,
+                )
+            )
+
+        # Source doesn't propagate NULLs, target does: use COALESCE to convert NULL to empty array
+        this = exp.Coalesce(expressions=[this, exp.Array(expressions=[])])
+        args = [element, this] if swap_params else [this, element]
+        return self.func(name, *args)
+
+    return _array_append_sql
+
+
+def array_concat_sql(
+    name: str,
+) -> t.Callable[[Generator, exp.ArrayConcat], str]:
+    """
+    Transpile ARRAY_CONCAT/ARRAY_CAT between dialects with different NULL propagation semantics.
+
+    Some dialects (Redshift, Snowflake, Spark) return NULL when ANY input array is NULL.
+    Others (DuckDB, PostgreSQL) skip NULL arrays and continue concatenation.
+
+    Args:
+        name: Target dialect's function name (e.g., "ARRAY_CAT", "ARRAY_CONCAT", "LIST_CONCAT")
+
+    Returns:
+        A callable that generates SQL with appropriate NULL handling for the target dialect.
+        Dialects that propagate NULLs need to set `ARRAY_FUNCS_PROPAGATES_NULLS` to True.
+    """
+
+    def _build_func_call(self: Generator, func_name: str, args: t.Sequence[exp.Expression]) -> str:
+        """Build ARRAY_CONCAT call from a list of arguments, handling variadic vs binary nesting."""
+        if self.ARRAY_CONCAT_IS_VAR_LEN:
+            return self.func(func_name, *args)
+        elif len(args) == 1:
+            # Single arg gets empty array to preserve semantics
+            return self.func(func_name, args[0], exp.Array(expressions=[]))
+        else:
+            # Snowflake/PostgreSQL/Redshift require binary nesting: ARRAY_CAT(a, ARRAY_CAT(b, c))
+            # Build right-deep tree recursively to avoid creating new ArrayConcat expressions
+            result = self.func(func_name, args[-2], args[-1])
+            for arg in reversed(args[:-2]):
+                result = f"{func_name}({self.sql(arg)}, {result})"
+            return result
+
+    def _array_concat_sql(self: Generator, expression: exp.ArrayConcat) -> str:
+        this = expression.this
+        exprs = expression.expressions
+        all_args = [this] + exprs
+
+        source_null_propagation = bool(expression.args.get("null_propagation"))
+        target_null_propagation = self.dialect.ARRAY_FUNCS_PROPAGATES_NULLS
+
+        # Skip wrapper when source and target have matching NULL semantics,
+        # or when the first argument is an array literal (which can never be NULL),
+        # or when it's a single-argument call (empty array is added, preserving NULL semantics)
+        if (
+            source_null_propagation == target_null_propagation
+            or isinstance(this, exp.Array)
+            or len(exprs) == 0
+        ):
+            return _build_func_call(self, name, all_args)
+
+        # Case 1: Source propagates NULLs, target doesn't (Snowflake → DuckDB)
+        # Check if ANY argument is NULL and return NULL explicitly
+        if source_null_propagation:
+            # Build OR-chain: a IS NULL OR b IS NULL OR c IS NULL
+            null_checks: t.List[exp.Expression] = [
+                exp.Is(this=arg.copy(), expression=exp.Null()) for arg in all_args
+            ]
+            combined_check: exp.Expression = reduce(
+                lambda a, b: exp.Or(this=a, expression=b), null_checks
+            )
+
+            func_sql = _build_func_call(self, name, all_args)
+
+            return self.sql(
+                exp.If(
+                    this=combined_check,
+                    true=exp.Null(),
+                    false=func_sql,
+                )
+            )
+
+        # Case 2: Source doesn't propagate NULLs, target does (DuckDB → Snowflake)
+        # Wrap ALL arguments in COALESCE to convert NULL → empty array
+        wrapped_args = [
+            exp.Coalesce(expressions=[arg.copy(), exp.Array(expressions=[])]) for arg in all_args
+        ]
+
+        return _build_func_call(self, name, wrapped_args)
+
+    return _array_concat_sql
 
 
 def var_map_sql(
@@ -1555,7 +1773,7 @@ def encode_decode_sql(
     self: Generator, expression: exp.Expression, name: str, replace: bool = True
 ) -> str:
     charset = expression.args.get("charset")
-    if charset and charset.name.lower() != "utf-8":
+    if charset and charset.name.lower() not in ("utf-8", "utf8"):
         self.unsupported(f"Expected utf-8 character set, got {charset}.")
 
     return self.func(name, expression.this, expression.args.get("replace") if replace else None)
@@ -1667,6 +1885,46 @@ def binary_from_function(expr_type: t.Type[B]) -> t.Callable[[t.List], B]:
 # Used to represent DATE_TRUNC in Doris, Postgres and Starrocks dialects
 def build_timestamp_trunc(args: t.List) -> exp.TimestampTrunc:
     return exp.TimestampTrunc(this=seq_get(args, 1), unit=seq_get(args, 0))
+
+
+def build_trunc(
+    args: t.List,
+    dialect: DialectType,
+    date_trunc_unabbreviate: bool = True,
+    default_date_trunc_unit: t.Optional[str] = None,
+    date_trunc_requires_part: bool = True,
+) -> exp.DateTrunc | exp.Trunc | exp.Anonymous:
+    """
+    Builder for dialects with overloaded TRUNC (Oracle, Snowflake, etc).
+    Uses type annotation to distinguish date vs numeric truncation.
+    Returns Anonymous if type cannot be determined.
+    """
+    from sqlglot.optimizer.annotate_types import annotate_types
+
+    this = seq_get(args, 0)
+    second = seq_get(args, 1)
+
+    if this and not this.type:
+        this = annotate_types(this, dialect=dialect)
+    if second and not second.type:
+        second = annotate_types(second, dialect=dialect)
+
+    # Date truncation
+    if (
+        this and this.is_type(*exp.DataType.TEMPORAL_TYPES) and (second or default_date_trunc_unit)
+    ) or (second and second.is_type(*exp.DataType.TEXT_TYPES)):
+        unit = second or exp.Literal.string(default_date_trunc_unit)
+        return exp.DateTrunc(this=this, unit=unit, unabbreviate=date_trunc_unabbreviate)
+
+    # Numeric truncation
+    if (
+        (this and this.is_type(*exp.DataType.NUMERIC_TYPES))
+        or (second and second.is_type(*exp.DataType.NUMERIC_TYPES))
+        or (not date_trunc_requires_part and not second)
+    ):
+        return exp.Trunc(this=this, decimals=second)
+
+    return exp.Anonymous(this="TRUNC", expressions=args)
 
 
 def any_value_to_max_sql(self: Generator, expression: exp.AnyValue) -> str:
@@ -1952,14 +2210,53 @@ def filter_array_using_unnest(
     return self.sql(exp.Array(expressions=[filtered]))
 
 
+def array_compact_sql(self: Generator, expression: exp.ArrayCompact) -> str:
+    lambda_id = exp.to_identifier("_u")
+    cond = exp.Is(this=lambda_id, expression=exp.null()).not_()
+    return self.sql(
+        exp.ArrayFilter(
+            this=expression.this,
+            expression=exp.Lambda(this=cond, expressions=[lambda_id]),
+        )
+    )
+
+
 def remove_from_array_using_filter(self: Generator, expression: exp.ArrayRemove) -> str:
     lambda_id = exp.to_identifier("_u")
     cond = exp.NEQ(this=lambda_id, expression=expression.expression)
-    return self.sql(
+
+    filter_sql = self.sql(
         exp.ArrayFilter(
-            this=expression.this, expression=exp.Lambda(this=cond, expressions=[lambda_id])
+            this=expression.this,
+            expression=exp.Lambda(this=cond, expressions=[lambda_id]),
         )
     )
+
+    # Handle NULL propagation for ArrayRemove
+    source_null_propagation = bool(expression.args.get("null_propagation"))
+    target_null_propagation = self.dialect.ARRAY_FUNCS_PROPAGATES_NULLS
+
+    # Source propagates NULLs (Snowflake), target doesn't (DuckDB):
+    # When removal value is NULL, return NULL instead of applying filter
+    if source_null_propagation and not target_null_propagation:
+        removal_value = expression.expression
+
+        # Optimization: skip wrapper if removal value is a non-NULL literal
+        # (e.g., 5, 'a', TRUE) or an array literal (e.g., [1, 2])
+        if (
+            isinstance(removal_value, exp.Literal) and not isinstance(removal_value, exp.Null)
+        ) or isinstance(removal_value, exp.Array):
+            return filter_sql
+
+        return self.sql(
+            exp.If(
+                this=exp.Is(this=removal_value, expression=exp.Null()),
+                true=exp.Null(),
+                false=filter_sql,
+            )
+        )
+
+    return filter_sql
 
 
 def to_number_with_nls_param(self: Generator, expression: exp.ToNumber) -> str:
@@ -2089,17 +2386,40 @@ def build_regexp_extract(expr_type: t.Type[E]) -> t.Callable[[t.List, Dialect], 
 
 
 def explode_to_unnest_sql(self: Generator, expression: exp.Lateral) -> str:
-    if isinstance(expression.this, exp.Explode):
-        return self.sql(
-            exp.Join(
-                this=exp.Unnest(
-                    expressions=[expression.this.this],
-                    alias=expression.args.get("alias"),
-                    offset=isinstance(expression.this, exp.Posexplode),
-                ),
-                kind="cross",
-            )
+    this = expression.this
+    alias = expression.args.get("alias")
+
+    cross_join_expr: t.Optional[exp.Expression] = None
+    if isinstance(this, exp.Posexplode) and alias:
+        # Spark's `FROM x LATERAL VIEW POSEXPLODE(y) t AS pos, col` has the following semantics:
+        # - The first column is the position and the rest (1 for array, 2 for maps) are the exploded values
+        # - The position is 0-based whereas WITH ORDINALITY is 1-based
+        # For that matter, we must (1) subtract 1 from the ORDINALITY position and (2) rearrange the columns accordingly, returning:
+        # `FROM x CROSS JOIN LATERAL (SELECT pos - 1 AS pos, col FROM UNNEST(y) WITH ORDINALITY AS t(col, pos))
+        pos, cols = alias.columns[0], alias.columns[1:]
+
+        cols = ensure_list(cols)
+        lateral_subquery = exp.select(
+            exp.alias_(pos - 1, pos),
+            *cols,
+        ).from_(
+            exp.Unnest(
+                expressions=[this.this],
+                offset=True,
+                alias=exp.TableAlias(this=alias.this, columns=[*cols, pos]),
+            ),
         )
+
+        cross_join_expr = exp.Lateral(this=lateral_subquery.subquery())
+    elif isinstance(this, exp.Explode):
+        cross_join_expr = exp.Unnest(
+            expressions=[this.this],
+            alias=alias,
+        )
+
+    if cross_join_expr:
+        return self.sql(exp.Join(this=cross_join_expr, kind="cross"))
+
     return self.lateral_sql(expression)
 
 
@@ -2207,3 +2527,37 @@ def regexp_replace_global_modifier(expression: exp.RegexpReplace) -> exp.Express
             modifiers = exp.Literal.string(value + "g")
 
     return modifiers
+
+
+def getbit_sql(self: Generator, expression: exp.Getbit) -> str:
+    """
+    Generates SQL for Getbit according to DuckDB and Postgres, transpiling it if either:
+
+    1. The zero index corresponds to the least-significant bit
+    2. The input type is an integer value
+    """
+    value = expression.this
+    position = expression.expression
+
+    if not expression.args.get("zero_is_msb") and expression.is_type(
+        *exp.DataType.SIGNED_INTEGER_TYPES, *exp.DataType.UNSIGNED_INTEGER_TYPES
+    ):
+        # Use bitwise operations: (value >> position) & 1
+        shifted = exp.BitwiseRightShift(this=value, expression=position)
+        masked = exp.BitwiseAnd(this=shifted, expression=exp.Literal.number(1))
+        return self.sql(masked)
+
+    return self.func("GET_BIT", value, position)
+
+
+def jarowinkler_similarity(func: str) -> t.Callable[[Generator, exp.JarowinklerSimilarity], str]:
+    def jarowinklersimilarity_sql(self: Generator, expression: exp.JarowinklerSimilarity) -> str:
+        this = expression.this
+        expr = expression.expression
+        if expression.args.get("case_insensitive"):
+            this = exp.Upper(this=this)
+            expr = exp.Upper(this=expr)
+
+        return self.func(func, this, expr)
+
+    return jarowinklersimilarity_sql

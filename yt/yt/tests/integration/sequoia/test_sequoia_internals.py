@@ -1,21 +1,23 @@
 from yt_env_setup import (
-    YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE)
+    YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE, is_asan_build)
 
 from yt_commands import (
-    authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
+    authors, create, ls, get, remove, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
+    create_account, remove_account,
 )
 
 from yt_sequoia_helpers import (
-    resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
-    select_paths_from_ground,
+    select_rows_from_ground, select_paths_from_ground,
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
     select_cypress_transaction_prerequisites, lookup_rows_in_ground,
     mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
+
+import yt_error_codes
 
 from yt.sequoia_tools import DESCRIPTORS
 
@@ -97,6 +99,7 @@ class TestSequoiaInternals(YTEnvSetup):
             "enable_ground_update_queues_sync": False,
             "enable_user_directory_per_request_sync": False,
         },
+        "select_subtree_rows_limit": 10**6,
     }
 
     @authors("kvk1920")
@@ -173,52 +176,63 @@ class TestSequoiaInternals(YTEnvSetup):
         sleep(0.5)
         assert get(root, attributes=["id", "magic_word"]) == yson.loads(expected_string.encode())
 
-    @authors("h0pless")
+    @authors("danilalexeev")
+    def test_get_recursive_attributes2(self):
+        id = create("document", "//tmp/d")
+        tt = get("//tmp", attributes=["id"])
+        assert tt["d"].attributes["id"] == id
+
+    @authors("danilalexeev")
     def test_get_recursive_limits(self):
-        # Test directory structure:
-        # root
-        # |-- level_1_string
-        # |-- level_1_map_0
-        # |   |-- level_2_map
-        # |   |   |-- level_3_map
-        # |   |   `-- level_3_string
-        # |   `-- level_2_string
-        # `-- level_1_map_1
-
         root = "//tmp/root"
-        create("map_node", f"{root}/level_1_map_0/level_2_map/level_3_map", recursive=True)
-        create("string_node", f"{root}/level_1_string")
-        create("string_node", f"{root}/level_1_map_0/level_2_string")
-        create("string_node", f"{root}/level_1_map_0/level_2_map/level_3_string")
-        create("map_node", f"{root}/level_1_map_1",)
-        set(f"{root}/level_1_string", "level_1_value")
-        set(f"{root}/level_1_map_0/level_2_string", "level_2_value")
-        set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
+        tree = {
+            "level_1_string": "level_1_value",
+            "level_1_map_0": {
+                "level_2_string": "level_2_value",
+                "level_2_map": {
+                    "level_3_string": "level_3_value",
+                    "level_3_map": {},
+                },
+            },
+            "level_1_map_1": {},
+        }
+        set(root, tree, recursive=True, force=True)
 
-        # First off, check that root node cannot appear opaque.
-        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": yson.YsonEntity(), "level_1_string": "level_1_value"}
+        # limit=1: root children always shown.
+        expected_result = {
+            "level_1_map_0": yson.YsonEntity(),
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
         sleep(0.5)
         assert get(root) == expected_result
 
-        # Now ensure that until the full layer of children can fit the limit we do not add anything to the response.
+        # For limits 2-5: level_1_map_0 is still opaque.
         for limit in range(2, 6):
             set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
             sleep(0.5)
             assert get(root) == expected_result
 
-        # A new layer should be added.
+        # limit=6: level_1_map_0's children now fit.
         expected_result = {
             "level_1_map_0": {"level_2_map": yson.YsonEntity(), "level_2_string": "level_2_value"},
-            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 6)
         sleep(0.5)
         assert get(root) == expected_result
 
-        # The whole tree should be fetched.
+        # Full tree.
         expected_result = {
-            "level_1_map_0": {"level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"}, "level_2_string": "level_2_value"},
-            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+            "level_1_map_0": {
+                "level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"},
+                "level_2_string": "level_2_value"
+            },
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
         sleep(0.5)
         assert get(root) == expected_result
@@ -240,7 +254,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", f"{root}/child_1/grandchild_1")
         set(f"{root}/child_1/grandchild_1/@opaque", True)
 
-        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%true;>#;}'
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
         assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
 
         root_id = get(f"{root}/@id")
@@ -249,7 +263,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         expected_string = \
             f'<"id"="{root_id}";"opaque"=%false;>' \
-            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%true;>#;}}'
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
         assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
 
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
@@ -528,37 +542,6 @@ class TestSequoiaInternals(YTEnvSetup):
         assert get(r"//tmp/m\@1/@id") == child_id
 
     @authors("kvk1920")
-    def test_create_map_node(self):
-        m_id = create("map_node", "//tmp/m")
-        set(f"#{m_id}/@foo", "bar")
-
-        def check_everything():
-            assert resolve_sequoia_path("//tmp") == get("//tmp&/@scion_id")
-            assert resolve_sequoia_id(get("//tmp&/@scion_id")) == "//tmp"
-            assert resolve_sequoia_path("//tmp/m") == m_id
-            assert get(f"#{m_id}/@path") == "//tmp/m"
-            assert get(f"#{m_id}/@key") == "m"
-            assert get("//tmp/m/@path") == "//tmp/m"
-            assert get("//tmp/m/@key") == "m"
-
-            # TODO(kvk1920): Use attribute filter when it will be implemented in Sequoia.
-            assert get(f"#{m_id}/@type") == "map_node"
-            assert get(f"#{m_id}/@sequoia")
-
-            assert get(f"#{m_id}/@foo") == "bar"
-
-        check_everything()
-
-        build_master_snapshots()
-
-        # TODO(babenko): uncomment once Sequoia retries are implemented
-        # TODO(kvk1920): Move it to TestMasterSnapshots.
-        # with Restarter(self.Env, MASTERS_SERVICE):
-        #    pass
-
-        # check_everything()
-
-    @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
         with raises_yt_error("is internal type and should not be used directly"):
             create("sequoia_map_node", "//tmp/m")
@@ -592,10 +575,11 @@ class TestSequoiaInternals(YTEnvSetup):
         username = "JohnathanPicklehands"
         create_user(username)
         create("table", "//tmp/t")
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
 
         set("//sys/cypress_proxies/@config", {
             "object_service": {
+                "enable_per_user_request_weight_throttling": True,
                 "distributed_throttler": {
                     "member_client": {
                         "attribute_update_period": 300,
@@ -607,19 +591,23 @@ class TestSequoiaInternals(YTEnvSetup):
             }
         })
 
-        NUM_REQUESTS = 10
+        BASE_REQUEST_COUNT = 10
+        REQUEST_COUNT_FACTOR = 1 + self.NUM_SECONDARY_MASTER_CELLS
+        REQUEST_COUNT = BASE_REQUEST_COUNT * REQUEST_COUNT_FACTOR
+        set("//sys/cypress_proxies/@config/object_service/request_rate_limit_factor", REQUEST_COUNT_FACTOR)
+        sleep(1)
 
         def measure_read_time():
             start_time = datetime.now()
-            for _ in range(NUM_REQUESTS):
+            for _ in range(REQUEST_COUNT):
                 get("//tmp/t/@id", authenticated_user=username)
             return (datetime.now() - start_time).total_seconds()
 
-        # register user at both proxies
+        # Register user at both proxies.
         measure_read_time()
         sleep(1)
 
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 1)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 1)
         sleep(1)
 
         cypress_proxy_address = ls("//sys/cypress_proxies")[0]
@@ -633,14 +621,20 @@ class TestSequoiaInternals(YTEnvSetup):
         checker = self.spawn_additional_thread(name="wait for profiling counter to change",
                                                target=wait_for_counter_to_change)
 
-        assert measure_read_time() > NUM_REQUESTS * 0.7
+        # Last request empties the throttler, but we don't wait for it to be replenished.
+        expected_time = BASE_REQUEST_COUNT - 1
+
+        # Since requests are very quick and throttlers take time to synchronize,
+        # add the multiplier to the expected time.
+        assert measure_read_time() > expected_time * 0.9
 
         checker.join()
 
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
         sleep(1)
 
-        assert measure_read_time() < 2
+        max_expected_time = 2 if not is_asan_build() else 5
+        assert measure_read_time() < max_expected_time
 
     def lookup_acls(self, node_id):
         return lookup_rows_in_ground(DESCRIPTORS.acls.get_default_path(), [{"node_id": node_id}])
@@ -756,10 +750,57 @@ class TestSequoiaInternals(YTEnvSetup):
         # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
 
     @authors("danilalexeev")
+    def test_recursive_attributes_heavy(self):
+        set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
+        sleep(0.5)
+        MAP_SIZE = 123
+        yson = {f"{i:03}": 42 for i in range(MAP_SIZE)}
+        set("//tmp", {chr(ord('a') + i): yson for i in range(10)}, force=True)
+        items = ls("//tmp", attributes=["recursive_resource_usage"])
+        for item in items:
+            node_count = item.attributes["recursive_resource_usage"]["node_count"]
+            assert node_count == MAP_SIZE + 1, f"incomplete result for key {item}"
+
+    @authors("danilalexeev")
     def test_resolve_rootstock_from_object_id(self):
         node_id = get("//@id")
         # Should not throw.
         get(f"#{node_id}/tmp")
+
+    @authors("kvk1920")
+    def test_sequoia_barrier_delay(self):
+        set("//sys/@config/transaction_manager/testing/sequoia_transaction_barrier_delay", 2000)
+
+        start = datetime.now()
+        get("//@owner")
+        finish = datetime.now()
+        assert finish - start >= timedelta(seconds=2)
+
+    @authors("kvk1920")
+    def test_sequoia_tx_start_failure(self):
+        set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.4)
+        try:
+            for i in range(3):
+                create("int64_node", f"//tmp/i64-{i}")
+        finally:
+            set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.0)
+
+    @authors("shakurov")
+    def test_transaction_commit_failure_error_stripping_in_sequoia_session(self):
+        create_account("a")
+
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        remove_account("a", sync=False)
+
+        with raises_yt_error("Account \"a\" cannot be used") as err:
+            create("table", "//tmp/t2", attributes={"account": "a"})
+        assert len(err) == 1
+        assert err[0].message.find("Received response with error") != -1
+        err = err[0]
+        assert len(err.inner_errors) == 1
+        print_debug(err.inner_errors[0])
+        # Not using contains_code here - we're checking the outermost error.
+        assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
 
 @pytest.mark.enabled_multidaemon
@@ -1274,6 +1315,76 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/p11/m")
         assert exists("//tmp/p13/m")
 
+    @authors("shakurov")
+    def test_transaction_commit_failure_error_stripping_in_sequoia_mutation(self):
+        tx = start_transaction()
+        set("//sys/@config/transaction_manager/testing/prerequisite_check_failure_during_commit_of_transactions", [tx])
+
+        with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config") as err:
+            commit_transaction(tx)
+        assert len(err) == 1
+        assert err[0].message.find("Received response with error") != -1
+        err = err[0]
+        assert len(err.inner_errors) == 1
+        print_debug(err.inner_errors[0])
+        # Not using contains_text here - we're checking the outermost error.
+        assert err.inner_errors[0]["message"] == f"Error committing transaction {tx}"
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    NUM_MASTERS = 3
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+        "13": {"roles": ["transaction_coordinator"]},
+    }
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("case", [
+        "boomerang",
+        "replication_on_read",
+    ])
+    def test_tx_mirroring_compatibility(self, case):
+        tx_12 = start_transaction(coordinator_master_cell_tag=12)
+        tx_13 = start_transaction(coordinator_master_cell_tag=13)
+
+        set("//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia", True)
+        set("//sys/@config/transaction_manager/enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", True)
+        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
+
+        mtx_12 = start_transaction(coordinator_master_cell_tag=12)
+        mtx_13 = start_transaction(coordinator_master_cell_tag=13)
+
+        set("//tmp/a", 123)
+
+        def execute_verb(**kwargs):
+            if case == "boomerang":
+                set("//tmp/a", 123, **kwargs)
+            else:
+                get("//tmp", **kwargs)
+
+        execute_verb(prerequisite_transaction_ids=[tx_12, tx_13, mtx_12, mtx_13])
+        for tx in (tx_12, tx_13, mtx_12, mtx_13):
+            assert 10 in get(f"#{tx}/@replicated_to_cell_tags")
+
+        abort_transaction(tx_12)
+        abort_transaction(mtx_13)
+
+        with raises_yt_error(f"No such transaction {tx_12}"):
+            execute_verb(tx=tx_12)
+
+        with raises_yt_error(f"No such transaction {mtx_13}"):
+            execute_verb(tx=mtx_13)
+
 
 ##################################################################
 
@@ -1371,7 +1482,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
         if table_descriptor is DESCRIPTORS.node_id_to_path:
             # NB: We have to filter out symlinks which are mirrored to Sequoia.
             query += " where not is_prefix('//sys', path)"
-        elif table_descriptor is DESCRIPTORS.child_node:
+        elif table_descriptor is DESCRIPTORS.child_nodes:
             # TODO(kvk1920): drop when YT-23209 will be done.
             query += " where (not is_null(transaction_id) and transaction_id != \"0-0-0-0\")" \
                      " or (not is_null(child_id) and child_id != \"0-0-0-0\")"
@@ -1481,7 +1592,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.node_snapshot(tx, table_id)
             for tx in [tx0, tx1, tx2, tx3, tx4, tx5]
         ])
-        self.fill_or_check_resolve_table(DESCRIPTORS.child_node, rows=[
+        self.fill_or_check_resolve_table(DESCRIPTORS.child_nodes, rows=[
             self.child_node(scion_id, "t", table_id),
         ])
 
@@ -1662,7 +1773,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
         self.fill_or_check_resolve_table(DESCRIPTORS.node_id_to_path, old_node_id_to_path, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.path_to_node_id, old_path_to_node_id, tx_mapping)
-        self.fill_or_check_resolve_table(DESCRIPTORS.child_node, old_child_node, tx_mapping)
+        self.fill_or_check_resolve_table(DESCRIPTORS.child_nodes, old_child_node, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.node_forks, old_node_forks, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.path_forks, old_path_forks, tx_mapping)
         self.fill_or_check_resolve_table(DESCRIPTORS.child_forks, old_child_forks, tx_mapping)
@@ -1676,7 +1787,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
             expected_node_id_to_path = build_expected(old_node_id_to_path)
             expected_path_to_node_id = build_expected(old_path_to_node_id)
-            expected_child_node = build_expected(old_child_node)
+            expected_child_nodes = build_expected(old_child_node)
             expected_path_forks = build_expected(old_path_forks)
             expected_node_forks = build_expected(old_node_forks)
             expected_child_forks = build_expected(old_child_forks)
@@ -1694,7 +1805,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
             expected_node_id_to_path = build_expected(old_node_id_to_path)
             expected_path_to_node_id = build_expected(old_path_to_node_id)
-            expected_child_node = build_expected(old_child_node)
+            expected_child_nodes = build_expected(old_child_node)
             expected_node_forks = build_expected(old_node_forks)
             expected_path_forks = build_expected(old_path_forks)
             expected_child_forks = build_expected(old_child_forks)
@@ -1714,7 +1825,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
                 self.path_to_node_id("//tmp/s/a/b/c", c_new_id, tx=tx0),
                 self.path_to_node_id("//tmp/s/a/b/g", g_id, tx=tx0),
             ]
-            expected_child_node = [
+            expected_child_nodes = [
                 self.child_node(scion_id, "a", a_id, tx=tx0),
                 self.child_node(a_id, "b", b_new_id, tx=tx0),
                 self.child_node(b_new_id, "c", c_new_id, tx=tx0),
@@ -1741,7 +1852,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
         self.check_resolve_table(DESCRIPTORS.node_id_to_path, expected_node_id_to_path, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.path_to_node_id, expected_path_to_node_id, tx_mapping)
-        self.check_resolve_table(DESCRIPTORS.child_node, expected_child_node, tx_mapping)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, expected_child_nodes, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.node_forks, expected_node_forks, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.path_forks, expected_path_forks, tx_mapping)
         self.check_resolve_table(DESCRIPTORS.child_forks, expected_child_forks, tx_mapping)
@@ -1860,7 +1971,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
         ], tx_mapping)
 
         # parent_id, path, node_id, tx_id=None
-        self.fill_or_check_resolve_table(DESCRIPTORS.child_node, [
+        self.fill_or_check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", to_replace_id),
             self.child_node(scion_id, "replace", None, tx1),
             self.child_node(scion_id, "replace", replaced_id, tx2),
@@ -2023,7 +2134,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/remove_recreate", None, tx1),
         ], tx_mapping)
 
-        self.check_resolve_table(DESCRIPTORS.child_node, [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", to_replace_id),
             self.child_node(scion_id, "replace", replaced_id, tx1),
 
@@ -2149,7 +2260,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/remove_recreate", None, tx0),
         ], tx_mapping)
 
-        self.check_resolve_table(DESCRIPTORS.child_node, [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", to_replace_id),
             self.child_node(scion_id, "replace", replaced_id, tx0),
 
@@ -2216,7 +2327,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/create", created_2_id),
         ], tx_mapping)
 
-        self.check_resolve_table(DESCRIPTORS.child_node, [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, [
             self.child_node(scion_id, "replace", replaced_id),
             self.child_node(replaced_id, "nested", replaced_nested_id),
             self.child_node(scion_id, "create", created_2_id),
@@ -2240,7 +2351,7 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     def teardown_method(self, method):
         clear_table_in_ground(DESCRIPTORS.node_id_to_path)
         clear_table_in_ground(DESCRIPTORS.path_to_node_id)
-        clear_table_in_ground(DESCRIPTORS.child_node)
+        clear_table_in_ground(DESCRIPTORS.child_nodes)
         clear_table_in_ground(DESCRIPTORS.node_forks)
         clear_table_in_ground(DESCRIPTORS.node_snapshots)
         clear_table_in_ground(DESCRIPTORS.path_forks)
@@ -2340,7 +2451,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.child_node(d1_id, "d2", d2_id),
         ]
 
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=initial_rows)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=initial_rows)
 
         tx = start_transaction()
         remove("//tmp/s/a/c1", tx=tx)
@@ -2353,7 +2464,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.child_node(c1_id, "c2", None, tx),
         ]
 
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=rows_after_remove)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=rows_after_remove)
 
         assert get("//tmp/s") == initial_tree
         assert get("//tmp/s", tx=tx) == tree_after_remove
@@ -2374,7 +2485,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             final_tree = initial_tree
 
         assert get("//tmp/s") == final_tree
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=final_rows)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=final_rows)
 
     def test_remove_lock_conflict(self):
         create("rootstock", "//tmp/s")
@@ -2445,7 +2556,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.node_id_to_path(table_id, "//tmp/scion/t"),
             self.node_id_to_path(table_id, "//tmp/scion/t", tx, "snapshot"),
         ])
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=[
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=[
             self.child_node(scion_id, "t", table_id),
         ])
         self.check_resolve_table(DESCRIPTORS.node_snapshots, rows=[
@@ -2564,7 +2675,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 
         self.check_resolve_table(DESCRIPTORS.path_to_node_id, rows=origin_path_to_node_id)
         self.check_resolve_table(DESCRIPTORS.node_id_to_path, rows=origin_node_id_to_path)
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=origin_child_node)
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=origin_child_node)
         self.check_resolve_table(DESCRIPTORS.path_forks, rows=[])
         self.check_resolve_table(DESCRIPTORS.node_forks, rows=[])
         self.check_resolve_table(DESCRIPTORS.child_forks, rows=[])
@@ -2597,7 +2708,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             self.node_id_to_path(new_m1, "//tmp/scion/m1", tx),
             self.node_id_to_path(new_t, "//tmp/scion/m1/t", tx),
         ])
-        self.check_resolve_table(DESCRIPTORS.child_node, rows=origin_child_node + [
+        self.check_resolve_table(DESCRIPTORS.child_nodes, rows=origin_child_node + [
             self.child_node(scion, "m1", new_m1, tx),
             self.child_node(m1, "i", None, tx),
             self.child_node(m1, "m2", None, tx),
@@ -2635,7 +2746,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
         if finish_tx is abort_transaction:
             self.check_resolve_table(DESCRIPTORS.path_to_node_id, rows=origin_path_to_node_id)
             self.check_resolve_table(DESCRIPTORS.node_id_to_path, rows=origin_node_id_to_path)
-            self.check_resolve_table(DESCRIPTORS.child_node, rows=origin_child_node)
+            self.check_resolve_table(DESCRIPTORS.child_nodes, rows=origin_child_node)
 
             check_table("//tmp/scion/m1/m2/t")
         else:
@@ -2649,7 +2760,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
                 self.node_id_to_path(new_m1, "//tmp/scion/m1"),
                 self.node_id_to_path(new_t, "//tmp/scion/m1/t"),
             ])
-            self.check_resolve_table(DESCRIPTORS.child_node, rows=[
+            self.check_resolve_table(DESCRIPTORS.child_nodes, rows=[
                 self.child_node(scion, "m1", new_m1),
                 self.child_node(new_m1, "t", new_t),
             ])
@@ -2753,7 +2864,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             tx_mapping)
 
         self.check_resolve_table(
-            DESCRIPTORS.child_node,
+            DESCRIPTORS.child_nodes,
             child_node_source + child_node_destination,
             tx_mapping)
 
@@ -2834,7 +2945,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             tx_mapping)
 
         self.check_resolve_table(
-            DESCRIPTORS.child_node,
+            DESCRIPTORS.child_nodes,
             child_node_source + child_node_destination + child_node_delta,
             tx_mapping)
 
@@ -2849,7 +2960,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             expected_node_id_to_path = \
                 [self.node_id_to_path(scion, "//tmp/scion")] \
                 + node_id_to_path_destination
-            expected_child_node = child_node_destination
+            expected_child_nodes = child_node_destination
         else:
             expected_path_to_node_id = [
                 self.path_to_node_id("//tmp/scion", scion),
@@ -2865,7 +2976,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
                 self.node_id_to_path(new_ids["b/c"], "//tmp/scion/e/b/c"),
                 self.node_id_to_path(new_ids["d"], "//tmp/scion/e/d"),
             ]
-            expected_child_node = [
+            expected_child_nodes = [
                 self.child_node(scion, "e", e2),
                 self.child_node(e2, "b", new_ids["b"]),
                 self.child_node(new_ids["b"], "c", new_ids["b/c"]),
@@ -2881,7 +2992,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
                     r | {"transaction_id": None}
                     for r in node_id_to_path_source
                 ]
-                expected_child_node += [
+                expected_child_nodes += [
                     r | {"transaction_id": None}
                     for r in child_node_source
                 ]
@@ -2895,8 +3006,8 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             expected_node_id_to_path,
             tx_mapping)
         self.check_resolve_table(
-            DESCRIPTORS.child_node,
-            expected_child_node,
+            DESCRIPTORS.child_nodes,
+            expected_child_nodes,
             tx_mapping)
 
 

@@ -54,14 +54,13 @@ class TestSequoiaCompatibility(YTEnvSetup):
 
         def check_config():
             for proxy in ls("//sys/cypress_proxies"):
-                if get(f"//sys/cypress_proxies/{proxy}/orchid/dynamic_config_manager/applied_config") != CONFIG:
-                    return False
-            return True
+                applied_config_path = f"//sys/cypress_proxies/{proxy}/orchid/dynamic_config_manager/applied_config"
+                return get(f"{applied_config_path}/object_service/allow_bypass_master_resolve") == bypass_master_resolve
 
         wait(check_config)
 
-        TABLE_PATH = "//sys/sequoia/child_node"
-        TABLE_NAME = "child_node"
+        TABLE_PATH = "//sys/sequoia/child_nodes"
+        TABLE_NAME = "child_nodes"
 
         ground_driver = get_ground_driver()
         schema = get(TABLE_PATH + "/@schema", driver=ground_driver)

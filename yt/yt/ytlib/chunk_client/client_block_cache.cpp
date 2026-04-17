@@ -92,8 +92,8 @@ public:
     TCachedBlock GetBlock() const override
     {
         const auto& future = Cookie_.GetValue();
-        YT_VERIFY(future.IsSet() && future.Get().IsOK());
-        return future.Get().Value()->CachedBlock();
+        YT_VERIFY(future.GetOrCrash().IsOK());
+        return future.GetOrCrash().Value()->CachedBlock();
     }
 
     void SetBlock(TErrorOr<TCachedBlock> blockOrError) override

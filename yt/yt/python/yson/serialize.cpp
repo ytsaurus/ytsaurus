@@ -42,7 +42,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
+namespace {
+
+void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 {
     static auto* YsonStringProxyClass = FindYsonTypeClass("YsonStringProxy");
 
@@ -270,6 +272,8 @@ bool HasCallableToYsonType(const Py::Object& obj)
     static auto* toYsonTypePyStr = PyStringFromString("to_yson_type");
     return PyObject_HasAttr(obj.ptr(), toYsonTypePyStr) && obj.getAttr("to_yson_type").isCallable();
 }
+
+} // namespace
 
 void Serialize(
     const Py::Object& obj,

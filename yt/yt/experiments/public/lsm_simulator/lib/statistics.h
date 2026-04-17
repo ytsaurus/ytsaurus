@@ -16,13 +16,13 @@ struct TStatistics
     i64 ChunksFlushed = 0;
 };
 
-TStatistics& operator+= (TStatistics& lhs, const TStatistics& rhs);
-TStatistics operator+ (TStatistics lhs, const TStatistics& rhs);
+TStatistics& operator+=(TStatistics& lhs, const TStatistics& rhs);
+TStatistics operator+(TStatistics lhs, const TStatistics& rhs);
 
-TStatistics& operator-= (TStatistics& lhs, const TStatistics& rhs);
-TStatistics operator- (TStatistics lhs, const TStatistics& rhs);
+TStatistics& operator-=(TStatistics& lhs, const TStatistics& rhs);
+TStatistics operator-(TStatistics lhs, const TStatistics& rhs);
 
-TStatistics operator/ (TStatistics lhs, int rhs);
+TStatistics operator/(TStatistics lhs, int rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

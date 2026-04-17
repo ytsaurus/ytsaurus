@@ -33,6 +33,7 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NSequoiaServer;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
@@ -284,7 +285,7 @@ private:
 
         auto explicitAttributes = request->has_node_attributes()
             ? FromProto(request->node_attributes())
-            : IAttributeDictionaryPtr();
+            : EmptyAttributes().Clone();
 
         auto inheritedAttributes = FromProto(request->inherited_attributes());
 
@@ -559,7 +560,7 @@ private:
 
         // NB: Nobody can acquire the shared child lock for this node between
         // prepare and commit due to Sequoia table lock. DetachChild acquires
-        // exclusive lock on (nodeId, topmostTx, key) in "child_node" Sequoia
+        // exclusive lock on (nodeId, topmostTx, key) in "child_nodes" Sequoia
         // table.
 
         DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
@@ -901,10 +902,7 @@ private:
 
         auto innerRequest = TCypressYPathProxy::Remove(path);
         innerRequest->set_force(force);
-        // COPMAT(danilalexeev): Remove if.
-        if (request->has_effective_acl()) {
-            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
-        }
+        SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),

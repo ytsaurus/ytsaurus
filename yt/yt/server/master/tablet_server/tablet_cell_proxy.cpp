@@ -196,6 +196,14 @@ private:
                     .Value(cell->CellBundle()->GetName());
                 return true;
 
+            case EInternedAttributeKey::TabletCellBundleId:
+                if (!cell->CellBundle()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(cell->CellBundle()->GetId());
+                return true;
+
             default:
                 break;
         }

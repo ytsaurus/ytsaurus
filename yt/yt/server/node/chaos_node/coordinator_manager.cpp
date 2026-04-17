@@ -74,6 +74,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqResume, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqGrantShortcuts, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqRevokeShortcuts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqForsakeShortcut, Unretained(this)));
     }
 
     void Initialize() override
@@ -102,6 +103,12 @@ public:
     {
         auto mutation = CreateMutation(HydraManager_, context);
         mutation->SetAllowLeaderForwarding(true);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void ForsakeShortcut(TForsakeShortcutContextPtr context) override
+    {
+        auto mutation = CreateMutation(HydraManager_, context);
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
@@ -329,7 +336,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
         YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
@@ -393,6 +400,42 @@ private:
             MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
             }));
+    }
+
+    void HydraReqForsakeShortcut(
+        const TForsakeShortcutContextPtr& /*context*/,
+        NChaosClient::NProto::TReqForsakeShortcut* request,
+        NChaosClient::NProto::TRspForsakeShortcut* response)
+    {
+        auto chaosObjectId = FromProto<TCellId>(request->chaos_object_id());
+
+        if (!Shortcuts_.contains(chaosObjectId)) {
+            YT_LOG_DEBUG("Trying to forsake unknown shortcut (ChaosObjectId: %v, Type: %v)",
+                chaosObjectId,
+                TypeFromId(chaosObjectId));
+
+            response->set_success(false);
+        }
+
+        auto& shortcut = Shortcuts_[chaosObjectId];
+
+        if (!shortcut.AliveTransactions.empty()) {
+            YT_LOG_DEBUG("Trying to forsake shortcut with alive transactions "
+                "(ChaosObjectId: %v, Type: %v, TransactionCount: %v)",
+                chaosObjectId,
+                TypeFromId(chaosObjectId),
+                shortcut.AliveTransactions.size());
+
+            response->set_success(false);
+        } else {
+            EraseShortcut(chaosObjectId);
+
+            YT_LOG_DEBUG("Shortcut was forsaken (ChaosObjectId: %v, Type: %v)",
+                chaosObjectId,
+                TypeFromId(chaosObjectId));
+
+            response->set_success(true);
+        }
     }
 
     void HydraPrepareReplicatedCommit(
@@ -543,7 +586,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
     }
 
@@ -571,14 +614,17 @@ private:
                 &TCoordinatorManager::BuildInternalOrchid,
                 MakeWeak(this))
                 ->Via(Slot_->GetAutomatonInvoker()))
-            ->AddChild("shortcuts", TShortcutOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()));
+            ->AddChild("shortcuts", TShortcutOrchidService::Create(
+                MakeWeak(this),
+                Slot_->GetGuardedAutomatonInvoker()));
     }
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_)
+                .Item("suspended").Value(
+                    Suspended_ && Shortcuts_.empty())
             .EndMap();
     }
 

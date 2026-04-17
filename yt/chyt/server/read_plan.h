@@ -39,7 +39,7 @@ struct TFilterInfo
     //! Removes filter column if RemoveFilterColumn is |true|,
     //! called from Execute, but sometimes it needs to be called separately.
     //! NB: Modifies the passed TBlockWithFilter.
-    DB::IColumn::Ptr RemoveColumnIfNeeded(TBlockWithFilter& blockWithFilter) const;
+    DB::IColumn::Ptr RemoveColumnIfNeeded(TBlockWithFilter* blockWithFilter) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,10 +73,10 @@ DEFINE_REFCOUNTED_TYPE(TReadPlanWithFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadPlanWithFilterPtr BuildSimpleReadPlan(const std::vector<NTableClient::TColumnSchema>& columns);
+TReadPlanWithFilterPtr BuildSimpleReadPlan(std::vector<NTableClient::TColumnSchema> columns);
 
 TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
-    const std::vector<NTableClient::TColumnSchema>& columns,
+    std::vector<NTableClient::TColumnSchema> columns,
     const DB::PrewhereInfoPtr& prewhereInfo,
     const DB::Settings& settings);
 

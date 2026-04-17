@@ -2,7 +2,6 @@
 
 #include "artifact.h"
 #include "bootstrap.h"
-#include "master_connector.h"
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/blob_chunk.h>
@@ -21,20 +20,19 @@
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
-
 #include <yt/yt/server/lib/io/io_tracker.h>
 #include <yt/yt/server/lib/io/public.h>
 
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/yt/ytlib/file_client/file_chunk_reader.h>
 
@@ -43,12 +41,10 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
-#include <yt/yt/client/api/config.h>
-
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
-
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/format.h>
+
+#include <yt/yt/client/api/config.h>
 
 #include <yt/yt/client/chunk_client/helpers.h>
 
@@ -57,6 +53,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/misc/io_tags.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
@@ -229,11 +227,9 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
     {
-        YT_VERIFY(!truncateBlockCount.has_value());
-        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta, {}));
+        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta));
     }
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
@@ -318,7 +314,7 @@ public:
 
         YT_LOG_INFO("Initializing artifact cache");
 
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
             BIND_NO_PROPAGATE(&TArtifactCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         std::vector<TFuture<void>> futures;
@@ -505,6 +501,11 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
+
+    TPerCategoryThrottlerProvider CreateBandwithThrottlerProvider()
+    {
+        return MakeUniformPerCategoryThrottlerProvider(Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn));
+    }
 
     void ValidateLocations() const
     {
@@ -1041,10 +1042,9 @@ private:
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+                CreateBandwithThrottlerProvider(),
                 Bootstrap_->GetReadRpsOutThrottler(),
-                /*mediumThrottler*/ GetUnlimitedThrottler(),
+                /*mediumThrottler*/ nullptr,
                 artifactDownloadOptions.TrafficMeter);
 
             auto chunkReader = CreateReplicationReader(
@@ -1141,8 +1141,7 @@ private:
             WaitFor(checkedChunkWriter->Close(
                 writeBlocksOptions,
                 chunkReadOptions.WorkloadDescriptor,
-                deferredChunkMeta,
-                /*truncateBlockCount*/ std::nullopt))
+                deferredChunkMeta))
                 .ThrowOnError();
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
@@ -1231,10 +1230,9 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            CreateBandwithThrottlerProvider(),
             Bootstrap_->GetReadRpsOutThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             trafficMeter);
         auto reader = CreateFileMultiChunkReader(
             GetArtifactCacheReaderConfig(),
@@ -1375,15 +1373,14 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            CreateBandwithThrottlerProvider(),
             Bootstrap_->GetReadRpsOutThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ nullptr,
             trafficMeter);
         auto reader = CreateSchemalessSequentialMultiReader(
             GetArtifactCacheReaderConfig(),
             std::move(readerOptions),
-            CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
+            New<TMultiChunkReaderHost>(std::move(chunkReaderHost)),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             /*hintKeys*/ std::nullopt,

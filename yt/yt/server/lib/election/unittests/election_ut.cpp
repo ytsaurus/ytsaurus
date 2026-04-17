@@ -115,15 +115,15 @@ public:
 
     void RunElections()
     {
-        BIND([this] {
+        WaitFor(BIND([this] {
             ElectionManager->Participate();
             Sleep();
             YT_UNUSED_FUTURE(ElectionManager->Abandon(TError("oops")));
             Sleep();
         })
             .AsyncVia(ActionQueue->GetInvoker())
-            .Run()
-            .Get();
+            .Run())
+            .ThrowOnError();
     }
 
 protected:

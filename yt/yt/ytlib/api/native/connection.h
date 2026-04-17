@@ -88,6 +88,8 @@ struct IConnection
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NNodeTrackerClient::INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
 
+    virtual const NNodeTrackerClient::INodeStatusDirectoryPtr& GetNodeStatusDirectory() = 0;
+
     virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
 
     virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(TStringBuf stage) = 0;
@@ -113,8 +115,11 @@ struct IConnection
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
 
+    virtual const NRpc::IChannelPtr& GetCypressProxyChannel() = 0;
+
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetBundleControllerChannel() = 0;
+    virtual const NRpc::IChannelPtr& GetTabletBalancerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual NRpc::IChannelPtr GetChaosChannelByCellId(
@@ -128,7 +133,7 @@ struct IConnection
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const = 0;
 
     virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const = 0;
 
@@ -207,7 +212,7 @@ public:
         TSharedRefArray Message;
 
         operator size_t() const;
-        bool operator == (const TKey& other) const;
+        bool operator==(const TKey& other) const;
     };
 
     TStickyGroupSizeCache(
@@ -246,6 +251,10 @@ struct TConnectionOptions
 
     //! If set, used as connection's signature generator instead of dummy.
     NSignature::ISignatureGeneratorPtr SignatureGenerator;
+
+    //! If true, creates a queue consumer registration manager for this connection.
+    //! Otherwise, it is null and #GetQueueConsumerRegistrationManagerOrThrow throws.
+    bool CreateQueueConsumerRegistrationManager = false;
 
     EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
 
@@ -294,7 +303,7 @@ DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
 //! Lookup cluster in directory, if cluster is missing wait for sync then retry lookup (once).
 //! `mode` parameter controls how waiting is done
 //!    - SyncOutOfBound -- run sync out of bound sync immediately.
-//!    - WaitFirstSuccessfulSync -- wait until
+//!    - WaitFirstSuccessfulSync -- wait until first successful sync is performed
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     const std::string& clusterName,

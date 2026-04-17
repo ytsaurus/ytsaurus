@@ -5,7 +5,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_nodes.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -112,7 +112,7 @@ TRecordsConsumer::TRecordsConsumer(TSequoiaReconstructorConfigPtr config)
     : NodeIdToPath(CreateRecordWriter<NRecords::TNodeIdToPath>(config->NodeIdToPathOutput))
     , NodeForks(CreateRecordWriter<NRecords::TNodeFork>(config->NodeForksOutput))
     , NodeSnapshots(CreateRecordWriter<NRecords::TNodeSnapshot>(config->NodeSnapshotsOutput))
-    , ChildNode(CreateRecordWriter<NRecords::TChildNode>(config->ChildNodeOutput))
+    , ChildNodes(CreateRecordWriter<NRecords::TChildNode>(config->ChildNodesOutput))
     , ChildForks(CreateRecordWriter<NRecords::TChildFork>(config->ChildForksOutput))
     , Acls(CreateRecordWriter<NRecords::TAcls>(config->AclsOutput))
     , Transactions(CreateRecordWriter<NRecords::TTransaction>(config->TransactionsOutput))

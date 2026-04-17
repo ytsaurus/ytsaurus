@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 namespace DBPoco::Util { class AbstractConfiguration; }
 
 namespace DB

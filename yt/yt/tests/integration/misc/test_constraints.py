@@ -58,9 +58,6 @@ class TestConstraintsRestrictions(ChaosTestBase):
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
-        "chaos_residency_cache": {
-            "enable_client_mode" : True,
-        },
     }
 
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
@@ -116,11 +113,11 @@ class TestConstraintsRestrictions(ChaosTestBase):
         if deduplicate_schema_on_alter:
             schema_id = _ensure_schema_object_created(schema)
 
-            with raises_yt_error("Alteration of tables with column constraints is prohibited by system administrator"):
+            with raises_yt_error("Table schema alter of tables with column constraints is prohibited by system administrator"):
                 alter_table("//tmp/table", schema_id=schema_id, constraints=constraints)
         else:
             _apply_constraints(schema, constraints)
-            with raises_yt_error("Alteration of tables with column constraints is prohibited by system administrator"):
+            with raises_yt_error("Table schema alter of tables with column constraints is prohibited by system administrator"):
                 alter_table("//tmp/table", constrained_schema=schema)
 
         _drop_constraints(schema)
@@ -193,11 +190,11 @@ class TestConstraintsRestrictions(ChaosTestBase):
 
         if deduplicate_schema_on_alter:
             schema_id = _ensure_schema_object_created(schema)
-            with raises_yt_error("Alteration with constraints is not supported for chaos replicated tables"):
+            with raises_yt_error("Table schema alter with constraints is not supported for chaos replicated tables"):
                 alter_table("//tmp/crt", schema_id=schema_id, constraints=constraints)
         else:
             _apply_constraints(schema, constraints)
-            with raises_yt_error("Alteration with constraints is not supported for chaos replicated tables"):
+            with raises_yt_error("Table schema alter with constraints is not supported for chaos replicated tables"):
                 alter_table("//tmp/crt", constrained_schema=schema)
 
 

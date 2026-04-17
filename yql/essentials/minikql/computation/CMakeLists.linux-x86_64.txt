@@ -43,6 +43,7 @@ target_sources(essentials-minikql-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_datum_validate.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_holders.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_external_node_invalidator.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_pack.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_pack_impl.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_custom_list.cpp
@@ -69,6 +70,7 @@ target_sources(essentials-minikql-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_pattern_cache.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_custom_list.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_datum_validate.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_external_node_invalidator.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_key_payload_value_lru_cache.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_method_address_helper.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_optional_usage_mask.h

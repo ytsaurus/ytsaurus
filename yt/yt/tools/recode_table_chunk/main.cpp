@@ -169,10 +169,12 @@ private:
         IVersionedReaderPtr tableReader;
 
         if (cachedVersionedChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-            auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                TChunkReaderConfig::GetDefault(),
+                ChunkReader_,
                 InputChunkState_->BlockCache,
-                InputChunkState_->ChunkMeta,
-                ChunkReader_->GetChunkId());
+                /*chunkReadOptions*/ {},
+                cachedVersionedChunkMeta);
 
             tableReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                 MakeSingletonRowRange(MinKey(), MaxKey()),

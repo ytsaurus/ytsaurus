@@ -1,11 +1,14 @@
 #pragma once
 
+#include <contrib/ydb/core/kqp/provider/yql_kikimr_gateway.h>
 #include <contrib/ydb/core/protos/table_service_config.pb.h>
 #include <contrib/ydb/core/scheme/scheme_tabledefs.h>
 
 #include <util/generic/fwd.h>
 
 namespace NKikimr::NKqp::NBatchOperations {
+
+bool IsIndexSupported(NYql::TIndexDescription::EType type, bool enabledIndexStreamWrite = false);
 
 TSerializedTableRange MakePartitionRange(TMaybe<TKeyDesc::TPartitionRangeInfo> begin, TMaybe<TKeyDesc::TPartitionRangeInfo> end, size_t keySize);
 

@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/proc.h>
 
@@ -47,7 +48,7 @@ int main(int argc, char** argv)
 
         Cout << "Enqueued" << Endl;
 
-        promise.Get();
+        WaitFor(promise.ToFuture()).ThrowOnError();
 
         auto ms = timer.GetElapsedTime().MilliSeconds();
 

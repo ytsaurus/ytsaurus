@@ -386,9 +386,8 @@ protected:
         YT_VERIFY(EnforceBounds_);
 
         auto unsealedChunkStatisticsFuture = GetOrCrash(UnsealedChunkIdToStatisticsFuture_, chunk->GetId());
-        YT_VERIFY(unsealedChunkStatisticsFuture.IsSet());
         return unsealedChunkStatisticsFuture
-            .Get()
+            .GetOrCrash()
             .ValueOrThrow();
     }
 
@@ -430,8 +429,8 @@ protected:
             if (auto future = RequestUnsealedChunksStatistics(*entry)) {
                 if (!future.IsSet()) {
                     return future;
-                } else if (!future.Get().IsOK()) {
-                    OnFinish(future.Get());
+                } else if (!future.GetOrCrash().IsOK()) {
+                    OnFinish(future.GetOrCrash());
                 }
             }
 
@@ -1725,7 +1724,7 @@ public:
     TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return chunkManager->GetChunkQuorumInfo(chunk).Apply(
+        return chunkManager->GetChunkQuorumInfoWithReplicaFetch(chunk).Apply(
             BIND([] (const NJournalClient::TChunkQuorumInfo& info) {
                 return TUnsealedChunkStatistics{
                     .FirstOverlayedRowIndex = info.FirstOverlayedRowIndex,

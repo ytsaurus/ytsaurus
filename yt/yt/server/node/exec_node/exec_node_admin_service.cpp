@@ -2,8 +2,8 @@
 
 #include "bootstrap.h"
 #include "private.h"
-#include "slot_manager.h"
 #include "slot_location.h"
+#include "slot_manager.h"
 
 #include <yt/yt/ytlib/exec_node_admin/exec_node_admin_service_proxy.h>
 

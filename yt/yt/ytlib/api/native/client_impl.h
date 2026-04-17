@@ -18,7 +18,6 @@
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/yt/ytlib/query_client/executor.h>
-#include <yt/yt/ytlib/query_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -54,6 +53,8 @@
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
+
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 
 #include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
 
@@ -749,6 +750,9 @@ public: \
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
+        const TResetDynamicallyPropagatedMasterCellsOptions& options),
+        (options))
     IMPLEMENT_METHOD(void, DiscombobulateNonvotingPeers, (
         NObjectClient::TCellId cellId,
         const TDiscombobulateNonvotingPeersOptions& options),
@@ -800,6 +804,19 @@ public: \
         NChaosClient::TChaosLeaseId chaosLeaseId,
         const TChaosLeaseAttachOptions& options = {}),
         (chaosLeaseId, options))
+
+    IMPLEMENT_METHOD(void, SetUserBanned, (
+        const std::string& user,
+        bool isBanned,
+        const TSetUserBannedOptions& options = {}),
+        (user, isBanned, options))
+    IMPLEMENT_METHOD(bool, GetUserBanned, (
+        const std::string& user,
+        const TGetUserBannedOptions& options = {}),
+        (user, options))
+    IMPLEMENT_METHOD(std::vector<std::string>, ListBannedUsers, (
+        const TListBannedUsersOptions& options = {}),
+        (options))
 
     IMPLEMENT_METHOD(void, MigrateReplicationCards, (
         NObjectClient::TCellId chaosCellId,
@@ -1014,9 +1031,19 @@ public: \
         (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
-        NHydra::TCellId cordiantorCellId,
+        NHydra::TCellId cordinatorCellId,
         const TForsakeChaosCoordinatorOptions& options),
-        (chaosCellId, cordiantorCellId, options))
+        (chaosCellId, cordinatorCellId, options))
+    IMPLEMENT_METHOD(void, ForsakeChaosShortcut, (
+        NHydra::TCellId cordinatorCellId,
+        NChaosClient::TChaosObjectId chaosObjectId,
+        const TForsakeChaosShortcutOptions& options),
+        (cordinatorCellId, chaosObjectId, options))
+    IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
+        NHydra::TCellId chaosCellId,
+        NHydra::TCellId destinationCellId,
+        const TRemoveChaosCellMailboxOptions& options),
+        (chaosCellId, destinationCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TSignedShuffleHandlePtr& signedShuffleHandle,
@@ -1090,7 +1117,7 @@ private:
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
-    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
+    const NTableClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NTableClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);
@@ -1263,6 +1290,10 @@ private:
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
+    std::vector<TTabletInfo> DoGetTabletInfosImpl(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options);
 
     template <class TReq>
     void ExecuteTabletServiceRequest(
@@ -1295,6 +1326,14 @@ private:
     //
 
     NQueueClient::IQueueRowsetPtr DoPullQueueImpl(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options,
+        bool checkPermissions);
+
+    NQueueClient::IQueueRowsetPtr DoPullQueueImplOnce(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

@@ -70,6 +70,7 @@ TWriteResponse DoWriteAligned(
     i64 maxBytesPerWrite,
     const TIOEngineSensorsPtr& sensors,
     TSharedMutableRef hugePageBlob);
+
 TWriteResponse DoWriteImpl(
     const TWriteRequest& request,
     i64 maxBytesPerWrite,
@@ -1585,12 +1586,11 @@ private:
             auto slotIt = SlotIds_.find(slotId);
             if (slotIt != SlotIds_.end()) {
                 auto& requests = SlotIdToRequestIds_[slotId];
-                requests.erase(std::find_if(
-                    requests.begin(),
-                    requests.end(),
+                std::erase_if(
+                    requests,
                     [&] (const auto& requestIdToType) {
                         return requestIdToType.first == requestId;
-                    }));
+                    });
 
                 if (requests.empty()) {
                     SlotIds_.erase(slotIt);

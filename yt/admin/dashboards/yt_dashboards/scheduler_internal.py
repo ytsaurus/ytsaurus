@@ -62,6 +62,7 @@ def _build_process_resources(d):
             .cell("Control Thread Buckets", SchedulerCpu("yt.action_queue.time.cumulative.rate")
                 .value("thread", "Control")
                 .all("bucket")
+                .aggr("queue")
                 .aggr(yt_host)
                 .legend_format("{{bucket}}"))
     )
@@ -132,7 +133,7 @@ def _build_network(d):
     d.add(rowset)
 
 
-def _build_aborted_job_statistics(d, backend):
+def _build_controller_agent_job_rate_statistics(d, backend):
     d.add(Rowset()
         .stack(False)
         .row()
@@ -142,6 +143,12 @@ def _build_aborted_job_statistics(d, backend):
                 .aggr("job_type", "tree")
                 .value("abort_reason", "!preemption")
                 .legend_format("{{abort_reason}}"))
+            .cell("Schedule job success rate", CA("yt.controller_agent.jobs.schedule_job_success_count.rate")
+                .stack(True)
+                .all("tree")
+                .aggr(yt_host)
+                .aggr("job_type", "is_job_first", "is_local"))
+        .row()
             .cell("Aborted vs completed job time",
                 MultiSensor(
                     SchedulerPools("yt.scheduler.pools.metrics.total_time_aborted.rate").legend_format("aborted"),
@@ -239,7 +246,7 @@ def build_scheduler_internal(has_porto, backend):
     _build_logging(d)
     if has_porto:
         _build_network(d)
-    _build_aborted_job_statistics(d, backend)
+    _build_controller_agent_job_rate_statistics(d, backend)
     _build_scheduler_rpc_statistics(d)
     _build_controller_agent_rpc_statistics(d)
 

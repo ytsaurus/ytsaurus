@@ -78,6 +78,22 @@ class MapWithUnrecognizedChildren(dict):
 
 ##################################################################
 
+def validate_spec(spec):
+    if spec["chunk_format"] == "table_versioned_indexed":
+        if spec["compression_codec"] is not None and spec["compression_codec"] != "none":
+            return False
+
+        if spec["table_type"] != "sorted":
+            return False
+
+    if spec["sorted"]["enable_hash_chunk_index_for_lookup"]:
+        if spec["erasure_codec"] is not None and spec["erasure_codec"] != "none":
+            return False
+
+    return True
+
+##################################################################
+
 def variate_modes(spec):
     variable_paths = []
     complexity = [1]
@@ -120,7 +136,8 @@ def variate_modes(spec):
             variant = variable.get_variant(index)
             _deep_set(root, path, variant)
             description.append(("/".join(map(str, path)), variant))
-        resulting_specs.append((root, description))
+        if validate_spec(root):
+            resulting_specs.append((root, description))
 
     return resulting_specs
 
@@ -175,10 +192,10 @@ spec_template = {
     "mode": "iterative",
     "table_type": "sorted", #Variable(["sorted", "ordered", "queues"], VariationPolicy.PickRandom),
     "replicas": [],
-    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
+    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim", "table_versioned_indexed"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
-    "erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
-    "hunk_erasure_codec": Variable(["none"], VariationPolicy.PickRandom),
+    "erasure_codec": Variable(["none", "isa_reed_solomon_6_3"], VariationPolicy.PickRandom),
+    "hunk_erasure_codec": Variable(["none", "isa_reed_solomon_6_3"], VariationPolicy.PickRandom),
     "compression_codec": None,
     "enable_tablet_balancer": False,
     "network_project": None,
@@ -211,7 +228,7 @@ spec_template = {
         "enable_lookup_hash_table": BoolVariable(VariationPolicy.PickRandom),
         "lookup_cache_rows_per_tablet": None,
         "enable_data_node_lookup": BoolVariable(VariationPolicy.PickRandom),
-        "enable_hash_chunk_index_for_lookup": False,
+        "enable_hash_chunk_index_for_lookup": BoolVariable(VariationPolicy.PickRandom),
         "write_policy": Variable(["insert_rows", "bulk_insert", "mixed"], VariationPolicy.PickRandom),
         "insertion_probability": 0.7,
         "deletion_probability": 0.1,
@@ -231,11 +248,24 @@ spec_template = {
     },
 
     "queue_and_hunk_storage": {
-        "unmount_probability": 0.2,
+        "unmount_queue_probability": 0.2,
+        "unmount_queue_tablet_probability": 0.1,
+        "mount_queue_tablet_probability": 0.2,
+        "unmount_hunk_storage_probability": 0.1,
+        "unmount_hunk_storage_tablet_probability": 0.1,
+        "mount_hunk_storage_tablet_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
         "create_probability": 0.2,
+        "copy_probability": 0.3,
+        "move_probability": 0.3,
         "remove_probability": 0.2,
         "flush_probability": 0.5,
+        "run_map_probability": 0.2,
+        "run_sort_probability": 0.2,
+        "run_map_reduce_probability": 0.2,
+        "run_merge_probability": 0.2,
+        "write_probability": 0.3,
+        "read_probability": 0.3,
     },
 
     "replicated": {
@@ -275,6 +305,35 @@ spec_template = {
 
     "ipv4": False
 }
+
+group_by_spec = merge_specs(spec_template, {
+    "table_type": "sorted",
+    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
+    "in_memory_mode": "none",
+    "erasure_codec": "none",
+    "hunk_erasure_codec": "none",
+
+    "size": {
+        "tablet_count": 1,
+    },
+
+    "prepare_table_via_alter": False,
+
+    "sorted": {
+        "enable_lookup_hash_table": False,
+        "enable_data_node_lookup": False,
+        "write_policy": "insert_rows",
+    },
+
+    "testing": {
+        "skip_lookup": True,
+        "skip_select": False,
+        "skip_group_by": False,
+    },
+
+    "ordered": None,
+    "replicated": Opaque(),
+})
 
 simple_sorted_spec = merge_specs(spec_template, {
     "table_type": "sorted",
@@ -349,6 +408,7 @@ presets = {
     "simple_sorted": simple_sorted_spec,
     "simple_ordered": simple_ordered_spec,
     "indexed_sorted": indexed_sorted_spec,
+    "group_by": group_by_spec,
 }
 
 ##################################################################

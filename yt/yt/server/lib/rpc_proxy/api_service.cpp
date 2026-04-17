@@ -156,6 +156,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const std::string DyntableLightPoolName = "$dyntable_light";
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError MakeCanceledError()
 {
     return TError("RPC request canceled");
@@ -482,12 +486,15 @@ class TApiServiceContext
 public:
     // For most cases the most important request field is "path". If it is present in request message,
     // we want to see it in the structured log.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, RequestPath);
-
-    TLogger Logger;
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TYPath>, RequestPath);
 
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
+
+    void SetLogger(TLogger logger)
+    {
+        Logger = std::move(logger);
+    }
 
     void SetupMainMessage(TYsonString requestYson)
     {
@@ -516,11 +523,13 @@ public:
                 DoEmitError();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(TError(ex), "Error while logging structured event");
+            YT_LOG_ERROR(ex, "Error while logging structured event");
         }
     }
 
 private:
+    TLogger Logger;
+
     //! True if message should be emitted to main topic.
     bool EmitMain_ = false;
     // YSON-serialized request body. This field may be really heavy.
@@ -636,9 +645,8 @@ public:
 
     TApiService(
         TApiServiceConfigPtr config,
-        IInvokerPtr controlInvoker,
-        IInvokerPtr workerInvoker,
-        IInvokerPtr lowLatencyInvoker,
+        IInvokerPtr defaultInvoker,
+        TPooledInvokerProvider workerInvokerProvider,
         NApi::NNative::IConnectionPtr connection,
         NRpc::IAuthenticatorPtr authenticator,
         IProxyCoordinatorPtr proxyCoordinator,
@@ -661,13 +669,12 @@ private:
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
-    const IInvokerPtr ControlInvoker_;
-    const IInvokerPtr LowLatencyInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
     const IUserAccessValidatorPtr UserAccessValidator_;
+    const TPooledInvokerProvider WorkerInvokerProvider_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -803,6 +810,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExitReadOnly);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MasterExitReadOnly);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscombobulateNonvotingPeers);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResetDynamicallyPropagatedMasterCells);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendCoordinator);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeCoordinator);
@@ -909,6 +917,8 @@ private:
 
     IInvokerPtr GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const;
 
+    IInvokerPtr GetWorkerInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const;
+
     void ProcessLookupRowsDetailedProfilingInfo(
         TWallTimer timer,
         const std::string& userTag,
@@ -969,9 +979,8 @@ DEFINE_REFCOUNTED_TYPE(TApiService)
 
 TApiService::TApiService(
     TApiServiceConfigPtr config,
-    IInvokerPtr controlInvoker,
-    IInvokerPtr workerInvoker,
-    IInvokerPtr lowLatencyInvoker,
+    IInvokerPtr defaultInvoker,
+    TPooledInvokerProvider workerInvokerProvider,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
@@ -984,7 +993,7 @@ TApiService::TApiService(
     ISignatureValidatorPtr signatureValidator,
     IQueryCorpusReporterPtr queryCorpusReporter)
     : TServiceBase(
-        std::move(workerInvoker),
+        std::move(defaultInvoker),
         GetServiceDescriptor(),
         std::move(logger),
         TServiceOptions{
@@ -1001,8 +1010,6 @@ TApiService::TApiService(
         ? stickyTransactionPool
         : CreateStickyTransactionPool(Logger))
     , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
-    , ControlInvoker_(std::move(controlInvoker))
-    , LowLatencyInvoker_(std::move(lowLatencyInvoker))
     , HeapProfilerTestingOptions_(config->TestingOptions
         ? config->TestingOptions->HeapProfiler
         : nullptr)
@@ -1013,6 +1020,7 @@ TApiService::TApiService(
         ApiServiceConfig_->UserAccessValidator,
         LocalConnection_,
         Logger))
+    , WorkerInvokerProvider_(std::move(workerInvokerProvider))
     , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
     , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
     , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -1114,11 +1122,15 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows)
+        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this))));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows)
+        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this))));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(MultiLookup)
+        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this)))
         .SetConcurrencyLimit(1'000));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(SelectRows)
+        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this)))
         .SetCancelable(true));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExplainQuery));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullRows)
@@ -1145,6 +1157,7 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(BuildSnapshot));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ExitReadOnly));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
+    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResetDynamicallyPropagatedMasterCells));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(GCCollect));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
@@ -1277,7 +1290,7 @@ void TApiService::OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& conf
 IYPathServicePtr TApiService::CreateOrchidService()
 {
     return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TApiService::BuildOrchid, MakeStrong(this)))
-        ->Via(ControlInvoker_);
+        ->Via(WorkerInvokerProvider_(OrchidExecutionPoolName, DefaultExecutionTag));
 }
 
 std::optional<std::string> TApiService::GetMultiproxyTargetCluster(const IServiceContextPtr& context)
@@ -1367,15 +1380,14 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 {
     using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
-    context->Logger = Logger
-        .WithTag("RequestId: %v", context->GetRequestId());
+    context->SetLogger(Logger
+        .WithTag("RequestId: %v", context->GetRequestId()));
 
     // First, recover request path from the typed request context using the incredible power of C++20 concepts.
-    std::optional<TString> requestPath;
+    std::optional<TYPath> requestPath;
     if constexpr (requires { context->Request().path(); }) {
         requestPath.emplace(context->Request().path());
     }
-
     context->SetRequestPath(std::move(requestPath));
 
     // Then, connect it to the typed context using subscriptions for reply and cancel signals.
@@ -1633,22 +1645,33 @@ TDetailedProfilingCountersPtr TApiService::GetOrCreateDetailedProfilingCounters(
         .first;
 }
 
-IInvokerPtr TApiService::GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
+IInvokerPtr TApiService::GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
 {
-    if (Config_.Acquire()->EnableLowLatencyGenerateTimestampsInvoker) {
-        return LowLatencyInvoker_;
-    }
-
-    return GetDefaultInvoker();
+    auto tag = ToString(FromProto<TRequestId>(requestHeader.request_id()));
+    return WorkerInvokerProvider_(DyntableLightPoolName, tag);
 }
 
-IInvokerPtr TApiService::GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
+IInvokerPtr TApiService::GetWorkerInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
 {
-    if (Config_.Acquire()->EnableLowLatencyStartTransactionInvoker) {
-        return LowLatencyInvoker_;
-    }
+    const auto& ext = requestHeader.GetExtension(NApi::NRpcProxy::NProto::TReqFairSharePoolExt::req_fair_share_pool_ext);
 
-    return GetDefaultInvoker();
+    static const auto DefaultExecutionPool = "default";
+
+    const auto& tag = ext.has_execution_tag()
+        ? ext.execution_tag()
+        : DefaultExecutionTag;
+
+    const auto& poolName = ext.has_execution_pool()
+        ? ext.execution_pool()
+        : DefaultExecutionPool;
+
+    return WorkerInvokerProvider_(poolName, tag);
+}
+
+IInvokerPtr TApiService::GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
+{
+    auto tag = ToString(FromProto<TRequestId>(requestHeader.request_id()));
+    return WorkerInvokerProvider_(DyntableLightPoolName, tag);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
@@ -2047,8 +2070,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
                 if (const auto& predicate = indexInfo.Predicate) {
                     ToProto(protoIndexInfo->mutable_predicate(), *predicate);
                 }
-                if (const auto& unfoldedColumn = indexInfo.UnfoldedColumn) {
-                    ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
+                if (const auto& unfoldedColumns = indexInfo.UnfoldedColumns) {
+                    auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
+                    ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
+                    ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
                 }
                 protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
                 if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
@@ -3638,7 +3663,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobs)
         options.WithCompetitors = request->with_competitors();
     }
     if (request->has_collective_id()) {
-        options.CollectiveId = FromProto<TGuid>(request->collective_id());
+        options.CollectiveId = FromProto<NJobTrackerClient::TCollectiveId>(request->collective_id());
     }
     if (request->has_job_competition_id()) {
         options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
@@ -4022,9 +4047,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PollJobShell)
 
     auto jobId = FromProto<TJobId>(request->job_id());
     auto parameters = TYsonString(request->parameters());
-    auto shellName = request->has_shell_name()
-        ? std::make_optional(request->shell_name())
-        : std::nullopt;
+    auto shellName = YT_OPTIONAL_FROM_PROTO(*request, shell_name);
 
     TPollJobShellOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -4051,9 +4074,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RunJobShellCommand)
 
     auto jobId = FromProto<TJobId>(request->job_id());
     auto command = request->command();
-    auto shellName = request->has_shell_name()
-        ? std::optional<std::string>(request->shell_name())
-        : std::nullopt;
+    auto shellName = YT_OPTIONAL_FROM_PROTO(*request, shell_name);
 
     TRunJobShellCommandOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -4178,6 +4199,7 @@ static void LookupRowsPrologue(
         ? TColumnFilter()
         : TColumnFilter(std::move(columnFilterIndexes));
     options->KeepMissingRows = request->keep_missing_rows();
+    options->AllowMissingKeyColumns = request->allow_missing_key_columns();
     options->EnablePartialResult = request->enable_partial_result();
     if (request->has_use_lookup_cache()) {
         options->UseLookupCache = request->use_lookup_cache();
@@ -4249,8 +4271,9 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
     const std::string& userTag,
     const TDetailedProfilingInfoPtr& detailedProfilingInfo)
 {
+    TDetailedProfilingCountersPtr counters;
     if (detailedProfilingInfo->EnableDetailedTableProfiling) {
-        auto counters = GetOrCreateDetailedProfilingCounters({
+        counters = GetOrCreateDetailedProfilingCounters({
             .UserTag = userTag,
             .TablePath = detailedProfilingInfo->TablePath,
         });
@@ -4258,6 +4281,12 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
         counters->PullQueueDurationTimer().Record(timer.GetElapsedTime());
         counters->PullQueueMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
         counters->PullQueuePermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
+    } else if (!detailedProfilingInfo->RetryReasons.empty()) {
+        counters = GetOrCreateDetailedProfilingCounters({});
+    }
+
+    for (const auto& reason : detailedProfilingInfo->RetryReasons) {
+        counters->GetRetryCounterByReason(reason)->Increment();
     }
 }
 
@@ -4648,14 +4677,23 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
+
+    std::string truncatedQuery;
+    if (config->TruncatedQueryLengthForRequestInfo &&
+        std::ssize(query) > *config->TruncatedQueryLengthForRequestInfo + std::ssize(DefaultTruncatedMessage))
+    {
+        truncatedQuery = query.substr(0, *config->TruncatedQueryLengthForRequestInfo)
+            .append(DefaultTruncatedMessage);
+    }
+
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            query,
+            !truncatedQuery.empty() ? truncatedQuery : query,
             options.Timestamp,
             options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
-            query,
+            !truncatedQuery.empty() ? truncatedQuery : query,
             options.Timestamp);
     }
 
@@ -5593,6 +5631,21 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DiscombobulateNonvotingPeers)
         context,
         [=] {
             return client->DiscombobulateNonvotingPeers(cellId, options);
+        });
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, ResetDynamicallyPropagatedMasterCells)
+{
+    TResetDynamicallyPropagatedMasterCellsOptions options;
+    SetTimeoutOptions(&options, context.Get());
+
+    context->SetRequestInfo();
+
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+    ExecuteCall(
+        context,
+        [=] {
+            return client->ResetDynamicallyPropagatedMasterCells(options);
         });
 }
 
@@ -6744,7 +6797,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.PartitionMode = FromProto<NTableClient::ETablePartitionMode>(request->partition_mode());
 
-    options.DataWeightPerPartition = request->data_weight_per_partition();
+    if (request->has_data_weight_per_partition()) {
+        options.DataWeightPerPartition = request->data_weight_per_partition();
+    }
+
+    if (request->has_compressed_data_size_per_partition()) {
+        options.CompressedDataSizePerPartition = request->compressed_data_size_per_partition();
+    }
 
     if (request->has_max_partition_count()) {
         options.MaxPartitionCount = request->max_partition_count();
@@ -6760,11 +6819,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
+    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
         paths,
         options.PartitionMode,
         options.EnableKeyGuarantee,
         options.DataWeightPerPartition,
+        options.CompressedDataSizePerPartition,
         options.AdjustDataWeightPerPartition,
         options.EnableCookies);
 
@@ -7989,9 +8049,8 @@ const TStructuredLoggingMethodDynamicConfigPtr TApiService::DefaultMethodConfig 
 
 IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
-    IInvokerPtr controlInvoker,
-    IInvokerPtr workerInvoker,
-    IInvokerPtr lowLatencyInvoker,
+    IInvokerPtr defaultInvoker,
+    TPooledInvokerProvider workerInvokerProvider,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
@@ -8007,9 +8066,8 @@ IApiServicePtr CreateApiService(
     YT_VERIFY(signatureValidator);
     return New<TApiService>(
         std::move(config),
-        std::move(controlInvoker),
-        std::move(workerInvoker),
-        std::move(lowLatencyInvoker),
+        std::move(defaultInvoker),
+        std::move(workerInvokerProvider),
         std::move(connection),
         std::move(authenticator),
         std::move(proxyCoordinator),

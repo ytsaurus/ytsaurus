@@ -8,7 +8,6 @@
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
-
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
@@ -19,8 +18,7 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
-
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NCypressProxy {
 
@@ -241,6 +239,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeNode)
     }
 
     // TODO(h0pless): Write type validation here when supporting the externalization.
+    // For more details see YT-26855.
     if (!IsSupportedSequoiaType(type)) {
         THROW_ERROR_EXCEPTION("Creation of %Qlv is not supported in Sequoia yet",
             type);

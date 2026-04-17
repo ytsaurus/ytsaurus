@@ -9,14 +9,13 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/ytlib/scheduler/cluster_name.h>
-
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
 #include <util/generic/hash_multi_map.h>
@@ -30,6 +29,11 @@ DEFINE_ENUM(EJobStage,
     (Running)
     (Finished)
 );
+
+// NB: These are fake values and so are not present in EJobStage.
+constexpr TStringBuf WaitingForConfirmationJobStage = "waiting_for_confirmation";
+constexpr TStringBuf AbortingJobStage = "aborting";
+constexpr TStringBuf ReleasingJobStage = "releasing";
 
 DEFINE_ENUM(ESettleJobRequestStage,
     (WaitingOnBarrier)
@@ -139,6 +143,7 @@ private:
     {
         TOperationId OperationId;
         bool JobsReady = false;
+        bool Suspended = false;
         const TWeakPtr<IOperationController> OperationController;
         THashSet<TAllocationId> TrackedAllocationIds;
     };
@@ -520,7 +525,11 @@ private:
 
     void DoRevive(
         TOperationId operationId,
-        std::vector<TStartedAllocationInfo> allocations);
+        std::vector<TStartedAllocationInfo> allocations,
+        bool suspended);
+
+    void DoSuspendOperation(TOperationId operationId);
+    void DoResumeOperation(TOperationId operationId);
 
     void DoReleaseJobs(
         TOperationId operationId,
@@ -650,7 +659,9 @@ public:
     void RegisterAllocation(TStartedAllocationInfo allocationInfo);
 
     void RegisterJob(TStartedJobInfo jobInfo);
-    void Revive(std::vector<TStartedAllocationInfo> allocations);
+    void Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended);
+    void SuspendOperation();
+    void ResumeOperation();
     void ReleaseJobs(std::vector<TJobToRelease> jobs);
 
     void RequestJobAbortion(

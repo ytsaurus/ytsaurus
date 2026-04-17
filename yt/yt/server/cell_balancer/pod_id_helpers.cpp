@@ -2,11 +2,15 @@
 
 #include "cypress_bindings.h"
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name)
+std::string GetPodIdForInstance(
+    const TCypressAnnotationsPtr& cypressAnnotations,
+    const std::string& name)
 {
     if (cypressAnnotations && cypressAnnotations->PodId) {
         return *cypressAnnotations->PodId;
@@ -40,18 +44,21 @@ std::optional<int> GetIndexFromPodId(
     const std::string& cluster,
     const std::string& instanceType)
 {
-    TStringBuf buffer = podId;
-    auto suffix = Format("-%v-%v", instanceType, cluster);
-    if (!buffer.ChopSuffix(suffix)) {
+    // There are instance names of two kinds:
+    // - hostname-bundle-123-tab-cluster
+    // - bundle-123-tab-cluster-5678
+    // We need to extract the |123| part as a hex number.
+
+    NRe2::RE2 re(Format(".*-([0-9a-f]{3,})-%v-%v(-[0-9a-f]{4})?", instanceType, cluster));
+
+    std::string indexStr;
+    if (!NRe2::TRe2::FullMatch(podId, re, &indexStr)) {
         return {};
     }
 
-    constexpr char Delimiter = '-';
-    auto indexString = buffer.RNextTok(Delimiter);
-
-    int result = 0;
-    if (TryIntFromString<16>(indexString, result)) {
-        return result;
+    int index = 0;
+    if (TryIntFromString<16>(indexStr, index)) {
+        return index;
     }
 
     return {};

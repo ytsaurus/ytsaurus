@@ -1,5 +1,5 @@
-#include "user_job_write_controller.h"
 #include "job.h"
+#include "user_job_write_controller.h"
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
@@ -20,8 +20,8 @@
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -37,8 +37,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NJobProxy {
 
@@ -136,7 +136,7 @@ private:
                     // NB: In multiplexing writer, there are multiple value consumers pointing to the same writer.
                     // That's why we have to double-check writer's readiness to avoid writing to it concurrently
                     // with another value consumer waiting writer to become ready.
-                    while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().Get().IsOK()) {
+                    while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().GetOrCrash().IsOK()) {
                         WaitFor(writer->GetReadyEvent())
                             .ThrowOnError();
                     }

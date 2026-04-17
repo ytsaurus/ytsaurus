@@ -14,6 +14,7 @@
 
 add_subdirectory(action_queue)
 add_subdirectory(bus)
+add_subdirectory(future)
 add_subdirectory(context_switch)
 add_subdirectory(exceptions)
 add_subdirectory(fair_share_action_queue)

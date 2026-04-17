@@ -1,8 +1,11 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause
+)
 
-VERSION(v1.36.0)
+VERSION(v1.39.0)
 
 SRCS(
     auto.go
@@ -106,6 +109,13 @@ IF (OS_ANDROID)
     GO_XTEST_SRCS(
         os_release_unix_test.go
         os_unix_test.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        host_id_unsupported.go
+        os_unsupported.go
     )
 ENDIF()
 

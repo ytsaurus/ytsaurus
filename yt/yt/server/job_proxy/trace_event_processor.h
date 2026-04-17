@@ -4,16 +4,16 @@
 
 #include <yt/yt/server/lib/misc/archive_reporter.h>
 
-#include <yt/yt/ytlib/scheduler/records/job_trace_event.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_trace.record.h>
-
-#include <yt/yt/client/table_client/record_helpers.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/table_output.h>
-
-#include <yt/yt/client/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/records/job_trace_event.record.h>
 
 #include <yt/yt/client/formats/parser.h>
+
+#include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/table_output.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/client/scheduler/public.h>
 
 namespace NYT::NJobProxy {
 

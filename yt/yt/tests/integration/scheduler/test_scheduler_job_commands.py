@@ -43,6 +43,12 @@ class TestJobProber(YTEnvSetup):
 
     USE_PORTO = True
 
+    # TODO(krasovav): Remove once chroot is called for jobs in tests.
+    @pytest.fixture(autouse=True)
+    def wait_after_each_test(self):
+        yield
+        time.sleep(3)
+
     @authors("ignat")
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -507,13 +513,12 @@ class TestJobProber(YTEnvSetup):
         r = poll_job_shell(
             job_id,
             operation="spawn",
-            command="cd /yt_runtime; ls; touch ytserver-tools > /dev/null 2>&1 || echo SUCCESS",
+            command="cd /yt_runtime; ls ytserver-tools; (echo 123456 > ytserver-tools) > /dev/null 2>&1 || rm ytserver-tools > /dev/null 2>&1 || echo SUCCESS",
         )
 
         shell_id = r["shell_id"]
         output = self._poll_until_shell_exited(job_id, shell_id)
         expected = "ytserver-tools\r\nSUCCESS\r\n"
-        print("ls = ", output)
         assert output == expected
 
     @authors("krasovav")
@@ -527,7 +532,8 @@ class TestJobProber(YTEnvSetup):
 
         # Since the running command gets into the output, it is necessary that there is no substring SUCCESS in it,
         # for this it is written S\\UCCESS.
-        command = "test -f .bashrc && test -f .motd && (touch .bashrc || rm -f .bashrc || touch .motd || rm -f .motd || echo S\\UCCESS); exit\r"
+        command = """test -f .bashrc && test -f .motd && cat .bashrc && cat .motd | grep HOME &&
+            (echo 1 >> .bashrc || rm -f .bashrc || echo 1 >> .motd || rm -f .motd || echo S\\UCCESS); exit\r"""
         self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_shell_exited(job_id, shell_id)
 

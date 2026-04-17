@@ -476,6 +476,20 @@ void TCellTrackerImpl::SchedulePeerRevocation(
             continue;
         }
 
+        if (auto address = peer.Descriptor.GetDefaultAddress(); !Bootstrap_->GetNodeTracker()->FindNodeByAddress(address)) {
+            YT_LOG_ALERT("Scheduling peer revocation from non-existing node (CellId: %v, PeerId: %v, Address: %v)",
+                cell->GetId(),
+                peerId,
+                address);
+
+            balancer->RevokePeer(
+                cell,
+                peerId,
+                TError("Revoke peer from non-existing node"));
+
+            continue;
+        }
+
         auto error = IsFailed(peer, cell, GetDynamicConfig()->PeerRevocationTimeout);
         if (!error.IsOK()) {
             if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned)) {

@@ -9,6 +9,7 @@ SRCS(
     audit_log.cpp
     audit_logins.cpp
     db_metadata_cache.h
+    fs_path_validation.cpp
     grpc_endpoint_publish_actor.cpp
     grpc_helper.cpp
     grpc_mon.cpp
@@ -118,6 +119,7 @@ PEERDIR(
     contrib/ydb/core/actorlib_impl
     contrib/ydb/core/audit
     contrib/ydb/core/backup/common
+    contrib/ydb/core/backup/regexp
     contrib/ydb/core/base
     contrib/ydb/core/control/lib
     contrib/ydb/core/counters_info
@@ -134,7 +136,7 @@ PEERDIR(
     contrib/ydb/core/io_formats/ydb_dump
     contrib/ydb/core/kesus/tablet
     contrib/ydb/core/kqp/common
-    contrib/ydb/core/kqp/session_actor
+    contrib/ydb/core/kqp/opt
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/sys_view
@@ -147,6 +149,7 @@ PEERDIR(
     contrib/ydb/core/ydb_convert
     contrib/ydb/core/security
     contrib/ydb/core/security/ldap_auth_provider
+    contrib/ydb/core/security/sasl
     contrib/ydb/library/aclib
     yql/essentials/types/binary_json
     yql/essentials/types/dynumber
@@ -166,6 +169,20 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/resources
     contrib/ydb/services/ext_index/common
 )
+
+IF (OS_LINUX)
+    SRCS(
+        rpc_nbs.cpp
+        rpc_nbs_io.cpp
+    )
+    PEERDIR(
+        contrib/ydb/core/nbs/cloud/blockstore/libs/service
+        contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct
+        contrib/ydb/core/nbs/cloud/blockstore/libs/storage/ss_proxy
+        contrib/ydb/core/nbs/cloud/blockstore/public/api/protos
+        contrib/ydb/core/nbs/cloud/storage/core/libs/common
+    )
+ENDIF()
 
 YQL_LAST_ABI_VERSION()
 

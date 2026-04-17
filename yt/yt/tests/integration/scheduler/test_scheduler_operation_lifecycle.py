@@ -2099,6 +2099,31 @@ class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
         assert op.get_state() == "completed"
 
 
+class TestControllerAgentScheduleOperationInEmptyTree(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_online_node_count": 0,
+        },
+    }
+
+    @authors("renadeen")
+    def test_schedule_operation_in_empty_tree(self):
+        op1 = run_sleeping_vanilla()
+
+        op1.wait_for_state("failed")
+
+        update_controller_agent_config("fail_operations_in_empty_trees", False)
+
+        op2 = run_sleeping_vanilla()
+        op2.wait_for_state("running")
+        time.sleep(20.0)
+        assert op2.get_state() == "running"
+
+
 ##################################################################
 
 

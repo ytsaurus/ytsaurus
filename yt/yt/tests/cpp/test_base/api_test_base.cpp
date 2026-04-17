@@ -44,11 +44,15 @@ void TApiTestBase::SetUpTestCase()
         YT_VERIFY(configPath);
         TIFStream configStream(configPath);
         auto config = ConvertToNode(&configStream)->AsMap();
-        auto connection = NApi::CreateConnection(config);
+        NNative::TConnectionOptions options;
+        options.CreateQueueConsumerRegistrationManager = true;
+        auto connection = NApi::CreateConnection(
+            config,
+            options);
 
         if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
             nativeConnection->GetClusterDirectorySynchronizer()->Start();
-            nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+            nativeConnection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
         }
 
         Connection_ = connection;
@@ -123,25 +127,42 @@ IClientPtr TApiTestBase::CreateClient(const std::string& userName)
     return Connection_->CreateClient(clientOptions);
 }
 
-void TApiTestBase::WaitUntil(
+void WaitUntil(
     std::function<bool()> predicate,
-    TStringBuf errorMessage)
+    TStringBuf errorMessage,
+    TWaitUntilOptions options)
 {
     auto start = Now();
-    bool reached = false;
-    for (int attempt = 0; attempt < 2*30; ++attempt) {
-        if (predicate()) {
-            reached = true;
-            break;
+    std::exception_ptr lastException;
+
+    while (Now() - start < options.Timeout) {
+        try {
+            if (predicate()) {
+                return;
+            }
+        } catch (...) {
+            if (!options.IgnoreExceptions) {
+                throw;
+            }
+            lastException = std::current_exception();
         }
-        Sleep(TDuration::MilliSeconds(500));
+        Sleep(options.SleepBackoff);
     }
 
-    if (!reached) {
-        THROW_ERROR_EXCEPTION("%v after %v seconds",
-            errorMessage,
-            (Now() - start).Seconds());
+    TStringBuilder message;
+    message.AppendFormat("%v (Timeout: %v", errorMessage, options.Timeout);
+    if (lastException) {
+        try {
+            std::rethrow_exception(lastException);
+        } catch (const std::exception& ex) {
+            message.AppendFormat(", LastException: %v", ex.what());
+        } catch (...) {
+            message.AppendString(", LastException: <unknown>");
+        }
     }
+    message.AppendChar(')');
+
+    THROW_ERROR_EXCEPTION("%v", message.Flush());
 }
 
 void TApiTestBase::WaitUntilEqual(const TYPath& path, TStringBuf expected)

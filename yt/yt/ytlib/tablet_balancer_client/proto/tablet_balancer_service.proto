@@ -1,0 +1,18 @@
+package NYT.NTabletBalancerClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRequestBalancing
+{
+    required string bundle_name = 1;
+    repeated NYT.NProto.TGuid tablet_ids = 2;
+    required int32 mode = 3;
+    optional string reason = 4;
+}
+
+message TRspRequestBalancing
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

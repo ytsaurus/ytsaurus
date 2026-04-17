@@ -16,7 +16,7 @@ scenarios:
           version_filter: main
         chyt:
           version_filter: main
-  actual_version:
+  release-tests:
       type: compat
       k8s_template: base-spec.yaml
       checks:
@@ -26,7 +26,7 @@ scenarios:
         version_filter: null
       components:
         ytsaurus:
-          version_filter: "25.4"
+          version_filter: null
         strawberry:
           version_filter: null
         query_tracker:

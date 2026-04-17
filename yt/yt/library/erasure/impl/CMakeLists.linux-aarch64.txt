@@ -26,6 +26,7 @@ target_compile_options(library-erasure-impl PRIVATE
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
   -Wswitch
+  -Wreturn-type
 )
 
 target_link_libraries(library-erasure-impl PUBLIC

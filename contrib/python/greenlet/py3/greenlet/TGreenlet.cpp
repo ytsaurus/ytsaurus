@@ -633,7 +633,13 @@ void GREENLET_NOINLINE(Greenlet::expose_frames)()
             // directly.  This is important since GetFrameObject might
             // lazily _create_ the frame object and we don't want the
             // interpreter to lose track of it.
+            //
+            #if !GREENLET_PY315
+            // This enum value was removed in
+            //    https://github.com/python/cpython/pull/141108
+
             assert(iframe_copy.owner != FRAME_OWNED_BY_CSTACK);
+            #endif
 
             // We really want to just write:
             //     PyFrameObject* frame = _PyFrame_GetFrameObject(iframe);

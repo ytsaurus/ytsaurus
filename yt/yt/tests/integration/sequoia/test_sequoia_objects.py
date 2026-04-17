@@ -47,7 +47,9 @@ def sequoia_tables_empty():
 
     return all(
         select_rows_from_ground(f"* from [{table.get_default_path()}]") == []
-        for table in DESCRIPTORS.get_group("chunk_tables"))
+        for table in (
+            DESCRIPTORS.get_group("chunk_tables") +
+            DESCRIPTORS.get_group("unapproved_replicas_table")))
 
 
 class TestSequoiaReplicas(YTEnvSetup):
@@ -76,6 +78,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         },
         "chunk_manager": {
             "replica_approve_timeout": 5000,
+            # COMPAT(grphil): We keep sequoia store configs in compat format to test config migrations
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
                 "enable_sequoia_chunk_refresh": True,
@@ -167,6 +170,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("grphil")
     def test_table_created_and_removed(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t", attributes={"primary_medium": self.TABLE_MEDIUM_1})
@@ -186,6 +190,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
     def test_chunk_replicas_node_offline1(self, erasure_codec):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
@@ -194,6 +199,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         assert read_table("//tmp/t") == [{"x": 1}]
 
         chunk_id = get_singular_chunk_id("//tmp/t")
+
+        get("//tmp/t/@chunk_media_statistics")
 
         desired_replica_count = 3 if erasure_codec == "none" else 16
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
@@ -224,6 +231,7 @@ class TestSequoiaReplicas(YTEnvSetup):
             return True
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
 
@@ -250,6 +258,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_chunk_replicas_purgatory(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
@@ -295,6 +304,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @pytest.mark.parametrize("purgatory_enabled_during_restart", [True, False])
     def test_dead_chunks_are_removed(self, purgatory_enabled_during_restart):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
@@ -338,6 +348,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_replication(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "replication_factor": 2})
 
@@ -360,6 +371,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_last_seen_replicas(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
@@ -422,6 +434,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
     def test_refresh(self, erasure_codec):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
@@ -438,12 +451,12 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
-            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/validate_sequoia_replicas_fetch", False)
-            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/store_sequoia_replicas_on_master", False)
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/validate_sequoia_replicas_fetch", False)
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master", False)
 
         wait(lambda: chunk_id not in get("//sys/lost_chunks"))
 
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/processed_removed_sequoia_replicas_on_master", False)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/process_removed_sequoia_replicas_on_master", False)
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
@@ -453,6 +466,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_unapproved(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         ground_driver = get_ground_driver()
         unapproved_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
         sync_unmount_table(unapproved_replicas_path, driver=ground_driver)
@@ -489,6 +503,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
     def test_sequoia_refresh(self, erasure_codec):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
@@ -516,11 +531,12 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("grphil")
     def test_global_sequoia_refresh_batches(self):
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         assert self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled"
@@ -543,11 +559,14 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("grphil")
     def test_global_sequoia_refresh_with_purgatory(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
         assert self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled"
@@ -595,7 +614,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: self._get_purgatory_size() == len(chunks))
         assert self._is_refresh_queue_empty()
 
-        if not get("//sys/@config/chunk_manager/sequoia_chunk_replicas/store_sequoia_replicas_on_master"):
+        if not get("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master"):
             assert check_has_replicas_count(3)
             set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", True)
             wait(self._is_purgatory_empty)
@@ -611,7 +630,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
         assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == len(chunks)
 
-        if get("//sys/@config/chunk_manager/sequoia_chunk_replicas/store_sequoia_replicas_on_master"):
+        if get("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master"):
             wait(lambda: self._get_purgatory_size() == len(chunks))
         else:
             wait(self._is_purgatory_empty)
@@ -639,6 +658,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         "chunk_manager": {
             "replica_approve_timeout": 5000,
             "profiling_period": 100,
+            # COMPAT(grphil): We keep sequoia store configs in compat format to test config migrations
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
                 "enable_sequoia_chunk_refresh": True,
@@ -658,6 +678,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     @authors("aleksandra-zh")
     def test_empty_sequoia_handler(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
 
         table = "//tmp/t"
         create("table", table, attributes={"replication_factor": 1})
@@ -671,6 +692,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     @authors("aleksandra-zh")
     def test_master_sequoia_replicas_handler(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
 
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_1)
@@ -720,6 +742,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     @authors("aleksandra-zh")
     def test_chunk_attributes(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
 
         table = "//tmp/t"
         create("table", table, attributes={"replication_factor": 1})
@@ -733,10 +756,11 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
     @authors("grphil")
     def test_global_sequoia_refresh_late_updates(self):
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
 
         wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
 
@@ -846,6 +870,7 @@ class TestSequoiaReplicasLocationReplacementInHeartbeats(TestSequoiaReplicas):
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
             },
+            # COMPAT(grphil): We keep sequoia store configs in compat format to test config migrations
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
                 "enable_sequoia_chunk_refresh": True,
@@ -882,6 +907,44 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
     def teardown_method(self, method):
         super(TestSequoiaReplicasMulticell, self).teardown_method(method)
 
+    @authors("grphil")
+    def test_sequoia_replicas_percentage(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/replicas_percentage", 66)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master_percentage", 33)
+
+        only_master_chunk_created = False
+        only_sequoia_chunk_created = False
+        sequoia_and_master_chunk_created = False
+
+        while not only_master_chunk_created or not only_sequoia_chunk_created or not sequoia_and_master_chunk_created:
+            tables = [f"//tmp/t{i}" for i in range(10)]
+            for table in tables:
+                create("table", table)
+                write_table(table, [{"a": "b"}])
+
+            for table in tables:
+                chunk_id = get_singular_chunk_id(table)
+                wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+                sequoia_replicas = get(f"#{chunk_id}/@stored_sequoia_replicas")
+                master_replicas = get(f"#{chunk_id}/@stored_master_replicas")
+                replicas = get(f"#{chunk_id}/@stored_replicas")
+                assert len(sequoia_replicas) == 0 or len(replicas) == len(sequoia_replicas)
+                assert len(master_replicas) == 0 or len(replicas) == len(master_replicas)
+
+                if len(sequoia_replicas) > 0:
+                    if len(master_replicas) > 0:
+                        sequoia_and_master_chunk_created = True
+                    else:
+                        only_sequoia_chunk_created = True
+                else:
+                    assert len(master_replicas) > 0
+                    only_master_chunk_created = True
+
+                remove(table)
+
 
 class TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
@@ -893,6 +956,7 @@ class TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster(TestSequoiaReplic
         },
         "chunk_manager": {
             "replica_approve_timeout": 5000,
+            # COMPAT(grphil): We keep sequoia store configs in compat format to test config migrations
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "replicas_percentage": 100,
@@ -1123,7 +1187,6 @@ class TestSequoiaObjects(YTEnvSetup):
             create("table", "//tmp/t3", prerequisite_transaction_ids=[tx], attributes={"external_cell_tag": 12})
 
     @authors("cherepashka")
-    @pytest.mark.skip("TODO(cherepashka): YT-24792")
     def test_start_tx_with_prerequisite(self):
         tx1 = start_transaction(coordinator_master_cell_tag=11)
         tx2 = start_transaction(coordinator_master_cell_tag=12)

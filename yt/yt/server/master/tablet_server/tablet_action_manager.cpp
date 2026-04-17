@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "helpers.h"
+#include "hunk_storage_node.h"
 #include "private.h"
 #include "public.h"
 #include "table_settings.h"
@@ -150,12 +151,7 @@ public:
             THROW_ERROR_EXCEPTION("Invalid number of tablets: expected more than zero");
         }
 
-        if (tablets[0]->GetType() != EObjectType::Tablet) {
-            THROW_ERROR_EXCEPTION("Tablet actions are not supported for tablets of type %Qlv",
-                tablets[0]->GetType());
-        }
-
-        auto* table = tablets[0]->As<TTablet>()->GetTable();
+        auto* table = tablets[0]->GetOwner();
         if (!IsObjectAlive(table)) {
             THROW_ERROR_EXCEPTION("Table is destroyed");
         }
@@ -165,8 +161,38 @@ public:
 
         THashSet<TTabletId> tabletIds;
         for (auto tablet : tablets) {
+            if (tablet->GetType() != tablets[0]->GetType()) {
+                THROW_ERROR_EXCEPTION("Cannot create a single tablet action on tablets of different type simultaneously");
+            }
+
+            if (tablet->GetType() == EObjectType::HunkTablet) {
+                if (kind != ETabletActionKind::Move) {
+                    THROW_ERROR_EXCEPTION(
+                        "Tablet %v of type %Qlv can only participate in %Qlv tablet actions, requested action kind: %Qlv",
+                        tablet->GetId(),
+                        tablet->GetType(),
+                        ETabletActionKind::Move,
+                        kind);
+                }
+
+                if (hintId != NullObjectId) {
+                    THROW_ERROR_EXCEPTION("Hint id cannot be specified when moving hunk tablet");
+                }
+
+                if (tablets.size() > 1) {
+                    THROW_ERROR_EXCEPTION("Multiple tablets cannot be specified at once when moving hunk tablet");
+                }
+
+                if (options.SkipFreezing) {
+                    THROW_ERROR_EXCEPTION("\"skip_freezing\" option cannot be specified when moving hunk tablet");
+                }
+            } else if (tablet->GetType() != EObjectType::Tablet) {
+                THROW_ERROR_EXCEPTION("Tablet actions are not supported for tablets of type %Qlv",
+                    tablet->GetType());
+            }
+
             if (tablet->GetOwner() != table) {
-                THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",
+                THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tablet owners",
                     tablets[0]->GetId(),
                     tablet->GetId());
             }
@@ -288,11 +314,18 @@ public:
                 YT_ABORT();
         }
 
-        auto tableSettings = Host_->GetTableSettings(table);
-        ValidateTableMountConfig(
-            table,
-            tableSettings.EffectiveMountConfig,
-            Host_->GetDynamicConfig());
+        if (IsTableType(table->GetType())) {
+            auto* typedTable = table->As<TTableNode>();
+            auto tableSettings = Host_->GetTableSettings(typedTable);
+            ValidateTableMountConfig(
+                typedTable,
+                tableSettings.EffectiveMountConfig,
+                Host_->GetDynamicConfig());
+        } else if (table->GetType() == EObjectType::HunkStorage) {
+            Y_UNUSED(Host_->ValidateAndGetHunkStorageSettings(table->As<THunkStorageNode>()));
+        } else {
+            YT_ABORT();
+        }
 
         if (kind == ETabletActionKind::SmoothMove) {
             if (!Host_->GetDynamicConfig()->EnableSmoothTabletMovement) {
@@ -322,15 +355,15 @@ public:
                 THROW_ERROR_EXCEPTION("Tablet must be mounted with avenues");
             }
 
-            const auto* table = tablet->GetOwner()->As<TTableNode>();
+            YT_VERIFY(IsTableType(table->GetType()));
+            const auto* typedTable = table->As<TTableNode>();
 
-            if (table->IsReplicated()) {
+            if (typedTable->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
             }
 
-            if (table->GetAtomicity() != EAtomicity::Full) {
-                THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
-                    table->GetAtomicity());
+            if (typedTable->GetHunkStorage()) {
+                THROW_ERROR_EXCEPTION("Table linked to hunk storage cannot be moved");
             }
         }
 
@@ -351,7 +384,11 @@ public:
 
     void CreateOrphanedTabletAction(TTabletBase* tablet, bool freeze) override
     {
-        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+        YT_VERIFY(
+            tablet->GetType() == EObjectType::Tablet ||
+            tablet->GetType() == EObjectType::HunkTablet);
+
+        freeze &= tablet->GetType() == EObjectType::Tablet;
 
         DoCreateTabletAction(
             TObjectId(),
@@ -389,7 +426,10 @@ public:
         int lastTabletIndex,
         TStringBuf request) override
     {
-        YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < std::ssize(table->Tablets()));
+        YT_VERIFY(
+            firstTabletIndex >= 0 &&
+            firstTabletIndex <= lastTabletIndex &&
+            lastTabletIndex < std::ssize(table->Tablets()));
 
         auto error = TError("User request %Qv interfered with the action", request);
         THashSet<TTabletBase*> touchedTablets;
@@ -640,7 +680,6 @@ private:
         for (auto tabletId : tabletIds) {
             tablets.push_back(Host_->GetTabletOrThrow(tabletId));
         }
-
         for (auto cellId : cellIds) {
             cells.push_back(Host_->GetTabletCellOrThrow(cellId));
         }
@@ -725,6 +764,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
+        YT_VERIFY(!freeze || tablets[0]->GetType() == EObjectType::Tablet);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -733,13 +773,22 @@ private:
         auto* action = TabletActionMap_.Insert(id, std::move(actionHolder));
         objectManager->RefObject(action);
 
+        if (kind == ETabletActionKind::Reshard && options.InplaceReshard) {
+            action->TabletMountRevisions().reserve(tablets.size());
+        }
+
         for (auto tablet : tablets) {
-            YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+            YT_VERIFY(
+                tablet->GetType() == EObjectType::Tablet ||
+                tablet->GetType() == EObjectType::HunkTablet);
 
             tablet->SetAction(action);
+            if (kind == ETabletActionKind::Reshard && options.InplaceReshard) {
+                action->TabletMountRevisions().push_back(tablet->Servant().GetMountRevision());
+            }
 
             if (state == ETabletActionState::Orphaned) {
-                // Orphaned action can be created during mount if tablet cells are not available.
+                // NB: Orphaned action can be created during mount if tablet cells are not available.
                 // User can't create orphaned action directly because primary master need to know about mount.
                 YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
                 tablet->SetExpectedState(freeze
@@ -752,25 +801,30 @@ private:
             cell->Actions().insert(action);
         }
 
+        auto* table = tablets.front()->GetOwner();
+        const auto& bundle = table->TabletCellBundle();
+
         action->SetKind(kind);
         action->SetState(state);
         action->Tablets() = std::move(tablets);
         action->TabletCells() = std::move(cells);
         action->PivotKeys() = std::move(pivotKeys);
         action->SetTabletCount(tabletCount);
-        action->SetSkipFreezing(options.SkipFreezing);
+        action->SetSkipFreezing(options.SkipFreezing ||
+            table->GetType() == EObjectType::HunkStorage);
         action->SetFreeze(freeze);
         action->SetCorrelationId(options.CorrelationId);
         action->SetExpirationTime(options.ExpirationTime);
         action->SetExpirationTimeout(options.ExpirationTimeout);
-        const auto& bundle = action->Tablets()[0]->GetOwner()->TabletCellBundle();
         action->SetTabletCellBundle(bundle.Get());
         action->SetInplaceReshard(options.InplaceReshard);
-        const auto* table = action->Tablets()[0]->GetOwner()->As<TTableNode>();
+        bool physicallySorted = table->GetType() == EObjectType::Table &&
+            table->As<TTableNode>()->IsPhysicallySorted();
         action->SetProvisionalFlushRequired(
             options.InplaceReshard &&
             !action->GetFreeze() &&
-            table->IsPhysicallySorted());
+            physicallySorted);
+
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
@@ -790,10 +844,11 @@ private:
         auto tableId = action->Tablets().empty()
             ? TTableId{}
             : action->Tablets()[0]->GetOwner()->GetId();
-        YT_LOG_DEBUG("Change tablet action state (ActionId: %v, State: %v, "
+        YT_LOG_DEBUG("Change tablet action state (ActionId: %v, State: %v, Error: %v,"
             "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v)",
             action->GetId(),
             state,
+            action->Error(),
             tableId,
             action->GetTabletCellBundle()->GetName(),
             action->GetCorrelationId());
@@ -827,8 +882,6 @@ private:
                         throw;
                     }
 
-                    // TODO(ifsmirnov): YT-20959 - send updated settings to sibling
-                    // and unban remount.
                     auto serializedTableSettings = SerializeTableSettings(tableSettings);
                     Host_->AllocateAuxiliaryServant(tablet, cell, serializedTableSettings);
                     ChangeTabletActionState(
@@ -907,16 +960,22 @@ private:
 
             case ETabletActionState::Frozen: {
                 auto* table = action->Tablets().front()->GetOwner();
-                bool retainPreloadedChunks = table->GetInMemoryMode() != NTabletClient::EInMemoryMode::None &&
-                    action->GetKind() == ETabletActionKind::Reshard &&
-                    action->IsInplaceReshard();
+
+                bool inplaceReshard = action->IsInplaceReshard() &&
+                    action->GetKind() == ETabletActionKind::Reshard;
+                bool retainPreloadedChunks =
+                    inplaceReshard &&
+                    table->GetInMemoryMode() != NTabletClient::EInMemoryMode::None;
                 for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
                     Host_->UnmountTablet(
                         tablet,
                         /*force*/ false,
                         /*onDestroy*/ false,
-                        retainPreloadedChunks);
+                        TUnmountTabletOptions{
+                            .RetainPreloadedChunks = retainPreloadedChunks,
+                            .UseExtendedSnapshotEvictionTimeout = inplaceReshard,
+                        });
                 }
 
                 ChangeTabletActionState(action, ETabletActionState::Unmounting);
@@ -967,7 +1026,7 @@ private:
                                 YT_LOG_ALERT_IF(tablet->GetExpectedState() != expectedState,
                                     "Unexpected tablet expected state, try fixing with unmount plus mount "
                                     "(TableId: %v, TabletId: %v, ActionId: %v, ActionExpected: %v, TabletExpected: %v)",
-                                    tablet->As<TTablet>()->GetTable()->GetId(),
+                                    tablet->GetOwner()->GetId(),
                                     tablet->GetId(),
                                     action->GetId(),
                                     expectedState,
@@ -1004,6 +1063,14 @@ private:
                             tablet->SetExpectedState(expectedState);
                         }
 
+                        if (action->IsInplaceReshard()) {
+                            Host_->SendReshardRedirectionHint(
+                                action->TabletCells()[0]->GetId(),
+                                action->Tablets(),
+                                oldTablets,
+                                action->TabletMountRevisions());
+                        }
+
                         break;
                     }
 
@@ -1011,14 +1078,23 @@ private:
                         YT_ABORT();
                 }
 
-                TTableSettings tableSettings;
-                try {
-                    tableSettings = Host_->GetTableSettings(table->As<TTableNode>());
+                TTabletOwnerSettings tableSettings;
 
-                    ValidateTableMountConfig(
-                        table->As<TTableNode>(),
-                        tableSettings.EffectiveMountConfig,
-                        Host_->GetDynamicConfig());
+                try {
+                    if (IsTableType(table->GetType())) {
+                        auto* typedTable = table->As<TTableNode>();
+                        auto typedTableSettings = Host_->GetTableSettings(typedTable);
+                        ValidateTableMountConfig(
+                            typedTable,
+                            typedTableSettings.EffectiveMountConfig,
+                            Host_->GetDynamicConfig());
+                        tableSettings = typedTableSettings;
+                    } else if (table->GetType() == EObjectType::HunkStorage) {
+                        tableSettings = Host_->ValidateAndGetHunkStorageSettings(
+                            table->As<THunkStorageNode>());
+                    } else {
+                        YT_ABORT();
+                    }
                 } catch (const std::exception& ex) {
                     YT_LOG_ALERT(ex, "Tablet action failed to mount tablets because "
                         "of table mount settings validation error (ActionId: %v, TableId: %v)",
@@ -1029,7 +1105,7 @@ private:
                         << TErrorAttribute("table_id", table->GetId())
                         << ex;
                 }
-                auto serializedTableSettings = SerializeTableSettings(tableSettings);
+                auto serializedSettings = SerializeTabletOwnerSettings(tableSettings);
 
                 std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;
                 if (action->TabletCells().empty()) {
@@ -1058,7 +1134,7 @@ private:
 
                 Host_->DoMountTablets(
                     table,
-                    serializedTableSettings,
+                    serializedSettings,
                     assignment,
                     action->GetFreeze(),
                     useRetainedPreloadedChunks);

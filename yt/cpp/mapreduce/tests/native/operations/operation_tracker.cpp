@@ -14,8 +14,6 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-namespace {
-
 IOperationPtr AsyncSortByFoo(IClientPtr client, const TString& input, const TString& output)
 {
     return client->Sort(
@@ -230,5 +228,3 @@ TEST(OperationTracker, ConnectionErrorWhenOperationIsTracked)
 
     tx->Abort(); // We make sure that operation is stopped
 }
-
-} // namespace

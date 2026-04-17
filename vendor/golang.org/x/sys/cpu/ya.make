@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.36.0)
+VERSION(v0.43.0)
 
 SRCS(
     byteorder.go
@@ -77,7 +77,9 @@ ENDIF()
 
 IF (OS_DARWIN AND ARCH_ARM64)
     SRCS(
-        cpu_other_arm64.go
+        asm_darwin_arm64_gc.s
+        cpu_darwin_arm64.go
+        syscall_darwin_arm64_gc.go
     )
 ENDIF()
 
@@ -98,6 +100,12 @@ IF (OS_ANDROID)
         cpu_linux_arm64.go
         hwcap_linux.go
         proc_cpuinfo_linux.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        cpu_wasm.go
     )
 ENDIF()
 

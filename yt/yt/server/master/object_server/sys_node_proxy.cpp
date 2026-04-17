@@ -191,7 +191,7 @@ private:
 
             case EInternedAttributeKey::DynamicallyPropagatedMastersCellTags:
                 BuildYsonFluently(consumer)
-                    .Value(multicellManager->GetDynamicallyPropagatedMastersCellTags());
+                    .Value(multicellManager->GetDynamicallyPropagatedMasterCellTags());
                 return true;
 
             case EInternedAttributeKey::LostVitalChunkCount:

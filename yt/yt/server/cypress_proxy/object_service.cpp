@@ -4,7 +4,7 @@
 
 #include "actions.h"
 #include "bootstrap.h"
-#include "config.h"
+#include "ban_service.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -16,6 +16,8 @@
 #include "sequoia_session.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -106,7 +108,7 @@ public:
             BIND_NO_PROPAGATE(&TObjectService::OnUserDirectoryUpdated, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeAfterConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     IServicePtr GetService() override
@@ -207,14 +209,18 @@ private:
                 return;
             }
 
-            // TODO(danilalexeev): Support queue size limit reconfiguration.
             const auto& userDirectory = bootstrap->GetUserDirectory();
             const auto descriptor = userDirectory->FindUserByName(userNameAndWorkloadType.first);
             if (!descriptor) {
                 return;
             }
 
-            auto newConfig = TThroughputThrottlerConfig::Create(GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second));
+            auto limit = GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second);
+            if (limit) {
+                limit = *limit * dynamicConfig->RequestRateLimitFactor;
+            }
+
+            auto newConfig = TThroughputThrottlerConfig::Create(limit);
             queue->ConfigureWeightThrottler(newConfig);
             queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
@@ -237,12 +243,10 @@ private:
         RequestQueueProvider_->UpdateTotalLimits(Bootstrap_->GetUserDirectory());
     }
 
-    void OnDynamicConfigChanged(
-        const TCypressProxyDynamicConfigPtr& oldConfig,
-        const TCypressProxyDynamicConfigPtr& newConfig)
+    void OnDynamicConfigChanged(const TCypressProxyDynamicConfigPtr& oldConfig)
     {
         const auto& oldObjectServiceConfig = oldConfig->ObjectService;
-        const auto& newObjectServiceConfig = newConfig->ObjectService;
+        const auto& newObjectServiceConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
 
         ThrottlerFactory_->Reconfigure(newObjectServiceConfig->DistributedThrottler);
 
@@ -260,7 +264,12 @@ private:
 
             YT_LOG_DEBUG("Per-user request weight throttling was %v",
                 newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
+        } else if (newObjectServiceConfig->EnablePerUserRequestWeightThrottling &&
+            newObjectServiceConfig->RequestRateLimitFactor != oldObjectServiceConfig->RequestRateLimitFactor)
+        {
+            RequestQueueProvider_->ReconfigureAllQueues();
         }
+
     }
 };
 
@@ -357,6 +366,7 @@ private:
 
     void GuardedRun()
     {
+        ValidateUserNotBanned();
         ParseSubrequests();
 
         if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
@@ -370,6 +380,14 @@ private:
         InvokeMasterRequests(/*beforeSequoiaResolve*/ false);
 
         Reply();
+    }
+
+    void ValidateUserNotBanned()
+    {
+        const auto& user = AuthenticationIdentity_.User;
+        if (Owner_->Bootstrap_->GetBanService()->IsBanned(user)) {
+            THROW_ERROR_EXCEPTION("User %Qv is banned via ban service", user);
+        }
     }
 
     void ParseSubrequests()
@@ -428,7 +446,7 @@ private:
                 mutating = mutatingSubrequest;
             }
 
-            if (mutating != mutatingSubrequest && Owner_->GetDynamicConfig()->AlertOnMixedReadWriteBatch) {
+            if (mutating != mutatingSubrequest) {
                 YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
             }
         }
@@ -1022,9 +1040,12 @@ private:
         };
 
         auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
-        if (relevantSubrequestCount != 0) {
-            MaybeSyncWithMaster();
+        if (relevantSubrequestCount == 0) {
+            // No Sequoia requests are present.
+            return;
         }
+
+        MaybeSyncWithMaster();
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;

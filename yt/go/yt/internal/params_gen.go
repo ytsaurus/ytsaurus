@@ -1139,6 +1139,10 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("cursor_time")
 		w.Any(o.Cursor)
 	}
+	if o.CursorDirection != nil {
+		w.MapKeyString("cursor_direction")
+		w.Any(o.CursorDirection)
+	}
 	if o.User != nil {
 		w.MapKeyString("user")
 		w.Any(o.User)
@@ -1171,6 +1175,10 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("include_archive")
 		w.Any(o.IncludeArchive)
 	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
+	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
@@ -1188,6 +1196,9 @@ func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
 	}
 	if o.Cursor != nil {
 		fields = append(fields, log.Any("cursor_time", o.Cursor))
+	}
+	if o.CursorDirection != nil {
+		fields = append(fields, log.Any("cursor_direction", o.CursorDirection))
 	}
 	if o.User != nil {
 		fields = append(fields, log.Any("user", o.User))
@@ -1212,6 +1223,9 @@ func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
 	}
 	if o.IncludeArchive != nil {
 		fields = append(fields, log.Any("include_archive", o.IncludeArchive))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
 	}
 	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
 	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
@@ -1257,6 +1271,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 	if o.Attributes != nil {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
+	}
+	if o.WithSpec != nil {
+		w.MapKeyString("with_spec")
+		w.Any(o.WithSpec)
 	}
 	if o.SortField != nil {
 		w.MapKeyString("sort_field")
@@ -1312,6 +1330,9 @@ func logListJobsOptions(o *yt.ListJobsOptions) []log.Field {
 	if o.Attributes != nil {
 		fields = append(fields, log.Any("attributes", o.Attributes))
 	}
+	if o.WithSpec != nil {
+		fields = append(fields, log.Any("with_spec", o.WithSpec))
+	}
 	if o.SortField != nil {
 		fields = append(fields, log.Any("sort_field", o.SortField))
 	}
@@ -1362,6 +1383,34 @@ func logGetJobStderrOptions(o *yt.GetJobStderrOptions) []log.Field {
 		return nil
 	}
 	fields := []log.Field{}
+	return fields
+}
+
+func writeListOperationEventsOptions(w *yson.Writer, o *yt.ListOperationEventsOptions) {
+	if o == nil {
+		return
+	}
+	if o.EventType != nil {
+		w.MapKeyString("event_type")
+		w.Any(o.EventType)
+	}
+	if o.Limit != nil {
+		w.MapKeyString("limit")
+		w.Any(o.Limit)
+	}
+}
+
+func logListOperationEventsOptions(o *yt.ListOperationEventsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.EventType != nil {
+		fields = append(fields, log.Any("event_type", o.EventType))
+	}
+	if o.Limit != nil {
+		fields = append(fields, log.Any("limit", o.Limit))
+	}
 	return fields
 }
 
@@ -4532,6 +4581,47 @@ func (p *GetJobStderrParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("job_id")
 	w.Any(p.jobID)
 	writeGetJobStderrOptions(w, p.options)
+}
+
+type ListOperationEventsParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	options *yt.ListOperationEventsOptions
+}
+
+func NewListOperationEventsParams(
+	opID yt.OperationID,
+	options *yt.ListOperationEventsOptions,
+) *ListOperationEventsParams {
+	if options == nil {
+		options = &yt.ListOperationEventsOptions{}
+	}
+	optionsCopy := *options
+	return &ListOperationEventsParams{
+		Verb("list_operation_events"),
+		opID,
+		&optionsCopy,
+	}
+}
+
+func (p *ListOperationEventsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListOperationEventsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ListOperationEventsParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("opID", p.opID),
+	}
+	fields = append(fields, logListOperationEventsOptions(p.options)...)
+	return fields
+}
+
+func (p *ListOperationEventsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	writeListOperationEventsOptions(w, p.options)
 }
 
 type AddMemberParams struct {

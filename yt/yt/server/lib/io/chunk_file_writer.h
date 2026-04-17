@@ -20,6 +20,21 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializedBlocksRequest
+{
+    i64 StartOffset = 0;
+    i64 EndOffset = 0;
+    std::vector<TSharedRef> Buffers;
+};
+
+TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
+
+NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+TSharedMutableRef SerializeChunkMeta(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
+////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EFileWriterState,
     (Created)
     (Opening)
@@ -77,15 +92,13 @@ public:
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlocks) override;
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlocks);
+        TFairShareSlotId fairShareSlotId);
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

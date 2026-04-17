@@ -2,7 +2,11 @@
 
 #include "conversion.h"
 
+#include <library/cpp/iterator/zip.h>
+
 #include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/core/ytree/helpers.h>
 
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnNullable.h>
@@ -67,9 +71,9 @@ bool HasShortCircuitActions(const DB::ActionsDAG& actionsDag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::IColumn::Ptr TFilterInfo::RemoveColumnIfNeeded(TBlockWithFilter& blockWithFilter) const
-    {
-    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = blockWithFilter;
+DB::IColumn::Ptr TFilterInfo::RemoveColumnIfNeeded(TBlockWithFilter* blockWithFilter) const
+{
+    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = *blockWithFilter;
 
     if (!block.has(FilterColumnName)) {
         return nullptr;
@@ -95,7 +99,7 @@ void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
         Actions->execute(block, numRows);
     }
 
-    auto filterColumn = RemoveColumnIfNeeded(blockWithFilter);
+    auto filterColumn = RemoveColumnIfNeeded(&blockWithFilter);
 
     if (currentFilter.empty()) {
         currentFilter.resize_fill(rowCount, 1);
@@ -157,15 +161,15 @@ bool TReadPlanWithFilter::SuitableForTwoStagePrewhere() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadPlanWithFilterPtr BuildSimpleReadPlan(const std::vector<TColumnSchema>& columns)
+TReadPlanWithFilterPtr BuildSimpleReadPlan(std::vector<TColumnSchema> columns)
 {
     std::vector<TReadStepWithFilter> steps;
-    steps.emplace_back(columns);
+    steps.emplace_back(std::move(columns));
     return New<TReadPlanWithFilter>(std::move(steps), /*NeedFilter*/ false);
 }
 
 TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
-    const std::vector<TColumnSchema>& columns,
+    std::vector<TColumnSchema> columns,
     const DB::PrewhereInfoPtr& prewhereInfo,
     const DB::Settings& settings)
 {
@@ -199,9 +203,9 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     // The second option is easier.
     bool needFilter = prewhereActions.steps.size() > 1;
 
-    THashMap<std::string, TColumnSchema> columnNameToSchema;
-    for (const auto& column: columns) {
-        columnNameToSchema.emplace(column.Name(), column);
+    THashMap<std::string, int> columnNameToSchemaPos;
+    for (int i = 0; i < std::ssize(columns); ++i) {
+        columnNameToSchemaPos.emplace(columns[i].Name(), i);
     }
 
     THashSet<std::string> columnNamesFromPreviousSteps;
@@ -212,11 +216,11 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
 
         for (const auto& columnName : step->actions->getRequiredColumns()) {
             if (!columnNamesFromPreviousSteps.contains(columnName)) {
-                auto it = columnNameToSchema.find(columnName);
-                if (it == columnNameToSchema.end()) {
+                auto it = columnNameToSchemaPos.find(columnName);
+                if (it == columnNameToSchemaPos.end()) {
                     THROW_ERROR_EXCEPTION("No such column %Qv in read schema", columnName);
                 }
-                stepColumns.push_back(it->second);
+                stepColumns.push_back(columns[it->second]);
                 columnNamesFromPreviousSteps.insert(columnName);
             }
         }
@@ -234,7 +238,6 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     }
 
     std::vector<TColumnSchema> remainingColumns;
-
     for (const auto& column : columns) {
         if (!columnNamesFromPreviousSteps.contains(column.Name())) {
             remainingColumns.push_back(column);
@@ -281,7 +284,7 @@ DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, 
     }
     for (const auto& step : readPlan->Steps) {
         if (step.FilterInfo) {
-            step.FilterInfo->RemoveColumnIfNeeded(blockWithFilter);
+            step.FilterInfo->RemoveColumnIfNeeded(&blockWithFilter);
         }
     }
 

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"go.opentelemetry.io/auto/sdk/internal/telemetry"
@@ -143,7 +143,7 @@ func TestSpanCreation(t *testing.T) {
 		{
 			TestName: "SampledByDefault",
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 
 				assert.True(t, s.sampled.Load(), "not sampled by default.")
 			},
@@ -158,7 +158,7 @@ func TestSpanCreation(t *testing.T) {
 				}
 			},
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 
 				want := spanContext0.SpanID().String()
 				got := s.span.ParentSpanID.String()
@@ -175,7 +175,7 @@ func TestSpanCreation(t *testing.T) {
 				}
 			},
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 
 				str := func(i interface{ String() string }) string {
 					return i.String()
@@ -203,7 +203,7 @@ func TestSpanCreation(t *testing.T) {
 			TestName: "WithName",
 			SpanName: spanName,
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 				assert.Equal(t, spanName, s.span.Name)
 			},
 		},
@@ -213,7 +213,7 @@ func TestSpanCreation(t *testing.T) {
 				trace.WithSpanKind(trace.SpanKindClient),
 			},
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 				assert.Equal(t, telemetry.SpanKindClient, s.span.Kind)
 			},
 		},
@@ -223,7 +223,7 @@ func TestSpanCreation(t *testing.T) {
 				trace.WithTimestamp(ts),
 			},
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 				assert.Equal(t, ts, s.span.StartTime)
 			},
 		},
@@ -233,7 +233,7 @@ func TestSpanCreation(t *testing.T) {
 				trace.WithAttributes(attrs...),
 			},
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 				assert.Equal(t, tAttrs, s.span.Attrs)
 			},
 		},
@@ -243,7 +243,7 @@ func TestSpanCreation(t *testing.T) {
 				trace.WithLinks(link0, link1),
 			},
 			Eval: func(t *testing.T, _ context.Context, s *span) {
-				assertTracer(s.traces)
+				t.Run("Tracer", assertTracer(s.traces))
 				want := []*telemetry.SpanLink{tLink0, tLink1}
 				assert.Equal(t, want, s.span.Links)
 			},
@@ -390,13 +390,17 @@ func TestSpanAddLinkLimit(t *testing.T) {
 }
 
 func TestSpanLinkAttrLimit(t *testing.T) {
+	nInt := len(tAttrs)
+	require.GreaterOrEqual(t, nInt, 0)
+	n := uint32(nInt) //nolint:gosec  // Bound checked.
+
 	tests := []struct {
 		limit   int
 		want    []telemetry.Attr
 		dropped uint32
 	}{
-		{0, nil, uint32(len(tAttrs))},
-		{2, tAttrs[:2], uint32(len(tAttrs) - 2)},
+		{0, nil, n},
+		{2, tAttrs[:2], n - 2},
 		{len(tAttrs), tAttrs, 0},
 		{-1, tAttrs, 0},
 	}
@@ -518,13 +522,17 @@ func TestAddEventLimit(t *testing.T) {
 }
 
 func TestAddEventAttrLimit(t *testing.T) {
+	nInt := len(tAttrs)
+	require.GreaterOrEqual(t, nInt, 0)
+	n := uint32(nInt) //nolint:gosec  // Bound checked.
+
 	tests := []struct {
 		limit   int
 		want    []telemetry.Attr
 		dropped uint32
 	}{
-		{0, nil, uint32(len(tAttrs))},
-		{2, tAttrs[:2], uint32(len(tAttrs) - 2)},
+		{0, nil, n},
+		{2, tAttrs[:2], n - 2},
 		{len(tAttrs), tAttrs, 0},
 		{-1, tAttrs, 0},
 	}
@@ -603,13 +611,17 @@ func TestSpanSetAttributes(t *testing.T) {
 }
 
 func TestSpanAttributeLimits(t *testing.T) {
+	nInt := len(tAttrs)
+	require.GreaterOrEqual(t, nInt, 0)
+	n := uint32(nInt) //nolint:gosec  // Bound checked.
+
 	tests := []struct {
 		limit   int
 		want    []telemetry.Attr
 		dropped uint32
 	}{
-		{0, nil, uint32(len(tAttrs))},
-		{2, tAttrs[:2], uint32(len(tAttrs) - 2)},
+		{0, nil, n},
+		{2, tAttrs[:2], n - 2},
 		{len(tAttrs), tAttrs, 0},
 		{-1, tAttrs, 0},
 	}
@@ -686,15 +698,33 @@ func TestSpanAttributeValueLimits(t *testing.T) {
 
 			s := builder.Build()
 			s.SetAttributes(aStr, aStrSlice)
-			assert.Truef(t, eq(want, s.span.Attrs), "set span attributes: got %#v, want %#v", s.span.Attrs, want)
+			assert.Truef(
+				t,
+				eq(want, s.span.Attrs),
+				"set span attributes: got %#v, want %#v",
+				s.span.Attrs,
+				want,
+			)
 
 			s.AddEvent("test", trace.WithAttributes(aStr, aStrSlice))
-			assert.Truef(t, eq(want, s.span.Events[0].Attrs), "span event attributes: got %#v, want %#v", s.span.Events[0].Attrs, want)
+			assert.Truef(
+				t,
+				eq(want, s.span.Events[0].Attrs),
+				"span event attributes: got %#v, want %#v",
+				s.span.Events[0].Attrs,
+				want,
+			)
 
 			s.AddLink(trace.Link{
 				Attributes: []attribute.KeyValue{aStr, aStrSlice},
 			})
-			assert.Truef(t, eq(want, s.span.Links[0].Attrs), "span link attributes: got %#v, want %#v", s.span.Links[0].Attrs, want)
+			assert.Truef(
+				t,
+				eq(want, s.span.Links[0].Attrs),
+				"span link attributes: got %#v, want %#v",
+				s.span.Links[0].Attrs,
+				want,
+			)
 
 			builder.Options = []trace.SpanStartOption{
 				trace.WithAttributes(aStr, aStrSlice),
@@ -703,8 +733,20 @@ func TestSpanAttributeValueLimits(t *testing.T) {
 				}),
 			}
 			s = builder.Build()
-			assert.Truef(t, eq(want, s.span.Attrs), "new span attributes: got %#v, want %#v", s.span.Attrs, want)
-			assert.Truef(t, eq(want, s.span.Links[0].Attrs), "new span link attributes: got %#v, want %#v", s.span.Attrs, want)
+			assert.Truef(
+				t,
+				eq(want, s.span.Attrs),
+				"new span attributes: got %#v, want %#v",
+				s.span.Attrs,
+				want,
+			)
+			assert.Truef(
+				t,
+				eq(want, s.span.Links[0].Attrs),
+				"new span link attributes: got %#v, want %#v",
+				s.span.Attrs,
+				want,
+			)
 		})
 	}
 }
@@ -901,18 +943,18 @@ func TestSpanConcurrentSafe(t *testing.T) {
 				go func(n int) {
 					defer wg.Done()
 
-					_ = s.IsRecording()
-					_ = s.SpanContext()
-					_ = s.TracerProvider()
+					_ = span.IsRecording()
+					_ = span.SpanContext()
+					_ = span.TracerProvider()
 
-					s.AddEvent("event")
-					s.AddLink(trace.Link{})
-					s.RecordError(errors.New("err"))
-					s.SetStatus(codes.Error, "error")
-					s.SetName("span" + strconv.Itoa(n))
-					s.SetAttributes(attribute.Bool("key", true))
+					span.AddEvent("event")
+					span.AddLink(trace.Link{})
+					span.RecordError(errors.New("err"))
+					span.SetStatus(codes.Error, "error")
+					span.SetName("span" + strconv.Itoa(n))
+					span.SetAttributes(attribute.Bool("key", true))
 
-					s.End()
+					span.End()
 				}(i)
 			}
 

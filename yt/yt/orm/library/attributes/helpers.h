@@ -264,8 +264,8 @@ void RotateLastEntryBeforeIndex(
 class TBooleanOrCollector
 {
 public:
-    void operator() ();
-    bool operator() (bool value);
+    void operator()();
+    bool operator()(bool value);
     bool Result() &&;
 
 private:

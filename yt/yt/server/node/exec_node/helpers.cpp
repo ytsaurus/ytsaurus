@@ -1,18 +1,19 @@
-#include "helpers.h"
 #include "bootstrap.h"
+#include "helpers.h"
+
+#include <yt/yt/server/node/exec_node/job_controller.h>
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -29,6 +30,8 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
+#include <util/generic/vector.h>
+
 namespace NYT::NExecNode {
 
 using namespace NApi;
@@ -42,6 +45,8 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NYTree;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,9 +328,80 @@ void TControllerAgentAffiliationInfo::ResetControllerAgent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap)
+{
+    // NB. It is all right to pass only bootstrap pointer since it outlives the closure.
+    return BIND_NO_PROPAGATE(
+        [
+            jobId,
+            bootstrap,
+            jobInterrupted = std::make_unique<std::atomic<bool>>(false)
+        ] () {
+            // Interrupt job only once.
+            if (!jobInterrupted->exchange(true)) {
+                bootstrap->GetJobController()->InterruptJob(
+                jobId,
+                EInterruptionReason::NbdDeviceStopping,
+                TDuration::Zero());
+            }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts)
+{
+    auto volumeMountIt = std::find_if(volumeMounts.begin(), volumeMounts.end(), [&] (const auto& volumeMount) {
+        return volumeMount->VolumeId == volumeId;
+    });
+
+    // COMPAT(krasovav): Now all tmpfs volumes must be in user job rootfs.
+    // Therefore, there must not be a single tmpfs that is not listed in volumeMounts.
+    YT_VERIFY(volumeMountIt != volumeMounts.end());
+    return volumeMountIt->Get()->MountPath;
+}
+
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes)
+{
+    auto volumeIt = std::find_if(volumes.begin(), volumes.end(), [&] (const auto& volume) {
+        return volume->VolumeId == volumeId;
+    });
+
+    YT_VERIFY(volumeIt != volumes.end());
+    return *volumeIt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)
+{
+    nbd->Size = protoNbd.disk_request().storage_request_common_parameters().disk_space();
+    nbd->MediumIndex = static_cast<int>(protoNbd.disk_request().medium_index());
+
+    const auto& nbdDisk = protoNbd.nbd();
+    if (nbdDisk.has_data_node_address()) {
+        nbd->DataNodeAddress = nbdDisk.data_node_address();
+    }
+
+    nbd->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
+    nbd->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    nbd->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
+    nbd->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
+    nbd->MinDataNodeCount = nbdDisk.min_data_node_count();
+    nbd->MaxDataNodeCount = nbdDisk.max_data_node_count();
+}
+
+void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs)
+{
+    tmpfs->Size = protoTmpfs.storage_request_common_parameters().disk_space();
+    tmpfs->Index = protoTmpfs.tmpfs_index();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NExecNode
 
-size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator () (
+size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator()(
     const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const
 {
     return MultiHash(descriptor.Address, descriptor.IncarnationId);

@@ -257,6 +257,7 @@ public:
         , Index_(index)
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
+        , CellId_(CellDescriptor_.CellId)
         , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(MakeLogger())
@@ -281,7 +282,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CellDescriptor_.CellId;
+        return CellId_;
     }
 
     EPeerState GetControlState() const override
@@ -445,9 +446,6 @@ public:
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
     {
         auto snapshotClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
-        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
-        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
-
         auto snapshotStore = Config_->Snapshots;
         switch (snapshotStore->StoreType) {
             case ESnapshotStoreType::Remote : {
@@ -455,8 +453,7 @@ public:
                 auto snapshotStore = CreateRemoteSnapshotStore(
                     remoteSnapshotStore,
                     Options_,
-                    primaryStoresPath + "/snapshots",
-                    secondaryStoresPath + "/snapshots",
+                    GetStoresPath() + "/snapshots",
                     snapshotClient,
                     PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
                     GetSnapshotOutThrottlerProvider());
@@ -491,6 +488,7 @@ public:
         auto client = Bootstrap_->GetClient();
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
+        YT_VERIFY(CellId_ == CellDescriptor_.CellId);
 
         // COMPAT(savrus)
         ConfigVersion_ = configureInfo.has_config_version()
@@ -548,8 +546,6 @@ public:
         ConfigureSnapshotStore(connection);
 
         auto changelogClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
-        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
-        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
         auto changelogProfiler = occupier->GetProfiler()
             .WithPrefix("/remote_changelog")
@@ -563,8 +559,7 @@ public:
         ChangelogStoreFactory_ = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
-            primaryStoresPath + "/changelogs",
-            secondaryStoresPath + "/changelogs",
+            GetStoresPath() + "/changelogs",
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
@@ -610,6 +605,7 @@ public:
                 .EnableObserverPersistence = independent,
                 .ResponseKeeper = ResponseKeeper_,
                 .EnableLocalHostSanitizing = false,
+                .ReportReignChange = true,
             };
 
             IDistributedHydraManagerPtr hydraManager;
@@ -878,6 +874,8 @@ private:
 
     int PeerId_;
     TCellDescriptor CellDescriptor_;
+    // Can be accessed from any thread so is stored separately from CellDescriptor_.
+    TCellId CellId_;
     int ConfigVersion_ = 0;
 
     const std::string CellBundleName_;
@@ -929,13 +927,10 @@ private:
     IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     std::atomic<bool> EnableSnapshotNetworkThrottling_ = false;
 
-    // COMPAT(danilalexeev): 'primary'.
-    TYPath GetStoresPath(bool primary)
+    TYPath GetStoresPath()
     {
         TStringBuilder builder;
-        builder.AppendString(primary
-            ? GetCellHydraPersistencePath(GetCellId())
-            : GetCellPath(GetCellId()));
+        builder.AppendString(GetCellHydraPersistencePath(GetCellId()));
         if (Options_->IndependentPeers) {
             builder.AppendFormat("/%v", PeerId_);
         }

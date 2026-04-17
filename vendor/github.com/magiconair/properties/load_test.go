@@ -6,7 +6,6 @@ package properties
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -167,6 +166,21 @@ func TestLoadAll(t *testing.T) {
 	assertKeyValues(t, "", p, "key", "value4", "key2", "value2")
 }
 
+func TestLoadReader(t *testing.T) {
+	tf := make(tempFiles, 0)
+	defer tf.removeAll()
+
+	filename := tf.makeFile("key=value")
+	r, err := os.Open(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := MustLoadReader(r, ISO_8859_1)
+
+	assert.Equal(t, p.Len(), 1)
+	assertKeyValues(t, "", p, "key", "value")
+}
+
 type tempFiles []string
 
 func (tf *tempFiles) removeAll() {
@@ -183,9 +197,9 @@ func (tf *tempFiles) makeFile(data string) string {
 }
 
 func (tf *tempFiles) makeFilePrefix(prefix, data string) string {
-	f, err := ioutil.TempFile("", prefix)
+	f, err := os.CreateTemp("", prefix)
 	if err != nil {
-		panic("ioutil.TempFile: " + err.Error())
+		panic("os.TempFile: " + err.Error())
 	}
 
 	// remember the temp file so that we can remove it later

@@ -4,7 +4,6 @@
 package global
 
 import (
-	"context"
 	"testing"
 )
 
@@ -13,9 +12,9 @@ func BenchmarkStartEndSpanNoSDK(b *testing.B) {
 	// ../../sdk/trace/benchmark_test.go.
 	ResetForTest(b)
 	t := TracerProvider().Tracer("Benchmark StartEndSpan")
-	ctx := context.Background()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	ctx := b.Context()
+
+	for b.Loop() {
 		_, span := t.Start(ctx, "/foo")
 		span.End()
 	}

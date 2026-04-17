@@ -64,7 +64,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, InvalidateCachedObjectAttributes)
     {
-        auto paths = FromProto<std::vector<std::pair<TString, NHydra::TRevision>>>(request->table_paths());
+        auto paths = FromProto<std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>>(request->table_paths());
 
         context->SetRequestInfo("Paths: %v", paths);
 
@@ -111,13 +111,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ReloadDictionary)
     {
-        const auto& dictionaryName = request->dictionary_name();
+        const auto& configPath = request->config_path();
 
-        context->SetRequestInfo("DictionaryName: %v",
-            dictionaryName);
+        context->SetRequestInfo("ConfigPath: %v", configPath);
 
-        const auto& externalDictionariesLoader = Host_->GetContext()->getExternalDictionariesLoader();
-        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, dictionaryName);
+        const auto& loader = Host_->GetContext()->getExternalDictionariesLoader();
+        loader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, configPath);
+
         context->Reply();
     }
 };

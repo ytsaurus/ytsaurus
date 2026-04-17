@@ -27,6 +27,7 @@
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -198,14 +199,14 @@ public:
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
+        , NodeStatusDirectory_(Client_->GetNativeConnection()->GetNodeStatusDirectory())
         , MediumDirectory_(Client_->GetNativeConnection()->GetMediumDirectory())
         , LocalDescriptor_(chunkReaderHost->LocalDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(chunkReaderHost->BlockCache)
         , ChunkMetaCache_(chunkReaderHost->ChunkMetaCache)
         , TrafficMeter_(chunkReaderHost->TrafficMeter)
-        , NodeStatusDirectory_(chunkReaderHost->NodeStatusDirectory)
-        , BandwidthThrottler_(chunkReaderHost->BandwidthThrottler)
+        , BandwidthThrottlerProvider_(chunkReaderHost->BandwidthThrottlerProvider)
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
@@ -302,14 +303,14 @@ private:
     const TRemoteReaderOptionsPtr Options_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TMediumDirectoryPtr MediumDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
-    const INodeStatusDirectoryPtr NodeStatusDirectory_;
-    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const TPerCategoryThrottlerProvider BandwidthThrottlerProvider_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const IThroughputThrottlerPtr MediumThrottler_;
     const TNetworkPreferenceList Networks_;
@@ -332,6 +333,12 @@ private:
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
+
+    bool HasActiveNodeDirectorySynchronizer() const
+    {
+        auto nodeDirectorySynchronizer = Client_->GetNativeConnection()->GetNodeDirectorySynchronizer();
+        return nodeDirectorySynchronizer && nodeDirectorySynchronizer->IsStarted();
+    }
 
     bool CanFetchSeedsFromMaster() const
     {
@@ -491,7 +498,7 @@ protected:
                 rsp->cached_blocks()[index].block_size());
         }
 
-        const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+        auto mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
         if (rsp->has_node_directory()) {
             NodeDirectory_->MergeFrom(rsp->node_directory());
         }
@@ -501,7 +508,7 @@ protected:
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
-            .MediumPriority = mediumDescriptor ? mediumDescriptor->Priority : 0,
+            .MediumPriority = mediumDescriptor ? mediumDescriptor->GetPriority() : 0,
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
             .HasCompleteChunk = rsp->has_complete_chunk(),
@@ -1094,13 +1101,14 @@ protected:
             peerAddresses.push_back(*address);
         }
 
-        auto nodeSuspicionMarkTimes = NodeStatusDirectory_
+        auto nodeIdToSuspicionMarkTime = NodeStatusDirectory_
             ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds)
-            : std::vector<std::optional<TInstant>>();
+            : THashMap<TNodeId, TInstant>();
         for (int i = 0; i < std::ssize(peerDescriptors); ++i) {
-            auto suspicionMarkTime = NodeStatusDirectory_
-                ? nodeSuspicionMarkTimes[i]
-                : std::nullopt;
+            auto it = nodeIdToSuspicionMarkTime.find(nodeIds[i]);
+            auto suspicionMarkTime = it == nodeIdToSuspicionMarkTime.end()
+                ? std::nullopt
+                : std::optional(it->second);
             AddPeer(
                 replicas[i],
                 std::move(peerAddresses[i]),
@@ -2185,7 +2193,7 @@ private:
 
             auto future = ThrottleRequest(isPrimaryRequest);
             if (future.IsSet()) {
-                OnRequestThrottled(isPrimaryRequest, future.Get());
+                OnRequestThrottled(isPrimaryRequest, future.GetOrCrash());
             } else {
                 future.Subscribe(BIND(&THedgedRequest::OnRequestThrottled,
                     MakeStrong(this),
@@ -2890,6 +2898,14 @@ private:
                 }
             }
 
+            // NB(achains): If P2P is enabled but node directory synchronizer is not active,
+            //              we must forcefully request node descriptors (see YT-26951).
+            bool fetchNodeDescriptors = FetchNodeDescriptors_;
+            if (!fetchNodeDescriptors && EnableP2P_ && !reader->HasActiveNodeDirectorySynchronizer()) {
+                YT_LOG_DEBUG("Forcing node descriptor fetch because node directory synchronizer is inactive");
+                fetchNodeDescriptors = true;
+            }
+
             future = RequestBatcher_->GetBlockSet(
                 IRequestBatcher::TRequest{
                     .Address = primaryAddress,
@@ -2900,7 +2916,7 @@ private:
                     .PrimaryPeer = primaryPeer,
                     .BackupPeer = backupPeer,
                     .EnableP2P = EnableP2P_,
-                    .FetchNodeDescriptors = FetchNodeDescriptors_,
+                    .FetchNodeDescriptors = fetchNodeDescriptors,
                 },
                 // If hedging is enabled, then get block batching is not allowed.
                 /*hedgingEnabled*/ hedgingOptions.has_value());
@@ -2976,7 +2992,7 @@ private:
 
         std::vector<int> fetchedBlockIndexes;
         for (int index = 0; index < std::ssize(blocks); ++index) {
-            if (!cachedBlockFutures[index].Get().IsOK()) {
+            if (!cachedBlockFutures[index].GetOrCrash().IsOK()) {
                 continue;
             }
 
@@ -3062,11 +3078,12 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto session = New<TReadBlockSetSession>(
         this,
         options,
         blockIndexes,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_);
     return session->Run();
@@ -3357,12 +3374,13 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>({});
     }
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto session = New<TReadBlockRangeSession>(
         this,
         options,
         firstBlockIndex,
         blockCount,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_);
     return session->Run();
@@ -3517,6 +3535,9 @@ private:
         if (PartitionTags_.has_value() && PartitionTags_->size() == 1) {
             req->set_partition_tag(PartitionTags_->Get()[0]);
         } else {
+            if (PartitionTags_.has_value()) {
+                req->RequireServerFeature(EChunkClientFeature::MultiplePartitionTags);
+            }
             YT_OPTIONAL_TO_PROTO(req, partition_tags, PartitionTags_);
         }
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
@@ -3629,9 +3650,11 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto bandwithThottler = BandwidthThrottlerProvider_(options.ClientOptions.WorkloadDescriptor.Category);
     auto callback = BIND([
         this,
         this_ = MakeStrong(this),
+        bandwithThottler = std::move(bandwithThottler),
         options,
         partitionTags
     ] (const std::optional<std::vector<int>>& extensionTags) {
@@ -3640,7 +3663,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
             options,
             partitionTags,
             extensionTags,
-            BandwidthThrottler_,
+            bandwithThottler,
             RpsThrottler_,
             MediumThrottler_)
             ->Run();
@@ -4067,13 +4090,14 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto bandwidthThrottler = BandwidthThrottlerProvider_(options->ChunkReadOptions.WorkloadDescriptor.Category);
     auto session = New<TLookupRowsSession>(
         this,
         std::move(options),
         std::move(lookupKeys),
         estimatedSize,
         codecId,
-        BandwidthThrottler_,
+        std::move(bandwidthThrottler),
         RpsThrottler_,
         MediumThrottler_,
         std::move(sessionInvoker));
@@ -4095,9 +4119,9 @@ public:
         IThroughputThrottlerPtr rpsThrottler,
         IThroughputThrottlerPtr mediumThrottler)
         : UnderlyingReader_(std::move(underlyingReader))
-        , BandwidthThrottler_(std::move(bandwidthThrottler))
-        , RpsThrottler_(std::move(rpsThrottler))
-        , MediumThrottler_(std::move(mediumThrottler))
+        , BandwidthThrottler_(bandwidthThrottler ? std::move(bandwidthThrottler) : GetUnlimitedThrottler())
+        , RpsThrottler_(rpsThrottler ? std::move(rpsThrottler) : GetUnlimitedThrottler())
+        , MediumThrottler_(mediumThrottler ? std::move(mediumThrottler) : GetUnlimitedThrottler())
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(

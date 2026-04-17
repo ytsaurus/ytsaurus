@@ -75,6 +75,15 @@ void TDynamicConfigManagerBase<TConfig>::Start()
 }
 
 template <typename TConfig>
+bool TDynamicConfigManagerBase<TConfig>::HasErrors() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    return !UpdateError_.IsOK() || !UnrecognizedOptionError_.IsOK();
+}
+
+template <typename TConfig>
 std::vector<TError> TDynamicConfigManagerBase<TConfig>::GetErrors() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -304,7 +313,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     // NB: The handler could raise an exception.
     // The config must only be considered applied _after_ a successful call.
-    ConfigChanged_.Fire(AppliedConfig_, newConfig);
+    BeforeConfigChanged_.Fire(AppliedConfig_, newConfig);
 
     {
         auto guard = Guard(SpinLock_);
@@ -312,6 +321,12 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         std::swap(AppliedConfig_, newConfig);
         std::swap(LastAppliedConfigPatchNode_, configNode);
         LastConfigChangeTime_ = TInstant::Now();
+    }
+
+    try {
+        AfterConfigChanged_.Fire(newConfig);
+    } catch (const std::exception& ex) {
+        YT_LOG_ALERT_AND_THROW(TError(ex), "An exception was thrown during dynamic config application");
     }
 
     return true;
@@ -357,6 +372,17 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
             .Item("errors").Value(errors)
             .OptionalItem("unrecognized_options", unrecognizedOptions)
         .EndMap();
+}
+
+template <typename TConfig>
+TFuture<void> TDynamicConfigManagerBase<TConfig>::ScheduleOutOfBandUpdate() const
+{
+    auto event = UpdateExecutor_->GetExecutedEvent();
+    UpdateExecutor_->ScheduleOutOfBand();
+
+    YT_LOG_INFO("Scheduled dynamic config update out of band");
+
+    return event;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

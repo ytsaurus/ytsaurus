@@ -1,10 +1,8 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Union, Optional
 
 if TYPE_CHECKING:
     from typing import Protocol
-    import yt.wrapper as yt
+    from . import YtClient
 
     # NOTE: This is an interface for all progress monitoring objects
     # It's not documented anywhere, but used in type annotation
@@ -182,16 +180,16 @@ def _get_chunk_size_and_thread_count(size_hint, config):
 
 def make_parallel_write_request(
     command_name: str,
-    stream: RawStream | ItemStream,
-    path: str | YPath,
+    stream: Union[RawStream, ItemStream],
+    path: Union[str, YPath],
     params: dict,
     unordered: bool,
-    create_object: callable[[YPath, yt.YtClient], None],
+    create_object: Callable[[YPath, "YtClient"], None],
     remote_temp_directory: str,
-    size_hint: int | None = None,
-    filename_hint: str | None = None,
-    progress_monitor: _ProgressMonitor | None = None,
-    client: yt.YtClient | None = None
+    size_hint: Optional[int] = None,
+    filename_hint: Optional[str] = None,
+    progress_monitor: Optional["_ProgressMonitor"] = None,
+    client: Optional["YtClient"] = None
 ) -> None:
 
     assert isinstance(stream, (RawStream, ItemStream))

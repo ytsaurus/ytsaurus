@@ -259,6 +259,14 @@ struct ICypressManager
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
+    virtual i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const = 0;
+
+    virtual void UpdateGroundUpdateQueueManagerSequenceNumber(
+        TCypressNode* node,
+        i64 sequenceNumber) = 0;
+
+    virtual void DrainGroundUpdateQueueManagerSequenceNumber(i64 sequenceNumber) = 0;
+
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Lock, TLock);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);

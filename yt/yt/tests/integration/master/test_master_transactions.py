@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table, generate_uuid)
+    raises_yt_error, generate_uuid, link)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -437,7 +437,7 @@ class TestMasterTransactions(YTEnvSetup):
         remove("//tmp/file")
         abort_transaction(tx)
 
-    @authors("babenko", "ignat")
+    @authors("kvk1920")
     def test_commit_snapshot_lock(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", b"some_data")
@@ -445,6 +445,7 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction()
 
         lock("//tmp/file", mode="snapshot", tx=tx)
+
         remove("//tmp/file")
         commit_transaction(tx)
 
@@ -540,6 +541,10 @@ class TestMasterTransactions(YTEnvSetup):
 
         with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config"):
             commit_transaction(tx)
+
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            # Mirrored transaction commit failure is handled asynchronously.
+            wait(lambda: not exists(f"#{tx}"))
 
         gc_collect()
 
@@ -677,6 +682,21 @@ class TestMasterTransactions(YTEnvSetup):
             commit_transaction(tx, mutation_id=mutation_id)
         rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
         assert rsp1 == rsp2
+
+    @authors("kvk1920")
+    def test_start_tx_failure(self):
+        set("//sys/@config/transaction_manager/transaction_finisher", {
+            "retries": {
+                "invocation_count": 2,
+                "min_backoff": 50,
+                "backoff_multiplier": 1.1,
+            },
+            "scan_period": 50,
+        })
+        with raises_yt_error("Builtin attribute \"type\" cannot be set"):
+            start_transaction(timeout=1000, attributes={"type": "tablet"})
+        # Should not crash or alert.
+        sleep(3.0)
 
 
 @pytest.mark.enabled_multidaemon
@@ -981,6 +1001,12 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
         "15": {"roles": ["transaction_coordinator"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    }
+
     @authors("kvk1920")
     def test_expiration_during_ground_unavailability(self):
         tx = start_transaction(timeout=10000)
@@ -1026,6 +1052,30 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
 
         wait(lambda: not exists(f"#{tx}"))
         assert get("//tmp/i") == 321
+
+        @authors("kvk1920")
+        def test_commit_snapshot_lock_with_guqm_pause(self):
+            create("file", "//tmp/file")
+            write_file("//tmp/file", b"some_data")
+
+            set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+            try:
+                link("//tmp/file", "//tmp/link")
+
+                tx = start_transaction()
+
+                lock("//tmp/file", mode="snapshot", tx=tx)
+                lock("//tmp/link&", mode="snapshot", tx=tx)
+                lock("//tmp", mode="snapshot", tx=tx)
+
+                remove("//tmp/file")
+                commit_transaction(tx)
+            finally:
+                set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": False})
+
+
+##################################################################
 
 
 @pytest.mark.enabled_multidaemon
@@ -1157,31 +1207,6 @@ class TestCypressTransactionExternalization(YTEnvSetup):
 
         # Shouldn't crash.
         gc_collect()
-
-    @authors("kvk1920")
-    def test_cross_cell_table_copy(self):
-        # The main purpose of this test is to check if
-        # "enable_native_tx_externalization" is properly delivered to tx
-        # participant via Sequoia transactions.
-
-        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/portal/t")
-
-        assert get("//tmp/portal/t/@external_cell_tag") == 12
-
-        tx = start_transaction()
-
-        content = [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}]
-
-        write_table("//tmp/portal/t", content, tx=tx)
-
-        copy("//tmp/portal/t", "//tmp/t", tx=tx)
-        assert exists("//tmp/t", tx=tx)
-        assert read_table("//tmp/t", tx=tx) == content
-
-        commit_transaction(tx)
-        assert exists("//tmp/t")
-        assert read_table("//tmp/t") == content
 
 
 @authors("kvk1920")

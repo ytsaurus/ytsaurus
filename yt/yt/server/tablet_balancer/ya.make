@@ -16,6 +16,7 @@ SRCS(
     table_registry.cpp
     tablet_action.cpp
     tablet_balancer.cpp
+    tablet_balancer_service.cpp
 )
 
 PEERDIR(

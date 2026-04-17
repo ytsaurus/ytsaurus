@@ -50,10 +50,10 @@ public:
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* item = protoDirectory.add_items();
-        item->set_name(NChunkClient::DefaultSlotsMediumName);
-        item->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        item->set_priority(0);
+        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
+        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
+        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
+        protoMediumDescriptor->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
     }
 
@@ -1288,7 +1288,7 @@ TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolumeShar
         // 10% of cluster for 1 millisecond.
         auto overflowedVolume = TResourceVolume(GetOnePercentOfCluster() * 10., TDuration::MilliSeconds(1));
         auto expectedVolume = selfVolume + overflowedVolume;
-        auto actualVolume = acceptablePool->GetAccumulatedResourceVolume() ;
+        auto actualVolume = acceptablePool->GetAccumulatedResourceVolume();
 
         EXPECT_EQ(expectedVolume.GetCpu(), actualVolume.GetCpu());
         EXPECT_NEAR(expectedVolume.GetMemory(), actualVolume.GetMemory(), 1);

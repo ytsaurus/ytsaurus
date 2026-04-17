@@ -36,6 +36,12 @@ IF (OS_ANDROID)
     GO_TEST_SRCS(userns_linux_test.go)
 ENDIF()
 
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        userns_unsupported.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

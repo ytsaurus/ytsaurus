@@ -109,10 +109,10 @@ public:
 private:
     const std::vector<std::string> AttributeNames_;
 
-    class TRevisionStorage
+    class TRevisionCache
     {
     public:
-        explicit TRevisionStorage(ui64 maxPathsSize);
+        explicit TRevisionCache(int maxPathsSize);
 
         void Add(const NYPath::TYPath& path, NHydra::TRevision revision);
 
@@ -121,17 +121,19 @@ private:
         NHydra::TRevision GetDefault() const;
 
     private:
-        const ui64 MaxPathsSize_;
+        const int MaxPathsSize_;
+
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
         THashMap<NYPath::TYPath, NHydra::TRevision> RevisionMap_;
-        TSet<std::pair<NHydra::TRevision, NYPath::TYPath>> Paths_;
+        std::set<std::pair<NHydra::TRevision, NYPath::TYPath>> Paths_;
 
         NHydra::TRevision DefaultRevision_ = NHydra::NullRevision;
 
         void Remove(const NYPath::TYPath& path, bool updateDefault = false);
     };
 
-    TRevisionStorage RefreshRevisionStorage_;
+    TRevisionCache RefreshRevisionCache_;
 
     NYPath::TYPath GetPath(const NYPath::TYPath& key) const override;
     NYTree::IAttributeDictionaryPtr ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const override;

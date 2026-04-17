@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/public.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -258,6 +260,7 @@ struct TConnectionDynamicConfig
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
+    NTabletBalancerClient::TTabletBalancerChannelConfigPtr TabletBalancer;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
@@ -335,6 +338,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultWriteOperationControllerCoreDumpTimeout;
     TDuration DefaultAbandonJobTimeout;
     TDuration DefaultAbortJobTimeout;
+    TDuration DefaultBanRequestTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
@@ -405,9 +409,6 @@ struct TConnectionDynamicConfig
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
-    // COMPAT(sabdenovch)
-    bool AllowUnaliasedSecondaryIndex;
-
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;
@@ -425,7 +426,13 @@ struct TConnectionDynamicConfig
     //! Enables strict access validation in operation info commands.
     bool StrictOperationInfoAccessValidation;
 
+    bool EnableReshardWithSlicingByDefault;
+
     i64 GetJobTraceBatchSize;
+
+    //! Enable base ACO check when validating operation access.
+    bool CheckOperationBaseAco;
+    std::string OperationBaseAcoName;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

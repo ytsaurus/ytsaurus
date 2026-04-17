@@ -72,6 +72,8 @@ void TDictionarySourceConfig::Register(TRegistrar registrar)
 void TDictionaryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("name", &TThis::Name);
+    registrar.Parameter("database", &TThis::Database)
+        .Default();
     registrar.Parameter("source", &TThis::Source);
     registrar.Parameter("layout", &TThis::Layout);
     registrar.Parameter("structure", &TThis::Structure);

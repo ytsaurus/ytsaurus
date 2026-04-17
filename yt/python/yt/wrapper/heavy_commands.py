@@ -21,6 +21,9 @@ from yt.common import join_exceptions, YT_NULL_TRANSACTION_ID as null_transactio
 import sys
 import time
 
+if typing.TYPE_CHECKING:
+    from . import YtClient  # noqa
+
 
 class _ProgressReporter(object):
     def __init__(self, monitor):
@@ -394,5 +397,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
                     iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)
     except:  # noqa
-        tx.abort()
+        try:
+            tx.abort()
+        except Exception as abort_error:
+            logger.warning("Read request cleanup failed: %s", str(abort_error))
         raise

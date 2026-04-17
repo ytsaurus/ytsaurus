@@ -22,6 +22,9 @@ type Processing struct {
 	// Format string for the output table names (e.g., "2006-01-02" for daily tables).
 	// It uses Go's time layout format.
 	TableFormat string `yaml:"table_format"`
+	// Expiration timeout for the output tables.
+	// If not specified, expiration timeout will not be set.
+	ExpirationTimeout time.Duration `yaml:"expiration_timeout"`
 }
 
 type Config struct {

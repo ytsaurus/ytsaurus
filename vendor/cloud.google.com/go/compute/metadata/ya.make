@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.7.0)
+VERSION(v0.9.0)
 
 SRCS(
     log.go
@@ -33,6 +33,12 @@ IF (OS_ANDROID)
     SRCS(
         retry_linux.go
         syscheck_linux.go
+    )
+ENDIF()
+
+IF (OS_EMSCRIPTEN)
+    SRCS(
+        syscheck.go
     )
 ENDIF()
 

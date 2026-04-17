@@ -20,6 +20,7 @@ TTestConnection::TTestConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     IInvokerPtr invoker,
     INodeMemoryTrackerPtr nodeMemoryTracker)
     : ChannelFactory_(std::move(channelFactory))
@@ -29,8 +30,12 @@ TTestConnection::TTestConnection(
     , Invoker_(std::move(invoker))
     , NodeMemoryTracker_(std::move(nodeMemoryTracker))
     , NodeDirectory_(std::move(nodeDirectory))
+    , NodeStatusDirectory_(std::move(nodeStatusDirectory))
+    , NodeDirectorySynchronizer_(CreateNodeDirectorySynchronizer(MakeStrong(this), NodeDirectory_))
     , SchedulerChannel_(ChannelFactory_->CreateChannel("scheduler"))
     , BundleControllerChannel_(ChannelFactory_->CreateChannel("bundle_controller_channel"))
+    , TabletBalancerChannel_(ChannelFactory_->CreateChannel("tablet_balancer_channel"))
+    , CypressProxyChannel_(ChannelFactory_->CreateChannel("cypress_proxy_channel"))
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
 { }
 
@@ -79,6 +84,16 @@ const NNodeTrackerClient::TNodeDirectoryPtr& TTestConnection::GetNodeDirectory()
     return NodeDirectory_;
 }
 
+const NNodeTrackerClient::INodeStatusDirectoryPtr& TTestConnection::GetNodeStatusDirectory()
+{
+    return NodeStatusDirectory_;
+}
+
+const NNodeTrackerClient::INodeDirectorySynchronizerPtr& TTestConnection::GetNodeDirectorySynchronizer()
+{
+    return NodeDirectorySynchronizer_;
+}
+
 NRpc::IChannelPtr TTestConnection::FindMasterChannel(
     NApi::EMasterChannelKind kind,
     NObjectClient::TCellTag cellTag)
@@ -117,6 +132,16 @@ const NRpc::IChannelPtr& TTestConnection::GetBundleControllerChannel()
     return BundleControllerChannel_;
 }
 
+const NRpc::IChannelPtr& TTestConnection::GetTabletBalancerChannel()
+{
+    return TabletBalancerChannel_;
+}
+
+const NRpc::IChannelPtr& TTestConnection::GetCypressProxyChannel()
+{
+    return CypressProxyChannel_;
+}
+
 const NTransactionClient::IClockManagerPtr& TTestConnection::GetClockManager()
 {
     return ClockManager_;
@@ -143,6 +168,7 @@ TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     IInvokerPtr invoker,
     INodeMemoryTrackerPtr nodeMemoryTracker)
 {
@@ -150,6 +176,7 @@ TTestConnectionPtr CreateConnection(
         std::move(channelFactory),
         std::move(networkPreferenceList),
         std::move(nodeDirectory),
+        std::move(nodeStatusDirectory),
         std::move(invoker),
         std::move(nodeMemoryTracker));
 }

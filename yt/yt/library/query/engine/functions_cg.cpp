@@ -36,6 +36,13 @@ static const char* ExecutionContextStructName = "struct.TExpressionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool TFunctionCodegenBase::IsNullable(const std::vector<bool>& /*nullableArgs*/) const
+{
+    return true;
+}
+
 namespace {
 
 std::string ToString(llvm::Type* tp)
@@ -827,13 +834,12 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             std::vector<TLogicalTypePtr> updateArgs = {stateType};
             updateArgs.insert(updateArgs.end(), argumentTypes.begin(), argumentTypes.end());
 
-            auto updateType = CallingConvention_->GetCalleeType(
+            auto updateType = UpdateCallingConvention_->GetCalleeType(
                 builder,
                 updateArgs,
                 stateType,
                 false);
             auto update = std::pair(updateName, updateType);
-
 
             auto mergeType = CallingConvention_->GetCalleeType(
                 builder,
@@ -887,7 +893,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             std::vector<TCodegenValue>(),
             makeCodegenBody(initName, buffer),
             GetWireType(stateType),
-            true,
+            /*aggregate*/ true,
             name + "_init");
     };
 
@@ -900,21 +906,22 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, std::vector<TCGValue> newValues) {
         std::vector<TCodegenValue> codegenArgs;
+        codegenArgs.reserve(newValues.size() + 1);
         codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return aggState;
         });
-        for (auto argument : newValues) {
+        for (const auto& argument : newValues) {
             codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
                 return argument;
             });
         }
 
-        return CallingConvention_->MakeCodegenFunctionCall(
+        return UpdateCallingConvention_->MakeCodegenFunctionCall(
             builder,
-            codegenArgs,
+            std::move(codegenArgs),
             makeCodegenBody(updateName, buffer),
             GetWireType(stateType),
-            true,
+            /*aggregate*/ true,
             name + "_update");
     };
 
@@ -926,20 +933,21 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         name,
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState) {
-        auto codegenArgs = std::vector<TCodegenValue>();
-        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
-            return dstAggState;
-        });
-        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
-            return aggState;
+        auto codegenArgs = std::vector<TCodegenValue>({
+            [=] (TCGBaseContext& /*builder*/) {
+                return dstAggState;
+            },
+            [=] (TCGBaseContext& /*builder*/) {
+                return aggState;
+            }
         });
 
         return CallingConvention_->MakeCodegenFunctionCall(
             builder,
-            codegenArgs,
+            std::move(codegenArgs),
             makeCodegenBody(mergeName, buffer),
             GetWireType(stateType),
-            true,
+            /*aggregate*/ true,
             name + "_merge");
     };
 
@@ -951,17 +959,18 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         name,
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
-        auto codegenArgs = std::vector<TCodegenValue>();
-        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
-            return aggState;
+        auto codegenArgs = std::vector<TCodegenValue>({
+            [=] (TCGBaseContext& /*builder*/) {
+                return aggState;
+            }
         });
 
         return CallingConvention_->MakeCodegenFunctionCall(
             builder,
-            codegenArgs,
+            std::move(codegenArgs),
             makeCodegenBody(finalizeName, buffer),
             GetWireType(resultType),
-            true,
+            /*aggregate*/ true,
             name + "_finalize");
     };
 

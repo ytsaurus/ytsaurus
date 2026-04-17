@@ -1,0 +1,49 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - {% if version >= 2 -%}
+    table_name: child_nodes
+    {% else -%}
+    table_name: child_node
+    {% endif %}
+    type_name: TChildNode
+    table_group: resolve_tables
+    fields:
+      {% if version >= 2 %}
+      - cpp_name: ParentIdHash
+        cpp_type: ui64
+        column_name: parent_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(parent_id)
+
+      {% endif %}
+      - cpp_name: ParentId
+        cpp_type: NCypressClient::TNodeId
+        column_name: parent_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: TransactionId
+        cpp_type: NCypressClient::TTransactionId
+        column_name: transaction_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: ChildKey
+        cpp_type: std::string
+        column_name: child_key
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: ChildId
+        cpp_type: NCypressClient::TNodeId
+        column_name: child_id
+        column_type: String
+
+    verbatim: |
+        {% if version >= 2 %}
+        static constexpr auto Table = ESequoiaTable::ChildNodes;
+        {% else %}
+        static constexpr auto Table = ESequoiaTable::ChildNode;
+        {% endif %}

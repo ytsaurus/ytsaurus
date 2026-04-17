@@ -179,7 +179,7 @@ func (c *jobChecker) checkJobsRoutine(ctx context.Context) JobCheckerResultBatch
 		if info.targetFailedJobCounter != nil {
 			limit := *info.targetFailedJobCounter - info.lastFailedJobCounter
 
-			if limit == 0 {
+			if limit <= 0 {
 				info.targetFailedJobCounter = nil
 				c.opInfos[opID] = info
 				skippedCnt++

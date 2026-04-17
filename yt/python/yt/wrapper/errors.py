@@ -83,6 +83,8 @@ def create_response_error(underlying_error):
         error = YtNoSuchTablet(underlying_error)
     elif sample_error.is_tablet_not_mounted():
         error = YtTabletNotMounted(underlying_error)
+    elif sample_error.is_all_writes_disabled():
+        error = YtAllWritesDisabled(underlying_error)
     elif sample_error.is_rpc_unavailable():
         error = YtRpcUnavailable(underlying_error)
     elif sample_error.is_proxy_banned():
@@ -229,6 +231,11 @@ class YtNoSuchTablet(YtResponseError):
 
 class YtTabletNotMounted(YtResponseError):
     """Tablet is not mounted error"""
+    pass
+
+
+class YtAllWritesDisabled(YtResponseError):
+    """All writes disabled error"""
     pass
 
 

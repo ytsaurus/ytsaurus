@@ -285,6 +285,9 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Optional();
 
+    registrar.Parameter("report_reign_change", &TThis::ReportReignChange)
+        .Optional();
+
     registrar.Parameter("enable_changelog_network_usage_accounting", &TThis::EnableChangelogNetworkUsageAccounting)
         .Optional();
     registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
@@ -292,6 +295,12 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("changelog_throttling_statistics_moving_average_window", &TThis::ChangelogThrottlingStatisticsMovingAverageWindow)
         .GreaterThan(TDuration::Zero())
+        .Optional();
+
+    registrar.Parameter("mutation_handler_failure_log_level", &TThis::MutationHandlerFailureLogLevel)
+        .Optional();
+
+    registrar.Parameter("mutation_handler_failure_log_level_overrides", &TThis::MutationHandlerFailureLogLevelOverrides)
         .Optional();
 }
 
@@ -354,6 +363,11 @@ void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistribut
     UpdateYsonStructField(CheckpointCheckPeriod, dynamicConfig.CheckpointCheckPeriod);
 
     UpdateYsonStructField(AlertOnSnapshotFailure, dynamicConfig.AlertOnSnapshotFailure);
+
+    UpdateYsonStructField(ReportReignChange, dynamicConfig.ReportReignChange);
+
+    UpdateYsonStructField(MutationHandlerFailureLogLevel, dynamicConfig.MutationHandlerFailureLogLevel);
+    UpdateYsonStructField(MutationHandlerFailureLogLevelOverrides, dynamicConfig.MutationHandlerFailureLogLevelOverrides);
 }
 
 void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
@@ -519,6 +533,9 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Default(true);
 
+    registrar.Parameter("report_reign_change", &TThis::ReportReignChange)
+        .Optional();
+
     registrar.Parameter("max_catch_up_accepted_mutation_count", &TThis::MaxCatchUpAcceptedMutationCount)
         .Default(10'000);
 
@@ -530,6 +547,12 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_host_sanitizing", &TThis::EnableHostSanitizing)
         .Default(true);
+
+    registrar.Parameter("mutation_handler_failure_log_level", &TThis::MutationHandlerFailureLogLevel)
+        .Default(ELogLevel::Debug);
+
+    registrar.Parameter("mutation_handler_failure_log_level_overrides", &TThis::MutationHandlerFailureLogLevelOverrides)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->DisableLeaderLeaseGraceDelay && config->LeaderLeaseGraceDelay <= config->LeaderLeaseTimeout) {

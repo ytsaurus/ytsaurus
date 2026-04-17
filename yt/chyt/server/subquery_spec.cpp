@@ -40,7 +40,7 @@ void FillDataSliceDescriptors(
         auto& inputDataSliceDescriptor = dataSliceDescriptors.emplace_back();
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
-            ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
+            ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), dataSlice->Type);
             auto it = GetIteratorOrCrash(miscExtMap, chunkSlice->GetInputChunk()->GetChunkId());
             if (it->second) {
                 SetProtoExtension(
@@ -92,6 +92,10 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     if (spec.TableStatistics.has_value()) {
         ToProto(protoSpec->mutable_table_stats(), *spec.TableStatistics);
     }
+
+    auto* protoSubqueryOptions = protoSpec->mutable_subquery_options();
+    protoSubqueryOptions->set_use_distinct_read_optimization(spec.SubqueryOptions.UseDistinctReadOptimization);
+    protoSubqueryOptions->set_use_min_max_optimization(spec.SubqueryOptions.UseMinMaxOptimization);
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -123,6 +127,12 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     if (protoSpec.has_table_stats()) {
         spec->TableStatistics.emplace();
         FromProto(&spec->TableStatistics.value(), protoSpec.table_stats(), nullptr, protoSpec.table_stats().chunk_row_count());
+    }
+
+    if (protoSpec.has_subquery_options()) {
+        const auto& protoSubqueryOptions = protoSpec.subquery_options();
+        spec->SubqueryOptions.UseDistinctReadOptimization = protoSubqueryOptions.use_distinct_read_optimization();
+        spec->SubqueryOptions.UseMinMaxOptimization = protoSubqueryOptions.use_min_max_optimization();
     }
 }
 

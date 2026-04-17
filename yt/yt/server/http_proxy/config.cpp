@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -365,17 +367,17 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         }
     });
     registrar.Postprocessor([] (TThis* config) {
-        auto setCancelFiberOnConnectionClose = [&] (NHttp::TServerConfig* serverConfig) {
-            if (serverConfig != nullptr && !serverConfig->CancelFiberOnConnectionClose) {
+        auto setCancelFiberOnConnectionClose = [&] (const auto& serverConfig) {
+            if (serverConfig && !serverConfig->CancelFiberOnConnectionClose) {
                 serverConfig->CancelFiberOnConnectionClose = config->CancelFiberOnConnectionClose;
             }
         };
-        setCancelFiberOnConnectionClose(config->HttpServer.Get());
-        setCancelFiberOnConnectionClose(config->HttpsServer.Get());
-        setCancelFiberOnConnectionClose(config->TvmOnlyHttpServer.Get());
-        setCancelFiberOnConnectionClose(config->TvmOnlyHttpsServer.Get());
-        setCancelFiberOnConnectionClose(config->ChytHttpServer.Get());
-        setCancelFiberOnConnectionClose(config->ChytHttpsServer.Get());
+        setCancelFiberOnConnectionClose(config->HttpServer);
+        setCancelFiberOnConnectionClose(config->HttpsServer);
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpServer);
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpsServer);
+        setCancelFiberOnConnectionClose(config->ChytHttpServer);
+        setCancelFiberOnConnectionClose(config->ChytHttpsServer);
     });
 }
 
@@ -425,6 +427,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .Default();
+
+    registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -207,7 +207,7 @@ private:
 
                 CreateLock();
 
-                YT_LOG_DEBUG("Lock created (TransactionId: %v, LockId: %v, TransacionStillAlive: %v)",
+                YT_LOG_DEBUG("Lock created (TransactionId: %v, LockId: %v, TransactionStillAlive: %v)",
                     transactionId,
                     LockId_,
                     Transaction_ != nullptr);

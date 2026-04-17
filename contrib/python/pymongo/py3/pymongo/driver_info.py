@@ -4,7 +4,7 @@
 # may not use this file except in compliance with the License.  You
 # may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,11 +12,14 @@
 # implied.  See the License for the specific language governing
 # permissions and limitations under the License.
 
-"""Advanced options for MongoDB drivers implemented on top of PyMongo."""
+"""Advanced options for MongoDB drivers implemented on top of PyMongo.
+
+.. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
+"""
+from __future__ import annotations
 
 from collections import namedtuple
-
-from bson.py3compat import string_type
+from typing import Optional
 
 
 class DriverInfo(namedtuple("DriverInfo", ["name", "version", "platform"])):
@@ -29,13 +32,14 @@ class DriverInfo(namedtuple("DriverInfo", ["name", "version", "platform"])):
     None to accept PyMongo's default.
     """
 
-    def __new__(cls, name=None, version=None, platform=None):
-        self = super(DriverInfo, cls).__new__(cls, name, version, platform)
-        for name, value in self._asdict().items():
-            if value is not None and not isinstance(value, string_type):
+    def __new__(
+        cls, name: str, version: Optional[str] = None, platform: Optional[str] = None
+    ) -> DriverInfo:
+        self = super().__new__(cls, name, version, platform)
+        for key, value in self._asdict().items():
+            if value is not None and not isinstance(value, str):
                 raise TypeError(
-                    "Wrong type for DriverInfo %s option, value "
-                    "must be an instance of %s" % (name, string_type.__name__)
+                    f"Wrong type for DriverInfo {key} option, value must be an instance of str, not {type(value)}"
                 )
 
         return self

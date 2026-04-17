@@ -99,7 +99,7 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         OverloadController_ = NRpc::CreateOverloadController(
             New<NRpc::TOverloadControllerConfig>(),
@@ -271,8 +271,7 @@ public:
 
         GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
-        GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
-            GetConfig()->DataNode->DistributedChunkSessionService,
+        GetRpcServer()->RegisterService(NDistributedChunkSessionServer::CreateDistributedChunkSessionService(
             GetStorageLightInvoker(),
             GetConnection()));
 

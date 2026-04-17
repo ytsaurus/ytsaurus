@@ -3,8 +3,6 @@
 #include "store_manager_detail.h"
 #include "dynamic_store_bits.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -112,6 +110,9 @@ public:
     void UpdatePartitionSampleKeys(
         TPartition* partition,
         const TSharedRange<TLegacyKey>& keys) override;
+
+    void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) override;
+    void ReleaseUnleashedBackingStore(TDynamicStoreId backingStoreId) override;
 
 private:
     const TTabletManagerConfigPtr Config_;

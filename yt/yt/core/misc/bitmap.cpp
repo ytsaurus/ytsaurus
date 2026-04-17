@@ -99,7 +99,7 @@ TCompactBitmap::TCompactBitmap(TCompactBitmap&& other) noexcept
     other.SetUninitializedState();
 }
 
-TCompactBitmap& TCompactBitmap::operator=(TCompactBitmap&& other)
+TCompactBitmap& TCompactBitmap::operator=(TCompactBitmap&& other) noexcept
 {
     if (this == &other) {
         return *this;
@@ -151,7 +151,7 @@ void TCompactBitmap::CopyFrom(const TCompactBitmap& other, int bitSize)
 }
 
 
-bool TCompactBitmap::operator[] (size_t index) const
+bool TCompactBitmap::operator[](size_t index) const
 {
     if (!IsInitialized()) {
         return false;

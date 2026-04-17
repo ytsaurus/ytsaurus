@@ -92,6 +92,10 @@ By default, the `"default"` medium is specified as primary on create.
 
 The `replication_factor` attribute is a synonym for `@media/<primary_medium_name>/replication_factor`. The attribute has been kept for backward compatibility and ease of access.
 
+### Наследование
+
+Attributes `primary_medium` and `media` are [inheritable](../../../user-guide/storage/attributes.md#system_attr). This means they can be set on a directory, a then every newly created chunk owner in the subtree will receive corresponding attribute values automatically. Using the `primary_medium` attribute is preferred in most cases; using `media` this way is not recommended.
+
 ### Limitations
 
 Editing a table's `media` attribute is a potentially dangerous action. If you specify a medium that is out of space, for example, a table will become locked for writing. Editing `media` results in large amounts of data being moved, which may impact performance.

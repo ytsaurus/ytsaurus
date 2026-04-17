@@ -127,7 +127,6 @@ IMPLEMENT_SUPPORTS_METHOD(List)
 IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     Exists,
     {
-        // TODO(kvk1920): it would be great to log target object ID here.
         context->SetRequestInfo();
         Reply(context, /*exists*/ false);
     })
@@ -138,9 +137,7 @@ void TSupportsExists::ExistsAttribute(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
-    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
-
     Reply(context, /*exists*/ false);
 }
 
@@ -149,9 +146,7 @@ void TSupportsExists::ExistsSelf(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
-    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
-
     Reply(context, /*exists*/ true);
 }
 
@@ -161,9 +156,7 @@ void TSupportsExists::ExistsRecursive(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
-    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
-
     Reply(context, /*exists*/ false);
 }
 
@@ -255,8 +248,20 @@ protected:
         return ResolveResult_.IsSnapshot();
     }
 
+    void SetBasicRequestInfo(const ISequoiaServiceContextPtr& context)
+    {
+        context->SetIncrementalRequestInfo(
+            "TargetObjectPath: %v, TargetObjectId: %v, Path: %v%v",
+            Path_,
+            MakeVersionedNodeId(Id_),
+            Path_,
+            GetRequestTargetYPath(context->GetRequestHeader()));
+    }
+
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
+        SetBasicRequestInfo(context);
+
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Set);
@@ -661,6 +666,7 @@ protected:
 
     void GetSelf(TReqGet* request, TRspGet* /*response*/, const TCtxGetPtr& context) override
     {
+        // TODO(danilalexeev): YT-26172. Support requests with special attributes.
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
@@ -744,7 +750,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo("TargetObjectId: %v", Id_);
+        context->SetRequestInfo();
         // Permission validation is intentionally skipped here.
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
@@ -755,7 +761,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo("TargetObjectId: %v", Id_);
+        context->SetRequestInfo();
 
         ValidatePermissionForThis(EPermission::Read);
 
@@ -777,87 +783,62 @@ protected:
         ValidatePermissionForThis(EPermission::Read);
 
         NYPath::TTokenizer tokenizer(path);
-        std::optional<std::string> key;
         if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
             tokenizer.Expect(NYPath::ETokenType::Literal);
-            key = tokenizer.GetLiteralValue();
-            tokenizer.Advance();
-
-            // We ignore attribute filter if the attribute is defined in path.
-            attributeFilter = TAttributeFilter({key.value()});
+            attributeFilter = TAttributeFilter({tokenizer.GetLiteralValue()});
         }
 
-        auto [attributeFetcher, leftAttributes] = CreateSpecialAttributeFetcherAndLeftAttributesForNode(
+        if (!HasSpecialAttributes(attributeFilter)) {
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto attributesFuture = FetchAttributesForNode(
             SequoiaSession_,
             attributeFilter,
             Id_,
-            ResolveResult_.NodeAncestry);
+            ResolveResult_.NodeAncestry)
+            .AsUnique();
 
-        if (key && !leftAttributes.Keys().empty()) {
-            // Key is not a special attribute, so it can be requested by master.
-            AbortSequoiaSessionForLaterForwardingToMaster();
-            return;
-        }
-
-        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
-        if (!nodesWithAttributes.contains(Id_)) {
-            // No special attributes are fetched, so we can forward request to master.
-            AbortSequoiaSessionForLaterForwardingToMaster();
-            return;
-        }
-        auto node = GetOrCrash(nodesWithAttributes, Id_);
+        auto attributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
 
         TYsonString result;
-        if (key) {
-            // The key is requested by path, and we haven't forwarded request to master.
-            // This means that key is special attribute which we have fetched, so we can return it.
-            if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv is not found", key.value());
+        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+            // Attribute is requested by path, and request was not forwarded to master.
+            // This means the key is a special attribute.
+            auto key = tokenizer.GetLiteralValue();
+
+            if (!attributes->Contains(key)) {
+                ThrowNoSuchAttribute(key);
             }
 
-            auto attributeFragmentPath = TYPath(tokenizer.GetInput());
-            auto attributeYson = node->Attributes().GetYson(key.value());
-            if (attributeFragmentPath.empty()) {
-                result = attributeYson;
+            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                result = attributes->GetYson(key);
             } else {
-                auto attributeNode = ConvertToNode(attributeYson);
-                result = SyncYPathGet(attributeNode, attributeFragmentPath, TAttributeFilter());
+                result = SyncYPathGet(
+                    attributes->Get<INodePtr>(key),
+                    TYPath(tokenizer.GetInput()),
+                    TAttributeFilter());
             }
         } else {
-            if (!leftAttributes.IsEmpty()) {
-                // We will fetch all basic attributes from master to preserve logic implemented in cypress server.
-                // After that, basic attributes will be combined with special attributes.
-                auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@");
-                ToProto(reqGet->mutable_attributes(), leftAttributes);
-                SetAllowResolveFromSequoiaObject(reqGet, true);
-
-                auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
-                    .ValueOrThrow();
-
-                auto masterResponseNode = ConvertToNode(TYsonString(rspGet->value()));
-                if (masterResponseNode->GetType() != ENodeType::Map) {
-                    THROW_ERROR_EXCEPTION("Error while getting attributes");
-                }
-
-                auto masterResponseAttributes = masterResponseNode->AsMap();
-                for (const auto& [key, value] : masterResponseAttributes->GetChildren()) {
-                    if (!node->Attributes().Contains(key)) {
-                        node->MutableAttributes()->Set(key, value);
-                    }
-                }
-            }
-
             TAsyncYsonWriter writer;
             writer.OnBeginMap();
-            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);;
+            // TODO(danilalexeev): YT-26172. Do not copy attributes.
+            auto node = CreateEphemeralNodeFactory()->CreateEntity();
+            node->MutableAttributes()->MergeFrom(*attributes);
+            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);
             writer.OnEndMap();
-            result = WaitForFast(writer.Finish()).ValueOrThrow();
+            result = WaitForFast(writer.Finish())
+                .ValueOrThrow();
         }
+
+        response->set_value(ToProto(result));
+
+        AccessTrackingOptions_.SuppressAccessTracking = true;
 
         MaybeTouchCurrentNode(TYPathProxy::Get, context);
         // Should not throw after this point.
-
-        response->set_value(ToProto(result));
 
         context->Reply();
     }
@@ -995,8 +976,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
     auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
 
-    context->SetRequestInfo("TargetObjectId: %v, Permission: %v",
-        Id_,
+    context->SetRequestInfo("Permission: %v",
         permission);
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
@@ -1037,7 +1017,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1046,7 +1026,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1055,7 +1035,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1064,7 +1044,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1073,7 +1053,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
@@ -1243,11 +1223,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     ToProto(response->mutable_node_id(), createdNodeId);
     response->set_cell_tag(ToProto(CellTagFromId(createdNodeId)));
 
-    // TODO(h0pless): Add account info here, currently impossible to integrate properly due to the fact
-    // that there is no such attribute stored in Sequoia dynamic tables.
-    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+    auto accountName = inheritedAttributes->Get<std::string>(EInternedAttributeKey::Account.Unintern());
+    context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
         createdNodeId,
-        CellTagFromId(createdNodeId));
+        CellTagFromId(createdNodeId),
+        accountName);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(attachmentPointNodeId), /*commitSession*/ true);
 }
@@ -1439,7 +1419,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    context->SetRequestInfo();
 
     SequoiaSession_->ValidateTransactionPresence();
 
@@ -1515,12 +1495,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 
     const auto& stateAttribute = EInternedAttributeKey::State.Unintern();
     auto asyncLockAcquired = waitable
-        ? FetchSingleObject(
+        ? FetchSingleObjectAttributes(
             client,
             TVersionedObjectId{lockId},
             TAttributeFilter({stateAttribute}))
-            .Apply(BIND([&] (const INodePtr& rsp) {
-                return rsp->Attributes().Get<ELockState>(stateAttribute) == ELockState::Acquired;
+            .Apply(BIND([&] (const IAttributeDictionaryPtr& attributes) {
+                return attributes->Get<ELockState>(stateAttribute) == ELockState::Acquired;
             }))
         : MakeFuture(true);
 
@@ -1661,17 +1641,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
 
     const auto& client = SequoiaSession_->GetNativeAuthenticatedClient();
     const auto& accountIdAttribute = EInternedAttributeKey::AccountId.Unintern();
-    auto asyncNode = FetchSingleObject(
+
+    auto asyncAccoundId = FetchSingleObjectAttributes(
         client,
         MakeVersionedNodeId(parentNodeId),
-        TAttributeFilter({accountIdAttribute}));
+        TAttributeFilter({accountIdAttribute}))
+        .Apply(BIND([&] (const IAttributeDictionaryPtr& attributes) {
+            return attributes->Get<TAccountId>(accountIdAttribute);
+        }));
 
-    auto node = WaitFor(asyncNode)
+    auto accountId = WaitFor(asyncAccoundId)
         .ValueOrThrow();
-
-    auto accountId = node
-        ->Attributes()
-        .Get<TAccountId>(accountIdAttribute);
 
     // TODO(h0pless): Maybe create all nodes all the way up to PARENT node? See LockCopyDestination in master.
     // I think both should be done simultaneously to facilitate the transition.
@@ -1773,9 +1753,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CalculateInheritedAttributes)
 
     const auto& masterConnector = Bootstrap_->GetMasterConnector();
 
-    context->SetRequestInfo("Path: %v, TargetObjectId: %v, DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
-        Path_,
-        MakeVersionedNodeId(Id_),
+    context->SetRequestInfo("DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
         dstInheritedAttributes->ListPairs(),
         true);
 
@@ -1864,28 +1842,42 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         force);
 
     // Sanity checks.
-    YT_LOG_ALERT_IF(
+    YT_LOG_ALERT_AND_THROW_IF(
         request->node_id_to_children_size() == 0,
         "Empty list received when attempting to assemble tree copy");
-    YT_LOG_ALERT_IF(
+    YT_LOG_ALERT_AND_THROW_IF(
         rootNodeId != FromProto<TNodeId>(request->node_id_to_children()[0].node_id()),
         "Received malformed request to assemble tree copy (RootNodeId: %v, FirstElementInMapping: %v)",
         rootNodeId,
         FromProto<TNodeId>(request->node_id_to_children()[0].node_id()));
 
-    THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildrenInfo;
+    TNodeIdToChildDescriptors nodeIdToChildren;
     for (const auto& nodeIdToChild : request->node_id_to_children()) {
         auto nodeId = FromProto<TNodeId>(nodeIdToChild.node_id());
-        nodeIdToChildrenInfo[nodeId].reserve(nodeIdToChild.children_size());
-        for (const auto& child : nodeIdToChild.children()) {
-            auto childId = FromProto<TNodeId>(child.id());
-            nodeIdToChildrenInfo[nodeId].push_back({
+        std::vector<TCypressChildDescriptor> children;
+        children.reserve(nodeIdToChild.children_size());
+        for (const auto& childInfo : nodeIdToChild.children()) {
+            auto childId = FromProto<TNodeId>(childInfo.id());
+            children.push_back({
                 .ParentId = nodeId,
                 .ChildId = childId,
-                .ChildKey = child.key(),
+                .ChildKey = childInfo.key(),
             });
+            EmplaceDefault(nodeIdToChildren, childId);
         }
+        nodeIdToChildren[nodeId] = std::move(children);
     }
+
+    auto linkNodeIdsView = nodeIdToChildren
+        | std::views::keys
+        | std::views::filter([] (TNodeId nodeId) {
+            return IsLinkType(TypeFromId(nodeId));
+        });
+    auto linkNodeIds = std::vector(std::ranges::begin(linkNodeIdsView), std::ranges::end(linkNodeIdsView));
+    auto linkNodeIdToTargetPath = WaitFor(SequoiaSession_->FetchNodeAttributesFromMaster(
+        linkNodeIds,
+        TAttributeFilter({EInternedAttributeKey::TargetPath.Unintern()})))
+        .ValueOrThrow();
 
     auto destinationRootPath = PathJoin(
         Path_,
@@ -1896,7 +1888,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         destinationRootPath,
         preserveAcl,
         preserveModificationTime,
-        std::move(nodeIdToChildrenInfo));
+        nodeIdToChildren,
+        linkNodeIdToTargetPath);
 
     context->SetResponseInfo("NodeId: %v", rootNodeId);
 
@@ -1935,10 +1928,9 @@ private:
             return TNodeProxy::DoInvoke(context);
         }
 
-        context->SetRequestInfo("Path: %v%v, TargetObjectId: %v",
-            Path_,
-            GetRequestTargetYPath(context->RequestHeader()),
-            MakeVersionedNodeId(Id_));
+        SetBasicRequestInfo(context);
+
+        context->SetRequestInfo();
 
         bool isEmptyUnresolvedSuffix = NYPath::ETokenType::EndOfStream == ParseUnresolvedSuffix(
             GetRequestTargetYPath(context->GetRequestHeader()),
@@ -2272,13 +2264,13 @@ private:
             fullAttributeFilter);
 
         auto masterAttributeFilter = fullAttributeFilter;
-        masterAttributeFilter.Remove({"opaque"});
+        masterAttributeFilter.Remove({EInternedAttributeKey::Opaque.Unintern()});
 
         ValidatePermissionForThis(EPermission::Read);
 
         auto acdFetcher = SequoiaSession_->GetAcdFetcher();
         auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
-        auto trivialAcd = TAccessControlDescriptor{};
+        auto validatePermission = fastAction != ESecurityAction::Allow;
 
         struct TNode
         {
@@ -2292,17 +2284,18 @@ private:
 
         TNodeIdToChildDescriptors nodeIdToChildren;
         std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
+        THashSet<TNodeId> opaqueNodeIds;
 
-        int depth = 0;
-        bool subtreeExceedesSizeLimit = false;
         while (!layerToFetch.empty()) {
-            ++depth;
-
-            YT_LOG_TRACE("Fetching next layer (CurrentDepth: %v)", depth);
-
             std::vector<TNode> fetchedParents;
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
             for (auto node : layerToFetch) {
+                if (validatePermission && node.IntermediateResult.GetAction() != ESecurityAction::Allow) {
+                    // Do not put child in the map, marking no access.
+                    continue;
+                }
+                EmplaceDefault(nodeIdToChildren, node.Id);
+
                 if (auto type = TypeFromId(node.Id); IsSequoiaCompositeNodeType(type)) {
                     fetchedParents.push_back(node);
                     asyncLayerChildren.push_back(SequoiaSession_->FetchChildren(node.Id));
@@ -2320,63 +2313,61 @@ private:
             auto layerChildren = WaitFor(AllSucceeded(std::move(asyncLayerChildren)))
                 .ValueOrThrow();
 
-            auto layerChildrenCount = std::accumulate(
-                layerChildren.begin(),
-                layerChildren.end(),
-                i64(0),
-                [&] (i64 totalCount, auto children) {
-                    totalCount += children.size();
-                    return totalCount;
-                });
+            i64 layerChildrenCount = 0;
+            std::vector<TNode> filteredFetchedParents;
+            std::vector<std::vector<TCypressChildDescriptor>> filteredLayerChildren;
 
-            // Root node should not be made opaque, hence depth check.
-            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && depth > 1) {
-                YT_LOG_DEBUG(
-                    "Subtree exceeds size limit (ResponseSubtreeSize: %v, SubtreeDepth: %v "
-                    "NextLayerChildrenCount: %v, ResponseSizeLimit: %v)",
-                    std::ssize(nodeIdToChildren),
-                    depth,
-                    layerChildrenCount,
-                    responseSizeLimit);
+            for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
+                // Root node must never become opaque, enforce minimum depth of 1.
+                // If adding this parent's children would exceed the budget,
+                // mark the parent as opaque and skip its children entirely.
+                if (parent.Id != Id_ &&
+                    !children.empty() &&
+                    std::ssize(nodeIdToChildren) + layerChildrenCount + std::ssize(children) > responseSizeLimit)
+                {
+                    YT_LOG_TRACE(
+                        "Node subtree exceeds size limit, marking as opaque "
+                        "(RootId: %v, ResponseSubtreeSize: %v, NodeId: %v, NodeChildrenCount: %v, "
+                        "CurrentLayerSize: %v, ResponseSizeLimit: %v)",
+                        Id_,
+                        std::ssize(nodeIdToChildren),
+                        parent.Id,
+                        std::ssize(children),
+                        layerChildrenCount,
+                        responseSizeLimit);
+                    opaqueNodeIds.insert(parent.Id);
+                    continue;
+                }
 
-                subtreeExceedesSizeLimit = true;
-                break;
+                layerChildrenCount += std::ssize(children);
+                filteredFetchedParents.push_back(parent);
+                filteredLayerChildren.push_back(std::move(children));
             }
+            std::swap(fetchedParents, filteredFetchedParents);
+            std::swap(layerChildren, filteredLayerChildren);
 
-            auto layerChildrenAcds = acdFetcher->Fetch(layerChildren);
+            auto layerChildrenAcds = validatePermission
+                ? acdFetcher->Fetch(layerChildren)
+                : std::vector<const TAccessControlDescriptor*>{};
             auto childAcdIt = layerChildrenAcds.begin();
 
             std::vector<TNode> nextLayerToFetch;
             YT_VERIFY(std::ssize(fetchedParents) == std::ssize(layerChildren));
             for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
                 for (const auto& child : children) {
-                    const auto* acd = *childAcdIt++;
-                    auto result = parent
-                        .IntermediateResult
-                        .Put(*acd, matchAceSubjectCallback);
-
-                    // TODO(danilalexeev): YT-24575. Do not fetch ACD on superuser's request.
-                    if (fastAction != ESecurityAction::Allow &&
-                        result.GetAction() != ESecurityAction::Allow)
-                    {
-                        // Do not put child in the map, marking no access.
-                        continue;
+                    TIntermediateReadPermissionCheckResult result;
+                    if (validatePermission) {
+                        const auto* acd = *childAcdIt++;
+                        result = parent
+                            .IntermediateResult
+                            .Put(*acd, matchAceSubjectCallback);
                     }
-
-                    EmplaceDefault(nodeIdToChildren, child.ChildId);
                     nextLayerToFetch.emplace_back(child.ChildId, result);
                 }
-
                 nodeIdToChildren[parent.Id] = std::move(children);
             }
-
             YT_VERIFY(childAcdIt == layerChildrenAcds.end());
-            layerToFetch = std::move(nextLayerToFetch);
-        }
-
-        if (!subtreeExceedesSizeLimit) {
-            // TODO(danilalexeev): YT-26733.
-            depth = 0;
+            std::swap(layerToFetch, nextLayerToFetch);
         }
 
         YT_LOG_DEBUG(
@@ -2386,26 +2377,27 @@ private:
             std::ssize(scalarNodeIdsToFetchFromMaster),
             masterAttributeFilter);
 
-        auto attributeFetcher = CreateAttributeFetcherForGetRequest(
+        auto attributesFuture = FetchAttributesForGetRequest(
             SequoiaSession_,
             masterAttributeFilter,
-            Id_,
             &nodeIdToChildren,
-            ResolveResult_.NodeAncestry,
-            scalarNodeIdsToFetchFromMaster);
+            &scalarNodeIdsToFetchFromMaster,
+            ResolveResult_.NodeAncestry);
 
-        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
-        // Build a DFS over this mess.
+        auto nodesWithAttributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
+
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        auto writer = TBufferedBinaryYsonWriter(&stream);
+        auto adapter = NYson::TAsyncYsonConsumerAdapter(&writer);
 
         VisitSequoiaTree(
             Id_,
-            depth,
-            &writer,
+            &adapter,
             fullAttributeFilter,
-            std::move(nodeIdToChildren),
-            std::move(nodesWithAttributes));
+            nodeIdToChildren,
+            nodesWithAttributes,
+            opaqueNodeIds);
 
         writer.Flush();
 
@@ -2551,12 +2543,12 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        // TODO(h0pless): Get rid of limit here.
+        // NB: Limit works for list, and not for get. This is a weird descion, but
+        // let's just mirror the behaviour of Cypress here.
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
-
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
-            attributeFilter);
+        context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
+            attributeFilter,
+            limit);
 
         if (limit && limit < 0) {
             THROW_ERROR_EXCEPTION("Limit is negative")
@@ -2565,55 +2557,70 @@ private:
 
         ValidatePermissionForThis(EPermission::Read);
 
-        auto acdFetcher = SequoiaSession_->GetAcdFetcher();
-        auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
-
         TAsyncYsonWriter writer;
 
         auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
             .ValueOrThrow();
-        auto childrenAcds = acdFetcher->Fetch({children});
 
         if (limit && std::ssize(children) > limit) {
             children.resize(*limit);
-
             writer.OnBeginAttributes();
             writer.OnKeyedItem("incomplete");
             writer.OnBooleanScalar(true);
             writer.OnEndAttributes();
         }
 
-        auto attributeFetcher = CreateAttributeFetcherForListRequest(
+        auto attributesFuture = FetchAttributesForListRequest(
             SequoiaSession_,
             attributeFilter,
-            Id_,
             &children,
             ResolveResult_.NodeAncestry);
 
-        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
+        auto nodesWithAttributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
+
+        auto acdFetcher = SequoiaSession_->GetAcdFetcher();
+        auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
+        auto validatePermission = attributeFilter && !attributeFilter.IsEmpty() && fastAction != ESecurityAction::Allow;
+
+        auto childrenAcds = validatePermission
+            ? acdFetcher->Fetch({children})
+            : std::vector<const TAccessControlDescriptor*>{};
+        auto childAcdIt = childrenAcds.begin();
+
+        auto checkAccessGranted = [&] {
+            if (!validatePermission) {
+                return true;
+            }
+            const auto* acd = *childAcdIt++;
+            return intermediateResult.Put(*acd, matchAceSubjectCallback).GetAction() == ESecurityAction::Allow;
+        };
 
         writer.OnBeginList();
-        for (const auto& [child, acd] : Zip(children, childrenAcds)) {
+
+        for (const auto& child : children) {
+            auto accessGranted = checkAccessGranted();
             if (attributeFilter && !attributeFilter.IsEmpty()) {
-                auto nodeIter = nodesWithAttributes.find(child.ChildId);
-                if (nodeIter == nodesWithAttributes.end()) {
-                    // Silently omit the node.
-                    continue;
+                const auto& attributes = GetOrCrash(nodesWithAttributes, child.ChildId);
+                if (std::holds_alternative<TMissingNodeTag>(attributes)) {
+                    continue; // Omit the node;
                 }
+
                 writer.OnListItem();
 
-                auto action = intermediateResult.Put(*acd, matchAceSubjectCallback).GetAction();
-                // TODO(danilalexeev): YT-24575. Do not fetch ACD on superuser's request.
-                if (fastAction == ESecurityAction::Allow ||
-                    action == ESecurityAction::Allow)
-                {
-                    nodeIter->second->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
+                if (accessGranted) {
+                    // TODO(danilalexeev): YT-26172. Do not copy attributes.
+                    auto node = CreateEphemeralNodeFactory()->CreateEntity();
+                    node->MutableAttributes()->MergeFrom(*std::get<IAttributeDictionaryPtr>(attributes));
+                    node->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
                 }
             } else {
                 writer.OnListItem();
             }
             writer.OnStringScalar(child.ChildKey);
         }
+        YT_VERIFY(childAcdIt == childrenAcds.end());
+
         writer.OnEndList();
 
         auto result = WaitForFast(writer.Finish())
@@ -2665,6 +2672,11 @@ private:
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
+        context->SetIncrementalRequestInfo("TargetObjectId: %v, Path: %v/%v",
+            Id_,
+            Id_,
+            GetRequestTargetYPath(context->GetRequestHeader()));
+
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
         THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", Id_);
     }

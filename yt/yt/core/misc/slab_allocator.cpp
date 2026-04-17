@@ -8,6 +8,7 @@
 
 #include <library/cpp/yt/malloc/malloc.h>
 
+#include <library/cpp/yt/memory/free_list.h>
 #include <library/cpp/yt/memory/poison.h>
 
 namespace NYT {
@@ -115,7 +116,7 @@ public:
     void* Allocate()
     {
         auto* obj = FreeList_.Extract();
-        if (Y_LIKELY(obj)) {
+        if (obj) [[likely]] {
             RecycleFreedMemory(TMutableRef(&obj[1], ObjectSize_ - sizeof(TFreeListItem)));
             AllocatedItems.Increment();
             AliveItems.Update(GetRefCounter(this)->GetRefCount() + 1);
@@ -447,7 +448,7 @@ TSlabAllocator::TSlabAllocator(
     LargeArena_.reset(new TLargeArena(memoryTracker, profiler));
 }
 
-void TSlabAllocator::TLargeArenaDeleter::operator() (TLargeArena* arena)
+void TSlabAllocator::TLargeArenaDeleter::operator()(TLargeArena* arena)
 {
     arena->Unref();
 }

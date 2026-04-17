@@ -11,6 +11,7 @@
 
 #include <yt/yt/library/tvm/service/mock/mock_tvm_service.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/yt/core/http/helpers.h>
@@ -98,7 +99,7 @@ TEST_F(TBlackboxTest, FailOnBadHost)
     config->Port = 1;
     config->UsePostRequests = true;
     auto service = CreateBlackboxService(config);
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AnyOf(HasSubstr("Domain name"), HasSubstr("DNS")));
 }
@@ -110,7 +111,7 @@ TEST_F(TBlackboxTest, FailOn5xxResponse)
         request->Output() << HttpResponse(500, "");
     });
     auto service = CreateBlackboxService();
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(!result.IsOK());
     Cerr << ToString(result) << Endl;
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 500"));
@@ -123,7 +124,7 @@ TEST_F(TBlackboxTest, FailOn4xxResponse)
         request->Output() << HttpResponse(404, "");
     });
     auto service = CreateBlackboxService();
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 404"));
 }
@@ -135,7 +136,7 @@ TEST_F(TBlackboxTest, FailOnEmptyResponse)
         request->Output() << HttpResponse(200, "");
     });
     auto service = CreateBlackboxService();
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Error parsing JSON"));
 }
@@ -147,7 +148,7 @@ TEST_F(TBlackboxTest, FailOnMalformedResponse)
         request->Output() << HttpResponse(200, "#$&(^$#@(^");
     });
     auto service = CreateBlackboxService();
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Error parsing JSON"));
 }
@@ -159,7 +160,7 @@ TEST_F(TBlackboxTest, FailOnBlackboxException)
         request->Output() << HttpResponse(200, R"jj({"exception":{"id": 666, "value": "bad stuff happened"}})jj");
     });
     auto service = CreateBlackboxService();
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox has raised an exception"));
 }
@@ -169,7 +170,7 @@ TEST_F(TBlackboxTest, FailOnTvmException)
     auto service = CreateBlackboxService();
     EXPECT_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
         .WillOnce(Throw(std::exception()));
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     EXPECT_FALSE(result.IsOK());
 }
 
@@ -183,7 +184,7 @@ TEST_F(TBlackboxTest, Success)
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     });
     auto service = CreateBlackboxService();
-    auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
+    auto result = WaitForFast(service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}));
     ASSERT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
@@ -197,7 +198,7 @@ TEST_F(TBlackboxTest, NoTvmService)
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     });
     auto service = CreateBlackboxService(/*config*/ nullptr, /*useTvmService*/ false);
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
@@ -224,7 +225,7 @@ TEST_F(TBlackboxTest, RetriesErrors)
     config->RequestTimeout = TDuration::Seconds(30);
     config->UsePostRequests = true;
     auto service = CreateBlackboxService(config);
-    auto result = service->Call("hello", {}).Get();
+    auto result = WaitForFast(service->Call("hello", {}));
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ(7, counter.load());
 }
@@ -277,8 +278,8 @@ protected:
     TFuture<TAuthenticationResult> Invoke(const std::string& token, const std::string& userIP)
     {
         return Authenticator_->Authenticate(TTokenCredentials{
-            token,
-            NNet::TNetworkAddress::Parse(userIP)
+            .Token = token,
+            .UserIP = NNet::TNetworkAddress::Parse(userIP)
         });
     }
 
@@ -291,7 +292,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("oauth", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Underlying failure"));
 }
@@ -299,7 +300,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse1)
 {
     MockCall("{}");
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("invalid response"));
 }
@@ -307,7 +308,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse1)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse2)
 {
     MockCall("{status={id=0}}");
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AllOf(
         HasSubstr("invalid response"),
@@ -319,7 +320,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse2)
 TEST_F(TTokenAuthenticatorTest, FailOnRejection)
 {
     MockCall("{status={id=5}}");
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("rejected token"));
 }
@@ -334,7 +335,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
             login=hacker;
             user_ticket=good_ticket_maybe
         })yy");
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("does not provide a valid scope"));
 }
@@ -349,7 +350,7 @@ TEST_F(TTokenAuthenticatorTest, Success)
             login=sandello;
             user_ticket=good_ticket
         })yy");
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
@@ -365,7 +366,7 @@ TEST_F(TTokenAuthenticatorTest, SuccessWithoutTicket)
             status={id=0};
             oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};
             login=sandello})yy");
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
@@ -416,7 +417,7 @@ TEST_F(TCachingTokenAuthenticatorTest, GoodCaching)
     EXPECT_CALL(*Blackbox_, Call("oauth", _))
         .WillRepeatedly(Return(GoodResult));
 
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 }
 
@@ -430,17 +431,17 @@ TEST_F(TCachingTokenAuthenticatorTest, OptimisticCaching)
             .WillRepeatedly(Return(ErrorResult));
     }
 
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 
     Sleep(TDuration::Seconds(1));
 
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 
     Sleep(TDuration::Seconds(1));
 
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 }
 
@@ -454,14 +455,14 @@ TEST_F(TCachingTokenAuthenticatorTest, ErrorCaching)
             .WillRepeatedly(Return(GoodResult));
     }
 
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_THROW(result.ValueOrThrow(), TErrorException);
 
     Sleep(TDuration::Seconds(2));
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
 
     Sleep(TDuration::Seconds(1));
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 }
 
@@ -475,16 +476,16 @@ TEST_F(TCachingTokenAuthenticatorTest, TokenInvalidation)
             .WillRepeatedly(Return(RejectResult));
     }
 
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 
     Sleep(TDuration::Seconds(2));
 
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
 
     Sleep(TDuration::Seconds(1));
 
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_FALSE(result.IsOK());
 }
 
@@ -498,12 +499,12 @@ TEST_F(TCachingTokenAuthenticatorTest, EntryCleanup)
             .WillRepeatedly(Return(ErrorResult));
     }
 
-    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    auto result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     result.ValueOrThrow();
 
     Sleep(TDuration::Seconds(15));
 
-    result = Invoke("mytoken", "127.0.0.1").Get();
+    result = WaitForFast(Invoke("mytoken", "127.0.0.1"));
     ASSERT_FALSE(result.IsOK());
 }
 
@@ -554,7 +555,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("sessionid", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
-    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    auto result = WaitForFast(Authenticate("mysessionid", "mysslsessionid", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Underlying failure"));
 }
@@ -562,7 +563,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse1)
 {
     MockCall("{}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    auto result = WaitForFast(Authenticate("mysessionid", "mysslsessionid", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("invalid response"));
 }
@@ -570,7 +571,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse1)
 TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse2)
 {
     MockCall("{status={id=0}}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    auto result = WaitForFast(Authenticate("mysessionid", "mysslsessionid", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AllOf(
         HasSubstr("invalid response"),
@@ -580,7 +581,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse2)
 TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 {
     MockCall("{status={id=5}}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    auto result = WaitForFast(Authenticate("mysessionid", "mysslsessionid", "127.0.0.1"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("rejected session cookie"));
 }
@@ -588,7 +589,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 TEST_F(TCookieAuthenticatorTest, Success)
 {
     MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    auto result = WaitForFast(Authenticate("mysessionid", "mysslsessionid", "127.0.0.1"));
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);
@@ -599,7 +600,7 @@ TEST_F(TCookieAuthenticatorTest, SuccessWithoutTicket)
 {
     Config_->GetUserTicket = false;
     MockCall("{status={id=0};login=sandello}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    auto result = WaitForFast(Authenticate("mysessionid", "mysslsessionid", "127.0.0.1"));
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);
@@ -657,7 +658,7 @@ protected:
 
 TEST_P(TTicketAuthenticatorTest, Success)
 {
-    auto result = Invoke("good_ticket").Get();
+    auto result = WaitForFast(Invoke("good_ticket"));
     ASSERT_TRUE(result.IsOK());
     if (GetParam()) {
         EXPECT_EQ("the_user", result.Value().Login);
@@ -670,7 +671,7 @@ TEST_P(TTicketAuthenticatorTest, Success)
 
 TEST_P(TTicketAuthenticatorTest, ScopeFailure)
 {
-    auto result = Invoke("bad_ticket").Get();
+    auto result = WaitForFast(Invoke("bad_ticket"));
     ASSERT_FALSE(result.IsOK());
 }
 
@@ -678,7 +679,7 @@ TEST_P(TTicketAuthenticatorTest, DisableScopeCheck)
 {
     Config_->EnableScopeCheck = false;
     EXPECT_CALL(*Tvm_, ParseUserTicket(_)).Times(0);
-    auto result = Invoke("bad_ticket").Get();
+    auto result = WaitForFast(Invoke("bad_ticket"));
     ASSERT_TRUE(result.IsOK());
     if (GetParam()) {
         EXPECT_EQ("scopeless_user", result.Value().Login);
@@ -691,7 +692,7 @@ TEST_P(TTicketAuthenticatorTest, FailOnTvmFailure)
 {
     EXPECT_CALL(*Tvm_, ParseUserTicket(_))
         .WillOnce(Throw(std::exception()));
-    auto result = Invoke("good_ticket").Get();
+    auto result = WaitForFast(Invoke("good_ticket"));
     ASSERT_FALSE(result.IsOK());
 }
 
@@ -699,7 +700,7 @@ TEST_P(TTicketAuthenticatorTest, FailOnBlackboxFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("user_ticket", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Blackbox failure"))));
-    auto result = Invoke("good_ticket").Get();
+    auto result = WaitForFast(Invoke("good_ticket"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox failure"));
 }
@@ -708,7 +709,7 @@ TEST_P(TTicketAuthenticatorTest, FailOnBlackboxError)
 {
     EXPECT_CALL(*Blackbox_, Call("user_ticket", _))
         .WillOnce(Return(Response("{error=unhappy}")));
-    auto result = Invoke("good_ticket").Get();
+    auto result = WaitForFast(Invoke("good_ticket"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("unhappy"));
 }

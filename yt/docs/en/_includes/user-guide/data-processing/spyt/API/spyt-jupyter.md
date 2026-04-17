@@ -16,6 +16,7 @@ If there is one already, you need to find out the values of `proxy` and `discove
    sudo apt-get install openjdk-11-jdk
 
    ```
+   Note: starting with version 2.6.0, you can install openjdk-17-jdk instead of openjdk-11-jdk.
 4. Install the pip package:
 
    ```bash

@@ -663,7 +663,7 @@ public:
         return OKFuture;
     }
 
-    TFuture<void> Close(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&, std::optional<int>) override
+    TFuture<void> Close(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&) override
     {
         return OKFuture;
     }

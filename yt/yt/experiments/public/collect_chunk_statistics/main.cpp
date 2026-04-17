@@ -1,6 +1,7 @@
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/public.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -28,6 +29,7 @@
 #include <iostream>
 #include <iomanip>
 
+using namespace NYT::NConcurrency;
 
 auto YsonWriter = NYT::NYson::TYsonWriter(&Cout, NYT::NYson::EYsonFormat::Text, NYT::NYson::EYsonType::ListFragment);
 auto YsonList = NYT::NYTree::BuildYsonListFragmentFluently(&YsonWriter);
@@ -65,7 +67,7 @@ void ProcessChunkMeta(const TFsPath& pathToMeta)
         NYT::NChunkClient::NullChunkId,
         pathToMeta.Dirname() + "/" + chunkId);
 
-    auto chunkMetaOrError = chunkReader->GetMeta(/*options*/ {}).Get();
+    auto chunkMetaOrError = WaitFor(chunkReader->GetMeta(/*options*/ {}));
     if (!chunkMetaOrError.IsOK()) {
         std::cerr << chunkMetaOrError.GetMessage() << "\n";
         return;

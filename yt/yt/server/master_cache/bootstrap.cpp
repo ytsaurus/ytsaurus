@@ -210,7 +210,7 @@ private:
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         MasterCacheBootstrap_ = CreateMasterCachePartBootstrap(this);
         ChaosCacheBootstrap_ = CreateChaosCachePartBootstrap(this);

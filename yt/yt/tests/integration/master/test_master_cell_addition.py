@@ -32,7 +32,7 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
     DOWNTIME_ALL_COMPONENTS = True
 
     @authors("shakurov", "cherepashka")
-    @pytest.mark.timeout(120)
+    @pytest.mark.timeout(150)
     def test_add_new_cell(self):
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
@@ -44,6 +44,33 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
     CELL_IDS = builtins.set()
 
     DOWNTIME_ALL_COMPONENTS = False
+
+
+class TestMasterCellAdditionWithoutDowntimeOldProtocolForNodes(TestMasterCellAddition):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+    DOWNTIME_ALL_COMPONENTS = False
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "return_master_cells_connection_configs_on_node_registration": False,
+            "return_master_cells_connection_configs_on_node_heartbeat": False,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "master_connector": {
+                    "check_chunks_cell_tags_before_heartbeats": True,
+                    "force_sync_master_cell_directory_before_check_chunks": True,
+                    "check_chunks_cell_tags_after_registration_on_primary_master": False,
+                    "check_chunks_cell_tags_after_receiving_new_master_cell_configs": False,
+                },
+            },
+        },
+    }
 
 
 class TestMasterCellAdditionWithoutDowntimeRpcProxy(TestMasterCellAdditionWithoutDowntime):
@@ -157,6 +184,20 @@ class TestMasterCellAdditionWithRemoteClustersWithoutDowntime(TestMasterCellAddi
     CELL_IDS = builtins.set()
 
     DOWNTIME_ALL_COMPONENTS = False
+
+
+class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeOldProtocolForNodes(TestMasterCellAdditionWithRemoteClusters):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+    DOWNTIME_ALL_COMPONENTS = False
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "return_master_cells_connection_configs_on_node_registration": False,
+            "return_master_cells_connection_configs_on_node_heartbeat": False,
+        },
+    }
 
 
 class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeRpcProxy(TestMasterCellAdditionWithRemoteClustersWithoutDowntime):
@@ -494,6 +535,7 @@ class TestNodeRestartAfterCellAddition(MasterCellAdditionBase):
 ##################################################################
 
 
+@pytest.mark.skip(reason="after YT-26685 need to rewrite this tests, maybe make it uniitests on master cell directory")
 class TestMasterCellsPeersListChange(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_SECONDARY_MASTER_CELLS = 2

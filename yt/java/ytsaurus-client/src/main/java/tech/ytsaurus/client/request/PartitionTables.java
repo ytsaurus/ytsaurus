@@ -29,7 +29,10 @@ public class PartitionTables
     @Nullable
     private final ChunkSliceFetcherConfig chunkSliceFetcherConfig;
     private final PartitionTablesMode partitionMode;
+    @Nullable
     private final DataSize dataWeightPerPartition;
+    @Nullable
+    private final DataSize compressedDataSizePerPartition;
     @Nullable
     private final Integer maxPartitionCount;
     private final boolean omitInaccessibleRows;
@@ -49,7 +52,8 @@ public class PartitionTables
         this.fetchChunkSpecConfig = builder.fetchChunkSpecConfig;
         this.fetcherConfig = builder.fetcherConfig;
         this.partitionMode = Objects.requireNonNull(builder.partitionMode);
-        this.dataWeightPerPartition = Objects.requireNonNull(builder.dataWeightPerPartition);
+        this.dataWeightPerPartition = builder.dataWeightPerPartition;
+        this.compressedDataSizePerPartition = builder.compressedDataSizePerPartition;
         this.maxPartitionCount = builder.maxPartitionCount;
         this.omitInaccessibleRows = builder.omitInaccessibleRows;
         this.adjustDataWeightPerPartition = builder.adjustDataWeightPerPartition;
@@ -93,7 +97,12 @@ public class PartitionTables
             builder.setFetcherConfig(fetcherConfig.writeTo(TFetcherConfig.newBuilder()));
         }
         builder.setPartitionMode(EPartitionTablesMode.forNumber(partitionMode.getProtoValue()));
-        builder.setDataWeightPerPartition(dataWeightPerPartition.toBytes());
+        if (compressedDataSizePerPartition != null) {
+            builder.setCompressedDataSizePerPartition(compressedDataSizePerPartition.toBytes());
+        }
+        if (dataWeightPerPartition != null) {
+            builder.setDataWeightPerPartition(dataWeightPerPartition.toBytes());
+        }
         if (maxPartitionCount != null) {
             builder.setMaxPartitionCount(maxPartitionCount);
         }
@@ -117,7 +126,12 @@ public class PartitionTables
         super.writeArgumentsLogString(sb);
         sb.append("Paths: ").append(Arrays.toString(paths.toArray()));
         sb.append("; PartitionMode: ").append(partitionMode.getName());
-        sb.append("; DataWeightPerPartition: ").append(dataWeightPerPartition);
+        if (dataWeightPerPartition != null) {
+            sb.append("; DataWeightPerPartition: ").append(dataWeightPerPartition);
+        }
+        if (compressedDataSizePerPartition != null) {
+            sb.append("; CompressedDataSizePerPartition: ").append(compressedDataSizePerPartition);
+        }
         sb.append("; OmitInaccessibleRows: ").append(omitInaccessibleRows);
         if (maxPartitionCount != null) {
             sb.append("; MaxPartitionCount: ").append(maxPartitionCount);
@@ -135,6 +149,7 @@ public class PartitionTables
                 .setFetcherConfig(fetcherConfig)
                 .setPartitionMode(partitionMode)
                 .setDataWeightPerPartition(dataWeightPerPartition)
+                .setCompressedDataSizePerPartition(compressedDataSizePerPartition)
                 .setOmitInaccessibleRows(omitInaccessibleRows)
                 .setMaxPartitionCount(maxPartitionCount)
                 .setAdjustDataWeightPerPartition(adjustDataWeightPerPartition)
@@ -161,6 +176,8 @@ public class PartitionTables
         private PartitionTablesMode partitionMode;
         @Nullable
         private DataSize dataWeightPerPartition;
+        @Nullable
+        private DataSize compressedDataSizePerPartition;
         @Nullable
         private Integer maxPartitionCount;
         private boolean omitInaccessibleRows = false;
@@ -203,8 +220,13 @@ public class PartitionTables
             return self();
         }
 
-        public Builder setDataWeightPerPartition(DataSize dataWeightPerPartition) {
+        public Builder setDataWeightPerPartition(@Nullable DataSize dataWeightPerPartition) {
             this.dataWeightPerPartition = dataWeightPerPartition;
+            return self();
+        }
+
+        public Builder setCompressedDataSizePerPartition(@Nullable DataSize compressedDataSizePerPartition) {
+            this.compressedDataSizePerPartition = compressedDataSizePerPartition;
             return self();
         }
 

@@ -737,8 +737,8 @@ public:
         TArchiveOperationRequest result;
 
         if (operation->GetRuntimeParameters() && operation->GetRuntimeParameters()->AcoName) {
-            auto acl = GetAclFromAcoName(Bootstrap_->GetClient(), *operation->GetRuntimeParameters()->AcoName);
-            operation->GetRuntimeParameters()->Acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(acl);
+            const auto& acoName = *operation->GetRuntimeParameters()->AcoName;
+            operation->GetRuntimeParameters()->Acl = GetAclFromAcoName(Bootstrap_->GetClient(), acoName);
         }
 
         result.Id = operation->GetId();

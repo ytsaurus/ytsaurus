@@ -115,7 +115,8 @@ std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
 
         if (rows.empty()) {
             // Reader is not ready, wait.
-            reader->GetReadyEvent().Get().ThrowOnError();
+            // TODO(babenko): consider replacing with WaitFor
+            reader->GetReadyEvent().BlockingGet().ThrowOnError();
         }
 
         for (auto row : rows) {
@@ -402,7 +403,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
-    auto& Logger = JobProxyClientLogger();
+    const auto& Logger = JobProxyClientLogger();
     auto rowBuffer = New<TRowBuffer>(TCreateSortedReduceJobReaderTag());
 
     YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());

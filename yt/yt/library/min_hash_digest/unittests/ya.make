@@ -5,6 +5,8 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/client
+    yt/yt/library/min_hash_digest
 )
 
 IF (SANITIZER_TYPE)

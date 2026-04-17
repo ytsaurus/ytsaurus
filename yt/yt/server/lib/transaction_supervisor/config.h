@@ -8,6 +8,20 @@ namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionSupervisorTestingConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> PreparedTransactionsBarrierDelay;
+
+    REGISTER_YSON_STRUCT(TTransactionSupervisorTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTransactionSupervisorConfig
     : public NYTree::TYsonStruct
 {
@@ -18,6 +32,8 @@ struct TTransactionSupervisorConfig
     bool EnableWaitUntilPreparedTransactionsFinished;
 
     bool ValidateStronglyOrderedTransactionRefs;
+
+    TTransactionSupervisorTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TTransactionSupervisorConfig);
 

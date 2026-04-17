@@ -12,11 +12,13 @@ from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
 from .init_cluster import _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
-from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config, get_patched_dynamic_master_config
+from .local_cluster_configuration import (
+    modify_cluster_configuration, get_patched_dynamic_node_config, get_patched_dynamic_master_config,
+    get_patched_dynamic_rpc_proxy_config)
 
 from .tls_helpers import create_ca, create_certificate
 
-from yt.common import YtError, remove_file, makedirp, update, get_value, which, to_native_str
+from yt.common import YtError, remove_file, makedirp, update, get_fqdn, get_value, which, to_native_str
 from yt.wrapper.common import flatten
 from yt.wrapper.constants import FEEDBACK_URL
 from yt.wrapper.errors import YtResponseError
@@ -35,7 +37,6 @@ except ImportError:
     from six.moves import xrange, map as imap
 
 import yt.packages.requests as requests
-from yt.common import get_fqdn
 
 import logging
 import os
@@ -195,11 +196,13 @@ class YTInstance(object):
                  tmpfs_path=None,
                  open_port_iterator=None,
                  modify_driver_logging_config_func=None,
-                 modify_master_dynamic_configs_func=None):
+                 modify_master_dynamic_configs_func=None,
+                 modify_rpc_proxy_dynamic_configs_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
         self.modify_master_dynamic_configs_func = modify_master_dynamic_configs_func
+        self.modify_rpc_proxy_dynamic_configs_func = modify_rpc_proxy_dynamic_configs_func
 
         self.id = yt_config.cluster_name
 
@@ -707,6 +710,12 @@ class YTInstance(object):
                 if self.yt_config.queue_agent_count > 0:
                     queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
 
+                rpc_proxy_dynamic_config = None
+                if self.yt_config.rpc_proxy_count > 0:
+                    rpc_proxy_dynamic_config = self._apply_rpc_proxy_dynamic_config(
+                        client,
+                        self._cluster_configuration)
+
                 # TODO(nadya73): fill kafka proxy dynamic config.
 
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
@@ -746,6 +755,10 @@ class YTInstance(object):
 
             if not self._load_existing_environment:
                 self._wait_for_dynamic_config_update(patched_node_config, client)
+
+                if rpc_proxy_dynamic_config is not None:
+                    self._wait_for_dynamic_config_update(rpc_proxy_dynamic_config, client, instance_type="rpc_proxies")
+
                 if queue_agent_dynamic_config is not None:
                     self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
                 # TODO(nadya73): update kafka proxy dynamic config
@@ -1013,7 +1026,7 @@ class YTInstance(object):
 
         raise YtError(f"Node with address {address} not found")
 
-    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True):
+    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True, abort_transactions=True):
         assert indexes is None or addresses is None
 
         if indexes is None and addresses is not None:
@@ -1021,12 +1034,13 @@ class YTInstance(object):
 
         self.kill_service("node", indexes=indexes)
 
-        addresses = None
-        if indexes is None:
-            indexes = list(xrange(self.yt_config.node_count))
-        addresses = [self.get_node_address(index) for index in indexes]
+        if abort_transactions:
+            addresses = None
+            if indexes is None:
+                indexes = list(xrange(self.yt_config.node_count))
+            addresses = [self.get_node_address(index) for index in indexes]
 
-        self._abort_node_transactions_and_wait(addresses, wait_offline)
+            self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_chaos_nodes(self, indexes=None, wait_offline=True):
         self.kill_service("chaos_node", indexes=indexes)
@@ -1039,7 +1053,7 @@ class YTInstance(object):
         self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_http_proxies(self, indexes=None):
-        self.kill_service("proxy", indexes=indexes)
+        self.kill_service("http_proxy", indexes=indexes)
 
     def kill_rpc_proxies(self, indexes=None):
         self.kill_service("rpc_proxy", indexes=indexes)
@@ -1494,7 +1508,13 @@ class YTInstance(object):
                 # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
                 # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    patched_dynamic_master_config = get_patched_dynamic_master_config(get_dynamic_master_config())
+                    # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
+                    dynamic_config = get_dynamic_master_config()
+                    if self.yt_config.enable_multidaemon:
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["use_location_indexes_in_sequoia_chunk_confirmation"] = False
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["use_location_indexes_to_search_location_on_confirmation"] = False
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["check_location_convergence_by_index_and_uuid_on_confirmation"] = False
+                    patched_dynamic_master_config = get_patched_dynamic_master_config(dynamic_config)
                     # TODO(kvk1920): there are many optional callbacks which
                     # leads to "if some_func is not None: some_func()". It's
                     # better use no-op callbacks instead of None.
@@ -2549,6 +2569,17 @@ class YTInstance(object):
         client.create("document", "//sys/queue_agents/config", ignore_existing=True, attributes={"value": dyn_queue_agent_config})
         return dyn_queue_agent_config
 
+    def _apply_rpc_proxy_dynamic_config(self, client, cluster_configuration):
+        patched_dynamic_rpc_proxy_config = get_patched_dynamic_rpc_proxy_config(self.yt_config, cluster_configuration)
+
+        if self.modify_rpc_proxy_dynamic_configs_func is not None:
+            self.modify_rpc_proxy_dynamic_configs_func(patched_dynamic_rpc_proxy_config, self.abi_version)
+
+        client.set("//sys/rpc_proxies/@config", patched_dynamic_rpc_proxy_config)
+        logger.debug(patched_dynamic_rpc_proxy_config)
+
+        return patched_dynamic_rpc_proxy_config
+
     def _apply_nodes_dynamic_config(self, client):
         patched_dynamic_node_config = get_patched_dynamic_node_config(self.yt_config)
 
@@ -2573,6 +2604,16 @@ class YTInstance(object):
         client.set("//sys/tablet_cell_bundles/@config", {})
 
         self._wait_for_dynamic_config_update({}, client, config_node_name="bundle_dynamic_config_manager")
+
+    def restore_default_rpc_proxy_dynamic_config(self):
+        if self.yt_config.rpc_proxy_count == 0:
+            return
+
+        client = self._create_cluster_client()
+
+        patched_config = self._apply_rpc_proxy_dynamic_config(client, self._cluster_configuration)
+
+        self._wait_for_dynamic_config_update(patched_config, client, instance_type="rpc_proxies")
 
     def _wait_for_dynamic_config_update(self, expected_config, client, instance_type="cluster_nodes", config_node_name="dynamic_config_manager"):
         if not self.yt_config.wait_for_dynamic_config:

@@ -908,6 +908,13 @@ void FillArrowType(TColumnMeta& meta, const TType* type, const ITypeInfoHelper::
     }
 }
 
+TString FormatType(const TType* type, const ITypeInfoHelper::TPtr& typeHelper) {
+    TTypePrinter printer(*typeHelper, type);
+    TStringStream out;
+    printer.Out(out);
+    return out.Str();
+}
+
 TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper) {
     TColumnMeta ret;
     auto blockInspector = TBlockTypeInspector(*typeHelper, type);
@@ -916,6 +923,7 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
         ret.IsScalarBlock = blockInspector.IsScalar();
     }
 
+    const TType* originalType = type;
     FillArrowTypeSingle(ret, type, typeHelper);
 
     auto varInspector = TVariantTypeInspector(*typeHelper, type);
@@ -923,13 +931,13 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
         auto underlying = varInspector.GetUnderlyingType();
         auto structInspector = TStructTypeInspector(*typeHelper, underlying);
         if (!structInspector) {
-            throw yexception() << "Expected only enum";
+            throw yexception() << "Expected struct variant, but got: " << FormatType(originalType, typeHelper);
         }
 
         for (ui32 i = 0; i < structInspector.GetMembersCount(); ++i) {
             auto memberType = structInspector.GetMemberType(i);
             if (typeHelper->GetTypeKind(memberType) != ETypeKind::Void) {
-                throw yexception() << "Expected only enum";
+                throw yexception() << "Expected only enum, but member '" << structInspector.GetMemberName(i) << "' has type: " << FormatType(memberType, typeHelper);
             }
 
             ret.Enum.push_back(TString(structInspector.GetMemberName(i)));
@@ -942,13 +950,13 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
     if (taggedInspector) {
         ret.Aggregation = taggedInspector.GetTag();
         if (!ret.Aggregation->StartsWith("AggregateFunction(") || !ret.Aggregation->EndsWith(")")) {
-            throw yexception() << "Unsupported tag: " << *ret.Aggregation;
+            throw yexception() << "Unsupported tag: " << *ret.Aggregation << " for type: " << FormatType(originalType, typeHelper);
         }
 
         type = taggedInspector.GetBaseType();
         auto dataInspector = TDataTypeInspector(*typeHelper, type);
         if (!dataInspector || dataInspector.GetTypeId() != TDataType<const char*>::Id) {
-            throw yexception() << "Expected only tagged String";
+            throw yexception() << "Expected only tagged String, but got: " << FormatType(originalType, typeHelper);
         }
 
         return ret;
@@ -989,7 +997,7 @@ TColumnMeta MakeMeta(const TType* type, const ITypeInfoHelper::TPtr& typeHelper)
 
     auto dataInspector = TDataTypeInspector(*typeHelper, type);
     if (!dataInspector) {
-        throw yexception() << "Unsupported input type kind: " << typeHelper->GetTypeKind(type);
+        throw yexception() << "Unsupported input type: " << FormatType(originalType, typeHelper);
     }
 
     ret.Slot = GetDataSlot(dataInspector.GetTypeId());
@@ -2485,11 +2493,11 @@ public:
                         itemType = TStreamTypeInspector(*typeHelper, arg0).GetItemType();
                     }
                     else {
-                        throw yexception() << "Unsupported first argument input type kind: " << typeHelper->GetTypeKind(arg0);
+                        throw yexception() << "Unsupported first argument input type: " << FormatType(arg0, typeHelper);
                     }
 
                     if (typeHelper->GetTypeKind(itemType) != ETypeKind::Struct) {
-                        throw yexception() << "Unsupported first argument input row type kind: " << typeHelper->GetTypeKind(itemType);
+                        throw yexception() << "Unsupported first argument input row type: " << FormatType(itemType, typeHelper);
                     }
 
                     sessionContext->getHostContext() = std::make_shared<THostContext>(itemType, typeHelper);

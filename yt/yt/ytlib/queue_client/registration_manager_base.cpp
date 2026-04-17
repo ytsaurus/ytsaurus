@@ -207,8 +207,8 @@ void TQueueConsumerRegistrationManagerBase::RegisterQueueConsumer(
 
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
     WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
-        .Queue = TCrossClusterReference::FromRichYPath(queue),
-        .Consumer = TCrossClusterReference::FromRichYPath(consumer),
+        .Queue = TTablePath::FromRichYPathSafe(queue),
+        .Consumer = TConsumerReference::FromRichYPathSafe(consumer),
         .Vital = vital,
         .Partitions = partitions,
     }}))
@@ -227,8 +227,8 @@ void TQueueConsumerRegistrationManagerBase::UnregisterQueueConsumer(
 
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
     WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
-        .Queue = TCrossClusterReference::FromRichYPath(queue),
-        .Consumer = TCrossClusterReference::FromRichYPath(consumer),
+        .Queue = TTablePath::FromRichYPathSafe(queue),
+        .Consumer = TConsumerReference::FromRichYPathSafe(consumer),
     }}))
         .ValueOrThrow();
 }

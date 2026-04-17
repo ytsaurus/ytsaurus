@@ -51,7 +51,23 @@ public:
 
     bool EnableComplexNullConverison;
 
-    static TCompositeSettingsPtr Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison = true);
+    //! Defines how CHYT works with LC types:
+    //! * None - doesn't convert any column to LC;
+    //! * StringOnly - converts columns with string-like types (string, utf, json);
+    //! * All - converts all columns to LC if possible;
+    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
+    ELowCardinalityMode LowCardinalityMode;
+
+    //! Special setting for FromStatistics LowCardinalityMode.
+    ui64 LowCardinalityThreshold;
+
+    //! Columns that match this regexp are converted to LC.
+    NRe2::TRe2Ptr LowCardinalityRegExp;
+
+    static TCompositeSettingsPtr Create(
+        bool convertUnsupportedTypesToString,
+        bool enableComplexNullConverison = true,
+        ELowCardinalityMode lowCardinalityMode = ELowCardinalityMode::None);
 
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
@@ -91,9 +107,6 @@ class TTestingSettings
     : public NYTree::TYsonStruct
 {
 public:
-    bool EnableKeyConditionFiltering;
-    bool MakeUpperBoundInclusive;
-
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
     i64 SubqueryAllocationSize;
@@ -103,13 +116,12 @@ public:
     //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
     int LocalCliqueSize;
 
-    bool CheckChytBanned;
-
     std::optional<NYPath::TYPath> ChunkSpecFetcherBreakpoint;
     std::optional<NYPath::TYPath> InputStreamFactoryBreakpoint;
     std::optional<NYPath::TYPath> ConcatTableRangeBreakpoint;
     std::optional<NYPath::TYPath> ListDirsBreakpoint;
     std::optional<NYPath::TYPath> SourceGenerateCallBreakpoint;
+    std::optional<NYPath::TYPath> DropTableBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 
@@ -361,6 +373,9 @@ class TQuerySettings
     : public NYTree::TYsonStruct
 {
 public:
+    bool EnableKeyConditionFiltering;
+    bool MakeUpperBoundInclusive;
+
     bool EnableColumnarRead;
 
     bool EnableComputedColumnDeduction;
@@ -398,6 +413,8 @@ public:
     NApi::TSerializableMasterReadOptionsPtr FetchChunksReadOptions;
 
     TPrewhereSettingsPtr Prewhere;
+
+    EStorageConflictResolveMode StorageConflictResolveMode;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 
@@ -621,6 +638,20 @@ struct TDictionaryRepositoryConfig
 
 DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
 
+struct TDictionaryAccessControlConfig
+    : public NYTree::TYsonStruct
+{
+    TAsyncExpiringCacheConfigPtr CacheConfig;
+
+    TDuration CollectLoadedDictionariesPeriod;
+
+    REGISTER_YSON_STRUCT(TDictionaryAccessControlConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryAccessControlConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSystemLogTableExporterConfig
@@ -688,6 +719,8 @@ struct TYtConfig
     //! Clique size for better profiling.
     int CliqueInstanceCount;
 
+    bool CheckChytBanned;
+
     TSlruCacheConfigPtr ClientCache;
 
     THashSet<TString> UserAgentBlacklist;
@@ -754,6 +787,8 @@ struct TYtConfig
     TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
     TDictionaryRepositoryConfigPtr DictionaryRepository;
+
+    TDictionaryAccessControlConfigPtr DictionaryAccessControl;
 
     TSystemLogTableExportersConfigPtr SystemLogTableExporters;
 

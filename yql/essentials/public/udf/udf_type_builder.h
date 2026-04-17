@@ -10,8 +10,7 @@
 
 #include <type_traits>
 
-namespace NYql {
-namespace NUdf {
+namespace NYql::NUdf {
 
 class TStringRef;
 class IBoxedValue;
@@ -344,7 +343,7 @@ public:
     using TPtr = TUniquePtr<IFunctionArgTypesBuilder>;
 
 public:
-    IFunctionArgTypesBuilder(IFunctionTypeInfoBuilder& parent)
+    explicit IFunctionArgTypesBuilder(IFunctionTypeInfoBuilder& parent)
         : Parent_(parent)
     {
     }
@@ -1141,5 +1140,4 @@ inline IFunctionArgTypesBuilder& IFunctionArgTypesBuilder::Add()
     return *this;
 }
 
-} // namespace NUdf
-} // namespace NYql
+} // namespace NYql::NUdf

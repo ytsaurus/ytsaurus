@@ -65,7 +65,7 @@ public:
         NCompression::ECodec codecId,
         double compressionRatio,
         const TClientChunkReadOptions& chunkReadOptions,
-        IInvokerPtr sessionInvoker = {});
+        IInvokerPtr sessionInvoker = nullptr);
 
     ~TBlockFetcher();
 
@@ -160,9 +160,10 @@ private:
 
     std::unique_ptr<TWindowSlot[]> Window_;
 
-    int TotalRemainingFetches_ = 0;
     int FirstUnfetchedWindowIndex_ = 0;
-    bool FetchingCompleted_ = false;
+
+    std::atomic<int> TotalRemainingFetches_ = 0;
+    std::atomic<bool> FetchingCompleted_ = false;
 
     //! Total size of not started blocks.
     std::atomic<i64> TotalRemainingSize_ = 0;

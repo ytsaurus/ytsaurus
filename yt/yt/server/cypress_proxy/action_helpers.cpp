@@ -84,32 +84,41 @@ static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const ISequoiaClientPtr& sequoiaClient,
     ESequoiaTransactionType type,
+    const NSequoiaClient::TSequoiaTransactionFeatures& features,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
     auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
     sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
-    return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
+    sequoiaTransactionOptions.Features = features;
+    return sequoiaClient->StartTransaction(type, options, std::move(sequoiaTransactionOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     const ISequoiaTransactionPtr& transaction,
-    const TAbsolutePath& path,
-    TRange<TTransactionId> cypressTransactionIds)
+    const TAbsolutePath& rootPath,
+    TRange<TTransactionId> cypressTransactionIds,
+    std::optional<int> limit,
+    std::optional<TAbsolutePathBuf> cursorPath)
 {
     // NB: #cypressTransactionIds must contain at least 0-0-0-0 ("trunk")
     // transaction.
     YT_VERIFY(!cypressTransactionIds.Empty());
-
-    auto mangledPath = path.ToMangledSequoiaPath();
+    auto mangledPath = rootPath.ToMangledSequoiaPath();
+    auto whereConjuncts = std::vector<TString>{
+        Format("is_prefix(%Qv, path)", mangledPath),
+        BuildMultipleTransactionSelectCondition(cypressTransactionIds),
+    };
+    if (cursorPath) {
+        whereConjuncts.push_back(
+            Format("path >= %Qv", cursorPath->ToMangledSequoiaPath()));
+    }
     return transaction->SelectRows<NRecords::TPathToNodeId>({
-        .WhereConjuncts = {
-            Format("is_prefix(%Qv, path)", mangledPath),
-            BuildMultipleTransactionSelectCondition(cypressTransactionIds),
-        },
+        .WhereConjuncts = std::move(whereConjuncts),
         .OrderBy = {"path"},
+        .Limit = limit,
     });
 }
 

@@ -41,7 +41,7 @@ type watch struct {
 	cancel func()
 	nonce  string
 
-	state stream.StreamState
+	subscription stream.Subscription
 }
 
 // Cancel calls terminate and cancel

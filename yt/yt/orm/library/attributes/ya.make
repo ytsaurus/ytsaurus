@@ -21,6 +21,7 @@ PEERDIR(
     yt/yt/core
 
     library/cpp/containers/bitset
+    library/cpp/yt/compact_containers
 )
 
 END()
