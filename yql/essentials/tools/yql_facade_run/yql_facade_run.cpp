@@ -191,7 +191,7 @@ void TFacadeRunOptions::ParseProtoConfig(const TString& cfgFile, google::protobu
 }
 
 void TFacadeRunOptions::Parse(int argc, const char** argv) {
-    User = GetUsername();
+    User = GetEnv("YQL_DETERMINISTIC_MODE") ? "test-user" : GetUsername();
 
     if (EnableCredentials) {
         Token = GetEnv("YQL_TOKEN");
@@ -825,6 +825,7 @@ int TFacadeRunner::DoRun(TProgramFactory& factory) {
         program->SetFuzzUniversal();
     }
 
+    program->SetAuthenticatedUser(RunOptions_.User);
     program->SetOperationId(RunOptions_.OperationId);
 
     bool fail = false;

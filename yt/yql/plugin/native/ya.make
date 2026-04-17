@@ -64,11 +64,13 @@ PEERDIR(
     yt/yql/providers/yt/gateway/native
     yt/yql/providers/yt/codec
     yt/yql/providers/yt/codec/codegen
+    yt/yql/providers/yt/lib/access_provider/full
     yt/yql/providers/yt/lib/log
     yt/yql/providers/yt/lib/res_pull
     yt/yql/providers/yt/lib/row_spec
     yt/yql/providers/yt/lib/schema
     yt/yql/providers/yt/lib/skiff
+    yt/yql/providers/yt/lib/tvm_client/full
     yt/yql/providers/yt/lib/yt_download
     yt/yql/providers/yt/provider
     yt/yql/providers/yt/codec/codegen
