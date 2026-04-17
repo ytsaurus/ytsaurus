@@ -6,10 +6,12 @@ from yt_commands import (
     authors, set, get, ls, exists, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows, WaitFailed,
-    create, create_table_replica, sync_enable_table_replica)
+    sync_unmount_table, print_debug, select_rows, WaitFailed, remount_table,
+    create, create_table_replica, sync_enable_table_replica, update_nodes_dynamic_config)
 
 from yt.common import update_inplace
+
+import yt.yson as yson
 
 import pytest
 
@@ -255,7 +257,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         sync_mount_table("//tmp/t")
 
         effective_config_path = \
-            "//sys/tablet_balancer/orchid/tablet_balancer/bundles/default/tables/\/\/tmp\/t/effective_config"  # noqa
+            "//sys/tablet_balancer/orchid/tablet_balancer/bundles/default/tables/\\/\\/tmp\\/t/effective_config"
 
         def _has_expected_table():
             if not exists(effective_config_path):
@@ -908,6 +910,84 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             return tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
         wait(lambda: _check())
+
+    @authors("dave11ar")
+    @pytest.mark.parametrize(
+        "parameterized_balancing_metric, desired_tablet_metric",
+        [
+            ("double([/performance_counters/dynamic_row_write_count])", 1),
+            ("double([/statistics/uncompressed_data_size])", 273)
+        ],
+    )
+    def test_reactive_balancing(self, parameterized_balancing_metric, desired_tablet_metric):
+        sync_create_cells(2)
+
+        # Disable balancing via schedule.
+        self._set_default_schedule_formula("0")
+
+        chunk_count = 4
+        chunk_size = 273
+
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            {
+                "reactive": {
+                    "parameterized": {
+                        "metric": parameterized_balancing_metric,
+                        "enable_reshard": True,
+                    },
+                    "type": "parameterized",
+                },
+            },
+        )
+
+        table = "//tmp/t"
+        self._create_sorted_table(
+            table,
+            tablet_balancer_config={
+                "enable_auto_reshard": True,
+                "group": "reactive",
+                "desired_tablet_metric": desired_tablet_metric,
+            },
+            mount_config={
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "enable_compaction_and_partitioning": False,
+            }
+        )
+
+        sync_mount_table(table)
+
+        def _add_chunk(i):
+            insert_rows(table, [{"key": i, "value": "v"}])
+            sync_flush_table(table)
+
+        for i in range(chunk_count):
+            _add_chunk(i)
+            assert chunk_size * (i + 1) == get(f"{table}/@tablets/0/statistics/uncompressed_data_size")
+
+        assert get(f"{table}/@tablet_count") == 1
+        assert len(get(f"{table}/@chunk_ids")) == chunk_count
+
+        set(f"{table}/@mount_config/overload_reactive_balancing", {
+            "metric": parameterized_balancing_metric,
+            "limit": desired_tablet_metric + 0.1,
+        })
+        remount_table(table)
+
+        update_nodes_dynamic_config({
+            "tablet_node" : {
+                "overload_reporter" : {
+                    "enable" : True,
+                    "periodic_options": {
+                        "period": 1,
+                        "splay": 0,
+                        "jitter": 0,
+                    },
+                },
+            },
+        })
+
+        wait(lambda: get(f"{table}/@tablet_count") == 4)
 
 
 ##################################################################

@@ -1031,9 +1031,19 @@ public: \
         (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
-        NHydra::TCellId cordiantorCellId,
+        NHydra::TCellId cordinatorCellId,
         const TForsakeChaosCoordinatorOptions& options),
-        (chaosCellId, cordiantorCellId, options))
+        (chaosCellId, cordinatorCellId, options))
+    IMPLEMENT_METHOD(void, ForsakeChaosShortcut, (
+        NHydra::TCellId cordinatorCellId,
+        NChaosClient::TChaosObjectId chaosObjectId,
+        const TForsakeChaosShortcutOptions& options),
+        (cordinatorCellId, chaosObjectId, options))
+    IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
+        NHydra::TCellId chaosCellId,
+        NHydra::TCellId destinationCellId,
+        const TRemoveChaosCellMailboxOptions& options),
+        (chaosCellId, destinationCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TSignedShuffleHandlePtr& signedShuffleHandle,
@@ -1277,6 +1287,10 @@ private:
         const TGetTabletInfosOptions& options);
 
     std::vector<TTabletInfo> GetTabletInfosImpl(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        const std::vector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options);
+    std::vector<TTabletInfo> DoGetTabletInfosImpl(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);

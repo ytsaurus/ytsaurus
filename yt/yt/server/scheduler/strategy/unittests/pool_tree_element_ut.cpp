@@ -1288,7 +1288,7 @@ TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolumeShar
         // 10% of cluster for 1 millisecond.
         auto overflowedVolume = TResourceVolume(GetOnePercentOfCluster() * 10., TDuration::MilliSeconds(1));
         auto expectedVolume = selfVolume + overflowedVolume;
-        auto actualVolume = acceptablePool->GetAccumulatedResourceVolume() ;
+        auto actualVolume = acceptablePool->GetAccumulatedResourceVolume();
 
         EXPECT_EQ(expectedVolume.GetCpu(), actualVolume.GetCpu());
         EXPECT_NEAR(expectedVolume.GetMemory(), actualVolume.GetMemory(), 1);

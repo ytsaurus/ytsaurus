@@ -1,0 +1,10 @@
+<tmp_path>/program.sql:<main>: Warning: Table metadata loading
+
+    <tmp_path>/program.sql:<main>: Warning: Table Input
+    
+        <tmp_path>/program.sql:<main>:1:16: Warning: Parsing issues for: /home/nested_library.sql
+        	use plato;
+	               ^
+            <tmp_path>/program.sql:/home/nested_library.sql:2:1: Warning: Symbol $unused is not used
+            	select * from Input view `library`;
+	^

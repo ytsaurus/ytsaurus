@@ -65,7 +65,7 @@ bool TTable::IsParameterizedMoveBalancingEnabled() const
 
 bool TTable::IsParameterizedReshardBalancingEnabled(
     bool enableParameterizedByDefault,
-    bool desiredTabletCountRequired) const
+    bool desiredTabletCountOrMetricRequired) const
 {
     if (!TableConfig->EnableAutoReshard) {
         return false;
@@ -87,8 +87,8 @@ bool TTable::IsParameterizedReshardBalancingEnabled(
         return false;
     }
 
-    // So far, balancing via reshard only works if the desired tablet count is known.
-    if (desiredTabletCountRequired && !TableConfig->DesiredTabletCount) {
+    // So far, balancing via reshard only works if the desired tablet count or metric is known.
+    if (desiredTabletCountOrMetricRequired && !TableConfig->DesiredTabletCount && !TableConfig->DesiredTabletMetric) {
         return false;
     }
 
@@ -153,7 +153,7 @@ THashMap<TClusterName, std::vector<NYPath::TYPath>> TTable::GetReplicaBalancingM
     if (!IsParameterizedMoveBalancingEnabled() &&
         !IsParameterizedReshardBalancingEnabled(
             /*enableParameterizedByDefault*/ true,
-            /*desiredTabletCountRequired*/ false))
+            /*desiredTabletCountOrMetricRequired*/ false))
     {
         return {};
     }

@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/library/profiling/public.h>
-
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -19,6 +17,8 @@
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
+
+#include <yt/yt/library/profiling/public.h>
 
 #include <library/cpp/yt/error/error_helpers.h>
 
@@ -63,7 +63,7 @@ public:
                     .Counter("/settlement_requests_succeeded"),
                 Profiler_
                     .WithTag("is_job_first", "true")
-                    .Counter("/settlement_requests_succeeded")
+                    .Counter("/settlement_requests_succeeded"),
             }
     { }
 
@@ -210,8 +210,7 @@ TAllocation::TAllocation(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
     , FSSecretary_(New<TJobFSSecretary>(
         Bootstrap_,
-        Logger,
-        Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs))
+        Logger))
 {
     YT_VERIFY(bootstrap);
 
@@ -763,6 +762,9 @@ void TAllocation::OnAllocationFinished(EAllocationFinishReason finishReason)
     }
 
     ResourceHolder_.Reset();
+
+    FSSecretary_->ReleaseArtifacts();
+    FSSecretary_.Reset();
 
     AllocationProfiler->OnAllocationFinished(TotalJobCount_, finishReason);
 }

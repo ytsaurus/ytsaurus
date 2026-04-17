@@ -1,9 +1,8 @@
 #pragma once
 
-#include "private.h"
-
-#include "extended_job_resources.h"
 #include "chunk_pool_adapters.h"
+#include "extended_job_resources.h"
+#include "private.h"
 #include "task.h"
 
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>

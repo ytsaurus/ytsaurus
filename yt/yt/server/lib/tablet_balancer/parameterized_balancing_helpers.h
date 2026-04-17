@@ -15,6 +15,16 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const std::vector<TString> ParameterizedBalancingAttributes;
+
+double ExtractMetricValue(
+    const NTableClient::TUnversionedValue& value,
+    const std::string& metric,
+    TTabletId tabletId,
+    TTableId tableId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! The ultimate goal of this class is to evenly distribute tablets between cells.
 //!
 //! A metric is calculated for each tablet based on its statistics and performance counters.

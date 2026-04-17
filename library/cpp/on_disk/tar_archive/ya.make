@@ -4,7 +4,7 @@ SRCS(
     archive_writer.cpp
 )
 PEERDIR(
-    util
+    library/cpp/string_utils/ztstrbuf
     contrib/libs/libarchive
 )
 GENERATE_ENUM_SERIALIZATION(archive_iterator.h)

@@ -67,6 +67,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
@@ -138,6 +139,74 @@ void ValidateTabletMounted(TTablet* tablet)
             << TErrorAttribute("tablet_id", tablet->GetId())
             << TErrorAttribute("table_path", tablet->GetTablePath())
             << TErrorAttribute("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
+    }
+}
+
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp)
+{
+    YT_VERIFY(
+        tablet->GetCommitOrdering() == ECommitOrdering::Strong,
+        "Table MUST have strong commit ordering to check stores boundaries by timestamp");
+
+    const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+    if (storeRowIndexMap.empty()) {
+        // No stores.
+        return;
+    }
+
+    auto it = storeRowIndexMap.upper_bound(trimmedRowCount);
+    if (it == storeRowIndexMap.begin()) {
+        // trimmedRowCount is before the first store start row index, nothing to trim.
+        return;
+    }
+
+    auto storeIt = it;
+    --storeIt;
+
+    // Check that we are not trimming more than the table size.
+    if (it == storeRowIndexMap.end()) {
+        if (i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            trimmedRowCount > storeStartingRowIndex + storeIt->second->GetRowCount())
+        {
+            THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                << TErrorAttribute("timestamp", timestamp)
+                << TErrorAttribute("last_store_starting_row_index", storeStartingRowIndex)
+                << TErrorAttribute("last_store_row_count", storeIt->second->GetRowCount());
+        }
+    }
+
+    // Last store could be empty and have min_timestamp == MaxTimestamp, so check the last non-empty one
+    // it should have valid timestamp.
+    if (storeIt->second->GetMinTimestamp() == MaxTimestamp) {
+        // Check for trim row count mismatch.
+        if (storeIt == storeRowIndexMap.begin()) {
+            i64 storeStartingRowIndex = storeIt->second->GetStartingRowIndex();
+            if (trimmedRowCount != storeStartingRowIndex) {
+                THROW_ERROR_EXCEPTION(
+                    "Could not fully trim tablet since trimmed row count is greater than current row count")
+                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+                    << TErrorAttribute("store_starting_row_index", storeStartingRowIndex);
+            }
+
+            // The only remaining store is empty and it's a full trim.
+            return;
+        }
+
+        --storeIt;
+    }
+
+    if (const auto& store = storeIt->second;
+        timestamp < store->GetMinTimestamp() ||
+        (trimmedRowCount > store->GetStartingRowIndex() && timestamp < store->GetMaxTimestamp()))
+    {
+        THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("trimmed_row_count", trimmedRowCount)
+            << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
+            << TErrorAttribute("timestamp", timestamp)
+            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp());
     }
 }
 
@@ -2153,6 +2222,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->CustomRuntimeData = CustomRuntimeData_;
 
+    snapshot->TabletSizeMetrics = TabletSizeMetrics_;
+
     return snapshot;
 }
 
@@ -2329,7 +2400,7 @@ void TTablet::ReconfigureCompressionDictionaries()
 
 void TTablet::ReconfigureProfiling()
 {
-    TableProfiler_ = GetTabletProfilerManager()->CreateTableProfiler(
+    TableProfiler_ = TTabletProfilerManager::Get()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
@@ -2705,6 +2776,10 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
         replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
+    for (auto reason : TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues()) {
+        request->add_reserved_dynamic_store_id_count(
+            ReservedDynamicStoreIdCount_[reason]);
+    }
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2805,6 +2880,23 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
 
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
+    for (auto [index, count] : Enumerate(request->reserved_dynamic_store_id_count())) {
+        if (count == 0) {
+            continue;
+        }
+
+        auto reason = static_cast<EDynamicStoreIdReservationReason>(index);
+        if (TEnumTraits<EDynamicStoreIdReservationReason>::IsKnownValue(reason)) {
+            ReservedDynamicStoreIdCount_[reason] = count;
+        } else {
+            YT_LOG_ALERT("Replicated content concains nonzero reserved "
+                "dynamic store count with unknown reason "
+                "(%v, Reason: %v, Count: %v)",
+                GetLoggingTag(),
+                reason,
+                count);
+        }
+    }
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
@@ -3128,7 +3220,7 @@ void TTablet::UpdateUnmergedRowCount()
     }
 }
 
-TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
+TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp() const
 {
     YT_VERIFY(!TableSchema_->IsSorted());
 

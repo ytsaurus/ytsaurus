@@ -1,10 +1,10 @@
+#include "layer_location.h"
 #include "porto_volume.h"
 #include "private.h"
-#include "layer_location.h"
 #include "volume_counters.h"
 
-#include <yt/yt/server/lib/nbd/server.h>
 #include <yt/yt/server/lib/nbd/block_device.h>
+#include <yt/yt/server/lib/nbd/server.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 
@@ -42,10 +42,11 @@ const std::string& TPortoVolumeBase::GetPath() const
 
 TFuture<void> TPortoVolumeBase::Link(
     TGuid tag,
-    const TString& target)
+    const TString& target,
+    bool sholdCheckTargetDirExists)
 {
     return TAsyncLockWriterGuard::Acquire(&Lock_)
-        .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
+        .AsUnique().Apply(BIND([tag, target, sholdCheckTargetDirExists, this, this_ = MakeStrong(this)] (
             TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
         {
             // Targets_ is protected with guard.
@@ -55,8 +56,9 @@ TFuture<void> TPortoVolumeBase::Link(
 
             // TODO(dgolear): Switch to std::string.
             auto source = TString(GetPath());
-            return LayerLocation_->LinkVolume(tag, source, target);
-        }));
+            return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
+        }))
+        .ToUncancelable();
 }
 
 TFuture<void> TPortoVolumeBase::Remove()
@@ -165,7 +167,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
         });
 }
 
-TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
+TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets)
 {
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath: %v", source);
@@ -180,7 +182,7 @@ TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TStrin
     std::vector<TFuture<void>> futures;
     futures.reserve(targets.size());
     for (const auto& target : targets) {
-        futures.emplace_back(location->UnlinkVolume(source, target));
+        futures.push_back(location->UnlinkVolume(source, target));
     }
 
     return AllSucceeded(std::move(futures))
@@ -202,7 +204,7 @@ TSquashFSVolume::TSquashFSVolume(
         artifactKey)
     , Artifact_(std::move(artifact))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TSquashFSVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -243,7 +245,7 @@ TRWNbdVolume::TRWNbdVolume(
     , NbdDeviceId_(std::move(nbdDeviceId))
     , NbdServer_(std::move(nbdServer))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TRWNbdVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -269,12 +271,17 @@ TFuture<void> TRWNbdVolume::DoRemove(
     TString nbdDeviceId,
     INbdServerPtr nbdServer)
 {
-    // First, unregister device. At this point device is removed from the
+    // First, unregister device. At this point device is removed from NBD
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, remove volume. At this point all device connections are going
-    // be terminated.
+    // Second, flush device.
+    auto flushFuture = OKFuture;
+    if (device) {
+        flushFuture = device->Flush();
+    }
+
+    // Fourth, finalize device after volume removal.
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
@@ -287,12 +294,15 @@ TFuture<void> TRWNbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    return DoRemoveVolumeCommon(
-        "RW NBD",
-        std::move(tagSet),
-        std::move(location),
-        std::move(volumeMeta),
-        std::move(postRemovalCleanup));
+    // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+    return flushFuture
+        .Apply(BIND(
+            &TRWNbdVolume::DoRemoveVolumeCommon,
+            "RW NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup)));
 }
 
 DEFINE_REFCOUNTED_TYPE(TRWNbdVolume)
@@ -313,7 +323,7 @@ TRONbdVolume::TRONbdVolume(
     , NbdDeviceId_(std::move(nbdDeviceId))
     , NbdServer_(std::move(nbdServer))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TRONbdVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -334,12 +344,17 @@ TFuture<void> TRONbdVolume::DoRemove(
     TString nbdDeviceId,
     INbdServerPtr nbdServer)
 {
-    // First, unregister device. At this point device is removed from the
+    // First, unregister device. At this point device is removed from NBD
     // server but it remains in existing device connections.
     auto device = nbdServer->TryUnregisterDevice(nbdDeviceId);
 
-    // Second, remove volume. At this point all device connections are going
-    // be terminated.
+    // Second, flush device.
+    auto flushFuture = OKFuture;
+    if (device) {
+        flushFuture = device->Flush();
+    }
+
+    // Fourth, finalize device after volume removal.
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
@@ -352,12 +367,15 @@ TFuture<void> TRONbdVolume::DoRemove(
         })
         .AsyncVia(nbdServer->GetInvoker());
 
-    return DoRemoveVolumeCommon(
-        "RO NBD",
-        std::move(tagSet),
-        std::move(location),
-        std::move(volumeMeta),
-        std::move(postRemovalCleanup));
+    // Third, remove volume. At this point NBD_CMD_DISK is processed and all device connections are terminated.
+    return flushFuture
+        .Apply(BIND(
+            &TRWNbdVolume::DoRemoveVolumeCommon,
+            "RO NBD",
+            std::move(tagSet),
+            std::move(location),
+            std::move(volumeMeta),
+            std::move(postRemovalCleanup)));
 }
 
 DEFINE_REFCOUNTED_TYPE(TRONbdVolume)
@@ -377,7 +395,7 @@ TOverlayVolume::TOverlayVolume(
     , OverlayDataArray_(std::move(overlayDataArray))
     , VolumeForUpperLayer_(std::move(volumeForUpperLayer))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TOverlayVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -444,7 +462,7 @@ TTmpfsVolume::TTmpfsVolume(
         std::move(volumeMeta),
         std::move(location))
 {
-    SetRemoveCallback(BIND(
+    SetRemoveCallback(BIND_NO_PROPAGATE(
         &TTmpfsVolume::DoRemove,
         TagSet_,
         LayerLocation_,
@@ -474,6 +492,48 @@ TFuture<void> TTmpfsVolume::DoRemove(
 }
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoopVolume::TLoopVolume(
+    TTagSet tagSet,
+    TVolumeMeta volumeMeta,
+    TLayerLocationPtr location)
+    : TPortoVolumeBase(
+        std::move(tagSet),
+        std::move(volumeMeta),
+        std::move(location))
+{
+    SetRemoveCallback(BIND_NO_PROPAGATE(
+        &TLoopVolume::DoRemove,
+        TagSet_,
+        LayerLocation_,
+        VolumeMeta_));
+}
+
+TLoopVolume::~TLoopVolume()
+{
+    YT_UNUSED_FUTURE(Remove());
+}
+
+bool TLoopVolume::IsRootVolume() const
+{
+    return false;
+}
+
+TFuture<void> TLoopVolume::DoRemove(
+    TTagSet tagSet,
+    TLayerLocationPtr location,
+    TVolumeMeta volumeMeta)
+{
+    return DoRemoveVolumeCommon(
+        "Loop",
+        std::move(tagSet),
+        std::move(location),
+        std::move(volumeMeta));
+}
+
+DEFINE_REFCOUNTED_TYPE(TLoopVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 

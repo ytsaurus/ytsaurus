@@ -8,3 +8,4 @@ from .message_transfering import build_flow_message_transfering
 from .one_worker import build_flow_one_worker
 from .worker import build_flow_worker
 from .state_cache import build_flow_state_cache
+from .companion_manager import build_flow_companion_manager

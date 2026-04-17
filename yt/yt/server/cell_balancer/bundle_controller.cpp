@@ -106,8 +106,7 @@ public:
 
         auto localConnection = Bootstrap_->GetClient()->GetNativeConnection();
         auto foreignConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-        // TODO(capone212): Use separate user name NSecurityClient::BundleControllerUserName
-        auto client = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+        auto client = foreignConnection->CreateClient(Bootstrap_->GetClient()->GetOptions());
         Clients_[clusterName] = client;
 
         return client;
@@ -150,7 +149,7 @@ public:
         , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
         , OrchidScanBundleCounter_(New<NOrchid::TScanBundleCounter>())
     {
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
             BIND(&TBundleController::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
@@ -438,7 +437,7 @@ private:
         Bootstrap_->GetNodeTracker()->UpdateNodeStates(inputState.TabletNodes);
 
         TSchedulerMutations mutations;
-        ScheduleBundles(inputState, &mutations);
+        ScheduleBundles(inputState, &mutations, Bootstrap_->GetNodeTracker());
 
         if (dryRun) {
             return;
@@ -555,9 +554,9 @@ private:
         CreateTabletCells(transaction, mutations.CellsToCreate);
         RemoveTabletCells(transaction, mutations.CellsToRemove);
 
-        if (mutations.DynamicConfig) {
+        if (mutations.BundlesDynamicConfig) {
             DynamicConfigUpdateCounter_.Increment();
-            SetBundlesDynamicConfig(transaction, *mutations.DynamicConfig);
+            SetBundlesDynamicConfig(transaction, *mutations.BundlesDynamicConfig);
         }
 
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
@@ -930,7 +929,7 @@ private:
                 for (const auto& nodeName : nodes) {
                     const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-                    if (nodeInfo->State != InstanceStateOnline) {
+                    if (!nodeInfo->IsOnline()) {
                         ++offlineNodeCount;
                         continue;
                     }
@@ -1160,6 +1159,7 @@ private:
     {
         TSchedulerInputState inputState{
             .Config = Config_,
+            .DynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig(),
         };
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
@@ -1204,7 +1204,7 @@ private:
             {Config_->HulkDeallocationsPath, Config_->HulkDeallocationsHistoryPath},
             GetAliveDeallocationsId(inputState));
 
-        inputState.DynamicConfig = GetBundlesDynamicConfig(transaction);
+        inputState.BundlesDynamicConfig = GetBundlesDynamicConfig(transaction);
 
         inputState.SysConfig = GetSystemConfig(transaction);
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/public.h>

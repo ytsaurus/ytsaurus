@@ -148,7 +148,7 @@ public:
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->SubscribeChunkAdded(BIND_NO_PROPAGATE(&TMasterConnector::OnChunkAdded, MakeWeak(this)));
@@ -1043,16 +1043,14 @@ private:
 
         if (GetDynamicConfig()->CheckChunksCellTagsBeforeHeartbeats) {
            YT_UNUSED_FUTURE(
-                BIND([this, weakThis = MakeWeak(this), masterCellTags] {
-                    if (auto this_ = weakThis.Lock()) {
-                        if (GetDynamicConfig()->ForceSyncMasterCellDirectoryBeforeCheckChunks) {
-                            auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
-                            if (!syncResultOrError.IsOK()) {
-                                YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
-                            }
+                BIND([this, this_ = MakeStrong(this), masterCellTags] {
+                    if (GetDynamicConfig()->ForceSyncMasterCellDirectoryBeforeCheckChunks) {
+                        auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
+                        if (!syncResultOrError.IsOK()) {
+                            YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
                         }
-                        Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                     }
+                    Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                 }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run());
         }

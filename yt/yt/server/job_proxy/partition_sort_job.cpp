@@ -1,6 +1,6 @@
+#include "job_detail.h"
 #include "partition_sort_job.h"
 #include "private.h"
-#include "job_detail.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>

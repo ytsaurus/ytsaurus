@@ -27,8 +27,6 @@ struct TSerializedBlocksRequest
     std::vector<TSharedRef> Buffers;
 };
 
-i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize);
-
 TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
 
 NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
@@ -94,15 +92,13 @@ public:
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlocks) override;
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlocks);
+        TFairShareSlotId fairShareSlotId);
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

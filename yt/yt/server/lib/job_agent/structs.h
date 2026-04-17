@@ -35,7 +35,8 @@ struct TTimeStatistics
     std::optional<TDuration> PrepareDuration;
     std::optional<TDuration> ArtifactsCachingDuration;
     std::optional<TDuration> PrepareRootFSDuration;
-    std::optional<TDuration> PrepareTmpfsDuration;
+    std::optional<TDuration> PrepareNonRootVolumesDuration;
+    std::optional<TDuration> LinkVolumesDuration;
     std::optional<TDuration> PrepareGpuCheckFSDuration;
     std::optional<TDuration> ValidateRootFSDuration;
     std::optional<TDuration> ExecDuration;

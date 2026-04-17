@@ -8,7 +8,7 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations);
+void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations, const INodeTrackerPtr& nodeTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

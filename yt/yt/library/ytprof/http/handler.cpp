@@ -54,7 +54,7 @@ public:
 
             TCgiParameters params(req->GetUrl().RawQuery);
             auto profile = BuildProfile(params);
-            Symbolize(&profile, true);
+            Symbolize(&profile, { .SymbolizeExistingFunctions = false });
             AddBuildInfo(&profile, BuildInfo_);
 
             if (auto it = params.Find("symbolize"); it == params.end() || it->second != "0") {

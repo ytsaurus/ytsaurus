@@ -486,12 +486,15 @@ class TApiServiceContext
 public:
     // For most cases the most important request field is "path". If it is present in request message,
     // we want to see it in the structured log.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, RequestPath);
-
-    TLogger Logger;
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TYPath>, RequestPath);
 
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
+
+    void SetLogger(TLogger logger)
+    {
+        Logger = std::move(logger);
+    }
 
     void SetupMainMessage(TYsonString requestYson)
     {
@@ -520,11 +523,13 @@ public:
                 DoEmitError();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(TError(ex), "Error while logging structured event");
+            YT_LOG_ERROR(ex, "Error while logging structured event");
         }
     }
 
 private:
+    TLogger Logger;
+
     //! True if message should be emitted to main topic.
     bool EmitMain_ = false;
     // YSON-serialized request body. This field may be really heavy.
@@ -1375,15 +1380,14 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 {
     using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
-    context->Logger = Logger
-        .WithTag("RequestId: %v", context->GetRequestId());
+    context->SetLogger(Logger
+        .WithTag("RequestId: %v", context->GetRequestId()));
 
     // First, recover request path from the typed request context using the incredible power of C++20 concepts.
-    std::optional<TString> requestPath;
+    std::optional<TYPath> requestPath;
     if constexpr (requires { context->Request().path(); }) {
         requestPath.emplace(context->Request().path());
     }
-
     context->SetRequestPath(std::move(requestPath));
 
     // Then, connect it to the typed context using subscriptions for reply and cancel signals.
@@ -3659,7 +3663,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobs)
         options.WithCompetitors = request->with_competitors();
     }
     if (request->has_collective_id()) {
-        options.CollectiveId = FromProto<TGuid>(request->collective_id());
+        options.CollectiveId = FromProto<NJobTrackerClient::TCollectiveId>(request->collective_id());
     }
     if (request->has_job_competition_id()) {
         options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
@@ -4195,6 +4199,7 @@ static void LookupRowsPrologue(
         ? TColumnFilter()
         : TColumnFilter(std::move(columnFilterIndexes));
     options->KeepMissingRows = request->keep_missing_rows();
+    options->AllowMissingKeyColumns = request->allow_missing_key_columns();
     options->EnablePartialResult = request->enable_partial_result();
     if (request->has_use_lookup_cache()) {
         options->UseLookupCache = request->use_lookup_cache();
@@ -4672,14 +4677,23 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
+
+    std::string truncatedQuery;
+    if (config->TruncatedQueryLengthForRequestInfo &&
+        std::ssize(query) > *config->TruncatedQueryLengthForRequestInfo + std::ssize(DefaultTruncatedMessage))
+    {
+        truncatedQuery = query.substr(0, *config->TruncatedQueryLengthForRequestInfo)
+            .append(DefaultTruncatedMessage);
+    }
+
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            query,
+            !truncatedQuery.empty() ? truncatedQuery : query,
             options.Timestamp,
             options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
-            query,
+            !truncatedQuery.empty() ? truncatedQuery : query,
             options.Timestamp);
     }
 
@@ -6783,7 +6797,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.PartitionMode = FromProto<NTableClient::ETablePartitionMode>(request->partition_mode());
 
-    options.DataWeightPerPartition = request->data_weight_per_partition();
+    if (request->has_data_weight_per_partition()) {
+        options.DataWeightPerPartition = request->data_weight_per_partition();
+    }
+
+    if (request->has_compressed_data_size_per_partition()) {
+        options.CompressedDataSizePerPartition = request->compressed_data_size_per_partition();
+    }
 
     if (request->has_max_partition_count()) {
         options.MaxPartitionCount = request->max_partition_count();
@@ -6799,11 +6819,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
+    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
         paths,
         options.PartitionMode,
         options.EnableKeyGuarantee,
         options.DataWeightPerPartition,
+        options.CompressedDataSizePerPartition,
         options.AdjustDataWeightPerPartition,
         options.EnableCookies);
 

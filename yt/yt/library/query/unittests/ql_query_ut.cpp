@@ -17,6 +17,7 @@
 #include <yt/yt/library/query/engine/functions_cg.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -67,15 +68,14 @@ protected:
         TStringBuf query,
         TMatcher matcher,
         TYsonStringBuf placeholderValues = {},
-        int syntaxVersion = 1)
+        TPreparePlanFragmentOptions options = {.BuilderVersion = DefaultExpressionBuilderVersion})
     {
         EXPECT_THROW_THAT(
-            BIND([&] {
-                ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, syntaxVersion);
+            NConcurrency::WaitFor(BIND([&] {
+                ParseAndPreparePlanFragment(&PrepareMock_, query, placeholderValues, options);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
-            .Run()
-            .BlockingGet()
+            .Run())
             .ThrowOnError(),
             matcher);
     }
@@ -367,7 +367,7 @@ TEST_F(TQueryPrepareTest, NullTypeInference)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
-    ParseAndPreparePlanFragment(&PrepareMock_, "null from [//t]", {}, 1);
+    ParseAndPreparePlanFragment(&PrepareMock_, "null from [//t]");
 }
 
 TEST_F(TQueryPrepareTest, AdditionPrecedence)
@@ -712,8 +712,12 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         )");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
+        TJoinProfilerRegistry joinProfilerRegistry1;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            joinProfilerRegistry1.InsertJoinProfilerOrThrow(joinIndex, MakeNullJoinSubqueryProfiler());
+        }
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id1, &variables, std::move(joinProfilerRegistry1));
     }
 
     llvm::FoldingSetNodeID id2;
@@ -728,8 +732,12 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         )");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
+        TJoinProfilerRegistry joinProfilerRegistry2;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            joinProfilerRegistry2.InsertJoinProfilerOrThrow(joinIndex, MakeNullJoinSubqueryProfiler());
+        }
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id2, &variables, std::move(joinProfilerRegistry2));
     }
 
     EXPECT_EQ(id1, id2);
@@ -757,7 +765,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id1, &variables);
     }
 
     llvm::FoldingSetNodeID id2;
@@ -766,7 +774,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id2, &variables);
     }
 
     EXPECT_NE(id1, id2);
@@ -785,7 +793,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id1, &variables);
     }
 
     llvm::FoldingSetNodeID id2;
@@ -793,7 +801,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, {MakeNullJoinSubqueryProfiler()});
+        ProfileForBothExecutionBackends(query, &id2, &variables);
     }
 
     EXPECT_NE(id1, id2);
@@ -1205,7 +1213,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
         }))));
 
     auto getFingerprint = [this] (TStringBuf query) -> std::string {
-        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 2);
         auto plan = PreparePlanFragment(
             &PrepareMock_,
             parsedSource->Source,
@@ -1222,15 +1230,15 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
     };
 
     {
-        auto fingerprint = getFingerprint("select cardinality(v) from [//t] group by 0");
+        auto fingerprint = getFingerprint("select cardinality(v) from `//t` group by 0");
         EXPECT_TRUE(fingerprint.starts_with("SELECT hll_7(v) AS hll_7(v) GROUP BY"));
     }
     {
-        auto fingerprint = getFingerprint("select * from [//t] group by 0 having cardinality(v) > 42");
+        auto fingerprint = getFingerprint("select * from `//t` group by 0 having cardinality(v) > 42");
         EXPECT_TRUE(fingerprint.contains("HAVING hll_7(v) >"));
     }
     {
-        auto fingerprint = getFingerprint("select k from [//t] group by k order by 1, (25 + cardinality(v)) limit 10");
+        auto fingerprint = getFingerprint("select k from `//t` group by k order by 1, (25 + cardinality(v)) limit 10");
         EXPECT_TRUE(fingerprint.contains("ORDER BY ? ASC, ? + hll_7(v) ASC LIMIT ?"));
     }
     {
@@ -1247,7 +1255,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             ) AS Subquery_2
             GROUP BY 0)";
 
-        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 2);
 
         auto plan = PreparePlanFragment(
             &PrepareMock_,
@@ -1273,17 +1281,17 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
     }
     {
         EXPECT_THROW_THAT(
-            getFingerprint("select * from [//t] where cardinality(v) > 42 group by 0"),
+            getFingerprint("select * from `//t` where cardinality(v) > 42 group by 0"),
             HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
     {
         EXPECT_THROW_THAT(
-            getFingerprint("select * from [//t] group by cardinality(v)"),
+            getFingerprint("select * from `//t` group by cardinality(v)"),
             HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
     {
         EXPECT_THROW_THAT(
-            getFingerprint("select max(cardinality(v)) from [//t] group by 0"),
+            getFingerprint("select max(cardinality(v)) from `//t` group by 0"),
             HasSubstr("Misuse of aggregate function \"hll_7\""));
     }
 }
@@ -1309,7 +1317,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
     };
 
     EXPECT_NE(fragment->Query->OrderClause, nullptr);
-    EXPECT_FALSE(fragment->Query->IsOrdered(false));
+    EXPECT_EQ(fragment->Query->GetScanOrder(false), EScanOrder::Unordered);
 
     auto [dataSource, query] = InferRanges(
         columnEvaluatorCache,
@@ -1323,7 +1331,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
         Logger());
 
     EXPECT_EQ(query->OrderClause, nullptr);
-    EXPECT_TRUE(query->IsOrdered(false));
+    EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Ordered);
 }
 
 TEST_F(TQueryPrepareTest, LeftJoinOptionalizesType)
@@ -6035,6 +6043,51 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, JoinListContainsWithEntityGuard)
+{
+    TSplitMap splits;
+    std::vector<TSource> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=2",
+    });
+
+    // Store YSON as strings, convert to Any in query via yson_string_to_any
+    // to produce real YSON entity values (test framework converts # to NULL sentinel).
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"l", EValueType::String},
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        R"(a=1;l="[foo;available-for-support]")",
+        R"(a=2;l="#")",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "a=1",
+    }, resultSplit);
+
+    Evaluate(
+        "a FROM [//left] join [//right] using a "
+        "where yson_string_to_any(l) != make_entity() "
+        "AND list_contains(yson_string_to_any(l), \"available-for-support\")",
+        splits,
+        sources,
+        ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, ComplexAlias)
 {
     auto split = MakeSplit({
@@ -9358,7 +9411,7 @@ void TQueryEvaluateComplexTest::DoTest(
     };
 
     auto query = Evaluate(queryString, splits, sources, resultMatcher);
-    EXPECT_TRUE(query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true));
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true), EScanOrder::Ordered);
 }
 
 TEST_P(TQueryEvaluateComplexTest, All)
@@ -11242,6 +11295,91 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         split,
         source,
         ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YsonLengthComposite)
+{
+    auto split = MakeSplit({
+        {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto source = TSource{
+        "list=[1; 2; 3]",
+        "list=[4; 5]",
+        "list=[]",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"length", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "length=3",
+        "length=2",
+        "length=0",
+    }, resultSplit);
+
+    Evaluate("yson_length(list) as length FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YsonLengthCompositeStruct)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            },
+            /*removedFieldStableNames*/ {})},
+    });
+
+    auto source = TSource{
+        "struct={a=1;b=hello;c=%true}",
+        "struct={a=2;b=world;c=%false}",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"length", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "length=3",
+        "length=3",
+    }, resultSplit);
+
+    Evaluate("yson_length(struct) as length FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YsonLengthCompositeNestedList)
+{
+    auto split = MakeSplit({
+        {"nested", ListLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
+    });
+
+    auto source = TSource{
+        "nested=[[1;2];[3;4;5];[6]]",
+        "nested=[[1]]",
+        "nested=[]",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"length", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "length=3",
+        "length=1",
+        "length=0",
+    }, resultSplit);
+
+    Evaluate("yson_length(nested) as length FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }

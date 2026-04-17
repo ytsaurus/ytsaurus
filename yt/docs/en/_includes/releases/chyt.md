@@ -8,6 +8,30 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.3**" %}
+
+**Release date:** 2026-04-02
+
+
+**Fixes:**
+
+* Fix conversion of constant sets in read range inferrence (7bdb3cf)
+* Fix handling of arrays in key condition (8a34c91)
+
+
+{% endcut %}
+
+
+{% cut "**2.18.2**" %}
+
+**Release date:** 2026-03-23
+
+
+No description
+
+{% endcut %}
+
+
 {% cut "**2.18.1**" %}
 
 **Release date:** 2026-03-04

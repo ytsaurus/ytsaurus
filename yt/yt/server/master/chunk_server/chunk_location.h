@@ -47,9 +47,12 @@ public:
     //!   Indicates medium where removal of this chunk is scheduled.
     DEFINE_BYREF_RW_PROPERTY(TChunkQueue, ChunkRemovalQueue);
 
+    using TChunkSealQueue = THashMap<NChunkClient::TChunkIdWithIndex, int>;
     //! Key:
     //!   Indicates an unsealed chunk.
-    DEFINE_BYREF_RW_PROPERTY(TChunkQueue, ChunkSealQueue);
+    //! Value:
+    //!   Indicates number of failed schedule seal job attempts
+    DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
     //! Non-null revision means that the request was already sent and is pending confirmation.

@@ -97,6 +97,7 @@ public:
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
     NApi::NNative::IClientPtr GetRootClient() const;
+    NApi::NNative::IClientPtr GetDictionariesClient() const;
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
 
     //! Return nodes available through discovery service.
@@ -144,9 +145,11 @@ public:
     void SetSqlObjectOnOtherInstances(const TString& objectName, const TSqlObjectInfo& info) const;
     void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const;
 
-    void ReloadDictionaryGlobally(const std::string& dictionaryName) const;
+    void ReloadDictionaryGlobally(const std::string& configPath) const;
 
     TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository();
+
+    void PrepareClickHouseUser(const std::string& userName);
 
 private:
     class TImpl;

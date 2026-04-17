@@ -50,7 +50,7 @@ constinit const auto Logger = NTableClient::TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Need to declare move constructor to use in std::vector
-TGroupBlockHolder::TGroupBlockHolder(TGroupBlockHolder&&)
+TGroupBlockHolder::TGroupBlockHolder(TGroupBlockHolder&&) noexcept
 {
     YT_ABORT();
 }

@@ -60,7 +60,8 @@
 
 struct __emutls_control;
 
-extern "C" void* yt__emutls_get_address(__emutls_control* control) Y_NO_SANITIZE("memory")
+Y_NO_SANITIZE("memory")
+extern "C" void* yt__emutls_get_address(__emutls_control* control)
 {
     auto fn = (void(*)(void*))control;
     void* p;

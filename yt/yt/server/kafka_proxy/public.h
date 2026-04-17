@@ -20,10 +20,12 @@ DECLARE_REFCOUNTED_STRUCT(TProxyDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IServer)
+DECLARE_REFCOUNTED_STRUCT(IRequestHandler)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 DECLARE_REFCOUNTED_STRUCT(IGroupCoordinator)
+DECLARE_REFCOUNTED_STRUCT(IGroupCoordinatorManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

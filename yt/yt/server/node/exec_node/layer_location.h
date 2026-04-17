@@ -1,27 +1,27 @@
 #pragma once
 
-#include "private.h"
 #include "preparation_options.h"
+#include "private.h"
 #include "volume.h"
 #include "volume_counters.h"
 #include "volume_options.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/node/data_node/public.h>
 #include <yt/yt/server/node/data_node/location.h>
+#include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 
 #include <yt/yt/library/containers/public.h>
-
-#include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
 
@@ -46,6 +46,7 @@ public:
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         NContainers::IPortoExecutorPtr volumeExecutor,
         NContainers::IPortoExecutorPtr layerExecutor,
+        NContainers::IPortoExecutorPtr fastLayerExecutor,
         const TString& id);
 
     TFuture<void> Initialize();
@@ -74,11 +75,17 @@ public:
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
+    TFuture<TVolumeMeta> CreateLoopVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        TLocalDiskVolumeParamsPtr tmpfsVolume);
+
     TFuture<TVolumeMeta> CreateTmpfsVolume(
         TGuid tag,
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        TTmpfsVolumeParams tmpfsVolume);
+        TTmpfsVolumeParamsPtr tmpfsVolume);
 
     void Disable(const TError& error, bool persistentDisable = true);
 
@@ -128,7 +135,8 @@ public:
     TFuture<void> LinkVolume(
         TGuid tag,
         const TString& source,
-        const TString& target);
+        const TString& target,
+        bool sholdCheckTargetDirExists);
 
     TFuture<void> UnlinkVolume(
         const TString& source,
@@ -154,6 +162,7 @@ private:
     TAtomicIntrusivePtr<TLayerCacheDynamicConfig> DynamicConfig_;
     const NContainers::IPortoExecutorPtr VolumeExecutor_;
     const NContainers::IPortoExecutorPtr LayerExecutor_;
+    const NContainers::IPortoExecutorPtr FastLayerExecutor_;
 
     const NConcurrency::TActionQueuePtr LocationQueue_;
     const TString VolumesPath_;
@@ -245,11 +254,17 @@ private:
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
+    TVolumeMeta DoCreateLoopVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        TLocalDiskVolumeParamsPtr volumeParams);
+
     TVolumeMeta DoCreateTmpfsVolume(
         TGuid tag,
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
-        TTmpfsVolumeParams volumeParams);
+        TTmpfsVolumeParamsPtr volumeParams);
 
     void DoRemoveVolume(
         TTagSet tagSet,
@@ -259,7 +274,8 @@ private:
     void DoLinkVolume(
         TGuid tag,
         const TString& source,
-        const TString& target);
+        const TString& target,
+        bool sholdCheckTargetDirExists);
 
     void DoUnlinkVolume(
         const TString& source,

@@ -138,7 +138,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
         YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
         if (!path.GetColumns().has_value()) {
-            THROW_ERROR_EXCEPTION("Received ypath without column selectors")
+            THROW_ERROR_EXCEPTION("Received YPath without column selectors")
                 << TErrorAttribute("ypath", path);
         }
 

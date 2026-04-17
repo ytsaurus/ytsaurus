@@ -329,11 +329,8 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::SetDet
 template <class TDerived, class TLsmCompactionHint, class TOwner>
 void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::UpdateRevision()
 {
-    auto steadyNow = std::chrono::steady_clock::now();
-    auto nanosecondsFromEpoch =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(steadyNow.time_since_epoch()).count();
-
-    LsmCompactionHint_.SetNodeObjectRevision(TRevision(nanosecondsFromEpoch));
+    static thread_local ui64 revisionCounter = 0;
+    LsmCompactionHint_.SetNodeObjectRevision(TRevision(++revisionCounter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -501,23 +498,26 @@ void TPartitionCompactionHintController::OnMountConfigUpdated(TPartition* partit
         /*isInBadState*/ !AreAllStoresGood());
 }
 
-void TPartitionCompactionHintController::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store)
+void TPartitionCompactionHintController::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState)
 {
     YT_VERIFY(State_ >= ECompactionHintState::BadState);
 
-    if (DefinitelyHasNoHint(store)) {
+    if (DefinitelyHasNoHint(store) || store->GetStoreState() == oldState) {
         return;
     }
 
+    // From bad state to good.
     if (store->GetStoreState() == EStoreState::Persistent) {
         --BadStateStoreCount_;
         if (AreAllStoresGood()) {
             SetActiveState(partition);
         }
-    } else {
+    // From good state to bad.
+    } else if (oldState == EStoreState::Persistent) {
         SetPassiveState(partition, ECompactionHintState::BadState);
         ++BadStateStoreCount_;
     }
+    // From bad state to bad, for example RemovePrepared -> Removed, do nothing.
 }
 
 void TPartitionCompactionHintController::OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store)
@@ -540,7 +540,9 @@ void TPartitionCompactionHintController::OnStoreRemoved(TPartition* partition, T
 
     if (FetchInProgress()) {
         YT_VERIFY(AreAllStoresGood());
+        UpdateRevision();
         store->CompactionHintFetchPipelines().ResetPartitionPipeline(GetPartitionCompactionHintKind());
+        return;
     }
 
     if (DefinitelyHasNoHint(store)) {
@@ -570,6 +572,7 @@ void TPartitionCompactionHintController::OnStoreAdded(TPartition* partition, TSo
     }
 
     if (FetchInProgress()) {
+        UpdateRevision();
         store->CompactionHintFetchPipelines().InitializePartitionPipeline(store, GetPartitionCompactionHintKind());
         return;
     }
@@ -676,11 +679,11 @@ void TPartitionCompactionHints::OnMountConfigUpdated(TPartition* partition, cons
         ECompactionHintState::DisabledByConfig);
 }
 
-void TPartitionCompactionHints::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store)
+void TPartitionCompactionHints::OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState)
 {
     ForEachController(
-        [partition, store] (auto& controller) {
-            controller.OnStoreStateChanged(partition, store);
+        [partition, store, oldState] (auto& controller) {
+            controller.OnStoreStateChanged(partition, store, oldState);
         },
         [store] () {
             store->CompactionHints().OnStoreStateChanged(store);

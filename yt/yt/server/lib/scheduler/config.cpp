@@ -691,6 +691,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
         .DefaultNew();
 
+    registrar.Parameter("policy_kind", &TThis::PolicyKind)
+        .Default(EPolicyKind::Classic);
+
     registrar.Parameter("enable_absolute_fair_share_starvation_tolerance", &TThis::EnableAbsoluteFairShareStarvationTolerance)
         .Default(false);
     registrar.Parameter("consider_allocation_on_fair_share_bound_preemptible", &TThis::ConsiderAllocationOnFairShareBoundPreemptible)
@@ -1367,6 +1370,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_actions_allowed_for_pool_managers", &TThis::OperationActionsAllowedForPoolManagers)
         .Default();
+
+    registrar.Parameter("unutilized_resources_sensors_update_period", &TThis::UnutilizedResourcesSensorsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 
     registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;

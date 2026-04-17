@@ -2,6 +2,7 @@
 
 #include "artifact.h"
 #include "bootstrap.h"
+#include "helpers.h"
 #include "layer_location.h"
 #include "porto_volume.h"
 #include "private.h"
@@ -10,7 +11,6 @@
 #include "volume_cache.h"
 #include "volume_counters.h"
 #include "volume_options.h"
-#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -18,18 +18,17 @@
 #include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
-
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
-
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -86,23 +85,37 @@ public:
         YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
     }
 
-    //! Prepare tmpfs volumes.
-    TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+    TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<TString>& sandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
+        const TJobId& jobId,
+        const std::vector<TBaseVolumeParamsPtr>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions&) override
     {
         YT_VERIFY(sandboxPath);
         // Create debug tag.
         auto tag = TGuid::Create();
 
-        std::vector<TFuture<TTmpfsVolumeResult>> futures;
-        futures.reserve(volumes.size());
+        auto future = OKFuture;
+        auto result = std::make_shared<std::vector<TVolumeResultPtr>>();
+        result->reserve(volumes.size());
         for (const auto& volume : volumes) {
-            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-            futures.push_back(CreateTmpfsVolume(tag, *sandboxPath, volume, mountPath));
+            YT_VERIFY(volume->VolumeType == EVolumeType::Tmpfs);
+            auto mountPath = GetVolumeMountPathByVolumeId(volume->VolumeId, volumeMounts);
+            future = future
+                .Apply(BIND([tag, jobId, sandboxPath, volume, mountPath, result, this, this_ = MakeStrong(this)] {
+                    return CreateTmpfsVolume(tag, jobId, *sandboxPath, StaticPointerCast<TTmpfsVolumeParams>(volume), mountPath)
+                        .Apply(
+                            BIND([result = std::move(result)] (TVolumeResultPtr volumeResult) {
+                                result->push_back(std::move(volumeResult));
+                            })
+                            .AsyncVia(GetCurrentInvoker())
+                        )
+                        .ToUncancelable();
+                }));
         }
-        return AllSucceeded(std::move(futures));
+
+        return future.Apply(BIND([result] { return std::move(*result); }));
     }
 
     TFuture<IVolumePtr> RbindRootVolume(
@@ -112,12 +125,12 @@ public:
         YT_UNIMPLEMENTED("RbindRootVolume is not implemented for SimpleVolumeManager");
     }
 
-    TFuture<void> LinkTmpfsVolumes(
+    TFuture<void> LinkVolumes(
         const TString&,
-        const std::vector<TTmpfsVolumeResult>&,
+        const std::vector<TVolumeResultPtr>&,
         const std::vector<NScheduler::TVolumeMountPtr>&) override
     {
-        YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
+        YT_UNIMPLEMENTED("LinkVolumes is not implemented for SimpleVolumeManager");
     }
 
     TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
@@ -205,10 +218,11 @@ private:
     const IInvokerPtr Invoker_;
     const bool DetachUnmount_;
 
-    TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
+    TFuture<TVolumeResultPtr> CreateTmpfsVolume(
         TGuid tag,
+        const TJobId& jobId,
         const TString& sandboxPath,
-        const TTmpfsVolumeParams& volume,
+        const TTmpfsVolumeParamsPtr& volume,
         const std::string& mountPath)
     {
         YT_VERIFY(sandboxPath);
@@ -223,39 +237,52 @@ private:
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
-        config->Size = volume.Size;
-        config->UserId = volume.UserId;
+        config->Size = volume->Size;
+        config->UserId = volume->UserId;
 
-        YT_LOG_DEBUG("Creating tmpfs volume (Tag: %v, Config: %v)",
+        YT_LOG_DEBUG(
+            "Creating tmpfs volume (Tag: %v, JobId: %v, Config: %v)",
             tag,
+            jobId,
             ConvertToYsonString(config, EYsonFormat::Text));
 
         return BIND(
             [
                 tagSet,
-                volumeId = volume.VolumeId,
+                volumeId = volume->VolumeId,
+                sandboxPath,
                 volumeCreateTimeGuard = std::move(volumeCreateTimeGuard),
                 config = std::move(config),
-                tmpfsIndex = volume.Index,
+                tmpfsIndex = volume->Index,
                 this,
                 this_ = MakeStrong(this)
             ] {
                 try {
+                    if (config->Path != sandboxPath) {
+                        if (NFS::Exists(config->Path)) {
+                            THROW_ERROR_EXCEPTION("Target path already exists")
+                                << TErrorAttribute("target", config->Path);
+                        }
+                        NFS::MakeDirRecursive(config->Path);
+                    }
+
                     RunTool<TMountTmpfsAsRootTool>(config);
 
                     TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
                         .Update(VolumeCounters().Increment(tagSet));
-                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                    TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created")
+                        .Increment(1);
 
-                    return TTmpfsVolumeResult{
-                        .Volume = New<TSimpleTmpfsVolume>(
+                    auto result = New<TTmpfsVolumeResult>(
+                        std::move(volumeId),
+                        EVolumeType::Tmpfs,
+                        New<TSimpleTmpfsVolume>(
                             tagSet,
                             config->Path,
                             Invoker_,
                             DetachUnmount_),
-                        .VolumeId = volumeId,
-                        .Index = tmpfsIndex
-                    };
+                        tmpfsIndex);
+                    return StaticPointerCast<TVolumeResult>(std::move(result));
                 } catch (const std::exception& ex) {
                     TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
                     throw;
@@ -348,9 +375,6 @@ public:
         auto dynamicConfig = DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager;
         DynamicConfig_.Store(dynamicConfig);
 
-        if (Bootstrap_) {
-            Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
-        }
         // Create locations.
 
         std::vector<TFuture<void>> initLocationResults;
@@ -370,6 +394,10 @@ public:
                     dynamicConfig->LayerCache->LayerPortoExecutor,
                     Format("layer%v", index),
                     ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
+                CreatePortoExecutor(
+                    dynamicConfig->LayerCache->LayerPortoExecutor,
+                    Format("FastLayerExecutor%v", index),
+                    ExecNodeProfiler().WithPrefix("/location_fast_layers/porto").WithTag("location_id", id)),
                 id);
             initLocationResults.push_back(location->Initialize());
             locations.push_back(std::move(location));
@@ -395,6 +423,11 @@ public:
             ControlInvoker_,
             MemoryUsageTracker_,
             Bootstrap_);
+
+        // Subscribe to PopulateAlerts only after LayerCache_ is created to avoid data race.
+        if (Bootstrap_) {
+            Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
+        }
 
         SquashFSVolumeCache_ = New<TSquashFSVolumeCache>(
             Bootstrap_,
@@ -554,59 +587,73 @@ public:
             .As<IVolumePtr>();
     }
 
-    //! Prepare tmpfs volumes.
-    TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+    TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<TString>&,
-        const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>&) override
+        const TJobId& jobId,
+        const std::vector<TBaseVolumeParamsPtr>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>&,
+        const TArtifactDownloadOptions& artifactDownloadOptions) override
     {
         // Create debug tag.
         auto tag = TGuid::Create();
 
-        std::vector<TFuture<TTmpfsVolumeResult>> futures;
+        std::vector<TFuture<TVolumeResultPtr>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
             // TODO: Remove call PrepareOverlayLayers (YT-27698)
-            futures.push_back(AllSucceeded(PrepareOverlayLayers(volume.LayerArtifactKeys, tag, volume.JobId, volume.ArtifactDownloadOptions))
+            futures.push_back(AllSucceeded(PrepareOverlayLayers(
+                    volume->LayerArtifactKeys,
+                    tag,
+                    jobId,
+                    artifactDownloadOptions))
                 .AsUnique()
                 .Apply(BIND(
                     [
                         tag,
+                        jobId,
                         volume,
                         this,
                         this_ = MakeStrong(this)
                     ] (std::vector<TOverlayData>&& overlayDataArray) mutable {
-                        return CreateTmpfsVolume(tag, volume)
+                        auto volumeFuture = [&] {
+                            switch (volume->VolumeType) {
+                                case EVolumeType::Tmpfs:
+                                    return CreateTmpfsVolume(tag, StaticPointerCast<TTmpfsVolumeParams>(volume));
+                                case EVolumeType::LocalDisk:
+                                    return CreateLoopVolume(tag, StaticPointerCast<TLocalDiskVolumeParams>(volume));
+                                default:
+                                    YT_ABORT();
+                            }
+                        }();
+
+                        return volumeFuture
                             .AsUnique()
                             .Apply(BIND(
                                 [
                                     tag,
+                                    jobId,
                                     overlayDataArray = std::move(overlayDataArray),
                                     volumeParams = std::move(volume),
                                     this,
                                     this_ = MakeStrong(this)
-                                ] (TTmpfsVolumePtr&& volume) {
-                                    TTmpfsVolumeResult result;
-                                    result.VolumeId = std::move(volumeParams.VolumeId);
-                                    result.Index = volumeParams.Index;
+                                ] (TVolumeResultPtr&& result) {
                                     if (overlayDataArray.empty()) {
-                                        result.Volume = std::move(volume);
                                         return MakeFuture(result);
                                     }
 
-                                    TString placePath = NFS::JoinPaths(volume->GetPath(), "place");
+                                    TString placePath = NFS::JoinPaths(result->Volume->GetPath(), "place");
                                     // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
                                     return DoCreateOverlayVolume(
                                         tag,
-                                        volumeParams.JobId,
-                                        volumeParams.UserId,
+                                        jobId,
+                                        volumeParams->UserId,
                                         placePath,
                                         overlayDataArray,
-                                        /* volumeForUpperLayer */ std::move(volume)
+                                        /* volumeForUpperLayer */ std::move(result->Volume)
                                     )
                                         .AsUnique()
-                                        .Apply(BIND([result = std::move(result)] (TOverlayVolumePtr&& volume) mutable -> TTmpfsVolumeResult {
-                                            result.Volume = std::move(static_cast<IVolumePtr>(volume));
+                                        .Apply(BIND([result = std::move(result)] (TOverlayVolumePtr&& volume) mutable -> TVolumeResultPtr {
+                                            result->Volume = StaticPointerCast<IVolume>(std::move(volume));
                                             return result;
                                         }))
                                         .ToUncancelable();
@@ -620,24 +667,33 @@ public:
         return AllSucceeded(std::move(futures));
     }
 
-    TFuture<void> LinkTmpfsVolumes(
+    TFuture<void> LinkVolumes(
         const TString& destinationDirectory,
-        const std::vector<TTmpfsVolumeResult>& volumes,
+        const std::vector<TVolumeResultPtr>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
     {
         // Create debug tag.
         auto tag = TGuid::Create();
 
-        std::vector<TFuture<void>> futures;
-        futures.reserve(volumes.size());
-        for (const auto& volume : volumes) {
-            auto mountPath = GetVolumeMountPathByVolumeId(volume.VolumeId, volumeMounts);
-            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, mountPath));
-            futures.push_back(volume.Volume->Link(tag, target));
-        }
+        TFuture<void> future = OKFuture;
+        for (const auto& volumeMount : volumeMounts) {
+            if (volumeMount->MountPath == "/") {
+                continue;
+            }
+            auto volume = GetNonRootVolumeResultByVolumeId(volumeMount->VolumeId, volumes);
+            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volumeMount->MountPath));
 
-        return AllSucceeded(std::move(futures))
-            .ToUncancelable();
+            // DestinationDirectory may already be created before LinkVolumes is called.
+            bool sholdCheckTargetDirExists = target != destinationDirectory;
+            future = future
+                .Apply(
+                    BIND([tag, volume, target, sholdCheckTargetDirExists] {
+                        return volume->Volume->Link(tag, target, sholdCheckTargetDirExists);
+                    })
+                    .AsyncVia(GetCurrentInvoker())
+                );
+        }
+        return future;
     }
 
     bool IsLayerCached(const TArtifactKey& artifactKey) const override
@@ -684,7 +740,7 @@ public:
     //! Remove volumes planted at a given place.
     TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) override
     {
-        auto location = LayerCache_->PickVolumeLocation();
+        auto location = LayerCache_->PickRandomLocation();
         return BIND(
             [
                 location,
@@ -702,7 +758,7 @@ public:
     //! Remove layers planted at a given place.
     TFuture<void> RemoveLayers(const TString& place, TDuration timeout) override
     {
-        auto location = LayerCache_->PickLayerLocation();
+        auto location = LayerCache_->PickRandomLocation();
         return BIND(
             [
                 location,
@@ -767,16 +823,16 @@ private:
             .As<TOverlayData>();
     }
 
-    TFuture<TTmpfsVolumePtr> CreateTmpfsVolume(
+    TFuture<TVolumeResultPtr> CreateTmpfsVolume(
         TGuid tag,
-        const TTmpfsVolumeParams& volumeParams)
+        const TTmpfsVolumeParamsPtr& volumeParams)
     {
         YT_LOG_INFO(
             "Creating tmpfs volume (Tag: %v, VolumeId: %v, Size: %v, UserId: %v)",
             tag,
-            volumeParams.VolumeId,
-            volumeParams.Size,
-            volumeParams.UserId);
+            volumeParams->VolumeId,
+            volumeParams->Size,
+            volumeParams->UserId);
 
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(
             /*volume type*/ "tmpfs",
@@ -795,12 +851,62 @@ private:
             .Apply(BIND(
                 [
                     tagSet = std::move(tagSet),
-                    location = std::move(location)
+                    location = std::move(location),
+                    volumeParams
                 ] (TVolumeMeta&& volumeMeta) mutable {
-                    return New<TTmpfsVolume>(
-                        std::move(tagSet),
-                        std::move(volumeMeta),
-                        std::move(location));
+                    auto result = New<TTmpfsVolumeResult>(
+                        volumeParams->VolumeId,
+                        EVolumeType::Tmpfs,
+                        New<TTmpfsVolume>(
+                            std::move(tagSet),
+                            std::move(volumeMeta),
+                            std::move(location)),
+                        volumeParams->Index);
+                    return StaticPointerCast<TVolumeResult>(result);
+                }))
+            .ToUncancelable();
+    }
+
+    TFuture<TVolumeResultPtr> CreateLoopVolume(
+        TGuid tag,
+        const TLocalDiskVolumeParamsPtr& volumeParams)
+    {
+        YT_LOG_INFO(
+            "Creating loop volume (Tag: %v, VolumeId: %v, Size: %v, InodeLimit: %v, UserId: %v)",
+            tag,
+            volumeParams->VolumeId,
+            volumeParams->Size,
+            volumeParams->InodeLimit,
+            volumeParams->UserId);
+
+        auto tagSet = TVolumeProfilerCounters::MakeTagSet(
+            /*volume type*/ "loop",
+            /*Cypress path*/ "n/a");
+        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+        auto location = LayerCache_->PickVolumeLocation();
+        auto future = location->CreateLoopVolume(
+            tag,
+            tagSet,
+            std::move(volumeCreateTimeGuard),
+            volumeParams);
+
+        return future
+            .AsUnique()
+            .Apply(BIND(
+                [
+                    tagSet = std::move(tagSet),
+                    location = std::move(location),
+                    volumeId = volumeParams->VolumeId
+                ] (TVolumeMeta&& volumeMeta) mutable {
+                    auto result = New<TVolumeResult>(
+                        std::move(volumeId),
+                        EVolumeType::LocalDisk,
+                        New<TLoopVolume>(
+                            std::move(tagSet),
+                            std::move(volumeMeta),
+                            std::move(location)));
+                    return result;
                 }))
             .ToUncancelable();
     }

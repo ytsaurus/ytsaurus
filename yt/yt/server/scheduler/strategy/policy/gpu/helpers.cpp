@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "structs.h"
 
 #include <yt/yt/server/scheduler/common/public.h>
 
@@ -6,10 +7,9 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAssignmentPreliminary(const TAssignmentPtr& /*assignment*/)
+bool IsAssignmentPreliminary(const TAssignmentPtr& assignment)
 {
-    // TODO(eshcherbin): Should be true only for assignments without a running allocation.
-    return true;
+    return !assignment->AllocationId.has_value();
 }
 
 NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)

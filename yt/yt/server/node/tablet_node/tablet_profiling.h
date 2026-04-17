@@ -70,6 +70,8 @@ struct TLookupCounters
     NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 
     TKeyFilterCounters KeyFilterCounters;
+
+    NYT::NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +120,8 @@ struct TSelectRowsCounters
     NProfiling::TCounter CacheOutdated;
     NProfiling::TCounter CacheMisses;
     NProfiling::TCounter CacheInserts;
+
+    NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +190,7 @@ struct TWriteCounters
     NProfiling::TCounter BulkInsertRowCount;
     NProfiling::TCounter BulkInsertDataWeight;
     NProfiling::TEventTimer ValidateResourceWallTime;
+    NProfiling::TEventTimer WaitOnBlockedRowDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,6 +266,18 @@ struct TChunkWriteCounters
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletSizeMetrics
+{
+    i64 DataWeight = 0;
+    i64 UncompressedDataSize = 0;
+    i64 CompressedDataSize = 0;
+    i64 RowCount = 0;
+    i64 ChunkCount = 0;
+    i64 HunkCount = 0;
+    i64 TotalHunkLength = 0;
+    i64 HunkChunkCount = 0;
+};
 
 struct TTabletCounters
 {
@@ -506,10 +523,10 @@ public:
 
 private:
     const bool Disabled_ = true;
-    const NProfiling::TProfiler Profiler_ = {};
-    const NProfiling::TProfiler MediumProfiler_ = {};
-    const NProfiling::TProfiler MediumHistogramProfiler_ = {};
-    const NProfiling::TProfiler DiskProfiler_ = {};
+    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TProfiler MediumProfiler_;
+    const NProfiling::TProfiler MediumHistogramProfiler_;
+    const NProfiling::TProfiler DiskProfiler_;
     const NTableClient::TTableSchemaPtr Schema_;
 
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
@@ -616,6 +633,12 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NProfiling::TEventTimer GetWaitOnBlockedRowTimer(
+    const TTableProfilerPtr& tableProfiler,
+    NTableClient::EInitialQueryKind initialQueryKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

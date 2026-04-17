@@ -45,7 +45,6 @@ def build_rpc_proxy_resource_overview_rowset():
                 .cell("Memory Total", MultiSensor(
                                     memory_guarantee.aggr(MonitoringTag("host")).alias("Container Memory Guarantee"),
                                     anon_memory_limit.aggr(MonitoringTag("host")).alias("Anon Memory Limit"),
-                                    oom_tracker_threshold.aggr(MonitoringTag("host")).alias("OOM tracker threshold"),
                                     anon_memory_usage.aggr(MonitoringTag("host")).alias("Anon Memory Usage")))
                 .cell("Memory per container", MultiSensor(
                                     memory_guarantee.all(MonitoringTag("host")).series_min().alias("Container Memory Guarantee"),

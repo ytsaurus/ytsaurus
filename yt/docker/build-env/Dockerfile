@@ -11,6 +11,7 @@ ARG PYTHON39_VERSION=3.9.25
 ARG PYTHON310_VERSION=3.10.19
 ARG PYTHON311_VERSION=3.11.14
 ARG PYTHON312_VERSION=3.12.12
+ARG PYTHON313_VERSION=3.13.12
 ARG CONAN_VERSION=2.4.1
 ARG PYYAML_VERSION=6.0.1
 ARG WHEEL_VERSION=0.41.3
@@ -115,8 +116,17 @@ RUN wget "https://www.python.org/ftp/python/${PYTHON312_VERSION}/Python-${PYTHON
     cd .. && \
     rm -rf "Python-${PYTHON312_VERSION}" "Python-${PYTHON312_VERSION}.tgz"
 
-RUN python3.11 -m ensurepip && \
-    python3.11 -m pip install --no-cache-dir --ignore-installed \
+RUN wget "https://www.python.org/ftp/python/${PYTHON313_VERSION}/Python-${PYTHON313_VERSION}.tgz" && \
+    tar xzf "Python-${PYTHON313_VERSION}.tgz" && \
+    cd "Python-${PYTHON313_VERSION}" && \
+    ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    make -j "$(nproc)" && \
+    make altinstall && \
+    cd .. && \
+    rm -rf "Python-${PYTHON313_VERSION}" "Python-${PYTHON313_VERSION}.tgz"
+
+RUN python3.13 -m ensurepip && \
+    python3.13 -m pip install --no-cache-dir --ignore-installed \
         conan==${CONAN_VERSION} \
         dacite \
         PyYAML==${PYYAML_VERSION} \
@@ -126,7 +136,7 @@ RUN python3.11 -m ensurepip && \
         twine \
         wheel==${WHEEL_VERSION}
 
-RUN python3.11 -m venv /root/venv_for_github_actions && \
+RUN python3.13 -m venv /root/venv_for_github_actions && \
     /root/venv_for_github_actions/bin/pip install --no-cache-dir \
         boto3==${BOTO3_VERSION} \
         Jinja2==${JINJA2_VERSION} \

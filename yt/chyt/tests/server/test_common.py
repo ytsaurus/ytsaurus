@@ -255,6 +255,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         write_table("//tmp/rle_encoded_table", arr)
 
+        create("table", "//tmp/t_read_part_block", attributes={
+            "schema": [{"name": "a", "type": "int64"}],
+            "optimize_for": "scan",
+        })
+        arr = []
+        for _ in range(100):
+            arr.append({"a": 1})
+        for _ in range(100):
+            arr.append({"a": 2})
+        for _ in range(100):
+            arr.append({"a": 3})
+        write_table("//tmp/t_read_part_block", arr)
+
         with Clique(1, config_patch=patch, export_query_log=True) as clique:
             def send_simple_distinct_queries(table_name):
                 # Queries that are optimized by simple distinct optimization.
@@ -316,6 +329,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     clique, query_log_path, "select distinct b from " + table_name + " prewhere a = c", 1, [{"b": "a"}]
                 )
                 self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere c = 4", 1, [{"b": None}]
+                )
+                self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a from " + table_name + " group by a having a < 2",
@@ -369,6 +385,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 """
                 )
                 == [{"a": 1}, {"a": 2}, {"a": None}]
+            )
+
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#0:#100]"',
+                100,
+                [{"a": 1}],
+            )
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#100:#200]"',
+                100,
+                [{"a": 2}],
+            )
+            self.make_query_and_check_block_rows(
+                clique,
+                query_log_path,
+                'select distinct a from "//tmp/t_read_part_block[#200:#300]"',
+                100,
+                [{"a": 3}],
             )
 
     @authors("evgenstf")
@@ -2734,6 +2772,11 @@ class TestDataTypeConversion(ClickHouseTestBase):
         create("table", "//tmp/t2", attributes={"schema": short_schema})
         create("table", "//tmp/different_cardinality", attributes={"schema": short_schema})
         create("table", "//tmp/t3", attributes={"schema": short_schema})
+        nested_optional_schema = [
+            {"name": "nested_optional_uint8", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "uint8"}}},
+            {"name": "nested_optional_string", "type_v3": {"type_name": "optional", "item": {"type_name": "optional", "item": "string"}}},
+        ]
+        create("table", "//tmp/nested_optional", attributes={"schema": nested_optional_schema})
 
         def get_row(value):
             str_value = str(value)
@@ -2856,6 +2899,9 @@ class TestDataTypeConversion(ClickHouseTestBase):
             clique.make_query("create table `//tmp/t_ch1` engine=YtTable() as select * from `//tmp/different_cardinality`", settings=settings)
             result = clique.make_query('select * from "//tmp/t_ch1"', settings=settings)
             assert result == arr
+
+            result = clique.make_query('describe table "//tmp/nested_optional"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
 
             settings["chyt.composite.low_cardinality_mode"] = "string_only"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)

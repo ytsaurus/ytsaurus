@@ -183,7 +183,7 @@ void TSimpleVersionedBlockParser::ReadKeyValue(
     int rowIndex) const
 {
     bool isNull = KeyNullFlags_[rowIndex * ChunkKeyColumnCount_ + id];
-    if (Y_UNLIKELY(isNull)) {
+    if (isNull) [[unlikely]] {
         value->Type = EValueType::Null;
         return;
     }
@@ -474,7 +474,7 @@ void TIndexedVersionedRowParser::ReadKeyValue(
     const char** rowData) const
 {
     bool isNull = KeyNullFlags_[id];
-    if (Y_UNLIKELY(isNull)) {
+    if (isNull) [[unlikely]] {
         value->Type = EValueType::Null;
         return;
     }

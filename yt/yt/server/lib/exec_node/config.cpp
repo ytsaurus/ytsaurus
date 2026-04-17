@@ -69,9 +69,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("locations", &TThis::Locations);
 
-    registrar.Parameter("enable_tmpfs", &TThis::EnableTmpfs)
-        .Default(true);
-
     registrar.Parameter("detached_tmpfs_umount", &TThis::DetachedTmpfsUmount)
         .Default(true);
 
@@ -83,9 +80,6 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
-
-    registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
-        .Default(false);
 
     registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
         .Default(false);
@@ -167,6 +161,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("volume_release_timeout", &TThis::VolumeReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
+    registrar.Parameter("remove_volumes_from_porto_place_timeout", &TThis::RemoveVolumesFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("remove_layers_from_porto_place_timeout", &TThis::RemoveLayersFromPortoPlaceTimeout)
+        .Default(TDuration::Minutes(20));
+
     registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
         .Default(false);
 
@@ -181,6 +181,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
+
+    registrar.Parameter("enable_async_artifact_copy", &TThis::EnableAsyncArtifactCopy)
+        .Default(false);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] {
@@ -651,6 +654,9 @@ void TTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_address_resolve", &TThis::FailAddressResolve)
         .Default(false);
+
+    registrar.Parameter("delay_in_artifacts_caching", &TThis::DelayInArtifactsCaching)
+        .Default();
 }
 
 void TJobProbeConfig::Register(TRegistrar registrar)

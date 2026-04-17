@@ -1031,6 +1031,52 @@ Y_UNIT_TEST(Select) {
          "SELECT\n\t1\nFROM\n\tuser\nGROUP COMPACT BY\n\tkey,\n\tvalue AS v\n;\n"},
         {"select 1 from user group by key with combine",
          "SELECT\n\t1\nFROM\n\tuser\nGROUP BY\n\tkey\n\tWITH combine\n;\n"},
+        {R"sql(select 1 from user group by grouping sets ((a, b), (b), ()))sql",
+         TrimIndent(R"sql(
+            SELECT
+                1
+            FROM
+                user
+            GROUP BY
+                GROUPING SETS (
+                    (a, b),
+                    (b),
+                    ()
+                )
+            ;
+
+         )sql")},
+        {R"sql(select 1 from user group by grouping sets ((a, b), (b), (),))sql",
+         TrimIndent(R"sql(
+            SELECT
+                1
+            FROM
+                user
+            GROUP BY
+                GROUPING SETS (
+                    (a, b),
+                    (b),
+                    (),
+                )
+            ;
+
+         )sql")},
+        {R"sql(select 1 from user group by grouping sets ((a, b), (b), (),), c)sql",
+         TrimIndent(R"sql(
+            SELECT
+                1
+            FROM
+                user
+            GROUP BY
+                GROUPING SETS (
+                    (a, b),
+                    (b),
+                    (),
+                ),
+                c
+            ;
+
+        )sql")},
         {"select 1 from user order by key asc",
          "SELECT\n\t1\nFROM\n\tuser\nORDER BY\n\tkey ASC\n;\n"},
         {"select 1 from user order by key, value desc",
@@ -1747,6 +1793,34 @@ Y_UNIT_TEST(CommentAfterLastSelect) {
     setup.Run(cases);
 }
 
+Y_UNIT_TEST(CommentAfterLastStatement) {
+    TCases cases = {
+        {
+            TrimIndent(R"sql(
+                SELECT
+                    1
+                ;
+
+                -- x
+
+                -- y
+            )sql"),
+            TrimIndent(R"sql(
+                SELECT
+                    1
+                ;
+                -- x
+
+                -- y
+
+            )sql"),
+        },
+    };
+
+    TSetup setup;
+    setup.Run(cases);
+}
+
 Y_UNIT_TEST(WindowFunctionInsideExpr) {
     TCases cases = {
         {"SELECT CAST(ROW_NUMBER() OVER () AS String) AS x,\nFROM Input;",
@@ -2230,6 +2304,34 @@ Y_UNIT_TEST(InlineSubquery) {
 
     TCases cases = {
         {input, expected},
+    };
+
+    TSetup setup;
+    setup.Run(cases);
+}
+
+Y_UNIT_TEST(PgSyntax) {
+    TCases cases = {
+        {
+            TrimIndent(R"sql(
+                --!syntax_pg
+                SELECT
+                    convert_from(a, 'UTF8')
+                FROM
+                    plato.x
+                WHERE
+                    convert_from(b, 'UTF8') !~ '^[0-9]+$';
+            )sql"),
+            TrimIndent(R"sql(
+                --!syntax_pg
+                SELECT
+                    convert_from(a, 'UTF8')
+                FROM
+                    plato.x
+                WHERE
+                    convert_from(b, 'UTF8') !~ '^[0-9]+$';
+            )sql"),
+        },
     };
 
     TSetup setup;

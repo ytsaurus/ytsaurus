@@ -39,8 +39,13 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     if (PrepareGpuCheckFSDuration) {
         statistics->AddSample("/time/prepare_gpu_check_fs"_SP, PrepareGpuCheckFSDuration->MilliSeconds());
     }
-    if (PrepareTmpfsDuration) {
-        statistics->AddSample("/time/prepare_tmpfs"_SP, PrepareTmpfsDuration->MilliSeconds());
+    if (PrepareNonRootVolumesDuration) {
+        statistics->AddSample("/time/prepare_non_root_volumes"_SP, PrepareNonRootVolumesDuration->MilliSeconds());
+        // COMPAT(krasovav): Remove this statistic after it's no longer used
+        statistics->AddSample("/time/prepare_tmpfs"_SP, PrepareNonRootVolumesDuration->MilliSeconds());
+    }
+    if (LinkVolumesDuration) {
+        statistics->AddSample("/time/link_volumes"_SP, LinkVolumesDuration->MilliSeconds());
     }
     if (ExecDuration) {
         statistics->AddSample("/time/exec"_SP, ExecDuration->MilliSeconds());
@@ -58,7 +63,8 @@ bool TTimeStatistics::IsEmpty() const
         !ArtifactsCachingDuration &&
         !PrepareRootFSDuration &&
         !ValidateRootFSDuration &&
-        !PrepareTmpfsDuration &&
+        !PrepareNonRootVolumesDuration &&
+        !LinkVolumesDuration &&
         !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
 }
@@ -77,11 +83,14 @@ void TTimeStatistics::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(6, WaitingForResourcesDuration,
         .SinceVersion(NControllerAgent::ESnapshotVersion::WaitingForResourcesDuration));
 
-    PHOENIX_REGISTER_FIELD(8, PrepareTmpfsDuration,
+    PHOENIX_REGISTER_FIELD(8, PrepareNonRootVolumesDuration,
         .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareTmpfsVolumes));
 
     PHOENIX_REGISTER_FIELD(9, ValidateRootFSDuration,
         .SinceVersion(NControllerAgent::ESnapshotVersion::ValidateRootFS));
+
+    PHOENIX_REGISTER_FIELD(10, LinkVolumesDuration,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::LinkVolumes));
 }
 
 void ToProto(
@@ -103,8 +112,11 @@ void ToProto(
     if (timeStatistics.ValidateRootFSDuration) {
         timeStatisticsProto->set_validate_root_fs_duration(ToProto(*timeStatistics.ValidateRootFSDuration));
     }
-    if (timeStatistics.PrepareTmpfsDuration) {
-        timeStatisticsProto->set_prepare_tmpfs_duration(ToProto(*timeStatistics.PrepareTmpfsDuration));
+    if (timeStatistics.PrepareNonRootVolumesDuration) {
+        timeStatisticsProto->set_prepare_non_root_volumes_duration(ToProto(*timeStatistics.PrepareNonRootVolumesDuration));
+    }
+    if (timeStatistics.LinkVolumesDuration) {
+        timeStatisticsProto->set_link_volumes_duration(ToProto(*timeStatistics.LinkVolumesDuration));
     }
     if (timeStatistics.PrepareGpuCheckFSDuration) {
         timeStatisticsProto->set_prepare_gpu_check_fs_duration(ToProto(*timeStatistics.PrepareGpuCheckFSDuration));
@@ -136,8 +148,11 @@ void FromProto(
     if (timeStatisticsProto.has_validate_root_fs_duration()) {
         timeStatistics->ValidateRootFSDuration = FromProto<TDuration>(timeStatisticsProto.validate_root_fs_duration());
     }
-    if (timeStatisticsProto.has_prepare_tmpfs_duration()) {
-        timeStatistics->PrepareTmpfsDuration = FromProto<TDuration>(timeStatisticsProto.prepare_tmpfs_duration());
+    if (timeStatisticsProto.has_prepare_non_root_volumes_duration()) {
+        timeStatistics->PrepareNonRootVolumesDuration = FromProto<TDuration>(timeStatisticsProto.prepare_non_root_volumes_duration());
+    }
+    if (timeStatisticsProto.has_link_volumes_duration()) {
+        timeStatistics->LinkVolumesDuration = FromProto<TDuration>(timeStatisticsProto.link_volumes_duration());
     }
     if (timeStatisticsProto.has_prepare_gpu_check_fs_duration()) {
         timeStatistics->PrepareGpuCheckFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_gpu_check_fs_duration());
@@ -171,8 +186,13 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             .DoIf(static_cast<bool>(timeStatistics.ValidateRootFSDuration), [&] (auto fluent) {
                 fluent.Item("validate_root_fs").Value(*timeStatistics.ValidateRootFSDuration);
             })
-            .DoIf(static_cast<bool>(timeStatistics.PrepareTmpfsDuration), [&] (auto fluent) {
-                fluent.Item("prepare_tmpfs").Value(*timeStatistics.PrepareTmpfsDuration);
+            .DoIf(static_cast<bool>(timeStatistics.PrepareNonRootVolumesDuration), [&] (auto fluent) {
+                fluent.Item("prepare_non_root_volumes").Value(*timeStatistics.PrepareNonRootVolumesDuration);
+                // COMPAT(krasovav): Remove this field after it's no longer used
+                fluent.Item("prepare_tmpfs").Value(*timeStatistics.PrepareNonRootVolumesDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.LinkVolumesDuration), [&] (auto fluent) {
+                fluent.Item("link_volumes").Value(*timeStatistics.LinkVolumesDuration);
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareGpuCheckFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_gpu_check_fs").Value(*timeStatistics.PrepareGpuCheckFSDuration);

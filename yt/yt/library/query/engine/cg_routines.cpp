@@ -319,7 +319,7 @@ void ScanOpHelper(
     auto startBatchSize = context->Offset + context->Limit;
 
     TRowBatchReadOptions readOptions{
-        .MaxRowsPerRead = context->Ordered
+        .MaxRowsPerRead = (context->ScanOrder == EScanOrder::Ordered)
             ? std::min(startBatchSize, context->RowsetProcessingBatchSize)
             : context->RowsetProcessingBatchSize
     };
@@ -689,8 +689,6 @@ void MultiJoinOpHelper(
 
         std::vector<std::vector<TPIValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
-            closure.ProcessSegment(joinId);
-
             auto orderedKeys = std::move(closure.Items[joinId].OrderedKeys);
 
             YT_LOG_DEBUG("Collected %v join keys",
@@ -1441,7 +1439,7 @@ TGroupByClosure::TGroupByClosure(
 void TGroupByClosure::UpdateTagAndFlushIfNeeded(const TExecutionContext* context, EStreamTag tag)
 {
     if (tag != LastTag_) {
-        if (context->Ordered) {
+        if (context->ScanOrder == EScanOrder::Ordered) {
             Flush(context, tag);
         }
     }
@@ -1469,7 +1467,7 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
 
 void TGroupByClosure::FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row)
 {
-    // NB: If !context->Ordered then PrefixEqComparer_ never lets flush.
+    // NB: If context->ScanOrder == EScanOrder::Unordered then PrefixEqComparer_ never lets flush.
     if (IsCurrentGroupSetFinished(row)) {
         Flush(context, EStreamTag::Intermediate);
     }
@@ -1495,7 +1493,7 @@ bool TGroupByClosure::CanEarlyStopProcessing(const TExecutionContext* context, T
     // NB: Our semantics of `totals` operation allows to stop grouping when the limit is reached.
 
     return
-        context->Ordered &&
+        (context->ScanOrder == EScanOrder::Ordered) &&
         (GroupedRowCount_ >= context->Offset + context->Limit) &&
         (IsCurrentGroupSetFinished(row) || AllAggregatesAreFirst_);
 }
@@ -1561,7 +1559,7 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
 
 void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomingTag)
 {
-    if (Y_UNLIKELY(IsCombinedWithOrderOp())) {
+    if (IsCombinedWithOrderOp()) [[unlikely]] {
         YT_VERIFY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder);
         auto rows = TopCollector_->GetRows();
         auto begin = rows.data() + std::min(context->Offset, std::ssize(rows));
@@ -1570,7 +1568,7 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
         return;
     }
 
-    if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder)) {
+    if (CurrentSegment_ == EGroupOpProcessingStage::RightBorder) [[unlikely]] {
         if (!Aggregated_.empty()) {
             FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
             Aggregated_.clear();
@@ -1603,20 +1601,20 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
         }
 
         case EStreamTag::Intermediate: {
-            if (Y_UNLIKELY(incomingTag == EStreamTag::Totals)) {
+            if (incomingTag == EStreamTag::Totals) [[unlikely]] {
                 // Do nothing since totals can be followed with intermediate that should be grouped with current.
                 break;
             }
 
-            if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::LeftBorder)) {
+            if (CurrentSegment_ == EGroupOpProcessingStage::LeftBorder) [[unlikely]] {
                 FlushIntermediate(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize)) {
+            } else if (std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize) [[unlikely]] {
                 // When group key contains full primary key (used with joins), flush will be called on each grouped row.
                 // Thus, we batch calls to Flusher.
                 FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(incomingTag == EStreamTag::Aggregated)) {
+            } else if (incomingTag == EStreamTag::Aggregated) [[unlikely]] {
                 FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
             }
@@ -3019,6 +3017,11 @@ void ListContains(
 
     auto node = NYTree::ConvertToNode(
         FromUnversionedValue<NYson::TYsonStringBuf>(ysonListAtHost));
+
+    if (node->GetType() == NYTree::ENodeType::Entity) {
+        *PtrFromVM(compartment, result) = MakeUnversionedSentinelValue(EValueType::Null);
+        return;
+    }
 
     bool found = false;
     switch (whatAtHost.Type) {

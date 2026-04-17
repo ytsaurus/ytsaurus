@@ -43,6 +43,7 @@
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/helpers.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
@@ -332,7 +333,7 @@ public:
         BackupManager_->Initialize();
 
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->SubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->SubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
 
         Bootstrap_->SubscribeTabletNodeConfigChanged(DynamicConfigChangedCallback_);
         OnDynamicConfigChanged(
@@ -343,7 +344,7 @@ public:
     void Finalize() override
     {
         const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
-        tableConfigManager->UnsubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+        tableConfigManager->UnsubscribeBeforeConfigChanged(TableDynamicConfigChangedCallback_);
     }
 
     void OnStartLeading() override
@@ -566,7 +567,7 @@ public:
             }
 
             if (tablet->GetReplicationCardId()) {
-                ValidateTrimmedRowCountPrecedeReplication(tablet, trimmedRowCount);
+                ValidateTrimmedRowCountPrecedesReplication(tablet, trimmedRowCount);
             }
 
             NProto::TReqTrimRows hydraRequest;
@@ -3535,7 +3536,7 @@ private:
             ? std::make_optional(ETableReplicaMode(request->mode()))
             : std::nullopt;
         if (mode && !IsStableReplicaMode(*mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+            THROW_ERROR WrapHydraError(TError("Invalid replica mode %Qlv", *mode));
         }
 
         auto atomicity = request->has_atomicity()
@@ -3977,7 +3978,13 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto newReplicationEra = FromProto<TReplicationEra>(request->new_replication_era());
 
-        auto* tablet = GetTabletOrThrow(tabletId);
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            YT_LOG_DEBUG("Tablet is missing during advancement of replication era (TabletId: %v, NewReplicationEra: %v)",
+                tabletId,
+                newReplicationEra);
+            return;
+        }
         if (auto era = tablet->RuntimeData()->ReplicationEra.load();
             era == InvalidReplicationEra || era < newReplicationEra)
         {
@@ -5887,57 +5894,17 @@ private:
         }
     }
 
-    void ValidateTrimmedRowCountPrecedeReplication(TTablet* tablet, i64 trimmedRowCount)
+    static void ValidateTrimmedRowCountPrecedesReplication(const TTablet* tablet, i64 trimmedRowCount)
     {
         const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+        // Fast path: skip replicationTimestamp calculation for empty tablet.
         if (storeRowIndexMap.empty()) {
-            // No stores
+            // No stores.
             return;
         }
 
         auto replicationTimestamp = tablet->GetOrderedChaosReplicationMinTimestamp();
-
-        auto it = storeRowIndexMap.lower_bound(trimmedRowCount);
-        if (it == storeRowIndexMap.end()) {
-            // trimmedRowCount is beyond the last store start row index, so check the last store
-            --it;
-
-            // Check that we are not trimmig more than the table size
-            if (trimmedRowCount > it->second->GetStartingRowIndex() + it->second->GetRowCount()) {
-                THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                    << TErrorAttribute("replication_timestamp", replicationTimestamp)
-                    << TErrorAttribute("last_store_starting_row_index", it->second->GetStartingRowIndex())
-                    << TErrorAttribute("last_store_row_count", it->second->GetRowCount());
-            }
-        }
-
-        // Last store could be empty and have min_timestamp == MaxTimestamp, so check the last non-empty one
-        // it should have valid timestamp
-        if (it->second->GetMinTimestamp() == MaxTimestamp) {
-            if (it == storeRowIndexMap.begin()) {
-                // Check for trim row count mismatch
-                THROW_ERROR_EXCEPTION_IF(trimmedRowCount != it->second->GetStartingRowIndex(),
-                    "Could not fully trim tablet since trimmed row count is greater than current row count: "
-                    "trimmed_row_count: %v, starting row index: %v",
-                    trimmedRowCount,
-                    it->second->GetStartingRowIndex());
-
-                // The only store is empty and it's a full trim
-                return;
-            }
-
-            --it;
-        }
-
-        if (replicationTimestamp < it->second->GetMaxTimestamp()) {
-            THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                << TErrorAttribute("replication_timestamp", replicationTimestamp)
-                << TErrorAttribute("max_timestamp", it->second->GetMaxTimestamp());
-        }
+        ValidateTrimmedRowCountPrecedesTimestamp(tablet, trimmedRowCount, replicationTimestamp);
     }
 
     void ValidatePreparingTransactionIsProperlyExternalized(

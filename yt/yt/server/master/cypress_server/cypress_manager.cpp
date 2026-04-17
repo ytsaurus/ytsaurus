@@ -672,10 +672,8 @@ public:
             auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
             auto sourceNodeExternalizedTransactionId = transactionId;
 
-            if (CellTagFromId(transactionId) != sourceNodeNativeCellTag || Transaction_->IsNativeTxExternalizationEnabled()) {
-                sourceNodeExternalizedTransactionId =
-                    NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
-            }
+            sourceNodeExternalizedTransactionId =
+                NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
 
             TMasterTableSchemaId schemaId;
             if (IsTableType(clonedTrunkNode->GetType())) {

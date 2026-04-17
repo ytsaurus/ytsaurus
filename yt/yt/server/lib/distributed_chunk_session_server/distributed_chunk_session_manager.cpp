@@ -1,15 +1,15 @@
 #include "distributed_chunk_session_manager.h"
 
-#include "config.h"
 #include "distributed_chunk_session_sequencer.h"
 #include "private.h"
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
 #include <yt/yt/core/concurrency/lease_manager.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 namespace NYT::NDistributedChunkSessionServer {
 
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -18,6 +18,8 @@ using namespace NThreading;
 using NApi::NNative::IConnectionPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 constinit const auto Logger = DistributedChunkSessionServiceLogger;
 
@@ -28,22 +30,11 @@ class TDistributedChunkSessionManager
 {
 public:
     TDistributedChunkSessionManager(
-        TDistributedChunkSessionServiceConfigPtr config,
         IInvokerPtr invoker,
         IConnectionPtr connection)
-        : Config_(std::move(config))
-        , Invoker_(std::move(invoker))
+        : Invoker_(std::move(invoker))
         , Connection_(std::move(connection))
     { }
-
-    IDistributedChunkSessionSequencerPtr FindSequencer(TSessionId sessionId) const final
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        auto guard = ReaderGuard(SequencerMapLock_);
-        const auto* sequencer = DoFindSequencerGuarded(sessionId);
-        return sequencer ? sequencer->first : nullptr;
-    }
 
     IDistributedChunkSessionSequencerPtr GetSequencerOrThrow(TSessionId sessionId) const final
     {
@@ -53,9 +44,12 @@ public:
         return DoGetSequencerOrThrow(sessionId)->first;
     }
 
-    IDistributedChunkSessionSequencerPtr StartSession(
+    TFuture<void> StartSession(
         TSessionId sessionId,
-        std::vector<TNodeDescriptor> targets) final
+        TDuration sessionTimeout,
+        TChunkReplicaWithMediumList targets,
+        TJournalChunkWriterOptionsPtr options,
+        TJournalChunkWriterConfigPtr config) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -71,26 +65,35 @@ public:
         }
 
         auto lease = TLeaseManager::CreateLease(
-            Config_->SessionTimeout,
-            BIND_NO_PROPAGATE(&TDistributedChunkSessionManager::OnSequencerLeaseExpired, MakeStrong(this), sessionId)
+            sessionTimeout,
+            BIND_NO_PROPAGATE(&TDistributedChunkSessionManager::OnSequencerLeaseExpired,
+                MakeWeak(this),
+                sessionId)
                 .Via(Invoker_));
 
-        auto session = CreateDistributedChunkSessionSequencer(
-            Config_,
+        auto sequencer = CreateDistributedChunkSessionSequencer(
             sessionId,
             std::move(targets),
-            Invoker_,
-            Connection_);
+            std::move(options),
+            std::move(config),
+            Connection_,
+            Invoker_);
 
-        session->StartSession().Subscribe(BIND_NO_PROPAGATE(
+        sequencer->GetClosedFuture().Subscribe(BIND_NO_PROPAGATE(
             &TDistributedChunkSessionManager::OnSequencerFinished,
-            MakeStrong(this),
+            MakeWeak(this),
             sessionId));
 
-        EmplaceOrCrash(Sequencers_, sessionId, std::pair(session, std::move(lease)));
-        YT_LOG_INFO("Sequencer started (SessionId: %v)", sessionId);
+        EmplaceOrCrash(Sequencers_, sessionId, std::pair(sequencer, std::move(lease)));
+        YT_LOG_INFO(
+            "Sequencer started (SessionId: %v, SessionTimeout: %v)",
+            sessionId,
+            sessionTimeout);
 
-        return session;
+        return sequencer->Open().Apply(BIND([sessionId] () {
+            YT_LOG_INFO("Sequencer opened (SessionId: %v)", sessionId);
+            return;
+        }));
     }
 
     void RenewSessionLease(TSessionId sessionId) final
@@ -107,12 +110,20 @@ public:
     }
 
 private:
-    const TDistributedChunkSessionServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const IConnectionPtr Connection_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SequencerMapLock_);
     THashMap<TSessionId, std::pair<IDistributedChunkSessionSequencerPtr, TLease>> Sequencers_;
+
+    IDistributedChunkSessionSequencerPtr FindSequencer(TSessionId sessionId) const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(SequencerMapLock_);
+        const auto* sequencer = DoFindSequencerGuarded(sessionId);
+        return sequencer ? sequencer->first : nullptr;
+    }
 
     const std::pair<IDistributedChunkSessionSequencerPtr, TLease>* DoFindSequencerGuarded(TSessionId sessionId) const
     {
@@ -145,7 +156,7 @@ private:
             return;
         }
         YT_LOG_INFO("Sequencer lease expired, closing (SessionId: %v)", sessionId);
-        sequencer->Close(/*force*/ true).Subscribe(BIND([sessionId] (const TError& error) {
+        sequencer->Close().Subscribe(BIND_NO_PROPAGATE([sessionId] (const TError& error) {
             YT_LOG_INFO(error, "Sequencer session has been closed (SessionId: %v)", sessionId);
         }));
     }
@@ -157,27 +168,25 @@ private:
         YT_LOG_INFO(error, "Sequencer finished (SessionId: %v)", sessionId);
 
         IDistributedChunkSessionSequencerPtr sequencer;
-        {
-            auto guard = WriterGuard(SequencerMapLock_);
-            auto it = Sequencers_.find(sessionId);
-            if (it != Sequencers_.end()) {
-                // Prevent destruction under lock.
-                sequencer = std::move(it->second.first);
-                Sequencers_.erase(it);
-            }
+        auto guard = WriterGuard(SequencerMapLock_);
+        auto it = Sequencers_.find(sessionId);
+        if (it != Sequencers_.end()) {
+            // Prevent destruction under lock.
+            std::swap(sequencer, it->second.first);
+            Sequencers_.erase(it);
         }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+
 IDistributedChunkSessionManagerPtr CreateDistributedChunkSessionManager(
-    TDistributedChunkSessionServiceConfigPtr config,
     IInvokerPtr invoker,
     IConnectionPtr connection)
 {
     return New<TDistributedChunkSessionManager>(
-        std::move(config),
         std::move(invoker),
         std::move(connection));
 }

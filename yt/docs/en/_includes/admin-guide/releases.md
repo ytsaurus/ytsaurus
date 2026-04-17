@@ -313,9 +313,18 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.8.3 (`ghcr.io/ytsaurus/spyt:2.8.3`)
+**Current release:** 2.9.0 (`ghcr.io/ytsaurus/spyt:2.9.0`)
 
 **All releases:**
+
+{% cut "**2.9.0**" %}
+
+- Support for Spark Connect in Spark Standalone inner cluster
+- Row and column level security (RLS/CLS) support
+- Updated read and write statistics
+- Perfomance and stability fixes
+
+{% endcut %}
 
 {% cut "**2.8.3**" %}
 

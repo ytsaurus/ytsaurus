@@ -97,7 +97,9 @@ public:
         auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
         bool overwriteExistingWriterData = request->overwrite_existing_writer_data();
 
-        YT_VERIFY(!overwriteExistingWriterData || writerIndex.has_value());
+        if (overwriteExistingWriterData && !writerIndex.has_value()) {
+            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        }
 
         context->SetRequestInfo(
             "ShuffleHandle: %v, ChunkCount: %v, MapperId: %v, OverwriteExistingWriterData: %v",
@@ -122,13 +124,27 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
-        std::optional<std::pair<int, int>> writerIndexRange;
+        std::optional<IShuffleClient::TIndexRange> writerIndexRange;
         if (request->has_writer_index_range()) {
-            YT_VERIFY(request->writer_index_range().has_begin() && request->writer_index_range().has_end());
+            if (!request->writer_index_range().has_begin() || !request->writer_index_range().has_end()) {
+                THROW_ERROR_EXCEPTION("Writer index range begin and end fields are required");
+            }
 
-            writerIndexRange = std::pair(request->writer_index_range().begin(), request->writer_index_range().end());
-            YT_VERIFY(writerIndexRange->first >= 0);
-            YT_VERIFY(writerIndexRange->first <= writerIndexRange->second);
+            int writerIndexBegin = request->writer_index_range().begin();
+            int writerIndexEnd = request->writer_index_range().end();
+
+            if (writerIndexBegin < 0) {
+                THROW_ERROR_EXCEPTION("Received negative lower limit of writer index range %v", writerIndexBegin);
+            }
+
+            if (writerIndexBegin > writerIndexEnd) {
+                THROW_ERROR_EXCEPTION(
+                    "Lower limit of mappers range %v cannot be greater than upper limit %v",
+                    writerIndexBegin,
+                    writerIndexEnd);
+            }
+
+            writerIndexRange = std::pair(writerIndexBegin, writerIndexEnd);
         }
 
         context->SetRequestInfo(

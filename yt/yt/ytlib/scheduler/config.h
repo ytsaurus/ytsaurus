@@ -1521,9 +1521,9 @@ struct TNbdDiskRequest
 DEFINE_REFCOUNTED_TYPE(TNbdDiskRequest)
 
 DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(StorageRequestConfig, NExecNode::EVolumeType, TStorageRequestBase,
-    ((Local)    (TLocalDiskRequest))
-    ((Nbd)      (TNbdDiskRequest))
-    ((Tmpfs)    (TTmpfsStorageRequest))
+    ((LocalDisk)    (TLocalDiskRequest))
+    ((Nbd)          (TNbdDiskRequest))
+    ((Tmpfs)        (TTmpfsStorageRequest))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

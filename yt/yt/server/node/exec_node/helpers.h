@@ -2,11 +2,12 @@
 
 #include "artifact.h"
 #include "bootstrap.h"
+#include "volume_helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
-
 #include <yt/yt/server/node/exec_node/preparation_options.h>
+
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h>
 
@@ -18,9 +19,9 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/logging/public.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NExecNode {
 
@@ -96,6 +97,7 @@ TClosure MakeJobInterrupter(TJobId jobId, const IBootstrap* bootstrap);
 ////////////////////////////////////////////////////////////////////////////////
 
 const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

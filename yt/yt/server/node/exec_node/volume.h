@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
+#include "public.h"
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 
@@ -46,7 +46,8 @@ struct IVolume
     //! Link volume mount point to target.
     virtual TFuture<void> Link(
         TGuid tag,
-        const TString& target) = 0;
+        const TString& target,
+        bool sholdCheckTargetDirExists = true) = 0;
     //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
     //! Check if volume is cached.
@@ -63,7 +64,7 @@ struct TLayerMetaHeader
     //! Version of layer meta format. Update every time layer meta version is updated.
     ui64 Version = ExpectedVersion;
 
-    ui64 MetaChecksum;
+    ui64 MetaChecksum = 0;
 
     static constexpr ui64 ExpectedSignature = 0xbe17d73ce7ff9ea6ull; // YTLMH001
     static constexpr ui64 ExpectedVersion = 1;
@@ -166,7 +167,8 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target) override final;
+        const TString& target,
+        bool canTargetDirectoryBeCreated) override final;
 
     TFuture<void> Remove() override final;
 
@@ -181,7 +183,7 @@ private:
     const std::string Path_;
     const TVolumeId VolumeId_;
     const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
+    const bool DetachUnmount_ = false;
     TFuture<void> RemoveFuture_;
 };
 

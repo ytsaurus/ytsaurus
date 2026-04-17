@@ -103,13 +103,30 @@ bool TCompactionHintBase::DoRecalculateHint(TRecalculator&& recalculator, TRange
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TStoreCompactionHintRecalculationFinalizer(
+    TStore* store,
     TStoreCompactionHint* hint)
-    : Hint_(hint)
+    : Store_(store)
+    , Hint_(hint)
 { }
 
 TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::~TStoreCompactionHintRecalculationFinalizer()
 {
     Hint_->ApplyRecalculation(Timestamp_, Reason_);
+}
+
+bool TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TryApplyRecalculation(
+    TInstant timestamp,
+    EStoreCompactionReason reason)
+{
+    YT_LOG_DEBUG("Candidate store compaction hint lsm response provided "
+        "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v)",
+        Store_->GetTablet()->GetLoggingTag(),
+        Store_->GetId(),
+        Hint_->StoreCompactionHintKind_,
+        timestamp,
+        reason);
+
+    return TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason);
 }
 
 bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
@@ -145,9 +162,9 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
     }
 }
 
-TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer TStoreCompactionHint::BuildRecalculationFinalizer()
+TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer TStoreCompactionHint::BuildRecalculationFinalizer(TStore* store)
 {
-    return TStoreCompactionHintRecalculationFinalizer(this);
+    return TStoreCompactionHintRecalculationFinalizer(store, this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,6 +229,15 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
     EStoreCompactionReason reason,
     ui64 storeSubset)
 {
+    YT_LOG_DEBUG("Candidate partition compaction hint lsm response provided "
+        "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, StoreSubset: %v)",
+        Partition_->GetTablet()->GetLoggingTag(),
+        Partition_->GetId(),
+        Hint_->StoreCompactionHintKind_,
+        timestamp,
+        reason,
+        storeSubset);
+
     if (TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason)) {
         StoreSubset_ = storeSubset;
     }
@@ -230,9 +256,9 @@ std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalcul
 
     std::vector<TStoreId> storeIds;
     storeIds.reserve(std::popcount(StoreSubset_));
-    for (ui32 index = 0; index < ssize(Partition_->Stores()); ++index) {
+    for (ui32 index = 0; index < ssize(Stores_); ++index) {
         if (StoreSubsetContains(index)) {
-            storeIds.push_back(Partition_->Stores()[index]->GetId());
+            storeIds.push_back(Stores_[index]->GetId());
         }
     }
 
@@ -247,7 +273,7 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             partition->Stores());
 
         YT_LOG_DEBUG_IF(recalculated,
-            "Partition compaction hint LSM hint was recalculated "
+            "Partition compaction hint lsm response was made "
             "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v, StoreIds: %v)",
             partition->GetTablet()->GetLoggingTag(),
             partition->GetId(),
@@ -293,15 +319,13 @@ TPartitionCompactionHints::TPartitionCompactionHints(THints hints)
 
 std::pair<EStoreCompactionReason, std::vector<TStoreId>> TPartitionCompactionHints::GetStoresForCompaction(
     TInstant currentTime,
-    TTimestamp edenMajorTimestamp) const
+    TTimestamp edenMajorTimestamp,
+    const TTableMountConfigPtr& mountConfig) const
 {
-    auto edenMajorInstant = TimestampToInstant(edenMajorTimestamp).first;
+    auto edenMajorTimestampInstant = TimestampToInstant(edenMajorTimestamp).first;
 
     for (const auto& hint : Hints_) {
-        if (!hint ||
-            !hint.IsSuitableTimeForCompaction(currentTime) ||
-            hint.GetTimestamp() >= edenMajorInstant)
-        {
+        if (!IsCompactionAllowed(hint, currentTime, edenMajorTimestampInstant, mountConfig)) {
             continue;
         }
 
@@ -323,6 +347,44 @@ bool TPartitionCompactionHints::RecalculateHints(TPartition* partition)
     }
 
     return recalculated;
+}
+
+
+bool TPartitionCompactionHints::IsCompactionAllowed(
+    const TPartitionCompactionHint& hint,
+    TInstant currentTime,
+    TInstant edenMajorTimestampInstant,
+    const TTableMountConfigPtr& mountConfig)
+{
+    if (!hint || !hint.IsSuitableTimeForCompaction(currentTime)) {
+        return false;
+    }
+
+    TDuration dataOffset;
+    switch (hint.GetReason()) {
+        case EStoreCompactionReason::AggregateTtlCleanupExpected:
+            dataOffset = mountConfig->MinDataVersions == 0
+                ? (mountConfig->MaxDataVersions == 0
+                    ? mountConfig->MinDataTtl
+                    : mountConfig->MaxDataTtl)
+                : mountConfig->MinDataTtl;
+            break;
+
+        case EStoreCompactionReason::AggregateDeleteTooManyTimestamps:
+        case EStoreCompactionReason::RemoveDuplicates:
+        case EStoreCompactionReason::ApplyDeletions:
+            dataOffset = mountConfig->MinDataTtl;
+            break;
+
+        default:
+            YT_LOG_FATAL("Unknown compaction reason for partition compaction hint (Reason: %v)",
+                hint.GetReason());
+    }
+
+    // Latest timestamp among the data that will be deleted.
+    auto dataTimestamp = hint.GetTimestamp() - dataOffset;
+
+    return dataTimestamp < edenMajorTimestampInstant;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

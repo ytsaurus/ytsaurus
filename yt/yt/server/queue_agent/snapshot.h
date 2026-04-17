@@ -14,7 +14,7 @@ struct TObjectSnapshotBase
 {
     TError Error;
     // True if object is banned, and signifies that object controller should skip all leading logic.
-    bool Banned;
+    bool Banned = false;
     // Present if Banned is true, and equal to the first pass instant when the object became banned.
     std::optional<TInstant> BannedSince;
 
@@ -30,10 +30,12 @@ DEFINE_REFCOUNTED_TYPE(TObjectSnapshotBase)
 struct TQueueSnapshot
     : public TObjectSnapshotBase
 {
+    explicit TQueueSnapshot(NQueueClient::TQueueTableRow row);
+
     NQueueClient::TQueueTableRow Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
-    EQueueFamily Family;
+    EQueueFamily Family = EQueueFamily::OrderedDynamicTable;
     int PartitionCount = 0;
 
     //! Total write counters over all partitions.
@@ -86,12 +88,14 @@ DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot)
 struct TConsumerSnapshot
     : public TObjectSnapshotBase
 {
+    explicit TConsumerSnapshot(NQueueClient::TConsumerTableRow row);
+
     // This field is always set.
     NQueueClient::TConsumerTableRow Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
-    THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
+    THashMap<NQueueClient::TTablePath, TSubConsumerSnapshotPtr> SubSnapshots;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot)

@@ -22,20 +22,6 @@ DEFINE_REFCOUNTED_TYPE(TPodSpecConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCGroupConfig
-    : public virtual NYTree::TYsonStruct
-{
-    std::vector<TString> SupportedCGroups;
-
-    bool IsCGroupSupported(const TString& cgroupType) const;
-
-    REGISTER_YSON_STRUCT(TCGroupConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPortoExecutorDynamicConfig
     : public NYTree::TYsonStruct
 {

@@ -23,6 +23,7 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -40,6 +41,7 @@ using namespace NChunkClient::NProto;
 using namespace NChunkServer::NProto;
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NNodeTrackerClient::NProto;
@@ -149,19 +151,28 @@ public:
         jobSpecExt->set_body_chunk_first_overlayed_row_index(BodySealInfo_.first_overlayed_row_index());
         jobSpecExt->set_body_chunk_replica_lag_limit(bodyChunk->GetReplicaLagLimit());
 
-        // This chunk better not have Sequoia replicas.
-        auto bodyChunkReplicas = bodyChunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ false);
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
+        // This is context switch, so we should check that chunk is still alive
+        TEphemeralObjectPtr<TChunk> bodyChunkPtr(bodyChunk);
+
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(bodyChunkPtr);
+        if (!replicasOrError.IsOK() || !IsObjectAlive(bodyChunkPtr)) {
+            return false;
+        }
+        const auto& bodyChunkReplicas = replicasOrError.Value();
+
         ToProto(jobSpecExt->mutable_body_chunk_replicas(), bodyChunkReplicas);
         builder.Add(bodyChunkReplicas);
 
         ToProto(jobSpecExt->mutable_tail_chunk_id(), TailChunkId_);
 
-        jobSpecExt->set_read_quorum(bodyChunk->GetReadQuorum());
-        jobSpecExt->set_write_quorum(bodyChunk->GetWriteQuorum());
+        jobSpecExt->set_read_quorum(bodyChunkPtr->GetReadQuorum());
+        jobSpecExt->set_write_quorum(bodyChunkPtr->GetWriteQuorum());
         jobSpecExt->set_medium_index(replication.GetMediumIndex());
-        jobSpecExt->set_erasure_codec(ToProto(bodyChunk->GetErasureCodec()));
+        jobSpecExt->set_erasure_codec(ToProto(bodyChunkPtr->GetErasureCodec()));
         jobSpecExt->set_replication_factor(replication.Policy().GetReplicationFactor());
-        jobSpecExt->set_overlayed(bodyChunk->GetOverlayed());
+        jobSpecExt->set_overlayed(bodyChunkPtr->GetOverlayed());
 
         return true;
     }
@@ -816,7 +827,7 @@ private:
         }
 
         TChunkAutotomyState autotomyState{
-            .ChunkSealInfo = chunkSealInfo
+            .ChunkSealInfo = chunkSealInfo,
         };
         YT_VERIFY(RegisteredChunks_.emplace(bodyChunkId, autotomyState).second);
 

@@ -259,7 +259,7 @@ private:
         Registrations_.clear();
 
         for (const auto& registration : registrations) {
-            Registrations_[std::pair{TRichYPath{registration.Queue}, TRichYPath{registration.Consumer}}] = registration;
+            Registrations_.emplace(std::pair{registration.Queue, registration.Consumer}, registration);
         }
 
         YT_LOG_DEBUG("Queue consumer registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
@@ -283,7 +283,7 @@ private:
 
         for (const auto& replicatedTableInfo : replicatedTableMapping) {
             for (const auto& replica : replicatedTableInfo.GetReplicas()) {
-                ReplicaToReplicatedTable_[replica] = replicatedTableInfo.Ref;
+                ReplicaToReplicatedTable_[replica] = replicatedTableInfo.Path;
             }
         }
 

@@ -18,7 +18,7 @@ types:
         column_type: String
         sort_order: Ascending
 
-      # TODO(h0pless): Change Uint32 to Uint16.
+      # TODO(h0pless): Change Uint32 to Uint16. YT-26854.
       - cpp_name: CellTag
         cpp_type: NObjectClient::TCellTag
         column_name: cell_tag

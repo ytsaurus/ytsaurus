@@ -525,6 +525,7 @@ struct TStrategyTreeConfig
     bool UsePrecommitForPreemption;
 
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
+    EPolicyKind PolicyKind;
 
     bool EnableAbsoluteFairShareStarvationTolerance;
     bool ConsiderAllocationOnFairShareBoundPreemptible;
@@ -1098,6 +1099,9 @@ struct TSchedulerConfig
     TDuration TemporaryOperationTokenExpirationTimeout;
 
     THashSet<EOperationManagementAction> OperationActionsAllowedForPoolManagers;
+
+    //! Period of updating unutilized resources sensors.
+    TDuration UnutilizedResourcesSensorsUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

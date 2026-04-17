@@ -589,6 +589,18 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     const std::vector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options)
 {
+    return CallAndRetryIfMetadataCacheIsInconsistent(
+        /*profilingInfo*/ nullptr,
+        [&] {
+            return DoGetTabletInfosImpl(tableInfo, tabletIndexes, options);
+        });
+}
+
+std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
+    const TTableMountInfoPtr& tableInfo,
+    const std::vector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
     tableInfo->ValidateDynamic();
 
     struct TTabletBatch
@@ -603,6 +615,7 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     for (int resultIndex = 0; resultIndex < std::ssize(tabletIndexes); ++resultIndex) {
         auto tabletIndex = tabletIndexes[resultIndex];
         auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+        ValidateTabletNotUnmounted(tableInfo, tabletInfo);
 
         auto [it, emplaced] = cellIdToTabletBatch.try_emplace(tabletInfo->CellId);
         if (emplaced) {
@@ -1059,7 +1072,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             {.AllowTimestampColumns = isTimestampedLookup});
     }
 
-    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
+    auto idMapping = BuildColumnIdMapping(*schema, nameTable, options.AllowMissingKeyColumns);
 
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
     auto resultSchema = schema->Filter(remappedColumnFilter, true);
@@ -1111,7 +1124,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         : nullptr;
 
     for (int index = 0; index < std::ssize(keys); ++index) {
-        ValidateClientKey(keys[index], *schema, idMapping, nameTable);
+        ValidateClientKey(keys[index], *schema, idMapping, nameTable, options.AllowMissingKeyColumns);
         auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(
             keys[index],
             *schema,
@@ -1150,10 +1163,13 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                         ? options.Timestamp
                         : SyncLastCommittedTimestamp);
 
-                YT_LOG_DEBUG("Picked in-sync replicas for lookup (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
+                YT_LOG_DEBUG(
+                    "Picked in-sync replicas for lookup "
+                    "(ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v, EnableReadFromInSyncAsyncReplicas: %v)",
                     replicaIds,
                     options.Timestamp,
-                    *replicationCard);
+                    *replicationCard,
+                    connectionConfig->EnableReadFromInSyncAsyncReplicas);
 
                 TTableReplicaInfoPtrList inSyncReplicas;
                 for (auto replicaId : replicaIds) {
@@ -1333,7 +1349,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     return CompareRows(item.first, pivot) < 0;
                 });
 
-            ValidateTabletMountedOrFrozen(tableInfo, startShard, /*validateForWrite*/ false);
+            ValidateTabletMountedOrFrozen(tableInfo, startShard);
 
             auto [it, emplaced] = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
             if (emplaced) {
@@ -1664,6 +1680,8 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 
         statisticsAggregationDefault = queryConfig->StatisticsAggregation.value_or(
             statisticsAggregationDefault);
+
+        queryOptions.TruncatedQueryLengthForTracing = queryConfig->TruncatedQueryLengthForTracing;
     }
 
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
@@ -2086,10 +2104,17 @@ void TClient::ExecuteTabletServiceRequest(
         path,
         &tableId,
         &externalCellTag,
-        {"path"});
+        {"tablet_cell_bundle", "path"});
 
     if (!IsTabletOwnerType(TypeFromId(tableId))) {
         THROW_ERROR_EXCEPTION("Object %v is not a tablet owner", path);
+    }
+
+    if (IsSequoiaId(tableId)) {
+        // COMPAT(h0pless): This is a quick and dirty fix for dynamic tables in Sequoia in 25.4.
+        auto bundle = tableAttributes->Get<std::string>("tablet_cell_bundle");
+        ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
+        ValidatePermissionImpl(path, EPermission::Mount);
     }
 
     auto nativeCellTag = CellTagFromId(tableId);
@@ -2510,7 +2535,7 @@ void TClient::DoTrimTable(
     tableInfo->ValidateOrdered();
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
-    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ true);
+    ValidateTabletMounted(tableInfo, tabletInfo);
 
     const auto& permissionCache = Connection_->GetPermissionCache();
     NSecurityClient::TPermissionKey permissionKey{
@@ -3006,7 +3031,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
 
-    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo, /*validateForWrite*/ false);
+    ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
     auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
     TQueryServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));
@@ -3206,8 +3231,8 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
     result.reserve(registrations.size());
     for (const auto& registration : registrations) {
         result.push_back({
-            .QueuePath = registration.Queue,
-            .ConsumerPath = registration.Consumer,
+            .QueuePath = TRichYPath(registration.Queue),
+            .ConsumerPath = TRichYPath(registration.Consumer),
             .Vital = registration.Vital,
             .Partitions = registration.Partitions,
         });

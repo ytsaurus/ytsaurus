@@ -558,10 +558,12 @@ def assert_true_for_all_cells(env, predicate):
 
 
 def _check_true_for_all_cells(env, predicate):
+    ret = True
     for i in range(env.yt_config.secondary_cell_count + 1):
+        print_debug("Checking at cell", i)
         if not predicate(get_driver(i)):
-            return False
-    return True
+            ret = False
+    return ret
 
 
 def wait_true_for_all_cells(env, predicate):
@@ -1465,7 +1467,11 @@ class Operation(object):
 
         return get(job_orchid_path, verbose=False, driver=self._driver)
 
-    def interrupt_job(self, job_id, interruption_timeout=10000):
+    def interrupt_job(self, job_id, interruption_timeout=10000, raise_on_failed_interruption=True):
+        """
+        Interrupt job. If raise_on_failed_interruption is True and job was completed
+        (and not interrupted), raise an error.
+        """
 
         @wait
         def _wait_running():
@@ -1476,7 +1482,17 @@ class Operation(object):
 
         interrupt_job(job_id, interruption_timeout)
 
-        wait(lambda: self.get_job_node_orchid(job_id)["interrupted"])
+        @wait
+        def _wait_interrupted():
+            orchid = self.get_job_node_orchid(job_id)
+            if orchid["job_state"] == "completed":
+                if not orchid["interrupted"]:
+                    print_debug(f"Job {job_id} completed naturally")
+                    if raise_on_failed_interruption:
+                        raise YtError("Job completed without interruption")
+
+                return True
+            return orchid["interrupted"]
 
     def get_job_phase(self, job_id):
         job_orchid = self.get_job_node_orchid(job_id)
@@ -1822,6 +1838,9 @@ def start_op(op_type, **kwargs):
 
     if fail_fast and ("spec" not in kwargs or "max_failed_job_count" not in kwargs["spec"]):
         set_branch(kwargs, ["spec", "max_failed_job_count"], 1)
+
+    if "spec" not in kwargs or "enable_root_volume_disk_quota" not in kwargs["spec"]:
+        set_branch(kwargs, ["spec", "enable_root_volume_disk_quota"], True)
 
     track = kwargs.get("track", True)
     if "track" in kwargs:

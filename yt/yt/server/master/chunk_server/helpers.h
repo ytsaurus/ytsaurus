@@ -1,8 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_tree_statistics.h"
 #include "chunk_replica.h"
+#include "chunk_tree_statistics.h"
+#include "config.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
@@ -139,7 +141,9 @@ NTableClient::TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
 
-std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
+std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
+    const TChunk* chunk,
+    TRange<TAugmentedStoredChunkReplicaPtr> chunkReplicas);
 
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
@@ -172,6 +176,23 @@ NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
     NNodeTrackerClient::TChunkLocationIndex locationIndex);
 
 void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkSequoiaConfig
+{
+    // For non-Sequoia chunks all fields will be false.
+    bool StoreInSequoia = false;
+    bool FetchReplicasFromSequoia = false;
+    bool StoreSequoiaReplicasOnMaster = false;
+    // ProcessRemovedSequoiaReplicasOnMaster will always be enabled for chunks that are stored on master.
+    bool ProcessRemovedSequoiaReplicasOnMaster = false;
+    // ValidateSequoiaReplicasFetch can be enabled only for chunks that are stored on master.
+    bool ValidateSequoiaReplicasFetch = false;
+    bool AllowExtraMasterReplicasDuringValidation = false;
+};
+
+TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

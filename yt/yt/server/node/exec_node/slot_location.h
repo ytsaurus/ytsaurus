@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+#include "public.h"
 #include "slot.h"
 
 #include <yt/yt/server/node/data_node/public.h>
@@ -12,12 +12,12 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/yt/library/profiling/producer.h>
-
-#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/producer.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -51,7 +51,7 @@ public:
     void TakeIntoAccountTmpfsVolumes(
         int slotIndex,
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumeResults,
+        const std::vector<TVolumeResultPtr>& volumeResults,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts);
 
     TFuture<void> MakeSandboxCopy(
@@ -138,19 +138,18 @@ public:
 
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
 
-    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(
-        const TString& userSandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumeParams,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) const;
-
     TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
 
     void ValidateEnabled() const;
+
+    //! Get path to slot location (not to slot location of a particular index).
+    TString GetPath() const;
 
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
     const TSlotManagerConfigPtr SlotManagerStaticConfig_;
+    TAtomicIntrusivePtr<TSlotManagerDynamicConfig> SlotManagerDynamicConfig_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const int SlotCount_;
 
@@ -185,13 +184,11 @@ private:
     public:
         bool IsInsideTmpfs(const TString& path, const NLogging::TLogger& Logger) const;
         void AddSandboxPath(TString&& sandboxPath);
-        void AddTmpfsPath(TString&& tmpfsPath);
+        void AddVolumeInfo(TString&& volumePath, EVolumeType volumeType);
 
     private:
-        std::optional<TString> TryGetPathRelativeToSandbox(const TString& path) const;
-
         std::set<TString> SandboxPaths_;
-        std::set<TString> TmpfsPaths_;
+        std::map<TString, EVolumeType> VolumePathToType_;
     };
 
     THashMap<int, TSandboxTmpfsData> SandboxTmpfsData_;

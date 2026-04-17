@@ -514,6 +514,7 @@
     XX(SecurityTags, security_tags) \
     XX(SecurityTagsUpdateMode, security_tags_update_mode) \
     XX(Sequoia, sequoia) \
+    XX(SequoiaAcl, sequoia_acl) \
     XX(SequoiaReign, sequoia_reign) \
     XX(SerializationType, serialization_type) \
     XX(Servants, servants) \

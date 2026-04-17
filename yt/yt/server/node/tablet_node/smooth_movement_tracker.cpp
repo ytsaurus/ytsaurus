@@ -496,7 +496,16 @@ private:
             tablet->PushDynamicStoreIdToPool(
                 FromProto<TStoreId>(request->dynamic_store_id()),
                 reason);
-            YT_VERIFY(tablet->ReservedDynamicStoreIdCount()[reason] == 1);
+
+            if (auto reservedCount = tablet->ReservedDynamicStoreIdCount()[reason]; reservedCount > 1) {
+                YT_LOG_ALERT("Too many reserved dynamic stores on smooth movement start "
+                    "(%v, Count: %v)",
+                    tablet->GetLoggingTag(),
+                    reservedCount);
+                while (reservedCount-- > 1) {
+                    tablet->ReleaseReservedDynamicStoreId(EDynamicStoreIdReservationReason::SmoothMovement);
+                }
+            }
         }
 
         YT_LOG_DEBUG("Smooth tablet movement started (%v, TargetCellId: %v)",
@@ -784,7 +793,7 @@ private:
                 validateNoUnfinishedTransactions();
 
                 int availableDynamicStoreCount = tablet->GetUnreservedDynamicStoreIdCount();
-                availableDynamicStoreCount += ReleaseReservedDynamicStore(tablet);
+                availableDynamicStoreCount += MaybeReleaseReservedDynamicStore(tablet);
 
                 if (ShouldRotateStoreOnTargetActivation(tablet)) {
                     if (const auto& store = tablet->GetActiveStore();
@@ -990,6 +999,8 @@ private:
     {
         auto& movementData = tablet->SmoothMovementData();
 
+        MaybeReleaseReservedDynamicStore(tablet);
+
         Host_->UnregisterSiblingTabletAvenue(
             movementData.GetSiblingAvenueEndpointId());
 
@@ -1002,18 +1013,25 @@ private:
         Host_->PostMasterMessage(tablet, rsp);
     }
 
-    int ReleaseReservedDynamicStore(TTablet* tablet)
+    int MaybeReleaseReservedDynamicStore(TTablet* tablet)
     {
         auto reason = EDynamicStoreIdReservationReason::SmoothMovement;
 
         int reservedCount = tablet->ReservedDynamicStoreIdCount()[reason];
-        YT_VERIFY(reservedCount <= 1);
+        if (reservedCount > 1) {
+            YT_LOG_ALERT("Too many reserved dynamic stores for smooth movement "
+                "on releasement attempt (%v, Count: %v)",
+                tablet->GetLoggingTag(),
+                reservedCount);
 
-        if (reservedCount == 1) {
-            tablet->ReleaseReservedDynamicStoreId(reason);
         }
 
-        return reservedCount;
+        if (reservedCount >= 1) {
+            tablet->ReleaseReservedDynamicStoreId(reason);
+            return 1;
+        } else {
+            return 0;
+        }
     }
 
     bool ApplyTestingDelayBeforeStageChange(TTablet* tablet)

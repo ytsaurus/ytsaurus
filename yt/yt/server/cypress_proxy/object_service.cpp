@@ -5,7 +5,6 @@
 #include "actions.h"
 #include "bootstrap.h"
 #include "ban_service.h"
-#include "config.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -17,6 +16,8 @@
 #include "sequoia_session.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -107,7 +108,7 @@ public:
             BIND_NO_PROPAGATE(&TObjectService::OnUserDirectoryUpdated, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeAfterConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     IServicePtr GetService() override
@@ -242,12 +243,10 @@ private:
         RequestQueueProvider_->UpdateTotalLimits(Bootstrap_->GetUserDirectory());
     }
 
-    void OnDynamicConfigChanged(
-        const TCypressProxyDynamicConfigPtr& oldConfig,
-        const TCypressProxyDynamicConfigPtr& newConfig)
+    void OnDynamicConfigChanged(const TCypressProxyDynamicConfigPtr& oldConfig)
     {
         const auto& oldObjectServiceConfig = oldConfig->ObjectService;
-        const auto& newObjectServiceConfig = newConfig->ObjectService;
+        const auto& newObjectServiceConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
 
         ThrottlerFactory_->Reconfigure(newObjectServiceConfig->DistributedThrottler);
 

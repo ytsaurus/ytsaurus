@@ -2560,7 +2560,10 @@ private:
         TJobResources GetMinSpareResourcesForScheduling() const override
         {
             if (Tree_) {
-                if (const auto& minSpareResourcesConfig = Tree_->GetSnapshottedConfig()->MinSpareAllocationResourcesOnNode) {
+                // NB: Store the config in a local variable to keep it alive while
+                // |minSpareResourcesConfig| (which references its field) is used.
+                auto treeConfig = Tree_->GetSnapshottedConfig();
+                if (const auto& minSpareResourcesConfig = treeConfig->MinSpareAllocationResourcesOnNode) {
                     return ToJobResources(minSpareResourcesConfig, TJobResources());
                 }
             }

@@ -137,13 +137,16 @@ std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk)
     };
 
     auto parentCount = GetParentCount(chunk);
-    if (parentCount == 0) {
-        THROW_ERROR_EXCEPTION("Journal chunk %v has zero parents",
-            chunk->GetId());
-    }
 
     TChunkList* chunkList;
-    if (parentCount == 1) {
+    if (parentCount == 0) {
+        // Distributed chunk sessions do not have parents.
+        THROW_ERROR_EXCEPTION_IF(
+            chunk->GetChunkFormat() != EChunkFormat::JournalDistributed,
+            "Journal chunk %v has zero parents",
+            chunk->GetId());
+        chunkList = nullptr;
+    } else if (parentCount == 1) {
         chunkList = GetUniqueParent(chunk)->AsChunkList();
 
         if (isHunkChunkList(chunkList)) {
@@ -1225,20 +1228,34 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
     return mergedChunkViews;
 }
 
-std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
+std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
+    const TChunk* chunk,
+    TRange<TAugmentedStoredChunkReplicaPtr> chunkReplicas)
 {
     if (!chunk->IsJournal()) {
         YT_LOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
-    for (auto replica : chunk->GetStoredReplicaList(/*includeOffline*/ false)) {
+    for (auto replica : chunkReplicas) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
         }
+        auto* location = locationReplica->AsChunkLocationPtr();
+        if (!IsObjectAlive(location)) {
+            YT_LOG_ALERT("Replica from non alive location is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
+                chunk->GetId());
+            continue;
+        }
+        auto node = location->GetNode();
+        if (!IsObjectAlive(node)) {
+            YT_LOG_ALERT("Replica from non alive node is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
+                chunk->GetId());
+            continue;
+        }
         replicas.push_back({
-            locationReplica->AsChunkLocationPtr()->GetNode()->GetDescriptor(),
+            node->GetDescriptor(),
             replica.GetReplicaIndex(),
             replica.GetEffectiveMediumIndex(),
         });
@@ -1397,5 +1414,48 @@ void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chu
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(
+    TChunkId chunk,
+    const TDynamicSequoiaChunkReplicasConfigPtr& config)
+{
+    if (IsJournalChunkId(chunk)) {
+        return config->JournalReplicasStoreConfig;
+    } else {
+        return config->BlobReplicasStoreConfig;
+    }
+}
+
+TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config)
+{
+    TChunkSequoiaConfig result;
+    if (!config->Enable) {
+        return result;
+    }
+
+    const auto& storeConfig = GetChunkSequoiaStoreConfig(chunkId, config);
+    if (!storeConfig->StoreInSequoia) {
+        return result;
+    }
+
+    auto chunkPercentage = static_cast<int>(EntropyFromId(chunkId) % 100);
+    if (chunkPercentage >= storeConfig->ReplicasPercentage) {
+        return result;
+    }
+
+    result.StoreInSequoia = true;
+    result.FetchReplicasFromSequoia |= storeConfig->FetchReplicasFromSequoia;
+
+    if (storeConfig->StoreSequoiaReplicasOnMaster && chunkPercentage < storeConfig->StoreSequoiaReplicasOnMasterPercentage) {
+        result.StoreSequoiaReplicasOnMaster = true;
+        result.ProcessRemovedSequoiaReplicasOnMaster = true;
+        result.ValidateSequoiaReplicasFetch = storeConfig->ValidateSequoiaReplicasFetch;
+        result.AllowExtraMasterReplicasDuringValidation = storeConfig->AllowExtraMasterReplicasDuringValidation;
+    } else {
+        result.ProcessRemovedSequoiaReplicasOnMaster = storeConfig->ProcessRemovedSequoiaReplicasOnMaster;
+    }
+
+    return result;
+}
 
 } // namespace NYT::NChunkServer

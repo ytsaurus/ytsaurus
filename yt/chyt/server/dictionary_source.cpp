@@ -1,6 +1,7 @@
 #include "dictionary_source.h"
 
 #include "conversion.h"
+#include "dictionary_access_control.h"
 #include "secondary_query_source.h"
 #include "host.h"
 #include "query_context.h"
@@ -56,10 +57,11 @@ public:
         DB::NamesAndTypesList namesAndTypesList,
         DB::ContextPtr context)
         : Host_(host)
+        , Client_(Host_->GetDictionariesClient())
         , DictionaryStructure_(std::move(dictionaryStructure))
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
-        , RevisionTracker_(path.GetPath(), host->GetRootClient())
+        , RevisionTracker_(path.GetPath(), Client_)
         , Logger(ClickHouseYtLogger().WithTag("Path: %v", Path_))
         , Context_(context)
         , QueryBuilder_(std::make_shared<DB::ExternalQueryBuilder>(
@@ -92,13 +94,13 @@ public:
 
         auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
             .RichPath = Path_,
-            .Client = Host_->GetRootClient(),
+            .Client = Client_,
             .GetUserObjectBasicAttributesOptions = {
                 .OmitInaccessibleRows = true,
             },
         });
 
-        auto chunkReaderHost = New<TChunkReaderHost>(Host_->GetRootClient());
+        auto chunkReaderHost = New<TChunkReaderHost>(Client_);
         auto reader = CreateAppropriateSchemalessMultiChunkReader(
             New<TTableReaderOptions>(),
             New<TTableReaderConfig>(),
@@ -173,8 +175,14 @@ public:
         return false;
     }
 
+    const TYPath& Path() const
+    {
+        return Path_.GetPath();
+    }
+
 private:
     THost* Host_;
+    NApi::NNative::IClientPtr Client_;
     DB::DictionaryStructure DictionaryStructure_;
     TRichYPath Path_;
     DB::NamesAndTypesList NamesAndTypesList_;
@@ -245,6 +253,17 @@ void RegisterTableDictionarySource(THost* host)
     };
 
     DB::DictionarySourceFactory::instance().registerSource("yt", creator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<NYPath::TYPath> GetTableDictionarySourcePath(DB::DictionarySourcePtr source)
+{
+    auto ytSource = std::dynamic_pointer_cast<TTableDictionarySource>(source);
+    if (!ytSource) {
+        return std::nullopt;
+    }
+    return ytSource->Path();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

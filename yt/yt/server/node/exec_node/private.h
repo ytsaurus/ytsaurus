@@ -1,17 +1,17 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NExecNode {
 
@@ -98,37 +98,6 @@ struct TGpuCheckOptions
     std::vector<NContainers::TDevice> Devices;
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> InfinibandCluster;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTmpfsVolumeParams
-{
-    i64 Size = 0;
-    //! Slot user id.
-    int UserId = 0;
-    std::string VolumeId;
-
-    // COMPAT(krasovav)
-    int Index = 0;
-
-    TJobId JobId;
-
-    TArtifactDownloadOptions ArtifactDownloadOptions;
-    std::vector<TArtifactKey> LayerArtifactKeys;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTmpfsVolumeResult
-{
-    //! Tmpfs volume.
-    IVolumePtr Volume;
-
-    std::string VolumeId;
-
-    // COMPAT(krasovav)
-    int Index = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

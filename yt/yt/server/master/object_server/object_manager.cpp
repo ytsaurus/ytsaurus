@@ -377,6 +377,7 @@ private:
 
     void OnRecoveryStarted() override;
     void OnRecoveryComplete() override;
+    void SetZeroState() override;
     void Clear() override;
     void OnLeaderActive() override;
     void OnStopLeading() override;
@@ -432,6 +433,7 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/);
 
     void InitSchemas();
+    void ClearTypeToEntrySchemas();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1018,6 +1020,13 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
     ++CreatedObjects_;
 
     if (hintId) {
+        YT_LOG_ALERT_UNLESS(
+            type == TypeFromId(hintId),
+            "Provided object id does not match the provided type (Type: %v, TypeFromId: %v, Id: %v)",
+            type,
+            TypeFromId(hintId),
+            hintId);
+
         return hintId;
     }
 
@@ -1172,6 +1181,8 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TObjectManager::OnAfterSnapshotLoaded()
 {
+    GarbageCollector_->OnAfterSnapshotLoaded();
+
     auto dropSchema = [&] (EObjectType schemaType) {
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
@@ -1196,6 +1207,15 @@ void TObjectManager::OnAfterSnapshotLoaded()
     }
 }
 
+void TObjectManager::SetZeroState()
+{
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::SetZeroState();
+
+    InitSchemas();
+}
+
 void TObjectManager::Clear()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1207,13 +1227,11 @@ void TObjectManager::Clear()
 
     MasterProxy_ = GetHandler(EObjectType::Master)->GetProxy(MasterObject_.get(), nullptr);
 
+    ClearTypeToEntrySchemas();
     SchemaMap_.Clear();
-
-    InitSchemas();
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
-
 
     DropListNodeSchema_ = false;
 
@@ -1221,13 +1239,16 @@ void TObjectManager::Clear()
     MutationIdempotizer_->Clear();
 }
 
-void TObjectManager::InitSchemas()
+void TObjectManager::ClearTypeToEntrySchemas()
 {
     for (auto& [_, entry] : TypeToEntry_) {
         entry.SchemaObject = nullptr;
         entry.SchemaProxy.Reset();
     }
+}
 
+void TObjectManager::InitSchemas()
+{
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     for (auto type : RegisteredTypes_) {
         if (!HasSchema(type)) {
@@ -2173,7 +2194,7 @@ void TObjectManager::HydraExecuteLeader(
         // interval. If the boomerang's "begin" has been lost due to a recent
         // leader change, we get here.
 
-        auto errorResponse = TError("Mutation is already applied")
+        auto errorResponse = TError("Mutation is already applied, probably the request kept retrying for too long")
             << TErrorAttribute("mutation_id", mutationId);
 
         rpcContext->Reply(errorResponse);
@@ -2713,6 +2734,8 @@ void TObjectManager::OnProfiling()
 
     TSensorBuffer buffer;
     buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());
+    buffer.AddGauge("/zombie_cypress_node_count", GarbageCollector_->GetZombieCypressNodeCount());
+    buffer.AddGauge("/zombie_chunk_count", GarbageCollector_->GetZombieChunkCount());
     buffer.AddGauge("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount());
     buffer.AddGauge("/ephemeral_unref_queue_size", GarbageCollector_->GetEphemeralGhostUnrefQueueSize());
     buffer.AddGauge("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount());

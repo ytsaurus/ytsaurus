@@ -375,7 +375,7 @@ protected:
                 << TErrorAttribute("tablet_id", tabletId)));
         }
 
-        return ReadyEvent();
+        return InternalGetReadyEvent();
     }
 
 private:

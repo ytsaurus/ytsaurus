@@ -638,6 +638,20 @@ struct TDictionaryRepositoryConfig
 
 DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
 
+struct TDictionaryAccessControlConfig
+    : public NYTree::TYsonStruct
+{
+    TAsyncExpiringCacheConfigPtr CacheConfig;
+
+    TDuration CollectLoadedDictionariesPeriod;
+
+    REGISTER_YSON_STRUCT(TDictionaryAccessControlConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryAccessControlConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSystemLogTableExporterConfig
@@ -773,6 +787,8 @@ struct TYtConfig
     TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
     TDictionaryRepositoryConfigPtr DictionaryRepository;
+
+    TDictionaryAccessControlConfigPtr DictionaryAccessControl;
 
     TSystemLogTableExportersConfigPtr SystemLogTableExporters;
 

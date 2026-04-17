@@ -144,6 +144,11 @@ bool UseRpcClient()
     return !useRpcClient.empty();
 }
 
+bool UseDefaultHttpClient()
+{
+    return !UseRpcClient() && GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TZeroWaitLockPollIntervalGuard::TZeroWaitLockPollIntervalGuard()

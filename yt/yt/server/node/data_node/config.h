@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session_server/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/server/lib/node/config.h>
@@ -63,8 +61,8 @@ struct TP2PConfig
     TSlruCacheDynamicConfigPtr RequestCacheOverride;
 
     TDuration ChunkCooldownTimeout;
-    int MaxDistributedBytes;
-    int MaxBlockSize;
+    i64 MaxDistributedBytes;
+    i64 MaxBlockSize;
     int BlockCounterResetTicks;
     int HotBlockThreshold;
     int SecondHotBlockThreshold;
@@ -1040,9 +1038,6 @@ struct TDataNodeConfig
 
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
-
-    //! Distributed chunk session service config.
-    NDistributedChunkSessionServer::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
 
     //! Blocks trash scan for test purpose.
     //! Have to be static, because dynamic config loads after initialization.

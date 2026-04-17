@@ -39,15 +39,6 @@ TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterCo
     return TCellTagList(cellTags.begin(), cellTags.end());
 }
 
-THashSet<TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
-{
-    THashSet<TCellId> masterCellIds;
-    for (const auto& [_, config] : masterConnectionConfigs) {
-        InsertOrCrash(masterCellIds, config->CellId);
-    }
-    return masterCellIds;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellMasterClient

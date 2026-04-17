@@ -25,13 +25,15 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/library/program/config.h>
-
 #include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -1153,6 +1155,10 @@ struct TControllerAgentConfig
     i64 MaxTotalSliceCount;
 
     TAlertManagerConfigPtr AlertManager;
+
+    //! User job thread count to add operation alert as a function of cpu (variable "cpu" = ceil(job cpu_limit)).
+    //! Empty formula disables the corresponding operation alert.
+    TArithmeticFormula MaxJobThreadCountFormula;
 
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;

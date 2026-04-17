@@ -1,5 +1,7 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
+from yt_env_setup import is_sanitizer_build
+
 from yt_helpers import profiler_factory
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
@@ -1733,7 +1735,10 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
 
             return time.time() - start_time
 
-        assert _get_lookup_time(lookup_count=5) < 1
+        if is_sanitizer_build():
+            assert _get_lookup_time(lookup_count=5) < 1.5
+        else:
+            assert _get_lookup_time(lookup_count=5) < 1
 
         if throttler_type == "disk":
             update_nodes_dynamic_config({
@@ -1863,6 +1868,16 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         set("//tmp/t/@mount_config/partition_reader_prefetch_key_limit", 50)
         remount_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(0, 100)]) == rows
+
+    @authors("akozhikhov")
+    def test_indexed_format_and_hunk_erasure_incompatibility(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        self._enable_hash_chunk_index("//tmp/t")
+        set("//tmp/t/@erasure_codec", "isa_reed_solomon_6_3")
+        with raises_yt_error('only for tables with null "erasure_codec"'):
+            sync_mount_table("//tmp/t")
 
 
 @pytest.mark.enabled_multidaemon

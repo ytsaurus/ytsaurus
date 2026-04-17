@@ -2,14 +2,15 @@
 
 #include "private.h"
 
-#include "config.h"
 #include "boomerang_tracker.h"
+#include "config.h"
+#include "helpers.h"
 #include "sequoia_integration.h"
 #include "transaction_finisher.h"
 #include "transaction_presence_cache.h"
 #include "transaction_replication_session.h"
-#include "transaction.h"
 #include "transaction_type_handler.h"
+#include "transaction.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -219,22 +220,70 @@ public:
 
         Logger = TransactionServerLogger();
 
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartForeignTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraPrepareTransactionCommit, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraReplicateTransactions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraNoteNoSuchTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraReturnBoomerang, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraIssueLeases, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRevokeLeases, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterLockableDynamicTables, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraStartTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraStartCypressTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraStartForeignTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraPrepareTransactionCommit, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitCypressTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortCypressTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraReplicateTransactions, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraNoteNoSuchTransaction, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraReturnBoomerang, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraIssueLeases, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraRevokeLeases, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterLockableDynamicTables, Unretained(this)),
+            /*aliases*/ {},
+            /*exceptionsAreNormal*/ true);
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -337,6 +386,11 @@ public:
                 &TTransactionManager::HydraCommitMaterializeCypressTransactionReplicas,
                 Unretained(this)),
         });
+        RegisterTransactionActionHandlers<NProto::TReqReturnBoomerang>({
+            .Commit = BIND_NO_PROPAGATE(
+                &TTransactionManager::HydraCommitReturnBoomerang,
+                Unretained(this)),
+        });
 
         // Revoke leases of a Cypress Tx
         // Coordinator: TReqRevokeCypressTransactionLeases, late prepare
@@ -360,15 +414,33 @@ public:
         TTransactionId hintId = NullTransactionId) override
     {
         return StartTransaction(
+            ETransactionType::System,
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
             replicatedToCellTags,
-            /*timeout*/ timeout,
+            timeout,
             /*deadline*/ std::nullopt,
             title,
             attributes,
-            /*isCypressTransaction*/ false,
             hintId);
+    }
+
+        TTransaction* StartSequoiaTransaction(
+        TTransactionId transactionId,
+        std::optional<TDuration> timeout,
+        const std::string& title,
+        const IAttributeDictionary& attributes) override
+    {
+        return StartTransaction(
+            ETransactionType::Sequoia,
+            /*parent*/ nullptr,
+            /*prerequisiteTransactions*/ {},
+            /*replicatedToCellTags*/ {},
+            timeout,
+            /*deadline*/ std::nullopt,
+            title,
+            attributes,
+            transactionId);
     }
 
     TTransaction* StartNonMirroredCypressTransaction(
@@ -376,18 +448,19 @@ public:
         const std::string& title) override
     {
         return StartTransaction(
+            ETransactionType::Cypress,
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
             replicatedToCellTags,
             /*timeout*/ std::nullopt,
             /*deadline*/ std::nullopt,
             title,
-            EmptyAttributes(),
-            /*isCypressTransaction*/ true);
+            EmptyAttributes());
     }
 
 
     TTransaction* StartTransaction(
+        ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
@@ -395,13 +468,14 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
-        bool isCypressTransaction,
         TTransactionId hintId = NullTransactionId)
     {
+        YT_VERIFY(transactionType != ETransactionType::Upload);
+
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
         return DoStartTransaction(
-            /*upload*/ false,
+            transactionType,
             parent,
             std::move(prerequisiteTransactions),
             replicatedToCellTags,
@@ -409,8 +483,6 @@ public:
             deadline,
             title,
             attributes,
-            isCypressTransaction,
-            /*enableNativeTxExternalization*/ std::nullopt,
             hintId);
     }
 
@@ -425,16 +497,14 @@ public:
         ValidateUploadTransactionStart(parent);
 
         return DoStartTransaction(
-            /*upload*/ true,
+            ETransactionType::Upload,
             parent,
-            prerequisiteTransactions,
+            std::move(prerequisiteTransactions),
             replicatedToCellTags,
             timeout,
             /*deadline*/ std::nullopt,
             title,
             EmptyAttributes(),
-            /*isCypressTransaction*/ false,
-            /*enableNativeTxExternalization*/ std::nullopt,
             hintId);
     }
 
@@ -488,7 +558,7 @@ public:
     }
 
     TTransaction* DoStartTransaction(
-        bool upload,
+        ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
         TCellTagList replicatedToCellTags,
@@ -496,8 +566,6 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
-        bool isCypressTransaction,
-        std::optional<bool> enableNativeTxExternalization,
         TTransactionId hintId)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -506,20 +574,14 @@ public:
 
         const auto& dynamicConfig = GetDynamicConfig();
 
-        EObjectType transactionObjectType;
-        if (upload) {
-            transactionObjectType = parent
-                ? EObjectType::UploadNestedTransaction
-                : EObjectType::UploadTransaction;
-        } else if (!isCypressTransaction) {
-            transactionObjectType = parent
-                ? EObjectType::SystemNestedTransaction
-                : EObjectType::SystemTransaction;
-        } else {
-            transactionObjectType = parent
-                ? EObjectType::NestedTransaction
-                : EObjectType::Transaction;
+        if (hintId) {
+            YT_VERIFY(ValidateTransactionTypeCoherency(transactionType, hintId));
         }
+
+        auto transactionObjectType = TransactionTypeToObjectType(
+            transactionType,
+            bool(parent),
+            hintId);
 
         // COMPAT(h0pless): Replace this with ThrowErrorException when CTxS will be used by all clients.
         // NB: Upload transaction can be nested to both system and Cypress transaction.
@@ -563,7 +625,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
-        auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
+        auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId);
         // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
         auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
         if (!inserted) {
@@ -593,18 +655,6 @@ public:
             InsertOrCrash(ForeignTransactions_, transaction);
         }
 
-        if (IsCypressTransactionType(transaction->GetType())) {
-            if (parent) {
-                transaction->SetNativeTxExternalizationEnabled(parent->IsNativeTxExternalizationEnabled());
-            } else if (native) {
-                transaction->SetNativeTxExternalizationEnabled(true);
-            } else {
-                YT_VERIFY(enableNativeTxExternalization.has_value());
-
-                transaction->SetNativeTxExternalizationEnabled(*enableNativeTxExternalization);
-            }
-        }
-
         transaction->SetPersistentState(ETransactionState::Active);
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -616,7 +666,7 @@ public:
             transaction->SetForeign();
         }
 
-        auto replicated = !native && isCypressTransaction;
+        auto replicated = !native && transaction->IsCypressTransaction();
         if (!replicated && timeout) {
             transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
@@ -624,8 +674,6 @@ public:
         if (!replicated) {
             transaction->SetDeadline(deadline);
         }
-
-        transaction->SetIsCypressTransaction(isCypressTransaction);
 
         if (IsLeader()) {
             CreateLease(transaction);
@@ -658,7 +706,7 @@ public:
                     CellTagFromId(transactionId)),
                 replicatedToCellTags.end());
 
-            if (upload) {
+            if (transactionType == ETransactionType::Upload) {
                 transaction->ReplicatedToCellTags() = replicatedToCellTags;
             } else if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
                 MarkTransactionReplicated(transaction, replicatedToCellTags);
@@ -675,7 +723,7 @@ public:
 
         YT_LOG_DEBUG("Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v, "
-            "MirroredToSequoia: %v, NativeTxExternalizationEnabled: %v)",
+            "MirroredToSequoia: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, auto prerequisiteTransaction) {
@@ -687,8 +735,7 @@ public:
             user->GetName(),
             title,
             time,
-            IsCypressTransactionMirroredToSequoia(transactionId),
-            transaction->IsNativeTxExternalizationEnabled());
+            IsCypressTransactionMirroredToSequoia(transactionId));
 
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
 
@@ -719,7 +766,7 @@ public:
         const TTransactionCommitOptions& options) override
     {
         YT_LOG_ALERT_IF(
-            transaction->GetIsCypressTransaction() && IsSequoiaId(transaction->GetId()),
+            transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
             "Attempt to commit Cypress transaction in non-Sequoia way (TransactionId: %v)",
             transaction->GetId());
 
@@ -921,7 +968,7 @@ public:
         const TTransactionAbortOptions& options) override
     {
         YT_LOG_ALERT_IF(
-            transaction->GetIsCypressTransaction() && IsSequoiaId(transaction->GetId()),
+            transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
             "Attempt to abort mirrored Cypress transaction in non-Sequoia way (TransactionId: %v)",
             transaction->GetId());
 
@@ -1069,10 +1116,7 @@ public:
             return {};
         }
 
-        bool shouldExternalize = transaction->IsNative()
-            ? transaction->IsNativeTxExternalizationEnabled()
-            : true;
-        return ExternalizeOrReplicateTransaction(transaction, dstCellTags, shouldExternalize);
+        return ExternalizeOrReplicateTransaction(transaction, dstCellTags, /*shouldExternalize*/ true);
     }
 
     TTransactionId ExternalizeOrReplicateTransaction(
@@ -1190,10 +1234,7 @@ public:
 
         // NB: The value of this property is the same among all relative
         // transactions.
-        auto externalizationEnabled = IsCypressTransactionType(transaction->GetType())
-            ? !transaction->IsNative() || transaction->IsNativeTxExternalizationEnabled()
-            : false;
-
+        auto externalizationEnabled = IsCypressTransactionType(transaction->GetType());
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
             if (externalizationEnabled && currentTransaction->IsExternalizedToCell(dstCellTag)) {
@@ -1226,12 +1267,6 @@ public:
         if (auto title = transaction->GetTitle()) {
             startRequest.set_title(*title);
         }
-
-        if (IsCypressTransactionType(transaction->GetType())) {
-            startRequest.set_enable_native_tx_externalization(transaction->IsNativeTxExternalizationEnabled());
-        }
-
-        startRequest.set_upload(transaction->IsUpload());
 
         if (GetDynamicConfig()->EnableStartForeignTransactionFixes) {
             if (const auto* attributes = transaction->GetAttributes()) {
@@ -1878,7 +1913,7 @@ public:
             ThrowNoSuchTransaction(transactionId);
         }
 
-        YT_VERIFY(transaction->GetIsCypressTransaction());
+        YT_VERIFY(transaction->IsCypressTransaction());
 
         ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
@@ -1937,7 +1972,7 @@ public:
         const auto& request = context->Request();
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto* transaction = FindTransaction(transactionId);
-        if (!transaction || !transaction->GetIsCypressTransaction()) {
+        if (!transaction || !transaction->IsCypressTransaction()) {
             return false;
         }
 
@@ -2111,7 +2146,7 @@ public:
         }
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        YT_VERIFY(transaction->GetIsCypressTransaction());
+        YT_VERIFY(transaction->IsCypressTransaction());
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             Bootstrap_->GetTransactionFinisher()->BeginRequest(context, transaction);
@@ -2160,7 +2195,7 @@ public:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto force = request.force();
         auto* transaction = FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction) || !transaction->GetIsCypressTransaction()) {
+        if (!IsObjectAlive(transaction) || !transaction->IsCypressTransaction()) {
             return false;
         }
 
@@ -2390,14 +2425,14 @@ private:
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
+            isCypressTransaction ? ETransactionType::Cypress : ETransactionType::System,
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
             timeout,
             deadline,
             title,
-            *attributes,
-            isCypressTransaction);
+            *attributes);
 
         auto id = transaction->GetId();
 
@@ -2456,6 +2491,7 @@ private:
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
+            ETransactionType::Cypress,
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
@@ -2463,7 +2499,6 @@ private:
             deadline,
             title,
             *attributes,
-            /*isCypressTransaction*/ true,
             hintId);
 
         auto id = transaction->GetId();
@@ -2497,7 +2532,6 @@ private:
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? FindTransaction(parentId) : nullptr;
-        auto isUpload = request->upload();
         if (parentId && !parent) {
             THROW_ERROR_EXCEPTION("Failed to start foreign transaction: parent transaction not found")
                 << TErrorAttribute("transaction_id", hintId)
@@ -2520,13 +2554,6 @@ private:
         // NB: DoStartTransaction below cares about authenticated user.
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
-
-        YT_VERIFY(
-            isUpload == (
-                TypeFromId(hintId) == EObjectType::UploadTransaction ||
-                TypeFromId(hintId) == EObjectType::UploadNestedTransaction));
-
         auto attributes = CreateEphemeralAttributes();
         if (request->has_operation_type()) {
             attributes->Set("operation_type", request->operation_type());
@@ -2538,9 +2565,12 @@ private:
             attributes->Set("operation_title", request->operation_title());
         }
 
-        auto transactionType = TypeFromId(hintId);
+        auto transactionType = ObjectTypeToTransactionType(TypeFromId(hintId));
+        ValidateTransactionTypeCoherency(transactionType, hintId);
+
+        auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto* transaction = DoStartTransaction(
-            isUpload,
+            transactionType,
             parent,
             /*prerequisiteTransactions*/ {},
             /*replicatedToCellTags*/ {},
@@ -2548,10 +2578,6 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
-            IsCypressTransactionType(transactionType),
-            IsCypressTransactionType(transactionType)
-                ? std::optional(request->enable_native_tx_externalization())
-                : std::nullopt,
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
     }
@@ -2571,7 +2597,7 @@ private:
         }
 
         if (GetDynamicConfig()->ForbidTransactionActionsForCypressTransactions) {
-            if (transaction->GetIsCypressTransaction() && !request->actions().empty()) {
+            if (transaction->IsCypressTransaction() && !request->actions().empty()) {
                 YT_LOG_ALERT(
                     "Transaction is Cypress but has actions (TransactionId: %v, TransactionActionCount: %v)",
                     transaction->GetId(),
@@ -2826,6 +2852,11 @@ private:
             return;
         }
 
+        YT_LOG_ALERT_UNLESS(
+            IsCypressTransactionType(TypeFromId(transactionId)),
+            "Unexpected transaction object type encountered during replica materialization (TransactionId: %v)",
+            transactionId);
+
         HydraStartForeignTransaction(request);
     }
 
@@ -2942,6 +2973,19 @@ private:
         BoomerangTracker_->ProcessReturnedBoomerang(request);
     }
 
+    void HydraCommitReturnBoomerang(
+        TTransaction* sequoiaTransaction,
+        NProto::TReqReturnBoomerang* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        try {
+            HydraReturnBoomerang(request);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Error during boomerang transaction action execution (SequoiaTransactionId: %v)",
+                sequoiaTransaction->GetId());
+        }
+    }
+
     void HydraRemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* request)
     {
         BoomerangTracker_->RemoveStuckBoomerangWaves(request);
@@ -2982,7 +3026,7 @@ private:
             if (transaction->GetPersistentState() != ETransactionState::Active) {
                 transaction->ThrowInvalidState();
             }
-            if (!transaction->GetIsCypressTransaction()) {
+            if (!transaction->IsCypressTransaction()) {
                 THROW_ERROR_EXCEPTION("Leases cannot be issued for non-Cypress transactions")
                     << TErrorAttribute("transaction_id", transaction->GetId());
             }

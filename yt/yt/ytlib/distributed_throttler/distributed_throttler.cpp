@@ -1336,7 +1336,7 @@ public:
         }
     }
 
-    void Initialize()
+    void InitializeRefCounted()
     {
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
@@ -1879,7 +1879,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TProfiler profiler,
     std::optional<i64> memberPriority)
 {
-    auto factory = New<TDistributedThrottlerFactory>(
+    return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
         std::move(channelFactory),
         std::move(connection),
@@ -1892,10 +1892,6 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(authenticator),
         std::move(profiler),
         std::move(memberPriority));
-
-    factory->Initialize();
-
-    return factory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

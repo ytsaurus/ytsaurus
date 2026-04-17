@@ -341,6 +341,7 @@ SRCS(
     misc/synchronizer_detail.cpp
 
     columnar_chunk_format/column_block_manager.cpp
+    columnar_chunk_format/compressed_block_last_keys.cpp
     columnar_chunk_format/memory_helpers.cpp
     columnar_chunk_format/prepared_meta.cpp
     columnar_chunk_format/rowset_builder.cpp
@@ -427,6 +428,7 @@ SRCS(
     sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
+    sequoia_client/transaction_options.cpp
     sequoia_client/write_set.cpp
     sequoia_client/ypath_detail.cpp
 
@@ -524,6 +526,12 @@ SRCS(
     table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
+
+    tablet_balancer_client/balancing_request.cpp
+    tablet_balancer_client/config.cpp
+    tablet_balancer_client/tablet_balancer_channel.cpp
+
+    tablet_balancer_client/proto/tablet_balancer_service.proto
 
     tablet_client/backup.cpp
     tablet_client/config.cpp
@@ -832,7 +840,6 @@ PEERDIR(
     yt/yt/library/web_assembly/api
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
-    yt/yt/ytlib/tablet_balancer_client
     yt/yt_proto/yt/client
     yt/yt/flow/lib/client
     yt/yt/flow/lib/native_client

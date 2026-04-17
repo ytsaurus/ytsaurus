@@ -453,6 +453,7 @@ public:
             .WorkloadDescriptor = QueryOptions_.WorkloadDescriptor,
             .ReadSessionId = QueryOptions_.ReadSessionId,
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
+            .InitialQueryKind = EInitialQueryKind::SelectRows,
         }
     { }
 
@@ -577,7 +578,7 @@ private:
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
 
-        bool ordered = frontQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
+        bool ordered = frontQuery->GetScanOrder(QueryOptions_.AllowUnorderedGroupByWithLimit) == EScanOrder::Ordered;
         auto classifiedDataSources = GetClassifiedDataSources();
         auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
 
@@ -590,13 +591,13 @@ private:
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
         YT_LOG_DEBUG("Coordinating query (Ordered: %v, Prefetching: %v, RegroupByTablets: %v, MergeVersionedRows: %v)",
-            Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
+            Query_->GetScanOrder(QueryOptions_.AllowUnorderedGroupByWithLimit) == EScanOrder::Ordered,
             Query_->IsPrefetching(),
             regroupByTablets,
             QueryOptions_.MergeVersionedRows);
 
         TGetSubreader getSubqueryReader;
-        if (!QueryOptions_.MergeVersionedRows && !regroupByTablets && !Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit)) {
+        if (!QueryOptions_.MergeVersionedRows && !regroupByTablets && Query_->GetScanOrder(QueryOptions_.AllowUnorderedGroupByWithLimit) == EScanOrder::Unordered) {
             splitCount = std::min(splitCount, 16);
 
             auto dataSourceQueue = MakeDataSourcesQueue(groupedDataSplits);
@@ -667,7 +668,7 @@ private:
         auto executePlanWithAsyncLastCommittedTimestamp = GetExecutePlanCallbackWithAsyncLastCommittedTimestamp();
 
         return CoordinateAndExecute(
-            Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
+            Query_->GetScanOrder(QueryOptions_.AllowUnorderedGroupByWithLimit),
             Query_->IsPrefetching(),
             splitCount,
             Query_->Offset,
@@ -705,17 +706,16 @@ private:
                 // so we can set the most recent feature flags.
                 auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
 
-                std::vector<IJoinProfilerPtr> joinProfilers;
-                joinProfilers.reserve(Query_->JoinClauses.size());
-
+                TJoinProfilerRegistry joinProfilerRegistry;
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
+                    const auto& joinClause = Query_->JoinClauses[joinIndex];
                     auto executePlanCallback = executePlanWithUserProvidedTimestamp;
-                    if (Query_->JoinClauses[joinIndex]->RequireSyncReplica == false) {
+                    if (joinClause->RequireSyncReplica == false) {
                         executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
                     }
 
-                    joinProfilers.push_back(CreateJoinSubqueryProfiler(
-                        Query_->JoinClauses[joinIndex],
+                    joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
+                        joinClause,
                         executePlanCallback,
                         [=, Logger = Logger] (TQueryStatistics statistics) mutable {
                             YT_LOG_DEBUG("Remote subquery statistics %v", statistics);
@@ -735,7 +735,7 @@ private:
                         bottomQuery,
                         getSubqueryReader(subqueryIndex),
                         pipe->GetWriter(),
-                        joinProfilers,
+                        joinProfilerRegistry,
                         functionGenerators,
                         aggregateGenerators,
                         sdk,
@@ -785,7 +785,7 @@ private:
                     frontQuery,
                     reader,
                     Writer_,
-                    /*joinProfilers*/ {},
+                    /*joinProfilerRegistry*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     sdk,

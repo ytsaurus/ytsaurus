@@ -136,13 +136,14 @@ class TStoreCompactionHint
         : public TCompactionHintRecalculationFinalizerBase
     {
     public:
-        explicit TStoreCompactionHintRecalculationFinalizer(TStoreCompactionHint* hint);
+        explicit TStoreCompactionHintRecalculationFinalizer(TStore* store, TStoreCompactionHint* hint);
 
         ~TStoreCompactionHintRecalculationFinalizer();
 
-        using TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation;
+        bool TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason);
 
     private:
+        TStore* Store_;
         TStoreCompactionHint* Hint_;
     };
 
@@ -161,7 +162,7 @@ public:
     // Should be called in LSM to isolate logic from tablet node.
     bool RecalculateHint(const std::unique_ptr<TStore>& store);
 
-    TStoreCompactionHintRecalculationFinalizer BuildRecalculationFinalizer();
+    TStoreCompactionHintRecalculationFinalizer BuildRecalculationFinalizer(TStore* store);
 };
 
 // NB(dave11ar): Not virtual function of TStoreCompactionHint to avoid allocations and save memory.
@@ -203,7 +204,7 @@ class TPartitionCompactionHint
         DEFINE_BYREF_RO_PROPERTY(std::vector<TStore*>, Stores);
 
     public:
-        explicit TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
+        TPartitionCompactionHintRecalculationFinalizer(TPartition* partition, TPartitionCompactionHint* hint);
 
         ~TPartitionCompactionHintRecalculationFinalizer();
 
@@ -258,9 +259,17 @@ public:
 
     std::pair<EStoreCompactionReason, std::vector<TStoreId>> GetStoresForCompaction(
         TInstant currentTime,
-        TTimestamp edenMajorTimestamp) const;
+        TTimestamp edenMajorTimestamp,
+        const TTableMountConfigPtr& mountConfig) const;
 
     bool RecalculateHints(TPartition* partition);
+
+private:
+    static bool IsCompactionAllowed(
+        const TPartitionCompactionHint& hint,
+        TInstant currentTime,
+        TInstant edenMajorTimestampInstant,
+        const TTableMountConfigPtr& mountConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

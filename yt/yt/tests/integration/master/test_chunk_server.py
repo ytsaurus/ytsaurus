@@ -47,6 +47,27 @@ class TestChunkServer(YTEnvSetup):
         },
     }
 
+    def _get_replicator_queue_size(self):
+        refresh_queue_size = 0
+
+        masters = ls("//sys/primary_masters")
+        for master in masters:
+            profiler = profiler_factory().at_primary_master(master)
+            count = profiler.gauge("chunk_server/blob_refresh_queue_size").get()
+            if count is None:
+                return None
+            refresh_queue_size += count
+
+        secondary_master_cell_tags = get("//sys/secondary_masters")
+        for tag in secondary_master_cell_tags:
+            for master in secondary_master_cell_tags[tag]:
+                profiler = profiler_factory().at_secondary_master(tag, master)
+                count = profiler.gauge("chunk_server/blob_refresh_queue_size").get()
+                if count is None:
+                    return None
+                refresh_queue_size += count
+        return refresh_queue_size
+
     @authors("kvk1920")
     def test_invalid_medium_name(self):
         with raises_yt_error("Invalid object name: starts with #"):
@@ -510,6 +531,48 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
+    @authors("grphil")
+    def test_refresh_delay(self):
+        wait(lambda: self._get_replicator_queue_size() is not None)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        # Wait for approve timeout and profiler update.
+        sleep(2 + get("//sys/@config/chunk_manager/replica_approve_timeout") // 1000)
+        wait(lambda: self._get_replicator_queue_size() == 0)
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+        set("//sys/@config/chunk_manager/chunk_refresh_delay", 15000)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+
+            sleep(2)
+            assert chunk_id not in get("//sys/lost_vital_chunks")
+            wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
+
+    @authors("grphil")
+    def test_no_refresh_for_recently_confirmed_chunks(self):
+        wait(lambda: self._get_replicator_queue_size() is not None)
+
+        set("//sys/@config/chunk_manager/chunk_refresh_delay", 1000)
+        set("//sys/@config/chunk_manager/replica_approve_timeout", 20000)
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        wait(lambda: self._get_replicator_queue_size() > 0)
+
+        sleep(2)
+        wait(lambda: self._get_replicator_queue_size() > 0)
+
+        set("//sys/@config/chunk_manager/replica_approve_timeout", 2000)
+        wait(lambda: self._get_replicator_queue_size() == 0)
+
 
 ##################################################################
 
@@ -753,6 +816,12 @@ class TestNodePendingRestartBase(YTEnvSetup):
         "12": {"roles": ["chunk_host"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "disposed_pending_restart_node_chunk_refresh_delay": 0,
+        },
+    }
+
     @classmethod
     def setup_class(cls):
         super(TestNodePendingRestartBase, cls).setup_class()
@@ -942,6 +1011,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
             },
+            "disposed_pending_restart_node_chunk_refresh_delay": 0,
         },
         "cell_master": {
             "logging": {
@@ -1267,6 +1337,7 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
             },
+            "disposed_pending_restart_node_chunk_refresh_delay": 0,
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
@@ -1292,6 +1363,7 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
             },
+            "disposed_pending_restart_node_chunk_refresh_delay": 0,
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
@@ -1332,6 +1404,9 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         chunk_id = get_singular_chunk_id("//tmp/t")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
 
+        # Wait until chunk refresh is finished.
+        sleep(2 + get("//sys/@config/chunk_manager/replica_approve_timeout") // 1000)
+
         nodes = get(f"#{chunk_id}/@stored_replicas")[:2]
         node_indexes = [get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node)) for node in nodes]
 
@@ -1339,7 +1414,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         for node in nodes:
             maintenance_ids.update(add_maintenance("cluster_node", node, "pending_restart", ""))
 
-        sleep(0.5)
+        sleep(1)
 
         status = get("#" + chunk_id + "/@replication_status/default")
         assert status["temporarily_unavailable"]

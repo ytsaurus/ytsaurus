@@ -402,31 +402,40 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<TUnversion
         auto key = TKey(modification.Row.FirstNElements(keyColumnCount));
         auto& alteredRow = GetOrCrash(ResultingRowMap_, key);
 
+        auto fillRowIfNotInitialized = [&] (TMutableUnversionedRow& row) {
+            if (!row) {
+                row = RowBuffer_->AllocateUnversioned(columnCount);
+                for (int index = 0; index < columnCount; ++index) {
+                    row[index] = MakeUnversionedSentinelValue(
+                        EValueType::Null,
+                        PositionToIdMapping_[index]);
+                }
+            }
+
+            for (auto value : modification.Row) {
+                if (auto index = ResultingRowMapping_[value.Id]; index >= 0) {
+                    row[index] = RowBuffer_->CaptureValue(value);
+                }
+            }
+
+            for (int position = FirstEvaluatedColumnPosition_; position < columnCount; ++position) {
+                evaluator->EvaluateKey(row, RowBuffer_, position, /*preserveColumnId*/ true);
+            }
+        };
+
         switch (modification.Command) {
             case EWireProtocolCommand::WriteAndLockRow:
             case EWireProtocolCommand::WriteRow:
-                if (!alteredRow) {
-                    alteredRow = RowBuffer_->AllocateUnversioned(columnCount);
-                    for (int index = 0; index < columnCount; ++index) {
-                        alteredRow[index] = MakeUnversionedSentinelValue(
-                            EValueType::Null,
-                            PositionToIdMapping_[index]);
-                    }
-                }
-
-                for (auto value : modification.Row) {
-                    if (auto index = ResultingRowMapping_[value.Id]; index >= 0) {
-                        alteredRow[index] = RowBuffer_->CaptureValue(value);
-                    }
-                }
-
-                for (int position = FirstEvaluatedColumnPosition_; position < columnCount; ++position) {
-                    evaluator->EvaluateKey(alteredRow, RowBuffer_, position, /*preserveColumnId*/ true);
-                }
+                fillRowIfNotInitialized(alteredRow);
 
                 break;
 
             case EWireProtocolCommand::DeleteRow:
+                if (CanSkipLookup_) {
+                    auto& initialRow = GetOrCrash(InitialRowMap_, key);
+
+                    fillRowIfNotInitialized(initialRow);
+                }
                 alteredRow = {};
                 break;
 

@@ -126,7 +126,7 @@ public:
         MasterCellTags_.insert(secondaryMasterCellTags.begin(), secondaryMasterCellTags.end());
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
@@ -424,13 +424,13 @@ private:
 
         const auto& masterCellDirectory = Bootstrap_->GetConnection()->GetMasterCellDirectory();
         auto oldSecondaryMastersConnectionConfigs = masterCellDirectory->GetSecondaryMasterConnectionConfigs();
-        if (!ClusterMasterCompositionChanged(masterCellDirectory->GetSecondaryMasterConnectionConfigs(), newSecondaryMastersConnectionConfigs)) {
+        if (!ClusterMasterCompositionChanged(oldSecondaryMastersConnectionConfigs, newSecondaryMastersConnectionConfigs)) {
             return;
         }
 
         YT_LOG_INFO("Master cell membership configuration has changed, starting reconfiguration "
             "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
-            GetMasterCellTags(),
+            NCellMasterClient::GetMasterCellTags(oldSecondaryMastersConnectionConfigs),
             NCellMasterClient::GetMasterCellTags(newSecondaryMastersConnectionConfigs));
 
         masterCellDirectory->ReconfigureMasterCellDirectory(newSecondaryMastersConnectionConfigs);

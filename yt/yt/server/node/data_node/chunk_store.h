@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -241,7 +243,7 @@ private:
     const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TDataNodeDynamicConfigPtr DynamicConfig_;
+    TAtomicIntrusivePtr<TDataNodeDynamicConfig> DynamicConfig_;
 
     struct TChunkEntry
     {

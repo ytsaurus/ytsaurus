@@ -6,17 +6,22 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <Analyzer/SetUtils.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::NQueryClient::TConstExpressionPtr ConvertToConstExpression(
+    DB::QueryTreeNodePtr node,
     const NTableClient::TTableSchemaPtr& schema,
-    DB::QueryTreeNodePtr node);
+    const TCompositeSettingsPtr& settings,
+    DB::GetSetElementParams setParams = {});
 
 std::vector<NChunkClient::TReadRange> InferReadRange(
     DB::QueryTreeNodePtr filterNode,
-    const NTableClient::TTableSchemaPtr& schema);
+    const NTableClient::TTableSchemaPtr& schema,
+    const DB::Settings& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

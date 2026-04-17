@@ -217,9 +217,11 @@ class TPortoShell
 public:
     TPortoShell(
         IPortoExecutorPtr portoExecutor,
-        std::unique_ptr<TShellOptions> options)
+        std::unique_ptr<TShellOptions> options,
+        bool isSubcontainer)
         : TShellBase(std::move(options))
         , PortoExecutor_(std::move(portoExecutor))
+        , IsSubcontainer_(isSubcontainer)
     { }
 
     void Spawn()
@@ -294,7 +296,7 @@ public:
             env[name] = value;
         }
 
-        if (Options_->MessageOfTheDay) {
+        if (Options_->MessageOfTheDay && !IsSubcontainer_) {
             auto path = NFS::CombinePaths(preparationDir, ".motd");
             auto pathInContainer = NFS::CombinePaths(workingDir, ".motd");
 
@@ -310,7 +312,7 @@ public:
                     << TErrorAttribute("path", path);
             }
         }
-        if (Options_->Bashrc) {
+        if (Options_->Bashrc && !IsSubcontainer_) {
             auto path = NFS::CombinePaths(preparationDir, ".bashrc");
             auto pathInContainer = NFS::CombinePaths(workingDir, ".bashrc");
 
@@ -367,6 +369,7 @@ public:
 private:
     const IPortoExecutorPtr PortoExecutor_;
     IInstancePtr Instance_;
+    bool IsSubcontainer_;
 
     void AddFileBindFromUserJobNamespace(const std::string& pathInContainer)
     {
@@ -384,9 +387,10 @@ private:
 
 IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr portoExecutor,
-    std::unique_ptr<TShellOptions> options)
+    std::unique_ptr<TShellOptions> options,
+    bool isSubcontainer)
 {
-    auto shell = New<TPortoShell>(std::move(portoExecutor), std::move(options));
+    auto shell = New<TPortoShell>(std::move(portoExecutor), std::move(options), isSubcontainer);
     shell->Spawn();
     return shell;
 }
@@ -520,7 +524,8 @@ IShellPtr CreateShell(std::unique_ptr<TShellOptions> options)
 
 IShellPtr CreatePortoShell(
     NContainers::IPortoExecutorPtr /*portoExecutor*/,
-    std::unique_ptr<TShellOptions> /*options*/)
+    std::unique_ptr<TShellOptions> /*options*/,
+    bool /*isSubcontainer*/)
 {
     THROW_ERROR_EXCEPTION("Shell is supported only under Unix");
 }

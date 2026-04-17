@@ -1582,8 +1582,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             } else {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             }
         }
@@ -1645,9 +1645,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             tmpfsPaths.push_back(volumeMount->MountPath);
         }
 
-        //! Check that no volume path is a prefix of another volume path.
-        ValidateTmpfsPaths(tmpfsPaths);
-
         if (spec->MemoryReserveFactor &&
             (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
         {
@@ -1672,8 +1669,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         }
 
         if (spec->DiskSpaceLimit) {
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
 
             diskRequest->DiskSpace = *spec->DiskSpaceLimit;
             diskRequest->InodeCount = spec->InodeLimit;
@@ -1715,6 +1712,17 @@ void TUserJobSpec::Register(TRegistrar registrar)
         std::sort(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
             return lhs->MountPath < rhs->MountPath;
         });
+
+        {
+            THashSet<std::string_view> allUniqueVolumeMountPaths;
+            for (const auto& volumeMount : spec->JobVolumeMounts) {
+                allUniqueVolumeMountPaths.insert(volumeMount->MountPath);
+            }
+            if (allUniqueVolumeMountPaths.size() != spec->JobVolumeMounts.size()) {
+                THROW_ERROR_EXCEPTION("Options \"job_volume_mounts\" must contains only unique mount path")
+                    << TErrorAttribute("job_volume_mounts", spec->JobVolumeMounts);
+            }
+        }
 
         if (!spec->IsFirstIterationPostprocessorComplete) {
             spec->DeprecatedTmpfsVolumes = std::move(tmpDeprecatedTmpfsVolumes);
@@ -2374,7 +2382,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         spec->SortJobIO->TableReader->PassCount = 50;
 
         spec->MergeJobIO->TableReader->RetryCount = 3;
-        spec->MergeJobIO->TableReader->PassCount = 50 ;
+        spec->MergeJobIO->TableReader->PassCount = 50;
     });
 
     registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {

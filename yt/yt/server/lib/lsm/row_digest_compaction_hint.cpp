@@ -117,7 +117,7 @@ template <>
 void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDigest>(TStore* store)
 {
     auto recalculationFinalizer = store->CompactionHints().Hints()[EStoreCompactionHintKind::VersionedRowDigest]
-        .BuildRecalculationFinalizer();
+        .BuildRecalculationFinalizer(store);
 
     auto majorTimestamp = TInstant::Max();
     const auto& mountConfig = store->GetTablet()->GetMountConfig();
@@ -164,25 +164,7 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::Aggregat
             recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, prefixLength);
         }
         if (auto timestamp = CalculateTooManyTimestamps(cumulativeDigest, mountConfig, majorTimestamp)) {
-            recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, prefixLength);
-        }
-    }
-
-    if (partition->GetTablet()->GetHasAggregateColumn() || ssize(stores) > rowDigestConfig->MaxStoreCountForExponentialCalculation) {
-        return;
-    }
-
-    for (ui64 storeSubset = 1; storeSubset < (1ULL << ssize(stores)); ++storeSubset) {
-        auto subsetCumulativeDigest = New<TVersionedRowDigest>(NonCompressableDigestConfig);
-        for (int index = 0; index < ssize(stores); ++index) {
-            if ((1ULL << index) & storeSubset) {
-                subsetCumulativeDigest->MergeWith(std::get<TVersionedRowDigestPtr>(
-                    stores[index]->CompactionHints().Payloads()[EStoreCompactionHintKind::VersionedRowDigest]));
-            }
-        }
-
-        if (auto timestamp = CalculateTtlCleanupExpected(subsetCumulativeDigest, mountConfig, /*majorTimestamp*/ TInstant::Max())) {
-            recalculationFinalizer.TryApplyRecalculationBySubset(timestamp, EStoreCompactionReason::AggregateTtlCleanupExpected, storeSubset);
+            recalculationFinalizer.TryApplyRecalculationByPrefix(timestamp, EStoreCompactionReason::AggregateDeleteTooManyTimestamps, prefixLength);
         }
     }
 }

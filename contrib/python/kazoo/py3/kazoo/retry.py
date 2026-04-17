@@ -128,15 +128,15 @@ class KazooRetry(object):
         while True:
             try:
                 if self.deadline is not None and self._cur_stoptime is None:
-                    self._cur_stoptime = time.time() + self.deadline
+                    self._cur_stoptime = time.monotonic() + self.deadline
                 return func(*args, **kwargs)
             except ConnectionClosedError:
                 raise
             except self.retry_exceptions:
+                self._attempts += 1
                 # Note: max_tries == -1 means infinite tries.
                 if self._attempts == self.max_tries:
                     raise RetryFailedError("Too many retry attempts")
-                self._attempts += 1
                 jitter = random.uniform(
                     1.0 - self.max_jitter, 1.0 + self.max_jitter
                 )
@@ -144,7 +144,7 @@ class KazooRetry(object):
 
                 if (
                     self._cur_stoptime is not None
-                    and time.time() + sleeptime >= self._cur_stoptime
+                    and time.monotonic() + sleeptime >= self._cur_stoptime
                 ):
                     raise RetryFailedError("Exceeded retry deadline")
 

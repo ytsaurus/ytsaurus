@@ -13,6 +13,7 @@
 #include "in_memory_service.h"
 #include "lsm_interop.h"
 #include "master_connector.h"
+#include "overload_reporter.h"
 #include "partition_balancer.h"
 #include "serialize.h"
 #include "slot_manager.h"
@@ -123,9 +124,9 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         OverloadController_ = NRpc::CreateOverloadController(
             New<NRpc::TOverloadControllerConfig>(),
@@ -253,6 +254,7 @@ public:
         RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         StatisticsReporter_ = New<TStatisticsReporter>(this);
+        OverloadReporter_ = CreateOverloadReporter(this);
         StoreCompactor_ = CreateStoreCompactor(this);
         StoreFlusher_ = CreateStoreFlusher(this);
         StoreRotator_ = CreateStoreRotator(this);
@@ -351,6 +353,7 @@ public:
         StoreTrimmer_->Start();
         HunkChunkSweeper_->Start();
         StatisticsReporter_->Start();
+        OverloadReporter_->Start();
         BackingStoreCleaner_->Start();
         LsmInterop_->Start();
         ChunkReplicaCachePinger_->Start();
@@ -611,6 +614,7 @@ private:
     IHunkChunkSweeperPtr HunkChunkSweeper_;
     IPartitionBalancerPtr PartitionBalancer_;
     TStatisticsReporterPtr StatisticsReporter_;
+    IOverloadReporterPtr OverloadReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     IChunkReplicaCachePingerPtr ChunkReplicaCachePinger_;
@@ -652,6 +656,7 @@ private:
         OverloadController_->Reconfigure(tabletNodeConfig->OverloadController);
 
         StatisticsReporter_->Reconfigure(tabletNodeConfig);
+        OverloadReporter_->Reconfigure(tabletNodeConfig);
 
         CompressionDictionaryManager_->OnDynamicConfigChanged(tabletNodeConfig->CompressionDictionaryCache);
 

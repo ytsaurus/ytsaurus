@@ -15,7 +15,10 @@ void TAuthCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("cache_ttl", &TThis::CacheTtl)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
-        .Default(TDuration::Hours(1));
+        .Default(TDuration::Minutes(60));
+    registrar.Parameter("optimistic_cache_ttl_jitter", &TThis::OptimisticCacheTtlJitter)
+        .Default(0.1)
+        .InRange(0.0, 1.0);
     registrar.Parameter("error_ttl", &TThis::ErrorTtl)
         .Default(TDuration::Seconds(15));
 }

@@ -740,6 +740,11 @@ func (e *Encoder) CreateQueueProducerSession(
 	sessionID string,
 	opts *yt.CreateQueueProducerSessionOptions,
 ) (result *yt.CreateQueueProducerSessionResult, err error) {
+
+	if opts == nil {
+		opts = &yt.CreateQueueProducerSessionOptions{}
+	}
+
 	req := &rpc_proxy.TReqCreateQueueProducerSession{
 		ProducerPath:    []byte(producerPath.String()),
 		QueuePath:       []byte(queuePath.String()),
@@ -2246,6 +2251,47 @@ func (e *Encoder) GetJobStderr(
 	opts *yt.GetJobStderrOptions,
 ) (r []byte, err error) {
 	return nil, xerrors.New("implement me")
+}
+
+func (e *Encoder) ListOperationEvents(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.ListOperationEventsOptions,
+) (r *yt.ListOperationEventsResult, err error) {
+	if opts == nil {
+		opts = &yt.ListOperationEventsOptions{}
+	}
+
+	req := &rpc_proxy.TReqListOperationEvents{
+		OperationIdOrAlias: &rpc_proxy.TReqListOperationEvents_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+	}
+
+	eventType, err := convertOperationEventType(opts.EventType)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to convert operation event type: %w", err)
+	}
+	req.EventType = eventType
+
+	if opts.Limit != nil {
+		req.Limit = opts.Limit
+	}
+
+	call := e.newCall(MethodListOperationEvents, NewListOperationEventsRequest(req), nil)
+
+	var rsp rpc_proxy.TRspListOperationEvents
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	r, err = makeListOperationEventsResult(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
+	}
+
+	return
 }
 
 func (e *Encoder) LockNode(

@@ -3535,6 +3535,9 @@ private:
         if (PartitionTags_.has_value() && PartitionTags_->size() == 1) {
             req->set_partition_tag(PartitionTags_->Get()[0]);
         } else {
+            if (PartitionTags_.has_value()) {
+                req->RequireServerFeature(EChunkClientFeature::MultiplePartitionTags);
+            }
             YT_OPTIONAL_TO_PROTO(req, partition_tags, PartitionTags_);
         }
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);

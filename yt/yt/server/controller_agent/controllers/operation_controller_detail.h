@@ -1,7 +1,5 @@
 #pragma once
 
-#include "private.h"
-
 #include "aggregated_job_statistics.h"
 #include "alert_manager.h"
 #include "auto_merge_director.h"
@@ -10,6 +8,7 @@
 #include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
+#include "private.h"
 #include "spec_manager.h"
 #include "task.h"
 #include "task_host.h"
@@ -242,7 +241,7 @@ public:
 
     // NB(max42): Don't make Revive safe! It may lead to either destroying all
     // operations on a cluster, or to a scheduler crash.
-    TOperationControllerReviveResult Revive() override;
+    TOperationControllerReviveResult Revive(bool suspended) override;
 
     TOperationControllerInitializeResult InitializeClean() override;
     TOperationControllerInitializeResult InitializeReviving(
@@ -518,9 +517,7 @@ protected:
     const NLogging::TLogger Logger;
     const std::vector<TString> CoreNotes_;
 
-    NSecurityClient::TSerializableAccessControlList Acl_;
-
-    std::optional<std::string> AcoName_;
+    NThreading::TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
 
     // Intentionally transient.
     const NScheduler::TControllerEpoch ControllerEpoch_;
@@ -563,6 +560,12 @@ protected:
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
     TInputTransactionManagerPtr InputTransactions_;
     NApi::ITransactionPtr AsyncTransaction_;
+    // NB: OutputTransaction_ may be read from the ControlThread (GetIntermediateMediumTransaction)
+    // while being written from the controller invoker (StartTransactions/InitializeReviving).
+    // NB: SwitchedToSlowIntermediateMedium_ and SwitchIntermediateMediumScheduled_ (sort
+    // controller) are also protected by this lock since they are read from the ControlThread
+    // and written from the controller invoker.
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OutputTransactionLock_);
     NApi::ITransactionPtr OutputTransaction_;
     NApi::ITransactionPtr DebugTransaction_;
     NApi::NNative::ITransactionPtr OutputCompletionTransaction_;
@@ -828,6 +831,10 @@ protected:
     const TScheduleAllocationStatisticsPtr& GetScheduleAllocationStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const override;
+
+    int GetHighJobThreadCountAlertFingerprint() const override;
+
+    TError BuildHighJobThreadCountAlert() const override;
 
     std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const override;
 
@@ -1175,12 +1182,16 @@ private:
 
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
+    //! Per task: first job that exceeded the thread count limit (for operation alerts).
+    THashMap<TString, THighThreadCountJobInfo> HighThreadCountJobPerTask_;
+
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
+    std::atomic<TDuration> CachedJobMetricsReportPeriodCpuDuration_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
     // per tree in the end of the operation, however, (1) job metrics are sent as deltas and
     // are not accumulated, and (2) job statistics don't provide per tree granularity.
@@ -1402,6 +1413,8 @@ private:
     int GetAvailableExecNodeCount() const;
 
     void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateHighThreadCountJob(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);
 
     void LogProgress(bool force = false);
@@ -1525,7 +1538,7 @@ private:
 
     void RemoveRemainingJobsOnOperationFinished();
 
-    void OnOperationReady();
+    void OnOperationReady(bool suspended);
 
     bool ShouldProcessJobEvents() const;
 

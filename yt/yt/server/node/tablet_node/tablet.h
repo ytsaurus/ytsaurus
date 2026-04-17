@@ -323,6 +323,8 @@ struct TTabletSnapshot
 
     NYson::TYsonString CustomRuntimeData;
 
+    TTabletSizeMetrics TabletSizeMetrics;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
@@ -363,6 +365,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp);
 void ValidateTabletMounted(TTablet* tablet);
+void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmedRowCount, TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -930,7 +933,7 @@ public:
 
     void UpdateUnmergedRowCount();
 
-    TTimestamp GetOrderedChaosReplicationMinTimestamp();
+    TTimestamp GetOrderedChaosReplicationMinTimestamp() const;
 
     const IHunkLockManagerPtr& GetHunkLockManager() const;
 
@@ -980,18 +983,6 @@ public:
     TSimpleLruCache<NChunkClient::TChunkId, TMinHashDigestPtr>* GetMinHashDigestCache() const;
 
 private:
-    struct TTabletSizeMetrics
-    {
-        i64 DataWeight = 0;
-        i64 UncompressedDataSize = 0;
-        i64 CompressedDataSize = 0;
-        i64 RowCount = 0;
-        i64 ChunkCount = 0;
-        i64 HunkCount = 0;
-        i64 TotalHunkLength = 0;
-        i64 HunkChunkCount = 0;
-    };
-
     class TTabletSizeProfiler
     {
     public:

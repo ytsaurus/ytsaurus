@@ -124,6 +124,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SealChunk)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleChunkSeal)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTree)
@@ -913,6 +915,22 @@ private:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ScheduleChunkSeal)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        context->SetRequestInfo(
+            "ChunkId: %v",
+            chunkId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateScheduleChunkSealMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunk)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -959,9 +977,8 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
+        const auto& sequoiaChunkReplicasConfig = configManager->GetConfig()->ChunkManager->SequoiaChunkReplicas;
 
         // COMPAT(kvk1920)
         if (!request->location_uuids_supported()) {
@@ -982,20 +999,10 @@ private:
             return;
         }
 
-        auto isSequoia = [&] {
-            if (!chunkManagerConfig->SequoiaChunkReplicas->Enable) {
-                return false;
-            }
-
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkId)) {
-                return true;
-            }
-            return false;
-        };
-
-        if (isSequoia()) {
+        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, sequoiaChunkReplicasConfig);
+        if (chunkSequoiaConfig.StoreInSequoia) {
             auto requestStatistics = context->Request().request_statistics();
-            if (chunkManagerConfig->SequoiaChunkReplicas->BatchChunkConfirmation) {
+            if (sequoiaChunkReplicasConfig->BatchChunkConfirmation) {
                 // Be carefull with raw request.
                 WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request())))
                     .ThrowOnError();

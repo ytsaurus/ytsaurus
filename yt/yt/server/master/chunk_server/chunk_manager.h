@@ -98,6 +98,11 @@ struct IChunkManager
         NChunkClient::NProto::TRspSealChunk>;
     using TCtxSealChunkPtr = TIntrusivePtr<TCtxSealChunk>;
 
+    using TCtxScheduleChunkSeal = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqScheduleChunkSeal,
+        NChunkClient::NProto::TRspScheduleChunkSeal>;
+    using TCtxScheduleChunkSealPtr = TIntrusivePtr<TCtxScheduleChunkSeal>;
+
     using TCtxCreateChunkLists = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqCreateChunkLists,
         NChunkClient::NProto::TRspCreateChunkLists>;
@@ -123,6 +128,8 @@ struct IChunkManager
         NChunkClient::NProto::TRspConfirmChunk* response) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateSealChunkMutation(
         TCtxSealChunkPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateScheduleChunkSealMutation(
+        TCtxScheduleChunkSealPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkListsMutation(
         TCtxCreateChunkListsPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateUnstageChunkTreeMutation(
@@ -289,8 +296,11 @@ struct IChunkManager
 
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.
-    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfoWithReplicaFetch(
         TChunk* chunk) = 0;
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+        TChunk* chunk,
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) = 0;
     virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
         TChunkId chunkId,
         bool overlayed,
@@ -385,6 +395,8 @@ struct IChunkManager
         NChunkClient::NProto::TReqConfirmChunk* request) = 0;
     virtual TFuture<void> ConfirmSequoiaChunkBatched(
         NChunkClient::NProto::TReqConfirmChunk request) = 0;
+
+    virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
 
 private:
     friend class TChunkTypeHandler;

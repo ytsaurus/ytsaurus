@@ -52,6 +52,7 @@ TExecContextBaseSimple::TExecContextBaseSimple(
     , Cluster_(cluster)
     , BaseSession_(session)
     , NeedToTransformTmpTablePaths_(services->NeedToTransformTmpTablePaths)
+    , CheckSpecDoesntUseNativeYtTypes_(services->CheckSpecDoesntUseNativeYtTypes)
 {
     if (Clusters_) {
         YtServer_ = Clusters_->GetServer(Cluster_);
@@ -151,7 +152,8 @@ void TExecContextBaseSimple::SetInput(TExprBase input, bool forcePathColumns, co
                 }
             }
 
-            bool useQLFilter = NYql::HasSetting(section.Settings().Ref(), EYtSettingType::QLFilter);
+            const bool enableQLFilter = settings->_EnableQLFilter.Get(Cluster_).GetOrElse(DEFAULT_ENABLE_QL_FILTER);
+            const bool useQLFilter = enableQLFilter && NYql::HasSetting(section.Settings().Ref(), EYtSettingType::QLFilter);
             TNodeMap<TMaybe<TString>> inputQueries;
 
             for (auto path: section.Paths()) {
@@ -231,7 +233,7 @@ void TExecContextBaseSimple::SetInput(TExprBase input, bool forcePathColumns, co
 }
 
 void TExecContextBaseSimple::SetOutput(TYtOutSection output, const TYtSettings::TConstPtr& settings, const TString& opHash, const TMaybe<TString>& outputHash) {
-    const TString tmpFolder = GetTablesTmpFolder(*settings, Cluster_);
+    const TString tmpFolder = GetTablesTmpFolder(*settings, Cluster_, BaseSession_->UseSecureTmp_, BaseSession_->OperationOptions_);
     const auto nativeYtTypeCompatibility = settings->NativeYtTypeCompatibility.Get(Cluster_).GetOrElse(NTCF_LEGACY);
     const bool rowSpecCompactForm = settings->UseYqlRowSpecCompactForm.Get().GetOrElse(DEFAULT_ROW_SPEC_COMPACT_FORM);
     const bool optimizeForScan = settings->OptimizeFor.Get(Cluster_).GetOrElse(NYT::EOptimizeForAttr::OF_LOOKUP_ATTR) != NYT::EOptimizeForAttr::OF_LOOKUP_ATTR;
@@ -274,7 +276,7 @@ void TExecContextBaseSimple::SetCache(const TVector<TString>&, const TVector<NYT
 }
 
 void TExecContextBaseSimple::SetSingleOutput(const TYtOutTableInfo& outTable, const TYtSettings::TConstPtr& settings) {
-    const TString tmpFolder = GetTablesTmpFolder(*settings, Cluster_);
+    const TString tmpFolder = GetTablesTmpFolder(*settings, Cluster_, BaseSession_->UseSecureTmp_, BaseSession_->OperationOptions_);
     YQL_ENSURE(!outTable.Cluster || outTable.Cluster == Cluster_);
     TString outTableName = TStringBuilder() << "tmp/" << GetGuidAsString(BaseSession_->RandomProvider_->GenGuid());
     TString outTablePath = GetTransformedPath(outTableName, Cluster_, true, settings);
@@ -296,15 +298,15 @@ void TExecContextBaseSimple::SetSingleOutput(const TYtOutTableInfo& outTable, co
 }
 
 TString TExecContextBaseSimple::GetInputSpec(bool ensureOldTypesOnly, ui64 nativeTypeCompatibilityFlags, bool intermediateInput) const {
-    return GetSpecImpl(InputTables_, 0, InputTables_.size(), {}, ensureOldTypesOnly, nativeTypeCompatibilityFlags, intermediateInput);
+    return GetSpecImpl(InputTables_, 0, InputTables_.size(), {}, ensureOldTypesOnly && CheckSpecDoesntUseNativeYtTypes_, nativeTypeCompatibilityFlags, intermediateInput);
 }
 
 TString TExecContextBaseSimple::GetOutSpec(bool ensureOldTypesOnly, ui64 nativeTypeCompatibilityFlags) const {
-    return GetSpecImpl(OutTables_, 0, OutTables_.size(), {}, ensureOldTypesOnly, nativeTypeCompatibilityFlags, false);
+    return GetSpecImpl(OutTables_, 0, OutTables_.size(), {}, ensureOldTypesOnly && CheckSpecDoesntUseNativeYtTypes_, nativeTypeCompatibilityFlags, false);
 }
 
 TString TExecContextBaseSimple::GetOutSpec(size_t beginIdx, size_t endIdx, NYT::TNode initialOutSpec, bool ensureOldTypesOnly, ui64 nativeTypeCompatibilityFlags) const {
-    return GetSpecImpl(OutTables_, beginIdx, endIdx, initialOutSpec, ensureOldTypesOnly, nativeTypeCompatibilityFlags, false);
+    return GetSpecImpl(OutTables_, beginIdx, endIdx, initialOutSpec, ensureOldTypesOnly && CheckSpecDoesntUseNativeYtTypes_, nativeTypeCompatibilityFlags, false);
 }
 
 template <class TTableType>
@@ -382,7 +384,7 @@ TString TExecContextBaseSimple::GetTransformedPath(const TString& path, const TS
     if (!NeedToTransformTmpTablePaths_) {
         return path;
     }
-    TString tmpFolder = GetTablesTmpFolder(*settings, cluster);
+    TString tmpFolder = GetTablesTmpFolder(*settings, cluster, BaseSession_->UseSecureTmp_, BaseSession_->OperationOptions_);
     return NYql::TransformPath(tmpFolder, path, isTemp, BaseSession_->UserName_);
 }
 

@@ -123,7 +123,7 @@ DEFINE_REFCOUNTED_TYPE(IQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
     TString exportName,
-    NQueueClient::TCrossClusterReference queue,
+    NQueueClient::TTablePath queue,
     NQueueClient::TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     NHiveClient::TClientDirectoryPtr clientDirectory,

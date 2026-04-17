@@ -362,7 +362,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (Y_UNLIKELY(cellRole == EMasterCellRole::Unknown)) {
+        if (cellRole == EMasterCellRole::Unknown) [[unlikely]] {
             YT_LOG_ALERT("Unknown cell role specified while selecting master cells by role");
             return {};
         }
@@ -941,9 +941,6 @@ private:
             PostToMaster(request, cellTag, true);
         }
 
-        ReplicateKeysToSecondaryMaster_.Fire(cellTag);
-        ReplicateValuesToSecondaryMaster_.Fire(cellTag);
-
         for (const auto& [registeredCellTag, entry] : RegisteredMasterMap_) {
             if (registeredCellTag == cellTag) {
                 continue;
@@ -963,6 +960,9 @@ private:
                 PostToMaster(request, cellTag, true);
             }
         }
+
+        ReplicateKeysToSecondaryMaster_.Fire(cellTag);
+        ReplicateValuesToSecondaryMaster_.Fire(cellTag);
 
         {
             NProto::TRspRegisterSecondaryMasterAtPrimary response;

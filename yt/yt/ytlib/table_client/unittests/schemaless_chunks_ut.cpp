@@ -642,6 +642,34 @@ TEST_F(TColumnarReadTest, ReadAll)
     EXPECT_EQ(N, statistics.row_count());
 }
 
+TEST_F(TColumnarReadTest, EmptyKeyRange)
+{
+    // c1 = i % 10.
+    // c1 >= 10000 is past all data in the chunk,
+    // so InitLowerRowIndex sets LowerRowIndex_ == HardUpperRowIndex_.
+    TUnversionedOwningRowBuilder rowBuilder;
+    rowBuilder.AddValue(MakeUnversionedInt64Value(10000, /*id*/ 0));
+    auto keyRow = rowBuilder.FinishRow();
+    auto lowerBound = TOwningKeyBound::FromRow(keyRow, /*inclusive*/ true, /*upper*/ false);
+
+    auto reader = CreateSchemalessRangeChunkReader(
+        CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+        ChunkState_,
+        ChunkMeta_,
+        TChunkReaderConfig::GetDefault(),
+        TChunkReaderOptions::GetDefault(),
+        MemoryReader_,
+        TNameTable::FromSchema(*Schema_),
+        /*chunkReadOptions*/ {},
+        Schema_->GetSortColumns(),
+        /*omittedInaccessibleColumns*/ {},
+        TColumnFilter(),
+        TReadRange(TReadLimit(lowerBound), TReadLimit()));
+
+    EXPECT_FALSE(ReadRowBatch(reader));
+    EXPECT_EQ(0, reader->GetDataStatistics().row_count());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessSortedChunksTest

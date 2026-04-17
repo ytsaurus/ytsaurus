@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create_user, ls, get, add_maintenance, remove_maintenance,
+    authors, create_user, ls, get, exists, add_maintenance, remove_maintenance,
     raises_yt_error, make_ace, set,
     create_host, remove_host,
     externalize,
@@ -309,6 +309,8 @@ class TestMaintenanceTracker(YTEnvSetup):
             pytest.skip("Rpc proxies cannot be used if they are banned")
         proxy = ls(f"//sys/{proxy_type}_proxies")[1]
         proxy_path = f"//sys/{proxy_type}_proxies/{proxy}"
+        assert exists(f"{proxy_path}/orchid")
+
         maintenance_id = add_maintenance(f"{proxy_type}_proxy", proxy, "ban", comment="ABCDEF")[proxy]
         assert get(f"{proxy_path}/@banned")
         maintenances = get(f"{proxy_path}/@maintenance_requests")

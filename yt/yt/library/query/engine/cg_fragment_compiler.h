@@ -155,7 +155,8 @@ TCodegenExpression MakeCodegenLikeExpr(
     EStringMatchOp opcode,
     size_t patternId,
     std::optional<size_t> escapeCharacterId,
-    int contextIndex);
+    int contextIndex,
+    bool nullable);
 
 TCodegenExpression MakeCodegenCompositeMemberAccessorExpr(
     size_t compositeId,

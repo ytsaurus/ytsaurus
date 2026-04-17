@@ -6,7 +6,7 @@ from yt_commands import (
     write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
-    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move,
+    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state)
 
 from yt_type_helpers import make_schema
@@ -1821,6 +1821,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+        remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
@@ -1882,7 +1883,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         set("//tmp/h/@store_rotation_period", 500)
         wait(lambda: get("#{}/@owning_nodes".format(hunk_store_id)) == ["//tmp/t"])
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
     @authors("akozhikhov")
@@ -1984,7 +1985,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-        remove("//tmp/t")
+        remove("//tmp/t", force=True)
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
     @authors("akozhikhov")
@@ -2617,6 +2618,26 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._insert_rows_with_hunk_storage("//tmp/t", rows)
         sync_flush_table("//tmp/t")
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+    @authors("akozhikhov")
+    def test_forbid_table_with_linked_hunk_storage_removal(self):
+        sync_create_cells(1)
+
+        self._create_table(path="//tmp/t")
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        with raises_yt_error("that is linked to hunk storage"):
+            remove("//tmp/t")
 
 
 ################################################################################
@@ -4995,3 +5016,17 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t_unique_2")
         with raises_yt_error("while it is in \"unmounted\" state"):
             assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
+
+    @authors("akozhikhov")
+    def test_unmounted_error_get_tablet_infos(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t_unique_3", schema=self.SCHEMA)
+
+        with raises_yt_error("while it is in \"unmounted\" state"):
+            get_tablet_infos("//tmp/t_unique_3", [0])
+
+        sync_mount_table("//tmp/t_unique_3")
+        with raises_yt_error("while it is in \"unmounted\" state"):
+            get_tablet_infos("//tmp/t_unique_3", [0])
+        get_tablet_infos("//tmp/t_unique_3", [0])

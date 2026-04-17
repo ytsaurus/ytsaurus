@@ -277,7 +277,7 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
-                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
 
@@ -1200,8 +1200,17 @@ private:
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
         // NB: The server side only supports these for simple (non-distributed) commits, but set them anyway.
-        // COMPAT(h0pless): It should be safe to remove prerequisites here when CTxS will be used on masters.
+        // COMPAT(h0pless, tea-mur): It should be safe to remove prerequisites here when CTxS will be used on masters.
         SetPrerequisites(req, options);
+
+        // NB: Cypress transactions are now committed via CypressTransactionService which
+        // handles prerequisites on its own.
+        // Tablet transactions do not use prerequisite transaction ids in commit phase:
+        // 1. Master prerequisite transactions are handled at data sending stage (TReqWrite)
+        // 2. Chaos leases are passed to tx coordinator in transaction action data
+        // Remaining transactions do not use prerequisite transaction ids.
+        YT_VERIFY(options.PrerequisiteTransactionIds.empty());
+
         ToProto(req->mutable_transaction_id(), Id_);
         ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
         ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
@@ -1334,7 +1343,9 @@ private:
         TError error)
     {
         UpdateDownedParticipants();
-        auto wrappedError = TError("Error committing transaction %v at cell %v",
+        auto wrappedError = TError(
+            NTransactionClient::EErrorCode::AtomicTransactionCommitFailure,
+            "Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
             << std::move(error);

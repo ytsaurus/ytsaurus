@@ -884,10 +884,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
     @authors("krasovav")
-    def test_two_non_tmpfs_volumes(self):
-        with raises_yt_error('Volume request with two or more different non tmpfs disk request are not currently supported'):
+    def test_non_root_nbd_volumes(self):
+        with raises_yt_error('Non-root nbd are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
@@ -896,25 +895,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "command": "cat",
                             "job_volumes_mounts" : [
                                 {
-                                    "volume_id": "a",
-                                    "mount_path": "first",
-                                },
-                                {
-                                    "volume_id": "b",
-                                    "mount_path": "second",
+                                    "volume_id": "nbd",
+                                    "mount_path": "nbd",
                                 },
                             ],
                             "volumes" : {
-                                "a": {
+                                "nbd": {
                                     "disk_request": {
-                                        "type": "local",
+                                        "type": "nbd",
                                         "disk_space": 1024 * 1024,
-                                    },
-                                },
-                                "b": {
-                                    "disk_request": {
-                                        "type": "local",
-                                        "disk_space": 1024 * 1024,
+                                        "nbd_disk": {},
                                     },
                                 },
                             },
@@ -3045,6 +3035,48 @@ class TestGangOperations(YTEnvSetup):
         op.track()
 
         assert incarnation_switch_counter.get() == 0
+
+    @authors("pogorelov")
+    def test_suspended_gang_operation(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gang_options": {},
+                    },
+                },
+            },
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        op.suspend()
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
+        # Abort one job to trigger an incarnation switch.
+        # Since the operation is suspended, no new jobs should be scheduled.
+        abort_job(job_ids[0])
+
+        # Wait for all running jobs to stop.
+        wait(lambda: op.get_job_count("running") == 0)
+
+        # Wait a bit and verify that no new jobs were started.
+        time.sleep(1)
+        assert op.get_job_count("running") == 0
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        op.resume()
+        wait(lambda: not get(op.get_path() + "/@suspended"))
+
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
 
 
 ##################################################################

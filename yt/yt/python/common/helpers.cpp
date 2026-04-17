@@ -167,7 +167,7 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string&
         kwargs.delItem(name);
     } else {
         if (args.length() == 0) {
-            throw Py::RuntimeError("Missing argument '" + name + "'");
+            throw Py::RuntimeError(Format("Missing argument %Qv", name));
         }
         result = args.front();
         args = args.getSlice(1, args.length());
@@ -191,7 +191,7 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
     }
     if (kwargs.length() > 0) {
         auto name = ConvertStringObjectToString(kwargs.keys()[0]);
-        throw Py::RuntimeError("Excessive named argument '" + name + "'");
+        throw Py::RuntimeError(Format("Excessive named argument %Qv", name));
     }
 }
 

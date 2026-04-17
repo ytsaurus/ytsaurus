@@ -196,7 +196,7 @@ public:
 private:
     const TPromise<TReplicationCardPtr> CardPromise_ = NewPromise<TReplicationCardPtr>();
 
-    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_) ;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_);
     // Replica count is usually small so use plain vector.
     std::vector<std::pair<TReplicaId, std::unique_ptr<TReplicationProgressUpdatesSerializer>>> ReplicaProgressUpdates_;
     std::optional<TReplicationCardFetchOptions> FetchOptions_;

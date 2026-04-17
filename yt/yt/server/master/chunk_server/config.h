@@ -204,6 +204,9 @@ struct TDynamicChunkMergerConfig
     // COMPAT(aleksandra-zh) COMPAT(shakurov).
     bool TweakTraversalInfoAfterRebalance;
 
+    // COMPAT(h0pless): Hotfix for copy with preserve-modification-time. Should be set to #false asap.
+    bool UpdateModificationTime;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);
@@ -305,15 +308,6 @@ struct TDynamicDataNodeTrackerConfig
 
     int MaxConcurrentChunkReplicasDuringIncrementalHeartbeat;
 
-    // COMPAT(danilalexeev): YT-23781.
-    int MaxConcurrentFullHeartbeats;
-
-    // COMPAT(cherepashka)
-    int MaxConcurrentLocationFullHeartbeats;
-
-    // COMPAT(cherepashka)
-    int MaxConcurrentIncrementalHeartbeats;
-
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
     // COMPAT(danilalexeev): YT-23781.
@@ -323,9 +317,6 @@ struct TDynamicDataNodeTrackerConfig
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
     bool ValidateSequoiaReplicas;
-
-    // COMPAT(cherepashka)
-    bool EnableChunkReplicasThrottlingInHeartbeats;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
@@ -521,18 +512,20 @@ struct TDynamicSequoiaChunkReplicasConfig
 {
     bool Enable;
 
+    TDynamicSequoiaChunkReplicasStoreConfigPtr BlobReplicasStoreConfig;
+    TDynamicSequoiaChunkReplicasStoreConfigPtr JournalReplicasStoreConfig;
+
     TDuration RemovalPeriod;
     int RemovalBatchSize;
 
     TDuration ConfirmPeriod;
     int ConfirmBatchSize;
 
-    //! Probability (in percents) that chunk replicas will be Sequoia.
-    int ReplicasPercentage;
-
-    bool FetchReplicasFromSequoia;
-    bool StoreSequoiaReplicasOnMaster;
-    bool ProcessRemovedSequoiaReplicasOnMaster;
+    // COMPAT(grphil).
+    int CompatReplicasPercentage;
+    bool CompatFetchReplicasFromSequoia;
+    bool CompatStoreSequoiaReplicasOnMaster;
+    bool CompatProcessRemovedSequoiaReplicasOnMaster;
 
     bool EnableChunkPurgatory;
 
@@ -542,22 +535,15 @@ struct TDynamicSequoiaChunkReplicasConfig
 
     bool UseLocationReplacementForLocationFullHeartbeat;
 
-    bool ClearMasterRequest;
+    // COMPAT(grphil).
+    bool CompatClearMasterRequest;
 
-    // When fetching replicas from Sequoia, validate they are the same as master replicas.
-    // This only makes sense when replicas are stored on master.
-    bool ValidateSequoiaReplicasFetch;
-
-    // If Sequoia replicas were enabled recently, not all chunk replicas will be present in
-    // dynamic tables, which is OK. There still should not be any replicas that are
-    // not present on master.
-    bool AllowExtraMasterReplicasDuringValidation;
+    // COMPAT(grphil).
+    bool CompatValidateSequoiaReplicasFetch;
+    bool CompatAllowExtraMasterReplicasDuringValidation;
 
     // TODO(aleksandra-zh): remove that.
     std::vector<TErrorCode> RetriableErrorCodes;
-
-    // COMPAT(aleksandra-zh).
-    bool AlwaysIncludeUnapprovedReplicas;
 
     // COMPAT(aleksandra-zh).
     bool BatchChunkConfirmation;
@@ -575,6 +561,41 @@ struct TDynamicSequoiaChunkReplicasConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaChunkReplicasConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicSequoiaChunkReplicasConfigPtr CopySequoiaChunkReplicasConfig(TDynamicSequoiaChunkReplicasConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicSequoiaChunkReplicasStoreConfig
+    : public NYTree::TYsonStruct
+{
+    bool StoreInSequoia;
+    //! Probability (in percents) that chunk replicas will be Sequoia.
+    int ReplicasPercentage;
+
+    bool FetchReplicasFromSequoia;
+    bool StoreSequoiaReplicasOnMaster;
+    int StoreSequoiaReplicasOnMasterPercentage;
+
+    bool ProcessRemovedSequoiaReplicasOnMaster;
+
+    // When fetching replicas from Sequoia, validate they are the same as master replicas.
+    // This only makes sense when replicas are stored on master.
+    bool ValidateSequoiaReplicasFetch;
+
+    // If Sequoia replicas were enabled recently, not all chunk replicas will be present in
+    // dynamic tables, which is OK. There still should not be any replicas that are
+    // not present on master.
+    bool AllowExtraMasterReplicasDuringValidation;
+
+    REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasStoreConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaChunkReplicasStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -636,6 +657,9 @@ struct TDynamicChunkManagerConfig
     //! (where the chunk will be put).
     int MaxRunningReplicationJobsPerTargetNode;
 
+    // Alerts if number of unsuccessful schedule seal job per chunk replica exceeds this value.
+    int MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica;
+
     //! If set to false, fully disables background chunk refresh.
     //! Only use during bulk node restarts to save leaders' CPU.
     //! Don't forget to turn it on afterwards.
@@ -644,6 +668,9 @@ struct TDynamicChunkManagerConfig
     TDuration ChunkRefreshDelay;
     //! Interval between consequent chunk refresh iterations.
     std::optional<TDuration> ChunkRefreshPeriod;
+
+    //! If set, recently confirmed chunks will be refreshed after ReplicaApproveTimeout.
+    bool DelayRecentlyConfirmedChunksRefresh;
 
     //! Maximum number of chunks to process during a refresh iteration.
     int MaxBlobChunksPerRefresh;
@@ -693,6 +720,8 @@ struct TDynamicChunkManagerConfig
     int MaxChunksPerSeal;
     //! Maximum number of chunks that can be sealed concurrently.
     int MaxConcurrentChunkSeals;
+    // Alert if the number of chunk seal attempts reaches that number.
+    int MaxUnsuccessfulSealAttempts;
 
     //! Maximum number of chunks to report per single fetch request.
     int MaxChunksPerFetch;

@@ -1394,7 +1394,7 @@ private:
 
     EQueueSubmitResult CheckShardAfterEnqueue(int shardIndex)
     {
-        if (Y_UNLIKELY(shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst))) {
+        if (shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst)) [[unlikely]] {
             return EQueueSubmitResult::NeedReconfigure;
         }
 
@@ -1500,6 +1500,9 @@ public:
         , ReconfigureInvoker_(std::move(reconfigureInvoker))
         , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , RequestQueue_(New<TQueue>(locationId, Config_))
+    { }
+
+    void InitializeRefCounted()
     {
         ResizeThreads();
     }
@@ -1570,7 +1573,7 @@ public:
 
     void ReconfigureQueueIfNeeded(EQueueSubmitResult result)
     {
-        if (Y_LIKELY(result != EQueueSubmitResult::NeedReconfigure)) {
+        if (result != EQueueSubmitResult::NeedReconfigure) [[likely]] {
             return;
         }
 

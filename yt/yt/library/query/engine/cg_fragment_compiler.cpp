@@ -2487,7 +2487,8 @@ TCodegenExpression MakeCodegenLikeExpr(
     EStringMatchOp opcode,
     size_t patternId,
     std::optional<size_t> escapeCharacterId,
-    int contextIndex)
+    int contextIndex,
+    bool nullable)
 {
     return [
         =
@@ -2540,7 +2541,7 @@ TCodegenExpression MakeCodegenLikeExpr(
                 builder.GetOpaqueValue(contextIndex),
             });
 
-        return TCGValue::LoadFromRowValue(builder, result, EValueType::Boolean);
+        return TCGValue::LoadFromRowValue(builder, result, nullable, EValueType::Boolean);
     };
 }
 

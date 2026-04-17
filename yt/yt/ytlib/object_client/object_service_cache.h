@@ -117,10 +117,10 @@ public:
         TCookie() = default;
         TCookie(TUnderlyingCookie&& underlyingCookie, TObjectServiceCacheEntryPtr expiredEntry);
 
-        TCookie(TCookie&& other);
+        TCookie(TCookie&& other) noexcept;
         TCookie(const TCookie& other) = delete;
 
-        TCookie& operator=(TCookie&& other);
+        TCookie& operator=(TCookie&& other) noexcept;
         TCookie& operator=(const TCookie& other) = delete;
 
         const TObjectServiceCacheEntryPtr& ExpiredEntry() const;

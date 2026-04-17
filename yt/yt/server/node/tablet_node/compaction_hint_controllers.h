@@ -215,7 +215,7 @@ public:
 
     void OnMountConfigUpdated(TPartition* partition, const TTableMountConfigPtr& oldConfig);
 
-    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store);
+    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState);
 
     void OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store);
     void OnPartitionHasNoHint(TPartition* partition);
@@ -262,7 +262,7 @@ public:
 
     void OnMountConfigUpdated(TPartition* partition, const TTableMountConfigPtr& oldConfig);
 
-    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store);
+    void OnStoreStateChanged(TPartition* partition, TSortedChunkStore* store, EStoreState oldState);
 
     void OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store, NLsm::EStoreCompactionHintKind kind);
 

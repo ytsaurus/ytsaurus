@@ -190,7 +190,7 @@ void TBootstrap::DoInitialize()
     Coordinator_->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(setGlobalRoleTag));
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
+    DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
 
     if (Config_->ExposeConfigInOrchid) {
         SetNodeByYPath(

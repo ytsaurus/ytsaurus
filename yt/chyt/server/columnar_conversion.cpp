@@ -490,7 +490,7 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
 
     auto checkedConsumer = [&] (auto pair) {
         auto [str, length] = pair;
-        if (Y_UNLIKELY(remainingCHCharsCapacity <= static_cast<size_t>(length))) {
+        if (remainingCHCharsCapacity <= static_cast<size_t>(length)) [[unlikely]] {
             resizeCHChars(
                 std::max(chChars.size() * 2, chChars.size() + (static_cast<size_t>(length) + 1)));
         }
@@ -1147,12 +1147,12 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
 }
 
 void ReduceFilterToDistinct(
-    DB::IColumn::Filter& filter,
+    DB::IColumn::Filter* filter,
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter.empty()) {
+    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter->empty()) {
         return;
     }
 
@@ -1160,26 +1160,48 @@ void ReduceFilterToDistinct(
     newFilter.resize_fill(ytValueColumn->ValueCount + 1);
 
     int rowIndex = 0;
+    YT_VERIFY(ytColumn.StartIndex == 0);
     bool hasNull = false;
+    auto dict = ytColumn.Rle ? ytColumn.Rle->ValueColumn->Dictionary : ytColumn.Dictionary;
+    bool zeroMeansNull = (dict && dict->ZeroMeansNull);
     DecodeRawVector<i64>(
         ytColumn.StartIndex,
         ytColumn.StartIndex + ytColumn.ValueCount,
         dictionaryIndexes,
         rleIndexes,
         [&] (i64 index) {
-            return index - ytValueColumn->StartIndex + 1;
+            return index + 1;
         },
         [&] (i64 index) {
-            hasNull |= (index == 0);
-            if (filter[rowIndex++]) {
-                index = (index == 0) ? newFilter.size() : index;
+            hasNull |= (index == 0 && zeroMeansNull);
+            if ((*filter)[rowIndex++]) {
+                index = (index == 0 && zeroMeansNull) ? newFilter.size() : index;
                 newFilter.data()[index - 1] = 1;
             }
         });
     if (!hasNull) {
         newFilter.pop_back();
     }
-    filter = std::move(newFilter);
+    *filter = std::move(newFilter);
+}
+
+const IUnversionedColumnarRowBatch::TColumn* UnwrapSimpleDistinctColumn(const IUnversionedColumnarRowBatch::TColumn* ytColumn)
+{
+    if (ytColumn->Rle && ytColumn->StartIndex == 0 ) {
+        auto rleIndexes = ytColumn->GetTypedValues<ui64>();
+        if (ytColumn->ValueCount > static_cast<i64>(rleIndexes.Back())) {
+            ytColumn = ytColumn->Rle->ValueColumn;
+        } else {
+            return ytColumn;
+        }
+    }
+    if (ytColumn->Dictionary) {
+        auto dictionaryIndexes = ytColumn->GetTypedValues<ui32>();
+        if (std::ssize(dictionaryIndexes) == ytColumn->ValueCount) {
+            ytColumn = ytColumn->Dictionary->ValueColumn;
+        }
+    }
+    return ytColumn;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,29 +3,29 @@
 #include "bootstrap.h"
 #include "job.h"
 #include "job_controller.h"
+#include "job_environment.h"
 #include "private.h"
 #include "slot.h"
-#include "job_environment.h"
 #include "slot_location.h"
 #include "volume_manager.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-
-#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/library/containers/container_devices_checker.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/porto_health_checker.h>
-#include <yt/yt/library/containers/container_devices_checker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -423,6 +423,9 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDeprecatedDiskReques
 
         try {
             location->ValidateEnabled();
+            YT_LOG_DEBUG(
+                "Skipping not enabled slot location (Path: %v)",
+                location->GetPath());
         } catch (const std::exception& ex) {
             ++skippedByDisabled;
             continue;
@@ -868,7 +871,7 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            MakeCompactIntervalView(SortedFreeSlots()));
+            MakeCompactIntervalView(GetSortedFreeSlots()));
         AbortProcessDramatically(EProcessExitCode::InternalError, "Free slot synchronization failed");
     }
 
@@ -909,7 +912,7 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            MakeCompactIntervalView(SortedFreeSlots()));
+            MakeCompactIntervalView(GetSortedFreeSlots()));
         AbortProcessDramatically(EProcessExitCode::InternalError, "Some slots are hung after disabling slot manager");
     }
 
@@ -1320,7 +1323,7 @@ void TSlotManager::PushSlot(int slotIndex)
         SlotCount_,
         InitializedSlotCount_.load(),
         InitializationEpoch_,
-        MakeCompactIntervalView(SortedFreeSlots()));
+        MakeCompactIntervalView(GetSortedFreeSlots()));
 }
 
 int TSlotManager::PopSlot()
@@ -1359,7 +1362,7 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, NClusterNode::
         requestedCpu);
 }
 
-std::vector<int> TSlotManager::SortedFreeSlots()
+std::vector<int> TSlotManager::GetSortedFreeSlots()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 

@@ -1,5 +1,5 @@
-#include "speculative_job_manager.h"
 #include "job_info.h"
+#include "speculative_job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>

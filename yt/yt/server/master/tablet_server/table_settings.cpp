@@ -346,6 +346,10 @@ void ValidateTableMountConfig(
             THROW_ERROR_EXCEPTION("\"min_data_versions\" must be not greater than \"max_data_versions\"");
         }
     }
+
+    if (mountConfig->EnableHashChunkIndexForLookup && table->GetErasureCodec() != NErasure::ECodec::None) {
+        THROW_ERROR_EXCEPTION("\"enable_hash_chunk_index_for_lookup\" can be \"true\" only for tables with null \"erasure_codec\"");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

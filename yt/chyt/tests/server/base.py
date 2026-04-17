@@ -9,7 +9,7 @@ from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_con
 
 from yt.environment import arcadia_interop
 
-from yt_env_setup import YTEnvSetup, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build, is_tsan_build
 
 from yt.wrapper import YtClient
 from yt.wrapper.common import simplify_structure, GB
@@ -22,6 +22,9 @@ import yt.packages.requests as requests
 
 import yt.yson as yson
 
+if is_tsan_build():
+    import yatest.common
+
 from threading import Thread
 import os
 import errno
@@ -29,6 +32,7 @@ import time
 import json
 import random
 import copy
+import re
 import string
 import pathlib
 
@@ -210,6 +214,17 @@ class Clique(object):
                 "log_tailer_config.yson",
             )
 
+        if is_tsan_build():
+            llvm_symbolizer_path = "//tmp/llvm-symbolizer"
+
+            self._upload_llvm_symbolizer(llvm_symbolizer_path)
+
+            # XXX: It is not a config. However there is no requirements to be config.
+            cypress_config_paths["llvm-symbolizer"] = (
+                llvm_symbolizer_path,
+                None,
+            )
+
         core_dump_destination = os.environ.get("YT_CORE_DUMP_DESTINATION")
 
         spec_builder = get_clique_spec_builder(
@@ -239,9 +254,41 @@ class Clique(object):
 
         self.spec["alias"] = "*" + self.alias
 
+        if is_tsan_build():
+            def _patch_external_symbolizer_path(options: str, path: str) -> str:
+                patch = f"external_symbolizer_path={path}"
+
+                if "external_symbolizer_path" not in options:
+                    return options + " " + patch
+
+                pattern = r"external_symbolizer_path=\S+"
+                result = re.sub(pattern, patch, options)
+                assert result != options, "external_symbolizer_path is either empty or badly formatted"
+
+                return result
+
+            if "tasks" not in spec:
+                spec["tasks"] = {"instances": {}}
+
+            for task_key in spec["tasks"]:
+                task = spec["tasks"][task_key]
+                environment = task.get("environment", {})
+
+                environment["TSAN_OPTIONS"] = _patch_external_symbolizer_path(
+                    environment.get("TSAN_OPTIONS", ""),
+                    "./llvm-symbolizer",
+                )
+
+                task["environment"] = environment
+
         self.instance_count = instance_count
 
         create_access_control_object(name=self.alias, namespace="chyt")
+
+    def _upload_llvm_symbolizer(self, llvm_symbolizer_path):
+        with open(yatest.common.binary_path("contrib/libs/llvm20/tools/llvm-symbolizer/llvm-symbolizer"), 'rb') as f:
+            self.yt_client.create("file", llvm_symbolizer_path, attributes={"executable": True})
+            self.yt_client.write_file(llvm_symbolizer_path, f)
 
     def get_active_instances_for_discovery_v1(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
@@ -695,7 +742,7 @@ class Clique(object):
         return get(orchid_path + path, verbose=verbose)
 
     def get_profiler(self, instance_id=None):
-        if not instance_id:
+        if instance_id is None:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
         sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
@@ -917,6 +964,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
+        create_user("yt-clikhouse-dictionaries")
 
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))

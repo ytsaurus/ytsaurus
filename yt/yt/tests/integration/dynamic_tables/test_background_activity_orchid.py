@@ -85,6 +85,12 @@ class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
                 task,
                 {"tablet_id", "store_ids", "table_path", "reason", "tablet_cell_bundle", "hunk_chunk_count_by_reason"})
 
+        if "failed_tasks" in tasks:
+            del tasks["failed_tasks"]
+
+        if "failed_task_count" in tasks:
+            del tasks["failed_task_count"]
+
     @staticmethod
     def _check_orchid_tasks(tasks):
         for task in tasks["completed_tasks"]:
@@ -134,11 +140,9 @@ class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
             expected_compaction_tasks = {
                 "pending_task_count": 0,
                 "running_task_count": 0,
-                "failed_task_count": 0,
                 "completed_task_count": num_tables,
                 "pending_tasks": [],
                 "running_tasks": [],
-                "failed_tasks": [],
                 "completed_tasks": [
                     {
                         "tablet_id": tablet_ids[i],

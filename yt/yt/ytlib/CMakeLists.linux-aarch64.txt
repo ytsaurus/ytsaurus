@@ -32,7 +32,6 @@ get_built_tool_path(
 
 add_subdirectory(discovery_client)
 add_subdirectory(query_tracker_client)
-add_subdirectory(tablet_balancer_client)
 add_subdirectory(distributed_throttler)
 add_subdirectory(unittests)
 add_subdirectory(test_framework)
@@ -108,7 +107,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-web_assembly-api
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
-  yt-ytlib-tablet_balancer_client
   yt_proto-yt-client
   flow-lib-client
   flow-lib-native_client
@@ -189,6 +187,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_partition_cookie.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/proto/tablet_balancer_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
@@ -437,6 +436,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/compressed_block_last_keys.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/memory_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/prepared_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/rowset_builder.cpp
@@ -495,6 +495,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/sequoia_reign.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/ypath_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_reader.cpp
@@ -582,6 +583,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_reader_adapter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_digest.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/balancing_request.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/bulk_insert_locking.cpp
@@ -746,6 +750,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_balancer_client/proto/tablet_balancer_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
@@ -1896,7 +1901,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-web_assembly-api
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
-  yt-ytlib-tablet_balancer_client
   yt_proto-yt-client
   flow-lib-client
   flow-lib-native_client

@@ -18,13 +18,13 @@ TExpressionContext::TExpressionContext(TRowBufferPtr rowBuffer)
     , WebAssemblyPool_(GetCurrentCompartment())
 { }
 
-TExpressionContext::TExpressionContext(TExpressionContext&& other)
+TExpressionContext::TExpressionContext(TExpressionContext&& other) noexcept
 {
     std::swap(HostPool_, other.HostPool_);
     std::swap(WebAssemblyPool_, other.WebAssemblyPool_);
 }
 
-TExpressionContext& TExpressionContext::operator=(TExpressionContext&& other)
+TExpressionContext& TExpressionContext::operator=(TExpressionContext&& other) noexcept
 {
     std::swap(HostPool_, other.HostPool_);
     std::swap(WebAssemblyPool_, other.WebAssemblyPool_);

@@ -1,3 +1,6 @@
+// Copyright (c) The M1CPU Authors
+// SPDX-License-Identifier: MPL-2.0
+
 //go:build darwin && arm64 && cgo
 
 package m1cpu
@@ -12,10 +15,10 @@ package m1cpu
 // #define kIOMainPortDefault kIOMasterPortDefault
 // #endif
 //
-// #define HzToGHz(hz) ((hz) / 1000000000.0)
+// #define BUFSIZE 512
 //
-// UInt64 global_pCoreHz;
-// UInt64 global_eCoreHz;
+// UInt64 global_pCoreClock;
+// UInt64 global_eCoreClock;
 // int global_pCoreCount;
 // int global_eCoreCount;
 // int global_pCoreL1InstCacheSize;
@@ -27,19 +30,22 @@ package m1cpu
 // char global_brand[32];
 //
 // UInt64 getFrequency(CFTypeRef typeRef) {
-// CFDataRef cfData = typeRef;
+//  if (typeRef == NULL) {
+//    return 0;
+//  }
+//  CFDataRef cfData = typeRef;
 //
-// CFIndex size = CFDataGetLength(cfData);
-// UInt8 buf[size];
-// CFDataGetBytes(cfData, CFRangeMake(0, size), buf);
+//  CFIndex size = CFDataGetLength(cfData);
+//  UInt8 buf[size];
+//  CFDataGetBytes(cfData, CFRangeMake(0, size), buf);
 //
-// UInt8 b1 = buf[size-5];
-// UInt8 b2 = buf[size-6];
-// UInt8 b3 = buf[size-7];
-// UInt8 b4 = buf[size-8];
+//  UInt8 b1 = buf[size-5];
+//  UInt8 b2 = buf[size-6];
+//  UInt8 b3 = buf[size-7];
+//  UInt8 b4 = buf[size-8];
 //
-// UInt64 pCoreHz = 0x00000000FFFFFFFF & ((b1<<24) | (b2 << 16) | (b3 << 8) | (b4));
-// return pCoreHz;
+//  UInt64 pCoreHz = 0x00000000FFFFFFFF & ((b1<<24) | (b2 << 16) | (b3 << 8) | (b4));
+//  return pCoreHz;
 // }
 //
 // int sysctl_int(const char * name) {
@@ -69,42 +75,37 @@ package m1cpu
 //   io_iterator_t  iter;
 //   IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iter);
 //
-//   const size_t bufsize = 512;
 //   io_object_t obj;
 //   while ((obj = IOIteratorNext(iter))) {
-//     char class[bufsize];
+//     char class[BUFSIZE];
 //     IOObjectGetClass(obj, class);
-//     char name[bufsize];
+//     char name[BUFSIZE];
 //     IORegistryEntryGetName(obj, name);
 //
-//     if (strncmp(name, "pmgr", bufsize) == 0) {
-//       CFTypeRef pCoreRef = IORegistryEntryCreateCFProperty(obj, CFSTR("voltage-states5-sram"), kCFAllocatorDefault, 0);
-//       CFTypeRef eCoreRef = IORegistryEntryCreateCFProperty(obj, CFSTR("voltage-states1-sram"), kCFAllocatorDefault, 0);
+//     if (strncmp(name, "pmgr", BUFSIZE) == 0) {
+//       CFTypeRef pCoreRef = NULL, eCoreRef = NULL;
+//       pCoreRef = IORegistryEntryCreateCFProperty(obj, CFSTR("voltage-states5-sram"), kCFAllocatorDefault, 0);
+//       eCoreRef = IORegistryEntryCreateCFProperty(obj, CFSTR("voltage-states1-sram"), kCFAllocatorDefault, 0);
 //
-//       long long pCoreHz = getFrequency(pCoreRef);
-//       long long eCoreHz = getFrequency(eCoreRef);
+//       long long pCoreClock = getFrequency(pCoreRef);
+//       long long eCoreClock = getFrequency(eCoreRef);
 //
-//       global_pCoreHz = pCoreHz;
-//       global_eCoreHz = eCoreHz;
-//       return;
+//       global_pCoreClock = pCoreClock;
+//       global_eCoreClock = eCoreClock;
+//  	 if (pCoreRef) CFRelease(pCoreRef);
+//  	 if (eCoreRef) CFRelease(eCoreRef);
+//		 break;
 //     }
 //   }
+//   IOObjectRelease(iter);
 // }
 //
-// UInt64 eCoreHz() {
-//   return global_eCoreHz;
+// UInt64 eCoreClock() {
+//   return global_eCoreClock;
 // }
 //
-// UInt64 pCoreHz() {
-//   return global_pCoreHz;
-// }
-//
-// Float64 eCoreGHz() {
-//   return HzToGHz(global_eCoreHz);
-// }
-//
-// Float64 pCoreGHz() {
-//   return HzToGHz(global_pCoreHz);
+// UInt64 pCoreClock() {
+//   return global_pCoreClock;
 // }
 //
 // int pCoreCount() {
@@ -143,6 +144,7 @@ package m1cpu
 //   return global_brand;
 // }
 import "C"
+import "fmt"
 
 func init() {
 	C.initialize()
@@ -155,22 +157,22 @@ func IsAppleSilicon() bool {
 
 // PCoreHZ returns the max frequency in Hertz of the P-Core of an Apple Silicon CPU.
 func PCoreHz() uint64 {
-	return uint64(C.pCoreHz())
+	return toHz(uint64(C.pCoreClock()))
 }
 
 // ECoreHZ returns the max frequency in Hertz of the E-Core of an Apple Silicon CPU.
 func ECoreHz() uint64 {
-	return uint64(C.eCoreHz())
+	return toHz(uint64(C.eCoreClock()))
 }
 
 // PCoreGHz returns the max frequency in Gigahertz of the P-Core of an Apple Silicon CPU.
 func PCoreGHz() float64 {
-	return float64(C.pCoreGHz())
+	return toGhz(uint64(C.pCoreClock()))
 }
 
 // ECoreGHz returns the max frequency in Gigahertz of the E-Core of an Apple Silicon CPU.
 func ECoreGHz() float64 {
-	return float64(C.eCoreGHz())
+	return toGhz(uint64(C.eCoreClock()))
 }
 
 // PCoreCount returns the number of physical P (performance) cores.
@@ -210,4 +212,21 @@ func ECoreCache() (int, int, int) {
 // ModelName returns the model name of the CPU.
 func ModelName() string {
 	return C.GoString(C.modelName())
+}
+
+func toHz(hz uint64) uint64 {
+	var gen int
+	// If this errors, fallback to default int value
+	fmt.Sscanf(ModelName(), "Apple M%", &gen)
+
+	// Starting with M4, Apple appears to report clock speed in Khz
+	// See https://github.com/exelban/stats/commit/3e056562b360c937b883725f14f3427d5401b6fe
+	if gen >= 4 {
+		return hz * 1000
+	}
+	return hz
+}
+
+func toGhz(hz uint64) float64 {
+	return float64(toHz(hz) / 1000000000)
 }

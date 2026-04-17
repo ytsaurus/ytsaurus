@@ -6,10 +6,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ISchedulingPolicy)
-
 DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
-DECLARE_REFCOUNTED_CLASS(TDummySchedulingPolicy)
 
 DECLARE_REFCOUNTED_STRUCT(TAssignment)
 

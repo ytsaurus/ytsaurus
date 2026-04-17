@@ -147,6 +147,8 @@ DEFINE_ENUM(EMasterReign,
     ((TransferableInheritedAttributes_25_4)                         (3159))  // kvk1920
     ((TweakChunkMergerTraversalInfoAfterRebalance_25_4)             (3160))  // aleksandra-zh, shakurov
     ((PersistLastCellAggregatedStateReliability_25_4)               (3161))  // aleksandra-zh
+    ((FixEffectiveAclForScion_25_4)                                 (3162))  // danilalexeev
+    ((FixPerCellLimitsReplicationOnSecondary_25_4)                  (3163))  // cherepashka
 
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
@@ -163,6 +165,22 @@ DEFINE_ENUM(EMasterReign,
     ((ReduceSchemaModeAndOptimizeFor)                               (3211))  // cherepashka
     ((AccountStatisticsUpdatesInGossip)                             (3212))  // theevilbird
     ((FixResolveForSourcePathInCopy)                                (3213))  // cherepashka
+    ((ForbidIndexedChunkFormatWithErasure)                          (3214))  // akozhikhov
+    ((ForbidRemovingTableLinkedToHunkStorage)                       (3215))  // akozhikhov
+    ((BoomerangMutationForMirroredTransaction)                      (3216))  // kvk1920
+    ((FixTamedCellReplicationToSecondaryMasters)                    (3217))  // ifsmirnov
+    ((RemoveCompatsAroundStartTransaction)                          (3218))  // h0pless
+    ((FixDescendingSortOrderValidationInBeginUpload)                (3219))  // h0pless
+    ((SomeTablesIgnoreCommitOrderingInheritance)                    (3220))  // sabdenovch
+    ((FixEffectiveAclForScion)                                      (3221))  // danilalexeev
+    ((FixPerCellLimitsReplicationOnSecondary)                       (3222))  // cherepashka
+    ((RevertFixDescendingSortOrderValidationInBeginUpload)          (3223))  // h0pless
+    ((RemoveNativeTxExternalizationEnabledFlag)                     (3224))  // h0pless
+    ((RemoveAllowCrossShardDynamicTableCopying)                     (3225))  // ponasenko-rs
+    ((FixSignalingToRttAboutTableCreation)                          (3226))  // akozhikhov
+    ((IntroduceHunkJournalChunkFormat)                              (3227))  // akozhikhov
+    ((IntroduceDistributedJournalChunkFormat)                       (3228))  // apollo1321
+    ((InternCypressProxyConfig)                                     (3229))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

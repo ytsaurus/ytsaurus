@@ -81,7 +81,7 @@ struct TEpochContext
     NElection::TCellManagerPtr CellManager;
     IChangelogStorePtr ChangelogStore;
     TReachableState ReachableState;
-    int Term = InvalidTerm;
+    std::atomic<int> Term = InvalidTerm;
 
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
@@ -95,12 +95,11 @@ struct TEpochContext
     NConcurrency::TPeriodicExecutorPtr AlivePeersUpdateExecutor;
 
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
-    bool LeaderSwitchStarted = false;
-    bool LeaderLeaseExpired = false;
-    bool AcquiringChangelog = false;
-    bool EnteringReadOnlyMode = false;
-    bool CatchingUp = false;
-
+    std::atomic<bool> LeaderSwitchStarted = false;
+    std::atomic<bool> LeaderLeaseExpired = false;
+    std::atomic<bool> AcquiringChangelog = false;
+    std::atomic<bool> EnteringReadOnlyMode = false;
+    std::atomic<bool> CatchingUp = false;
     std::atomic<bool> ReadOnly = false;
     std::atomic<bool> Discombobulated = false;
 
@@ -125,14 +124,14 @@ class TSystemLockGuard
 {
 public:
     TSystemLockGuard() = default;
-    TSystemLockGuard(TSystemLockGuard&& other);
+    TSystemLockGuard(TSystemLockGuard&& other) noexcept;
     ~TSystemLockGuard();
 
-    TSystemLockGuard& operator=(TSystemLockGuard&& other);
+    TSystemLockGuard& operator=(TSystemLockGuard&& other) noexcept;
 
-    void Release();
+    void Release() noexcept;
 
-    explicit operator bool() const;
+    explicit operator bool() const noexcept;
 
     static TSystemLockGuard Acquire(TDecoratedAutomatonPtr automaton);
 
@@ -149,10 +148,10 @@ class TUserLockGuard
 {
 public:
     TUserLockGuard() = default;
-    TUserLockGuard(TUserLockGuard&& other);
+    TUserLockGuard(TUserLockGuard&& other) noexcept;
     ~TUserLockGuard();
 
-    TUserLockGuard& operator=(TUserLockGuard&& other);
+    TUserLockGuard& operator=(TUserLockGuard&& other) noexcept;
 
     void Release();
 

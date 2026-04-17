@@ -60,6 +60,7 @@ SRCS(
     config.cpp
     conversion.cpp
     custom_data_types.cpp
+    dictionary_access_control.cpp
     dictionary_source.cpp
     format.cpp
     function_helpers.cpp

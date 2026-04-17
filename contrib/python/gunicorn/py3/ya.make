@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(25.1.0)
+VERSION(25.3.0)
 
 LICENSE(MIT)
 
@@ -30,7 +30,7 @@ PY_SRCS(
     gunicorn/arbiter.py
     gunicorn/asgi/__init__.py
     gunicorn/asgi/lifespan.py
-    gunicorn/asgi/message.py
+    gunicorn/asgi/parser.py
     gunicorn/asgi/protocol.py
     gunicorn/asgi/unreader.py
     gunicorn/asgi/uwsgi.py

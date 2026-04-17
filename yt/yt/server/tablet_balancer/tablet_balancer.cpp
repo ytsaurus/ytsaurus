@@ -224,7 +224,10 @@ private:
         DECLARE_NEW_FRIEND()
     };
 
-    void LinkOrchidService() const;
+    void LinkServices(TTransactionId prerequisiteTransactionId) const;
+
+    void LinkOrchidService(TTransactionId prerequisiteTransactionId) const;
+    void LinkTabletBalancerService(TTransactionId prerequisiteTransactionId) const;
 
     using TReshardDescriptorIt = std::vector<TReshardDescriptor>::iterator;
 
@@ -476,7 +479,7 @@ TTabletBalancer::TTabletBalancer(
         dynamicConfig->ClusterStateProvider,
         ControlInvoker_);
 
-    bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(
+    bootstrap->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
         BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
@@ -501,18 +504,20 @@ void TTabletBalancer::Start()
         "Some bundles still have balancing callbacks running from the previous leading iteration (Bundles: %v)",
         BalancingBundles_);
 
+    auto prerequisiteTransactionId = Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId();
+
     FirstIterationStartTime_ = TruncatedNow();
 
     ParameterizedBalancingScheduler_.Start();
 
     ClusterStateProvider_->Start();
-    ActionManager_->Start(Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId());
+    ActionManager_->Start(prerequisiteTransactionId);
 
     for (const auto& [name, bundle] : Bundles_) {
         bundle->Start();
     }
 
-    BIND(&TTabletBalancer::LinkOrchidService, MakeStrong(this))
+    BIND(&TTabletBalancer::LinkServices, MakeWeak(this), prerequisiteTransactionId)
         .Via(ControlInvoker_)
         .Run();
 
@@ -992,21 +997,29 @@ IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std
         .EndMap();
 }
 
-void TTabletBalancer::LinkOrchidService() const
+void TTabletBalancer::LinkServices(TTransactionId prerequisiteTransactionId) const
 {
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    LinkOrchidService(prerequisiteTransactionId);
+    LinkTabletBalancerService(prerequisiteTransactionId);
+}
+
+void TTabletBalancer::LinkOrchidService(TTransactionId prerequisiteTransactionId) const
+{
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    static const TYPath LeaderOrchidServicePath = "//sys/tablet_balancer/orchid";
+    auto addresses = Bootstrap_->GetLocalAddresses();
+
+    const auto& client = Bootstrap_->GetClient();
+
     try {
-        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
-
-        static const TYPath LeaderOrchidServicePath = "//sys/tablet_balancer/orchid";
-        auto addresses = Bootstrap_->GetLocalAddresses();
-
-        const auto& client = Bootstrap_->GetClient();
-
         YT_LOG_INFO("Creating tablet balancer orchid node");
 
+        // PrerequisiteTransactionIds not needed because of IgnoreExisting = true.
         TCreateNodeOptions createOptions;
         createOptions.IgnoreExisting = true;
-        createOptions.Recursive = true;
         createOptions.Attributes = CreateEphemeralAttributes();
         createOptions.Attributes->Set("remote_addresses", ConvertToYsonString(addresses));
 
@@ -1020,13 +1033,40 @@ void TTabletBalancer::LinkOrchidService() const
         YT_LOG_INFO("Setting new remote address for orchid node (NewValue: %v)",
             ConvertToYsonString(addresses, EYsonFormat::Text));
 
-        WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses)))
+        TSetNodeOptions setOptions;
+        setOptions.PrerequisiteTransactionIds = {prerequisiteTransactionId};
+        WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses), setOptions))
             .ThrowOnError();
 
         YT_LOG_INFO("Succesfully linked orchid service");
     } catch (const std::exception& e) {
         YT_LOG_ERROR(e, "Failed to link orchid service, will stop leading");
 
+        YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
+    }
+}
+
+void TTabletBalancer::LinkTabletBalancerService(TTransactionId prerequisiteTransactionId) const
+{
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    auto addresses = Bootstrap_->GetLocalAddresses();
+
+    YT_LOG_INFO("Setting new address for tablet balancer (Addresses: %v)",
+        ConvertToYsonString(addresses, EYsonFormat::Text));
+
+    TSetNodeOptions options;
+    options.PrerequisiteTransactionIds = {prerequisiteTransactionId};
+
+    auto rspOrError = WaitFor(Bootstrap_->GetClient()->SetNode(
+        "//sys/tablet_balancer/@addresses",
+        ConvertToYsonString(addresses),
+        options));
+
+    if (rspOrError.IsOK()) {
+        YT_LOG_INFO("Succesfully linked tablet balancer service");
+    } else {
+        YT_LOG_ERROR(rspOrError, "Failed to link tablet balancer service, will stop leading");
         YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
     }
 }
@@ -1169,21 +1209,27 @@ void TTabletBalancer::RequestBalancing(
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
+    if (!IsActive_.load()) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Current instance of tablet balancer is not a leader");
+    }
+
     auto bundleStateIt = Bundles_.find(balancingRequest.BundleName);
     if (bundleStateIt == Bundles_.end()) {
-        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown bundle (BundleName: %v)", balancingRequest.BundleName);
+        THROW_ERROR_EXCEPTION("Received on-demand balancing request for an unknown %Qlv bundle",
+            balancingRequest.BundleName);
     }
 
     auto bundleSnapshotOrError = WaitFor(bundleStateIt->second->GetBundleSnapshot());
     if (!bundleSnapshotOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Failed to get bundle snapshot for on-demand balancing (BundleName: %v)", balancingRequest.BundleName)
+        THROW_ERROR_EXCEPTION("Failed to get %Qlv bundle snapshot for on-demand balancing",
+            balancingRequest.BundleName)
             << bundleSnapshotOrError;
     }
 
     auto bundleSnapshot = std::move(bundleSnapshotOrError).Value();
     const auto& tablets = bundleSnapshot->Bundle->Tablets;
 
-    THashSet<TGlobalGroupTag> groupsToBalance;
+    THashSet<TGlobalGroupTag> groups;
     for (auto tabletId : balancingRequest.TabletIds) {
         auto tabletIt = tablets.find(tabletId);
         if (tabletIt == tablets.end()) {
@@ -1201,15 +1247,28 @@ void TTabletBalancer::RequestBalancing(
             continue;
         }
 
-        groupsToBalance.emplace(balancingRequest.BundleName, std::move(*group));
+        groups.emplace(balancingRequest.BundleName, std::move(*group));
     }
 
-    for (const auto& groupTag : groupsToBalance) {
-        YT_LOG_DEBUG("Scheduling reshard iteration for group by tablet request (BundleName: %v, Group: %v)",
+    for (const auto& groupTag : groups) {
+        YT_LOG_DEBUG("Scheduling balancing iteration for group by tablet request (BundleName: %v, Group: %v, Mode: %v)",
             groupTag.first,
-            groupTag.second);
+            groupTag.second,
+            balancingRequest.Mode);
 
-        ScheduleReshardIteration(groupTag);
+        switch (balancingRequest.Mode) {
+            case EBalancingRequestMode::Move:
+                ScheduleMoveIteration(groupTag);
+                break;
+
+            case EBalancingRequestMode::Reshard:
+                ScheduleReshardIteration(groupTag);
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Received on-demand balancing request with unknown %Qlv mode",
+                    balancingRequest.Mode);
+        }
     }
 }
 
@@ -1293,6 +1352,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
 
     // Find bundles that are not in the list of bundles (probably deleted)
     // and erase them.
+    auto guard = Guard(BundleErrorsLock_);
     for (auto it = Bundles_.begin(); it != Bundles_.end();) {
         if (currentBundles.contains(it->first)) {
             ++it;
@@ -1300,6 +1360,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
         }
 
         it->second->Stop();
+        BundleErrors_.erase(it->first);
         Bundles_.erase(it++);
     }
     return newBundles;

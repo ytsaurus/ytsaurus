@@ -62,6 +62,7 @@ SRCS(
     exec_node/artifact.cpp
     exec_node/artifact.proto
     exec_node/artifact_cache.cpp
+    exec_node/artifact_description.cpp
     exec_node/bootstrap.cpp
     exec_node/controller_agent_connector.cpp
     exec_node/cache_location.cpp
@@ -83,6 +84,8 @@ SRCS(
     exec_node/job_input_cache.cpp
     exec_node/proxying_data_node_service.cpp
     exec_node/orchid.cpp
+    exec_node/preparation_options.cpp
+    exec_node/private.cpp
     exec_node/public.cpp
     exec_node/scheduler_connector.cpp
     exec_node/slot.cpp
@@ -93,6 +96,7 @@ SRCS(
     exec_node/volume.proto
     exec_node/volume.cpp
     exec_node/volume_artifact.cpp
+    exec_node/volume_helpers.cpp
     exec_node/volume_cache.cpp
     exec_node/volume_counters.cpp
     exec_node/volume_manager.cpp
@@ -160,6 +164,7 @@ SRCS(
     tablet_node/ordered_chunk_store.cpp
     tablet_node/ordered_dynamic_store.cpp
     tablet_node/ordered_store_manager.cpp
+    tablet_node/overload_reporter.cpp
     tablet_node/partition.cpp
     tablet_node/partition_balancer.cpp
     tablet_node/puller_replica_cache.cpp
@@ -229,6 +234,8 @@ PEERDIR(
     yt/yt/library/tracing/baggage_manager
     yt/yt/library/tracing/jaeger
 
+    yt/yt/orm/library/query/heavy
+
     yt/yt/ytlib/distributed_throttler
 
     yt/yt/server/node/cellar_node
@@ -249,6 +256,7 @@ PEERDIR(
     yt/yt/server/lib/nbd
     yt/yt/server/lib/node
     yt/yt/server/lib/rpc
+    yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/tablet_server
 
     # TODO(max42): Eliminate.

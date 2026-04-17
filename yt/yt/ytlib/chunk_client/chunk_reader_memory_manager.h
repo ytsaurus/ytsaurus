@@ -175,9 +175,9 @@ public:
         std::optional<TMemoryUsageTrackerGuard> memoryUsageTrackerGuard = {});
 
     TMemoryUsageGuard(const TMemoryUsageGuard& other) = delete;
-    TMemoryUsageGuard(TMemoryUsageGuard&& other);
+    TMemoryUsageGuard(TMemoryUsageGuard&& other) noexcept;
     TMemoryUsageGuard& operator=(const TMemoryUsageGuard& other) = delete;
-    TMemoryUsageGuard& operator=(TMemoryUsageGuard&& other);
+    TMemoryUsageGuard& operator=(TMemoryUsageGuard&& other) noexcept;
 
     ~TMemoryUsageGuard();
 
@@ -195,7 +195,7 @@ private:
     std::optional<TMemoryUsageTrackerGuard> MemoryUsageTrackerGuard_;
     TSharedRef Block_;
 
-    void MoveFrom(TMemoryUsageGuard&& other);
+    void MoveFrom(TMemoryUsageGuard&& other) noexcept;
 
     void Release();
 };

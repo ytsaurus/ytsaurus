@@ -78,8 +78,7 @@ void DoTestEncodingWriter(
     WaitFor(memoryWriter->Close(
         IChunkWriter::TWriteBlocksOptions(),
         TWorkloadDescriptor(),
-        New<TDeferredChunkMeta>(),
-        /*truncateBlockCount*/ std::nullopt))
+        New<TDeferredChunkMeta>()))
         .ThrowOnError();
 
     auto result = memoryWriter->GetBlocks();

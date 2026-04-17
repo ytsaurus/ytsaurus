@@ -1,8 +1,9 @@
 #pragma once
 
+#include "helpers.h"
 #include "public.h"
 #include "table_descriptor.h"
-#include "helpers.h"
+#include "transaction_options.h"
 
 #include <yt/yt/ytlib/api/native/transaction.h>
 
@@ -120,6 +121,8 @@ struct ISequoiaTransaction
     virtual const ISequoiaClientPtr& GetClient() const = 0;
 
     virtual NObjectClient::TTransactionId GetId() const = 0;
+    virtual const TSequoiaTransactionOptions& GetOptions() const = 0;
+    virtual const TSequoiaTransactionFeatures& GetFeatures() const = 0;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
 
     virtual NObjectClient::TCellTagList GetAffectedMasterCellTags() const = 0;

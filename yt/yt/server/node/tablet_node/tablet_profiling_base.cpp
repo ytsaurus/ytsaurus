@@ -26,6 +26,11 @@ TTabletProfilerManager::TTabletProfilerManager()
     : ConsumedTableTags_(TabletNodeProfiler().Gauge("/consumed_table_tags"))
 { }
 
+TTabletProfilerManager* TTabletProfilerManager::Get()
+{
+    return Singleton<TTabletProfilerManager>();
+}
+
 TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
     const std::string& bundle,
@@ -171,11 +176,6 @@ THunkTabletProfilerPtr TTabletProfilerManager::CreateHunkTabletProfiler(
     cachedProfiler = profiler;
 
     return profiler;
-}
-
-TTabletProfilerManager* GetTabletProfilerManager()
-{
-    return Singleton<TTabletProfilerManager>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

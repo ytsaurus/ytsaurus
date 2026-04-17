@@ -4,8 +4,8 @@
 #include "private.h"
 #include "volume_counters.h"
 
-#include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/core/actions/bind.h>
 
@@ -170,7 +170,8 @@ bool TSimpleTmpfsVolume::IsCached() const
 
 TFuture<void> TSimpleTmpfsVolume::Link(
     TGuid,
-    const TString&)
+    const TString&,
+    bool)
 {
     // Simple volume is created inside sandbox, so we don't need to link it.
     YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");

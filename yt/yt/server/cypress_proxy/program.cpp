@@ -1,7 +1,8 @@
 #include "program.h"
 
 #include "bootstrap.h"
-#include "config.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/library/server_program/server_program.h>
 

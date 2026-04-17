@@ -15,6 +15,7 @@ on:
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
 
+
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
@@ -57,6 +58,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           path: ytsaurus
+          fetch-depth: 256
 
   tag:
     name: Calculate docker tag
@@ -68,6 +70,7 @@ jobs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
       nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
       build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
+      version-patch: ${{ steps.tag.outputs.VERSION_PATCH }}
     steps:
       - name: Calculate docker tag
         id: tag
@@ -103,6 +106,12 @@ jobs:
             echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
           fi
 
+          # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
+          LAST_COMMIT_DATE=$(git -C ytsaurus log -n 1 --format="%cd" --date=format:"%y%m%d")
+          COMMITS_THIS_DAY=$(git -C ytsaurus log --after="20${LAST_COMMIT_DATE} 00:00:00" --oneline | wc -l | tr -d ' ')
+          VERSION_PATCH=$(printf "%s%03d" "$LAST_COMMIT_DATE" "$COMMITS_THIS_DAY")
+          echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
+
   build-strawberry:
     name: Build Strawberry controller
     needs:
@@ -113,6 +122,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
       build-types: ${{ needs.tag.outputs.build-types }}
+      version-patch: ${{ needs.tag.outputs.version-patch }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -133,6 +143,7 @@ jobs:
       build-python: true
       update-remote-cache: true
       build-types: ${{ needs.tag.outputs.build-types }}
+      version-patch: ${{ needs.tag.outputs.version-patch }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -174,6 +185,7 @@ jobs:
       build-chyt: true
       update-remote-cache: true
       build-types: ${{ needs.tag.outputs.build-types }}
+      version-patch: ${{ needs.tag.outputs.version-patch }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}

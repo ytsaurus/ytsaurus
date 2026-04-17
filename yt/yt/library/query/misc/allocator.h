@@ -22,20 +22,14 @@ public:
     using const_reference = const T&;
     using size_type = size_t;
     using difference_type = ptrdiff_t;
-    using propagate_on_container_copy_assignment = std::false_type;
+    using propagate_on_container_copy_assignment = std::true_type;
     using propagate_on_container_move_assignment = std::true_type;
     using propagate_on_container_swap = std::false_type;
-    using is_always_equal = std::false_type;
+    using is_always_equal = std::true_type;
 
     TAllocatorOverChunkProvider(
         IMemoryChunkProviderPtr memoryChunkProvider,
         TRefCountedTypeCookie tagCookie);
-
-    template <class U>
-    struct rebind
-    {
-        using other = TAllocatorOverChunkProvider<U>;
-    };
 
     TAllocatorOverChunkProvider(const TAllocatorOverChunkProvider& other) = default;
 
@@ -53,7 +47,13 @@ public:
     template <class U>
     bool operator!=(const TAllocatorOverChunkProvider<U>& /*other*/) const noexcept;
 
+    template <class U>
+    TAllocatorOverChunkProvider(const TAllocatorOverChunkProvider<U>& other);
+
 private:
+    template <class>
+    friend class TAllocatorOverChunkProvider;
+
     IMemoryChunkProviderPtr Provider_;
     TRefCountedTypeCookie Cookie_;
 };

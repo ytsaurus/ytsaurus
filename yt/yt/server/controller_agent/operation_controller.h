@@ -2,15 +2,15 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/controller_agent/structs.h>
+
 #include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
-
-#include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -24,11 +24,11 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/library/event_log/public.h>
-
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+
+#include <yt/yt/library/event_log/public.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -167,7 +167,9 @@ struct IOperationControllerHost
 
     virtual void RegisterAllocation(TStartedAllocationInfo allocationInfo) = 0;
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
-    virtual void Revive(std::vector<TStartedAllocationInfo> allocations) = 0;
+    virtual void Revive(std::vector<TStartedAllocationInfo> allocations, bool suspended) = 0;
+    virtual void SuspendOperation() = 0;
+    virtual void ResumeOperation() = 0;
     virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
     virtual void AbortJob(
         TJobId jobId,
@@ -302,7 +304,7 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancelable Controller invoker
      *
      */
-    virtual TOperationControllerReviveResult Revive() = 0;
+    virtual TOperationControllerReviveResult Revive(bool suspended) = 0;
 
     //! Called by a scheduler in operation complete pipeline.
     /*!

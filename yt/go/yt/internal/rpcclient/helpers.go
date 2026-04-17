@@ -1167,6 +1167,127 @@ func makeGetJobResult(result *rpc_proxy.TRspGetJob) (*yt.JobStatus, error) {
 	return &info, nil
 }
 
+func convertOperationEventType(eventType *yt.OperationEventType) (*rpc_proxy.EOperationEventType, error) {
+	if eventType == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EOperationEventType
+
+	switch *eventType {
+	case yt.IncarnationStarted:
+		ret = rpc_proxy.EOperationEventType_OET_INCARNATION_STARTED
+	default:
+		return nil, xerrors.Errorf("unexpected operation event type %q", *eventType)
+	}
+
+	return &ret, nil
+}
+
+func makeOperationEventType(eventType *rpc_proxy.EOperationEventType) (yt.OperationEventType, error) {
+	if eventType == nil {
+		return "", xerrors.Errorf("unable to convert nil operation event type")
+	}
+
+	var ret yt.OperationEventType
+
+	switch *eventType {
+	case rpc_proxy.EOperationEventType_OET_INCARNATION_STARTED:
+		ret = yt.IncarnationStarted
+	default:
+		return "", xerrors.Errorf("unexpected operation event type %q", *eventType)
+	}
+
+	return ret, nil
+}
+
+func convertOperationIncarnationSwitchReason(switchReason *yt.OperationIncarnationSwitchReason) (*rpc_proxy.EIncarnationSwitchReason, error) {
+	if switchReason == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EIncarnationSwitchReason
+
+	switch *switchReason {
+	case yt.OperationIncarnationSwitchReasonJobAborted:
+		ret = rpc_proxy.EIncarnationSwitchReason_ISR_JOB_ABORTED
+	case yt.OperationIncarnationSwitchReasonJobFailed:
+		ret = rpc_proxy.EIncarnationSwitchReason_ISR_JOB_FAILED
+	case yt.OperationIncarnationSwitchReasonJobInterrupted:
+		ret = rpc_proxy.EIncarnationSwitchReason_ISR_JOB_INTERRUPTED
+	case yt.OperationIncarnationSwitchReasonJobLackAfterRevival:
+		ret = rpc_proxy.EIncarnationSwitchReason_ISR_JOB_LACK_AFTER_REVIVAL
+	default:
+		return nil, xerrors.Errorf("unexpected operation incarnation switch reason %q", *switchReason)
+	}
+
+	return &ret, nil
+}
+
+func makeOperationIncarnationSwitchReason(switchReason *rpc_proxy.EIncarnationSwitchReason) (yt.OperationIncarnationSwitchReason, error) {
+	if switchReason == nil {
+		return "", xerrors.Errorf("unable to convert nil operation incarnation switch reason")
+	}
+
+	var ret yt.OperationIncarnationSwitchReason
+
+	switch *switchReason {
+	case rpc_proxy.EIncarnationSwitchReason_ISR_JOB_ABORTED:
+		ret = yt.OperationIncarnationSwitchReasonJobAborted
+	case rpc_proxy.EIncarnationSwitchReason_ISR_JOB_FAILED:
+		ret = yt.OperationIncarnationSwitchReasonJobFailed
+	case rpc_proxy.EIncarnationSwitchReason_ISR_JOB_INTERRUPTED:
+		ret = yt.OperationIncarnationSwitchReasonJobInterrupted
+	case rpc_proxy.EIncarnationSwitchReason_ISR_JOB_LACK_AFTER_REVIVAL:
+		ret = yt.OperationIncarnationSwitchReasonJobLackAfterRevival
+	default:
+		return "", xerrors.Errorf("unexpected operation incarnation switch reason %q", *switchReason)
+	}
+
+	return ret, nil
+}
+
+func makeListOperationEventsResult(rsp *rpc_proxy.TRspListOperationEvents) (*yt.ListOperationEventsResult, error) {
+	if rsp == nil {
+		return nil, nil
+	}
+
+	events := make([]yt.OperationEvent, 0, len(rsp.GetEvents()))
+	for _, ev := range rsp.GetEvents() {
+		event := yt.OperationEvent{
+			Timestamp: makeTime(ev.Timestamp),
+		}
+
+		eventType, err := makeOperationEventType(ev.EventType)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to deserialize operation event type: %w", err)
+		}
+		event.EventType = eventType
+
+		if ev.Incarnation != nil {
+			event.Incarnation = ptr.String(ev.GetIncarnation())
+		}
+
+		if ev.IncarnationSwitchReason != nil {
+			incarnationSwitchReason, err := makeOperationIncarnationSwitchReason(ev.IncarnationSwitchReason)
+			if err != nil {
+				return nil, xerrors.Errorf("unable to deserialize operation incarnation switch reason: %w", err)
+			}
+			event.IncarnationSwitchReason = &incarnationSwitchReason
+		}
+
+		if ev.IncarnationSwitchInfo != nil {
+			event.IncarnationSwitchInfo = ev.GetIncarnationSwitchInfo()
+		}
+
+		events = append(events, event)
+	}
+
+	return &yt.ListOperationEventsResult{
+		Events: events,
+	}, nil
+}
+
 func convertTabletRangeOptions(opts *yt.TabletRangeOptions) *rpc_proxy.TTabletRangeOptions {
 	if opts == nil {
 		return nil

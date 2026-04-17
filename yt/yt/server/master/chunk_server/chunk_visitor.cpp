@@ -1,4 +1,5 @@
 #include "chunk_visitor.h"
+#include "chunk_manager.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -13,39 +14,45 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkVisitorBase::TChunkVisitorBase(
-    NCellMaster::TBootstrap* bootstrap,
-    const TChunkLists& chunkLists)
-    : Bootstrap_(bootstrap)
-    , ChunkLists_(chunkLists)
+bool TChunkReplicasVisitor::OnChunk(
+    TChunk* chunk,
+    TChunkList* /*parent*/,
+    std::optional<i64> /*rowIndex*/,
+    std::optional<int> /*tabletIndex*/,
+    const TReadLimit& /*startLimit*/,
+    const TReadLimit& /*endLimit*/,
+    const TChunkViewModifier* /*modifier*/)
 {
     VerifyPersistentStateRead();
+
+    Chunks_.emplace_back(chunk);
+
+    return true;
 }
 
-TFuture<TYsonString> TChunkVisitorBase::Run()
+bool TChunkReplicasVisitor::OnChunkView(TChunkView* /*chunkView*/)
 {
-    VerifyPersistentStateRead();
-
-    auto context = CreateAsyncChunkTraverserContext(
-        Bootstrap_,
-        NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
-    TraverseChunkTree(
-        std::move(context),
-        this,
-        ChunkLists_);
-
-    return Promise_;
+    return false;
 }
 
-void TChunkVisitorBase::OnFinish(const TError& error)
+bool TChunkReplicasVisitor::OnDynamicStore(
+    TDynamicStore* /*dynamicStore*/,
+    std::optional<int> /*tabletIndex*/,
+    const NChunkClient::TReadLimit& /*startLimit*/,
+    const NChunkClient::TReadLimit& /*endLimit*/)
 {
-    VerifyPersistentStateRead();
+    return true;
+}
 
-    if (error.IsOK()) {
-        OnSuccess();
-    } else {
-        Promise_.Set(TError("Error traversing chunk tree") << error);
-    }
+void TChunkReplicasVisitor::OnSuccess()
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+    chunkReplicaFetcher->GetChunkReplicasAsync(std::move(Chunks_))
+        .AsUnique()
+        .Subscribe(BIND([this, this_ = MakeStrong(this)] (TErrorOr<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>> replicasOrError) {
+            Promise_.TrySet(std::move(replicasOrError));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +60,7 @@ void TChunkVisitorBase::OnFinish(const TError& error)
 TChunkIdsAttributeVisitor::TChunkIdsAttributeVisitor(
     NCellMaster::TBootstrap* bootstrap,
     const TChunkLists& chunkLists)
-    : TChunkVisitorBase(bootstrap, chunkLists)
+    : TChunkVisitorBase<NYson::TYsonString>(bootstrap, chunkLists)
     , Writer_(&Stream_)
 {
     Writer_.OnBeginList();
@@ -102,10 +109,10 @@ void TChunkIdsAttributeVisitor::OnSuccess()
 ////////////////////////////////////////////////////////////////////////////////
 
 class THunkStatisticsVisitor
-    : public TChunkVisitorBase
+    : public TChunkVisitorBase<NYson::TYsonString>
 {
 public:
-    using TChunkVisitorBase::TChunkVisitorBase;
+    using TChunkVisitorBase<NYson::TYsonString>::TChunkVisitorBase;
 
 private:
     int HunkChunkCount_ = 0;

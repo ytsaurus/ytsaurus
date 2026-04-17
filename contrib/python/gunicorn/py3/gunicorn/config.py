@@ -1346,61 +1346,32 @@ class ForwardedAllowIPS(Setting):
             In each case, we have a request from the remote address 134.213.44.18, and the default value of
             ``secure_scheme_headers``:
 
-            .. code::
+            ```python
+            secure_scheme_headers = {
+                'X-FORWARDED-PROTOCOL': 'ssl',
+                'X-FORWARDED-PROTO': 'https',
+                'X-FORWARDED-SSL': 'on'
+            }
+            ```
 
-                secure_scheme_headers = {
-                    'X-FORWARDED-PROTOCOL': 'ssl',
-                    'X-FORWARDED-PROTO': 'https',
-                    'X-FORWARDED-SSL': 'on'
-                }
-
-
-            .. list-table::
-                :header-rows: 1
-                :align: center
-                :widths: auto
-
-                * - ``forwarded-allow-ips``
-                  - Secure Request Headers
-                  - Result
-                  - Explanation
-                * - .. code::
-
-                        ["127.0.0.1"]
-                  - .. code::
-
-                        X-Forwarded-Proto: https
-                  - .. code::
-
-                        wsgi.url_scheme = "http"
-                  - IP address was not allowed
-                * - .. code::
-
-                        "*"
-                  - <none>
-                  - .. code::
-
-                        wsgi.url_scheme = "http"
-                  - IP address allowed, but no secure headers provided
-                * - .. code::
-
-                        "*"
-                  - .. code::
-
-                        X-Forwarded-Proto: https
-                  - .. code::
-
-                        wsgi.url_scheme = "https"
-                  - IP address allowed, one request header matched
-                * - .. code::
-
-                        ["134.213.44.18"]
-                  - .. code::
-
-                        X-Forwarded-Ssl: on
-                        X-Forwarded-Proto: http
-                  - ``InvalidSchemeHeaders()`` raised
-                  - IP address allowed, but the two secure headers disagreed on if HTTPS was used
+            +---------------------+----------------------------+-----------------------------+-------------------------+
+            | forwarded-allow-ips | Secure Request Headers     | Result                      | Explanation             |
+            +=====================+============================+=============================+=========================+
+            | `"127.0.0.1"`       | `X-Forwarded-Proto: https` | `wsgi.url_scheme = "http"`  | IP address was not      |
+            |                     |                            |                             | allowed                 |
+            +---------------------+----------------------------+-----------------------------+-------------------------+
+            |                     |                            |                             | IP address allowed, but |
+            | `"*"`               | `<none>`                   | `wsgi.url_scheme = "http"`  | no secure headers       |
+            |                     |                            |                             | provided                |
+            +---------------------+----------------------------+-----------------------------+-------------------------+
+            | `"*"`               | `X-Forwarded-Proto: https` | `wsgi.url_scheme = "https"` | IP address allowed, one |
+            |                     |                            |                             | request header matched  |
+            +---------------------+----------------------------+-----------------------------+-------------------------+
+            |                     |                            |                             | IP address allowed, but |
+            | `"134.213.44.18"`   | `X-Forwarded-Ssl: on`      | `InvalidSchemeHeaders()`    | the two secure headers  |
+            |                     | `X-Forwarded-Proto: http`  | raised                      | disagreed on if HTTPS   |
+            |                     |                            |                             | was used                |
+            +---------------------+----------------------------+-----------------------------+-------------------------+
 
 
         """
@@ -2801,6 +2772,22 @@ def validate_asgi_lifespan(val):
     return val
 
 
+def validate_http_parser(val):
+    """Validate http_parser setting.
+
+    Accepts: auto, fast, python
+    """
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("http_parser must be a string")
+    val = val.lower().strip()
+    valid_values = ("auto", "fast", "python")
+    if val not in valid_values:
+        raise ValueError("http_parser must be one of: %s" % ", ".join(valid_values))
+    return val
+
+
 class ASGILoop(Setting):
     name = "asgi_loop"
     section = "Worker Processes"
@@ -2869,6 +2856,30 @@ class ASGIDisconnectGracePeriod(Setting):
         need to increase this value.
 
         This setting only affects the ``asgi`` worker type.
+
+        .. versionadded:: 25.0.0
+        """
+
+
+class HttpParser(Setting):
+    name = "http_parser"
+    section = "Worker Processes"
+    cli = ["--http-parser"]
+    meta = "STRING"
+    validator = validate_http_parser
+    default = "auto"
+    desc = """\
+        HTTP parser implementation for ASGI workers.
+
+        - auto: Use H1CProtocol if gunicorn_h1c is available, else PythonProtocol (default)
+        - fast: Require H1CProtocol from gunicorn_h1c (fail if unavailable)
+        - python: Force pure Python PythonProtocol parser
+
+        ASGI workers use callback-based parsing in data_received() for efficient
+        incremental parsing. The gunicorn_h1c C extension provides significantly
+        faster HTTP parsing using picohttpparser with SIMD optimizations.
+
+        Install it with: pip install gunicorn[fast]
 
         .. versionadded:: 25.0.0
         """
@@ -3117,13 +3128,32 @@ class DirtyWorkerExit(Setting):
 
 # Control Socket Settings
 
+
+def _get_default_control_socket():
+    """Get default control socket path based on available directories.
+
+    Prefers XDG_RUNTIME_DIR if available (standard on Linux, sometimes BSD),
+    falls back to $HOME/.gunicorn/ directory.
+    """
+    # Prefer XDG_RUNTIME_DIR if available
+    xdg_runtime = os.environ.get('XDG_RUNTIME_DIR')
+    if xdg_runtime and os.path.isdir(xdg_runtime):
+        return os.path.join(xdg_runtime, 'gunicorn.ctl')
+
+    # Fall back to $HOME/.gunicorn/
+    home = os.path.expanduser('~')
+    gunicorn_dir = os.path.join(home, '.gunicorn')
+    return os.path.join(gunicorn_dir, 'gunicorn.ctl')
+
+
 class ControlSocket(Setting):
     name = "control_socket"
     section = "Control"
     cli = ["--control-socket"]
     meta = "PATH"
     validator = validate_string
-    default = "gunicorn.ctl"
+    default = _get_default_control_socket()
+    default_doc = "$XDG_RUNTIME_DIR/gunicorn.ctl or $HOME/.gunicorn/gunicorn.ctl"
     desc = """\
         Unix socket path for control interface.
 
@@ -3131,8 +3161,9 @@ class ControlSocket(Setting):
         ``gunicornc`` command-line tool. Commands include viewing worker
         status, adjusting worker count, and graceful reload/shutdown.
 
-        By default, creates ``gunicorn.ctl`` in the working directory.
-        Set an absolute path for a fixed location (e.g., ``/var/run/gunicorn.ctl``).
+        Default: ``$XDG_RUNTIME_DIR/gunicorn.ctl`` if XDG_RUNTIME_DIR is set,
+        otherwise ``$HOME/.gunicorn/gunicorn.ctl``. The parent directory is
+        created automatically if needed.
 
         Use ``--no-control-socket`` to disable.
 

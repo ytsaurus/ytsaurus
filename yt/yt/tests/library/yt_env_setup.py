@@ -233,6 +233,10 @@ def is_msan_build():
     return get_sanitizer_type() == "memory"
 
 
+def is_tsan_build():
+    return get_sanitizer_type() == "thread"
+
+
 def is_sanitizer_build():
     return bool(get_sanitizer_type())
 
@@ -391,6 +395,7 @@ class YTEnvSetup(object):
             "enable_large_columnar_statistics": True,
         },
     }
+    DELTA_DYNAMIC_RPC_PROXY_CONFIG = {}
     DELTA_CELL_BALANCER_CONFIG = {}
     DELTA_TABLET_BALANCER_CONFIG = {}
     DELTA_MASTER_CACHE_CONFIG = {}
@@ -628,6 +633,7 @@ class YTEnvSetup(object):
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
         modify_dynamic_configs_func = functools.partial(cls.apply_node_dynamic_config_patches, cluster_index=index)
+        modify_rpc_proxy_dynamic_configs_func = functools.partial(cls.apply_rpc_proxy_dynamic_config_patches, cluster_index=index)
         modify_driver_logging_config_func = cls.modify_driver_logging_config
 
         yt.logger.info("Creating cluster instance")
@@ -827,6 +833,7 @@ class YTEnvSetup(object):
             external_bin_path=cls.bin_path,
             modify_driver_logging_config_func=modify_driver_logging_config_func,
             modify_master_dynamic_configs_func=modify_master_dynamic_configs_func,
+            modify_rpc_proxy_dynamic_configs_func=modify_rpc_proxy_dynamic_configs_func,
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -1191,6 +1198,11 @@ class YTEnvSetup(object):
         return config
 
     @classmethod
+    def apply_rpc_proxy_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
+        cls._apply_effective_config_patch(config, "DELTA_DYNAMIC_RPC_PROXY_CONFIG", cluster_index)
+        return config
+
+    @classmethod
     def _validate_cell_descriptors(cls, cluster_index, cell_tags):
         if cluster_index >= cls.get_ground_index_offset():
             return
@@ -1479,6 +1491,7 @@ class YTEnvSetup(object):
 
             env.restore_default_node_dynamic_config()
             env.restore_default_bundle_dynamic_config()
+            env.restore_default_rpc_proxy_dynamic_config()
 
     @classmethod
     def _wait_for_sequoia_node_host_available(cls, driver):

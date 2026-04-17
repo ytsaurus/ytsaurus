@@ -22,6 +22,7 @@
 
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeDateTime64.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
@@ -45,18 +46,16 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path)
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<NYPath::TYPath, NHydra::TRevision>& path)
 {
     protoPath->set_path(path.first);
     protoPath->set_revision(path.second.Underlying());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath)
+void FromProto(std::pair<NYPath::TYPath, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath)
 {
     path->first = FromProto<TString>(protoPath.path());
-    path->second = FromProto<NYT::NHydra::TRevision>(protoPath.revision());
+    path->second = FromProto<NHydra::TRevision>(protoPath.revision());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,8 +73,6 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 
-using NYT::ToProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TGuid ToGuid(DB::UUID uuid)
@@ -91,8 +88,13 @@ void RegisterNewUser(
     DB::AccessControl& accessControl,
     const std::string& userName,
     const std::vector<TString>& userDefinedDatabaseNames,
-    bool allowSqlUdfManagement)
+    bool allowSqlUdfManagement,
+    bool allowGlobalDictionaryAccess)
 {
+    if (accessControl.find(DB::AccessEntityType::USER, userName)) {
+        return;
+    }
+
     auto user = std::make_unique<DB::User>();
     user->setName(userName);
     user->access.grant(DB::AccessFlags::allFlagsGrantableOnTableLevel(), /*database*/ "YT");
@@ -102,7 +104,10 @@ void RegisterNewUser(
     user->access.grant(DB::AccessType::SHOW, /*database*/ "system");
     user->access.grant(DB::AccessType::SELECT, /*database*/ "system");
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
-    user->access.grant(DB::AccessType::dictGet);
+
+    if (!allowGlobalDictionaryAccess) {
+        user->access.revoke(DB::AccessType::dictGet);
+    }
 
     if (allowSqlUdfManagement) {
         user->access.grant(DB::AccessType::CREATE_FUNCTION);
@@ -160,6 +165,12 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
 
         case DB::TypeIndex::String:
             return DB::Field("");
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return DB::Field(DB::NEGATIVE_INFINITY);
+
+        case DB::TypeIndex::LowCardinality:
+            return GetMinimumTypeValue(DB::removeLowCardinality(dataType));
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -211,6 +222,12 @@ DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
             // Set some big value instead of it.
             // NOTE: CH uses unsigned char comparison, so max char is '\xff', not '\xef'.
             return DB::Field(std::string(SentinelMaxStringLength, '\xff'));
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return DB::Field(DB::POSITIVE_INFINITY);
+
+        case DB::TypeIndex::LowCardinality:
+            return GetMaximumTypeValue(DB::removeLowCardinality(dataType));
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -272,6 +289,13 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             // Not implemented yet.
             return std::nullopt;
 
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return std::nullopt;
+
+        case DB::TypeIndex::LowCardinality:
+            return TryDecrementFieldValue(field, DB::removeLowCardinality(dataType));
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -317,6 +341,13 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Float64:
             // Not implemented yet.
             return std::nullopt;
+
+        case DB::TypeIndex::Array:
+        case DB::TypeIndex::Tuple:
+            return std::nullopt;
+
+        case DB::TypeIndex::LowCardinality:
+            return TryIncrementFieldValue(field, DB::removeLowCardinality(dataType));
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -573,10 +604,9 @@ NHydra::TRevision GetRefreshRevision(const NApi::NNative::IClientPtr& client, co
 {
     auto revisionOrError = WaitFor(client->GetNode(path + "/@revision", {}));
     if (!revisionOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Could not get refresh revision for path %v", path);
-    } else {
-        return ConvertTo<NHydra::TRevision>(revisionOrError.Value());
+        THROW_ERROR_EXCEPTION("Could not get refresh revision for %v", path);
     }
+    return ConvertTo<NHydra::TRevision>(revisionOrError.Value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

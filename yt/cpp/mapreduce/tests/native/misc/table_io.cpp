@@ -24,6 +24,7 @@
 
 #include <util/system/env.h>
 
+#include <thread>
 #include <type_traits>
 
 using namespace NYT;
@@ -1332,6 +1333,168 @@ TEST(TableIO, NoFinishWithDisabledAutoFinish)
 
     // Wait for writer thread to complete IO and block on internal queue.
     Sleep(TDuration::Seconds(5));
+}
+
+TEST(TableIo, AbortHaltingRead)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100'000;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    TConfig::Get()->UseHaltingResponse = true;
+    TConfig::Get()->HaltingResponseBytesLimit = 64 * 1024;
+
+    TTableReaderPtr<TNode> reader;
+
+    int rowsRead = 0;
+    auto readTable = [&] () {
+        reader = client->CreateTableReader<TNode>(path);
+        while (reader->IsValid()) {
+            reader->MoveRow();
+            ++rowsRead;
+            reader->Next();
+        }
+    };
+
+    std::thread readerThread([&readTable] () {
+        EXPECT_THROW(readTable(), TInputStreamAbortedError);
+    });
+
+    Sleep(TDuration::Seconds(5));
+    reader->Abort();
+    readerThread.join();
+
+    EXPECT_LT(rowsRead, nRows);
+}
+
+TEST(TableIo, ReadAfterAbort)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TNode>(path);
+
+    reader->Abort();
+    EXPECT_THROW(reader->MoveRow(), TInputStreamAbortedError);
+}
+
+TEST(TableIo, DoubleAbort)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TNode>(path);
+
+    reader->Abort();
+    reader->Abort(); // Works just fine
+}
+
+TEST(TableIo, NoRetriesOnAbort)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100'000;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    TConfig::Get()->UseHaltingResponse = true;
+    TConfig::Get()->HaltingResponseBytesLimit = 64 * 1024;
+
+    TConfig::Get()->RetryCount = 10;
+    TConfig::Get()->ReadRetryCount = 10;
+    TConfig::Get()->RetryInterval = TDuration::Seconds(10);
+
+    TTableReaderPtr<TNode> reader;
+
+    auto readTable = [&] () {
+        reader = client->CreateTableReader<TNode>(path);
+        while (reader->IsValid()) {
+            reader->MoveRow();
+            reader->Next();
+        }
+    };
+
+    auto start = TInstant::Now();
+
+    std::thread readerThread([&readTable] () {
+        EXPECT_THROW(readTable(), TInputStreamAbortedError);
+    });
+
+    Sleep(TDuration::Seconds(5));
+    reader->Abort();
+    readerThread.join();
+
+    auto elapsed = TInstant::Now() - start;
+
+    EXPECT_LT(elapsed, TDuration::Seconds(15));
+}
+
+TEST(TableIo, Aborted)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TNode>(path);
+
+    EXPECT_FALSE(reader->IsAborted());
+    reader->Abort();
+    EXPECT_TRUE(reader->IsAborted());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

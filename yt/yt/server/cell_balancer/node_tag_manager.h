@@ -15,7 +15,8 @@ public:
         std::string bundleName,
         const TSchedulerInputState& input,
         TSpareInstanceAllocator<TSpareNodesInfo>* spareNodeAllocator,
-        TSchedulerMutations* mutations);
+        TSchedulerMutations* mutations,
+        INodeTrackerPtr nodeTracker);
 
     // * Collects alive bundle nodes (with immediate grace period).
     // * Picks data centers to populate.
@@ -31,6 +32,7 @@ private:
     const TSchedulerInputState& Input_;
     TSpareInstanceAllocator<TSpareNodesInfo>* const SpareNodeAllocator_;
     TSchedulerMutations* const Mutations_;
+    const INodeTrackerPtr NodeTracker_;
 
     NLogging::TLogger Logger;
 
@@ -52,6 +54,8 @@ private:
     bool ProcessNodeReleasement(
         const std::string& nodeAddress,
         bool leaveDecommissioned);
+
+    void RemoveTagsFromNodes(const THashSet<std::string>& offlineNodes);
 
     // For each node from nodeAssignments:
     //  * creates an alert if assignment is stuck
@@ -127,7 +131,8 @@ void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations
 void ManageNodeTags(
     TSchedulerInputState& input,
     TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator,
-    TSchedulerMutations* mutations);
+    TSchedulerMutations* mutations,
+    const INodeTrackerPtr& nodeTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

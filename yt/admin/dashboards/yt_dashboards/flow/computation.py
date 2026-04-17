@@ -36,6 +36,7 @@ class ComputationCellGenerator:
                 **Init** - loading timers and output messages after start of job (do you understand why previous jobs were finished?).
                 **Input.Empty/Input.Fetch** - just waiting for input messages.
                 **Input.InjectionDelay** - has input messages but waits for watermark to be advanced because of injection delay logic.
+                **Input.WatermarkAlignment** - reading is stopped due to watermark misalignment (partition's watermark exceeds the group watermark + drift bound).
                 **CheckDelayedMessages** - checking delayed messages (little CPU-bound work).
                 **Distribute.Start** - scheduling distributing (little CPU-bound work).
                 **Distribute.OutputBufferOverflow** - waiting because of output buffer overflow.
@@ -276,29 +277,84 @@ class ComputationCellGenerator:
             .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
             .row()
                 .cell(
-                    "Partition store commit rate",
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_total.rate"))
-                        .aggr("host")
+                    "Transaction manager commit rate",
+                    MultiSensor(
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_total.rate"))
+                            .aggr("host"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.transaction_manager.commit_total.rate"))
+                            .aggr("host"))
                         .unit("UNIT_REQUESTS_PER_SECOND"))
                 .cell(
-                    "Partition store failed commit rate",
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_failed.rate"))
-                        .aggr("host")
+                    "Transaction manager failed commit rate",
+                    MultiSensor(
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_failed.rate"))
+                            .aggr("host"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.transaction_manager.commit_failed.rate"))
+                            .aggr("host"))
                         .unit("UNIT_REQUESTS_PER_SECOND"))
                 .cell(
-                    "Partition store commit time",
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_time.max"))
-                        .all("host")
-                        .alias(host_alias)
-                        .top(50)
+                    "Transaction manager commit time",
+                    MultiSensor(
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_time.max"))
+                            .all("host")
+                            .alias(host_alias)
+                            .top(50),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.transaction_manager.commit_time.max"))
+                            .all("host")
+                            .alias(host_alias)
+                            .top(50))
                         .unit("UNIT_SECONDS"))
                 .cell(
                     "Input messages lookup time",
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
-                        .all("host")
-                        .alias(host_alias)
-                        .top(50)
+                    MultiSensor(
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
+                            .all("host")
+                            .alias(host_alias)
+                            .top(50),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_time.max"))
+                            .value("table", "input_messages")
+                            .aggr("tag")
+                            .all("host")
+                            .alias(host_alias)
+                            .top(50))
                         .unit("UNIT_SECONDS"))
+        )
+
+    def build_table_metrics_rowset(self):
+        tag_alias = "{{computation_id}} - {{tag}}" if not self._has_computation_id_tag else "{{tag}}"
+        return (Rowset()
+            .stack(True)
+            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .aggr("host")
+            .row()
+                .cell(
+                    "Table lookup rows rate",
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_rows.rate"))
+                        .all("table")
+                        .all("tag")
+                        .alias("{{table}} - " + tag_alias)
+                        .unit("UNIT_COUNTS_PER_SECOND"))
+                .cell(
+                    "Table lookup bytes rate",
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_bytes.rate"))
+                        .all("table")
+                        .all("tag")
+                        .alias("{{table}} - " + tag_alias)
+                        .unit("UNIT_BYTES_SI_PER_SECOND"))
+                .cell(
+                    "Table write rows rate",
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.write_rows.rate"))
+                        .all("table")
+                        .all("tag")
+                        .alias("{{table}} - " + tag_alias)
+                        .unit("UNIT_COUNTS_PER_SECOND"))
+                .cell(
+                    "Table write bytes rate",
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.write_bytes.rate"))
+                        .all("table")
+                        .all("tag")
+                        .alias("{{table}} - " + tag_alias)
+                        .unit("UNIT_BYTES_SI_PER_SECOND"))
         )
 
     def build_processed_message_rate_rowset(self):
@@ -308,8 +364,11 @@ class ComputationCellGenerator:
             .row()
                 .cell(
                     "Processed messages rate",
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.checked.rate|yt.flow.worker.computation.partition_store.input_messages.filtered.rate"))
-                        .aggr("host")
+                    MultiSensor(
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.checked.rate|yt.flow.worker.computation.partition_store.input_messages.filtered.rate"))
+                            .aggr("host"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_store.checked.rate|yt.flow.worker.computation.input_store.filtered.rate"))
+                            .aggr("host"))
                         .unit("UNIT_COUNTS_PER_SECOND")
                 )
                 .cell("", EmptyCell())
@@ -339,6 +398,7 @@ def build_flow_computation():
         d.add(GENERATOR.build_resources_rowset())
         d.add(GENERATOR.build_partition_aggregates_rowset())
         d.add(GENERATOR.build_partition_store_operations_rowset())
+        d.add(GENERATOR.build_table_metrics_rowset())
         d.add(GENERATOR.build_processed_message_rate_rowset())
 
     return create_dashboard("computation", fill)

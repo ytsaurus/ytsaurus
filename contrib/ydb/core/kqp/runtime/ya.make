@@ -50,6 +50,7 @@ PEERDIR(
     contrib/ydb/core/formats
     contrib/ydb/core/kqp/common
     contrib/ydb/core/kqp/common/buffer
+    contrib/ydb/core/persqueue/events
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/ydb_convert

@@ -28,13 +28,13 @@
 #include <yt/yt/server/lib/controller_agent/job_report.h>
 #include <yt/yt/server/lib/controller_agent/network_project.h>
 
-#include <yt/yt/server/lib/misc/job_reporter.h>
-#include <yt/yt/server/lib/misc/job_table_schema.h>
-
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/tablet_node/public.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
+#include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
@@ -132,7 +132,7 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/library/numeric/algorithm_helpers.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/codicil_guarded_invoker.h>
@@ -146,6 +146,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -160,6 +161,8 @@
 #include <yt/yt/core/phoenix/load.h>
 #include <yt/yt/core/phoenix/schemas.h>
 #include <yt/yt/core/phoenix/type_registry.h>
+
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
@@ -278,8 +281,10 @@ TOperationControllerBase::TOperationControllerBase(
         return logger;
     }())
     , CoreNotes_({Format("OperationId: %v", OperationId_)})
-    , Acl_(operation->GetAcl())
-    , AcoName_(operation->GetAcoName())
+    , AccessControlRule_(
+        operation->GetAcoName()
+            ? TAccessControlRule(*operation->GetAcoName())
+            : TAccessControlRule(operation->GetAcl()))
     , ControllerEpoch_(operation->GetControllerEpoch())
     , CancelableContext_(New<TCancelableContext>())
     , ChunkScraperHeavyInvoker_(Host_->GetChunkScraperHeavyThreadPoolInvoker())
@@ -292,7 +297,8 @@ TOperationControllerBase::TOperationControllerBase(
                 AuthenticatedUser_)),
         CreateFairShareCallbackQueue,
         Config_->InvokerPoolTotalTimeAggregationPeriod,
-        "OperationController"))
+        "OperationController",
+        NProfiling::TSolomonRegistry::Get()))
     , InvokerPool_(DiagnosableInvokerPool_)
     , SuspendableInvokerPool_(TransformInvokerPool(InvokerPool_, CreateSuspendableInvoker))
     , CancelableInvokerPool_(TransformInvokerPool(
@@ -318,6 +324,7 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
         Config_->RunningJobStatisticsUpdatePeriod))
+    , CachedJobMetricsReportPeriodCpuDuration_(Config_->JobMetricsReportPeriod)
     , ScheduleAllocationStatistics_(New<TScheduleAllocationStatistics>(Config_->ScheduleAllocationStatisticsMovingAverageWindowSize))
     , CheckTimeLimitExecutor_(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
@@ -437,6 +444,32 @@ const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedFinishedJ
 const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedRunningJobStatistics() const
 {
     return AggregatedRunningJobStatistics_;
+}
+
+int TOperationControllerBase::GetHighJobThreadCountAlertFingerprint() const
+{
+    // The map only grows (entries are added in UpdateHighThreadCountJob, cleared in UpdateConfig
+    // when the formula changes). Its size uniquely identifies the current alert state.
+    return static_cast<int>(HighThreadCountJobPerTask_.size());
+}
+
+TError TOperationControllerBase::BuildHighJobThreadCountAlert() const
+{
+    if (Config_->MaxJobThreadCountFormula.IsEmpty() || HighThreadCountJobPerTask_.empty()) {
+        return TError{};
+    }
+
+    std::vector<TError> errors;
+    errors.reserve(HighThreadCountJobPerTask_.size());
+    for (const auto& [taskName, info] : HighThreadCountJobPerTask_) {
+        errors.push_back(
+            TError("Jobs exceed thread count limit")
+                << TErrorAttribute("thread_count", info.ThreadCount)
+                << TErrorAttribute("job_id", info.JobId)
+                << TErrorAttribute("task", taskName));
+    }
+
+    return TError("Some jobs have too many threads") << std::move(errors);
 }
 
 std::unique_ptr<IHistogram> TOperationControllerBase::ComputeFinalPartitionSizeHistogram() const
@@ -725,8 +758,11 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             asyncResults.push_back(AbortInputTransactions());
         } else {
             YT_LOG_INFO("Reusing operation transactions");
-            OutputTransaction_ = outputTransaction;
             DebugTransaction_ = debugTransaction;
+            {
+                auto guard = Guard(OutputTransactionLock_);
+                OutputTransaction_ = outputTransaction;
+            }
             AsyncTransaction_ = WaitFor(StartTransaction(ETransactionType::Async, Client_))
                 .ValueOrThrow();
         }
@@ -1457,7 +1493,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
     YT_LOG_INFO("Materialization finished");
 
-    OnOperationReady();
+    OnOperationReady(/*suspended*/ false);
 
     return result;
 }
@@ -1491,7 +1527,7 @@ void TOperationControllerBase::ClearEmptyAllocationsInRevive()
     EraseNodesIf(AllocationMap_, [] (const auto& idAllocation) { return !idAllocation.second.Joblet; });
 }
 
-TOperationControllerReviveResult TOperationControllerBase::Revive()
+TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1613,7 +1649,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     State_ = EControllerState::Running;
 
-    OnOperationReady();
+    OnOperationReady(suspended);
 
     OnOperationRevived();
 
@@ -1721,8 +1757,9 @@ void TOperationControllerBase::StartTransactions()
 
     {
         AsyncTransaction_ = results[0].ValueOrThrow();
-        OutputTransaction_ = results[1].ValueOrThrow();
         DebugTransaction_ = results[2].ValueOrThrow();
+        auto guard = Guard(OutputTransactionLock_);
+        OutputTransaction_ = results[1].ValueOrThrow();
     }
 
     WaitFor(inputTransactionsReadyFuture).ThrowOnError();
@@ -3368,6 +3405,7 @@ bool TOperationControllerBase::OnJobCompleted(
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+        UpdateHighThreadCountJob(joblet, *jobSummary);
 
         taskJobResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
@@ -3493,6 +3531,7 @@ bool TOperationControllerBase::OnJobFailed(
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
         UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+        UpdateHighThreadCountJob(joblet, *jobSummary);
 
         taskJobResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
 
@@ -3642,6 +3681,7 @@ bool TOperationControllerBase::OnJobAborted(
                     });
             }
             UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+            UpdateHighThreadCountJob(joblet, *jobSummary);
         }
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
@@ -4855,7 +4895,13 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
+    if (!(config->MaxJobThreadCountFormula == Config_->MaxJobThreadCountFormula)) {
+        HighThreadCountJobPerTask_.clear();
+    }
+
     Config_ = config;
+
+    CachedJobMetricsReportPeriodCpuDuration_.store(config->JobMetricsReportPeriod);
 
     RunningJobStatisticsUpdateExecutor_->SetPeriod(config->RunningJobStatisticsUpdatePeriod);
     SendRunningAllocationTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningAllocationTimeStatisticsUpdatesSendPeriod);
@@ -4908,11 +4954,16 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
             joblet);
     }
 
-    if (AcoName_) {
-        jobSpecExt->set_aco_name(*AcoName_);
-    } else {
-        jobSpecExt->set_acl(ToProto(ConvertToYsonString(Acl_)));
-    }
+    AccessControlRule_.Read(
+        [&] (const auto& rule) {
+            if (rule.IsAcl()) {
+                jobSpecExt->set_acl(ToProto(ConvertToYsonString(rule.GetAcl())));
+            } else if (rule.IsAcoName()) {
+                jobSpecExt->set_aco_name(rule.GetAcoName());
+            } else {
+                YT_ABORT();
+            }
+        });
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -5439,6 +5490,11 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
 TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    // NB(pogorelov): This check give us happens-before relation with restoring resources without taking a lock in Revive().
+    if (State_ != EControllerState::Running) {
+        return TCompositeNeededResources{};
+    }
 
     auto guard = ReaderGuard(CachedNeededResourcesLock_);
     return CachedNeededResources_;
@@ -5986,6 +6042,8 @@ bool TOperationControllerBase::IsFinished() const
 
 std::pair<ITransactionPtr, std::string> TOperationControllerBase::GetIntermediateMediumTransaction()
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     return {nullptr, {}};
 }
 
@@ -6325,11 +6383,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     TSerializableAccessControlList legacyIntermediateLivePreviewAcl;
     if (isLegacyIntermediateLivePreviewSupported) {
-        if (AcoName_) {
-            legacyIntermediateLivePreviewAcl = TAccessControlRule(*AcoName_).GetOrLookupAcl(Client_);
-        } else {
-            legacyIntermediateLivePreviewAcl = Acl_;
-        }
+        legacyIntermediateLivePreviewAcl = AccessControlRule_.Load().GetOrLookupAcl(Client_);
     }
 
     // NB: Use root credentials.
@@ -7913,7 +7967,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
         auto keys = std::vector<TExternalFunction>();
         keys.reserve(externalNames.size());
         for (const auto& name : externalNames) {
-            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk=*/ false, name);
+            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk*/ false, name);
         }
 
         auto descriptors = LookupAllUdfDescriptors(keys, Host_->GetClient());
@@ -9135,11 +9189,27 @@ void TOperationControllerBase::Dispose()
 
 void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update)
 {
+    YT_VERIFY(!update->Acl || !update->AcoName);
+
+    auto [isNonTrivialAcl, isAcoName] = AccessControlRule_.Read(
+        [](const auto& rule) {
+            return std::make_pair(
+                rule.IsAcl() && !rule.GetAcl().Entries.empty(),
+                rule.IsAcoName());
+        });
+
+    // Should be checked by scheduler.
+    // NB(coteeq): Trivial ACL is historically compatible with both new ACL and new AcoName.
+    YT_VERIFY(!(update->Acl && isAcoName));
+    YT_VERIFY(!(update->AcoName && isNonTrivialAcl));
+
     if (update->Acl) {
-        Acl_ = *update->Acl;
-    } else if (update->AcoName) {
-        AcoName_ = *update->AcoName;
+        AccessControlRule_.Exchange(TAccessControlRule(*update->Acl));
     }
+    if (update->AcoName) {
+        AccessControlRule_.Exchange(TAccessControlRule(*update->AcoName));
+    }
+
     if (update->SchedulingTagFilter) {
         Spec_->SchedulingTagFilter = *update->SchedulingTagFilter;
         UpdateExecNodes();
@@ -9205,7 +9275,8 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
     auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
     auto now = NProfiling::GetCpuInstant();
-    if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config_->JobMetricsReportPeriod) > now) {
+    auto reportPeriod = CachedJobMetricsReportPeriodCpuDuration_.load();
+    if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(reportPeriod) > now) {
         return {};
     }
 
@@ -10164,6 +10235,49 @@ void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobl
     joblet->Task->UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
 }
 
+void TOperationControllerBase::UpdateHighThreadCountJob(
+    const TJobletPtr& joblet,
+    const TJobSummary& jobSummary)
+{
+    if (!jobSummary.Statistics) {
+        return;
+    }
+
+    if (Config_->MaxJobThreadCountFormula.IsEmpty()) {
+        return;
+    }
+
+    auto threadCount = FindNumericValue(*jobSummary.Statistics, "/user_job/cpu/peak_thread_count"_SP);
+    if (!threadCount) {
+        return;
+    }
+
+    const auto& taskName = joblet->Task->GetVertexDescriptor();
+
+    // Already have a violating job for this task.
+    if (HighThreadCountJobPerTask_.contains(taskName)) {
+        return;
+    }
+
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    if (!userJobSpec) {
+        return;
+    }
+
+    const auto cpuLimit = static_cast<i64>(std::ceil(userJobSpec->CpuLimit));
+    i64 threadLimit = 0;
+    try {
+        threadLimit = Config_->MaxJobThreadCountFormula.Eval({{"cpu", cpuLimit}});
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to evaluate max_job_thread_count_formula (TaskName: %v)", taskName);
+        return;
+    }
+
+    if (*threadCount > threadLimit) {
+        HighThreadCountJobPerTask_[taskName] = THighThreadCountJobInfo{.JobId = jobSummary.Id, .ThreadCount = *threadCount};
+    }
+}
+
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished)
 {
     YT_LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
@@ -10419,8 +10533,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
-    // COMPAT(krasovav)
-    YT_VERIFY(CountNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
     {
         THashSet<std::string> volumesNotAllowedToBeCreated;
         for (const auto& [name, volume] : jobSpecConfig->Volumes) {
@@ -11202,10 +11314,14 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_);
     PHOENIX_REGISTER_FIELD(48, BannedNodeIds_);
     PHOENIX_REGISTER_FIELD(49, PathToOutputTable_);
-    PHOENIX_REGISTER_FIELD(50, Acl_);
-    // COMPAT(omgronny)
-    PHOENIX_REGISTER_FIELD(51, AcoName_,
-        .SinceVersion(ESnapshotVersion::AcoName));
+
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_DELETED_FIELD(50, TSerializableAccessControlList, Acl_, ESnapshotVersion::AccessControlRule);
+    PHOENIX_REGISTER_DELETED_FIELD(51, std::optional<std::string>, AcoName_, ESnapshotVersion::AccessControlRule);
+
+    PHOENIX_REGISTER_FIELD(80, AccessControlRule_,
+        .SinceVersion(ESnapshotVersion::AccessControlRule));
+
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
     PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_);
@@ -11252,6 +11368,9 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::GroupedNeededResources));
 
     PHOENIX_REGISTER_FIELD(79, EstimatedInputStatistics_);
+
+    PHOENIX_REGISTER_FIELD(81, HighThreadCountJobPerTask_,
+        .SinceVersion(ESnapshotVersion::HighThreadCountJobPerTask));
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -11982,7 +12101,7 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
     ReleaseJobs(jobIdsToRelease);
 }
 
-void TOperationControllerBase::OnOperationReady()
+void TOperationControllerBase::OnOperationReady(bool suspended)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
@@ -12010,7 +12129,7 @@ void TOperationControllerBase::OnOperationReady()
 
     YT_LOG_DEBUG("Registering revived allocations and jobs in job tracker (AllocationCount: %v)", std::size(revivedAllocations));
 
-    Host_->Revive(std::move(revivedAllocations));
+    Host_->Revive(std::move(revivedAllocations), suspended);
 }
 
 void TOperationControllerBase::OnOperationRevived()

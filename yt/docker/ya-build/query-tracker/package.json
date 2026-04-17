@@ -27,15 +27,6 @@
         },
         {
             "source": {
-                "type": "ARCADIA",
-                "path": "yt/python/yt/environment/init_query_tracker_state.py",
-            },
-            "destination": {
-                "path": "/",
-            },
-        },
-        {
-            "source": {
                 "type": "RELATIVE",
                 "path": "build_yql/yt/yql/tools/mrjob/mrjob",
             },

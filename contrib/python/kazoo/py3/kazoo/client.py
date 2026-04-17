@@ -120,6 +120,7 @@ class KazooClient(object):
         ca=None,
         use_ssl=False,
         verify_certs=True,
+        check_hostname=False,
         **kwargs,
     ):
         """Create a :class:`KazooClient` instance. All time arguments
@@ -143,7 +144,7 @@ class KazooClient(object):
             Should be a dict of SASL options passed to the underlying
             `pure-sasl <https://pypi.org/project/pure-sasl>`_ library.
 
-            For example using the DIGEST-MD5 mechnism:
+            For example using the DIGEST-MD5 mechanism:
 
             .. code-block:: python
 
@@ -182,6 +183,8 @@ class KazooClient(object):
         :param use_ssl: argument to control whether SSL is used or not
         :param verify_certs: when using SSL, argument to bypass
             certs verification
+        :param check_hostname: when using SSL, check the hostname
+            against the hostname in the cert
 
         Basic Example:
 
@@ -237,6 +240,7 @@ class KazooClient(object):
 
         self.use_ssl = use_ssl
         self.verify_certs = verify_certs
+        self.check_hostname = check_hostname
         self.certfile = certfile
         self.keyfile = keyfile
         self.keyfile_password = keyfile_password
@@ -767,8 +771,10 @@ class KazooClient(object):
             raise ConnectionLoss("No connection to server")
 
         peer = self._connection._socket.getpeername()[:2]
+        peer_host = self._connection._socket.getpeername()[1]
         sock = self.handler.create_connection(
             peer,
+            hostname=peer_host,
             timeout=self._session_timeout / 1000.0,
             use_ssl=self.use_ssl,
             ca=self.ca,
@@ -776,6 +782,7 @@ class KazooClient(object):
             keyfile=self.keyfile,
             keyfile_password=self.keyfile_password,
             verify_certs=self.verify_certs,
+            check_hostname=self.check_hostname,
         )
         sock.sendall(cmd)
         result = "".join(read_all(sock))
@@ -1608,7 +1615,7 @@ class KazooClient(object):
 
             :exc:`~kazoo.exceptions.NewConfigNoQuorumError` if no quorum of new
             config is connected and up-to-date with the leader of last
-            commmitted config - try invoking reconfiguration after new servers
+            committed config - try invoking reconfiguration after new servers
             are connected and synced.
 
             :exc:`~kazoo.exceptions.ReconfigInProcessError` if another

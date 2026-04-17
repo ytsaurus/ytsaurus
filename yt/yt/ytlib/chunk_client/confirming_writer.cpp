@@ -137,11 +137,9 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlockCount) override
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Initialized_.load());
-        YT_VERIFY(!truncateBlockCount.has_value());
 
         ChunkMeta_ = chunkMeta;
 
@@ -180,6 +178,10 @@ public:
 
     TChunkId GetChunkId() const override
     {
+        // Protects from race with concurrent Initialize().
+        if (!Initialized_.load()) {
+            return {};
+        }
         return SessionId_.ChunkId;
     }
 
@@ -329,7 +331,7 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
-        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)",replicas);
+        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)", replicas);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);

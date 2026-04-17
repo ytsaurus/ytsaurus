@@ -1,0 +1,82 @@
+<tmp_path>/program.sql:<main>: Warning: Type annotation
+
+    <tmp_path>/program.sql:<main>: Warning: At function: RemovePrefixMembers, At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple
+    
+        <tmp_path>/program.sql:<main>: Warning: At tuple
+        
+            <tmp_path>/program.sql:<main>:39:9: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        i_item_id
+	        ^
+                <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                
+                    <tmp_path>/program.sql:<main>:37:36: Warning: At function: And, At function: And
+                    	        AND sr_returned_date_sk == d_date_sk
+	                                   ^
+                        <tmp_path>/program.sql:<main>:33:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                        	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                            <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                            
+                                <tmp_path>/program.sql:<main>:33:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                                	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                                    <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                                    
+                                        <tmp_path>/program.sql:<main>:33:50: Warning: At function: SqlIn
+                                        	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                                            <tmp_path>/program.sql:<main>:33:50: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                            	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+        <tmp_path>/program.sql:<main>: Warning: At tuple
+        
+            <tmp_path>/program.sql:<main>:75:9: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        i_item_id
+	        ^
+                <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                
+                    <tmp_path>/program.sql:<main>:73:36: Warning: At function: And, At function: And
+                    	        AND cr_returned_date_sk == d_date_sk
+	                                   ^
+                        <tmp_path>/program.sql:<main>:69:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                        	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                            <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                            
+                                <tmp_path>/program.sql:<main>:69:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                                	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                                    <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                                    
+                                        <tmp_path>/program.sql:<main>:69:50: Warning: At function: SqlIn
+                                        	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                                            <tmp_path>/program.sql:<main>:69:50: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                            	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+        <tmp_path>/program.sql:<main>: Warning: At tuple
+        
+            <tmp_path>/program.sql:<main>:111:9: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        i_item_id
+	        ^
+                <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                
+                    <tmp_path>/program.sql:<main>:109:36: Warning: At function: And, At function: And
+                    	        AND wr_returned_date_sk == d_date_sk
+	                                   ^
+                        <tmp_path>/program.sql:<main>:105:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                        	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                            <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                            
+                                <tmp_path>/program.sql:<main>:105:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                                	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                                    <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
+                                    
+                                        <tmp_path>/program.sql:<main>:105:50: Warning: At function: SqlIn
+                                        	                            CAST('1998-11-10' AS Date)
+	                                                 ^
+                                            <tmp_path>/program.sql:<main>:105:50: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                            	                            CAST('1998-11-10' AS Date)
+	                                                 ^

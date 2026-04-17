@@ -184,7 +184,7 @@ def make_request(command_name,
         make_request.patient_logger = PatientLogger(1000)
 
     if (not make_request.patient_logger.has_fired()) and command_name.endswith("_rows"):
-        make_request.patient_logger.pester("PRC proxies are heavily recommended for dynamic tables RPC calls")
+        make_request.patient_logger.pester("RPC proxies are heavily recommended for dynamic tables RPC calls")
 
     if "master_cell_id" in params:
         raise YtError('Option "master_cell_id" is not supported for HTTP backend')

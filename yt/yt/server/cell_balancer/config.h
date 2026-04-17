@@ -57,6 +57,7 @@ struct TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
     std::string Cluster;
+    bool UseDedicatedUserName;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
     // TODO(grachevkirill): Rename to AllocatorRequestTimeout
@@ -127,6 +128,11 @@ struct TBundleControllerDynamicConfig
     std::optional<TDuration> BundleScanPeriod;
 
     TNodeTrackerDynamicConfigPtr NodeTracker;
+
+    bool RemoveTagsFromOfflineNodes;
+
+    std::optional<TDuration> RemoveInstanceCypressNodeAfter;
+    std::optional<TDuration> OfflineInstanceGracePeriod;
 
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 

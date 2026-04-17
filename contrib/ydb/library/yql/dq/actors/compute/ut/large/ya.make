@@ -40,8 +40,7 @@ PEERDIR(
 YQL_LAST_ABI_VERSION()
 
 SIZE(LARGE)
-TAG(ya:fat)
-
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
 FORK_SUBTESTS()
 
 END()

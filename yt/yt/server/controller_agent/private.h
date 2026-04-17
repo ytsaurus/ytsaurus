@@ -4,11 +4,11 @@
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
-#include <yt/yt/library/profiling/sensor.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NControllerAgent {
 
@@ -74,9 +74,9 @@ struct TJobMonitoringDescriptor
     TGuid Guid;
     int Index = 0;
 
-    void Persist(const TPersistenceContext& context);
-
     auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
+
+    PHOENIX_DECLARE_TYPE(TJobMonitoringDescriptor, 0xa1c3d5e7);
 };
 
 inline const TJobMonitoringDescriptor NullMonitoringDescriptor{

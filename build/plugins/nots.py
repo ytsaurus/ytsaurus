@@ -1234,13 +1234,6 @@ def on_ts_test_for_configure(
         unit.set_property(["DART_DATA", data])
 
 
-def on__ts_test_for_configure(unit: NotsUnitType) -> None:
-    # it has to be here because it uses TS_TEST_FOR_PATH that is set in plugin.
-    # if you call _SET_TS_TEST_FOR_INPUTS() directly
-    # from _TS_TEST_FOR_EPILOGUE(), TS_TEST_FOR_PATH is not set yet.
-    unit.on_set_ts_test_for_inputs()
-
-
 # noinspection PyUnusedLocal
 @_with_report_configure_error
 def on_validate_ts_test_for_args(unit: NotsUnitType, for_mod: str, root: str) -> None:
@@ -1250,11 +1243,21 @@ def on_validate_ts_test_for_args(unit: NotsUnitType, for_mod: str, root: str) ->
 
     is_arc_root = root == "${ARCADIA_ROOT}"
     is_rel_for_mod = for_mod.startswith(".")
+    forbid_rel = unit.get("_ALLOW_REL_FOR_PATH") == "no"
+
+    if forbid_rel and not is_arc_root:
+        arc_path = os.path.normpath(rootrel_arc_src(f"{root}/{for_mod}", unit))
+        ymake.report_configure_error(
+            "TS_TEST_FOR does not support RELATIVE path.\n"
+            f"Update your module to {COLORS.cyan}TS_TEST_FOR({arc_path}){COLORS.reset}\n"
+            "See more details in https://st.yandex-team.ru/FBP-3073"
+        )
+        return
 
     if is_arc_root and is_rel_for_mod:
         ymake.report_configure_error(
             "You are using a relative path for a module. "
-            + "You have to add RELATIVE key, like (RELATIVE {})".format(for_mod)
+            "You have to add RELATIVE key, like (RELATIVE {})".format(for_mod)
         )
 
 
@@ -1275,8 +1278,6 @@ def __on_ts_files(unit: NotsUnitType, files_in: list[str], files_out: list[str])
             )
 
     new_items = _build_cmd_input_paths(paths=files_in, hide=True, disable_include_processor=True)
-    new_items += " "
-    new_items += _build_cmd_output_paths(paths=files_out, hide=True)
     __set_append(unit, "_TS_FILES_INOUTS", new_items)
 
 
@@ -1304,7 +1305,7 @@ def on_ts_large_files(unit: NotsUnitType, destination: str, *files: list[str]) -
 
     # TODO: FBP-1795
     # ${BINDIR} prefix for input is important to resolve to result of LARGE_FILES and not to SOURCEDIR
-    new_items = [f'$COPY_CMD {i} {o}' for (i, o) in zip(in_files, out_files)]
+    new_items = [f'$MOVE_FILE {i} {o}' for (i, o) in zip(in_files, out_files)]
     __set_append(unit, "_TS_PROJECT_SETUP_CMD", new_items, " && ")
 
     __on_ts_files(unit, in_files, out_files)

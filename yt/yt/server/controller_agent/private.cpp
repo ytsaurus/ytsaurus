@@ -12,12 +12,13 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobMonitoringDescriptor::Persist(const TPersistenceContext& context)
+void TJobMonitoringDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Guid);
-    Persist(context, Index);
+    PHOENIX_REGISTER_FIELD(1, Guid);
+    PHOENIX_REGISTER_FIELD(2, Index);
 }
+
+PHOENIX_DEFINE_TYPE(TJobMonitoringDescriptor);
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/)
 {

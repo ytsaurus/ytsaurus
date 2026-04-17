@@ -54,6 +54,7 @@ struct TDataCenterDisruptedState
 struct TSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
+    TBundleControllerDynamicConfigPtr DynamicConfig;
 
     TIndexedEntries<TZoneInfo> Zones;
     TIndexedEntries<TBundleInfo> Bundles;
@@ -80,7 +81,7 @@ struct TSchedulerInputState
 
     THashMap<std::string, TDataCenterRackInfo> ZoneToRacks;
 
-    TBundlesDynamicConfig DynamicConfig;
+    TBundlesDynamicConfig BundlesDynamicConfig;
 
     THashMap<std::string, TPerDataCenterSpareNodesInfo> ZoneToSpareNodes;
 

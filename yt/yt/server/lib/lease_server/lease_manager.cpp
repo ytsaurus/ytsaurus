@@ -170,7 +170,10 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRevokeLease, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRemoveLeases, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraOnLeaseRevoked, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraToggleLeaseRefCounter, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND_NO_PROPAGATE(&TLeaseManager::HydraToggleLeaseRefCounter, Unretained(this)),
+            /*aliases=*/ {},
+            /*exceptionsAreNormal*/ true);
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(IssueLease));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(RevokeLease));
@@ -311,6 +314,15 @@ private:
         LeaseMap_.SaveValues(context);
 
         Save(context, Decommission_);
+    }
+
+    void Clear() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::Clear();
+
+        LeaseMap_.Clear();
     }
 
     void OnLeaderActive() override

@@ -974,11 +974,11 @@ private:
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
         // Cycles are fine for bootstrap.
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
         // Cycles are fine for bootstrap.
-        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+        BundleDynamicConfigManager_->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -1726,10 +1726,8 @@ private:
             if (GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector->CheckChunksCellTagsAfterReceivingNewMasterCellConfigs) {
                 YT_UNUSED_FUTURE(
                     // NB: Master cell tags were updated during firing the above signals.
-                    BIND([weakThis = MakeWeak(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
-                        if (auto this_ = weakThis.Lock()) {
-                            dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
-                        }
+                    BIND([this_ = MakeStrong(this), dataNodeBootstrap, masterCellTags = GetMasterConnector()->GetMasterCellTags()] {
+                        dataNodeBootstrap->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
                     }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                     .Run());
             }

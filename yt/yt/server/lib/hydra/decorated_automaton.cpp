@@ -96,7 +96,7 @@ TPendingMutation::TPendingMutation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
+TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 
@@ -105,14 +105,14 @@ TSystemLockGuard::~TSystemLockGuard()
     Release();
 }
 
-TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other)
+TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other) noexcept
 {
     Release();
     Automaton_ = std::move(other.Automaton_);
     return *this;
 }
 
-void TSystemLockGuard::Release()
+void TSystemLockGuard::Release() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -122,7 +122,7 @@ void TSystemLockGuard::Release()
     }
 }
 
-TSystemLockGuard::operator bool() const
+TSystemLockGuard::operator bool() const noexcept
 {
     return static_cast<bool>(Automaton_);
 }
@@ -139,7 +139,7 @@ TSystemLockGuard::TSystemLockGuard(TDecoratedAutomatonPtr automaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserLockGuard::TUserLockGuard(TUserLockGuard&& other)
+TUserLockGuard::TUserLockGuard(TUserLockGuard&& other) noexcept
     : Automaton_(std::move(other.Automaton_))
 { }
 
@@ -148,7 +148,7 @@ TUserLockGuard::~TUserLockGuard()
     Release();
 }
 
-TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other)
+TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other) noexcept
 {
     Release();
     Automaton_ = std::move(other.Automaton_);

@@ -127,7 +127,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return ReadyEvent();
+        return InternalGetReadyEvent();
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -218,10 +218,14 @@ public:
             schemaIdMapping)
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , Ranges_(std::move(ranges))
+        , SessionInvoker_(std::move(sessionInvoker))
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == TBlockReader::ChunkFormat);
+    }
 
-        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), sessionInvoker));
+    void InitializeRefCounted()
+    {
+        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), SessionInvoker_));
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -322,8 +326,10 @@ private:
     using TBlockReaderAdapter<TBlockReader>::BlockReader_;
 
     TKeyFilterStatisticsPtr KeyFilterStatistics_;
+    const TSharedRange<TRowRange> Ranges_;
+    const IInvokerPtr SessionInvoker_;
+
     std::vector<size_t> BlockIndexes_;
-    TSharedRange<TRowRange> Ranges_;
     int NextBlockIndex_ = 0;
     int RangeIndex_ = 0;
     bool IsLastRangeEmpty_ = true;
@@ -481,6 +487,9 @@ public:
             produceAllVersions,
             schemaIdMapping)
         , Keys_(keys)
+    { }
+
+    void InitializeRefCounted()
     {
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
@@ -1111,6 +1120,7 @@ public:
             schemaIdMapping,
             timestamp,
             memoryManagerHolder)
+        , SessionInvoker_(std::move(sessionInvoker))
         , RowBuilder_(
             chunkMeta,
             sortOrders.Size(),
@@ -1135,9 +1145,12 @@ public:
 
         InitLowerRowIndex();
         InitUpperRowIndex();
+    }
 
+    void InitializeRefCounted()
+    {
         if (LowerRowIndex_ < HardUpperRowIndex_) {
-            InitBlockFetcher(std::move(sessionInvoker));
+            InitBlockFetcher(SessionInvoker_);
             SetReadyEvent(RequestFirstBlocks());
         } else {
             Initialized_ = true;
@@ -1232,6 +1245,8 @@ public:
     }
 
 private:
+    const IInvokerPtr SessionInvoker_;
+
     bool Initialized_ = false;
     bool Completed_ = false;
 
@@ -1473,7 +1488,10 @@ public:
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         Initialize();
+    }
 
+    void InitializeRefCounted()
+    {
         SetReadyEvent(RequestFirstBlocks());
     }
 

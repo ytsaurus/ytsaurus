@@ -774,7 +774,7 @@ TQueueExportProfilingCountersOld::TQueueExportProfilingCountersOld(const TProfil
 
 TQueueExporterOld::TQueueExporterOld(
     TString exportName,
-    TCrossClusterReference queue,
+    TTablePath queue,
     const TQueueStaticExportConfigPtr& exportConfig,
     const TQueueExporterDynamicConfig& dynamicConfig,
     TClientDirectoryPtr clientDirectory,
@@ -841,11 +841,10 @@ void TQueueExporterOld::Export()
 void TQueueExporterOld::GuardedExport()
 {
     auto config = GetConfig();
-
     auto exportTask = New<TQueueExportTaskOld>(
-        ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
+        ClientDirectory_->GetClientOrThrow(Queue_.GetCluster().value()),
         ProfilingCounters_,
-        Queue_.Path,
+        Queue_.GetPath(),
         config,
         Logger);
 

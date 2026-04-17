@@ -204,7 +204,10 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"time/artifacts_download", "Job's artifact files downloading to the chunk cache duration", "ms"},
         {"time/prepare_root_fs", "Root Porto volume preparation duration", "ms"},
         {"time/validate_root_fs", "Root FS validation duration", "ms"},
+        // COMPAT(krasovav): Remove this statistic after it's no longer used
         {"time/prepare_tmpfs", "Tmpfs porto volumes preparation duration", "ms"},
+        {"time/prepare_non_root_volumes", "Non-root porto volumes preparation duration", "ms"},
+        {"time/link_volumes", "Porto volumes linking duration", "ms"},
         {"time/gpu_check", "GPU liveness check duration", "ms"},
         {"time/exec", "Time from the start to the end of job_proxy process", "ms"},
         {"time/artifacts_caching", "Job's artifact files downloading to the chunk cache duration", "ms"},

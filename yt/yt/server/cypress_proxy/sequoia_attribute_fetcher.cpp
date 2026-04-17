@@ -21,6 +21,10 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
+#include <util/generic/function_ref.h>
+
 
 namespace NYT::NCypressProxy {
 
@@ -499,7 +503,7 @@ private:
         bool serialize)
     {
         bool inherit = node->Get<bool>(EInternedAttributeKey::InheritAcl.Unintern());
-        auto acl = node->Get<TSerializableAccessControlList>(EInternedAttributeKey::Acl.Unintern());
+        auto acl = node->Get<TSerializableAccessControlList>(EInternedAttributeKey::SequoiaAcl.Unintern());
 
         if (inherit &&
             acl.Entries.empty() &&
@@ -711,7 +715,7 @@ private:
                     break;
                 }
                 case EInternedAttributeKey::EffectiveAcl: {
-                    EffectiveBaseAttributes_.push_back(EInternedAttributeKey::Acl.Unintern());
+                    EffectiveBaseAttributes_.push_back(EInternedAttributeKey::SequoiaAcl.Unintern());
                     EffectiveBaseAttributes_.push_back(EInternedAttributeKey::InheritAcl.Unintern());
                     break;
                 }
@@ -737,39 +741,51 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-    requires
-        std::same_as<T, TNodeId> ||
-        std::same_as<T, const std::vector<TCypressChildDescriptor>*> ||
-        std::same_as<T, const TNodeIdToChildDescriptors*>
 class TSequoiaAttributeFetcher
     : public TRefCounted
 {
-    using TRequestedNodes = T;
-
 public:
     TSequoiaAttributeFetcher(
         const TSequoiaSessionPtr& sequoiaSession,
         const TAttributeFilter& attributeFilter,
-        TNodeId rootId,
-        TRequestedNodes requestedNodes,
-        TNodeAncestry rootAncestry,
-        const std::vector<TNodeId>* scalarNodeIds = nullptr)
+        const TNodeIdToChildDescriptors* nodeIdToChildren,
+        const std::vector<TNodeId>* scalarNodeIds,
+        TNodeAncestry rootAncestry)
         : SequoiaSession_(sequoiaSession)
         , AttributeRequest_(attributeFilter)
-        , RootId_(rootId)
-        , RequestedNodes_(requestedNodes)
+        , Request_(TReqGetComposite{nodeIdToChildren, scalarNodeIds})
         , RootAncestry_(rootAncestry)
-        , ScalarNodeIds_(scalarNodeIds)
-    {
-        if constexpr (std::is_same_v<T, const TNodeIdToChildDescriptors*>) {
-            YT_VERIFY(ScalarNodeIds_);
-        }
-    }
+    { }
+
+    TSequoiaAttributeFetcher(
+        const TSequoiaSessionPtr& sequoiaSession,
+        const TAttributeFilter& attributeFilter,
+        const std::vector<TCypressChildDescriptor>* children,
+        TNodeAncestry rootAncestry)
+        : SequoiaSession_(sequoiaSession)
+        , AttributeRequest_(attributeFilter)
+        , Request_(TReqList{children})
+        , RootAncestry_(rootAncestry)
+    { }
+
+    TSequoiaAttributeFetcher(
+        const TSequoiaSessionPtr& sequoiaSession,
+        const TAttributeFilter& attributeFilter,
+        TNodeId rootId,
+        TNodeAncestry rootAncestry)
+        : SequoiaSession_(sequoiaSession)
+        , AttributeRequest_(attributeFilter)
+        , Request_(TReqGetAttributes{rootId})
+        , RootAncestry_(rootAncestry)
+    { }
 
     TFuture<TNodeIdToAttributes> FetchNodesWithAttributes()
     {
-        if (!AttributeRequest_.ShouldFetchAttributes() && (!ScalarNodeIds_ || ScalarNodeIds_->empty())) {
+        // Fast path.
+        if (auto* req = std::get_if<TReqGetComposite>(&Request_);
+            !AttributeRequest_.ShouldFetchAttributes() &&
+            (!req || req->ScalarNodeIds_->empty()))
+        {
             return MakeFuture<TNodeIdToAttributes>({});
         }
 
@@ -790,23 +806,24 @@ public:
                 auto fetchedBaseAttributes = baseAttributesFuture.GetOrCrash().Value();
 
                 auto traverseRequestedTree = [&] (INodeVisitor<TCypressChildDescriptor>* visitor) {
-                    if constexpr (std::is_same_v<T, const std::vector<TCypressChildDescriptor>*>) {
-                        constexpr auto isAncestorCallback = [] (const TCypressChildDescriptor&, const TCypressChildDescriptor&) {
-                            return false;
-                        };
-                        TraverseSequoiaTree(*RequestedNodes_, visitor, isAncestorCallback);
-                    } else if constexpr (std::is_same_v<T, const TNodeIdToChildDescriptors*>) {
-                        TraverseSequoiaTree(RootId_, *RequestedNodes_, visitor);
-                    } else if constexpr(!std::is_same_v<T, TNodeId>) {
-                        static_assert(false);
-                    }
+                    Visit(Request_,
+                        [&] (const TReqList& req) {
+                            constexpr auto isAncestorCallback = [] (const TCypressChildDescriptor&, const TCypressChildDescriptor&) {
+                                return false;
+                            };
+                            TraverseSequoiaTree(*req.Children, visitor, isAncestorCallback);
+                        },
+                        [&] (const TReqGetComposite& req) {
+                            TraverseSequoiaTree(GetRoot().Id, *req.NodeIdToChildren, visitor);
+                        },
+                        [&] (const TReqGetAttributes&) { });
                 };
 
                 if (auto inheritedState = ancestryFuture.GetOrCrash().Value()) {
                     auto calculator = TEffectiveAttributeCalculator::InheritFrom(
                         std::move(*inheritedState),
                         &fetchedBaseAttributes,
-                        RootAncestry_.Back());
+                        GetRoot());
                     traverseRequestedTree(&calculator);
                 }
 
@@ -814,7 +831,7 @@ public:
                     auto calculator = TRecursiveAttributeCalculator(
                         &fetchedBaseAttributes,
                         &(*frontierNodesResourceUsage),
-                        RootAncestry_.Back().Id);
+                        GetRoot().Id);
                     traverseRequestedTree(&calculator);
                     // TODO(danilalexeev): YT-26172. This should be a part of tree traversal.
                     calculator.Finalize();
@@ -825,26 +842,33 @@ public:
     }
 
 private:
+    struct TReqGetAttributes
+    {
+        TNodeId NodeId;
+    };
+
+    struct TReqList
+    {
+        const std::vector<TCypressChildDescriptor>* Children = nullptr;
+    };
+
+    struct TReqGetComposite
+    {
+        const TNodeIdToChildDescriptors* NodeIdToChildren = nullptr;
+        const std::vector<TNodeId>* ScalarNodeIds_ = nullptr;
+    };
+
+    using TRequest = std::variant<TReqGetAttributes, TReqList, TReqGetComposite>;
+
+private:
     const TSequoiaSessionPtr SequoiaSession_;
     const TSequoiaAttributeRequest AttributeRequest_;
-
-    const TNodeId RootId_;
-    const TRequestedNodes RequestedNodes_;
+    const TRequest Request_;
     const TNodeAncestry RootAncestry_;
-    const std::vector<TNodeId>* ScalarNodeIds_;
 
-    std::ranges::view auto GetRequestedNodeIds() const
+    const TCypressNodeDescriptor& GetRoot() const
     {
-        if constexpr (std::is_same_v<T, TNodeId>) {
-            return std::views::single(RequestedNodes_);
-        } else if constexpr (std::is_same_v<T, const std::vector<TCypressChildDescriptor>*>) {
-            return *RequestedNodes_
-                | std::views::transform([] (const TCypressChildDescriptor& descriptor) { return descriptor.ChildId; });
-        } else if constexpr (std::is_same_v<T, const TNodeIdToChildDescriptors*>) {
-            return *RequestedNodes_ | std::views::keys;
-        } else {
-            static_assert(false);
-        }
+        return RootAncestry_.Back();
     }
 
     TYPathProxy::TReqGetPtr CreateRequestTemplate(ETreeScope scope) const
@@ -931,72 +955,87 @@ private:
 
     TFuture<std::optional<THashMap<TNodeId, TResourceUsage>>> MaybePrecomputeRecursiveAttributes() const
     {
+        return BIND(&TSequoiaAttributeFetcher::DoMaybePrecomputeRecursiveAttributes, MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+    }
+
+    std::optional<THashMap<TNodeId, TResourceUsage>> DoMaybePrecomputeRecursiveAttributes() const
+    {
         if (AttributeRequest_.GetRecursiveAttributeKeys().empty()) {
-            return MakeFuture<std::optional<THashMap<TNodeId, TResourceUsage>>>(std::nullopt);
+            return std::nullopt;
         }
 
-        auto nodeIdsView = GetRequestedNodeIds();
-        auto requestedNodes = THashSet<TNodeId>(std::ranges::begin(nodeIdsView), std::ranges::end(nodeIdsView));
+        auto requestedNodes = Visit(Request_,
+            [&] (const TReqGetAttributes& req) {
+                return THashSet<TNodeId>{req.NodeId};
+            },
+            [&] (const TReqList& req) {
+                auto view = *req.Children
+                    | std::views::transform([] (const TCypressChildDescriptor& descriptor) {
+                        return descriptor.ChildId;
+                    });
+                return THashSet<TNodeId>(std::ranges::begin(view), std::ranges::end(view));
+            },
+            [&] (const TReqGetComposite& req) {
+                auto view = *req.NodeIdToChildren | std::views::keys;
+                return THashSet<TNodeId>(std::ranges::begin(view), std::ranges::end(view));
+            });
+        TNodeIdToAttributes pageAttrs;
 
-        // TODO(danilalexeev): YT-26172. Do not switch context.
-        auto subtree = SequoiaSession_->FetchSubtree(RootAncestry_.Back().Path);
+        auto fetchPageAttrs = [&] (const TSequoiaSession::TSubtree& subtreePage) {
+            std::vector<TNodeId> targetNodeIds;
+            for (const auto& descriptor : subtreePage.Nodes) {
+                if (!requestedNodes.contains(descriptor.Id)) {
+                    targetNodeIds.push_back(descriptor.Id);
+                }
+            }
 
-        std::vector<TNodeId> targetNodeIds;
-        targetNodeIds.reserve(std::max(std::ssize(subtree.Nodes) - std::ssize(requestedNodes), 0l));
-        for (const auto& descriptor : subtree.Nodes) {
-            if (!requestedNodes.contains(descriptor.Id)) {
-                targetNodeIds.push_back(descriptor.Id);
+            auto requestTemplate = CreateRequestTemplate(ETreeScope::Descendants);
+            auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
+                SequoiaSession_->GetNativeAuthenticatedClient(),
+                requestTemplate,
+                targetNodeIds,
+                SequoiaSession_->GetCurrentCypressTransactionId());
+
+            return WaitFor(
+                batcher.Invoke()
+                    .Apply(BIND(&TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::vector<TNodeId>{})))
+                .ValueOrThrow();
+        };
+
+        THashMap<TNodeId, TResourceUsage> frontierNodesResourceUsage;
+        auto calculator = TFrontierRecursiveAttributeCalculator(
+            &pageAttrs,
+            &requestedNodes,
+            &frontierNodesResourceUsage);
+
+        auto subtreeFetcher = SequoiaSession_->FetchPagedSubtree(RootAncestry_.Back().Path);
+        auto skipRoot = std::holds_alternative<TReqList>(Request_);
+
+        TSequoiaTreeTraverser traverser(&calculator);
+
+        while (subtreeFetcher.ShouldContinue()) {
+            auto page = subtreeFetcher.FetchNextPage();
+            pageAttrs = fetchPageAttrs(page);
+
+            for (const auto& node : page.Nodes) {
+                if (std::exchange(skipRoot, false)) {
+                    continue;
+                }
+                traverser.Walk(node);
             }
         }
 
-        // Fast path.
-        if (targetNodeIds.empty()) {
-            return MakeFuture(std::make_optional(THashMap<TNodeId, TResourceUsage>{}));
-        }
+        std::move(traverser).Finish();
 
-        auto requestTemplate = CreateRequestTemplate(ETreeScope::Descendants);
-        auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
-            SequoiaSession_->GetNativeAuthenticatedClient(),
-            requestTemplate,
-            targetNodeIds,
-            SequoiaSession_->GetCurrentCypressTransactionId());
-
-        // TODO(danilalexeev): YT-26461. Implement paging.
-        return batcher.Invoke()
-            .Apply(BIND(&TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::vector<TNodeId>{}))
-            .Apply(BIND([
-                requestedNodes = std::move(requestedNodes),
-                subtree = std::move(subtree)
-            ] (const TNodeIdToAttributes& result) -> std::optional<THashMap<TNodeId, TResourceUsage>> {
-                THashMap<TNodeId, TResourceUsage> frontierNodesResourceUsage;
-
-                auto calculator = TFrontierRecursiveAttributeCalculator(
-                    &result,
-                    &requestedNodes,
-                    &frontierNodesResourceUsage);
-
-                constexpr auto isAncestorCallback = [] (const TCypressNodeDescriptor& maybeAncestor, const TCypressNodeDescriptor& child) {
-                    return IsAncestorPath(maybeAncestor.Path, child.Path);
-                };
-
-                auto nodes = TRange(subtree.Nodes);
-
-                if constexpr (std::is_same_v<T, const std::vector<TCypressChildDescriptor>*>) {
-                    nodes = nodes.Slice(1, std::ssize(nodes));
-                }
-
-                TraverseSequoiaTree(
-                    nodes,
-                    &calculator,
-                    isAncestorCallback);
-
-                return frontierNodesResourceUsage;
-            }));
+        return frontierNodesResourceUsage;
     }
 
     TFuture<std::optional<TNodeIdToAttributes>> MaybeFetchRequestedNodesValuesScope() const
     {
-        if (!ScalarNodeIds_) {
+        auto* req = std::get_if<TReqGetComposite>(&Request_);
+        if (!req) {
             return MakeFuture<std::optional<TNodeIdToAttributes>>(std::nullopt);
         }
 
@@ -1004,7 +1043,7 @@ private:
         auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
             SequoiaSession_->GetNativeAuthenticatedClient(),
             requestTemplate,
-            *ScalarNodeIds_,
+            *(req->ScalarNodeIds_),
             SequoiaSession_->GetCurrentCypressTransactionId());
 
         return batcher.Invoke()
@@ -1021,20 +1060,27 @@ private:
             return MakeFuture<std::optional<TNodeIdToAttributes>>(std::nullopt);
         }
 
-        std::vector<TNodeId> targetNodeIds;
-        if constexpr (std::is_same_v<TRequestedNodes, const TNodeIdToChildDescriptors*>) {
-            auto view = GetRequestedNodeIds()
-                | std::views::filter([] (TNodeId nodeId) {
-                    return !IsScalarType(TypeFromId(nodeId));
-                });
-            targetNodeIds = std::vector<TNodeId>(std::ranges::begin(view), std::ranges::end(view));
-        } else {
-            auto view = GetRequestedNodeIds();
-            targetNodeIds = std::vector<TNodeId>(std::ranges::begin(view), std::ranges::end(view));
-        }
-        if constexpr (std::is_same_v<TRequestedNodes, const std::vector<TCypressChildDescriptor>*>) {
-            targetNodeIds.push_back(RootId_);
-        }
+        auto targetNodeIds = Visit(Request_,
+            [&] (const TReqGetAttributes& req) {
+                return std::vector{req.NodeId};
+            },
+            [&] (const TReqList& req) {
+                auto view = *req.Children
+                    | std::views::transform([] (const TCypressChildDescriptor& descriptor) {
+                        return descriptor.ChildId;
+                    });
+                auto result = std::vector(std::ranges::begin(view), std::ranges::end(view));
+                result.push_back(GetRoot().Id);
+                return result;
+            },
+            [&] (const TReqGetComposite& req) {
+                auto view = *req.NodeIdToChildren
+                    | std::views::keys
+                    | std::views::filter([] (TNodeId nodeId) {
+                        return !IsScalarType(TypeFromId(nodeId));
+                    });
+                return std::vector(std::ranges::begin(view), std::ranges::end(view));
+            });
 
         auto requestTemplate = CreateRequestTemplate(ETreeScope::RequestedAttributes);
         auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
@@ -1044,7 +1090,7 @@ private:
             SequoiaSession_->GetCurrentCypressTransactionId());
 
         return batcher.Invoke()
-            .Apply(BIND(TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::vector{RootId_}))
+            .Apply(BIND(TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::vector{GetRoot().Id}))
             .AsUnique()
             .Apply(BIND([] (TNodeIdToAttributes&& result) -> std::optional<TNodeIdToAttributes> {
                 return std::move(result);
@@ -1098,34 +1144,31 @@ bool HasSpecialAttributes(const TAttributeFilter& attributeFilter)
 TFuture<TNodeIdToAttributes> FetchAttributesForGetRequest(
     const TSequoiaSessionPtr& sequoiaSession,
     const TAttributeFilter& attributeFilter,
-    NCypressClient::TNodeId rootId,
     const TNodeIdToChildDescriptors* nodeIdToChildren,
-    TNodeAncestry rootAncestry,
-    const std::vector<TNodeId>* scalarNodeIds)
+    const std::vector<TNodeId>* scalarNodeIds,
+    TNodeAncestry rootAncestry)
 {
-    using T = std::decay_t<decltype(nodeIdToChildren)>;
-    auto fetcher = New<TSequoiaAttributeFetcher<T>>(
+    YT_VERIFY(nodeIdToChildren);
+    YT_VERIFY(scalarNodeIds);
+    auto fetcher = New<TSequoiaAttributeFetcher>(
         sequoiaSession,
         attributeFilter,
-        rootId,
         nodeIdToChildren,
-        rootAncestry,
-        scalarNodeIds);
+        scalarNodeIds,
+        rootAncestry);
     return fetcher->FetchNodesWithAttributes();
 }
 
 TFuture<TNodeIdToAttributes> FetchAttributesForListRequest(
     const TSequoiaSessionPtr& sequoiaSession,
     const TAttributeFilter& attributeFilter,
-    TNodeId rootId,
     const std::vector<TCypressChildDescriptor>* children,
     TNodeAncestry rootAncestry)
 {
-    using T = std::decay_t<decltype(children)>;
-    auto fetcher = New<TSequoiaAttributeFetcher<T>>(
+    YT_VERIFY(children);
+    auto fetcher = New<TSequoiaAttributeFetcher>(
         sequoiaSession,
         attributeFilter,
-        rootId,
         children,
         rootAncestry);
     return fetcher->FetchNodesWithAttributes();
@@ -1138,10 +1181,10 @@ TFuture<IAttributeDictionaryPtr> FetchAttributesForNode(
     TNodeAncestry rootAncestry)
 {
     YT_VERIFY(attributeFilter);
-    auto fetcher = New<TSequoiaAttributeFetcher<TNodeId>>(
+    YT_VERIFY(rootId == rootAncestry.Back().Id);
+    auto fetcher = New<TSequoiaAttributeFetcher>(
         sequoiaSession,
         attributeFilter,
-        rootId,
         rootId,
         rootAncestry);
     return fetcher->FetchNodesWithAttributes()

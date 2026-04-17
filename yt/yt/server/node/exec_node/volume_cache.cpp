@@ -13,17 +13,18 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/server/lib/nbd/image_reader.h>
-#include <yt/yt/server/lib/nbd/file_system_block_device.h>
 #include <yt/yt/server/lib/nbd/chunk_block_device.h>
-
-#include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/server/lib/nbd/file_system_block_device.h>
+#include <yt/yt/server/lib/nbd/image_reader.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
 
@@ -491,6 +492,7 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
                 device
             ] (const TError& error) {
                 if (!error.IsOK()) {
+                    // Failed to initialize device, finalize it in background.
                     YT_UNUSED_FUTURE(device->Finalize());
                     THROW_ERROR_EXCEPTION("Failed to initialize NBD device")
                         << error;
@@ -608,7 +610,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
             ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     if (auto device = nbdServer->TryUnregisterDevice(options.DeviceId)) {
-                        YT_LOG_DEBUG("Finalizing NBD device");
+                        YT_LOG_DEBUG("Finalizing RO NBD device");
                         YT_UNUSED_FUTURE(device->Finalize());
                     } else {
                         YT_LOG_WARNING("Failed to unregister NBD device");
@@ -1065,6 +1067,48 @@ TLayerLocationPtr TLayerCache::PickVolumeLocation() const
     return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         return candidate->GetVolumeCount() < current->GetVolumeCount();
     });
+}
+
+TLayerLocationPtr TLayerCache::PickRandomLocation() const
+{
+    // Separate locations into non-importing and importing
+    std::vector<TLayerLocationPtr> nonImportingLocations;
+    std::vector<TLayerLocationPtr> importingLocations;
+
+    for (const auto& location : LayerLocations_) {
+        if (!location->IsEnabled() || location->IsFull()) {
+            continue;
+        }
+
+        if (location->IsLayerImportInProgress()) {
+            importingLocations.push_back(location);
+        } else {
+            nonImportingLocations.push_back(location);
+        }
+    }
+
+    // Prefer non-importing locations, pick randomly from them
+    if (!nonImportingLocations.empty()) {
+        auto index = RandomNumber<size_t>(nonImportingLocations.size());
+        return nonImportingLocations[index];
+    }
+
+    // If all are importing, pick randomly from importing locations
+    if (!importingLocations.empty()) {
+        auto index = RandomNumber<size_t>(importingLocations.size());
+        return importingLocations[index];
+    }
+
+    // For our purposes it is all right to return unavailable location.
+    if (!LayerLocations_.empty()) {
+        auto index = RandomNumber<size_t>(LayerLocations_.size());
+        return LayerLocations_[index];
+    }
+
+    // No location available.
+    THROW_ERROR_EXCEPTION(
+        NExecNode::EErrorCode::NoLayerLocationAvailable,
+        "Failed to get any layer location");
 }
 
 void TLayerCache::PopulateAlerts(std::vector<TError>* alerts)

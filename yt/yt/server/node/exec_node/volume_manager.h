@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "preparation_options.h"
+#include "public.h"
 #include "volume_artifact.h"
 
 #include <yt/yt/core/actions/future.h>
@@ -12,7 +12,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class can create root volume as well as tmpfs volumes.
+//! This class creates all volumes for job.
 struct IVolumeManager
     : public virtual TRefCounted
 {
@@ -21,21 +21,23 @@ struct IVolumeManager
         const std::vector<TArtifactKey>& artifactKeys,
         const TVolumePreparationOptions& options) = 0;
 
-    //! Prepare tmpfs volumes.
-    virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+    //! Prepare non-root volumes.
+    virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<TString>& sandboxPath,
-        const std::vector<TTmpfsVolumeParams>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
+        const TJobId& jobId,
+        const std::vector<TBaseVolumeParamsPtr>& volumes,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
+        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
 
     //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
         const TString& slotPath) = 0;
 
-    //! Link tmpfs volumes into destination directory.
-    virtual TFuture<void> LinkTmpfsVolumes(
+    //! Link volumes into destination directory.
+    virtual TFuture<void> LinkVolumes(
         const TString& destinationDirectory,
-        const std::vector<TTmpfsVolumeResult>& volumes,
+        const std::vector<TVolumeResultPtr>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
 
     //! Remove volumes planted at a given place.

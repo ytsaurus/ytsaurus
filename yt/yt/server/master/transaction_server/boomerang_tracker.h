@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
+
 #include <yt/yt/server/master/cell_master/public.h>
 
 namespace NYT::NTransactionServer {

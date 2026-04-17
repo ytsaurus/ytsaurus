@@ -34,10 +34,38 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::vector<TString> ParameterizedBalancingAttributes = {
+const std::vector<TString> ParameterizedBalancingAttributes = {
     "/statistics",
     "/performance_counters"
 };
+
+double ExtractMetricValue(
+    const NTableClient::TUnversionedValue& value,
+    const std::string& metric,
+    TTabletId tabletId,
+    TTableId tableId)
+{
+    switch (value.Type) {
+        case EValueType::Double:
+            return value.Data.Double;
+
+        case EValueType::Int64:
+            return value.Data.Int64;
+
+        case EValueType::Uint64:
+            return value.Data.Uint64;
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Tablet metric value type is not numerical: got %Qlv",
+                value.Type)
+                << TErrorAttribute("metric_formula", metric)
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("table_id", tableId);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 constexpr int MaxVerboseLogMessagesPerIteration = 2000;
 constexpr double MinimumAcceptableMetricValue = 1e-30;
@@ -195,24 +223,11 @@ protected:
             rowBuffer)
             .ValueOrThrow();
 
-        switch (value.Type) {
-            case EValueType::Double:
-                return value.Data.Double;
+        auto tableId = tablet->Table
+            ? tablet->Table->Id
+            : NullObjectId;
 
-            case EValueType::Int64:
-                return value.Data.Int64;
-
-            case EValueType::Uint64:
-                return value.Data.Uint64;
-
-            default:
-                THROW_ERROR_EXCEPTION(
-                    "Tablet metric value type is not numerical: got %Qlv",
-                    value.Type)
-                    << TErrorAttribute("metric_formula", Metric_)
-                    << TErrorAttribute("tablet_id", tablet->Id)
-                    << TErrorAttribute("table_id", tablet->Table->Id);
-        }
+        return ExtractMetricValue(value, Metric_, tablet->Id, tableId);
     }
 };
 
@@ -396,6 +411,7 @@ private:
         const TNodeAddress Address;
         double Metric = 0;
         i64 FreeNodeMemory = 0;
+        i64 CellMemoryLimit;
         int Index;
         bool Overloaded = false;
         i64 SafeFreeMemoryAmount;
@@ -531,7 +547,6 @@ void TParameterizedReassignSolver::Initialize()
     auto cells = Bundle_->GetAliveCells();
 
     if (cells.empty()) {
-        // Therefore nodes list will be empty and balancing will not be triggered.
         YT_LOG_WARNING("There are no alive cells");
         return;
     }
@@ -649,7 +664,8 @@ void TParameterizedReassignSolver::Initialize()
 
     int tableCount = std::ssize(tableInfoIndex);
     if (tableCount == 0) {
-        // Therefore there are no tables to balance.
+        YT_LOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging,
+            "There are no tables to balance");
         return;
     }
 
@@ -757,6 +773,7 @@ void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId,
         node.FreeNodeMemory = free;
         node.Overloaded = free < 0;
         node.SafeFreeMemoryAmount = statistics.MemoryLimit * (1 - Bundle_->Config->SafeUsedTabletStaticRatio);
+        node.CellMemoryLimit = cellLimit;
 
         EmplaceOrCrash(cellMemoryLimit, address, cellLimit);
     }
@@ -927,7 +944,7 @@ bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     }
 
     auto size = tablet->MemorySize;
-    if (destinationCell->FreeCellMemory < size) {
+    if (size <= destinationCell->Node->CellMemoryLimit && destinationCell->FreeCellMemory < size) {
         return false;
     }
 
@@ -1321,7 +1338,9 @@ private:
 
     bool IsParameterizedReshardEnabled(const TTablePtr& table) const;
 
-    TTableStatistics GetTableStatistics(const TTablePtr& table, int desiredTabletCount) const;
+    TTableStatistics GetTableStatistics(
+        const TTablePtr& table,
+        const TTableTabletBalancerConfigPtr& config) const;
 
     std::optional<TReshardDescriptor> TryMakeTabletFit(
         const TTablePtr& table,
@@ -1423,19 +1442,19 @@ std::vector<TReshardDescriptor> TParameterizedResharder::BuildTableActionDescrip
         return {};
     }
 
-    YT_VERIFY(table->TableConfig->DesiredTabletCount.has_value());
-    auto desiredTabletCount = *table->TableConfig->DesiredTabletCount;
+    YT_VERIFY(table->TableConfig->DesiredTabletCount.has_value() ||
+        table->TableConfig->DesiredTabletMetric.has_value());
 
-    if (desiredTabletCount <= 0) {
+    if (table->TableConfig->DesiredTabletCount.has_value() && *table->TableConfig->DesiredTabletCount <= 0) {
         YT_LOG_WARNING("Table desired tablet count is not positive "
             "(TableId: %v, TablePath: %v, DesiredTabletCount: %v)",
             table->Id,
             table->Path,
-            desiredTabletCount);
+            table->TableConfig->DesiredTabletCount);
         return {};
     }
 
-    auto statistics = GetTableStatistics(table, desiredTabletCount);
+    auto statistics = GetTableStatistics(table, table->TableConfig);
     YT_VERIFY(statistics.DesiredTabletMetric > 0);
     std::vector<TReshardDescriptor> actions;
     THashSet<int> touchedTabletIndexes;
@@ -1458,7 +1477,7 @@ std::vector<TReshardDescriptor> TParameterizedResharder::BuildTableActionDescrip
         "(TabletCount: %v, NewTabletCount: %v, DesiredTabletCount: %v)",
         std::ssize(table->Tablets),
         tabletCount,
-        desiredTabletCount);
+        statistics.DesiredTabletCount);
 
     SortTabletActionsByUsefulness(&actions);
     TrimTabletActions(std::ssize(table->Tablets), &actions);
@@ -1677,9 +1696,9 @@ bool TParameterizedResharder::IsParameterizedReshardEnabled(const TTablePtr& tab
 
 TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStatistics(
     const TTablePtr& table,
-    int desiredTabletCount) const
+    const TTableTabletBalancerConfigPtr& config) const
 {
-    TTableStatistics statistics{.DesiredTabletCount = desiredTabletCount};
+    TTableStatistics statistics {};
 
     for (const auto& tablet : table->Tablets) {
         statistics.TabletSizes.push_back(GetTabletBalancingSize(tablet));
@@ -1706,11 +1725,32 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
             table->Id);
     }
 
-    statistics.DesiredTabletSize = statistics.TableSize / statistics.DesiredTabletCount;
+    if (config->DesiredTabletCount.has_value()) {
+        YT_LOG_DEBUG_IF(
+            config->DesiredTabletMetric.has_value() &&
+            (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
+            LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Desired tablet count and desired tablet metric both set in config, use desired tablet count "
+            "(TableId: %v, DesiredTabletCount: %v, DesiredTabletMetric: %v)",
+            table->Id,
+            config->DesiredTabletCount,
+            config->DesiredTabletMetric);
+
+        statistics.DesiredTabletCount = config->DesiredTabletCount.value();
+        statistics.DesiredTabletMetric = statistics.TableMetric / statistics.DesiredTabletCount;
+
+        statistics.DesiredTabletSize = statistics.TableSize / statistics.DesiredTabletCount;
+    } else {
+        statistics.DesiredTabletMetric = config->DesiredTabletMetric.value();
+        statistics.DesiredTabletCount = statistics.TableMetric / statistics.DesiredTabletMetric;
+
+        // NB(dave11ar): For accuracy purposes.
+        statistics.DesiredTabletSize = statistics.DesiredTabletMetric * statistics.TableSize / statistics.TableMetric;
+    }
+
     statistics.MinTabletSize = statistics.DesiredTabletSize / 1.9;
     statistics.MaxTabletSize = statistics.DesiredTabletSize * 1.9;
 
-    statistics.DesiredTabletMetric = statistics.TableMetric / statistics.DesiredTabletCount;
     statistics.MinTabletMetric = statistics.DesiredTabletMetric / 1.9;
 
     if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {

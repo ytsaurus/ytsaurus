@@ -1,10 +1,9 @@
 #include "controller_agent.h"
 
-#include "config.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
-#include "controllers/common_profilers.h"
 #include "job_tracker.h"
 #include "master_connector.h"
 #include "memory_watchdog.h"
@@ -15,12 +14,14 @@
 #include "scheduling_context.h"
 #include "universal_monitoring_descriptor_manager.h"
 
+#include <yt/yt/server/controller_agent/controllers/common_profilers.h>
 #include <yt/yt/server/controller_agent/controllers/common_state.h>
 
-#include <yt/yt/server/lib/scheduler/message_queue.h>
 #include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/message_queue.h>
+
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
@@ -33,16 +34,16 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/yt/ytlib/event_log/config.h>
 #include <yt/yt/ytlib/event_log/event_log.h>
 
-#include <yt/yt/ytlib/scheduler/disk_resources.h>
-#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 #include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/disk_resources.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -60,8 +61,8 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -859,13 +860,13 @@ public:
                 .Via(CancelableControlInvoker_));
     }
 
-    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation)
+    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation, bool suspended)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
-        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
+        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller, suspended)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
 
@@ -1716,12 +1717,14 @@ private:
                 protoOperation->set_suspicious_jobs(ToProto(controller->GetSuspiciousJobsYson()));
             }
 
-            ToProto(
-                protoOperation->mutable_composite_needed_resources(),
-                controller->GetNeededResources());
-            ToProto(
-                protoOperation->mutable_grouped_needed_resources(),
-                controller->GetGroupedNeededResources());
+            if (controller->IsRunning()) {
+                ToProto(
+                    protoOperation->mutable_composite_needed_resources(),
+                    controller->GetNeededResources());
+                ToProto(
+                    protoOperation->mutable_grouped_needed_resources(),
+                    controller->GetGroupedNeededResources());
+            }
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
@@ -2162,6 +2165,14 @@ private:
                         ProcessUnregisterOperationEvent(operationId);
                         break;
 
+                    case ESchedulerToAgentOperationEventType::SuspendOperation:
+                        ProcessSuspendOperationEvent(operationId);
+                        break;
+
+                    case ESchedulerToAgentOperationEventType::ResumeOperation:
+                        ProcessResumeOperationEvent(operationId);
+                        break;
+
                     default:
                         YT_ABORT();
                 }
@@ -2199,6 +2210,38 @@ private:
             return;
         }
         UnregisterOperation(operation->GetId());
+    }
+
+    void ProcessSuspendOperationEvent(TOperationId operationId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            YT_LOG_FATAL(
+                "Requested to suspend an unknown operation; ignored (OperationId: %v)",
+                operationId);
+            return;
+        }
+
+        const auto& host = operation->GetHost();
+        host->SuspendOperation();
+    }
+
+    void ProcessResumeOperationEvent(TOperationId operationId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            YT_LOG_FATAL(
+                "Requested to resume an unknown operation; ignored (OperationId: %v)",
+                operationId);
+            return;
+        }
+
+        const auto& host = operation->GetHost();
+        host->ResumeOperation();
     }
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
@@ -2577,9 +2620,9 @@ TFuture<std::optional<TOperationControllerMaterializeResult>> TControllerAgent::
     return Impl_->MaterializeOperation(operation);
 }
 
-TFuture<std::optional<TOperationControllerReviveResult>> TControllerAgent::ReviveOperation(const TOperationPtr& operation)
+TFuture<std::optional<TOperationControllerReviveResult>> TControllerAgent::ReviveOperation(const TOperationPtr& operation, bool suspended)
 {
-    return Impl_->ReviveOperation(operation);
+    return Impl_->ReviveOperation(operation, suspended);
 }
 
 TFuture<std::optional<TOperationControllerCommitResult>> TControllerAgent::CommitOperation(const TOperationPtr& operation)

@@ -2,10 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/tagged_counters.h>
-
-#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NExecNode {
 
@@ -14,8 +14,6 @@ namespace NYT::NExecNode {
 class TVolumeProfilerCounters
 {
 public:
-    TVolumeProfilerCounters();
-
     NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name);
 
     NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const TString& name);
@@ -29,6 +27,8 @@ public:
     static TVolumeProfilerCounters* Get();
 
 private:
+    TVolumeProfilerCounters();
+
     using TKey = NProfiling::TTagList;
 
     const NProfiling::TProfiler VolumeProfiler_;
@@ -39,6 +39,8 @@ private:
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
 
     static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name);
+
+    Y_DECLARE_SINGLETON_FRIEND()
 };
 
 ////////////////////////////////////////////////////////////////////////////////

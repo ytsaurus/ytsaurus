@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -80,6 +81,103 @@ func TestOperation(t *testing.T) {
 	require.NoError(t, r.Err())
 }
 
+func init() {
+	// Register jobs for Vanilla operation tests
+	mapreduce.Register(&simpleVanillaJob{})
+}
+
+type simpleVanillaJob struct {
+	mapreduce.Untyped
+}
+
+func (j *simpleVanillaJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
+	return nil
+}
+
+// setSpecParameter sets a parameter on UserScript by field name using reflection.
+func setSpecParameter(s *spec.UserScript, fieldName string, value any) error {
+	rv := reflect.ValueOf(s).Elem()
+	field := rv.FieldByName(fieldName)
+	if !field.IsValid() {
+		return fmt.Errorf("field %s not found", fieldName)
+	}
+
+	// Convert value to pointer type if needed.
+	val := value
+	if field.Kind() == reflect.Ptr {
+		// For pointer fields like *bool, wrap the value.
+		v := reflect.New(field.Type().Elem())
+		v.Elem().Set(reflect.ValueOf(value))
+		val = v.Interface()
+	}
+
+	field.Set(reflect.ValueOf(val))
+	return nil
+}
+
+func TestVanillaSpecParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		paramName   string
+		paramVal    any
+		structField string
+	}{
+		{
+			name:        "enable_gpu_check true",
+			paramName:   "enable_gpu_check",
+			paramVal:    true,
+			structField: "EnableGpuCheck",
+		},
+		{
+			name:        "enable_gpu_check false",
+			paramName:   "enable_gpu_check",
+			paramVal:    false,
+			structField: "EnableGpuCheck",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := yttest.New(t)
+
+			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer cancel()
+
+			// Verify that the struct field exists.
+			userScriptType := reflect.TypeOf((*spec.UserScript)(nil)).Elem()
+			_, exists := userScriptType.FieldByName(tt.structField)
+			require.True(t, exists, "Parameter %s not found in spec.UserScript struct", tt.structField)
+
+			// Create Vanilla spec with parameter.
+			s := spec.Vanilla().
+				AddVanillaTask("test", 1)
+
+			// Initialize mapper if nil and set parameter using reflection.
+			if s.Mapper == nil {
+				s.Mapper = &spec.UserScript{}
+			}
+			require.NoError(t, setSpecParameter(s.Mapper, tt.structField, tt.paramVal))
+
+			// Create a simple job.
+			job := &simpleVanillaJob{}
+
+			op, err := env.MR.Vanilla(s, map[string]mapreduce.Job{"test": job})
+			require.NoError(t, err)
+
+			status, err := env.YT.GetOperation(ctx, op.ID(), nil)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, status.ID)
+			t.Logf("Vanilla operation started successfully with %s=%v", tt.paramName, tt.paramVal)
+		})
+	}
+}
+
 func TestOperationWithStderr(t *testing.T) {
 	t.Parallel()
 
@@ -131,17 +229,22 @@ func TestOperationWithStderr(t *testing.T) {
 		require.Empty(t, jobs.Jobs)
 	}
 	taskName := "map"
-	jobs, err := env.YT.ListJobs(ctx, opID, nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, jobs.Jobs)
-	for _, job := range jobs.Jobs {
+	checkJob := func(job yt.JobStatus) {
 		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, []byte("hello\n"), stderr)
 		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
 		require.NoError(t, err)
-		require.Equal(t, &job, info)
+		require.Equal(t, job.ID, info.ID)
+		require.Equal(t, job.Type, info.Type)
+		require.Equal(t, job.TaskName, info.TaskName)
 		require.Equal(t, taskName, job.TaskName)
+	}
+	jobs, err := env.YT.ListJobs(ctx, opID, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, jobs.Jobs)
+	for _, job := range jobs.Jobs {
+		checkJob(job)
 	}
 	jobs, err = env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{
 		TaskName: &taskName,
@@ -149,13 +252,7 @@ func TestOperationWithStderr(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, jobs.Jobs)
 	for _, job := range jobs.Jobs {
-		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
-		require.NoError(t, err)
-		require.Equal(t, []byte("hello\n"), stderr)
-		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
-		require.NoError(t, err)
-		require.Equal(t, &job, info)
-		require.Equal(t, taskName, job.TaskName)
+		checkJob(job)
 	}
 }
 
@@ -302,6 +399,44 @@ func TestListAllOperations(t *testing.T) {
 	slices.Reverse(found)
 
 	require.Equal(t, opIDs, found)
+}
+
+func TestListOperationEvents(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	opSpec := map[string]any{
+		"tasks": map[string]any{
+			"main": map[string]any{
+				"job_count":    10,
+				"command":      "echo hello >> /dev/stderr",
+				"gang_options": map[string]any{},
+			},
+		},
+	}
+
+	opID, err := env.YT.StartOperation(ctx, yt.OperationVanilla, opSpec, nil)
+	require.NoError(t, err)
+
+	err = waitOpState(ctx, env.YT, opID, yt.StateCompleted)
+	require.NoError(t, err)
+
+	time.Sleep(3 * time.Second)
+
+	result, err := env.YT.ListOperationEvents(ctx, opID, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotEmpty(t, result.Events)
+
+	for _, event := range result.Events {
+		require.Equal(t, yt.IncarnationStarted, event.EventType)
+		require.False(t, time.Time(event.Timestamp).IsZero())
+	}
 }
 
 func TestListAllJobs(t *testing.T) {

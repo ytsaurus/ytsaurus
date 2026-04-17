@@ -13,6 +13,20 @@ namespace NCppTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWaitUntilOptions
+{
+    TDuration Timeout = TDuration::Seconds(30);
+    TDuration SleepBackoff = TDuration::MilliSeconds(500);
+    bool IgnoreExceptions = false;
+};
+
+void WaitUntil(
+    std::function<bool()> predicate,
+    TStringBuf errorMessage,
+    TWaitUntilOptions options = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiTestBase
     : public ::testing::Test
 {
@@ -28,10 +42,6 @@ protected:
     static NApi::IClientPtr CreateClient(const std::string& userName);
 
     static void WaitUntilEqual(const NYPath::TYPath& path, TStringBuf expected);
-
-    static void WaitUntil(
-        std::function<bool()> predicate,
-        TStringBuf errorMessage);
 
     static void AbortCypressTransactions();
 };

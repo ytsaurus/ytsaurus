@@ -110,22 +110,17 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
-    {"FiniteStreams", "0"},
-    {"GatewayThreads", "16"},
+    {"_FiniteStreams", "0"},
     {"GracefulUpdate", "1"},
     {"UpdateTimeout", "600s"},
     {"ControllerCount", "1"},
     {"ControllerCpuLimit", "1.0"},
     {"ControllerMemoryLimit", "1G"},
-    {"ControllerRpcPort", "10080"},
-    {"ControllerMonitoringPort", "10081"},
-    {"WorkerCount", "10"},
+    {"WorkerCount", "1"},
     {"WorkerCpuLimit", "1.0"},
     {"WorkerMemoryLimit", "1G"},
-    {"WorkerRpcPort", "10082"},
-    {"WorkerMonitoringPort", "10083"},
     {"YtConsumerVital", "false"},
-    {"YtPartitionCount", "10"}
+    {"YtPartitionCount", "1"}
 });
 
 constexpr auto DefaultPQGatewaySettings = std::array<std::pair<TStringBuf, TStringBuf>, 0>{};

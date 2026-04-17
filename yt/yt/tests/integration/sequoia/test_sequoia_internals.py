@@ -6,6 +6,7 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
+    create_account, remove_account,
 )
 
 from yt_sequoia_helpers import (
@@ -15,6 +16,8 @@ from yt_sequoia_helpers import (
     select_cypress_transaction_prerequisites, lookup_rows_in_ground,
     mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
+
+import yt_error_codes
 
 from yt.sequoia_tools import DESCRIPTORS
 
@@ -96,6 +99,7 @@ class TestSequoiaInternals(YTEnvSetup):
             "enable_ground_update_queues_sync": False,
             "enable_user_directory_per_request_sync": False,
         },
+        "select_subtree_rows_limit": 10**6,
     }
 
     @authors("kvk1920")
@@ -178,52 +182,57 @@ class TestSequoiaInternals(YTEnvSetup):
         tt = get("//tmp", attributes=["id"])
         assert tt["d"].attributes["id"] == id
 
-    @authors("h0pless")
+    @authors("danilalexeev")
     def test_get_recursive_limits(self):
-        # Test directory structure:
-        # root
-        # |-- level_1_string
-        # |-- level_1_map_0
-        # |   |-- level_2_map
-        # |   |   |-- level_3_map
-        # |   |   `-- level_3_string
-        # |   `-- level_2_string
-        # `-- level_1_map_1
-
         root = "//tmp/root"
-        create("map_node", f"{root}/level_1_map_0/level_2_map/level_3_map", recursive=True)
-        create("string_node", f"{root}/level_1_string")
-        create("string_node", f"{root}/level_1_map_0/level_2_string")
-        create("string_node", f"{root}/level_1_map_0/level_2_map/level_3_string")
-        create("map_node", f"{root}/level_1_map_1",)
-        set(f"{root}/level_1_string", "level_1_value")
-        set(f"{root}/level_1_map_0/level_2_string", "level_2_value")
-        set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
+        tree = {
+            "level_1_string": "level_1_value",
+            "level_1_map_0": {
+                "level_2_string": "level_2_value",
+                "level_2_map": {
+                    "level_3_string": "level_3_value",
+                    "level_3_map": {},
+                },
+            },
+            "level_1_map_1": {},
+        }
+        set(root, tree, recursive=True, force=True)
 
-        # First off, check that root node cannot appear opaque.
-        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": yson.YsonEntity(), "level_1_string": "level_1_value"}
+        # limit=1: root children always shown.
+        expected_result = {
+            "level_1_map_0": yson.YsonEntity(),
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
         sleep(0.5)
         assert get(root) == expected_result
 
-        # Now ensure that until the full layer of children can fit the limit we do not add anything to the response.
+        # For limits 2-5: level_1_map_0 is still opaque.
         for limit in range(2, 6):
             set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
             sleep(0.5)
             assert get(root) == expected_result
 
-        # A new layer should be added.
+        # limit=6: level_1_map_0's children now fit.
         expected_result = {
             "level_1_map_0": {"level_2_map": yson.YsonEntity(), "level_2_string": "level_2_value"},
-            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 6)
         sleep(0.5)
         assert get(root) == expected_result
 
-        # The whole tree should be fetched.
+        # Full tree.
         expected_result = {
-            "level_1_map_0": {"level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"}, "level_2_string": "level_2_value"},
-            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+            "level_1_map_0": {
+                "level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"},
+                "level_2_string": "level_2_value"
+            },
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
         sleep(0.5)
         assert get(root) == expected_result
@@ -245,7 +254,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", f"{root}/child_1/grandchild_1")
         set(f"{root}/child_1/grandchild_1/@opaque", True)
 
-        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%true;>#;}'
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
         assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
 
         root_id = get(f"{root}/@id")
@@ -254,7 +263,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         expected_string = \
             f'<"id"="{root_id}";"opaque"=%false;>' \
-            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%true;>#;}}'
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
         assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
 
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
@@ -570,6 +579,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         set("//sys/cypress_proxies/@config", {
             "object_service": {
+                "enable_per_user_request_weight_throttling": True,
                 "distributed_throttler": {
                     "member_client": {
                         "attribute_update_period": 300,
@@ -740,6 +750,18 @@ class TestSequoiaInternals(YTEnvSetup):
         # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
 
     @authors("danilalexeev")
+    def test_recursive_attributes_heavy(self):
+        set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
+        sleep(0.5)
+        MAP_SIZE = 123
+        yson = {f"{i:03}": 42 for i in range(MAP_SIZE)}
+        set("//tmp", {chr(ord('a') + i): yson for i in range(10)}, force=True)
+        items = ls("//tmp", attributes=["recursive_resource_usage"])
+        for item in items:
+            node_count = item.attributes["recursive_resource_usage"]["node_count"]
+            assert node_count == MAP_SIZE + 1, f"incomplete result for key {item}"
+
+    @authors("danilalexeev")
     def test_resolve_rootstock_from_object_id(self):
         node_id = get("//@id")
         # Should not throw.
@@ -762,6 +784,23 @@ class TestSequoiaInternals(YTEnvSetup):
                 create("int64_node", f"//tmp/i64-{i}")
         finally:
             set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.0)
+
+    @authors("shakurov")
+    def test_transaction_commit_failure_error_stripping_in_sequoia_session(self):
+        create_account("a")
+
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        remove_account("a", sync=False)
+
+        with raises_yt_error("Account \"a\" cannot be used") as err:
+            create("table", "//tmp/t2", attributes={"account": "a"})
+        assert len(err) == 1
+        assert err[0].message.find("Received response with error") != -1
+        err = err[0]
+        assert len(err.inner_errors) == 1
+        print_debug(err.inner_errors[0])
+        # Not using contains_code here - we're checking the outermost error.
+        assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
 
 @pytest.mark.enabled_multidaemon
@@ -1275,6 +1314,76 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists("//tmp/m1")
         assert exists("//tmp/p11/m")
         assert exists("//tmp/p13/m")
+
+    @authors("shakurov")
+    def test_transaction_commit_failure_error_stripping_in_sequoia_mutation(self):
+        tx = start_transaction()
+        set("//sys/@config/transaction_manager/testing/prerequisite_check_failure_during_commit_of_transactions", [tx])
+
+        with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config") as err:
+            commit_transaction(tx)
+        assert len(err) == 1
+        assert err[0].message.find("Received response with error") != -1
+        err = err[0]
+        assert len(err.inner_errors) == 1
+        print_debug(err.inner_errors[0])
+        # Not using contains_text here - we're checking the outermost error.
+        assert err.inner_errors[0]["message"] == f"Error committing transaction {tx}"
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    NUM_MASTERS = 3
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+        "13": {"roles": ["transaction_coordinator"]},
+    }
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("case", [
+        "boomerang",
+        "replication_on_read",
+    ])
+    def test_tx_mirroring_compatibility(self, case):
+        tx_12 = start_transaction(coordinator_master_cell_tag=12)
+        tx_13 = start_transaction(coordinator_master_cell_tag=13)
+
+        set("//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia", True)
+        set("//sys/@config/transaction_manager/enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases", True)
+        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
+
+        mtx_12 = start_transaction(coordinator_master_cell_tag=12)
+        mtx_13 = start_transaction(coordinator_master_cell_tag=13)
+
+        set("//tmp/a", 123)
+
+        def execute_verb(**kwargs):
+            if case == "boomerang":
+                set("//tmp/a", 123, **kwargs)
+            else:
+                get("//tmp", **kwargs)
+
+        execute_verb(prerequisite_transaction_ids=[tx_12, tx_13, mtx_12, mtx_13])
+        for tx in (tx_12, tx_13, mtx_12, mtx_13):
+            assert 10 in get(f"#{tx}/@replicated_to_cell_tags")
+
+        abort_transaction(tx_12)
+        abort_transaction(mtx_13)
+
+        with raises_yt_error(f"No such transaction {tx_12}"):
+            execute_verb(tx=tx_12)
+
+        with raises_yt_error(f"No such transaction {mtx_13}"):
+            execute_verb(tx=mtx_13)
 
 
 ##################################################################

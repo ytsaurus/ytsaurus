@@ -24,7 +24,12 @@ from .ypath import TablePath as TablePath_, YPath
 class YtClient(ClientState):
     """Implements YT client."""
 
-    def __init__(self, proxy: str = None, token: str = None, config: Union[DefaultConfigType, VerifiedDict, Dict[str, Any]] = None):
+    def __init__(
+        self,
+        proxy: Optional[str] = None,
+        token: Optional[str] = None,
+        config: Optional[Union[DefaultConfigType, VerifiedDict, Dict[str, Any]]] = None,
+    ):
         super(YtClient, self).__init__()
         initialize_client(self, proxy, token, config)
 
@@ -1912,8 +1917,12 @@ class YtClient(ClientState):
 
     def lock(
         self,
-        path,
-        mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None
+        path: Union[str, YPath],
+        mode: Optional[Literal["snapshot", "shared", "exclusive"]] = None,
+        waitable: Optional[bool] = False,
+        wait_for: Optional[int] = None,
+        child_key: Optional[str] = None,
+        attribute_key: Optional[str] = None
     ):
         """
         Tries to lock the path.
@@ -1934,7 +1943,7 @@ class YtClient(ClientState):
     def lock_rows(
         self,
         table, input_stream,
-        locks=[], lock_type=None, durability=None, format=None, raw=None
+        locks=None, lock_type=None, durability=None, format=None, raw=None
     ):
         """
         Lock rows with keys from input_stream from dynamic table.

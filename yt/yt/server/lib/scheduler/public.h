@@ -116,6 +116,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((InaccuratelyEstimatedCompressedDataSize)     (45))
     ((TooManySlicesInJobs)                         (46))
     ((SpecIsTooLarge)                              (47))
+    ((HighJobThreadCount)                          (48))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
@@ -136,6 +137,8 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
     ((UpdateGroupedNeededResources) (0))
     ((UnregisterOperation)          (1))
+    ((SuspendOperation)             (2))
+    ((ResumeOperation)              (3))
 );
 
 DEFINE_ENUM(EControlQueue,
@@ -178,10 +181,16 @@ DEFINE_ENUM(EGpuSchedulingModuleType,
     (InfinibandCluster)
 );
 
+DEFINE_ENUM(EPolicyKind,
+    (Classic)
+    (Gpu)
+);
+
 // NB(eshcherbin): Temporary.
 DEFINE_ENUM(EGpuSchedulingPolicyMode,
     (Noop)
     (DryRun)
+    (Allocating)
 );
 
 // TODO(eshcherbin): Scheduling segments algorithm will be deprecated.

@@ -23,6 +23,33 @@ def exit_read_only(cell_id=None, client=None):
     return make_request("exit_read_only", params=params, client=client)
 
 
+def build_master_snapshots(set_read_only, wait_for_snapshot_completion=None, retry=None, enable_automaton_read_only_barrier=None, client=None):
+    """Builds snapshot of all master cells."""
+
+    params = {
+        "set_read_only": set_read_only
+    }
+
+    if wait_for_snapshot_completion is not None:
+        set_param(params, "wait_for_snapshot_completion", wait_for_snapshot_completion)
+    if retry is not None:
+        set_param(params, "retry", retry)
+    if enable_automaton_read_only_barrier is not None:
+        set_param(params, "enable_automaton_read_only_barrier", enable_automaton_read_only_barrier)
+
+    return make_request("build_master_snapshots", params=params, client=client)
+
+
+def master_exit_read_only(retry=None, client=None):
+    """Exit read-only at alln master cells."""
+
+    params = {}
+    if retry is not None:
+        set_param(params, "retry", retry)
+
+    return make_request("master_exit_read_only", params=params, client=client)
+
+
 def discombobulate_nonvoting_peers(cell_id=None, client=None):
     """Discombobulate nonvoting peers at given master cell."""
     params = {

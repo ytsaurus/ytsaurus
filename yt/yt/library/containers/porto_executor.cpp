@@ -188,11 +188,11 @@ public:
         Api_->SetDiskTimeout(Config_->ApiDiskTimeout.Seconds());
 
         Profiler_.AddFuncGauge("/volume_surplus", MakeStrong(this), [this] {
-            return VolumeSurplus_;
+            return VolumeSurplus_.load();
         });
 
         Profiler_.AddFuncGauge("/layer_surplus", MakeStrong(this), [this] {
-            return LayerSurplus_;
+            return LayerSurplus_.load();
         });
 
         PollExecutor_->Start();
@@ -486,9 +486,9 @@ private:
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
     //! Gauge counting actual difference between the number of created and unlinked volumes.
-    i64 VolumeSurplus_ = 0;
+    std::atomic<i64> VolumeSurplus_ = 0;
     //! Gauge counting actual difference between the number of imported and removed layers.
-    i64 LayerSurplus_ = 0;
+    std::atomic<i64> LayerSurplus_ = 0;
 
     struct TCommandEntry
     {

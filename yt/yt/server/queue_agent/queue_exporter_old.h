@@ -86,7 +86,7 @@ public:
 
     TQueueExporterOld(
         TString exportName,
-        NQueueClient::TCrossClusterReference queue,
+        NQueueClient::TTablePath queue,
         const NQueueClient::TQueueStaticExportConfigPtr& exportConfig,
         const TQueueExporterDynamicConfig& dynamicConfig,
         NHiveClient::TClientDirectoryPtr clientDirectory,
@@ -108,7 +108,7 @@ public:
 
 private:
     const TString ExportName_;
-    const NQueueClient::TCrossClusterReference Queue_;
+    const NQueueClient::TTablePath Queue_;
 
     NThreading::TSpinLock Lock_;
     NQueueClient::TQueueStaticExportConfigPtr ExportConfig_;

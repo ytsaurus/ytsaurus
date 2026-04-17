@@ -49,6 +49,9 @@ void TGlobalChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descript
         return;
     }
 
+    // Global scans don't happen often, so it is ok to reset global scan start time.
+    GlobalScanStarted_ = GetCpuInstant();
+
     auto& globalScanShard = GlobalChunkScanShards_[descriptor.ShardIndex];
     globalScanShard.Iterator = descriptor.FrontChunk;
     globalScanShard.ChunkCount = descriptor.ChunkCount;

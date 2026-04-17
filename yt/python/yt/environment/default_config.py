@@ -76,6 +76,9 @@ def get_master_config():
 
 
 # COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
+# TODO(buyval01): switch use_location_indexes_in_sequoia_chunk_confirmation,
+# use_location_indexes_to_search_location_on_confirmation
+# and check_location_convergence_by_index_and_uuid_on_confirmation to True once CHYT 2.19 version migration is run.
 def get_dynamic_master_config():
     return {
         "chunk_manager": {
@@ -89,11 +92,10 @@ def get_dynamic_master_config():
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
-                "enable_chunk_replicas_throttling_in_heartbeats": True,
                 "enable_location_indexes_in_data_node_heartbeats": True,
-                "use_location_indexes_in_sequoia_chunk_confirmation": True,
-                "use_location_indexes_to_search_location_on_confirmation": True,
-                "check_location_convergence_by_index_and_uuid_on_confirmation": True,
+                "use_location_indexes_in_sequoia_chunk_confirmation": False,
+                "use_location_indexes_to_search_location_on_confirmation": False,
+                "check_location_convergence_by_index_and_uuid_on_confirmation": False,
                 "enable_validation_full_heartbeats": True,
                 "validation_full_heartbeat_period": 1000,
                 "validation_full_heartbeat_splay": 200,
@@ -201,6 +203,8 @@ def get_dynamic_master_config():
 
         "sequoia_manager": {
             "enable_async_sequoia_transaction_start": True,
+            "use_shared_write_locks_for_cypress_transactions": False,
+            "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator": True,
         },
 
         "cell_master": {
@@ -810,7 +814,7 @@ def get_dynamic_node_config():
                 },
             },
             "job_resource_manager": {
-                "check_user_jobs_category_limit_on_resources_updating": True,
+                "check_user_jobs_category_limit_on_resource_update": True,
             },
             "node_memory_tracker": {
                 "check_per_category_limit_overcommit": True,
@@ -936,6 +940,10 @@ def get_cypress_proxy_config():
 
 
 def get_dynamic_cypress_proxy_config():
+    return {}
+
+
+def get_dynamic_rpc_proxy_config():
     return {}
 
 

@@ -2,7 +2,9 @@
 
 #include "config.h"
 #include "dynamic_config_manager.h"
+#include "group_coordinator.h"
 #include "private.h"
+#include "request_handler.h"
 #include "server.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -164,6 +166,7 @@ private:
     NConcurrency::IThreadPoolPollerPtr Poller_;
     NConcurrency::IThreadPoolPollerPtr Acceptor_;
 
+    IRequestHandlerPtr RequestHandler_;
     IServerPtr Server_;
 
     NRpc::IServerPtr RpcServer_;
@@ -202,7 +205,7 @@ private:
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         {
             TCypressRegistrarOptions options{
@@ -254,12 +257,19 @@ private:
             Poller_,
             NativeRootClient_);
 
-        Server_ = CreateServer(
+        auto groupCoordinatorManager = CreateGroupCoordinatorManager();
+
+        RequestHandler_ = CreateRequestHandler(
             Config_,
             NativeConnection_,
             AuthenticationManager_,
+            groupCoordinatorManager);
+
+        Server_ = CreateServer(
+            Config_,
             Poller_,
-            Acceptor_);
+            Acceptor_,
+            RequestHandler_);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
 
@@ -297,7 +307,7 @@ private:
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
 
-        Server_->OnDynamicConfigChanged(newConfig);
+        RequestHandler_->OnDynamicConfigChanged(newConfig);
     }
 };
 

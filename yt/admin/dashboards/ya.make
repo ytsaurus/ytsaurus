@@ -25,6 +25,7 @@ PY_SRCS(
     yt_dashboards/cluster_resources.py
     yt_dashboards/flow/__init__.py
     yt_dashboards/flow/common.py
+    yt_dashboards/flow/companion_manager.py
     yt_dashboards/flow/computation.py
     yt_dashboards/flow/controller.py
     yt_dashboards/flow/diagnostics.py
@@ -52,6 +53,7 @@ PY_SRCS(
     yt_dashboards/common/__init__.py
     yt_dashboards/common/postprocessors.py
     yt_dashboards/common/runner.py
+    yt_dashboards/common/queue_agent.py
     yt_dashboards/common/sensors.py
 )
 

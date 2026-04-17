@@ -498,6 +498,11 @@ void TInstanceInfoBase::Register(TRegistrar registrar)
         .Default();
 }
 
+bool TInstanceInfoBase::IsOnline() const
+{
+    YT_ABORT();
+}
+
 void TTabletNodeInfo::Register(TRegistrar registrar)
 {
     registrar.Parameter("banned", &TThis::Banned)
@@ -525,6 +530,15 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
     registrar.Parameter("statistics", &TThis::Statistics)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TTabletNodeInfo::IsOnline() const
+{
+    return State == InstanceStateOnline && LocalState != ELocalNodeState::Offline;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TMediumThroughputLimits::Register(TRegistrar registrar)
 {
@@ -561,6 +575,11 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
 
     registrar.Parameter("alive", &TThis::Alive)
         .Default();
+}
+
+bool TRpcProxyInfo::IsOnline() const
+{
+    return static_cast<bool>(Alive);
 }
 
 void TAccountResources::Register(TRegistrar registrar)

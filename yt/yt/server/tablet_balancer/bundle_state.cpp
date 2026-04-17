@@ -1408,13 +1408,13 @@ TBundleSnapshotPtr TBundleState::DeepCopyLatestBundleSnapshot(EFetchKind kind) c
         case EFetchKind::Statistics:
             bundleSnapshot->Bundle = oldBundleSnapshot->Bundle->DeepCopy(
                 /*copyCells*/ true,
-                /*copyTabletsAndStatistics=*/ false);
+                /*copyTabletsAndStatistics*/ false);
             break;
 
         case EFetchKind::PerformanceCounters:
             bundleSnapshot->Bundle = oldBundleSnapshot->Bundle->DeepCopy(
                 /*copyCells*/ true,
-                /*copyTabletsAndStatistics=*/ true);
+                /*copyTabletsAndStatistics*/ true);
             break;
     }
 
@@ -2517,7 +2517,7 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables(const TTabletCel
         if (table->IsParameterizedMoveBalancingEnabled() ||
             table->IsParameterizedReshardBalancingEnabled(
                 /*enableParameterizedReshardByDefault*/ true,
-                /*desiredTabletCountRequired*/ false))
+                /*desiredTabletCountOrMetricRequired*/ false))
         {
             const auto& groupConfig = GetOrCrash(bundle->Config->Groups, *table->GetBalancingGroup());
             const auto& replicaClusters = groupConfig->Parameterized->ReplicaClusters;

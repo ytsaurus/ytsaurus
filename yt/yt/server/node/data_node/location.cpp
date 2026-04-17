@@ -194,12 +194,12 @@ TLocationMemoryGuard::TLocationMemoryGuard(
     , Owner_(owner)
 { }
 
-TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other)
+TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
 
-void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other)
+void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other) noexcept
 {
     MemoryGuard_ = std::move(other.MemoryGuard_);
     UseLegacyUsedMemory_ = other.UseLegacyUsedMemory_;
@@ -218,7 +218,7 @@ TLocationMemoryGuard::~TLocationMemoryGuard()
     Release();
 }
 
-TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& other)
+TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& other) noexcept
 {
     if (this != &other) {
         Release();
@@ -227,7 +227,7 @@ TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& oth
     return *this;
 }
 
-void TLocationMemoryGuard::Release()
+void TLocationMemoryGuard::Release() noexcept
 {
     if (Owner_) {
         Owner_->DecreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, Size_);
@@ -339,7 +339,6 @@ TChunkLocation::TChunkLocation(
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
         "UnlimitedOut",
         diskThrottlerProfiler);
-    EnableUncategorizedThrottler_ = GetStaticConfig()->EnableUncategorizedThrottler;
     UncategorizedThrottler_ = ReconfigurableUncategorizedThrottler_ = CreateNamedReconfigurableThroughputThrottler(
         GetStaticConfig()->UncategorizedThrottler,
         "uncategorized",
@@ -375,6 +374,14 @@ double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
     return config->MemoryLimitFractionForStartingNewSessions;
 }
 
+bool TChunkLocation::ShouldUseUncategorizedThrottler() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->EnableUncategorizedThrottler;
+}
+
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -384,8 +391,7 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);
     }
-    EnableUncategorizedThrottler_ = config->EnableUncategorizedThrottler;
-    if (EnableUncategorizedThrottler_) {
+    if (config->EnableUncategorizedThrottler) {
         ReconfigurableUncategorizedThrottler_->Reconfigure(config->UncategorizedThrottler);
     }
 
@@ -792,7 +798,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDes
             return Throttlers_[EChunkLocationThrottlerKind::TabletStoreFlushIn];
 
         default:
-            if (EnableUncategorizedThrottler_) {
+            if (ShouldUseUncategorizedThrottler()) {
                 return UncategorizedThrottler_;
             } else {
                 return UnlimitedInThrottler_;
@@ -825,7 +831,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDe
             return Throttlers_[EChunkLocationThrottlerKind::TabletRecoveryOut];
 
         default:
-            if (EnableUncategorizedThrottler_) {
+            if (ShouldUseUncategorizedThrottler()) {
                 return UncategorizedThrottler_;
             } else {
                 return UnlimitedOutThrottler_;
@@ -1140,7 +1146,7 @@ public:
         , LastUpdateTime_(TInstant::Now())
         , LastCounters_(GetCounters())
     {
-        dynamicConfigManager->SubscribeConfigChanged(
+        dynamicConfigManager->SubscribeBeforeConfigChanged(
             BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
 
         profiler.AddProducer("", MakeStrong(this));

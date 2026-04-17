@@ -2,6 +2,7 @@
 #include "explain.h"
 
 #include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/helpers.h>
 
@@ -138,7 +139,8 @@ void GetFrontQueryInfo(
     bool allowUnorderedGroupByWithLimit)
 {
     fluent
-        .Item("is_ordered_scan").Value(query->IsOrdered(allowUnorderedGroupByWithLimit))
+        .Item("is_ordered_scan").Value(query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered)
+        .Item("scan_order").Value(FormatEnum(query->GetScanOrder(allowUnorderedGroupByWithLimit)))
         .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
             fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
         });

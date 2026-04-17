@@ -308,6 +308,10 @@ def main():
     logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()
     logger.info("ytserver-clickhouse exit code is %d", exit_code)
+
+    if exit_code < 0:
+        exit_code = 128 + abs(exit_code)
+
     logger.info("Waiting for log tailer to finish")
     if log_tailer_process is not None:
         log_tailer_exit_code = log_tailer_process.wait()

@@ -30,7 +30,7 @@ TObjectAttributeCache::TObjectAttributeCache(
         logger,
         std::move(profiler))
     , AttributeNames_(std::move(attributeNames))
-    , RefreshRevisionStorage_(config->RefreshRevisionStorageSize)
+    , RefreshRevisionCache_(config->RefreshRevisionCacheCapacity)
 { }
 
 NYPath::TYPath TObjectAttributeCache::GetPath(const NYPath::TYPath& key) const
@@ -53,7 +53,7 @@ std::vector<NHydra::TRevision> TObjectAttributeCache::GetRefreshRevisions(const 
     std::vector<NHydra::TRevision> refreshRevisions;
     refreshRevisions.reserve(keys.size());
     for (const auto& key : keys) {
-        refreshRevisions.push_back(RefreshRevisionStorage_.Get(key));
+        refreshRevisions.push_back(RefreshRevisionCache_.Get(key));
     }
     return refreshRevisions;
 }
@@ -62,28 +62,30 @@ void TObjectAttributeCache::InvalidateActiveAndSetRefreshRevision(const NYPath::
 {
     InvalidateActive(key);
     if (revision != NHydra::NullRevision) {
-        RefreshRevisionStorage_.Add(key, revision);
+        RefreshRevisionCache_.Add(key, revision);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectAttributeCache::TRevisionStorage::TRevisionStorage(ui64 maxPathsSize)
+TObjectAttributeCache::TRevisionCache::TRevisionCache(int maxPathsSize)
     : MaxPathsSize_(maxPathsSize)
 { }
 
-void TObjectAttributeCache::TRevisionStorage::Add(const NYPath::TYPath& path, NHydra::TRevision revision)
+void TObjectAttributeCache::TRevisionCache::Add(const NYPath::TYPath& path, NHydra::TRevision revision)
 {
+    auto guard = Guard(Lock_);
     Remove(path);
-    if (Paths_.size() == MaxPathsSize_) {
+    if (std::ssize(Paths_) == MaxPathsSize_) {
         Remove(Paths_.begin()->second, true);
     }
     RevisionMap_[path] = revision;
     Paths_.insert({revision, path});
 }
 
-NHydra::TRevision TObjectAttributeCache::TRevisionStorage::Get(const NYPath::TYPath& path) const
+NHydra::TRevision TObjectAttributeCache::TRevisionCache::Get(const NYPath::TYPath& path) const
 {
+    auto guard = Guard(Lock_);
     auto it = RevisionMap_.find(path);
     if (it != RevisionMap_.end()) {
         return it->second;
@@ -91,13 +93,14 @@ NHydra::TRevision TObjectAttributeCache::TRevisionStorage::Get(const NYPath::TYP
     return DefaultRevision_;
 }
 
-NHydra::TRevision TObjectAttributeCache::TRevisionStorage::GetDefault() const
+NHydra::TRevision TObjectAttributeCache::TRevisionCache::GetDefault() const
 {
     return DefaultRevision_;
 }
 
-void TObjectAttributeCache::TRevisionStorage::Remove(const NYPath::TYPath& path, bool updateDefault)
+void TObjectAttributeCache::TRevisionCache::Remove(const NYPath::TYPath& path, bool updateDefault)
 {
+    YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
     auto it = RevisionMap_.find(path);
     if (it != RevisionMap_.end()) {
         if (updateDefault) {

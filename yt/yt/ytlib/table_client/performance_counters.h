@@ -47,7 +47,7 @@ struct TChunkReaderPerformanceCounters
     TPerformanceCountersEma UserDataBytesTransmitted;
     TPerformanceCountersEma SystemDataBytesTransmitted;
 
-    void IncrementHunkDataWeight(EPerformanceCountedRequestType requestType, i64 value, EWorkloadCategory workloadCategory);
+    void IncrementHunkDataWeight(EInitialQueryKind initialQueryKind, i64 value, EWorkloadCategory workloadCategory);
     void Increment(
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         bool isSystemWorkload);
@@ -85,13 +85,13 @@ IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type);
+    EInitialQueryKind initialQueryKind);
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    EPerformanceCountedRequestType type);
+    EInitialQueryKind initialQueryKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

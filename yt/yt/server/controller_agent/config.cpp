@@ -16,15 +16,14 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
-
-#include <yt/yt/core/concurrency/config.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NControllerAgent {
 
@@ -1163,6 +1162,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Alias("operation_alerts")
         .DefaultNew();
 
+    registrar.Parameter("max_job_thread_count_formula", &TThis::MaxJobThreadCountFormula)
+        .Default();
+
     registrar.Parameter("controller_row_buffer_chunk_size", &TThis::ControllerRowBufferChunkSize)
         .Default(64_KB)
         .GreaterThan(0);
@@ -1486,6 +1488,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
                 config->CudaProfilerEnvironment->PathEnvironmentVariableName,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
+
+#if defined(_tsan_enabled_)
+        // TODO(pogorelov): Implement building snapshots without fork to improve compatibility with tsan (YT-27927).
+        config->EnableSnapshotBuilding = false;
+        config->EnableSnapshotBuildingDisabledAlert = false;
+#endif
     });
 }
 

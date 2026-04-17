@@ -55,7 +55,7 @@ bool AreTypedValuesEqual(const TUnversionedValue& lhs, const TUnversionedValue& 
 template <EValueType Type>
 bool AreValuesEqual(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
-    if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
+    if (lhs.Type != rhs.Type) [[unlikely]] {
         return false;
     }
 
@@ -1967,7 +1967,7 @@ private:
         controlSpan.Lower *= 2;
         controlSpan.Upper *= 2;
 
-        TRangeSliceAdapter keys;
+        TBoundsIterator<TRowRange> keys;
         keys.Ranges = KeyRanges_;
 
         // All values must be accessible in column refiner.
@@ -2337,7 +2337,7 @@ public:
                 continue;
             }
 
-            if (Y_UNLIKELY(rowIndexHint == SentinelRowIndex)) {
+            if (rowIndexHint == SentinelRowIndex) [[unlikely]] {
                 while (NextKeyIndex_ < keyIndex && rows != rowsEnd) {
                     *rows++ = TMutableVersionedRow();
                     ++NextKeyIndex_;

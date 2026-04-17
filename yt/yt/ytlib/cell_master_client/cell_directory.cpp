@@ -81,11 +81,9 @@ public:
             auto cellId = masterConfig->CellId;
             auto cellTag = CellTagFromId(cellId);
             EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, masterConfig);
-            SecondaryMasterCellTags_.push_back(cellTag);
+            InsertOrCrash(SecondaryMasterCellTags_, cellTag);
             InsertOrCrash(SecondaryMasterCellIds_, cellId);
         }
-        // Sort tag list to simplify subsequent equality checks.
-        Sort(SecondaryMasterCellTags_);
 
         // NB: Unlike channels, roles will be filled on first sync.
         {
@@ -111,7 +109,7 @@ public:
     TCellTagList GetSecondaryMasterCellTags() override
     {
         auto guard = ReaderGuard(SpinLock_);
-        return SecondaryMasterCellTags_;
+        return TCellTagList(SecondaryMasterCellTags_.begin(), SecondaryMasterCellTags_.end());
     }
 
     THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() override
@@ -406,7 +404,7 @@ private:
     TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleToCellTags_;
     TRandomGenerator RandomGenerator_;
     TSecondaryMasterConnectionConfigs SecondaryMasterConnectionConfigs_;
-    TCellTagList SecondaryMasterCellTags_;
+    TCellTagSet SecondaryMasterCellTags_;
     THashSet<NObjectClient::TCellId> SecondaryMasterCellIds_;
     THashMap<TCellTag, IServicePtr> CachingObjectServices_;
 
@@ -491,7 +489,7 @@ private:
 
             YT_LOG_ALERT_UNLESS(
                 removedSecondaryMasterCellTags.empty(),
-                "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
+                "Received probably stale configuration of secondary masters, where some master cells were removed, will not apply removal (RemovedCellTags: %v)",
                 removedSecondaryMasterCellTags);
 
             for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConfigs) {
@@ -501,18 +499,27 @@ private:
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && HiveCellDirectory_) {
                     HiveCellDirectory_->ReconfigureCell(secondaryMaster);
                 }
+                EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, secondaryMaster);
+                InsertOrCrash(SecondaryMasterCellIds_, secondaryMaster->CellId);
+                InsertOrCrash(SecondaryMasterCellTags_, cellTag);
+
             }
             for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
+                YT_LOG_INFO("Existing master cell appeared, reinitializing channels (CellTag: %v)",
+                    cellTag);
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnChangedMasterCells && HiveCellDirectory_) {
                     HiveCellDirectory_->ReconfigureCell(secondaryMaster);
                 }
+                auto [it, emplaced] = SecondaryMasterConnectionConfigs_.emplace(cellTag, secondaryMaster);
+                if (emplaced) {
+                    YT_LOG_ALERT("No config was found in master cell directory for existing master cell (CellTag: %v)",
+                        cellTag);
+                } else {
+                    it->second = secondaryMaster;
+                }
             }
-
-            SecondaryMasterConnectionConfigs_ = secondaryMasterConnectionConfigs;
-            SecondaryMasterCellIds_ = GetMasterCellIds(secondaryMasterConnectionConfigs);
-            SecondaryMasterCellTags_ = GetMasterCellTags(secondaryMasterConnectionConfigs);
 
             YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
                 "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",

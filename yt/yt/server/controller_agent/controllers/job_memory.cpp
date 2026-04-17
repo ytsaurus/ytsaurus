@@ -1,10 +1,10 @@
 #include "job_memory.h"
 
-#include <yt/yt/client/table_client/config.h>
-
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
+
+#include <yt/yt/client/table_client/config.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -132,14 +132,14 @@ i64 TOverrunTableWriteBufferMemoryInfo::GetReservedMemoryForJobProxyWithEstimate
     return ReservedMemoryForJobProxyWithEstimatedBuffer_;
 }
 
-void TOverrunTableWriteBufferMemoryInfo::Persist(const NPhoenix::TPersistenceContext& context)
+void TOverrunTableWriteBufferMemoryInfo::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, JobId_);
-    Persist(context, ReservedMemoryForJobProxyWithFixedBuffer_);
-    Persist(context, ReservedMemoryForJobProxyWithEstimatedBuffer_);
+    PHOENIX_REGISTER_FIELD(1, JobId_);
+    PHOENIX_REGISTER_FIELD(2, ReservedMemoryForJobProxyWithFixedBuffer_);
+    PHOENIX_REGISTER_FIELD(3, ReservedMemoryForJobProxyWithEstimatedBuffer_);
 }
+
+PHOENIX_DEFINE_TYPE(TOverrunTableWriteBufferMemoryInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 

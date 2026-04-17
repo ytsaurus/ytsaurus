@@ -16,6 +16,11 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EScanOrder,
+    ((Unordered) (0))
+    ((Ordered)   (1))
+);
+
 DEFINE_ENUM(EExpressionKind,
     ((None)                    (0))
     ((Literal)                 (1))
@@ -269,6 +274,8 @@ struct TSubqueryExpression
 {
     TNamedItemList FromExpressions;
 
+    std::vector<TConstJoinClausePtr> JoinClauses;
+
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
@@ -376,6 +383,7 @@ struct TJoinClause
     bool RequireSyncReplica = true;
 
     TJoinClause() = default;
+
     TJoinClause(const TJoinClause& other);
 
     TTableSchemaPtr GetRenamedSchema() const;
@@ -467,7 +475,7 @@ struct TBaseQuery
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered(bool allowUnorderedGroupByWithLimit) const;
+    EScanOrder GetScanOrder(bool allowUnorderedGroupByWithLimit) const;
 
     bool IsPrefetching() const;
 

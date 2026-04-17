@@ -1,11 +1,11 @@
-#include "orchid.h"
-#include "job_controller.h"
 #include "gpu_manager.h"
+#include "job_controller.h"
+#include "orchid.h"
 #include "slot_manager.h"
 
-#include <yt/yt/core/ytree/virtual.h>
-
 #include <yt/yt/library/profiling/solomon/exporter.h>
+
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NExecNode {
 

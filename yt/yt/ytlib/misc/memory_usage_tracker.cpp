@@ -123,7 +123,7 @@ private:
 
         ~TTrackedReferenceHolder() override
         {
-            Tracker_->RemoveStateOrDecreaseUsageConter(Underlying_, Category_, std::move(PoolTag_));
+            Tracker_->RemoveStateOrDecreaseUsageCounter(Underlying_, Category_, std::move(PoolTag_));
         }
 
         // TSharedRangeHolder overrides.
@@ -232,7 +232,7 @@ private:
     TReferenceKey GetReferenceKey(TRef ref);
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
     TError TryCreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag, bool allowOvercommit);
-    void RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag);
+    void RemoveStateOrDecreaseUsageCounter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag);
     TError TryChangeCategoryPoolUsage(TState* state, EMemoryCategory category, std::optional<TPoolTag> poolTag, i64 delta, bool allowOvercommit);
     std::optional<TCategoryPoolPair> GetCategoryPoolByUsage(const THashMap<TCategoryPoolPair, i64>& usage);
     ECategory GetCategoryByUsage(const THashMap<TCategoryPoolPair, i64>& usage);
@@ -1063,7 +1063,7 @@ TError TNodeMemoryTracker::TryCreateStateOrIncrementUsageCounter(
     return TryChangeCategoryPoolUsage(&it->second, category, std::move(poolTag), /*delta*/ 1, allowOvercommit);
 }
 
-void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag)
+void TNodeMemoryTracker::RemoveStateOrDecreaseUsageCounter(TRef rawReference, EMemoryCategory category, std::optional<TPoolTag> poolTag)
 {
     auto key = GetReferenceKey(rawReference);
     auto& shard = GetReferenceAddressMapShard(key);

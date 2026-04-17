@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "artifact.h"
+#include "public.h"
 #include "volume.h"
 #include "volume_artifact.h"
 
@@ -44,7 +44,8 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target) override final;
+        const TString& target,
+        bool sholdCheckTargetDirExists) override final;
 
     TFuture<void> Remove() override final;
 
@@ -55,8 +56,8 @@ protected:
     const TVolumeMeta VolumeMeta_;
     const TLayerLocationPtr LayerLocation_;
 
-    TPromise<void> RemovePromise_ = NewPromise<void>();
-    std::atomic<bool> RemovalRequested_{false};
+    const TPromise<void> RemovePromise_ = NewPromise<void>();
+    std::atomic<bool> RemovalRequested_ = false;
 
     static TFuture<void> DoRemoveVolumeCommon(
         const TString& volumeType,
@@ -73,7 +74,7 @@ private:
 
     TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
 
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets);
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,6 +251,30 @@ private:
 };
 
 DECLARE_REFCOUNTED_CLASS(TTmpfsVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLoopVolume
+    : public TPortoVolumeBase
+{
+public:
+    TLoopVolume(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr location);
+
+    ~TLoopVolume() override;
+
+    bool IsRootVolume() const override final;
+
+private:
+    static TFuture<void> DoRemove(
+        NProfiling::TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta);
+};
+
+DECLARE_REFCOUNTED_CLASS(TLoopVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 

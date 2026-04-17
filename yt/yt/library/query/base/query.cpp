@@ -506,17 +506,18 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , InferRanges(other.InferRanges)
 { }
 
-bool TBaseQuery::IsOrdered(bool allowUnorderedGroupByWithLimit) const
+EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
         if (allowUnorderedGroupByWithLimit) {
-            return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+            bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+            return ordered ? EScanOrder::Ordered : EScanOrder::Unordered;
         } else {
-            return !OrderClause;
+            return !OrderClause ? EScanOrder::Ordered : EScanOrder::Unordered;
         }
     } else {
         YT_VERIFY(!OrderClause);
-        return false;
+        return EScanOrder::Unordered;
     }
 }
 
@@ -1196,6 +1197,8 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (subqueryExpr->ProjectClause) {
             ToProto(proto->mutable_project_clause(), subqueryExpr->ProjectClause);
         }
+
+        ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
     }
 }
 
@@ -1390,6 +1393,8 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             if (ext.has_project_clause()) {
                 FromProto(&result->ProjectClause, ext.project_clause());
             }
+
+            FromProto(&result->JoinClauses, ext.join_clauses());
 
             *original = result;
             return;

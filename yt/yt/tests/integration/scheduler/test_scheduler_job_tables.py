@@ -1937,7 +1937,7 @@ class TestJobTraceEvents(YTEnvSetup):
         ]
 
         for profile in profiles:
-            op = self._start_vanilla_operation(profile, should_sleep=False)
+            op = self._start_vanilla_operation(profile, should_sleep=False, write_count=1)
             op.wait_for_state("completed")
 
         events = select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")

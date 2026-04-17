@@ -17,7 +17,7 @@ void ReportAndSleep(const TString& msg);
 #define YQL_EMERGENCY_SLEEP(condition, ...)                                                 \
     if (!NYql::NPrivate::IsInsideJob()) {                                                   \
         YQL_ENSURE(condition, __VA_ARGS__);                                                 \
-    } else if (Y_UNLIKELY(!(condition))) {                                                  \
+    } else if (!(condition)) [[unlikely]] {                                                  \
         NYql::NPrivate::ReportAndSleep(TStringBuilder() << #condition << ", " __VA_ARGS__); \
     }
 

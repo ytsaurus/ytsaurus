@@ -13,13 +13,16 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, raises_yt_error, read_table, remote_copy, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
+    align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, raises_yt_error,
+    read_table, remote_copy, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
     exists, get, set, ls, create, remove, create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction, create_area, remove_area, create_rack, create_data_center, assert_true_for_all_cells,
     assert_true_for_secondary_cells, build_snapshot, get_driver, create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     print_debug, decommission_node, write_table, add_maintenance, remove_maintenance, get_singular_chunk_id,
-    reset_dynamically_propagated_master_cells)
+    reset_dynamically_propagated_master_cells, create_tablet_cell, wait_true_for_all_cells,
+    create_tablet_cell_bundle,
+)
 
 from yt_helpers import master_exit_read_only_sync, wait_no_peers_in_read_only
 from yt.test_helpers import assert_items_equal
@@ -35,6 +38,8 @@ from copy import deepcopy
 
 class MasterCellAdditionBase(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
+
+    USE_DYNAMIC_TABLES = True
 
     DEFER_SECONDARY_CELL_START = True
     DEFER_NODE_START = True
@@ -581,11 +586,19 @@ class MasterCellAdditionBase(YTEnvSetup):
 
 
 class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
-    # NB: 1 node will be banned during checks.
-    NUM_NODES = 4
+    # NB: 1 node will be banned and 1 decommissioned during checks.
+    NUM_NODES = 5
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
     NUM_MASTERS = 3
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "resource_limits": {
+                "slots": 4,
+            }
+        }
+    }
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
@@ -699,6 +712,31 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         yield
 
         wait(lambda: check(["11", "12", "13"]))
+
+    def check_user_limits(self):
+        create_user("bob")
+        set("//sys/users/bob/@request_limits/request_queue_size", {
+            "clusterwide": 22,
+            "default": 22,
+            "per_cell": {"11": 123},
+        })
+
+        assert get("//sys/users/bob/@request_limits/request_queue_size") == {
+            "clusterwide": 22,
+            "default": 22,
+            "per_cell": {"11": 123},
+        }
+
+        yield
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/users/bob/@request_limits/request_queue_size", driver=driver) == {
+                "clusterwide": 22,
+                "default": 22,
+                "per_cell": {"11": 123},
+            },
+        )
 
     def check_areas(self):
         default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
@@ -957,6 +995,76 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
         wait(lambda: len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == 3)
         wait(lambda: sorted(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == stored_replicas)
+
+    def DISABLED_check_tablet_cell_prerequisite_tx(self):
+        if not exists("//sys/tablet_cell_bundles/b"):
+            create_tablet_cell_bundle("b")
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+        prerequisite_tx_id = get(f"#{cell_id}/@prerequisite_transaction_id")
+        assert get(f"#{cell_id}/@health") == "good"
+
+        yield
+
+        wait(lambda: exists(f"#{cell_id}/@prerequisite_transaction_id"))
+        new_prerequisite_tx_id = get(f"#{cell_id}/@prerequisite_transaction_id")
+        assert new_prerequisite_tx_id != prerequisite_tx_id
+        assert_true_for_all_cells(
+            self.Env,
+            lambda driver: get(f"#{cell_id}/@prerequisite_transaction_id", driver=driver) == new_prerequisite_tx_id)
+        wait(lambda: self.tablet_cell_is_healthy(cell_id))
+        assert_true_for_all_cells(self.Env, lambda driver: get(f"#{cell_id}/@health", driver=driver) == "good")
+
+        remove(f"#{cell_id}", force=True)
+        wait_true_for_all_cells(self.Env, lambda driver: not exists(f"#{cell_id}", driver=driver))
+
+    # TODO(ifsmirnov): multiple tablet cell tests do not work well together.
+    def DISABLED_check_tablet_cell_extra_peers(self):
+        if not exists("//sys/tablet_cell_bundles/b"):
+            create_tablet_cell_bundle("b")
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 60000)
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+        node = get(f"#{cell_id}/@peers/0/address")
+        decommission_node(node)
+        wait(lambda: len(get(f"#{cell_id}/@peers")) == 2)
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+        yield
+
+        assert_true_for_all_cells(self.Env, lambda driver: len(get(f"#{cell_id}/@peers", driver=driver)) == 2)
+        # Paranoidal check just to have more debug logs just in case.
+        wait_true_for_all_cells(
+            self.Env,
+            lambda driver:
+                len(get(f"#{cell_id}/@peers", driver=driver)) == 2 and
+                get(f"#{cell_id}/@local_health", driver=driver) == "good")
+        wait(lambda: self.tablet_cell_is_healthy(cell_id))
+
+    # TODO(ifsmirnov): multiple tablet cell tests do not work well together.
+    def DISABLED_check_tablet_cell_removal(self):
+        if not exists("//sys/tablet_cell_bundles/b"):
+            create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
+        wait(lambda: get(f"#{cell_id}/@health") == "good")
+
+        remove(f"#{cell_id}")
+        wait(lambda: get(f"#{cell_id}/@tablet_cell_life_stage") == "decommissioning_on_node")
+
+        yield
+
+        wait(lambda: self.tablet_cell_is_healthy(cell_id))
+
+        # decommissioning_on_node stage is not sent to secondary masters.
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get(f"#{cell_id}/@tablet_cell_life_stage", driver=driver) == "decommissioned")
+        assert get(f"#{cell_id}/@tablet_cell_life_stage") == "decommissioning_on_node"
+
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", False)
+        wait_true_for_all_cells(self.Env, lambda driver: not exists(f"#{cell_id}", driver=driver))
 
 
 class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):

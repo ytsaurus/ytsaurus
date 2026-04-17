@@ -69,7 +69,7 @@ public:
     std::string LastBundleWithChangedRootSystemAccountLimit;
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
-    std::optional<TBundlesDynamicConfig> DynamicConfig;
+    std::optional<TBundlesDynamicConfig> BundlesDynamicConfig;
 
     THashSet<std::string> NodesToCleanup;
     THashSet<std::string> ProxiesToCleanup;
@@ -81,6 +81,8 @@ public:
     THashMap<std::string, TBundleConfigPtr> InitializedBundleTargetConfig;
 
     TBundleNameGuard MakeBundleNameGuard(std::string bundleName);
+
+    int GetMutationCount() const;
 
     template <class T, class... Args>
         requires std::derived_from<T, TBundleNameMixin>

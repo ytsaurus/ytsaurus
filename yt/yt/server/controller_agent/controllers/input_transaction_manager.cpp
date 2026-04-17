@@ -45,11 +45,12 @@ std::optional<std::string> TClusterResolver::GetLocalClusterName() const
     return LocalClusterName_;
 }
 
-void TClusterResolver::Persist(const TPersistenceContext& context)
+void TClusterResolver::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, LocalClusterName_);
+    PHOENIX_REGISTER_FIELD(1, LocalClusterName_);
 }
+
+PHOENIX_DEFINE_TYPE(TClusterResolver);
 
 TFuture<TClusterResolverPtr> CreateClusterResolver(IClientPtr client)
 {

@@ -8,6 +8,10 @@
 #include "cypress_config_repository.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
+
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -39,6 +43,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -52,7 +57,7 @@ TYtDatabaseBase::TYtDatabaseBase(String databaseName)
 
 void TYtDatabaseBase::createTable(
     const DB::ContextPtr context,
-    const std::string& name,
+    const std::string& /*name*/,
     const DB::StoragePtr& table,
     const DB::ASTPtr& /*query*/)
 {
@@ -61,7 +66,7 @@ void TYtDatabaseBase::createTable(
         auto host = queryContext->Host;
         host->GetCypressDictionaryConfigRepository()->WriteDictionary(
             context,
-            name,
+            table->getStorageID(),
             dynamic_pointer_cast<DB::StorageDictionary>(table)->getConfiguration());
     }
     else if (table->getName() != "StorageDistributor") {
@@ -130,14 +135,25 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
 
     TYPath path = getTableDataPath(name);
 
-    // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
-    auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
-    auto batchReq = proxy.ExecuteBatch();
-    batchReq->AddRequest(TYPathProxy::Remove(path));
-    auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-    auto refreshRevision = NHydra::TRevision(batchRsp->GetRevision(0).Underlying() + 1);
+    if (queryContext->ParentTransactionId) {
+        queryContext->InitializeQueryWriteTransaction();
 
-    InvalidateCache(queryContext, {{path, refreshRevision}});
+        TRemoveNodeOptions options;
+        options.TransactionId = queryContext->WriteTransactionId;
+        WaitFor(queryContext->Client()->RemoveNode(path, options))
+            .ThrowOnError();
+
+        queryContext->CommitWriteTransaction();
+    } else {
+        // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
+        auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(TYPathProxy::Remove(path));
+        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
+        auto refreshRevision = NHydra::TRevision(batchRsp->GetRevision(0).Underlying() + 1);
+
+        InvalidateCache(queryContext, {{path, refreshRevision}});
+    }
 }
 
 void TYtDatabaseBase::renameTable(
@@ -161,14 +177,22 @@ void TYtDatabaseBase::renameTable(
     TYPath srcPath = getTableDataPath(name);
     TYPath dstPath = getTableDataPath(toName);
 
+    bool invalidateCache = queryContext->ParentTransactionId == NObjectClient::NullTransactionId;
+
     const auto& Logger = ClickHouseYtLogger;
-    YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v)", srcPath, dstPath, exchange);
+    YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v, InvalidateCache: %v)",
+        srcPath,
+        dstPath,
+        exchange,
+        invalidateCache);
 
     auto srcRefreshRevision = NHydra::NullRevision;
-    auto dstRefreshRevision = NHydra::NullRevision;
     if (exchange) {
-        auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
+        auto transaction = WaitFor(client->StartTransaction(
+            NTransactionClient::ETransactionType::Master,
+            {.ParentId = queryContext->ParentTransactionId}))
             .ValueOrThrow();
+
         auto tmpPath = TYPath(Format("//tmp/tmp_exchange_table_%v", transaction->GetId()));
 
         WaitFor(transaction->MoveNode(srcPath, tmpPath))
@@ -181,14 +205,22 @@ void TYtDatabaseBase::renameTable(
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        srcRefreshRevision = GetRefreshRevision(client, srcPath);
+        if (invalidateCache) {
+            srcRefreshRevision = GetRefreshRevision(client, srcPath);
+        }
     } else {
-        WaitFor(client->MoveNode(srcPath, dstPath))
+        TMoveNodeOptions options;
+        options.TransactionId = queryContext->ParentTransactionId;
+        WaitFor(client->MoveNode(srcPath, dstPath, options))
             .ThrowOnError();
     }
-    dstRefreshRevision = GetRefreshRevision(client, dstPath);
+    auto dstRefreshRevision = invalidateCache
+        ? GetRefreshRevision(client, dstPath)
+        : NHydra::NullRevision;
 
-    InvalidateCache(queryContext, {{srcPath, srcRefreshRevision}, {dstPath, dstRefreshRevision}});
+    if (invalidateCache) {
+        InvalidateCache(queryContext, {{srcPath, srcRefreshRevision}, {dstPath, dstRefreshRevision}});
+    }
 }
 
 DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const
@@ -264,8 +296,8 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     WaitFor(AllSucceeded(std::vector({tableFuture.AsVoid(), dictionaryFuture.AsVoid()})))
         .ThrowOnError();
 
-    auto table = tableFuture.BlockingGet().ValueOrThrow();
-    auto dictionary = dictionaryFuture.BlockingGet().ValueOrThrow();
+    auto table = tableFuture.GetOrCrash().ValueOrThrow();
+    auto dictionary = dictionaryFuture.GetOrCrash().ValueOrThrow();
 
     DB::StoragePtr result;
     if (table && dictionary) {
@@ -334,7 +366,10 @@ DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryCo
 
     return std::make_shared<DB::StorageDictionary>(
         storageId,
-        loadResult.config->config,
+        loadResult.name,
+        DB::ExternalDictionariesLoader::getDictionaryStructure(*loadResult.config),
+        loadResult.config->config->getString("dictionary.comment", ""),
+        DB::StorageDictionary::Location::SameDatabaseAndNameAsDictionary,
         context);
 }
 

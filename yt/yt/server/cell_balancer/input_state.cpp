@@ -131,7 +131,7 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
 
             for (const auto& tabletNode : dataCenterNodes) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, tabletNode);
-                if (nodeInfo->State != InstanceStateOnline) {
+                if (!nodeInfo->IsOnline()) {
                     continue;
                 }
 

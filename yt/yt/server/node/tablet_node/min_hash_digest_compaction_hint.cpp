@@ -62,8 +62,14 @@ private:
         auto chunkReadOptions = CreateChunkReadOptions();
 
         if (!blockIndex.IsFetched()) {
+            bool compressBlockLastKeys = Store_->GetTablet()->GetSettings().MountConfig->CompressBlockLastKeys;
+
             SubscribeWithErrorHandling(
-                Store_->GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions, /*prepareColumnMeta*/ false),
+                Store_->GetCachedVersionedChunkMeta(
+                    chunkReader,
+                    chunkReadOptions,
+                    /*prepareColumnMeta*/ false,
+                    compressBlockLastKeys),
                 std::bind_front(
                     &TMinHashDigestFetchPipeline::MakeMinHashDigestRequest,
                     this,

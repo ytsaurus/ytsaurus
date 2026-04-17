@@ -127,7 +127,7 @@ struct TJobResourceManagerDynamicConfig
 
     bool ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition;
 
-    bool CheckUserJobsCategoryLimitOnResourcesUpdating;
+    bool CheckUserJobsCategoryLimitOnResourceUpdate;
 
     REGISTER_YSON_STRUCT(TJobResourceManagerDynamicConfig);
 

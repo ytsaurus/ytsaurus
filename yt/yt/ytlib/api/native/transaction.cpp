@@ -851,7 +851,8 @@ private:
                                 *versionedWriteSchema,
                                 versionedWriteIdMapping,
                                 NameTable_,
-                                tabletIndexColumnId);
+                                tabletIndexColumnId,
+                                Options_.AllowMissingKeyColumns);
                         }
                         break;
 
@@ -866,7 +867,8 @@ private:
                             TUnversionedRow(modification.Row),
                             *deleteSchema,
                             deleteIdMapping,
-                            NameTable_);
+                            NameTable_,
+                            Options_.AllowMissingKeyColumns);
                         break;
 
                     case ERowModificationType::WriteAndLock: {
@@ -2384,6 +2386,14 @@ private:
                         }
                     }
 
+                    if (GetType() == ETransactionType::Tablet) {
+                        // NB: Master prerequisite transactions for tablet transactions are already handled
+                        // at the data sending stage (TReqWrite) and are not used during commit stage.
+                        // Chaos leases are excluded from prerequisite transaction ids even earlier,
+                        // in BuildAdjustedCommitOptions.
+                        CommitOptions_.PrerequisiteTransactionIds = {};
+                    }
+
                     return Transaction_->Commit(CommitOptions_);
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
@@ -2395,7 +2405,9 @@ private:
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
 
-                            auto error = TError("Error committing transaction %v",
+                            auto error = TError(
+                                NTransactionClient::EErrorCode::NativeTransactionCommitFailure,
+                                "Error committing transaction %v",
                                 GetId())
                                 << MakeClusterIdErrorAttribute()
                                 << resultOrError;

@@ -56,14 +56,16 @@
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
+#include <yt/yt/core/service_discovery/yp/config.h>
+
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <yt/yt/core/service_discovery/yp/config.h>
 
 #include <yt/yt/core/logging/config.h>
 
@@ -109,7 +111,7 @@ public:
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TBootstrap::OnSecondaryMasterCellListChanged, MakeStrong(this)));
 
@@ -192,6 +194,8 @@ public:
             std::move(ownerId),
             GetConnection(),
             GetControlInvoker());
+
+        AuxPoller_ = CreateThreadPoolPoller(GetConfig()->AuxPollerThreadCount, "AuxPoller");
 
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
@@ -428,6 +432,11 @@ public:
         return SignatureComponents_->GetSignatureValidator();
     }
 
+    IPollerPtr GetAuxPoller() const override
+    {
+        return AuxPoller_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -470,6 +479,8 @@ private:
     IJobProxyLogManagerPtr JobProxyLogManager_;
 
     TSignatureComponentsPtr SignatureComponents_;
+
+    IPollerPtr AuxPoller_;
 
     void BuildJobProxyConfigTemplate(const std::optional<TSecondaryMasterConnectionConfigs>& optionalNewSecondaryMasterConfigs)
     {

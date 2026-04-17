@@ -613,6 +613,16 @@ func (e *Encoder) GetJobStderr(
 	return
 }
 
+func (e *Encoder) ListOperationEvents(
+	ctx context.Context,
+	opID yt.OperationID,
+	options *yt.ListOperationEventsOptions,
+) (r *yt.ListOperationEventsResult, err error) {
+	call := e.newCall(NewListOperationEventsParams(opID, options))
+	err = e.do(ctx, call, ListOperationEventsResultDecoder(&r))
+	return
+}
+
 func (e *Encoder) WriteFile(
 	ctx context.Context,
 	path ypath.YPath,

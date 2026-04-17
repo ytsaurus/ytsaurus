@@ -14,6 +14,8 @@ from yt_commands import (
     advance_consumer,
     ls,
     set as yt_set,
+    get,
+    abort_transaction,
 )
 
 from yt_helpers import profiler_factory
@@ -28,8 +30,14 @@ NONE_TAG = "none"
 
 
 def get_profiler() -> Profiler:
-    original_host = ls('//sys/queue_agents/instances')[0]
-    return profiler_factory().at_queue_agent(original_host)
+    hosts = ls('//sys/queue_agents/instances')
+    assert len(hosts) == 1
+    return profiler_factory().at_queue_agent(hosts[0])
+
+
+def get_profilers() -> dict[str, Profiler]:
+    hosts = set(ls('//sys/queue_agents/instances'))
+    return {host: profiler_factory().at_queue_agent(host) for host in hosts}
 
 
 ##################################################################
@@ -206,14 +214,12 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         consumer_orchid.wait_fresh_pass()
 
         def get_metric() -> list:
-            fixed_tags = {}
-            if queue_tag:
-                fixed_tags["queue_tag"] = queue_tag
-            if consumer_tag:
-                fixed_tags["consumer_tag"] = consumer_tag
             x = profiler.gauge(
                 'queue_agent/consumer_partition/lag_rows',
-                fixed_tags=fixed_tags,
+                fixed_tags={
+                    "queue_tag": queue_tag or NONE_TAG,
+                    "consumer_tag": consumer_tag or NONE_TAG,
+                },
             ).get_all()
             print_debug(x)
             return x
@@ -221,15 +227,8 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         wait(get_metric, ignore_exceptions=True)
 
         lag_rows = get_metric()[0]
-        if not queue_tag:
-            assert "queue_tag" not in lag_rows["tags"]
-        else:
-            assert lag_rows["tags"]["queue_tag"] == queue_tag
-
-        if not consumer_tag:
-            assert "consumer_tag" not in lag_rows["tags"]
-        else:
-            assert lag_rows["tags"]["consumer_tag"] == consumer_tag
+        assert lag_rows["tags"]["queue_tag"] == queue_tag or NONE_TAG
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
 
         queue_tag = "new_queue_tag"
         yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
@@ -239,11 +238,7 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
 
         lag_rows = get_metric()[0]
         assert lag_rows["tags"]["queue_tag"] == queue_tag
-
-        if not consumer_tag:
-            assert "consumer_tag" not in lag_rows["tags"]
-        else:
-            assert lag_rows["tags"]["consumer_tag"] == consumer_tag
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
 
         consumer_tag = "new_consumer_tag"
         yt_set(f"{consumer_path}/@queue_consumer_profiling_tag", consumer_tag)
@@ -282,16 +277,13 @@ class TestQueueAgentQueueProfiling(TestQueueAgentBase):
             return profiler.gauge(
                 'queue_agent/queue/partitions',
                 fixed_tags={
-                    "queue_tag": queue_tag,
-                } if queue_tag else {},
+                    "queue_tag": queue_tag or NONE_TAG,
+                },
             ).get_all()
 
         wait(get_metric, ignore_exceptions=True)
         partitions = get_metric()[0]
-        if not queue_tag:
-            assert "queue_tag" not in partitions["tags"]
-        else:
-            assert partitions["tags"]["queue_tag"] == queue_tag
+        assert partitions["tags"]["queue_tag"] == queue_tag or NONE_TAG
 
         queue_tag = "new_queue_tag"
         yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
@@ -422,3 +414,120 @@ class TestQueueAgentPassProfiling(TestQueueAgentBase):
                 "leading": "true",
             })
             assert 0 < duration_summary.get_max() < 10
+
+
+class TestBasicPassesMultiHosts(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+        "election_manager": {
+            "lock_acquisition_period": 100,
+        },
+    }
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "election_manager": {
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+        },
+    }
+
+    NUM_QUEUE_AGENTS_PRIMARY = 3
+
+    @authors("panesher")
+    def test_basic_pass_profiling_counts(self):
+        pass_prefixes_to_count = {
+            "queue_agent/cypress_synchronizer": 1,
+            "queue_agent/queue_agent_sharding_manager": 1,
+            "queue_agent": self.NUM_QUEUE_AGENTS_PRIMARY,
+        }
+
+        self._wait_for_component_passes()
+
+        profilers = get_profilers()
+        assert len(profilers) == self.NUM_QUEUE_AGENTS_PRIMARY
+
+        def get_metric_count(profiler: Profiler, pass_prefix: str) -> int:
+            count = len(profiler.gauge(f"{pass_prefix}/pass/duration").get_all())
+            assert count <= 1, f"{pass_prefix} has more than one pass"
+            return count
+
+        def get_profilers_count(pass_prefix: str):
+            # NB(panesher): using duration here since it resets to zero if the agent loses leadership.
+            return sum(get_metric_count(profiler, pass_prefix) for profiler in profilers.values())
+
+        for pass_prefix, expected_count in pass_prefixes_to_count.items():
+            wait(lambda: get_profilers_count(pass_prefix) == expected_count, ignore_exceptions=True)
+
+        def get_cypress_synchronizer_host() -> str:
+            hosts = list(
+                host
+                for host, profiler in profilers.items()
+                if get_metric_count(profiler, "queue_agent/cypress_synchronizer")
+            )
+            return hosts[0] if len(hosts) == 1 else ""
+
+        old_host = get_cypress_synchronizer_host()
+
+        def get_current_lock():
+            locks = list(filter(lambda x: x["state"] == "acquired", get("//sys/queue_agents/leader_lock/@locks")))
+            assert len(locks) == 1
+            return locks[0]
+
+        abort_transaction(get_current_lock()["transaction_id"])
+
+        def check_new():
+            new_host = get_cypress_synchronizer_host()
+            trx = get_current_lock()["transaction_id"]
+            trx_host = get(f"//sys/transactions/{trx}/@host")
+            return new_host and new_host != old_host and trx_host == new_host
+
+        wait(check_new)
+
+
+class TestLeadingPassesMultiHosts(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+        "queue_agent_sharding_manager": {
+            "pass_period": 10 ** 15,
+        },
+    }
+
+    NUM_QUEUE_AGENTS_PRIMARY = 2
+
+    @authors("panesher")
+    def test_leading_pass_profiling(self):
+        queue = self.create_queue_path()
+        self._create_queue(queue, mount=True)
+
+        consumer_path = self.create_consumer_path()
+        create("queue_consumer", consumer_path)
+
+        register_queue_consumer(queue, consumer_path, vital=True)
+
+        profilers = get_profilers()
+        hosts = list(profilers.keys())
+
+        # put queue and consumer in different hosts
+        insert_rows("//sys/queue_agents/queue_agent_object_mapping", [
+            {
+                "object": f"primary:{queue}",
+                "host": hosts[0],
+            },
+            {
+                "object": f"primary:{consumer_path}",
+                "host": hosts[1],
+            },
+        ])
+
+        print_debug(f"{profilers=}")
+
+        metric = "queue_agent/{}/controller/pass/duration"
+
+        wait(lambda: profilers[hosts[0]].gauge(metric.format("queue")).get_all()[0]["tags"]["leading"] == "true", ignore_exceptions=True)
+        wait(lambda: profilers[hosts[0]].gauge(metric.format("consumer")).get_all()[0]["tags"]["leading"] == "false", ignore_exceptions=True)
+        wait(lambda: profilers[hosts[1]].gauge(metric.format("queue")).get_all()[0]["tags"]["leading"] == "false", ignore_exceptions=True)
+        wait(lambda: profilers[hosts[1]].gauge(metric.format("consumer")).get_all()[0]["tags"]["leading"] == "true", ignore_exceptions=True)

@@ -22,6 +22,7 @@ SRCS(
     table_puller_helpers_ut.cpp
     tablet_cell_write_manager_ut.cpp
     tablet_context_mock.cpp
+    tablet_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

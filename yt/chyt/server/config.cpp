@@ -489,6 +489,19 @@ void TDictionaryRepositoryConfig::Register(TRegistrar registrar)
         .NonEmpty();
 }
 
+void TDictionaryAccessControlConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cache_config", &TThis::CacheConfig)
+        .DefaultNew();
+
+    registrar.Parameter("collect_loaded_dictionaries_period", &TThis::CollectLoadedDictionariesPeriod)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->CacheConfig->BatchUpdate = true;
+    });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSystemLogTableExporterConfig::Register(TRegistrar registrar)
@@ -650,6 +663,9 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("dictionary_repository", &TThis::DictionaryRepository)
+        .Default();
+
+    registrar.Parameter("dictionary_access_control", &TThis::DictionaryAccessControl)
         .Default();
 
     registrar.Parameter("system_log_table_exporters", &TThis::SystemLogTableExporters)

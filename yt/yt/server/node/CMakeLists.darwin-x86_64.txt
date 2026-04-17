@@ -69,6 +69,7 @@ target_link_libraries(yt-server-node PUBLIC
   yt-library-tcmalloc
   library-tracing-baggage_manager
   library-tracing-jaeger
+  library-query-heavy
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
@@ -87,6 +88,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-nbd
   server-lib-node
   server-lib-rpc
+  server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-controller_agent
   library-cpp-getopt
@@ -147,6 +149,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/allocation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact_description.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/controller_agent_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/cache_location.cpp
@@ -168,6 +171,8 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_input_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/proxying_data_node_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/orchid.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/preparation_options.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/slot.cpp
@@ -177,6 +182,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_artifact.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume_manager.cpp
@@ -240,6 +246,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_chunk_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_dynamic_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_store_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_reporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/partition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/partition_balancer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/puller_replica_cache.cpp

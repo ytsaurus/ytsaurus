@@ -16,6 +16,7 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/testing/hook/hook.h>
 
@@ -97,7 +98,7 @@ TQueryStatistics DoExecuteQuery(
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
     const TQueryOptions& options,
-    const std::vector<IJoinProfilerPtr>& joinProfilers)
+    const TJoinProfilerRegistry& joinProfilerRegistry)
 {
     std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
@@ -117,7 +118,7 @@ TQueryStatistics DoExecuteQuery(
 
     ssize_t batchSize = maxBatchSize;
 
-    if (query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true) && query->Offset + query->Limit < batchSize) {
+    if ((query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered) && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
@@ -130,7 +131,7 @@ TQueryStatistics DoExecuteQuery(
             owningSourceRows[index] = TOwningRow();
         }
 
-        if (isFirstRead && query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)) {
+        if (isFirstRead && query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered) {
             EXPECT_EQ(options.MaxRowsPerRead, std::min(DefaultRowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
@@ -154,7 +155,7 @@ TQueryStatistics DoExecuteQuery(
         query,
         readerMock,
         writer,
-        joinProfilers,
+        joinProfilerRegistry,
         functionProfilers,
         aggregateProfilers,
         NWebAssembly::GetBuiltinSdk(),
@@ -382,7 +383,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::EvaluateWithQueryStat
     const TResultMatcher& resultMatcher,
     TEvaluateOptions options)
 {
-    return BIND(&TQueryEvaluateTest::DoEvaluate, this)
+    return WaitFor(BIND(&TQueryEvaluateTest::DoEvaluate, this)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run(
             query,
@@ -390,8 +391,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::EvaluateWithQueryStat
             owningSources,
             resultMatcher,
             options,
-            std::nullopt)
-        .BlockingGet()
+            std::nullopt))
         .ValueOrThrow();
 }
 
@@ -536,7 +536,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
     };
 
     evaluateOptions.ExecutionBackend = EExecutionBackend::WebAssembly;
-    BIND(&TQueryEvaluateTest::DoEvaluate, this)
+    WaitFor(BIND(&TQueryEvaluateTest::DoEvaluate, this)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run(
             query,
@@ -544,12 +544,11 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             owningSources,
             AnyMatcher,
             evaluateOptions,
-            expectedError)
-        .BlockingGet()
+            expectedError))
         .ValueOrThrow();
 
     evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
-    return BIND(&TQueryEvaluateTest::DoEvaluate, this)
+    return WaitFor(BIND(&TQueryEvaluateTest::DoEvaluate, this)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run(
             query,
@@ -557,8 +556,7 @@ TQueryPtr TQueryEvaluateTest::EvaluateExpectingError(
             owningSources,
             AnyMatcher,
             std::move(evaluateOptions),
-            expectedError)
-        .BlockingGet()
+            expectedError))
         .ValueOrThrow().first;
 }
 
@@ -566,7 +564,7 @@ TQueryPtr TQueryEvaluateTest::Prepare(
     TStringBuf query,
     const TSplitMap& dataSplits,
     TYsonStringBuf placeholderValues,
-    int syntaxVersion)
+    const TPreparePlanFragmentOptions& options)
 {
     for (const auto& dataSplit : dataSplits) {
         EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
@@ -578,7 +576,7 @@ TQueryPtr TQueryEvaluateTest::Prepare(
         &PrepareMock_,
         query,
         placeholderValues,
-        syntaxVersion);
+        options);
 
     return fragment->Query;
 }
@@ -597,7 +595,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
         return {};
     }
 
-    auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, evaluateOptions.SyntaxVersion);
+    auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, TPreparePlanFragmentOptions{.SyntaxVersion = evaluateOptions.SyntaxVersion, .BuilderVersion = DefaultExpressionBuilderVersion});
 
     TQueryOptions options;
     options.InputRowLimit = evaluateOptions.InputRowLimit;
@@ -636,11 +634,12 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
                 fragment.Query,
                 writer,
                 options,
-                /*joinProfilers*/ {});
+                /*joinProfilerRegistry*/ {});
     };
 
-    std::vector<IJoinProfilerPtr> joinProfilers;
-    for (const auto& joinClause : primaryQuery->JoinClauses) {
+    TJoinProfilerRegistry joinProfilerRegistry;
+    for (int joinIndex = 0; joinIndex < std::ssize(primaryQuery->JoinClauses); ++joinIndex) {
+        const auto& joinClause = primaryQuery->JoinClauses[joinIndex];
         auto getPrefetchJoinDataSource = [=] () -> std::optional<TDataSource> {
             // This callback is usually dependent on the structure of tablets.
             // Thus, in tests we resort to returning a universal range.
@@ -649,7 +648,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
                 primaryQuery,
                 *joinClause,
                 evaluateOptions.MinKeyWidth,
-                primaryQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)))
+                primaryQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered))
             {
                 auto buffer = New<TRowBuffer>();
                 TRowRanges universalRange{{
@@ -665,13 +664,13 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             }
         };
 
-        joinProfilers.push_back(CreateJoinSubqueryProfiler(
+        joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
             joinClause,
             std::move(executePlan),
             std::move(consumeSubqueryStatistics),
             std::move(getPrefetchJoinDataSource),
             GetDefaultMemoryChunkProvider(),
-            /*useOrderByInJoinSubqueries=*/ true,
+            /*useOrderByInJoinSubqueries*/ true,
             Logger()));
     }
 
@@ -689,7 +688,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             primaryQuery,
             writer,
             options,
-            joinProfilers);
+            joinProfilerRegistry);
 
         resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
@@ -724,7 +723,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         return {};
     }
 
-    auto primaryQuery = Prepare(query, TSplitMap{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+    auto primaryQuery = Prepare(query, TSplitMap{{"//t", dataSplit}}, {});
     YT_VERIFY(primaryQuery->GroupClause);
 
     int tabletCount = owningSources.size();
@@ -780,7 +779,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
             bottomQuery,
             readerMock,
             pipe->GetWriter(),
-            /*joinProfilers*/ {},
+            /*joinProfilerRegistry*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
             NWebAssembly::GetBuiltinSdk(),
@@ -792,7 +791,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         return pipe->GetReader();
     };
 
-    auto frontReader = frontQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
+    auto frontReader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
@@ -804,7 +803,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         frontQuery,
         frontReader,
         writer,
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -875,7 +874,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
         query,
         readerMock,
         pipe->GetWriter(),
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -913,7 +912,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         return pipe->GetReader();
     };
 
-    auto reader = query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
+    auto reader = (query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -923,7 +922,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         query,
         reader,
         pipe->GetWriter(),
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -958,7 +957,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
         return pipe->GetReader();
     };
 
-    auto reader = frontQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
+    auto reader = (frontQuery->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ true) == EScanOrder::Ordered)
         ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
         : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -968,7 +967,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
         frontQuery,
         reader,
         writer,
-        /*joinProfilers*/ {},
+        /*joinProfilerRegistry*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
         NWebAssembly::GetBuiltinSdk(),
@@ -989,7 +988,7 @@ void TQueryEvaluateTest::EvaluateFullCoordinatedGroupByImpl(
     const TResultMatcher& resultMatcher,
     EExecutionBackend executionBackend)
 {
-    auto query = Prepare(queryString, TSplitMap{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+    auto query = Prepare(queryString, TSplitMap{{"//t", dataSplit}}, {});
     auto rows = RunOnCoordinator(query, data, executionBackend);
 
     resultMatcher(rows, *query->GetTableSchema());

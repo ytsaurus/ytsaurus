@@ -115,7 +115,9 @@ public:
             timestampRange.RetentionTimestamp = *retentionTimestamp;
         }
 
-        return BIND(&LookupRowsImpl,
+        chunkReadOptions.InitialQueryKind = EInitialQueryKind::LookupRows;
+
+        return WaitFor(BIND(&LookupRowsImpl,
             Tablet_.get(),
             keys,
             timestampRange,
@@ -123,22 +125,20 @@ public:
             tabletSnapshot,
             chunkReadOptions)
             .AsyncVia(LookupQueue_->GetInvoker())
-            .Run()
-            .BlockingGet()
+            .Run())
             .ValueOrThrow();
     }
 
     TVersionedOwningRow DoVersionedLookupRow(const TUnversionedOwningRow& key)
     {
-        return BIND(&VersionedLookupRowImpl,
+        return WaitFor(BIND(&VersionedLookupRowImpl,
             Tablet_.get(),
             key,
             /*minDataVersions*/ 100,
             AsyncLastCommittedTimestamp,
             ChunkReadOptions_)
             .AsyncVia(LookupQueue_->GetInvoker())
-            .Run()
-            .BlockingGet()
+            .Run())
             .ValueOrThrow();
     }
 

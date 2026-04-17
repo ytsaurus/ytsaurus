@@ -45,6 +45,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -161,10 +162,10 @@ public:
 
     void SetUp() override
     {
-        BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
+        WaitFor(BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
             .AsyncVia(TestQueue_->GetInvoker())
-            .Run()
-            .BlockingGet();
+            .Run())
+            .ThrowOnError();
     }
 
     void DoSetUp()
@@ -383,6 +384,8 @@ protected:
     {
         NChunkClient::TClientChunkReadOptions result;
         result.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+
+        result.InitialQueryKind = EInitialQueryKind::LookupRows;
         return result;
     }
 };

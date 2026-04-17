@@ -698,8 +698,8 @@ private:
 
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
-        SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead = QueryAnalyzer_->NeedOnlyDistinct();
-        SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization =
+        SpecTemplate_.SubqueryOptions.UseDistinctReadOptimization = QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.SubqueryOptions.UseMinMaxOptimization =
             QueryAnalysisResult_->EnableMinMaxOptimization && SpecTemplate_.TableStatistics.has_value();
 
         auto& tableStatistics = SpecTemplate_.TableStatistics;
@@ -720,7 +720,7 @@ private:
                 return true;
             };
             if (!tableStatistics->HasValueStatistics() || !checkValues(tableStatistics->ColumnMinValues) || !checkValues(tableStatistics->ColumnMaxValues)) {
-                SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization = false;
+                SpecTemplate_.SubqueryOptions.UseMinMaxOptimization = false;
                 tableStatistics = std::nullopt;
             }
         }
@@ -777,7 +777,9 @@ private:
             "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
 
         QueryContext_->SetRuntimeVariable(
-            "use_min_max_optimization", SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization);
+            "use_input_specs_pulling", SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling);
+        QueryContext_->SetRuntimeVariable(
+            "use_min_max_optimization", SpecTemplate_.SubqueryOptions.UseMinMaxOptimization);
         QueryContext_->SetRuntimeVariable(
             "try_optimize_distinct_read", SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead);
         QueryContext_->SetRuntimeVariable(
@@ -843,7 +845,7 @@ private:
                 taskCount,
                 QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
         }
-        if (SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization) {
+        if (SpecTemplate_.SubqueryOptions.UseMinMaxOptimization) {
             taskCount = 1;
         }
 
@@ -1308,13 +1310,14 @@ public:
                 // Can't erase table like in distributedWrite because of INSERT INTO t FROM (SELECT * FROM t) case.
                 THROW_ERROR_EXCEPTION("Parallel overwriting is not supported, set max_insert_threads = 1");
             }
-            if (queryContext->QueryKind == EQueryKind::InitialQuery) {
-                queryContext->InitializeQueryWriteTransaction();
-            }
         }
 
         if (table->Dynamic && overwrite) {
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
+        }
+
+        if (queryContext->QueryKind == EQueryKind::InitialQuery) {
+            queryContext->InitializeQueryWriteTransaction();
         }
 
         auto dataTypes = ToDataTypes(*Schema_, QueryContext_->SessionSettings->Composite, /*isReadConversions*/ false);
@@ -1337,6 +1340,10 @@ public:
         auto finalCallback = [queryContext, path = path.GetPath()] () {
             if (queryContext->WriteSinkCount.fetch_sub(1) == 1) {
                 queryContext->CommitWriteTransaction();
+
+                if (queryContext->ParentTransactionId) {
+                    return;
+                }
 
                 auto invalidateMode = queryContext->SessionSettings->Caching->TableAttributesInvalidateMode;
                 if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
@@ -1446,6 +1453,8 @@ public:
 
         auto distributedStage = executionSettings->DistributedInsertStage;
 
+        YT_LOG_DEBUG("Distributed insert stage: %v", distributedStage);
+
         if (distributedStage == EDistributedInsertStage::None) {
             return std::nullopt;
         }
@@ -1477,6 +1486,7 @@ public:
         int distributedInsertStageRank = GetDistributedInsertStageRank(distributedStage);
         int queryProcessingStageRank = GetQueryProcessingStageRank(queryProcessingStage);
 
+        YT_LOG_DEBUG("Distributed insert stage rank: %v, query processing stage rank: %v", distributedInsertStageRank, queryProcessingStageRank);
         if (queryProcessingStageRank < distributedInsertStageRank) {
             return std::nullopt;
         }
@@ -1514,6 +1524,11 @@ public:
             auto* queryContext = GetQueryContext(context);
             queryContext->CommitWriteTransaction();
             auto refreshRevision = NHydra::NullRevision;
+
+            if (queryContext->ParentTransactionId) {
+                return;
+            }
+
             if (queryContext->CreatedTablePath.has_value()) {
                 YT_VERIFY(*queryContext->CreatedTablePath == path);
                 refreshRevision = GetRefreshRevision(queryContext->Client(), path);
@@ -1545,11 +1560,18 @@ public:
         THROW_ERROR_EXCEPTION_IF(table->Dynamic,
             "TRUNCATE is not supported for dynamic tables");
 
+        auto* queryContext = GetQueryContext(context);
+
+        queryContext->InitializeQueryWriteTransaction();
+
         EraseTable(context);
 
-        auto* queryContext = GetQueryContext(context);
-        auto refreshRevision = GetRefreshRevision(queryContext->Client(), table->GetPath());
-        InvalidateCache(queryContext, {{table->GetPath(), refreshRevision}});
+        queryContext->CommitWriteTransaction();
+
+        if (!queryContext->ParentTransactionId) {
+            auto refreshRevision = GetRefreshRevision(queryContext->Client(), table->GetPath());
+            InvalidateCache(queryContext, {{table->GetPath(), refreshRevision}});
+        }
     }
 
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override

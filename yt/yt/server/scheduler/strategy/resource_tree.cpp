@@ -20,6 +20,27 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr TDuration::TValue NoDurationSentinel = ::Max<TDuration::TValue>();
+
+void StoreOptionalDuration(std::atomic<TDuration::TValue>& target, std::optional<TDuration> value)
+{
+    target.store(value ? value->GetValue() : NoDurationSentinel, std::memory_order_relaxed);
+}
+
+void MaybeDelay(const std::atomic<TDuration::TValue>& delay, EDelayType delayType)
+{
+    auto raw = delay.load(std::memory_order_relaxed);
+    if (raw != NoDurationSentinel) {
+        Delay(TDuration::MicroSeconds(raw), delayType);
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TResourceTree::TResourceTree(
     const TStrategyTreeConfigPtr& config,
     const std::vector<IInvokerPtr>& feasibleInvokers)
@@ -36,10 +57,10 @@ void TResourceTree::UpdateConfig(const TStrategyTreeConfigPtr& config)
 
     EnableStructureLockProfiling_.store(config->EnableResourceTreeStructureLockProfiling);
     EnableUsageLockProfiling_.store(config->EnableResourceTreeUsageLockProfiling);
-    ResourceTreeInitializeResourceUsageDelay_ = config->TestingOptions->ResourceTreeInitializeResourceUsageDelay;
-    ResourceTreeReleaseResourcesRandomDelay_ = config->TestingOptions->ResourceTreeReleaseResourcesRandomDelay;
-    ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_ = config->TestingOptions->ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
-    ResourceTreeRevertResourceUsagePrecommitRandomDelay_ = config->TestingOptions->ResourceTreeRevertResourceUsagePrecommitRandomDelay;
+    StoreOptionalDuration(ResourceTreeInitializeResourceUsageDelay_, config->TestingOptions->ResourceTreeInitializeResourceUsageDelay);
+    StoreOptionalDuration(ResourceTreeReleaseResourcesRandomDelay_, config->TestingOptions->ResourceTreeReleaseResourcesRandomDelay);
+    StoreOptionalDuration(ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_, config->TestingOptions->ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay);
+    StoreOptionalDuration(ResourceTreeRevertResourceUsagePrecommitRandomDelay_, config->TestingOptions->ResourceTreeRevertResourceUsagePrecommitRandomDelay);
 
     if (config->UsePrecommitForPreemption != UsePrecommitForPreemption_) {
         auto structureGuard = WriterGuard(StructureLock_);
@@ -348,9 +369,10 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
         YT_VERIFY(element->IncreaseLocalResourceUsagePrecommitUnsafe(-delta));
         currentElement = element->Parent_.Get();
         while (currentElement != failedParent) {
-            if (ResourceTreeRevertResourceUsagePrecommitRandomDelay_) {
+            auto raw = ResourceTreeRevertResourceUsagePrecommitRandomDelay_.load(std::memory_order_relaxed);
+            if (raw != NoDurationSentinel) {
                 // NB: under RWLock only synchronous sleep is allowed.
-                Delay(RandomDuration(*ResourceTreeRevertResourceUsagePrecommitRandomDelay_), EDelayType::Sync);
+                Delay(RandomDuration(TDuration::MicroSeconds(raw)), EDelayType::Sync);
             }
             YT_VERIFY(currentElement->IncreaseLocalResourceUsagePrecommit(-delta));
             currentElement = currentElement->Parent_.Get();

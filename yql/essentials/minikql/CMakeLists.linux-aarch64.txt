@@ -19,6 +19,7 @@ add_subdirectory(datetime)
 add_subdirectory(computation)
 add_subdirectory(arrow)
 add_subdirectory(jsonpath)
+add_subdirectory(runtime_settings)
 add_subdirectory(protobuf_udf)
 
 add_library(yql-essentials-minikql)
@@ -63,6 +64,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_alloc.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_block_map_join_utils.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_buffer.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_date_scaler.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_function_metadata.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_function_registry.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_mem_info.cpp
@@ -90,6 +92,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/defs.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_block_map_join_utils.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_buffer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_date_scaler.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_function_metadata.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_function_registry.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_node.h
@@ -107,6 +110,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_type_builder.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_type_ops.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_watermark.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_window_comparator_bounds.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_unboxed_value_stream.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/pack_num.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/primes.h
@@ -122,7 +126,6 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_stats_registry.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_type_helper.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_utils.h
-  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_window_comparator_bounds.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_window_defs.h
 )
 

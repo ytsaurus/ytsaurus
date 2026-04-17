@@ -368,10 +368,16 @@ public:
             // NB: Yielding is now possible.
             // Cannot neither access tablet, nor transaction.
             if (context.BlockedStore) {
-                context.BlockedStore->WaitOnBlockedRow(
+                auto waitOnBlockedRowDuration = context.BlockedStore->WaitOnBlockedRow(
                     context.BlockedRow,
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
+
+                tablet
+                    ->GetTableProfiler()
+                    ->GetWriteCounters(GetCurrentProfilingUser())
+                    ->WaitOnBlockedRowDuration
+                    .Record(waitOnBlockedRowDuration);
             }
 
             context.Error.ThrowOnError();

@@ -116,28 +116,28 @@ DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary
 
 void TCypressDictionaryConfigRepository::WriteDictionary(
     const DB::ContextPtr& context,
-    const std::string& name,
+    const DB::StorageID& storageId,
     const DB::LoadablesConfigurationPtr& config)
 {
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
 
-    host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+    auto configName = storageId.table_name;
 
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
-    auto path = GetPathToConfig(name);
+    auto path = GetPathToConfig(configName);
     NApi::TCreateNodeOptions options;
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("value", parsedConfigStream.str());
 
     auto resultOrError = WaitFor(client->CreateNode(path, NCypressClient::EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", name) << resultOrError;
+        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", configName) << resultOrError;
     }
 
-    host->ReloadDictionaryGlobally(name);
+    host->ReloadDictionaryGlobally(configName);
 }
 
 void TCypressDictionaryConfigRepository::DeleteDictionary(

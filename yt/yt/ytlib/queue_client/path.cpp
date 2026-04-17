@@ -42,11 +42,11 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
     builder->AppendString(attrString);
 }
 
-TString ConvertToString(const TGenericObjectPath& path)
+TString ConvertToString(const TGenericObjectReference& ref)
 {
     TStringBuilder builder;
-    AppendAttributes(&builder, path.Attributes());
-    builder.AppendString(path.GetPath());
+    AppendAttributes(&builder, ref.Attributes());
+    builder.AppendString(ref.GetPath());
     return builder.Flush();
 }
 
@@ -54,33 +54,45 @@ TString ConvertToString(const TGenericObjectPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTablePath TTablePath::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+{
+    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
+    return TTablePath(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
+}
+
+TGenericObjectReference TGenericObjectReference::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+{
+    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
+    TGenericObjectReference result(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
+    if (auto consumerName = richYPath.GetQueueConsumerName()) {
+        result.SetQueueConsumerName(consumerName.value());
+    }
+    return result;
+}
+
 std::weak_ordering operator<=>(const TTablePath& lhs, const TTablePath& rhs)
 {
     return std::tuple(lhs.GetCluster(), lhs.GetPath()) <=> std::tuple(rhs.GetCluster(), rhs.GetPath());
 }
 
-std::weak_ordering operator<=>(const TGenericObjectPath& lhs, const TGenericObjectPath& rhs)
+std::weak_ordering operator<=>(const TGenericObjectReference& lhs, const TGenericObjectReference& rhs)
 {
     return std::tuple(lhs.GetCluster(), lhs.GetPath(), lhs.GetQueueConsumerName()) <=> std::tuple(rhs.GetCluster(), rhs.GetPath(), rhs.GetQueueConsumerName());
 }
 
-TTablePath ToTablePath(const TGenericObjectPath& genericPath)
+TTablePath ToTablePath(const TGenericObjectReference& genericRef)
 {
-    TRichYPath path(genericPath.GetPath());
-    path.SetCluster(genericPath.GetCluster().value());
-    return TTablePath(std::move(path));
+    return TTablePath(genericRef.GetPath(), *MakeAttributesWithCluster(genericRef.GetCluster().value()));
 }
 
 TCrossClusterReference ToCrossClusterReference(const TTablePath& path)
 {
-    YT_VERIFY(path.GetCluster().has_value(), "Cluster is required for TTablePath");
     return TCrossClusterReference(path.GetCluster().value(), path.GetPath());
 }
 
-TCrossClusterReference ToCrossClusterReference(const TGenericObjectPath& path)
+TCrossClusterReference ToCrossClusterReference(const TGenericObjectReference& ref)
 {
-    YT_VERIFY(path.GetCluster().has_value(), "Cluster is required for TGenericObjectPath");
-    return TCrossClusterReference(path.GetCluster().value(), path.GetPath());
+    return TCrossClusterReference(ref.GetCluster().value(), ref.GetPath());
 }
 
 void FormatValue(TStringBuilderBase* builder, const TTablePath& path, TStringBuf spec)
@@ -89,28 +101,35 @@ void FormatValue(TStringBuilderBase* builder, const TTablePath& path, TStringBuf
     FormatValue(builder, ToCrossClusterReference(path), spec);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TGenericObjectPath& path, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TGenericObjectReference& ref, TStringBuf spec)
 {
-    if (path.GetQueueConsumerName().has_value()) {
-        FormatValue(builder, ConvertToString(path), spec);
+    if (ref.GetQueueConsumerName().has_value()) {
+        FormatValue(builder, ConvertToString(ref), spec);
         return;
     }
     // TODO(YT-27209): Remove this implementation.
-    FormatValue(builder, ToCrossClusterReference(path), spec);
+    FormatValue(builder, ToCrossClusterReference(ref), spec);
+}
+
+IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)
+{
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set(ClusterAttributeKey, cluster);
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient
 
-size_t THash<NYT::NQueueClient::TQueuePath>::operator()(
-    const NYT::NQueueClient::TQueuePath& path) const
+size_t THash<NYT::NQueueClient::TTablePath>::operator()(
+    const NYT::NQueueClient::TTablePath& path) const
 {
     return ComputeHash(ToString(path));
 }
 
-size_t THash<NYT::NQueueClient::TConsumerPath>::operator()(
-    const NYT::NQueueClient::TConsumerPath& path) const
+size_t THash<NYT::NQueueClient::TGenericObjectReference>::operator()(
+    const NYT::NQueueClient::TGenericObjectReference& path) const
 {
     return ComputeHash(ToString(path));
 }

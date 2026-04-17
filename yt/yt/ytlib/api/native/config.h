@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/public.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -258,6 +260,7 @@ struct TConnectionDynamicConfig
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
+    NTabletBalancerClient::TTabletBalancerChannelConfigPtr TabletBalancer;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
@@ -426,6 +429,10 @@ struct TConnectionDynamicConfig
     bool EnableReshardWithSlicingByDefault;
 
     i64 GetJobTraceBatchSize;
+
+    //! Enable base ACO check when validating operation access.
+    bool CheckOperationBaseAco;
+    std::string OperationBaseAcoName;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

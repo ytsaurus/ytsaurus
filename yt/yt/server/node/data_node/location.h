@@ -124,10 +124,10 @@ class TLocationMemoryGuard
 {
 public:
     TLocationMemoryGuard() = default;
-    TLocationMemoryGuard(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcept;
     ~TLocationMemoryGuard();
 
-    void Release();
+    void Release() noexcept;
 
     i64 GetSize() const;
     bool GetUseLegacyUsedMemory() const;
@@ -136,7 +136,7 @@ public:
     void IncreaseSize(i64 delta);
     void DecreaseSize(i64 delta);
 
-    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other);
+    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other) noexcept;
 
     explicit operator bool() const;
 
@@ -152,7 +152,7 @@ private:
         i64 size,
         TChunkLocationPtr owner);
 
-    void MoveFrom(TLocationMemoryGuard&& other);
+    void MoveFrom(TLocationMemoryGuard&& other) noexcept;
 
     TMemoryUsageTrackerGuard MemoryGuard_;
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
@@ -306,6 +306,8 @@ public:
     //! This method returns memory limit fraction.
     double GetMemoryLimitFractionForStartingNewSessions() const;
 
+    bool ShouldUseUncategorizedThrottler() const;
+
     const TChunkStorePtr& GetChunkStore() const;
 
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
@@ -361,7 +363,6 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    bool EnableUncategorizedThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
     NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
 

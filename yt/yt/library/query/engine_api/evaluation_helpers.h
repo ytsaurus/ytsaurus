@@ -2,7 +2,8 @@
 
 #include "expression_context.h"
 #include "position_independent_value.h"
-#include "join_profiler.h"
+#include <yt/yt/library/query/base/join_profiler.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
@@ -233,7 +234,7 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit = std::numeric_limits<i64>::max();
 
-    bool Ordered = false;
+    EScanOrder ScanOrder = EScanOrder::Unordered;
     bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;

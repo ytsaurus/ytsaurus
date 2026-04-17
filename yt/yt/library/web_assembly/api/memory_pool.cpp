@@ -23,13 +23,13 @@ Y_WEAK TWebAssemblyMemoryPool::~TWebAssemblyMemoryPool()
     Clear();
 }
 
-TWebAssemblyMemoryPool::TWebAssemblyMemoryPool(TWebAssemblyMemoryPool&& other)
+TWebAssemblyMemoryPool::TWebAssemblyMemoryPool(TWebAssemblyMemoryPool&& other) noexcept
 {
     std::swap(Size_, other.Size_);
     Allocations_.swap(other.Allocations_);
 }
 
-TWebAssemblyMemoryPool& TWebAssemblyMemoryPool::operator=(TWebAssemblyMemoryPool&& other)
+TWebAssemblyMemoryPool& TWebAssemblyMemoryPool::operator=(TWebAssemblyMemoryPool&& other) noexcept
 {
     std::swap(Size_, other.Size_);
     Allocations_.swap(other.Allocations_);

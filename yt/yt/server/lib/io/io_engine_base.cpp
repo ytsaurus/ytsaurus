@@ -198,7 +198,7 @@ TRequestCounterGuard::TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, 
     }
 }
 
-TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other)
+TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
@@ -208,7 +208,7 @@ TRequestCounterGuard::~TRequestCounterGuard()
     Release();
 }
 
-TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other)
+TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other) noexcept
 {
     if (this != &other) {
         Release();
@@ -675,4 +675,3 @@ i64 GetPaddedSize(i64 offset, i64 size, i64 alignment)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-

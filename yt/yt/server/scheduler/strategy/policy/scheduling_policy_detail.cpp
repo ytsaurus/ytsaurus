@@ -467,26 +467,6 @@ void TSchedulableChildSet::InitializeChildrenOrder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicAttributesList::TDynamicAttributesList(int size)
-    : std::vector<TDynamicAttributes>(size)
-{ }
-
-TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TPoolTreeElement* element)
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
-}
-
-const TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TPoolTreeElement* element) const
-{
-    int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDynamicAttributesListSnapshot::TDynamicAttributesListSnapshot(TDynamicAttributesList value)
     : Value(std::move(value))
 { }
@@ -823,7 +803,7 @@ TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
     , UselessPrescheduleAllocationCount(profiler.Counter("/useless_preschedule_job_count"))
     , PrescheduleAllocationTime(profiler.Timer("/preschedule_job_time"))
     , TotalControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/total"))
-    , ControllerScheduleAllocationTime(profiler.TimeGaugeSummary("/controller_schedule_job_time", ESummaryPolicy::Max | ESummaryPolicy::Avg))
+    , ControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time"))
     , ExecControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/exec"))
     , StrategyScheduleAllocationTime(profiler.Timer("/strategy_schedule_job_time"))
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
@@ -2338,7 +2318,7 @@ void TScheduleAllocationsContext::ProfileStageStatistics()
     profilingCounters->ControllerScheduleAllocationTimedOutCount.Increment(SchedulingStatistics().ControllerScheduleAllocationTimedOutCount);
 
     for (auto scheduleAllocationDuration : StageState_->ScheduleAllocationDurations) {
-        profilingCounters->ControllerScheduleAllocationTime.Update(scheduleAllocationDuration);
+        profilingCounters->ControllerScheduleAllocationTime.Record(scheduleAllocationDuration);
     }
 
     for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
@@ -2811,61 +2791,78 @@ void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     }
 }
 
-bool TSchedulingPolicy::ProcessAllocationUpdate(
+TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     TPoolTreeOperationElement* element,
-    TAllocationId allocationId,
-    const TJobResources& allocationResources,
-    bool resetPreemptibleProgress,
-    const std::optional<std::string>& allocationDataCenter,
-    const std::optional<std::string>& allocationInfinibandCluster,
-    std::optional<EAbortReason>* maybeAbortReason) const
+    const TAllocationUpdate& allocationUpdate)
 {
     const auto& treeSnapshotState = GetPoolTreeSnapshotState(treeSnapshot);
     const auto& operationState = treeSnapshotState->GetEnabledOperationState(element);
     const auto& operationSharedState = treeSnapshotState->GetEnabledOperationSharedState(element);
 
+    if (allocationUpdate.Finished) {
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG(
+            "Processing allocation finish (OperationId: %v, AllocationId: %v)",
+            allocationUpdate.OperationId,
+            allocationUpdate.AllocationId);
+
+        if (operationSharedState->OnAllocationFinished(element, allocationUpdate.AllocationId)) {
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+            };
+        }
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Disabled,
+            .NeedToPostpone = true,
+        };
+    }
+
+    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+
     if (!operationSharedState->ProcessAllocationUpdate(
         element,
-        allocationId,
-        allocationResources,
-        resetPreemptibleProgress))
+        allocationUpdate.AllocationId,
+        allocationUpdate.AllocationResources,
+        /*resetPreemptibleProgress*/ allocationUpdate.PreemptibleProgressStartTime.has_value()))
     {
         // Operation is disabled.
-        return false;
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Disabled,
+            .NeedToPostpone = true,
+        };
     }
 
     const auto& operationSchedulingSegment = operationState->SchedulingSegment;
     if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
         const auto& operationModule = operationState->SchedulingSegmentModule;
         const auto& allocationModule = TSchedulingSegmentManager::GetNodeModule(
-            allocationDataCenter,
-            allocationInfinibandCluster,
+            allocationUpdate.AllocationDataCenter,
+            allocationUpdate.AllocationInfinibandCluster,
             element->TreeConfig()->SchedulingSegments->ModuleType);
         bool allocationIsRunningInTheRightModule = operationModule && (operationModule == allocationModule);
         if (!allocationIsRunningInTheRightModule) {
-            *maybeAbortReason = EAbortReason::WrongSchedulingSegmentModule;
-
             YT_LOG_DEBUG(
                 "Requested to abort allocation because it is running in a wrong module "
                 "(OperationId: %v, AllocationId: %v, OperationModule: %v, AllocationModule: %v)",
                 element->GetOperationId(),
-                allocationId,
+                allocationUpdate.AllocationId,
                 operationModule,
                 allocationModule);
+
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Updated,
+                .NeedToPostpone = true,
+                .NeedToAbort = true,
+                .AbortReason = EAbortReason::WrongSchedulingSegmentModule,
+            };
         }
     }
 
-    return true;
-}
-
-bool TSchedulingPolicy::ProcessFinishedAllocation(
-    const TPoolTreeSnapshotPtr& treeSnapshot,
-    TPoolTreeOperationElement* element,
-    TAllocationId allocationId) const
-{
-    const auto& operationSharedState = GetPoolTreeSnapshotState(treeSnapshot)->GetEnabledOperationSharedState(element);
-    return operationSharedState->OnAllocationFinished(element, allocationId);
+    return TProcessAllocationUpdateResult{
+        .Status = EAllocationUpdateStatus::Updated,
+    };
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const

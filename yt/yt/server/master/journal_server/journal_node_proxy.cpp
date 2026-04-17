@@ -3,6 +3,8 @@
 #include "journal_node.h"
 #include "journal_manager.h"
 
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
@@ -20,6 +22,7 @@
 namespace NYT::NJournalServer {
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NJournalClient;
 using namespace NChunkServer;
 using namespace NCypressServer;
@@ -43,67 +46,106 @@ class TJournalQuorumRowCountSession
     : public TRefCounted
 {
 public:
-    TJournalQuorumRowCountSession(TJournalNode* node, TBootstrap* bootstrap)
+    TJournalQuorumRowCountSession(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-    {
+        , JournalRpcTimeout_(Bootstrap_->GetDynamicConfig()->ChunkManager->JournalRpcTimeout)
+    { }
+
+    TFuture<i64> Run(TJournalNode* node) {
         YT_VERIFY(!node->GetHunkChunkList());
 
         const auto* chunkList = node->GetChunkList();
         if (!chunkList) {
-            Promise_.Set(0);
-            return;
+            return MakeFuture<i64>(0);
         }
 
         if (chunkList->Children().empty()) {
-            Promise_.Set(0);
-            return;
+            return MakeFuture<i64>(0);
         }
 
         SealedRowCount_ = chunkList->Statistics().RowCount;
 
         auto* firstUnsealedChild = FindFirstUnsealedChild(chunkList);
         if (!firstUnsealedChild) {
-            Promise_.Set(SealedRowCount_);
-            return;
+            return MakeFuture(SealedRowCount_);
         }
 
         auto* firstUnsealedChunk = firstUnsealedChild->As<TChunk>();
         if (firstUnsealedChunk->GetOverlayed()) {
             auto firstUnsealedChunkIndex = GetChildIndex(chunkList, firstUnsealedChunk);
+            std::vector<TEphemeralObjectPtr<TChunk>> chunks;
+            // NB: We can not pass reference to chunks to replica fetcher.
+            // TODO(grphil): Avoid copy here.
+            std::vector<TEphemeralObjectPtr<TChunk>> chunksToFetchReplicas;
             for (int index = firstUnsealedChunkIndex; index < std::ssize(chunkList->Children()); ++index) {
                 auto* chunk = chunkList->Children()[index]->As<TChunk>();
-                ChunkDescriptors_.push_back(TChunkDescriptor{
-                    .ChunkId = chunk->GetId(),
-                    .CodecId = chunk->GetErasureCodec(),
-                    .ReadQuorum = chunk->GetReadQuorum(),
-                    .ReplicaLagLimit = chunk->GetReplicaLagLimit(),
-                    .ReplicaDescriptors = GetChunkReplicaDescriptors(chunk)
-                });
+                chunks.emplace_back(chunk);
+                chunksToFetchReplicas.emplace_back(chunk);
             }
-            CurrentChunkIndex_ = std::ssize(ChunkDescriptors_) - 1;
-            RequestChunkInfo();
+
+            const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
+            return chunkReplicaFetcher->GetChunkReplicasAsync(std::move(chunksToFetchReplicas))
+                .Apply(BIND([
+                    chunks = std::move(chunks),
+                    chunkReplicaFetcher,
+                    this,
+                    this_ = MakeStrong(this)
+                ] (const THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> replicasOrErrors) {
+                    for (const auto& chunk : chunks) {
+                        if (!IsObjectAlive(chunk)) {
+                            THROW_ERROR_EXCEPTION("Chunk %v died while replicas were fetched for it", chunk->GetId());
+                        }
+                        const auto& replicasOrError = GetOrCrash(replicasOrErrors, chunk->GetId()).ValueOrThrow();
+                        auto replicas = chunkReplicaFetcher->FilterAliveReplicas(replicasOrError);
+
+                        ChunkDescriptors_.push_back(TChunkDescriptor{
+                            .ChunkId = chunk->GetId(),
+                            .CodecId = chunk->GetErasureCodec(),
+                            .ReadQuorum = chunk->GetReadQuorum(),
+                            .ReplicaLagLimit = chunk->GetReplicaLagLimit(),
+                            .ReplicaDescriptors = GetChunkReplicaDescriptors(chunk.Get(), replicas)
+                        });
+                    }
+                }).AsyncViaGuarded(
+                        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                        TError("Error fetching chunk replicas")))
+                .Apply(BIND(&TJournalQuorumRowCountSession::ComputeQuorumRowCountFromChunks, MakeStrong(this))
+                    .AsyncViaGuarded(
+                        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                        TError("Error computing quorum row count")));
         } else {
             YT_VERIFY(chunkList->Children().back() == firstUnsealedChunk);
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            Promise_.SetFrom(chunkManager->GetChunkQuorumInfo(firstUnsealedChunk).Apply(
-                BIND([sealedRowCount = SealedRowCount_] (const TChunkQuorumInfo& info) {
-                    YT_VERIFY(!info.FirstOverlayedRowIndex);
-                    return sealedRowCount + info.RowCount;
-                })));
-        }
-    }
+            TEphemeralObjectPtr<TChunk> chunkPtr(firstUnsealedChunk);
 
-    TFuture<i64> Run()
-    {
-        return Promise_.ToFuture();
+            const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+            return chunkReplicaFetcher->GetChunkReplicasAsync(chunkPtr.Clone())
+                .Apply(BIND([
+                    chunkPtr = std::move(chunkPtr),
+                    chunkManager,
+                    chunkReplicaFetcher,
+                    sealedRowCount = SealedRowCount_
+                ] (const TErrorOr<std::vector<TSequoiaChunkReplica>>& replicasOrError) {
+                    if (!IsObjectAlive(chunkPtr)) {
+                        THROW_ERROR_EXCEPTION("Chunk is dead");
+                    }
+                    auto replicas = chunkReplicaFetcher->FilterAliveReplicas(replicasOrError.ValueOrThrow());
+                    auto info = WaitFor(chunkManager->GetChunkQuorumInfo(
+                        chunkPtr.Get(),
+                        GetChunkReplicaDescriptors(chunkPtr.Get(), replicas))).ValueOrThrow();
+
+                    return sealedRowCount + info.RowCount;
+                }).AsyncViaGuarded(
+                    Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                    TError("Error fetching Sequoia replicas")));
+        }
     }
 
 private:
     TBootstrap* const Bootstrap_;
+    const TDuration JournalRpcTimeout_;
 
     i64 SealedRowCount_ = -1;
-
-    const TPromise<i64> Promise_ = NewPromise<i64>();
 
     struct TChunkDescriptor
     {
@@ -115,45 +157,40 @@ private:
     };
 
     std::vector<TChunkDescriptor> ChunkDescriptors_;
-    int CurrentChunkIndex_ = -1;
 
-
-    void RequestChunkInfo()
+    i64 ComputeQuorumRowCountFromChunks()
     {
-        if (CurrentChunkIndex_ < 0) {
-            Promise_.Set(SealedRowCount_);
-            return;
-        }
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& chunkDescriptor = ChunkDescriptors_[CurrentChunkIndex_];
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        YT_UNUSED_FUTURE(chunkManager->GetChunkQuorumInfo(
+        for (int chunkIndex = std::ssize(ChunkDescriptors_) - 1; chunkIndex >= 0; --chunkIndex) {
+            auto chunkRowCount = TryGetChunkRowCount(chunkIndex);
+            if (chunkRowCount) {
+                return *chunkRowCount;
+            }
+        }
+        // If no chunk has first overlayed row index, we return initially computed quorum row count.
+        return SealedRowCount_;
+    }
+
+    std::optional<i64> TryGetChunkRowCount(int chunkIndex)
+    {
+        YT_VERIFY(chunkIndex >= 0);
+
+        const auto& chunkDescriptor = ChunkDescriptors_[chunkIndex];
+        auto info = WaitFor(ComputeQuorumInfo(
             chunkDescriptor.ChunkId,
             true,
             chunkDescriptor.CodecId,
             chunkDescriptor.ReadQuorum,
             chunkDescriptor.ReplicaLagLimit,
-            chunkDescriptor.ReplicaDescriptors)
-            .Apply(
-                BIND(&TJournalQuorumRowCountSession::OnChunkInfoReceived, MakeStrong(this))
-                    .Via(GetCurrentInvoker())));
-    }
-
-    void OnChunkInfoReceived(const TErrorOr<TChunkQuorumInfo>& infoOrError)
-    {
-        if (!infoOrError.IsOK()) {
-            Promise_.Set(infoOrError);
-            return;
-        }
-
-        const auto& info = infoOrError.Value();
+            chunkDescriptor.ReplicaDescriptors,
+            JournalRpcTimeout_,
+            Bootstrap_->GetNodeChannelFactory()))
+                .ValueOrThrow();
         if (info.FirstOverlayedRowIndex) {
-            Promise_.Set(*info.FirstOverlayedRowIndex + info.RowCount);
-            return;
+            return std::make_optional(*info.FirstOverlayedRowIndex + info.RowCount);
         }
-
-        --CurrentChunkIndex_;
-        RequestChunkInfo();
+        return std::nullopt;
     }
 };
 
@@ -223,7 +260,7 @@ private:
                     break;
                 }
 
-                return New<TJournalQuorumRowCountSession>(node, Bootstrap_)->Run().Apply(
+                return New<TJournalQuorumRowCountSession>(Bootstrap_)->Run(node).Apply(
                     BIND([] (i64 count) {
                         return ConvertToYsonString(count);
                     }));

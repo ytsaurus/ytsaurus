@@ -9,7 +9,7 @@ from yt_commands import (
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
     get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
-    create_table_replica, alter_table_replica, unmount_table,
+    create_table_replica, alter_table_replica, mount_table, unmount_table,
     set_node_banned, trim_rows, generate_timestamp, exit_read_only,
 )
 
@@ -908,6 +908,29 @@ class TestSmoothMovement(SmoothMovementBase):
             assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
 
         assert _check_smooth_movement_in_progress(False)
+
+    @authors("ifsmirnov")
+    def test_movement_aborted_and_restarted(self):
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        h = SmoothMovementHelper(tablet_id)
+        h.start("waiting_for_locks_before_activation")
+        # Abort action.
+        mount_table("//tmp/t")
+
+        assert h.get_action_state() == "failed"
+        with raises_yt_error():
+            h.finish()
+
+        wait(lambda: len(get(f"#{tablet_id}/@servants")) == 1)
+
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        h.finish()
 
 ##################################################################
 

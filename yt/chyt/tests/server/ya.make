@@ -4,6 +4,12 @@ SET(YT_SPLIT_FACTOR 30)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(
+        cpu:36
+    )
+ENDIF()
+
 PEERDIR(
     library/python/port_manager
     contrib/python/clickhouse-cityhash
@@ -18,6 +24,14 @@ DEPENDS(
     yt/yt/server/log_tailer/bin
     yt/chyt/tests/dummy_logger
 )
+
+IF (SANITIZER_TYPE == "thread")
+    # There is no llvm-symbolizer by default in job environment so we are going to bring it ourselves.
+    # See yt/chyt/tests/server/base.py for setup code.
+    DEPENDS(
+        contrib/libs/llvm20/tools/llvm-symbolizer
+    )
+ENDIF()
 
 DEPENDS(yt/yt/packages/tests_package)
 
@@ -59,4 +73,3 @@ TEST_SRCS(
 )
 
 END()
-

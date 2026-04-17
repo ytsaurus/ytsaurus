@@ -28,6 +28,21 @@ struct INodeVisitor
     virtual bool ShouldVisit(const TNode& /*node*/) = 0;
 };
 
+class TSequoiaTreeTraverser
+{
+public:
+    explicit TSequoiaTreeTraverser(INodeVisitor<TCypressNodeDescriptor>* visitor);
+
+    void Walk(const TCypressNodeDescriptor& node);
+    void Finish() &&;
+
+private:
+    INodeVisitor<TCypressNodeDescriptor>* const Visitor_;
+
+    std::vector<TCypressNodeDescriptor> Trace_;
+    std::optional<TCypressNodeDescriptor> SkippedRoot_;
+};
+
 // Simulates an in-order tree traversal using a precomputed sequence of nodes.
 template <std::ranges::input_range TNodeRange, class TCallback>
     requires CInvocable<
@@ -50,11 +65,11 @@ void TraverseSequoiaTree(
 
 void VisitSequoiaTree(
     NCypressClient::TNodeId rootId,
-    int maxDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
     const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const TNodeIdToAttributes& nodesWithAttributes);
+    const TNodeIdToAttributes& nodesWithAttributes,
+    const THashSet<NCypressClient::TNodeId>& opaqueNodeIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 

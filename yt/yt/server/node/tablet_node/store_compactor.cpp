@@ -621,6 +621,7 @@ private:
                     .ChunkId = writer->GetChunkId(),
                     .TableSchemaKeyColumnCount = TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
                     .PreparedColumnarMeta = true,
+                    .CompressedBlockLastKeys = TabletSnapshot_->Settings.MountConfig->CompressBlockLastKeys,
                 },
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }
@@ -1535,6 +1536,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+            .InitialQueryKind = EInitialQueryKind::TabletBackground,
         };
 
         auto Logger = TabletNodeLogger()
@@ -1952,6 +1954,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+            .InitialQueryKind = EInitialQueryKind::TabletBackground,
         };
 
         auto Logger = TabletNodeLogger()
@@ -2351,48 +2354,16 @@ private:
             return;
         }
 
-        auto processTabletUpdate = [] (
-            const ITabletSlotPtr& slot,
-            std::vector<TCompactionHintUpdateRequest>&& tabletRequests)
-        {
-            const auto& Logger = TabletNodeLogger;
-
-            for (auto&& tabletRequest : tabletRequests) {
-                const auto* tablet = slot->GetTabletManager()->FindTablet(tabletRequest.TabletId);
-                if (!tablet) {
-                    YT_LOG_DEBUG("Tablet is missing, will not update compaction hints (TabletId: %v, CellId: %v)",
-                        tabletRequest.TabletId,
-                        tabletRequest.CellId);
-                    return;
-                }
-
-                // NB(dave11ar): Maybe rewrite.
-                for (const auto& partition : tablet->PartitionList()) {
-                    auto partitionRequestIt = std::find_if(
-                        tabletRequest.PartitionRequests.begin(),
-                        tabletRequest.PartitionRequests.end(),
-                        [&] (const auto& partitionRequest) {
-                            return partition->GetId() == partitionRequest.PartitionId;
-                        });
-
-                    if (partitionRequestIt == tabletRequest.PartitionRequests.end()) {
-                        return;
-                    }
-
-                    partition->CompactionHints().OnLsmFeedbackReceived(partition.get(), std::move(*partitionRequestIt));
-                }
-            }
-        };
-
         const auto& Logger = TabletNodeLogger;
 
         THashMap<TCellId, std::vector<TCompactionHintUpdateRequest>> cellIdToTabletUpdates;
-        for (auto&& tabletUpdate : updates) {
-            cellIdToTabletUpdates[tabletUpdate.CellId].push_back(std::move(tabletUpdate));
+        for (const auto& tabletUpdate : updates) {
+            cellIdToTabletUpdates[tabletUpdate.CellId].push_back(tabletUpdate);
         }
 
         std::vector<TFuture<void>> updateFutures;
         updateFutures.reserve(cellIdToTabletUpdates.size());
+
         for (auto&& [cellId, tabletUpdates] : cellIdToTabletUpdates) {
             auto slot = Bootstrap_->GetSlotManager()->FindSlot(cellId);
             if (!slot) {
@@ -2402,7 +2373,7 @@ private:
             }
 
             updateFutures.push_back(BIND(
-                processTabletUpdate,
+                &TStoreCompactor::ApplyCompactionHintUpdatesForSlot,
                 slot,
                 Passed(std::move(tabletUpdates)))
                 .AsyncVia(slot->GetGuardedAutomatonInvoker())
@@ -2410,6 +2381,39 @@ private:
         }
 
         YT_VERIFY(WaitFor(AllSet(updateFutures)).IsOK());
+    }
+
+    static void ApplyCompactionHintUpdatesForSlot(
+        const ITabletSlotPtr& slot,
+        std::vector<TCompactionHintUpdateRequest>&& tabletRequests)
+    {
+        const auto& Logger = TabletNodeLogger;
+
+        for (auto&& tabletRequest : tabletRequests) {
+            const auto* tablet = slot->GetTabletManager()->FindTablet(tabletRequest.TabletId);
+            if (!tablet) {
+                YT_LOG_DEBUG("Tablet is missing, will not update compaction hints (TabletId: %v, CellId: %v)",
+                    tabletRequest.TabletId,
+                    tabletRequest.CellId);
+                continue;
+            }
+
+            // NB(dave11ar): Maybe rewrite.
+            for (const auto& partition : tablet->PartitionList()) {
+                auto partitionRequestIt = std::find_if(
+                    tabletRequest.PartitionRequests.begin(),
+                    tabletRequest.PartitionRequests.end(),
+                    [&] (const auto& partitionRequest) {
+                        return partition->GetId() == partitionRequest.PartitionId;
+                    });
+
+                if (partitionRequestIt == tabletRequest.PartitionRequests.end()) {
+                    continue;
+                }
+
+                partition->CompactionHints().OnLsmFeedbackReceived(partition.get(), std::move(*partitionRequestIt));
+            }
+        }
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

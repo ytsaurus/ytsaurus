@@ -1,9 +1,11 @@
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, enable_sequoia_acls
 
-from helpers import get_async_expiring_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
+from helpers import get_async_expiring_cache_config, get_disabled_cache_config, get_breakpoint_node, release_breakpoint, wait_breakpoint
 
 from yt_commands import (authors, write_table, create, remove, raises_yt_error, insert_rows, sync_mount_table,
-                         exists, read_table)
+                         exists, read_table, create_user, set as yt_set, make_ace, wait)
+
+from yt.common import update as config_update
 
 import yt.yson as yson
 
@@ -50,17 +52,24 @@ class TestYtDictionaries(ClickHouseTestBase):
                     }
                 },
         ) as clique:
+            expected_result = [
+                {"number": 0, "str": "n/a", "i64": 42},
+                {"number": 1, "str": "str1", "i64": 1},
+                {"number": 2, "str": "n/a", "i64": 42},
+                {"number": 3, "str": "str3", "i64": 9},
+                {"number": 4, "str": "n/a", "i64": 42},
+            ]
             result = clique.make_query(
                 "select number, dictGetString('dict', 'value_str', number) as str, "
                 "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)"
             )
-        assert result == [
-            {"number": 0, "str": "n/a", "i64": 42},
-            {"number": 1, "str": "str1", "i64": 1},
-            {"number": 2, "str": "n/a", "i64": 42},
-            {"number": 3, "str": "str3", "i64": 9},
-            {"number": 4, "str": "n/a", "i64": 42},
-        ]
+            assert result == expected_result
+
+            settings = {"chyt.execution.enable_distinct_read_optimization": 1}
+            result = clique.make_query(
+                "select number, dictGetString('dict', 'value_str', number) as str, "
+                "dictGetInt64('dict', 'value_i64', number) as i64 from numbers(5)", settings=settings)
+            assert result == expected_result
 
     @authors("max42")
     def test_composite_key_hashed(self):
@@ -512,6 +521,100 @@ class TestYtDictionaries(ClickHouseTestBase):
             assert result == [
                 {"str": "str1"},
             ]
+
+    @authors("buyval01")
+    def test_dictionary_source_acl(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": i, "b": 2 * i} for i in range(3)])
+
+        create_user("u1")
+        create_user("u2")
+        yt_set(
+            "//tmp/t/@acl",
+            [
+                make_ace("deny", "u1", "read"),
+                make_ace("deny", "u2", "read"),
+            ],
+        )
+
+        patch = {
+            "yt": {
+                "dictionary_access_control" : {
+                    "cache_config" : {
+                        "refresh_time": 300,
+                    },
+                    "collect_loaded_dictionaries_period": 200,
+                }
+            }
+        }
+        patch = config_update(patch, get_disabled_cache_config())
+
+        with Clique(1, config_patch=patch) as clique:
+            create_query = "CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);"
+            clique.make_query(create_query)
+
+            test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+
+            def success(user):
+                def closure():
+                    result = clique.make_query(test_query, user=user, full_response=True)
+                    return result.status_code == 200 and result.json()["data"] == [{"value": 2}]
+
+                return closure
+
+            def failure(user):
+                def closure():
+                    result = clique.make_query(test_query, user=user, full_response=True)
+                    return result.status_code != 200 and "Not enough privileges" in result.json().get("exception", "")
+
+                return closure
+
+            # Initially both users don't have access.
+            assert failure("u1")()
+            assert failure("u2")()
+
+            yt_set(
+                "//tmp/t/@acl",
+                [
+                    make_ace("allow", "u1", "read"),
+                    make_ace("deny", "u2", "read"),
+                ],
+            )
+
+            wait(success("u1"))
+            wait(failure("u2"))
+
+            acl = [
+                make_ace("allow", "u1", "read"),
+                make_ace("allow", "u2", "read"),
+            ]
+            yt_set("//tmp/t/@acl", acl)
+
+            wait(success("u1"))
+            wait(success("u2"))
+
+            acl[0]["row_access_predicate"] = "a = 42"
+            acl[1]["row_access_predicate"] = "a = 42"
+            yt_set("//tmp/t/@acl", acl)
+
+            # If there is rls, user does not have access to the dictionary.
+            wait(failure("u1"))
+            wait(failure("u2"))
+
+            yt_set(
+                "//tmp/t/@acl",
+                [
+                    make_ace("deny", "u1", "read"),
+                    make_ace("deny", "u2", "read"),
+                ],
+            )
+
+            wait(failure("u1"))
+            wait(failure("u2"))
 
 
 @enable_sequoia

@@ -18,7 +18,7 @@ using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_THREAD_LOCAL(int, ThreadIndex) ;
+YT_DEFINE_THREAD_LOCAL(int, ThreadIndex);
 
 void CustomCrashSignalHandler()
 {

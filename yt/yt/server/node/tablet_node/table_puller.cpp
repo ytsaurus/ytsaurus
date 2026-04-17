@@ -122,6 +122,12 @@ private:
     const IAlienClusterClientCachePtr Underlying_;
 };
 
+struct TThrottlingTimes
+{
+    TDuration ThrottleTime;
+    TDuration RelativeThrottleTime;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablePuller
@@ -440,6 +446,7 @@ private:
                 BannedReplicaTracker_.SyncReplicas(replicationCard);
                 DoPullRows(
                     tabletSnapshot,
+                    snapshotEra,
                     replicationCard,
                     selfReplica,
                     replicationProgress);
@@ -463,8 +470,67 @@ private:
         }
     }
 
+    TThrottlingTimes DoThrottle(
+        TReplicationEra snapshotEra,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TReplicationProgress& replicationProgress,
+        const TReplicaInfo& selfReplica,
+        const TTablePullerCounters& counters)
+    {
+        TThrottlingTimes throttlingTimes;
+
+        auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
+        if(oldestTimestamp < selfReplica.History.back().Timestamp) {
+            YT_LOG_DEBUG("Skipping replication throttling because replica is not in its last era");
+            return throttlingTimes;
+        }
+
+        auto throttleFuture = Throttler_->Throttle(1);
+        if (throttleFuture.IsSet()) {
+            throttleFuture.GetOrCrash().ThrowOnError();
+        } else {
+            auto timerGuard = TEventTimerGuard(counters.ThrottleTime);
+            YT_LOG_DEBUG("Started waiting for replication throttling");
+
+            WaitFor(throttleFuture)
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Finished waiting for replication throttling");
+            throttlingTimes.ThrottleTime = timerGuard.GetElapsedTime();
+        }
+
+        // Skip relative throttler on era change because it can throttle for quite a long time
+        // on tables with rare commits and cause long write downtimes.
+        auto futureReplicationEra = ChaosAgent_->GetFutureEra(snapshotEra, tabletSnapshot);
+        if (!futureReplicationEra.IsSet()) {
+            auto throttleFuture = RelativeThrottler_->Throttle();
+            if (auto optionalError = throttleFuture.TryGet()) {
+                optionalError->ThrowOnError();
+            } else {
+                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
+                TEventTimerGuard timerGuard(counters.RelativeThrottlerThrottleTime);
+
+                YT_LOG_DEBUG("Started waiting for relative replication throttling");
+
+                WaitFor(AnySet(std::vector{throttleFuture, futureReplicationEra}))
+                    .ThrowOnError();
+                throttlingTimes.RelativeThrottleTime = timerGuard.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
+                    throttlingTimes.RelativeThrottleTime);
+            }
+        }
+
+        if (futureReplicationEra.IsSet()) {
+            YT_LOG_DEBUG("Throttling canceled because replication era changed");
+        }
+
+        return throttlingTimes;
+    }
+
     void DoPullRows(
         const TTabletSnapshotPtr& tabletSnapshot,
+        TReplicationEra snapshotEra,
         const TReplicationCardPtr& replicationCard,
         const TReplicaInfo* selfReplica,
         const TRefCountedReplicationProgressPtr& replicationProgress)
@@ -480,42 +546,13 @@ private:
         }
 
         auto reservingTracker = CreateReservingMemoryUsageTracker(MemoryTracker_, counters->MemoryUsage);
-        TDuration throttleTime;
-        {
-            auto throttleFuture = Throttler_->Throttle(1);
-            if (throttleFuture.IsSet()) {
-                throttleFuture.GetOrCrash().ThrowOnError();
-            } else {
-                auto timerGuard = TEventTimerGuard(counters->ThrottleTime);
-                YT_LOG_DEBUG("Started waiting for replication throttling");
 
-                WaitFor(throttleFuture)
-                    .ThrowOnError();
-
-                YT_LOG_DEBUG("Finished waiting for replication throttling");
-                throttleTime = timerGuard.GetElapsedTime();
-            }
-        }
-
-        TDuration relativeThrottleTime;
-        {
-            auto throttleFuture = RelativeThrottler_->Throttle();
-            if (auto optionalError = throttleFuture.TryGet()) {
-                optionalError->ThrowOnError();
-            } else {
-                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
-                TEventTimerGuard timerGuard(counters->RelativeThrottlerThrottleTime);
-
-                YT_LOG_DEBUG("Started waiting for relative replication throttling");
-
-                WaitFor(throttleFuture)
-                    .ThrowOnError();
-                relativeThrottleTime = timerGuard.GetElapsedTime();
-
-                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
-                    relativeThrottleTime);
-            }
-        }
+        auto throttlingTimes = DoThrottle(
+            snapshotEra,
+            tabletSnapshot,
+            *replicationProgress,
+            *selfReplica,
+            *counters);
 
         auto now = TInstant::Now();
         auto queueReplicaOrError = QueueReplicaSelector_.PickQueueReplica(
@@ -610,8 +647,8 @@ private:
                 dataWeight,
                 progress,
                 endReplicationRowIndexes,
-                throttleTime,
-                relativeThrottleTime);
+                throttlingTimes.ThrottleTime,
+                throttlingTimes.RelativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
             auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);

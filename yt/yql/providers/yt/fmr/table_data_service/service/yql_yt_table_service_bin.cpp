@@ -51,7 +51,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.AddLongOption('s', "print-stats", "Print stats").Optional().NoArgument().SetFlag(&options.PrintStats);
-        opts.AddLongOption('w', "max-data-weight", "Max data weight limit for table data service").StoreResult(&options.MaxDataWeight).DefaultValue(10000000000);
+        opts.AddLongOption('w', "max-data-weight", "Max data weight limit for table data service").StoreResult(&options.MaxDataWeight).DefaultValue(85000000000);
         opts.AddLongOption('f', "logger-format", "Logs formatting type").StoreResult(&options.LoggerFormat).DefaultValue("legacy");
         opts.AddLongOption('t', "tvm-cfg", "fmr tvm config").Optional().StoreResult(&options.FmrTvmConfig);
         opts.AddLongOption("tvm-port", "fmr tvm port").Optional().StoreResult(&options.FmrTvmPort);

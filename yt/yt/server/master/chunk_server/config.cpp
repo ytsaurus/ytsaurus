@@ -13,6 +13,7 @@
 namespace NYT::NChunkServer {
 
 using namespace NSequoiaClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,6 +184,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tweak_traversal_info_after_rebalance", &TThis::TweakTraversalInfoAfterRebalance)
         .Default(true);
+
+    registrar.Parameter("update_modification_time", &TThis::UpdateModificationTime)
+        .Default(true)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,15 +307,6 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_chunk_replicas_during_incremental_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringIncrementalHeartbeat)
         .Default(5'000)
         .GreaterThan(0);
-    registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
-        .Default(1)
-        .GreaterThan(0);
-    registrar.Parameter("max_concurrent_location_full_heartbeats", &TThis::MaxConcurrentLocationFullHeartbeats)
-        .Default(20)
-        .GreaterThan(0);
-    registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
-        .Default(10)
-        .GreaterThan(0);
     registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
         .DefaultNew();
     registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
@@ -324,8 +320,6 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_sequoia_replicas", &TThis::ValidateSequoiaReplicas)
         .Default(false)
         .DontSerializeDefault();
-    registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
-        .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
@@ -435,6 +429,12 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
 
+    registrar.Parameter("blob_chunk_replicas", &TThis::BlobReplicasStoreConfig)
+        .Default(); // COMPAT(grphil): Change to DefaultNew after migration is finished.
+
+    registrar.Parameter("journal_chunk_replicas", &TThis::JournalReplicasStoreConfig)
+        .DefaultNew();
+
     registrar.Parameter("removal_period", &TThis::RemovalPeriod)
         .Default(TDuration::Seconds(1));
 
@@ -449,18 +449,26 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(5000)
         .DontSerializeDefault();
 
-    registrar.Parameter("replicas_percentage", &TThis::ReplicasPercentage)
+    // COMPAT(grphil).
+    registrar.Parameter("compat_replicas_percentage", &TThis::CompatReplicasPercentage)
         .Default(0)
-        .InRange(0, 100);
+        .InRange(0, 100)
+        .Alias("replicas_percentage");
 
-    registrar.Parameter("fetch_replicas_from_sequoia", &TThis::FetchReplicasFromSequoia)
-        .Default(false);
+    // COMPAT(grphil).
+    registrar.Parameter("compat_fetch_replicas_from_sequoia", &TThis::CompatFetchReplicasFromSequoia)
+        .Default(false)
+        .Alias("fetch_replicas_from_sequoia");
 
-    registrar.Parameter("store_sequoia_replicas_on_master", &TThis::StoreSequoiaReplicasOnMaster)
-        .Default(true);
+    // COMPAT(grphil).
+    registrar.Parameter("compat_store_sequoia_replicas_on_master", &TThis::CompatStoreSequoiaReplicasOnMaster)
+        .Default(true)
+        .Alias("store_sequoia_replicas_on_master");
 
-    registrar.Parameter("processed_removed_sequoia_replicas_on_master", &TThis::ProcessRemovedSequoiaReplicasOnMaster)
-        .Default(true);
+    // COMPAT(grphil).
+    registrar.Parameter("compat_process_removed_sequoia_replicas_on_master", &TThis::CompatProcessRemovedSequoiaReplicasOnMaster)
+        .Default(true)
+        .Alias("processed_removed_sequoia_replicas_on_master");
 
     registrar.Parameter("enable_chunk_purgatory", &TThis::EnableChunkPurgatory)
         .Default(true);
@@ -477,20 +485,21 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_location_replacement_for_location_full_heartbeat", &TThis::UseLocationReplacementForLocationFullHeartbeat)
         .Default(false);
 
-    registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
+    registrar.Parameter("clear_master_request", &TThis::CompatClearMasterRequest)
         .Default(true);
 
     registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
         .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
-    registrar.Parameter("validate_sequoia_replicas_fetch", &TThis::ValidateSequoiaReplicasFetch)
-        .Default(false);
+    // COMPAT(grphil).
+    registrar.Parameter("compat_validate_sequoia_replicas_fetch", &TThis::CompatValidateSequoiaReplicasFetch)
+        .Default(false)
+        .Alias("validate_sequoia_replicas_fetch");
 
-    registrar.Parameter("allow_extra_master_replicas_during_validation", &TThis::AllowExtraMasterReplicasDuringValidation)
-        .Default(true);
-
-    registrar.Parameter("always_include_unapproved_replicas", &TThis::AlwaysIncludeUnapprovedReplicas)
-        .Default(true);
+    // COMPAT(grphil).
+    registrar.Parameter("compat_allow_extra_master_replicas_during_validation", &TThis::CompatAllowExtraMasterReplicasDuringValidation)
+        .Default(true)
+        .Alias("allow_extra_master_replicas_during_validation");
 
     registrar.Parameter("batch_chunk_confirmation", &TThis::BatchChunkConfirmation)
         .Default(false)
@@ -512,15 +521,61 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
-        if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
-            THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
-                "new Sequoia replicas");
+        // COMPAT(grphil).
+        if (!config->BlobReplicasStoreConfig) {
+            auto regularStoreConfig = New<TDynamicSequoiaChunkReplicasStoreConfig>();
+            regularStoreConfig->StoreInSequoia = config->Enable;
+            regularStoreConfig->ReplicasPercentage = config->CompatReplicasPercentage;
+            regularStoreConfig->FetchReplicasFromSequoia = config->CompatFetchReplicasFromSequoia;
+            regularStoreConfig->StoreSequoiaReplicasOnMaster = config->CompatStoreSequoiaReplicasOnMaster;
+            regularStoreConfig->ProcessRemovedSequoiaReplicasOnMaster = config->CompatProcessRemovedSequoiaReplicasOnMaster;
+            regularStoreConfig->ValidateSequoiaReplicasFetch = config->CompatValidateSequoiaReplicasFetch;
+            regularStoreConfig->AllowExtraMasterReplicasDuringValidation = config->CompatAllowExtraMasterReplicasDuringValidation;
+            config->BlobReplicasStoreConfig = regularStoreConfig;
         }
 
-        if (!config->StoreSequoiaReplicasOnMaster && config->ValidateSequoiaReplicasFetch) {
-            THROW_ERROR_EXCEPTION("Cannot validate Sequoia replicas fetch as they are not stored on master");
+        if (config->JournalReplicasStoreConfig->StoreInSequoia) {
+            THROW_ERROR_EXCEPTION("Journal chunk replicas are not supported in Sequoia");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicSequoiaChunkReplicasConfigPtr CopySequoiaChunkReplicasConfig(TDynamicSequoiaChunkReplicasConfigPtr config)
+{
+    return CloneYsonStruct(config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicSequoiaChunkReplicasStoreConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("store_in_sequoia", &TThis::StoreInSequoia)
+        .Default(false);
+
+    registrar.Parameter("replicas_percentage", &TThis::ReplicasPercentage)
+        .Default(0)
+        .InRange(0, 100);
+
+    registrar.Parameter("fetch_replicas_from_sequoia", &TThis::FetchReplicasFromSequoia)
+        .Default(false);
+
+    registrar.Parameter("store_sequoia_replicas_on_master", &TThis::StoreSequoiaReplicasOnMaster)
+        .Default(true);
+
+    registrar.Parameter("store_sequoia_replicas_on_master_percentage", &TThis::StoreSequoiaReplicasOnMasterPercentage)
+        .Default(100)
+        .InRange(0, 100);
+
+    registrar.Parameter("process_removed_sequoia_replicas_on_master", &TThis::ProcessRemovedSequoiaReplicasOnMaster)
+        .Default(true);
+
+    registrar.Parameter("validate_sequoia_replicas_fetch", &TThis::ValidateSequoiaReplicasFetch)
+        .Default(false);
+
+    registrar.Parameter("allow_extra_master_replicas_during_validation", &TThis::AllowExtraMasterReplicasDuringValidation)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -632,12 +687,19 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_running_replication_jobs_per_target_node", &TThis::MaxRunningReplicationJobsPerTargetNode)
         .Default(128);
 
+    registrar.Parameter("max_unsuccessful_schedule_seal_job_attempts_per_chunk_replica", &TThis::MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica)
+        .Default(10);
+
     registrar.Parameter("enable_chunk_refresh", &TThis::EnableChunkRefresh)
         .Default(true);
     registrar.Parameter("chunk_refresh_delay", &TThis::ChunkRefreshDelay)
         .Default(TDuration::Seconds(90));
     registrar.Parameter("chunk_refresh_period", &TThis::ChunkRefreshPeriod)
         .Default(TDuration::MilliSeconds(100));
+
+    registrar.Parameter("delay_recently_confirmed_chunks_refresh", &TThis::DelayRecentlyConfirmedChunksRefresh)
+        .Default(true)
+        .DontSerializeDefault();
 
     registrar.Parameter("max_blob_chunks_per_refresh", &TThis::MaxBlobChunksPerRefresh)
         .Default(8000)
@@ -691,6 +753,8 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(10000);
     registrar.Parameter("max_concurrent_chunk_seals", &TThis::MaxConcurrentChunkSeals)
         .GreaterThan(0)
+        .Default(10);
+    registrar.Parameter("max_unsuccessful_seal_attempts", &TThis::MaxUnsuccessfulSealAttempts)
         .Default(10);
 
     registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)

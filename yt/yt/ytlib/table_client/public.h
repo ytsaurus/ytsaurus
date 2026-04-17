@@ -162,9 +162,13 @@ DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryDecompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionFactory)
 
-DEFINE_ENUM(EPerformanceCountedRequestType,
-    (Lookup)
-    (Read)
+DEFINE_ENUM(EInitialQueryKind,
+    ((LookupRows)           (0))
+    ((SelectRows)           (1))
+    ((TabletBackground)     (2))
+    ((ReadDynamicStore)     (3))
+    ((FetchRows)            (4))
+    ((PullRows)             (5))
 );
 
 DECLARE_REFCOUNTED_STRUCT(IRlsCheckerFactory)

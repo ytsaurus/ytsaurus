@@ -5,6 +5,7 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
+#include <yt/yt/server/scheduler/strategy/policy/structs.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
@@ -22,25 +23,31 @@ inline constexpr int MaxNodeGpuCount = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(yaishenka): Change to class.
 struct TAssignment final
 {
     const std::string AllocationGroupName;
-    const TJobResourcesWithQuota ResourceUsage;
     TOperation* const Operation;
     TNode* const Node;
+    const TOperationId OperationId;
     const TInstant CreationTime;
 
+    TJobResourcesWithQuota ResourceUsage;
     bool Preemptible = false;
-    bool Preempted = false;
-    std::optional<EAllocationPreemptionReason> PreemptionReason;
-    std::optional<std::string> PreemptionDescription;
+    std::optional<TAllocationId> AllocationId;
+    std::optional<TInstant> PreemptibleProgressStartTime;
 
     TAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
         TNode* node);
+
+    void AddAllocation(TAllocationId allocationId);
+    TJobResources UpdateResourceUsage(const TJobResources& newUsage);
 };
+
+using TAllocationIdToAssignment = THashMap<TAllocationId, TAssignmentPtr>;
 
 void Serialize(const TAssignment& operation, NYson::IYsonConsumer* consumer);
 
@@ -93,6 +100,8 @@ public:
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
 
+    DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
+
 public:
     TOperation(
         TOperationId id,
@@ -127,6 +136,9 @@ public:
     bool IsZeroAssignedUsage() const;
 
 private:
+    friend struct TAssignment;
+
+    void AddAllocation(TAllocationId allocationId, const TAssignmentPtr& assignment);
     int DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const;
 };
 
@@ -138,9 +150,24 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPreemptionInfo
+{
+    const EAllocationPreemptionReason Reason;
+    const std::string Description;
+    const std::optional<TOperationId> PreemptedForOperationId;
+
+    // TODO(YT-27933): Remove this field after saving allocations to operation
+    const TJobResources PreemptedResources;
+};
+
+using TAllocationIdToPreemptionInfo = THashMap<TAllocationId, TPreemptionInfo>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNode final
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     DEFINE_BYREF_RO_PROPERTY(std::string, Address);
     DEFINE_BYREF_RO_PROPERTY(TExecNodeDescriptorPtr, Descriptor);
@@ -151,10 +178,14 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TAssignmentSet, Assignments);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
-    DEFINE_BYREF_RO_PROPERTY(TAssignmentSet, PreemptedAssignments);
+    DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
+    DEFINE_BYREF_RO_PROPERTY(TAllocationIdToPreemptionInfo, AllocationIdToPreemptionInfo);
+
+    using TAllocationIdSet = TCompactSet<TAllocationId, MaxNodeGpuCount>;
+    DEFINE_BYREF_RO_PROPERTY(TAllocationIdSet, PreemptedAllocations);
 
 public:
-    explicit TNode(std::string address);
+    explicit TNode(NNodeTrackerClient::TNodeId id, std::string address);
 
     bool IsSchedulable() const;
 
@@ -164,9 +195,21 @@ public:
 
     void AddAssignment(const TAssignmentPtr& assignment);
     void RemoveAssignment(const TAssignmentPtr& assignment);
-    void PreemptAssignment(const TAssignmentPtr& assignment);
+    void PreemptAssignment(
+        const TAssignmentPtr& assignment,
+        EAllocationPreemptionReason reason,
+        std::string description,
+        std::optional<TOperationId> preemptedForOperationId = {});
 
     void SetDescriptor(TExecNodeDescriptorPtr descriptor);
+
+    void PreemptAllocation(TAllocationId allocationId);
+    void RemovePreemptedAllocation(TAllocationId allocationId);
+
+private:
+    friend struct TAssignment;
+
+    void AddAllocation(TAllocationId allocationId, const TAssignmentPtr& assignment);
 };
 
 using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
@@ -194,7 +237,7 @@ struct TGpuPlanUpdateStatistics final
 
     TDuration UpdatingOperationResourcesDuration;
     TDuration FullHostPlanningDuration;
-    TDuration ReguralPlanningDuration;
+    TDuration RegularPlanningDuration;
     TDuration ExtraPlanningDuration;
 
     int PlannedAssignments = 0;

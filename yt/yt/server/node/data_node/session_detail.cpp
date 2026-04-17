@@ -302,8 +302,7 @@ TFuture<void> TSessionBase::GetUnregisteredEvent()
 
 TFuture<ISession::TFinishResult> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount,
-    bool truncateExtraBlocks)
+    std::optional<int> blockCount)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -318,7 +317,7 @@ TFuture<ISession::TFinishResult> TSessionBase::Finish(
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
 
-            return DoFinish(chunkMeta, blockCount, truncateExtraBlocks);
+            return DoFinish(chunkMeta, blockCount);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

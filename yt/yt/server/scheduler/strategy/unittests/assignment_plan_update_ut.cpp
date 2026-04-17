@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.h>
-#include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_context_detail.h>
+#include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update_context_detail.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -120,18 +120,22 @@ TDiskQuota ToDiskQuota(const TDiskRequest& diskRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestAssignmentPlanContext
-    : public TAssignmentPlanContextBase
+struct TTestAssignmentPlanUpdateContext
+    : public IAssignmentPlanUpdateContext
 {
 public:
-    TTestAssignmentPlanContext(
+    TTestAssignmentPlanUpdateContext(
         const TOperationMap& operations,
         const TNodeMap& nodes,
+        THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* preemptedAssignments,
+        THashMap<TAssignmentPtr, TPreemptionInfo>* preemptionInfo,
         NLogging::TLogger logger)
-        : TAssignmentPlanContextBase(std::move(logger))
-        , Operations_(operations)
+        : Operations_(operations)
         , Nodes_(nodes)
+        , PreemptedAssignments_(preemptedAssignments)
+        , PreemptionInfo_(preemptionInfo)
         , GpuPlanUpdateStatistic_(New<TGpuPlanUpdateStatistics>())
+        , AssignmentHandler_(logger)
     { }
 
     const TOperationMap& Operations() const override
@@ -149,11 +153,61 @@ public:
         return GpuPlanUpdateStatistic_;
     }
 
+    TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override
+    {
+        return GetOrDefault(OperationIdToLimit_, operation->GetId(), TJobResources::Infinite());
+    }
+
+    void SetAvailableLimitForOperation(const TOperationPtr& operation, const TJobResources& limit)
+    {
+        EmplaceOrCrash(OperationIdToLimit_, operation->GetId(), limit);
+    }
+
+    void AddPlannedAssignment(
+        std::string allocationGroupName,
+        TJobResourcesWithQuota resourceUsage,
+        TOperation* operation,
+        TNode* node,
+        bool preemptible = false) override
+    {
+        AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
+    }
+
+    void PreemptAssignment(
+        const TAssignmentPtr& assignment,
+        EAllocationPreemptionReason preemptionReason,
+        const std::string& preemptionDescription,
+        std::optional<TOperationId> preemptedForOperationId = {}) override
+    {
+        (*PreemptedAssignments_)[assignment->Node->GetId()].insert(assignment);
+
+        AssignmentHandler_.PreemptAssignment(
+            assignment,
+            preemptionReason,
+            preemptionDescription,
+            preemptedForOperationId);
+
+        EmplaceOrCrash(
+            *PreemptionInfo_,
+            assignment,
+            TPreemptionInfo{
+                .Reason = preemptionReason,
+                .Description = preemptionDescription,
+                .PreemptedForOperationId = preemptedForOperationId,
+                .PreemptedResources = assignment->ResourceUsage,
+            });
+    }
+
 private:
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* PreemptedAssignments_;
+    THashMap<TAssignmentPtr, TPreemptionInfo>* PreemptionInfo_;
+
+    THashMap<TOperationId, TJobResources> OperationIdToLimit_;
 
     const TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
+    TAssignmentHandler AssignmentHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,6 +219,8 @@ public:
     void SetUp()
     {
         NextAvailableNodeId_ = 0;
+        PreemptedAssignments_.clear();
+        PreemptionInfo_.clear();
     }
 
 protected:
@@ -184,11 +240,12 @@ protected:
         TDiskResources diskResources = TestSingleMediumDiskResources,
         TBooleanFormulaTags tags = {})
     {
-        auto node = New<TNode>(Format("node-%v", NextAvailableNodeId_));
+        auto nodeId = static_cast<NNodeTrackerClient::TNodeId>(NextAvailableNodeId_);
+        auto node = New<TNode>(nodeId, Format("node-%v", NextAvailableNodeId_));
         node->SchedulingModule() = std::move(module);
 
         auto descriptor = New<TExecNodeDescriptor>();
-        descriptor->Id = static_cast<NNodeTrackerClient::TNodeId>(NextAvailableNodeId_);
+        descriptor->Id = nodeId;
         descriptor->Addresses.emplace(NNodeTrackerClient::DefaultNetworkName, Format("node-%v", NextAvailableNodeId_));
         descriptor->Online = true;
         descriptor->ResourceLimits = nodeResources;
@@ -405,23 +462,39 @@ protected:
         updateExecutor.Run();
     }
 
+    TOperationMap MakeOperationMap(const std::vector<TOperationPtr>& operations)
+    {
+        TOperationMap operationMap;
+        for (const auto& operation : operations) {
+            EmplaceOrCrash(operationMap, operation->GetId(), operation);
+        }
+        return operationMap;
+    }
+
+    TNodeMap MakeNodeMap(const std::vector<TNodePtr>& nodes)
+    {
+        TNodeMap nodeMap;
+        for (const auto& node : nodes) {
+            EmplaceOrCrash(nodeMap, node->Descriptor()->Id, node);
+        }
+        return nodeMap;
+    }
+
     void DoAllocationAssignmentPlanUpdate(
         const std::vector<TOperationPtr>& operations,
         const std::vector<TNodePtr>& nodes,
         TGpuSchedulingPolicyConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
-        TOperationMap operationMap;
-        for (const auto& operation : operations) {
-            EmplaceOrCrash(operationMap, operation->GetId(), operation);
-        }
+        auto nodesMap = MakeNodeMap(nodes);
+        auto operationsMap = MakeOperationMap(operations);
 
-        TNodeMap nodeMap;
-        for (const auto& node : nodes) {
-            EmplaceOrCrash(nodeMap, node->Descriptor()->Id, node);
-        }
-
-        TTestAssignmentPlanContext context(operationMap, nodeMap, Logger);
+        TTestAssignmentPlanUpdateContext context(
+            operationsMap,
+            nodesMap,
+            &PreemptedAssignments_,
+            &PreemptionInfo_,
+            Logger);
         DoAllocationAssignmentPlanUpdate(&context, std::move(config), now);
     }
 
@@ -468,8 +541,31 @@ protected:
         return expectedDiskRequests == actualDiskRequests;
     }
 
+    const THashSet<TAssignmentPtr>& GetNodePreemptedAssignments(NNodeTrackerClient::TNodeId nodeId)
+    {
+        return PreemptedAssignments_[nodeId];
+    }
+
+    const THashSet<TAssignmentPtr>& GetNodePreemptedAssignments(const TNodePtr& node)
+    {
+        return GetNodePreemptedAssignments(node->GetId());
+    }
+
+    std::optional<TPreemptionInfo> GetAssignmentPreemptionInfo(const TAssignmentPtr& assignment)
+    {
+        auto it = PreemptionInfo_.find(assignment);
+
+        if (it != PreemptionInfo_.end()) {
+            return it->second;
+        }
+
+        return {};
+    }
+
 private:
     ui32 NextAvailableNodeId_ = 0;
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> PreemptedAssignments_;
+    THashMap<TAssignmentPtr, TPreemptionInfo> PreemptionInfo_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1117,11 +1213,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
         EXPECT_EQ(0, operations[1]->GetReadyToAssignNeededAllocationCount());
         EXPECT_EQ(1, operations[2]->GetReadyToAssignNeededAllocationCount());
 
-        // TODO(yaishenka): Check after assignments with allocations appear.
-        // EXPECT_TRUE(node->PreemptedAssignments().empty());
-        for (const auto& assignment : node->Assignments()) {
-            EXPECT_FALSE(assignment->Preempted);
-        }
+        EXPECT_TRUE(GetNodePreemptedAssignments(node).empty());
     };
     checkBeforePreemption();
 
@@ -1150,20 +1242,18 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
     EXPECT_EQ(0, operations[1]->GetReadyToAssignNeededAllocationCount());
     EXPECT_EQ(0, operations[2]->GetReadyToAssignNeededAllocationCount());
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
-    // EXPECT_EQ(preemptibleAssignment, *node->PreemptedAssignments().begin());
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+    EXPECT_EQ(1, std::ssize(nodePreemptedAssignments));
+    EXPECT_EQ(preemptibleAssignment, *nodePreemptedAssignments.begin());
 
-    EXPECT_TRUE(preemptibleAssignment->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptibleAssignment->PreemptionReason);
-    EXPECT_TRUE(preemptibleAssignment->PreemptionDescription);
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(preemptibleAssignment);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+
+    EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
 
     EXPECT_TRUE(operations[1]->Assignments().empty());
 
     EXPECT_EQ(2, std::ssize(node->Assignments()));
-    for (const auto& assignment : node->Assignments()) {
-        EXPECT_FALSE(assignment->Preempted);
-    }
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignments)
@@ -1193,16 +1283,14 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignmen
 
     const auto& node = *nodes.begin();
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+    EXPECT_EQ(1, std::ssize(nodePreemptedAssignments));
+    EXPECT_EQ(preemptibleAssignment, *nodePreemptedAssignments.begin());
 
-    EXPECT_TRUE(preemptibleAssignment->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptibleAssignment->PreemptionReason);
-    EXPECT_TRUE(preemptibleAssignment->PreemptionDescription);
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(preemptibleAssignment);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
 
-    for (const auto& assignment : node->Assignments()) {
-        EXPECT_FALSE(assignment->Preempted);
-    }
+    EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignments)
@@ -1232,17 +1320,13 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignment
 
     const auto& node = *nodes.begin();
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+    EXPECT_EQ(2, std::ssize(nodePreemptedAssignments));
 
-    for (const auto& assignment : preemptibleAssignments) {
-        EXPECT_TRUE(assignment->Preempted);
-        EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignment->PreemptionReason);
-        EXPECT_TRUE(assignment->PreemptionDescription);
-    }
-
-    for (const auto& assignment : node->Assignments()) {
-        EXPECT_FALSE(assignment->Preempted);
+    for (auto assignment : nodePreemptedAssignments) {
+        auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(assignment);
+        EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+        EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
     }
 }
 
@@ -1283,21 +1367,14 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionFromSeveralNodes)
     EXPECT_EQ(UnitResources * 4, operations[1]->AssignedResourceUsage());
     EXPECT_EQ(UnitResources * 6, operations[2]->AssignedResourceUsage());
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // for (const auto& node : nodes) {
-    //     EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
-    // }
-
-    for (const auto& assignment : preemptibleAssignments) {
-        EXPECT_TRUE(assignment->Preempted);
-        EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignment->PreemptionReason);
-        EXPECT_TRUE(assignment->PreemptionDescription);
-    }
-
     for (const auto& node : nodes) {
-        for (const auto& assignment : node->Assignments()) {
-            EXPECT_FALSE(assignment->Preempted);
-        }
+        const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+        EXPECT_EQ(1, std::ssize(nodePreemptedAssignments));
+
+        auto assignment = *nodePreemptedAssignments.begin();
+        auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(assignment);
+        EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+        EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
     }
 }
 
@@ -1332,17 +1409,13 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSeveralStarvingOperations)
 
     const auto& node = *nodes.begin();
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+    EXPECT_EQ(2, std::ssize(nodePreemptedAssignments));
 
-    for (const auto& assignment : preemptibleAssignments) {
-        EXPECT_TRUE(assignment->Preempted);
-        EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignment->PreemptionReason);
-        EXPECT_TRUE(assignment->PreemptionDescription);
-    }
-
-    for (const auto& assignment : node->Assignments()) {
-        EXPECT_FALSE(assignment->Preempted);
+    for (auto assignment : nodePreemptedAssignments) {
+        auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(assignment);
+        EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+        EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
     }
 }
 
@@ -1371,10 +1444,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDoNotPreemptMoreThanNeeded)
     EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
     EXPECT_EQ(UnitResources * 1, operations[1]->AssignedResourceUsage());
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // for (const auto& node : nodes) {
-    //     EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
-    // }
+    for (const auto& node : nodes) {
+        const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+        EXPECT_EQ(1, std::ssize(nodePreemptedAssignments));
+    }
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreemption)
@@ -1407,9 +1480,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreem
     ASSERT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
     ASSERT_EQ(UnitResources * 4, operations[3]->AssignedResourceUsage());
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // const auto& node = *nodes.begin();
-    // EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
+    const auto& node = *nodes.begin();
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(node);
+    EXPECT_EQ(2, std::ssize(nodePreemptedAssignments));
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfNodesDuringPreemption)
@@ -1490,8 +1563,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostRegularPreemption)
     EXPECT_EQ(TestNodeResources * 1, operations[2]->AssignedResourceUsage());
     EXPECT_FALSE(operations[2]->WaitingForAssignmentsSince());
 
-    EXPECT_TRUE(smallAssignment->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::Preemption, smallAssignment->PreemptionReason);
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(smallAssignment->Node->GetId());
+    EXPECT_TRUE(nodePreemptedAssignments.contains(smallAssignment));
+
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(smallAssignment);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+    EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemption)
@@ -1531,8 +1608,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemption)
     EXPECT_EQ(TestNodeResources * 10, operations[1]->AssignedResourceUsage());
     EXPECT_FALSE(operations[1]->WaitingForAssignmentsSince());
 
-    EXPECT_TRUE(smallAssignment->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::FullHostAggressivePreemption, smallAssignment->PreemptionReason);
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(smallAssignment->Node->GetId());
+    EXPECT_TRUE(nodePreemptedAssignments.contains(smallAssignment));
+
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(smallAssignment);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+    EXPECT_EQ(EAllocationPreemptionReason::FullHostAggressivePreemption, assignmentPreemptionInfo->Reason);
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionDoesNotPreemptOtherFullHost)
@@ -1618,11 +1699,15 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
     auto smallAssignment = *operations[2]->Assignments().begin();
     const auto& expectedNode = smallAssignment->Node;
 
-    // TODO(yaishenka): Check after assignments with allocations appear.
-    // ASSERT_EQ(1, std::ssize(expectedNode->PreemptedAssignments()));
-    // const auto& preemptedAssignment = *expectedNode->PreemptedAssignments().begin();
-    // EXPECT_EQ(operations[0].Get(), preemptedAssignment->Operation);
-    // EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptedAssignment->PreemptionReason);
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(expectedNode);
+
+    ASSERT_EQ(1, std::ssize(nodePreemptedAssignments));
+    const auto& preemptedAssignment = *nodePreemptedAssignments.begin();
+    EXPECT_EQ(operations[0].Get(), preemptedAssignment->Operation);
+
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(preemptedAssignment);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+    EXPECT_EQ(EAllocationPreemptionReason::Preemption, assignmentPreemptionInfo->Reason);
 
     operations[2]->SetStarving(false);
     smallAssignment->Preemptible = true;
@@ -1642,8 +1727,11 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
     EXPECT_EQ(TestNodeResources * 5, operations[1]->AssignedResourceUsage());
     EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
 
-    EXPECT_TRUE(smallAssignment->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::FullHostAggressivePreemption, smallAssignment->PreemptionReason);
+    EXPECT_TRUE(nodePreemptedAssignments.contains(smallAssignment));
+
+    assignmentPreemptionInfo.emplace(GetAssignmentPreemptionInfo(smallAssignment).value());
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+    EXPECT_EQ(EAllocationPreemptionReason::FullHostAggressivePreemption, assignmentPreemptionInfo->Reason);
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRegularPreemptionDoesNotConsiderDiskUsage)
@@ -1902,8 +1990,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBinding)
     EXPECT_FALSE(operations[0]->SchedulingModule());
     EXPECT_EQ(TJobResources(), operations[0]->AssignedResourceUsage());
 
-    EXPECT_TRUE(assignmentToBePreempted->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::EvictionFromSchedulingModule, assignmentToBePreempted->PreemptionReason);
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(assignmentToBePreempted->Node->GetId());
+    EXPECT_TRUE(nodePreemptedAssignments.contains(assignmentToBePreempted));
+
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(assignmentToBePreempted);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+    EXPECT_EQ(EAllocationPreemptionReason::EvictionFromSchedulingModule, assignmentPreemptionInfo->Reason);
 
     for (const auto& operation : operations) {
         CheckOperationAssignmentsAreInCorrectModule(operation);
@@ -2165,8 +2257,13 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
     EXPECT_EQ(TestNodeResources * 1, operations[2]->AssignedResourceUsage());
 
     EXPECT_NE(oldModule, operations[0]->SchedulingModule());
-    EXPECT_TRUE(assignmentInOldModule->Preempted);
-    EXPECT_EQ(EAllocationPreemptionReason::OperationBoundToOtherModule, assignmentInOldModule->PreemptionReason);
+
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(assignmentInOldModule->Node->GetId());
+    EXPECT_TRUE(nodePreemptedAssignments.contains(assignmentInOldModule));
+
+    auto assignmentPreemptionInfo = GetAssignmentPreemptionInfo(assignmentInOldModule);
+    EXPECT_TRUE(assignmentPreemptionInfo.has_value());
+    EXPECT_EQ(EAllocationPreemptionReason::OperationBoundToOtherModule, assignmentPreemptionInfo->Reason);
 
     AddReadyToAssignAllocations(operations[0], /*allocationCount*/ 1);
 
@@ -2230,7 +2327,6 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSchedulingTagFilters)
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleOpportunisticOperation)
 {
-
     auto nodes = CreateSingleModuleTestNodes();
     std::vector<TOperationPtr> operations{
         CreateSingleGroupTestOperationWithExtraResources(
@@ -2257,13 +2353,62 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleOpportunisticOperation)
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    ASSERT_TRUE((*preemptibleAssignments.begin())->Preempted);
+    auto expectedAssignment = *preemptibleAssignments.begin();
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(expectedAssignment->Node->GetId());
+    EXPECT_TRUE(nodePreemptedAssignments.contains(expectedAssignment));
+    EXPECT_EQ(1, std::ssize(nodePreemptedAssignments));
 
     ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
     ASSERT_EQ(1, std::ssize(operations[1]->Assignments()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOpportunisticOperationLimits)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TOperationPtr> operations{
+        CreateSingleGroupTestOperationWithExtraResources(
+            UnitResources * 2,
+            /*allocationCount*/ 1,
+            UnitResources * 2,
+            /*extraAllocationCount*/ 3)
+    };
+
+    auto operationsMap = MakeOperationMap(operations);
+    auto nodesMap = MakeNodeMap(nodes);
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> preemptedAssignments;
+    THashMap<TAssignmentPtr, TPreemptionInfo> preemptionInfo;
+    TTestAssignmentPlanUpdateContext context(operationsMap, nodesMap, &preemptedAssignments, &preemptionInfo, Logger);
+
+    // NB(severovv): here limits only apply to extra allocations, normal allocation is ignored
+    context.SetAvailableLimitForOperation(operations[0], UnitResources * 3);
+    DoAllocationAssignmentPlanUpdate(&context);
+
+    ASSERT_EQ(2, std::ssize(operations[0]->Assignments()));
+
+    THashSet<TAssignmentPtr> preemptibleAssignments;
+    for (const auto& assignment : operations[0]->Assignments()) {
+        if (assignment->Preemptible) {
+            preemptibleAssignments.insert(assignment);
+        }
+    }
+    ASSERT_EQ(1, std::ssize(preemptibleAssignments));
+
+    operations.push_back(CreateSimpleTestOperation(6, 1));
+    operations[1]->SetStarving(true);
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    auto expectedAssignment = *preemptibleAssignments.begin();
+    const auto& nodePreemptedAssignments = GetNodePreemptedAssignments(expectedAssignment->Node->GetId());
+
+    ASSERT_TRUE(nodePreemptedAssignments.contains(expectedAssignment));
+
+    ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
+    ASSERT_EQ(1, std::ssize(operations[1]->Assignments()));
+}
+
 
 } // namespace
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

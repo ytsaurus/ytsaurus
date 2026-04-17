@@ -27,6 +27,7 @@ public:
     void Add(TRange<NChunkServer::TChunkLocationPtrWithReplicaInfo> locationList);
     void Add(NChunkServer::TAugmentedStoredChunkReplicaPtr replica);
     void Add(TRange<NChunkServer::TAugmentedStoredChunkReplicaPtr> replicaList);
+    void AddOffshoreNode();
 
 private:
     NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory_;

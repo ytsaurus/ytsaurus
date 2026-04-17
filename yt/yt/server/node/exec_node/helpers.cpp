@@ -1,20 +1,19 @@
-#include "helpers.h"
 #include "bootstrap.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -360,6 +359,16 @@ const std::string& GetVolumeMountPathByVolumeId(const std::string& volumeId, con
     // Therefore, there must not be a single tmpfs that is not listed in volumeMounts.
     YT_VERIFY(volumeMountIt != volumeMounts.end());
     return volumeMountIt->Get()->MountPath;
+}
+
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes)
+{
+    auto volumeIt = std::find_if(volumes.begin(), volumes.end(), [&] (const auto& volume) {
+        return volume->VolumeId == volumeId;
+    });
+
+    YT_VERIFY(volumeIt != volumes.end());
+    return *volumeIt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

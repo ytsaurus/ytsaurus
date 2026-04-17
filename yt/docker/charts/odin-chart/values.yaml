@@ -27,10 +27,9 @@ config:
       filename: "/dev/stderr"
 
   webservice:
-    host: "::"
+    host: "*"
     port: 9002
     threadCount: 4
-    debug: 0
     logging:
       filename: "/dev/stderr"
 

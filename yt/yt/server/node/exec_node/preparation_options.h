@@ -1,14 +1,16 @@
 #pragma once
 
 #include "artifact.h"
+#include "volume_helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/nbd/public.h>
 #include <yt/yt/server/lib/nbd/config.h>
+#include <yt/yt/server/lib/nbd/public.h>
 
 #include <yt/yt/core/actions/callback.h>
 
 #include <util/generic/string.h>
+
 #include <util/system/types.h>
 
 namespace NYT::NExecNode {
@@ -47,7 +49,11 @@ struct TSandboxNbdRootVolumeData
     TDuration MasterRpcTimeout;
     int MinDataNodeCount;
     int MaxDataNodeCount;
+
+    bool operator==(const TSandboxNbdRootVolumeData&) const = default;
 };
+
+void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& data, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +62,7 @@ struct TSandboxNbdRootVolumeData
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
-    std::vector<TTmpfsVolumeParams> TmpfsVolumes;
+    std::vector<TBaseVolumeParamsPtr> NonRootVolumes;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;

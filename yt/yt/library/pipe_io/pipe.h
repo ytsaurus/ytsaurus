@@ -62,11 +62,11 @@ class TPipe
 public:
     static const int InvalidFD = -1;
 
-    TPipe();
-    TPipe(TPipe&& pipe);
+    TPipe() noexcept;
+    TPipe(TPipe&& pipe) noexcept;
     ~TPipe();
 
-    void operator=(TPipe&& other);
+    void operator=(TPipe&& other) noexcept;
 
     void CloseReadFD();
     void CloseWriteFD();
@@ -84,8 +84,8 @@ private:
     int ReadFD_ = InvalidFD;
     int WriteFD_ = InvalidFD;
 
-    explicit TPipe(int fd[2]);
-    void Init(TPipe&& other);
+    explicit TPipe(int fd[2]) noexcept;
+    void Init(TPipe&& other) noexcept;
 
     friend class TPipeFactory;
 };

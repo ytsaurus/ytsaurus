@@ -1131,23 +1131,21 @@ TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 
 void TChunkStoreBase::InvalidateCachedReaders(const TTabletStoreReaderConfigPtr& storeReaderConfig)
 {
-    {
-        auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
-        auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
-        // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
-        guard.Release();
-    }
-
     BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(storeReaderConfig);
 }
 
 TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
-    bool prepareColumnarMeta)
+    bool prepareColumnarMeta,
+    bool compressBlockLastKeys)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
     if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
+        if (entry->GetKey().CompressedBlockLastKeys != compressBlockLastKeys) {
+            return nullptr;
+        }
+
         const auto& meta = entry->Meta();
         if (prepareColumnarMeta || !meta->IsColumnarMetaPrepared()) {
             const auto& chunkMetaManager = Context_->GetVersionedChunkMetaManager();
@@ -1162,7 +1160,8 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
 TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMeta(
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
-    bool prepareColumnarMeta)
+    bool prepareColumnarMeta,
+    bool compressBlockLastKeys)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1174,7 +1173,8 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
         Schema_,
         chunkReadOptions,
         MiscExt_.meta_size(),
-        prepareColumnarMeta)
+        prepareColumnarMeta,
+        compressBlockLastKeys)
         .Apply(BIND([
             =,
             this,

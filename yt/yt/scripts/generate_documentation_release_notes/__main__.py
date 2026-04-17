@@ -136,7 +136,7 @@ COMPONENTS = [
     Component(repo_name="ytsaurus", component_name="Query tracker", tag_name="docker/query-tracker", description=QUERY_TRACKER_DESCRIPTION, filename="query-tracker.md"),
     Component(repo_name="ytsaurus", component_name="Java SDK", tag_name="java-sdk", description=JAVA_SDK_DESCRIPTION, filename="java-sdk.md"),
     Component(repo_name="ytsaurus", component_name="CHYT", tag_name="chyt", description=CHYT_DESCRIPTION, filename="chyt.md"),
-    Component(repo_name="ytsaurus-k8s-operator", component_name="Kubernetes operator", tag_name="release", description=K8S_DESCRIPTION, filename="k8s.md"),
+    Component(repo_name="ytsaurus-k8s-operator", component_name="Kubernetes operator", tag_name="", description=K8S_DESCRIPTION, filename="k8s.md"),
     Component(repo_name="ytsaurus", component_name="Python YSON bindings", tag_name="python/ytsaurus-yson", description=PYTHON_YSON_DESCRIPTION, filename="python-yson.md"),
     Component(repo_name="ytsaurus", component_name="Python SDK", tag_name="python/ytsaurus-client", description=PYTHON_SDK_DESCRIPTION, filename="python-sdk.md"),
     Component(repo_name="ytsaurus-spyt", component_name="SPYT", tag_name="spyt", description=SPYT_DESCRIPTION, filename="spyt.md"),

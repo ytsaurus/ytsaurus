@@ -83,7 +83,7 @@ int CompareTypedValues(
     const NTableClient::TUnversionedValue& lhs,
     const NTableClient::TUnversionedValue& rhs)
 {
-    if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
+    if (lhs.Type != rhs.Type) [[unlikely]] {
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
     }
 

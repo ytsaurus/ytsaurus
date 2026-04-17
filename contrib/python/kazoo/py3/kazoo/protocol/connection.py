@@ -7,7 +7,6 @@ import random
 import select
 import socket
 import ssl
-import sys
 import time
 
 from kazoo.exceptions import (
@@ -75,16 +74,10 @@ AUTH_XID = -4
 
 CLOSE_RESPONSE = Close.type
 
-if sys.version_info > (3,):  # pragma: nocover
 
-    def buffer(obj, offset=0):
-        return memoryview(obj)[offset:]
-
-    advance_iterator = next
-else:  # pragma: nocover
-
-    def advance_iterator(it):
-        return it.next()
+# removed from Python3+
+def buffer(obj, offset=0):
+    return memoryview(obj)[offset:]
 
 
 class RWPinger(object):
@@ -109,19 +102,19 @@ class RWPinger(object):
 
     def __iter__(self):
         if not self.last_attempt:
-            self.last_attempt = time.time()
+            self.last_attempt = time.monotonic()
         delay = 0.5
         while True:
             yield self._next_server(delay)
 
     def _next_server(self, delay):
         jitter = random.randint(0, 100) / 100.0
-        while time.time() < self.last_attempt + delay + jitter:
+        while time.monotonic() < self.last_attempt + delay + jitter:
             # Skip rw ping checks if its too soon
             return False
         for host, port in self.hosts:
             log.debug("Pinging server for r/w: %s:%s", host, port)
-            self.last_attempt = time.time()
+            self.last_attempt = time.monotonic()
             try:
                 with self.socket_handling():
                     sock = self.connection((host, port))
@@ -136,7 +129,7 @@ class RWPinger(object):
                 return False
 
             # Add some jitter between host pings
-            while time.time() < self.last_attempt + jitter:
+            while time.monotonic() < self.last_attempt + jitter:
                 return False
         delay *= 2
 
@@ -526,7 +519,7 @@ class ConnectionHandler(object):
 
         # Determine if we need to check for a r/w server
         if self._ro_mode:
-            result = advance_iterator(self._ro_mode)
+            result = next(self._ro_mode)
             if result:
                 self._rw_server = result
                 raise RWServerAvailable()
@@ -617,14 +610,14 @@ class ConnectionHandler(object):
             connect_timeout = connect_timeout / 1000.0
             retry.reset()
             self.ping_outstanding.clear()
-            last_send = time.time()
+            last_send = time.monotonic()
             with self._socket_error_handling():
-                while not self.client._stopped.is_set():
+                while True:
                     # Watch for something to read or send
                     jitter_time = random.randint(1, 40) / 100.0
                     deadline = last_send + read_timeout / 2.0 - jitter_time
                     # Ensure our timeout is positive
-                    timeout = max([deadline - time.time(), jitter_time])
+                    timeout = max([deadline - time.monotonic(), jitter_time])
                     s = self.handler.select(
                         [self._socket, self._read_sock], [], [], timeout
                     )[0]
@@ -646,12 +639,12 @@ class ConnectionHandler(object):
                         if self._read_sock in s:
                             self._send_request(read_timeout, connect_timeout)
                             # Requests act as implicit pings.
-                            last_send = time.time()
+                            last_send = time.monotonic()
                             continue
 
-                    if time.time() >= deadline:
+                    if time.monotonic() >= deadline:
                         self._send_ping(connect_timeout)
-                        last_send = time.time()
+                        last_send = time.monotonic()
             self.logger.info("Closing connection to %s:%s", host, port)
             client._session_callback(KeeperState.CLOSED)
             return STOP_CONNECTING
@@ -703,6 +696,7 @@ class ConnectionHandler(object):
         with self._socket_error_handling():
             self._socket = self.handler.create_connection(
                 address=(hostip, port),
+                hostname=host,
                 timeout=client._session_timeout / 1000.0,
                 use_ssl=self.client.use_ssl,
                 keyfile=self.client.keyfile,
@@ -710,6 +704,7 @@ class ConnectionHandler(object):
                 ca=self.client.ca,
                 keyfile_password=self.client.keyfile_password,
                 verify_certs=self.client.verify_certs,
+                check_hostname=self.client.check_hostname,
             )
 
         self._socket.setblocking(0)
@@ -795,7 +790,7 @@ class ConnectionHandler(object):
             host=host, **self.sasl_options
         )
 
-        # Inititalize the process with an empty challenge token
+        # Initialize the process with an empty challenge token
         challenge = None
         xid = 0
 

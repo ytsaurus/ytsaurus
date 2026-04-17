@@ -790,7 +790,7 @@ public:
 
     TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) override
     {
-        auto* account = DoFindAccountByName(name, /*throwOnInvalidId=*/ false);
+        auto* account = DoFindAccountByName(name, /*throwOnInvalidId*/ false);
         if (!account) {
             return account;
         }
@@ -1235,7 +1235,7 @@ public:
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
-            if (Y_UNLIKELY(account == ChunkWiseAccountingMigrationAccount_)) {
+            if (account == ChunkWiseAccountingMigrationAccount_) [[unlikely]] {
                 account = stagingAccount;
             }
 
@@ -2188,7 +2188,7 @@ public:
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) override
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object, bool skipFirstObject) override
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2197,18 +2197,20 @@ public:
             const auto& handler = objectManager->GetHandler(object);
             auto acd = handler->FindAcd(object);
             if (acd) {
-                for (auto entry : acd->Acl().Entries) {
-                    auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
-                    if (inheritedMode) {
-                        entry.InheritanceMode = *inheritedMode;
-                        result.Entries.push_back(entry);
+                if (!skipFirstObject) {
+                    for (auto entry : acd->Acl().Entries) {
+                        auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
+                        if (inheritedMode) {
+                            entry.InheritanceMode = *inheritedMode;
+                            result.Entries.push_back(entry);
+                        }
                     }
                 }
                 if (!acd->Inherit()) {
                     break;
                 }
             }
-
+            skipFirstObject = false;
             object = handler->GetParent(object);
             ++depth;
         }

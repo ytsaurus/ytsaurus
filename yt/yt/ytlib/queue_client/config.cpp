@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/client/federated/config.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NQueueClient {
@@ -15,7 +17,7 @@ namespace NDetail {
 
 bool TLookupSessionConfig::operator==(const TLookupSessionConfig& other) const
 {
-    return std::tie(User, Table) == std::tie(other.User, other.Table);
+    return std::tie(User, Table, *FederationConfig) == std::tie(other.User, other.Table, *other.FederationConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +33,7 @@ TStateLookupCacheConfig& TStateLookupCacheConfig::operator=(const TStateLookupCa
 
 bool TStateLookupCacheConfig::operator==(const TStateLookupCacheConfig& other) const
 {
-    return std::tie(*Cache, BatchLookup) == std::tie(*other.Cache, other.BatchLookup);
+    return std::tie(*Cache, *BatchLookup) == std::tie(*other.Cache, *other.BatchLookup);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,6 +76,10 @@ TCompoundStateLookupCacheConfigPtr TCompoundStateLookupCacheConfig::FromQueueCon
     // Initialize lookup session config.
 
     result->User = config->User;
+    result->FederationConfig = CloneYsonStruct(config->Cache->FederationConfig);
+    if (auto bundleName = config->Cache->CacheKindToBundleName[cacheKind]; bundleName) {
+        result->FederationConfig->BundleName = std::move(bundleName);
+    }
     switch (cacheKind) {
         case EQueueConsumerRegistrationManagerCacheKind::ListRegistrations:
             [[fallthrough]];
@@ -149,12 +155,28 @@ void TQueueConsumerRegistrationManagerCacheConfig::Register(TRegistrar registrar
         });
     registrar.Parameter("batch_lookup", &TThis::BatchLookup)
         .DefaultNew();
+    registrar.Parameter("federation_config", &TThis::FederationConfig)
+        .DefaultNew();
+    registrar.Parameter("cache_kind_to_bundle_name", &TThis::CacheKindToBundleName)
+        .Default();
 
     registrar.Preprocessor([] (TThis* config) {
         // NB(apachee): Batching lookups and selects to dynamic state is a must.
         config->Base->BatchUpdate = true;
 
-        // TODO(apachee): Provide defaults for registration cache.
+        // Borrowed defaults from table mount cache.
+        config->Base->ExpireAfterAccessTime = TDuration::Minutes(30);
+        config->Base->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(30);
+        config->Base->RefreshTime = TDuration::Seconds(30);
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        // NB(apachee): This can't be done in preprocessor as enum indexed array deserializer clears all elements.
+        for (auto cacheKind : TEnumTraits<EQueueConsumerRegistrationManagerCacheKind>::GetDomainValues()) {
+            if (!config->Delta[cacheKind]) {
+                config->Delta[cacheKind] = New<TAsyncExpiringCacheDynamicConfig>();
+            }
+        }
     });
 }
 

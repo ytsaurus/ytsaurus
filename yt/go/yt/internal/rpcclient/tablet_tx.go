@@ -107,6 +107,11 @@ func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts 
 		if err = tx.pinger.CheckAlive(); err != nil {
 			return
 		}
+		if _, ok := call.Req.(TransactionalRequest); ok {
+			if err := tx.setTxID(call); err != nil {
+				return err
+			}
+		}
 		return tx.c.Invoke(ctx, call, rsp, opts...)
 	}
 }
