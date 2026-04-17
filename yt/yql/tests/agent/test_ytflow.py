@@ -7,9 +7,9 @@ import pytest
 
 import yatest.common
 
-import contrib.ydb.library.yql.tools.solomon_emulator.client.client as solomon_client
-
 import library.python.ydb.federated_topic_client as federated_topic_client
+
+import contrib.ydb.library.yql.tools.solomon_emulator.client.client as solomon_emulator_client
 
 import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 
@@ -36,6 +36,10 @@ from yt_queue_agent_test_base import TestQueueAgentBase
 
 LOGBROKER_FEDERATION_RECIPE_BINARY = yatest.common.binary_path(
     "kikimr/public/tools/federation_recipe/federation_recipe"
+)
+
+SOLOMON_EMULATOR_RECIPE_BINARY = yatest.common.binary_path(
+    "contrib/ydb/library/yql/tools/solomon_emulator/recipe/solomon_recipe"
 )
 
 ENV_FILE = yatest.common.work_path("env.json.txt")
@@ -184,6 +188,101 @@ def logbroker_client(request, logbroker_federation):
         yield client
 
 
+def has_solomon_emulator():
+    return os.getenv("SOLOMON_HTTP_PORT") is not None
+
+
+def get_solomon_endpoint():
+    return f"localhost:{os.getenv("SOLOMON_HTTP_PORT")}"
+
+
+class SolomonClient:
+    SOLOMON_PROJECT = "project"
+    SOLOMON_SERVICE = "service"
+    SOLOMON_CLUSTER = "cluster"
+
+    def __init__(self, endpoint, test_id):
+        self._endpoint = endpoint
+        self._test_id = test_id
+
+        solomon_emulator_client.config_solomon(response_code=200)
+
+        self._created_shards = []
+        self._shard_index_generator = itertools.count()
+
+    @property
+    def endpoint(self):
+        return self._endpoint
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def create_shard(self):
+        shard_index = next(self._shard_index_generator)
+        shard_name = "/".join([
+            self.SOLOMON_PROJECT,
+            self.SOLOMON_CLUSTER,
+            self._test_id + "." + self.SOLOMON_SERVICE + str(shard_index),
+        ])
+
+        self._created_shards.append(shard_name)
+
+        return shard_name
+
+    def get_metrics(self, shard_name):
+        project, cluster, shard = shard_name.split("/")
+        return solomon_emulator_client.get_solomon_metrics(project, cluster, shard)
+
+    def cleanup(self, shard_name):
+        project, cluster, shard = shard_name.split("/")
+        solomon_emulator_client.cleanup_solomon(project, cluster, shard)
+
+    def close(self):
+        for shard_name in self._created_shards:
+            self.cleanup(shard_name)
+
+        self._created_shards = []
+
+
+@pytest.fixture(scope="session")
+def solomon_emulator():
+    common_args = [
+        "--build-root", yatest.common.build_path(),
+        "--source-root", yatest.common.source_path(),
+        "--output-dir", yatest.common.output_path(),
+        "--env-file", ENV_FILE,
+    ]
+
+    yatest.common.process.execute(
+        command=[SOLOMON_EMULATOR_RECIPE_BINARY, "start"] + common_args + [
+            "--shard", "my_project/my_cluster/my_service",
+        ]
+    )
+
+    load_env()
+
+    yield
+
+    yatest.common.process.execute(
+        command=[SOLOMON_EMULATOR_RECIPE_BINARY, "stop"] + common_args,
+    )
+
+
+@pytest.fixture
+def solomon_client(request, solomon_emulator):
+    if not has_solomon_emulator():
+        pytest.skip("Solomon emulator is not available")
+
+    solomon_endpoint = get_solomon_endpoint()
+    test_id = get_test_id(request)
+
+    with SolomonClient(endpoint=solomon_endpoint, test_id=test_id) as client:
+        yield client
+
+
 class TestYtflowBase(TestQueueAgentBase):
     NUM_MASTERS = 1
     NUM_DISCOVERY_SERVERS = 1
@@ -226,13 +325,6 @@ class TestYtflowBase(TestQueueAgentBase):
     SOLOMON_CLUSTER = "cluster"
 
     @classmethod
-    def setup_class(cls):
-        super(TestYtflowBase, cls).setup_class()
-
-        cls.solomon_endpoint = f"localhost:{os.getenv("SOLOMON_HTTP_PORT")}"
-        solomon_client.config_solomon(response_code=200)
-
-    @classmethod
     def modify_yql_agent_config(cls, config):
         config['yql_agent']['ytflow_gateway_config'] = dict(
             ytflow_worker_bin=yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker"),
@@ -264,10 +356,11 @@ class TestYtflowBase(TestQueueAgentBase):
                     database=LogbrokerClient.LOGBROKER_DATABASE,
                 )]
             )
+
         config['yql_agent']['solomon_gateway_config'] = dict(
             cluster_mapping=[dict(
                 name='solomon',
-                cluster=cls.solomon_endpoint,
+                cluster=get_solomon_endpoint(),
             )]
         )
 
@@ -280,30 +373,6 @@ class TestYtflowBase(TestQueueAgentBase):
     @pytest.fixture(autouse=True)
     def setup_yt_utils(self):
         self.yt_table_index_generator = itertools.count()
-
-    @pytest.fixture()
-    def create_solomon_shard(self, request):
-        solomon_service_index_generator = itertools.count()
-        solomon_service_prefix = get_test_id(request)
-        solomon_created_shards = []
-
-        def generate_shard_name():
-            service_idx = next(solomon_service_index_generator)
-            shard_name = "/".join([
-                self.SOLOMON_PROJECT,
-                self.SOLOMON_CLUSTER,
-                solomon_service_prefix + "." + self.SOLOMON_SERVICE + str(service_idx),
-            ])
-            solomon_created_shards.append(shard_name)
-            return shard_name
-
-        yield generate_shard_name
-
-        if not solomon_created_shards:
-            return
-
-        for shard in solomon_created_shards:
-            solomon_client.cleanup_solomon(self.SOLOMON_PROJECT, self.SOLOMON_CLUSTER, shard)
 
     def _create_yt_table(self, input_table_attrs):
         table_idx = next(self.yt_table_index_generator)
@@ -344,9 +413,8 @@ class TestYtflowBase(TestQueueAgentBase):
 
         assert_items_equal(actual_data, expected_data)
 
-    def _assert_solomon_shard_content(self, shard_name, expected_data, sensors={"counter"}):
-        project, cluster, shard = shard_name.split("/")
-        result_metrics = solomon_client.get_solomon_metrics(project, cluster, shard)
+    def _assert_solomon_shard_content(self, shard_name, expected_data, solomon_client, sensors={"counter"}):
+        result_metrics = solomon_client.get_metrics(shard_name)
 
         expected_metrics = []
         for row in expected_data:
@@ -982,7 +1050,7 @@ class TestYtflowSolomon(TestYtflowBase):
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_solomon_write(self, query_tracker, yql_agent, run_query, create_solomon_shard):
+    def test_solomon_write(self, query_tracker, yql_agent, run_query, solomon_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "counter", "type": "uint64"},
@@ -996,7 +1064,7 @@ class TestYtflowSolomon(TestYtflowBase):
         ]
         self._write_yt_table(input_table_path, self._convert_solomon_metrics_to_yt_format(expected_data))
 
-        out_shard_path = create_solomon_shard()
+        out_shard_path = solomon_client.create_shard()
 
         run_query(f"""
 $stream = select coalesce(counter, 0) as counter, metric_timestamp, label from `{input_table_path}`;
@@ -1005,11 +1073,11 @@ insert into solomon.`{out_shard_path}`
 select * from $stream;
 """)
 
-        self._assert_solomon_shard_content(out_shard_path, expected_data)
+        self._assert_solomon_shard_content(out_shard_path, expected_data, solomon_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_yt_solomon_write(self, query_tracker, yql_agent, run_query, create_solomon_shard):
+    def test_yt_solomon_write(self, query_tracker, yql_agent, run_query, solomon_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "counter", "type": "uint64"},
@@ -1032,7 +1100,7 @@ select * from $stream;
                 {"name": "yt_data", "type": "string"}
             ]),
         ))
-        out_shard_path = create_solomon_shard()
+        out_shard_path = solomon_client.create_shard()
 
         run_query(f"""
 $stream = select * from `{input_table_path}`;
@@ -1059,11 +1127,11 @@ select * from $solomon_stream;
 """)
 
         self._assert_yt_table_content(out_table_path, yt_expected_data)
-        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data)
+        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data, solomon_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_logbroker_solomon_write(self, query_tracker, yql_agent, run_query, create_solomon_shard, logbroker_client):
+    def test_logbroker_solomon_write(self, query_tracker, yql_agent, run_query, logbroker_client, solomon_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "counter", "type": "uint64"},
@@ -1082,7 +1150,7 @@ select * from $solomon_stream;
         self._write_yt_table(input_table_path, input_data)
 
         out_topic_path = logbroker_client.create_topic()
-        out_shard_path = create_solomon_shard()
+        out_shard_path = solomon_client.create_shard()
 
         run_query(f"""
 $stream = select * from `{input_table_path}`;
@@ -1109,11 +1177,11 @@ select * from $solomon_stream;
 """)
 
         self._assert_logbroker_topic_content(out_topic_path, logbroker_expected_data, logbroker_client)
-        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data)
+        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data, solomon_client)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_multiple_solomon_metrics_in_row(self, query_tracker, yql_agent, run_query, create_solomon_shard):
+    def test_multiple_solomon_metrics_in_row(self, query_tracker, yql_agent, run_query, solomon_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "counter", "type": "uint64"},
@@ -1128,7 +1196,7 @@ select * from $solomon_stream;
         ]
         self._write_yt_table(input_table_path, self._convert_solomon_metrics_to_yt_format(solomon_expected_data))
 
-        out_shard_path = create_solomon_shard()
+        out_shard_path = solomon_client.create_shard()
 
         run_query(f"""
 $stream = select coalesce(counter, 0) as counter, coalesce(gauge, 0.0) as gauge, coalesce(igauge, 0) as igauge, metric_timestamp from `{input_table_path}`;
@@ -1137,11 +1205,11 @@ insert into solomon.`{out_shard_path}`
 select * from $stream;
 """)
 
-        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data, {"counter", "gauge", "igauge"})
+        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data, solomon_client, {"counter", "gauge", "igauge"})
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_solomon_with_null_timestamp(self, query_tracker, yql_agent, run_query, create_solomon_shard):
+    def test_solomon_with_null_timestamp(self, query_tracker, yql_agent, run_query, solomon_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "counter", "type": "uint64"},
@@ -1157,7 +1225,7 @@ select * from $stream;
         ]
         self._write_yt_table(input_table_path, self._convert_solomon_metrics_to_yt_format(solomon_expected_data))
 
-        out_shard_path = create_solomon_shard()
+        out_shard_path = solomon_client.create_shard()
 
         run_query(f"""
 $stream = select coalesce(counter, 0) as counter, metric_timestamp from `{input_table_path}`;
@@ -1166,4 +1234,4 @@ insert into solomon.`{out_shard_path}`
 select * from $stream;
 """)
 
-        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data)
+        self._assert_solomon_shard_content(out_shard_path, solomon_expected_data, solomon_client)
