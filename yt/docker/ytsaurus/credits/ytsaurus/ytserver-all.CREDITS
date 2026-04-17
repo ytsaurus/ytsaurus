@@ -1697,6 +1697,7 @@ namespace std {
 #include <__type_traits/aligned_storage.h>
 #include <__type_traits/conditional.h>
 #include <__type_traits/decay.h>
+#include <__type_traits/enable_if.h>
 #include <__type_traits/is_constructible.h>
 #include <__type_traits/is_function.h>
 #include <__type_traits/is_nothrow_constructible.h>
@@ -1733,7 +1734,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER >= 17
 
-_LIBCPP_NORETURN inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST void __throw_bad_any_cast() {
+[[noreturn]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST void __throw_bad_any_cast() {
 #  ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   throw bad_any_cast();
 #  else
@@ -2285,6 +2286,10 @@ to use it under either license.  As a contributor, you agree to allow your code
 to be used under both.
 
 Full text of the relevant licenses is included below.
+
+
+====================Public-Domain====================
+// One-sided binary search, aka meta binary search, has been in the public domain for decades, and has the general
 
 
 ====================Public-Domain====================
@@ -20539,7 +20544,12 @@ DEALINGS IN THE SOFTWARE.
 
 ====================COPYRIGHT====================
 // Copyright (c) 2009-2011 Artyom Beilis (Tonkikh)
-// Copyright (c) 2021-2023 Alexander Grund
+// Copyright (c) 2021-2024 Alexander Grund
+
+
+====================COPYRIGHT====================
+// Copyright (c) 2009-2011 Artyom Beilis (Tonkikh)
+// Copyright (c) 2021-2025 Alexander Grund
 
 
 ====================COPYRIGHT====================
@@ -20558,8 +20568,18 @@ DEALINGS IN THE SOFTWARE.
 
 
 ====================COPYRIGHT====================
+// Copyright (c) 2009-2011 Artyom Beilis (Tonkikh)
+// Copyright (c) 2023-2024 Alexander Grund
+
+
+====================COPYRIGHT====================
+// Copyright (c) 2009-2011 Artyom Beilis (Tonkikh)
+// Copyright (c) 2025 Alexander Grund
+
+
+====================COPYRIGHT====================
 // Copyright (c) 2009-2015 Artyom Beilis (Tonkikh)
-// Copyright (c) 2021-2023 Alexander Grund
+// Copyright (c) 2021-2025 Alexander Grund
 
 
 ====================COPYRIGHT====================
@@ -20572,6 +20592,10 @@ DEALINGS IN THE SOFTWARE.
 
 
 ====================COPYRIGHT====================
+// Copyright (c) 2022-2025 Alexander Grund
+
+
+====================COPYRIGHT====================
 // Copyright (c) 2023 Alexander Grund
 
 
@@ -20580,10 +20604,24 @@ DEALINGS IN THE SOFTWARE.
 
 
 ====================COPYRIGHT====================
+// Copyright (c) 2023-2025 Alexander Grund
+
+
+====================COPYRIGHT====================
 // Copyright (c) 2024 Alexander Grund
 
 
+====================COPYRIGHT====================
+// Copyright (c) 2024-2025 Alexander Grund
+
+
 --------------------contrib/restricted/boost/random--------------------
+====================BSL-1.0====================
+ * Distributed under the Boost Software License, Version 1.0. (See
+        * accompanying file LICENSE_1_0.txt or copy at
+ * http://www.boost.org/LICENSE_1_0.txt)
+
+
 ====================BSL-1.0====================
  * Distributed under the Boost Software License, Version 1.0. (See
  * accompanying file LICENSE_1_0.txt or copy at
@@ -20682,6 +20720,18 @@ DEALINGS IN THE SOFTWARE.
 
 
 ====================COPYRIGHT====================
+ * Copyright Matt Borland 2022 - 2025.
+ * Distributed under the Boost Software License, Version 1.0. (See
+        * accompanying file LICENSE_1_0.txt or copy at
+
+
+====================COPYRIGHT====================
+ * Copyright Matt Borland 2025.
+ * Distributed under the Boost Software License, Version 1.0. (See
+        * accompanying file LICENSE_1_0.txt or copy at
+
+
+====================COPYRIGHT====================
  * Copyright Sebastiano Vigna 2015.
  * Copyright Matt Borland 2022.
  * Distributed under the Boost Software License, Version 1.0. (See
@@ -20714,6 +20764,12 @@ DEALINGS IN THE SOFTWARE.
 
 ====================COPYRIGHT====================
  * Copyright Thijs van den Berg 2014
+
+
+====================COPYRIGHT====================
+ * Copyright Young Geun Kim 2025
+ * Distributed under the Boost Software License, Version 1.0. (See
+ * accompanying file LICENSE_1_0.txt or copy at
 
 
 --------------------contrib/restricted/thrift--------------------
