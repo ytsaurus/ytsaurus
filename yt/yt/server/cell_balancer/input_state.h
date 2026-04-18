@@ -97,7 +97,7 @@ struct TSchedulerInputState
     THashMap<std::string, TInstanceCountBySize> AliveProxiesBySize;
 
     using TQualifiedDCName = std::pair<std::string, std::string>;
-    THashMap<TQualifiedDCName, TDataCenterDisruptedState> DatacenterDisrupted;
+    THashMap<TQualifiedDCName, TDataCenterDisruptedState> DataCenterDisruptionStatuses;
 
     THashMap<std::string, std::string> BundleToShortName;
 
