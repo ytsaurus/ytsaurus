@@ -37,7 +37,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/tags/docker-test/odin/})" >> $GITHUB_OUTPUT
           else
-            echo "RELEASE_VERSION=dev-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "RELEASE_VERSION=0.0.0-dev.${GITHUB_SHA}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build And Push Docker Image
@@ -47,8 +47,8 @@ jobs:
 
       - name: Package And Push Helm Chart
         run: |
-          # name: odin-chart -> name: odin-nightly-chart in yt/docker/charts/odin-chart/Chart.yaml
-          sed -i 's/name: .*/name: odin-nightly-chart/' yt/docker/charts/odin-chart/Chart.yaml
-          sed -i 's/tag: .*/tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"/' yt/docker/charts/odin-chart/values.yaml
+          sed -i 's|name: .*|name: odin-nightly-chart|' yt/docker/charts/odin-chart/Chart.yaml
+          sed -i 's|repository: .*|repository: "ghcr.io/ytsaurus/odin-nightly"|' yt/docker/charts/odin-chart/values.yaml
+          sed -i 's|tag: .*|tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"|' yt/docker/charts/odin-chart/values.yaml
           helm package yt/docker/charts/odin-chart --version ${{ steps.tag.outputs.RELEASE_VERSION }}
           helm push odin-chart-${{ steps.tag.outputs.RELEASE_VERSION }}.tgz oci://ghcr.io/ytsaurus
