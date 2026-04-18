@@ -739,6 +739,8 @@ struct TTabletNodeInfo
     TTabletNodeStatisticsPtr Statistics;
     std::string Rack;
 
+    bool IsOnline() const;
+
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 
     static void Register(TRegistrar registrar);

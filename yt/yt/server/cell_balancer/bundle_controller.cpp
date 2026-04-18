@@ -925,7 +925,7 @@ private:
                 for (const auto& nodeName : nodes) {
                     const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-                    if (nodeInfo->State != InstanceStateOnline) {
+                    if (!nodeInfo->IsOnline()) {
                         ++offlineNodeCount;
                         continue;
                     }

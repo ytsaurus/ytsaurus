@@ -526,6 +526,15 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool TTabletNodeInfo::IsOnline() const
+{
+    return State == InstanceStateOnline;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMediumThroughputLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_byte_rate", &TThis::WriteByteRate)
