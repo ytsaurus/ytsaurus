@@ -61,6 +61,10 @@ struct ISpareInstanceAllocator
     virtual bool HasInstances(
         const std::string& zoneName,
         const std::string& dataCenterName) const = 0;
+
+    virtual int GetFreeInstanceCount(
+        const std::string& zoneName,
+        const std::string& dataCenterName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISpareInstanceAllocator)
@@ -83,6 +87,10 @@ struct TSpareInstanceAllocator
         const std::string& bundleName) override;
 
     bool HasInstances(
+        const std::string& zoneName,
+        const std::string& dataCenterName) const override;
+
+    int GetFreeInstanceCount(
         const std::string& zoneName,
         const std::string& dataCenterName) const override;
 };

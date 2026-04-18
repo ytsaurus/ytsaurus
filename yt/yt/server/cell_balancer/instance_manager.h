@@ -81,9 +81,11 @@ private:
     //     in Adapter_->EnsureAllocatedInstanceTagsSet)
     // Fires alerts if allocation is not found, failed, or stuck.
     // Returns false if current deallocation should not be tracked any more.
+    // |cancellableBudget| is decremented when an unneeded allocation is cancelled.
     bool ProcessAllocation(
         const std::string& allocationId,
-        const TAllocationRequestStatePtr& allocationState);
+        const TAllocationRequestStatePtr& allocationState,
+        int* cancellableBudget);
 
     // Handles existing allocations and removes them from |AllocationsState|
     // on completion.
