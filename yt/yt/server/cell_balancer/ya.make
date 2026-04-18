@@ -20,7 +20,7 @@ SRCS(
     input_state.cpp
     instance_manager.cpp
     mutations.cpp
-    node_tag_filters_manager.cpp
+    node_tag_manager.cpp
     orchid_bindings.cpp
     pod_id_helpers.cpp
     program.cpp
