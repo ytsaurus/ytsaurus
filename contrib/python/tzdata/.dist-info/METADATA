@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: tzdata
-Version: 2025.3
+Version: 2026.1
 Summary: Provider of IANA time zone data
 Home-page: https://github.com/python/tzdata
 Author: Python Software Foundation
@@ -8,8 +8,8 @@ Author-email: datetime-sig@python.org
 License: Apache-2.0
 Project-URL: Bug Reports, https://github.com/python/tzdata/issues
 Project-URL: Source, https://github.com/python/tzdata
-Project-URL: Documentation, https://tzdata.readthedocs.io
-Classifier: Development Status :: 4 - Beta
+Project-URL: Documentation, https://tzdata.python.org
+Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Programming Language :: Python :: 2
 Classifier: Programming Language :: Python :: 3
@@ -30,4 +30,4 @@ location), as a part of `PEP 615 <https://www.python.org/dev/peps/pep-0615/>`_
 This repository generates a ``pip``-installable package, published on PyPI as
 `tzdata <https://pypi.org/project/tzdata>`_.
 
-For more information, see `the documentation <https://tzdata.readthedocs.io>`_.
+For more information, see `the documentation <https://tzdata.python.org>`_.
