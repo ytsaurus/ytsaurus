@@ -341,7 +341,7 @@ def create_odin_checks_config():
                 },
             },
         },
-    }
+    } 
 
     for check in CHECKS_LIST:
         if check not in config["checks"]:
