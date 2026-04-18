@@ -1,0 +1,54 @@
+name: Release odin-nightly
+
+on:
+  push:
+    branches:
+      - main
+      - members/ilyaibraev/odin-nightly-ci
+    tags:
+      - 'docker-test/odin/0\.[0-9]+\.[0-9]+*'
+    paths:
+      - 'yt/odin/**'
+      - 'yt/docker/charts/odin-chart/**'
+      - 'yt/docker/ytsaurus/Dockerfile'
+jobs:
+  release:
+    name: Run release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.11.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
+      - name: Parse Tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/tags/docker-test/odin/})" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_VERSION=dev-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build And Push Docker Image
+        run: |
+          docker build -t ghcr.io/ytsaurus/odin:${{ steps.tag.outputs.RELEASE_VERSION }} --target odin -f ./yt/docker/ytsaurus/Dockerfile --build-arg ODIN_RUNTIME_ROOT=/opt/odin .
+          docker push ghcr.io/ytsaurus/odin:${{ steps.tag.outputs.RELEASE_VERSION }}
+
+      - name: Package And Push Helm Chart
+        run: |
+          # name: odin-chart -> name: odin-nightly-chart in yt/docker/charts/odin-chart/Chart.yaml
+          sed -i 's/name: .*/name: odin-nightly-chart/' yt/docker/charts/odin-chart/Chart.yaml
+          sed -i 's/tag: .*/tag: "${{ steps.tag.outputs.RELEASE_VERSION }}"/' yt/docker/charts/odin-chart/values.yaml
+          helm package yt/docker/charts/odin-chart --version ${{ steps.tag.outputs.RELEASE_VERSION }}
+          helm push odin-chart-${{ steps.tag.outputs.RELEASE_VERSION }}.tgz oci://ghcr.io/ytsaurus
