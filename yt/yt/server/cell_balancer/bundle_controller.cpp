@@ -6,6 +6,7 @@
 #include "cell_downtime_tracker.h"
 #include "chaos_scheduler.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 #include "cypress_bindings.h"
 #include "input_state.h"
 #include "mutations.h"
@@ -147,7 +148,10 @@ public:
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
         , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
         , OrchidScanBundleCounter_(New<NOrchid::TScanBundleCounter>())
-    { }
+    {
+        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
+            BIND(&TBundleController::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
     void Start() override
     {
@@ -168,6 +172,18 @@ public:
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         ScanBundles(dryRun, /*ignoreGlobalDisabledSwitch*/ true);
+    }
+
+    void OnDynamicConfigChanged(
+        const TBundleControllerDynamicConfigPtr& oldConfig,
+        const TBundleControllerDynamicConfigPtr& newConfig)
+    {
+        PeriodicExecutor_->SetPeriod(newConfig->BundleScanPeriod.value_or(Config_->BundleScanPeriod));
+
+        YT_LOG_DEBUG(
+            "Updated bundle controller dynamic config (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:

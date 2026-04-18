@@ -808,6 +808,7 @@ def _build_cell_balancer_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
+        config["dynamic_config_manager"] = {"update_period": "100ms"}
 
         config["enable_bundle_controller"] = yt_config.enable_bundle_controller
 

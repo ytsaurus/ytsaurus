@@ -23,6 +23,12 @@ using TOnAlertCallback = TCallback<void(TAlert)>;
 struct TSchedulerMutations;
 struct TSchedulerInputState;
 
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
+
+DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
+
+DECLARE_REFCOUNTED_STRUCT(TCellBalancerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TAllocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TBundleControllerInstanceAnnotations)

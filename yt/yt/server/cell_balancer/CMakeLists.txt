@@ -40,6 +40,7 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-tablet_server
+  yt-library-dynamic_config
   yt-library-monitoring
   yt-library-orchid
   yt-library-server_program
@@ -58,6 +59,7 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/chaos_scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cluster_state_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cypress_bindings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/input_state.cpp

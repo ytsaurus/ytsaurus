@@ -4,6 +4,7 @@
 #include "bundle_controller_service.h"
 #include "cell_tracker.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -100,7 +101,7 @@ public:
             .Run();
     }
 
-    const NApi::NNative::IClientPtr& GetClient() override
+    const NApi::NNative::IClientPtr& GetClient() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -134,6 +135,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NativeAuthenticator_;
+    }
+
+    const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DynamicConfigManager_;
     }
 
     void ExecuteIteration(bool dryRun) override
@@ -175,6 +183,8 @@ private:
     ICellTrackerPtr CellTracker_;
     IBundleControllerPtr BundleController_;
 
+    TDynamicConfigManagerPtr DynamicConfigManager_;
+
     void DoRun()
     {
         DoInitialize();
@@ -209,6 +219,7 @@ private:
             Config_->ElectionManager,
             options);
 
+        DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
         BundleController_ = CreateBundleController(this, Config_->BundleController);
 
@@ -223,6 +234,10 @@ private:
                 OrchidRoot_,
                 "/config",
                 CreateVirtualNode(ConfigNode_));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         }
         SetNodeByYPath(
             OrchidRoot_,
@@ -258,6 +273,8 @@ private:
         RegisterInstance();
 
         ElectionManager_->Start();
+
+        DynamicConfigManager_->Start();
 
         if (Config_->EnableCellBalancer) {
             CellTracker_->Start();
