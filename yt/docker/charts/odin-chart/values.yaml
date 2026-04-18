@@ -57,6 +57,12 @@ config:
         options:
           temp_tables_path: "//sys/admin/odin/dynamic_table_commands"
           tablet_cell_bundle: sys
+    cypress_commands:
+      displayName: Cypress Commands
+      enable: true
+      config:
+        options:
+          temp_path: "//sys/admin/odin/cypress_commands"
     suspicious_jobs:
       displayName: Suspicious Jobs
       enable: true
@@ -210,6 +216,18 @@ config:
         check_timeout: 60
         options:
           soft_query_timeout: 30
+    read_static_table_commands:
+      displayName: Read Static Table Commands
+      enable: true
+      config:
+        options:
+          table_path: "//sys/admin/odin/read_static_table_commands/table"
+    write_static_table_commands:
+      displayName: Write Static Table Commands
+      enable: true
+      config:
+        options:
+          temp_tables_path: "//sys/admin/odin/write_static_table_commands"
     bundle_hotfix:
       displayName: Bundle Hotfix
       enable: true
