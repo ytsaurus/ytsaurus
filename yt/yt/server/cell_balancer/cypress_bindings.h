@@ -714,6 +714,10 @@ struct TInstanceInfoBase
     TCypressAnnotationsPtr CypressAnnotations;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
 
+    // NB: This method should be pure virtual but intermediate yson structs must be
+    // self-contained.
+    virtual bool IsOnline() const;
+
     REGISTER_YSON_STRUCT(TInstanceInfoBase);
 
     static void Register(TRegistrar registrar);
@@ -739,7 +743,7 @@ struct TTabletNodeInfo
     TTabletNodeStatisticsPtr Statistics;
     std::string Rack;
 
-    bool IsOnline() const;
+    bool IsOnline() const override;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 
@@ -770,6 +774,8 @@ struct TRpcProxyInfo
     TInstant ModificationTime;
 
     TRpcProxyAlivePtr Alive;
+
+    bool IsOnline() const override;
 
     REGISTER_YSON_STRUCT(TRpcProxyInfo);
 

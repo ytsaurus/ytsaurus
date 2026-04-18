@@ -217,15 +217,13 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
                 continue;
             }
 
-            bool internallyDecommissioned = bundleState &&
-                (bundleState->BundleNodeAssignments.contains(nodeName) ||
-                bundleState->BundleNodeReleasements.contains(nodeName));
+            bool internallyDecommissioned = false;
             // May be null in tests.
             if (bundleState) {
-                for (const auto& [_, deallocation] : bundleState->NodeDeallocations) {
-                    if (deallocation->InstanceName == nodeName) {
-                        internallyDecommissioned = true;
-                    }
+                if (bundleState->BundleNodeAssignments.contains(nodeName) ||
+                    bundleState->BundleNodeReleasements.contains(nodeName))
+                {
+                    internallyDecommissioned = true;
                 }
             }
 

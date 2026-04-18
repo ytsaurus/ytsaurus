@@ -82,6 +82,8 @@ public:
 
     TBundleNameGuard MakeBundleNameGuard(std::string bundleName);
 
+    int GetMutationCount() const;
+
     template <class T, class... Args>
         requires std::derived_from<T, TBundleNameMixin>
     TIntrusivePtr<T> NewMutation(Args&&... args);

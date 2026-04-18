@@ -69,7 +69,7 @@ public:
     {
         auto dataCenterPredicate = [&] (const auto& pair) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, pair.first);
-            return nodeInfo->BundleControllerAnnotations->DataCenter == dataCenterName;
+            return nodeInfo->BundleControllerAnnotations->DataCenter.value_or(DefaultDataCenterName) == dataCenterName;
         };
 
         const auto& assignments = State_->BundleNodeAssignments;
@@ -115,7 +115,7 @@ public:
         }
 
         if (bundleInfo->EnableNodeTagFilterManagement) {
-            // Check that all alive instances have appropriate node_tag_filter and slots count
+            // Check that all alive instances have appropriate node_tag_filter and slots count.
             auto expectedSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
             std::vector<std::string> notReadyNodes;
@@ -123,7 +123,7 @@ public:
 
             for (const auto& nodeName : aliveDataCenterNodes) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-                if (nodeInfo->UserTags.count(bundleInfo->NodeTagFilter) == 0 ||
+                if (!nodeInfo->UserTags.contains(bundleInfo->NodeTagFilter) ||
                     std::ssize(nodeInfo->TabletSlots) != expectedSlotCount)
                 {
                     YT_LOG_DEBUG("Node is not ready (NodeName: %v, "
@@ -137,7 +137,7 @@ public:
             if (!notReadyNodes.empty() && std::ssize(notReadyNodes) != std::ssize(aliveDataCenterNodes)) {
                 // Wait while all alive nodes have updated settings.
 
-                YT_LOG_INFO("Skipping nodes deallocation because nodes are node ready (DataCenter: %v)",
+                YT_LOG_INFO("Skipping nodes deallocation because nodes are not ready (DataCenter: %v)",
                     dataCenterName);
                 return false;
             }
@@ -264,9 +264,6 @@ public:
         }
 
         if (!input.Config->DecommissionReleasedNodes) {
-            YT_LOG_INFO("Skipping node decommissioning due to configuration (DeallocationId: %v, Node: %v)",
-                deallocationId,
-                instanceName);
             return true;
         }
 
@@ -280,11 +277,18 @@ public:
             return false;
         }
 
-        if (GetUsedSlotCount(nodeInfo) == 0) {
+        int usedSlotCount = GetUsedSlotCount(nodeInfo);
+        if (usedSlotCount == 0) {
             YT_LOG_INFO("All tablet slots are empty, node is ready for deallocation (DeallocationId: %v, Node: %v)",
                 deallocationId,
                 instanceName);
             return true;
+        } else {
+            YT_LOG_DEBUG("Node still has tablet cells and is not ready for deallocation "
+                "(DeallocationId: %v, Node: %v, UsedSlotCount: %v)",
+                deallocationId,
+                instanceName,
+                usedSlotCount);
         }
 
         if (deallocationAge > input.Config->DecommissionedNodeDrainTimeout) {
@@ -327,11 +331,14 @@ public:
     {
         auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         if (!nodeInfo->IsOnline()) {
+            YT_LOG_DEBUG("Allocated node is not online (BundleName: %v, NodeAddress: %v)",
+                bundleName,
+                nodeName);
             return false;
         }
 
         if (nodeInfo->Decommissioned) {
-            YT_LOG_DEBUG("Removing decommissioned flag from node (BundleName: %v, Node: %v)",
+            YT_LOG_DEBUG("Removing decommissioned flag from node after allocation (BundleName: %v, Node: %v)",
                 bundleName,
                 nodeName);
             mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(false);
@@ -375,6 +382,9 @@ public:
         }
 
         if (!GetAliveInstances(dataCenterName).contains(nodeName)) {
+            YT_LOG_DEBUG("Allocated node is not alive (BundleName: %v, NodeAddress: %v)",
+                bundleName,
+                nodeName);
             return false;
         }
 
@@ -393,21 +403,25 @@ public:
         auto instanceInfoBase = GetInstanceInfo(nodeName, input);
         auto* instanceInfo = dynamic_cast<TTabletNodeInfo*>(instanceInfoBase.Get());
         const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
-        if (strategy != DeallocationStrategyReturnToSpareBundle && (!bundleControllerAnnotations->AllocatedForBundle.empty() || bundleControllerAnnotations->Allocated)) {
-            auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
-            newAnnotations->DeallocatedAt = TInstant::Now();
-            newAnnotations->DeallocationStrategy = strategy;
-            mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
-            return false;
-        }
 
-        // Prevent node from applying wrong node config and from setting
-        // wrong node tag filters.
-        if (strategy == DeallocationStrategyReturnToSpareBundle && bundleControllerAnnotations->AllocatedForBundle == bundleName) {
-            auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
-            newAnnotations->AllocatedForBundle = "";
-            mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
-            return false;
+        if (strategy == DeallocationStrategyReturnToSpareBundle) {
+            // Prevent node from applying wrong node config and from setting
+            // wrong node tag filters.
+            if (bundleControllerAnnotations->AllocatedForBundle == bundleName) {
+                auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
+                // TODO(ifsmirnov): why not set "spare" immediately?
+                newAnnotations->AllocatedForBundle = "";
+                mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
+                return false;
+            }
+        } else {
+            if (!bundleControllerAnnotations->AllocatedForBundle.empty() || bundleControllerAnnotations->Allocated) {
+                auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
+                newAnnotations->DeallocatedAt = TInstant::Now();
+                newAnnotations->DeallocationStrategy = strategy;
+                mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
+                return false;
+            }
         }
 
         if (!instanceInfo->UserTags.empty()) {
@@ -441,6 +455,23 @@ public:
         }
 
         return Dummy;
+    }
+
+    std::vector<std::string> GetOfflineInstances(
+        const TSchedulerInputState& /*input*/,
+        const std::string& dataCenterName) const
+    {
+        std::vector<std::string> result;
+
+        const auto& aliveInstances = GetAliveInstances(dataCenterName);
+
+        for (const auto& address : GetInstances(dataCenterName)) {
+            if (!aliveInstances.contains(address)) {
+                result.push_back(address);
+            }
+        }
+
+        return result;
     }
 
     const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const

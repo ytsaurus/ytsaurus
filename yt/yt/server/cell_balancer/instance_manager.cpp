@@ -430,22 +430,37 @@ bool TInstanceManager::ProcessAllocation(
 
     auto instanceName = LocateAllocatedInstance(allocationInfo, Input_);
 
-    if (!instanceName.empty() && Adapter_->EnsureAllocatedInstanceTagsSet(
-        instanceName,
-        BundleName_,
-        allocationState->DataCenter.value_or(DefaultDataCenterName),
-        allocationInfo,
-        Input_,
-        Mutations_))
-    {
-        YT_LOG_INFO("Instance allocation completed (InstanceName: %v, AllocationId: %v)",
-            instanceName,
-            allocationId);
+    if (!instanceName.empty()) {
+        const auto& dataCenterName = allocationState->DataCenter.value_or(DefaultDataCenterName);
 
-        if (!Input_.Config->HasInstanceAllocatorService) {
-            Mutations_->CompletedAllocations.insert(Mutations_->WrapMutation(allocationId));
+        if (Adapter_->EnsureAllocatedInstanceTagsSet(
+            instanceName,
+            BundleName_,
+            dataCenterName,
+            allocationInfo,
+            Input_,
+            Mutations_))
+        {
+            YT_LOG_INFO("Instance allocation completed (InstanceName: %v, AllocationId: %v)",
+                instanceName,
+                allocationId);
+
+            if (!Input_.Config->HasInstanceAllocatorService) {
+                Mutations_->CompletedAllocations.insert(Mutations_->WrapMutation(allocationId));
+            }
+            return false;
         }
-        return false;
+
+        auto instanceInfo = Adapter_->FindInstanceInfo(instanceName, Input_);
+        bool online = instanceInfo && instanceInfo->IsOnline();
+        if (!Input_.Config->HasInstanceAllocatorService && !online) {
+            // Withdraw allocated instance and pick a new one. This one will be "deallocated" later.
+            YT_LOG_DEBUG("Instance allocated from spare is offline, will pick a new one "
+                "(InstanceName: %v, AllocationId: %v)",
+                instanceName,
+                allocationId);
+            allocationInfo->Status->NodeId.clear();
+        }
     }
 
     auto allocationAge = TInstant::Now() - allocationState->CreationTime;
@@ -466,11 +481,7 @@ bool TInstanceManager::ProcessAllocation(
         });
     }
 
-    if (Input_.Config->HasInstanceAllocatorService) {
-        YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, InstanceName: %v)",
-            allocationId,
-            instanceName);
-    } else {
+    if (!Input_.Config->HasInstanceAllocatorService && allocationInfo->Status->NodeId.empty()) {
         CompleteExistingAllocationWithoutInstanceAllocatorService(
             allocationId,
             allocationInfo,
@@ -479,7 +490,12 @@ bool TInstanceManager::ProcessAllocation(
             SpareInstanceAllocator_,
             Input_,
             Mutations_);
+        return true;
     }
+
+    YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, InstanceName: %v)",
+        allocationId,
+        instanceName);
 
     return true;
 }
@@ -608,7 +624,13 @@ bool TInstanceManager::ReturnToSpareBundle(
         bundleControllerAnnotations->AllocatedForBundle,
         DeallocationStrategyReturnToSpareBundle);
 
-    if (!adapter->EnsureDeallocatedInstanceTagsSet(bundleName, instanceName, DeallocationStrategyReturnToSpareBundle, input, mutations)) {
+    if (!adapter->EnsureDeallocatedInstanceTagsSet(
+        bundleName,
+        instanceName,
+        DeallocationStrategyReturnToSpareBundle,
+        input,
+        mutations))
+    {
         return true;
     }
 
@@ -625,6 +647,11 @@ bool TInstanceManager::ReturnToSpareBundle(
         // marking node as node not from this bundle.
         return true;
     }
+
+    YT_LOG_DEBUG("Instance deallocation completed, returned to spare bundle "
+        "(DeallocationId: %v, InstanceName: %v)",
+        deallocationId,
+        instanceName);
 
     return false;
 }
@@ -824,25 +851,32 @@ void TInstanceManager::InitNewDeallocations(
     auto instanceCountToDeallocate = std::ssize(aliveInstances) - targetInstanceCount;
     auto& deallocationsState = Adapter_->DeallocationsState();
 
-    YT_LOG_DEBUG("Scheduling deallocations "
-        "(DataCenter: %v, InstanceType: %v, TargetInstanceCount: %v, AliveInstanceCount: %v, "
-        "PlannedDeallocationCount: %v, ExistingDeallocationCount: %v)",
-        dataCenterName,
-        Adapter_->GetInstanceType(),
-        targetInstanceCount,
-        std::ssize(aliveInstances),
-        instanceCountToDeallocate,
-        std::ssize(deallocationsState));
+    std::vector<std::string> offlineInstances;
+    if (!Input_.Config->HasInstanceAllocatorService) {
+        offlineInstances = Adapter_->GetOfflineInstances(Input_, dataCenterName);
+    }
 
-    if (instanceCountToDeallocate <= 0) {
+    if (instanceCountToDeallocate <= 0 && offlineInstances.empty()) {
         return;
     }
 
-    const auto instancesToRemove = Adapter_->PickInstancesToDeallocate(
+    YT_LOG_DEBUG("Scheduling deallocations "
+        "(DataCenter: %v, InstanceType: %v, TargetInstanceCount: %v, AliveInstanceCount: %v, "
+        "PlannedDeallocationCount: %v, ExistingDeallocationCount: %v, OfflineInstancesToDeallocate: %v)",
+        dataCenterName,
+        Adapter_->GetInstanceType(),
+        targetInstanceCount,
+        ssize(aliveInstances),
+        instanceCountToDeallocate,
+        ssize(deallocationsState),
+        ssize(offlineInstances));
+
+    auto instancesToRemove = Adapter_->PickInstancesToDeallocate(
         instanceCountToDeallocate,
         dataCenterName,
         bundleInfo,
         Input_);
+    std::ranges::move(offlineInstances, std::back_inserter(instancesToRemove));
 
     for (const auto& instanceName : instancesToRemove) {
         const auto& instanceInfo = Adapter_->GetInstanceInfo(instanceName, Input_);
