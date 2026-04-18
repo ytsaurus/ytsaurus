@@ -745,8 +745,8 @@ TCpuLimitsPtr GetBundleEffectiveCpuLimits(
         return currentCpuLimits;
     }
 
-    auto previousConfigIt = input.DynamicConfig.find(bundleInfo->NodeTagFilter);
-    if (previousConfigIt == input.DynamicConfig.end()) {
+    auto previousConfigIt = input.BundlesDynamicConfig.find(bundleInfo->NodeTagFilter);
+    if (previousConfigIt == input.BundlesDynamicConfig.end()) {
         return currentCpuLimits;
     }
 
@@ -813,14 +813,14 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 
-    if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(freshConfig), ConvertTo<NYTree::IMapNodePtr>(input.DynamicConfig))) {
+    if (AreNodesEqual(ConvertTo<NYTree::IMapNodePtr>(freshConfig), ConvertTo<NYTree::IMapNodePtr>(input.BundlesDynamicConfig))) {
         return;
     }
 
     YT_LOG_INFO("Bundles dynamic config has changed (Config: %v)",
         ConvertToYsonString(freshConfig, EYsonFormat::Text));
 
-    mutations->DynamicConfig = freshConfig;
+    mutations->BundlesDynamicConfig = freshConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
