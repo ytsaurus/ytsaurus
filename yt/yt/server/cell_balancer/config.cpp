@@ -120,6 +120,11 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("bundle_scan_period", &TThis::BundleScanPeriod)
         .Default();
+
+    registrar.Parameter("remove_instance_cypress_node_after", &TThis::RemoveInstanceCypressNodeAfter)
+        .Default();
+    registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

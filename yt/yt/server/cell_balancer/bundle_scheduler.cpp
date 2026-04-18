@@ -198,6 +198,18 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     input.BundleResourceTarget = targetResources;
 }
 
+TDuration GetEffectiveOfflineInstanceGracePeriod(const TSchedulerInputState& input)
+{
+    // There is no reason to distinguish between own and spare nodes,
+    // so we let offline instance to be deallocated immediately.
+    if (!input.Config->HasInstanceAllocatorService) {
+        return TDuration::Zero();
+    }
+
+    return input.DynamicConfig->OfflineInstanceGracePeriod.value_or(
+        input.Config->OfflineInstanceGracePeriod);
+}
+
 THashMap<std::string, THashSet<std::string>> GetAliveNodes(
     const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleNodes,
@@ -243,7 +255,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
 
             if (!nodeInfo->IsOnline()) {
                 if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
-                    now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod)
+                    now - nodeInfo->LastSeenTime > GetEffectiveOfflineInstanceGracePeriod(input))
                 {
                     continue;
                 }
@@ -273,7 +285,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
 
             if (!proxyInfo->Alive) {
                 if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
-                    now - proxyInfo->ModificationTime > input.Config->OfflineInstanceGracePeriod)
+                    now - proxyInfo->ModificationTime > GetEffectiveOfflineInstanceGracePeriod(input))
                 {
                     continue;
                 }
@@ -607,7 +619,8 @@ template <class TInstanceMap>
 THashSet<std::string> ScanForObsoleteCypressNodes(const TSchedulerInputState& input, const TInstanceMap& instanceMap)
 {
     THashSet<std::string> result;
-    auto obsoleteThreshold = input.Config->RemoveInstanceCypressNodeAfter;
+    auto obsoleteThreshold = input.DynamicConfig->RemoveInstanceCypressNodeAfter.value_or(
+        input.Config->RemoveInstanceCypressNodeAfter);
     auto now = TInstant::Now();
 
     for (const auto& [instanceName, instanceInfo] : instanceMap) {
