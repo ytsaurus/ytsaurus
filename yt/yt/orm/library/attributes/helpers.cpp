@@ -938,12 +938,13 @@ const EnumValueDescriptor* LookupEnumValue(
     const T& value)
 {
     const auto* enumDescriptor = fieldDescriptor->enum_type();
+    YT_VERIFY(enumDescriptor);
     if constexpr (std::is_integral_v<T>) {
         return enumDescriptor->FindValueByNumber(value);
     } else { // TString
         auto decoded = TryDecodeEnumValue(value);
-        for (int i = 0; i < enumDescriptor->value_count(); ++i) {
-            const auto* enumValueDescriptor = enumDescriptor->value(i);
+        for (int index = 0; index < enumDescriptor->value_count(); ++index) {
+            const auto* enumValueDescriptor = enumDescriptor->value(index);
             if (enumValueDescriptor->options().HasExtension(NYT::NYson::NProto::enum_value_name) &&
                 enumValueDescriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name) == value)
             {
