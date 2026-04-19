@@ -1775,6 +1775,8 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         auto usedShare = TResourceVector::Min(child->Attributes().GetGuaranteeShare(), child->Attributes().DemandShare);
         availableShare -= usedShare;
     }
+    // Clamp to zero to handle guarantee overcommitment cases.
+    availableShare = TResourceVector::Max(availableShare, TResourceVector::Zero());
 
     std::vector<TPool*> relaxedPools;
     std::vector<double> weights;
