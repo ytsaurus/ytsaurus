@@ -77,7 +77,7 @@ public:
     ~TPosixSpawnFileActions()
     {
         auto res = ::posix_spawn_file_actions_destroy(&Actions_);
-        YT_LOG_FATAL_UNLESS(
+        YT_LOG_FATAL_IF(
             res != 0,
             "Failed to destroy spawn file actions object");
     }
@@ -124,7 +124,7 @@ public:
     {
         auto res = ::posix_spawnattr_destroy(&Actions_);
 
-        YT_LOG_FATAL_UNLESS(
+        YT_LOG_FATAL_IF(
             res != 0,
             "Failed to destroy spawnattrs object");
     }
