@@ -4,6 +4,8 @@
 #include "helpers.h"
 #endif
 
+#include <yt/yt/ytlib/transaction_client/public.h>
+
 #include <yt/yt/core/yson/pull_parser.h>
 
 namespace NYT::NSequoiaClient {
@@ -24,28 +26,6 @@ template <class T>
 TErrorOr<T> TransformSequoiaTransactionCommitError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> error)
 {
-#define FOR_EACH_ERROR_CODE_TO_STRIP(process) \
-    process(NTransactionClient::EErrorCode::AtomicTransactionCommitFailure) \
-    process(NTransactionClient::EErrorCode::NativeTransactionCommitFailure) \
-    process(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) \
-    process(NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell)
-
-#define XX(errorCode) TErrorCode(errorCode),
-
-    static const std::vector<TErrorCode> ErrorCodesToStrip = {
-        FOR_EACH_ERROR_CODE_TO_STRIP(XX)
-    };
-
-#define XX(errorCode) TErrorCode(errorCode),
-
-    static const std::vector<TErrorCode> ErrorCodesToStripPlusSequoiaRetriableError = {
-        FOR_EACH_ERROR_CODE_TO_STRIP(XX)
-        NSequoiaClient::EErrorCode::SequoiaRetriableError
-    };
-
-#undef XX
-#undef FOR_EACH_ERROR_CODE_TO_STRIP
-
     if (error.IsOK()) {
         return error;
     }
@@ -53,22 +33,25 @@ TErrorOr<T> TransformSequoiaTransactionCommitError(
     auto retriable =
         error.FindMatching(EErrorCode::SequoiaRetriableError) ||
         IsRetriableSequoiaError(error);
-    const std::vector<TErrorCode>& errorCodesToStrip = retriable
-        ? ErrorCodesToStripPlusSequoiaRetriableError
-        : ErrorCodesToStrip;
+
+    auto shouldStrip = [retriable] (const auto& error) {
+        auto code = error.GetCode();
+        return code == NTransactionClient::EErrorCode::ParticipantFailedToPrepare ||
+            code == NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell ||
+            (retriable && code == NSequoiaClient::EErrorCode::SequoiaRetriableError) ||
+            error.Attributes().Contains(NTransactionClient::ShouldBeStrippedErrorAttributeKey);
+    };
 
     std::vector<std::string> strippedMessages;
     auto* currentError = &error;
-    while (std::find(errorCodesToStrip.begin(), errorCodesToStrip.end(), currentError->GetCode()) != errorCodesToStrip.end() &&
-        std::ssize(currentError->InnerErrors()) == 1)
-    {
+    while (shouldStrip(*currentError) && std::ssize(currentError->InnerErrors()) == 1) {
         strippedMessages.push_back(currentError->GetMessage());
         currentError = &currentError->InnerErrors().front();
     }
 
     auto transformedError = *currentError;
     transformedError
-        <<= TErrorAttribute("stripped_error_messages", strippedMessages);
+        <<= TErrorAttribute(NTransactionClient::StrippedErrorMessages, strippedMessages);
 
     if (retriable) {
         transformedError = WrapSequoiaRetriableError<T>(std::move(transformedError));

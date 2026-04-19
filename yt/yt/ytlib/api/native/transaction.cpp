@@ -2405,11 +2405,9 @@ private:
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
 
-                            auto error = TError(
-                                NTransactionClient::EErrorCode::NativeTransactionCommitFailure,
-                                "Error committing transaction %v",
-                                GetId())
+                            auto error = TError("Error committing transaction %v", GetId())
                                 << MakeClusterIdErrorAttribute()
+                                << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
                                 << resultOrError;
 
                             Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
