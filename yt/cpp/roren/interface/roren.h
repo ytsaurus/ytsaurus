@@ -190,7 +190,7 @@ class TPipeline
 {
 public:
     TPipeline(const TPipeline& pipeline);
-    TPipeline(TPipeline&& pipeline);
+    TPipeline(TPipeline&& pipeline) noexcept;
     ~TPipeline();
 
     void Run();

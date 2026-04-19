@@ -218,7 +218,7 @@ public:
         }
     }
 
-    TRawRowHolder& operator=(TRawRowHolder&& rhs)
+    TRawRowHolder& operator=(TRawRowHolder&& rhs) noexcept
     {
         if (this != &rhs) {
             std::swap(Data_, rhs.Data_);

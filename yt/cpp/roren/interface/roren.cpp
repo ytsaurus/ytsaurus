@@ -36,7 +36,7 @@ TPipeline::TPipeline(IExecutorPtr executor)
 
 TPipeline::TPipeline(const TPipeline& pipeline) = default;
 
-TPipeline::TPipeline(TPipeline&& pipeline) = default;
+TPipeline::TPipeline(TPipeline&& pipeline) noexcept = default;
 
 TPipeline::~TPipeline() = default;
 
