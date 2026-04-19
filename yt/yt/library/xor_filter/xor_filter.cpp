@@ -111,6 +111,7 @@ void TXorFilter::SetEntry(TMutableRef data, int index, ui64 value) const
     // Fast path.
     if (BitsPerKey_ == 8) {
         data[index + FormatVersionSize] = static_cast<ui8>(value);
+        return;
     }
 
     int startBit = index * BitsPerKey_;
