@@ -453,7 +453,7 @@ public:
         return TError("%v", action.ErrorMessage)
             << TError::FromSystem(errorCode);
     #else
-        THROW_ERROR_EXPECTION("Unsupported platform");
+        THROW_ERROR_EXCEPTION("Unsupported platform");
     #endif
     }
 #endif
