@@ -155,4 +155,8 @@ WINDOW w AS (
 
 Учитывая вышесказанное, запрос с `ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING` по возможности стоит переделать в `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, поменяв порядок сортировки в `ORDER BY` на обратный.
 
-В терминах MapReduce оконные функции физически выполняются через Reduce по ключам `PARTITION BY`, что может означать длительное выполнение для разделов большого размера, а также жёсткий лимит в 200 Гб на раздел для основных кластеров {{product-name}}.
+В терминах MapReduce оконные функции физически выполняются через Reduce по ключам `PARTITION BY`, что может означать длительное выполнение для разделов большого размера, а также жёсткий лимит в 200Гб на раздел для основных кластеров {{product-name}}.
+
+{% if audience == "internal" %}
+[Пример в tutorial](https://yql.yandex-team.ru/Tutorial/yt_11_Window_functions)
+{% endif %}
