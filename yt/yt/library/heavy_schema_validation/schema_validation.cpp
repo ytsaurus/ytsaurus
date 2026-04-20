@@ -587,8 +587,8 @@ static void ValidateConstraintsCompatibility(
         auto it = oldConstraints.find(column);
         if (it != oldConstraints.end() && it->second != constraint) {
             THROW_ERROR_EXCEPTION("Constraint for column %Qv cannot be changed", column)
-                << TErrorAttribute("old_constraint", constraint)
-                << TErrorAttribute("new_constraint", it->second);
+                << TErrorAttribute("old_constraint", it->second)
+                << TErrorAttribute("new_constraint", constraint);
         }
     }
 
