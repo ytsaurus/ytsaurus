@@ -1331,11 +1331,10 @@ private:
         TError error)
     {
         UpdateDownedParticipants();
-        auto wrappedError = TError(
-            NTransactionClient::EErrorCode::AtomicTransactionCommitFailure,
-            "Error committing transaction %v at cell %v",
+        auto wrappedError = TError("Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
+            << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
             << std::move(error);
         OnFailure(wrappedError);
         return MakeFuture<TTransactionCommitResult>(std::move(wrappedError));
