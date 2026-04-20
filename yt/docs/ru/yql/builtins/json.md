@@ -1193,9 +1193,8 @@ SELECT
     JSON_QUERY($json, "$.friends.name" WITH CONDITIONAL WRAPPER); -- ["James Holden", "Naomi Nagata"]
 ```
 
-<!--
 ## Смотрите также
 
 * [{#T}](../recipes/accessing-json.md)
 * [{#T}](../recipes/modifying-json.md)
--->
+

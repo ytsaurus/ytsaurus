@@ -144,6 +144,21 @@ SELECT Math::Mod(-1, 7);        -- 6
 SELECT Math::Rem(-1, 7);        -- -1
 ```
 
+## SwapBytes {#swap-bytes}
+
+#### Сигнатура
+
+* `Math::SwapBytes(T{Flags:AutoMap}) -> T`
+
+Меняет порядок байтов в заданном целочисленном значении на обратный. Поддерживаемые типы: Uint8, Uint16, Uint32, Uint64.
+
+#### Examples
+
+```yql
+-- 0x0001 -> 0x0100
+SELECT Math::SwapBytes(Uint16("1")); -- 256
+```
+
 ## Функции округления до целого числа в заданном режиме
 
 #### Список функций
@@ -152,11 +167,11 @@ SELECT Math::Rem(-1, 7);        -- -1
 * `Math::RoundToNearest() -> Tagged<Uint32, MathRoundingMode>` &mdash; округление в сторону ближайшего представимого значения
 * `Math::RoundTowardZero() -> Tagged<Uint32, MathRoundingMode>` &mdash; округление в сторону нуля
 * `Math::RoundUpward() -> Tagged<Uint32, MathRoundingMode>` &mdash; округление в сторону положительной бесконечности
-* `Math::NearbyInt(AutoMap<Double>, Tagged<Uint32, MathRoundingMode>) -> Optional<Int64>` &mdash; округление до ближайшего целого числа
+* `Math::NearbyInt(AutoMap<Double>, Tagged<Uint32, MathRoundingMode>) -> Optional<Int64>` &mdash; округление до ближайшего целого значения
 
-Функция `Math::NearbyInt` округляет первый аргумент до целого числа в соответсвии с режимом, заданным вторым аргументом.
+Функция `Math::NearbyInt` округляет первый аргумент до целого числа в соответствии с режимом, заданным вторым аргументом.
 
-Если результат выходит за пределы 64-битного целого числа, возращается NULL.
+Если результат выходит за пределы 64-битного целого числа, возвращается NULL.
 
 #### Примеры
 
