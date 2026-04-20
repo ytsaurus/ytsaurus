@@ -4,13 +4,17 @@ from typing import Any, Callable
 
 from .. import actions, app
 
-from . import m0002
+from . import (
+    m0002,
+    m0003,
+)
 
 
 BASE_GROUND_REIGN = 1
 
 MIGRATION_PLANNERS: dict[int, Callable[[app.SequoiaTool], actions.ActionPlan]] = {
     2: m0002.alter_child_node_table,
+    3: m0003.alter_chunk_replicas_table,
 }
 
 assert BASE_GROUND_REIGN not in MIGRATION_PLANNERS

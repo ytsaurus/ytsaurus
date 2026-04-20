@@ -379,9 +379,7 @@ private:
     {
         for (const auto& [chunkId, chunkModifiedReplicas] : ModifiedReplicas_) {
             NRecords::TChunkReplicas chunkReplicas{
-                .Key = {
-                    .ChunkId = chunkId,
-                },
+                .Key = BuildChunkReplicasRecordKey(chunkId),
                 .StoredReplicas = GetReplicasYson(chunkModifiedReplicas.AddedReplicas, chunkModifiedReplicas.RemovedReplicas),
                 .LastSeenReplicas = GetReplicasListYson(chunkModifiedReplicas.AddedReplicas),
             };

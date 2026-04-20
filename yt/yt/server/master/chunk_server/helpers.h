@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
@@ -158,7 +160,9 @@ void SerializeLocationIndexes(
     const std::vector<TChunkLocationUuid>& locationUuids,
     NChunkClient::NProto::TLocationIndexes* protoLocationIndexes);
 
-int GetChunkShardIndex(TChunkId chunkId);
+i8 GetChunkShardIndex(TChunkId chunkId);
+
+NSequoiaClient::NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId);
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now);
 

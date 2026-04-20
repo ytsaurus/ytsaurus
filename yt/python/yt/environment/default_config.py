@@ -101,6 +101,15 @@ def get_dynamic_master_config():
                 "validation_full_heartbeat_splay": 200,
                 "validate_sequoia_replicas": True,
             },
+
+            "sequoia_chunk_replicas": {
+                "sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_sequoia_chunk_refresh_iterations": 1000,
+                "global_sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_global_sequoia_chunk_refresh_iterations": 1000,
+                "enable_location_refresh": True,
+                "location_refresh_period": 100,
+            }
         },
 
         "node_tracker": {

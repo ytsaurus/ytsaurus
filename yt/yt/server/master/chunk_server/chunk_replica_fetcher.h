@@ -23,6 +23,9 @@ struct IChunkReplicaFetcher
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
         NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
+    virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicasWithoutSequoiaChecks(
+        TNodeId nodeId,
+        NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
 
     // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
