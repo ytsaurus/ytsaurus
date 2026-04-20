@@ -2,7 +2,7 @@ from . import http_driver
 
 from . import native_driver
 from .batch_response import apply_function_to_result
-from .common import YtError, update, simplify_structure, set_param
+from .common import YtError, update, simplify_structure, set_param, hide_secure_vault
 from .config import get_option, set_option, get_config, get_backend_type
 from .format import create_format, JsonFormat, YsonFormat, YtFormatError
 from .http_helpers import get_http_api_version, get_http_api_commands
@@ -101,7 +101,7 @@ def make_request(command_name,
     enable_request_logging = get_config(client)["enable_request_logging"]
 
     if enable_request_logging:
-        logger.info("Executing %s (params: %r)", command_name, params)
+        logger.info("Executing %s (params: %r)", command_name, hide_secure_vault(params))
 
     if get_option("_client_type", client) == "batch":
         result = client._batch_executor.add_task(command_name, params, data)
