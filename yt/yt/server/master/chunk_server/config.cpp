@@ -482,6 +482,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_chunk_count_to_fetch_from_refresh_queue", &TThis::SequoiaChunkCountToFetchFromRefreshQueue)
         .Default(1'000);
 
+    registrar.Parameter("max_unsuccessful_sequoia_chunk_refresh_iterations", &TThis::MaxUnsuccessfulSequoiaChunkRefreshIterations)
+        .Default(10);
+
     registrar.Parameter("use_location_replacement_for_location_full_heartbeat", &TThis::UseLocationReplacementForLocationFullHeartbeat)
         .Default(false);
 
@@ -509,7 +512,7 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("global_sequoia_chunk_refresh_period", &TThis::GlobalSequoiaChunkRefreshPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("global_sequoia_chunk_refresh_batch_size", &TThis::GlobalSequoiaChunkRefreshBatchSize)
         .Default(100'000);
@@ -519,6 +522,21 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fix_sequoia_replicas_if_replica_validation_failed", &TThis::FixSequoiaReplicasIfReplicaValidationFailed)
         .Default(false);
+
+    registrar.Parameter("enable_location_refresh", &TThis::EnableLocationRefresh)
+        .Default(false);
+
+    registrar.Parameter("location_refresh_period", &TThis::LocationRefreshPeriod)
+        .Default(TDuration::Seconds(2));
+
+    registrar.Parameter("max_concurrent_locations_to_refresh", &TThis::MaxConcurrentLocationsToRefresh)
+        .Default(10);
+
+    registrar.Parameter("max_locations_awaiting_refresh", &TThis::MaxLocationsAwaitingRefresh)
+        .Default(500);
+
+    registrar.Parameter("max_unsuccessful_location_refresh_attempts", &TThis::MaxUnsuccessfulLocationRefreshAttempts)
+        .Default(10);
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).

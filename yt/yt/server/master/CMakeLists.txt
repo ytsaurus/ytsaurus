@@ -196,7 +196,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/global_sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp
@@ -212,6 +211,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/sequoia_replicas_modifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/stored_chunk_replica.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_namespace_type_handler.cpp

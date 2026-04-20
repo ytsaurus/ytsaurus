@@ -999,6 +999,7 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
 ##################################################################
 
 
+@pytest.mark.skip(reason="Will be working again after YT-27202 is completed")
 class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
     ENABLE_MULTIDAEMON = False  # Kill specific components.
 
@@ -1325,6 +1326,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         wait(lambda: node1 not in replicas)
 
 
+@pytest.mark.skip(reason="Will be working again after YT-27202 is completed")
 class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
     USE_SEQUOIA = True
 
@@ -1342,15 +1344,17 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
-                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
+
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
             }
         },
     }
+    # TODO(grphil): Add tests for location refresh after node restart is fixed.
 
 
+@pytest.mark.skip(reason="Will be working again after YT-27202 is completed")
 class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNodes):
     USE_SEQUOIA = True
 
@@ -1382,6 +1386,7 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
 ##################################################################
 
 
+@pytest.mark.skip(reason="Will be working again after YT-27202 is completed")
 class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {

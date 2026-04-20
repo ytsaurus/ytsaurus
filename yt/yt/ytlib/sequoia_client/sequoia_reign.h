@@ -35,9 +35,10 @@ ESequoiaReign GetCurrentSequoiaReign() noexcept;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EGroundReign,
-    ((Unknown)          (0))
-    ((InitialVersion)   (1))
-    ((ChildNodesTable)  (2))
+    ((Unknown)                 (0))
+    ((InitialVersion)          (1))
+    ((ChildNodesTable)         (2))
+    ((AlterChunkReplicasTable) (3))
 );
 
 static_assert(TEnumTraits<EGroundReign>::IsMonotonic, "Ground reign enum is not monotonic");

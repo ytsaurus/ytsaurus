@@ -18,6 +18,7 @@
 #include "chunk_manager.h"
 #include "incumbency_epoch.h"
 #include "chunk_replica_fetcher.h"
+#include "sequoia_chunk_refresher.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -330,6 +331,7 @@ TChunkReplicator::TChunkReplicator(
     , JournalRefreshScanner_(std::make_unique<TChunkRefreshScanner>(
         EChunkScanKind::Refresh,
         /*journal*/ true))
+    , SequoiaChunkRefresher_(CreateSequoiaChunkRefresher(bootstrap))
     , BlobRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         EChunkScanKind::RequisitionUpdate,
         /*journal*/ false))
@@ -401,6 +403,8 @@ void TChunkReplicator::OnEpochStarted()
         GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
     FinishedRequisitionTraverseFlushExecutor_->Start();
 
+    SequoiaChunkRefresher_->AdjustRefresherState();
+
     // Just in case. See OnCheckEnabled().
     ReplicatorEnabled_ = false;
 }
@@ -433,6 +437,8 @@ void TChunkReplicator::OnEpochFinished()
         YT_UNUSED_FUTURE(EnabledCheckExecutor_->Stop());
         EnabledCheckExecutor_.Reset();
     }
+
+    SequoiaChunkRefresher_->AdjustRefresherState();
 
     ClearChunkRequisitionCache();
     TmpRequisitionRegistry_.Clear();
@@ -481,6 +487,8 @@ void TChunkReplicator::OnIncumbencyStarted(int shardIndex)
 
     LastActiveShardSetUpdateTime_ = TInstant::Now();
 
+    SequoiaChunkRefresher_->AdjustRefresherState();
+
     YT_LOG_INFO("Incumbency started (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
         jobEpoch);
@@ -500,6 +508,8 @@ void TChunkReplicator::OnIncumbencyFinished(int shardIndex)
     SetIncumbencyEpoch(shardIndex, jobEpoch);
 
     LastActiveShardSetUpdateTime_ = TInstant::Now();
+
+    SequoiaChunkRefresher_->AdjustRefresherState();
 
     YT_LOG_INFO("Incumbency finished (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
@@ -2891,17 +2901,11 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto hasSequoiaMedia = false;
 
     for (auto location : node->ChunkLocations()) {
         const auto* medium = chunkManager->FindMediumByIndex(location->GetEffectiveMediumIndex());
         if (!medium) {
             continue;
-        }
-
-        if (medium->IsDomestic()) {
-            const auto* domesticMedium = medium->AsDomestic();
-            hasSequoiaMedia |= domesticMedium->GetEnableSequoiaReplicas();
         }
 
         for (auto replica : location->Replicas()) {
@@ -2912,9 +2916,16 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
     // It seems okay to loose ScheduleNodeRefreshSequoia on epoch end as global refresh
     // will take care of all chunks in that case.
     // Global refresh also makes scheduling this callback during recovery redundant.
-    if (hasSequoiaMedia && !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery()) {
-        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher);
-        invoker->Invoke(BIND(&TChunkReplicator::ScheduleNodeRefreshSequoia, MakeStrong(this), node->GetId()));
+    if (Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActive() &&
+        GetDynamicConfig()->SequoiaChunkReplicas->Enable)
+    {
+        if (GetDynamicConfig()->SequoiaChunkReplicas->EnableLocationRefresh) {
+            SequoiaChunkRefresher_->RefreshNode(node);
+        } else {
+            // This is an unsafe way, we do not retry refresh on fail.
+            auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher);
+            invoker->Invoke(BIND(&TChunkReplicator::ScheduleNodeRefreshSequoia, MakeStrong(this), node->GetId()));
+        }
     }
 }
 
@@ -3070,6 +3081,11 @@ void TChunkReplicator::OnRefresh()
     }
 }
 
+const ISequoiaChunkRefresherPtr& TChunkReplicator::GetSequoiaChunkRefresher() const
+{
+    return SequoiaChunkRefresher_;
+}
+
 bool TChunkReplicator::IsReplicatorEnabled()
 {
     return ReplicatorEnabled_.value_or(false);
@@ -3209,6 +3225,8 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
 
 void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuffer)
 {
+    SequoiaChunkRefresher_->OnProfiling(buffer);
+
     buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
@@ -4004,6 +4022,8 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
         newConfig->EnableChunkRequisitionUpdate,
         &TChunkReplicator::ScheduleGlobalRequisitionUpdate,
         "Chunk requisition update");
+
+    SequoiaChunkRefresher_->AdjustRefresherState();
 }
 
 bool TChunkReplicator::IsConsistentChunkPlacementEnabled() const

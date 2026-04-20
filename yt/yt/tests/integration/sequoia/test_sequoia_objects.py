@@ -1,6 +1,7 @@
 import builtins
 import time
 
+from yt.common import YtError
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -16,8 +17,8 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
-    authors, commit_transaction, create, get, get_cell_tag, raises_yt_error,
-    remove, get_singular_chunk_id, write_table, read_table, wait, exists,
+    authors, commit_transaction, create, create_host, get, get_cell_tag, raises_yt_error,
+    remove, get_singular_chunk_id, remove_host, write_table, read_table, wait, exists,
     create_domestic_medium, ls, set, link, build_master_snapshots,
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
     sync_compact_table, set_nodes_banned, set_node_banned,
@@ -57,7 +58,8 @@ class TestSequoiaReplicas(YTEnvSetup):
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
     NUM_NODES = 9
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
+    NUM_MASTERS = 5
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
@@ -113,33 +115,100 @@ class TestSequoiaReplicas(YTEnvSetup):
     def _is_purgatory_empty(self):
         return self._get_purgatory_size() == 0
 
-    def _is_refresh_queue_empty(self):
+    def _get_refresh_queue_size(self):
         total_refresh_queue_size = 0
         cell_tags = list(ls("//sys/secondary_masters")) + ["10"]
         for cell_tag in cell_tags:
             queue_path = DESCRIPTORS.chunk_refresh_queue.get_default_path() + "_" + cell_tag
             total_refresh_queue_size += len(select_rows_from_ground(f"* from [{queue_path}] where [$tablet_index] >= -1"))
-        return total_refresh_queue_size == 0
+        return total_refresh_queue_size
+
+    def _is_refresh_queue_empty(self):
+        return self._get_refresh_queue_size() == 0
+
+    def _get_global_sequoia_chunk_refresh_cell_status(self, cell_tag):
+        if cell_tag == "10":
+            cell_dir = "//sys/primary_masters"
+        else:
+            cell_dir = f"//sys/secondary_masters/{cell_tag}"
+
+        master = ls(cell_dir)[0]
+        enabled = None
+        total_chunks_processed = 0
+        completed_shards = 0
+        active_shards = builtins.set()
+        epochs = dict()
+
+        shards = [None] * 60
+
+        for master in ls(cell_dir):
+            try:
+                status = get(f"{cell_dir}/{master}/orchid/chunk_manager/sequoia_chunk_refresher_status")
+            except YtError:
+                # Master may be stopped.
+                continue
+            chunks_processed = 0
+            if enabled is None:
+                enabled = status["global_refresh_enabled"]
+            if status["global_refresh_enabled"] != enabled:
+                return {"status": "unknown", "chunks_processed": 0, "completed": False}
+            epochs[master] = status["global_refresh_epoch"]
+
+            for shard_index in range(len(status["shards"])):
+                shard = status["shards"][shard_index]
+
+                if shard["active"]:
+                    if shard_index in active_shards:
+                        return {"status": "unknown", "chunks_processed": 0, "completed": False}
+                    active_shards.add(shard_index)
+                    assert shard["global_refresh_status"] != "disabled"
+                    shards[shard_index] = shard
+                    shards[shard_index]["master"] = master
+                else:
+                    assert shard["global_refresh_status"] == "disabled"
+                    assert shard["global_refresh_chunks_processed"] == 0
+
+                if shard["global_refresh_status"] == "completed":
+                    completed_shards += 1
+                    assert enabled
+
+                chunks_processed += shard["global_refresh_chunks_processed"]
+            assert status["global_refresh_chunks_processed"] == chunks_processed
+            total_chunks_processed += chunks_processed
+
+        if len(active_shards) != 60:
+            return {"status": "unknown", "chunks_processed": 0, "completed": False}
+
+        return {
+            "status": "enabled" if enabled else "disabled",
+            "chunks_processed": total_chunks_processed,
+            "completed": completed_shards == 60,
+            "shards": {cell_tag: shards},
+            "epochs": epochs,
+        }
 
     def _get_global_sequoia_chunk_refresh_status(self):
-        # We will also verify that all non primary leading masters have disabled global sequoia chunk refresh.
-        secondary_masters = get("//sys/secondary_masters")
-        for cell_tag in secondary_masters:
-            for address in secondary_masters[cell_tag]:
-                assert get(f"//sys/secondary_masters/{cell_tag}/{address}/orchid/chunk_manager/global_sequoia_chunk_refresh_status/status") == "disabled"
+        status = self._get_global_sequoia_chunk_refresh_cell_status("10")
 
-        refresh_status = None
-        primary_masters = ls("//sys/primary_masters")
-        for master in primary_masters:
-            address = f"//sys/primary_masters/{master}/orchid"
-            if get(f"{address}/monitoring/hydra/state") != "leading":
-                assert get(f"{address}/chunk_manager/global_sequoia_chunk_refresh_status/status") == "disabled"
-            else:
-                assert refresh_status is None
-                refresh_status = get(f"{address}/chunk_manager/global_sequoia_chunk_refresh_status")
+        if status["status"] == "unknown":
+            return status
 
-        assert refresh_status is not None
-        return refresh_status
+        for cell_tag in ls("//sys/secondary_masters"):
+            secondary_status = self._get_global_sequoia_chunk_refresh_cell_status(cell_tag)
+            if secondary_status["status"] == "unknown" or secondary_status["status"] != status["status"]:
+                return {"status": "unknown", "chunks_processed": 0, "completed": False}
+            status["chunks_processed"] += secondary_status["chunks_processed"]
+            status["completed"] = status["completed"] and secondary_status["completed"]
+            status["shards"][cell_tag] = secondary_status["shards"][cell_tag]
+            status["shards"] |= secondary_status["shards"]
+
+        return status
+
+    def _check_location_refresh_queue_size(self, expected_size):
+        cell_dirs = ["//sys/primary_masters"] + [f"//sys/secondary_masters/{cell_tag}" for cell_tag in ls("//sys/secondary_masters")]
+        for cell_dir in cell_dirs:
+            for master in ls(cell_dir):
+                wait(lambda: get(f"{cell_dir}/{master}/orchid/chunk_manager/sequoia_chunk_refresher_status/awaiting_refresh_location_count") == expected_size)
 
     @classmethod
     def setup_class(cls):
@@ -531,45 +600,44 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("grphil")
     def test_global_sequoia_refresh_batches(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 1)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 100000)
 
-        assert self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled"
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled")
 
-        tables = [f"//tmp/t{i}" for i in range(10)]
-        for table in tables:
-            create("table", table,  attributes={"primary_medium": self.TABLE_MEDIUM_1})
-            write_table(table, [{"x": table}])
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
-        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == len(tables))
+        # We need at least 61 chunks to have shard with multiple chunks
+        chunk_count = 61
+        for i in range(chunk_count):
+            write_table("<append=%true>//tmp/t", [{str(i): i}])
+
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == chunk_count)
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", True)
 
-        assert self._get_global_sequoia_chunk_refresh_status()["status"] != "disabled"
-        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
-        assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == len(tables)
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "enabled")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+        assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == chunk_count
 
-        for table in tables:
-            remove(table)
+        remove("//tmp/t")
 
     @authors("grphil")
     def test_global_sequoia_refresh_with_purgatory(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
-        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 4)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
-        assert self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled"
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled")
 
         tables = [f"//tmp/t{i}" for i in range(10)]
         chunks = []
@@ -625,9 +693,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         assert self._is_refresh_queue_empty()
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
-        assert self._get_global_sequoia_chunk_refresh_status()["status"] != "disabled"
-
-        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "enabled")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
         assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == len(chunks)
 
         if get("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_sequoia_replicas_on_master"):
@@ -644,6 +711,239 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", True)
         wait(self._is_purgatory_empty)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+
+    @authors("grphil")
+    def test_global_sequoia_refresh_reshard(self):
+        if self.NUM_SECONDARY_MASTER_CELLS > 0:
+            pytest.skip("Unsupported for multicell")
+
+        set("//sys/@config/incumbent_manager", {
+            "scheduler": {
+                "incumbents": {
+                    "chunk_replicator": {
+                        "use_followers": True,
+                        "weight": 10**6,
+                    }
+                }
+            },
+            "peer_lease_duration": 1000,
+            "peer_grace_period": 2000,
+            "banned_peers": [],
+        })
+
+        # Recreate leases with new durations.
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        def check_up():
+            for master in ls("//sys/primary_masters"):
+                address = f"//sys/primary_masters/{master}/orchid"
+                if get(f"{address}/monitoring/hydra/state") not in ["leading", "following"]:
+                    return False
+            return True
+
+        wait(check_up, ignore_exceptions=True)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        create("table", "//tmp/t", attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        write_table("//tmp/t", [{"x": "y"}])
+
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", True)
+
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "enabled")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+        assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == 1
+
+        for _ in range(3):
+            master = None
+            chunk_shard_index = None
+
+            global_refresh_status = self._get_global_sequoia_chunk_refresh_status()
+            for shard_index in range(60):
+                shard = global_refresh_status["shards"]["10"][shard_index]
+                if shard["global_refresh_chunks_processed"] == 1:
+                    assert master is None
+                    master = shard["master"]
+                    chunk_shard_index = shard_index
+
+            assert master is not None
+            index_to_stop = self.Env.configs["master"][0]["primary_master"]["addresses"].index(master)
+
+            self.Env.kill_service("master", indexes=[index_to_stop])
+
+            def is_reshard_completed():
+                status = self._get_global_sequoia_chunk_refresh_status()
+
+                return status["status"] == "enabled" and \
+                    status["completed"] and \
+                    status["chunks_processed"] == 1 and \
+                    status["shards"]["10"][chunk_shard_index]["global_refresh_chunks_processed"] == 1 and \
+                    status["shards"]["10"][chunk_shard_index]["master"] != master
+
+            wait(is_reshard_completed)
+
+            self.Env.start_master_cell(set_config=False)
+
+            wait(lambda: get(f"//sys/primary_masters/{master}/orchid/monitoring/hydra/active", default=False), ignore_exceptions=True)
+
+            def is_master_returned():
+                status = self._get_global_sequoia_chunk_refresh_status()
+                if status["status"] != "enabled" or not status["completed"] or status["chunks_processed"] != 1:
+                    return False
+
+                for shard in status["shards"]["10"]:
+                    if shard["master"] == master:
+                        return True
+                return False
+            wait(is_master_returned)
+
+        remove("//tmp/t")
+
+    def _schedule_all_location_refresh(self):
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        write_table("//tmp/t", [{"x": 1}])
+
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+        wait(self._is_refresh_queue_empty)
+
+        set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", True)
+        assert get("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_location_refresh")
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_locations_to_refresh", 0)
+
+        # The easiest way to refresh node without any state changes is to change it's host.
+        nodes = ls("//sys/cluster_nodes")
+        for i, node in enumerate(nodes):
+            host = f"h{i}"
+            create_host(host)
+            set(f"//sys/cluster_nodes/{node}/@host", host)
+
+    def _clear_hosts(self):
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@host", node)
+
+        for host in ls("//sys/hosts"):
+            try:
+                remove_host(host)
+            except YtError:
+                pass
+
+    @authors("grphil")
+    def test_location_refresh(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        self._schedule_all_location_refresh()
+        self._check_location_refresh_queue_size(self.NUM_NODES)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_locations_to_refresh", 10)
+        self._check_location_refresh_queue_size(0)
+        wait(lambda: self._get_refresh_queue_size() == 3)
+
+        set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", False)
+        wait(self._is_refresh_queue_empty)
+
+        remove("//tmp/t")
+        self._clear_hosts()
+
+    def _check_global_refresh_restarted(self, old_status):
+        new_status = self._get_global_sequoia_chunk_refresh_status()
+        if new_status["status"] != "enabled" or new_status["completed"] or new_status["chunks_processed"] != 0:
+            return False
+
+        for master, epoch in new_status["epochs"].items():
+            if epoch != old_status["epochs"][master] + 1:
+                return False
+        return True
+
+    @authors("grphil")
+    def test_location_refresh_trigger_global_refresh1(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled")
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", True)
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+
+        old_status = self._get_global_sequoia_chunk_refresh_status()
+        assert old_status["status"] == "enabled"
+        assert old_status["completed"]
+        assert old_status["chunks_processed"] == 0
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 0)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_locations_awaiting_refresh", self.NUM_NODES - 2)
+
+        self._schedule_all_location_refresh()
+        self._check_location_refresh_queue_size(1)
+        wait(lambda: self._check_global_refresh_restarted(old_status))
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 10)
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+        assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == 1
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_locations_to_refresh", 10)
+        self._check_location_refresh_queue_size(0)
+        set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", False)
+        remove("//tmp/t")
+        self._clear_hosts()
+
+    @authors("grphil")
+    def test_location_refresh_trigger_global_refresh2(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", False)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled")
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", True)
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+        old_status = self._get_global_sequoia_chunk_refresh_status()
+        assert old_status["status"] == "enabled"
+        assert old_status["completed"]
+        assert old_status["chunks_processed"] == 0
+
+        self._schedule_all_location_refresh()
+        self._check_location_refresh_queue_size(self.NUM_NODES)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 0)
+
+        ground_driver = get_ground_driver()
+        location_replicas_path = DESCRIPTORS.location_replicas.get_default_path()
+        sync_unmount_table(location_replicas_path, driver=ground_driver)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_unsuccessful_location_refresh_attempts", 1)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_locations_to_refresh", 10)
+
+        self._check_location_refresh_queue_size(0)
+        assert self._is_refresh_queue_empty()
+        wait(lambda: self._check_global_refresh_restarted(old_status))
+
+        sync_mount_table(location_replicas_path, driver=ground_driver)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 10)
+
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
+        assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == 1
+        set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", False)
+        remove("//tmp/t")
+        self._clear_hosts()
 
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
@@ -762,7 +1062,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_global_sequoia_chunk_refresh", True)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
 
-        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "enabled")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
 
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
@@ -779,7 +1080,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", False)
 
-        assert self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled"
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled")
         wait(self._is_refresh_queue_empty)
 
         def is_replicator_queue_empty():
@@ -809,8 +1110,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", True)
             set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
 
-            assert self._get_global_sequoia_chunk_refresh_status()["status"] != "disabled"
-            wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
+            wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "enabled")
+            wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
             assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == 1
 
             wait(lambda: not self._is_refresh_queue_empty())
@@ -824,7 +1125,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", True)
             set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", False)
 
-            assert self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled"
+            wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "disabled")
 
             # The chunk may be located not in primary master incumbent,
             # and the replicator queue is stored in profiler that updates periodically.
@@ -842,8 +1143,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
 
-        assert self._get_global_sequoia_chunk_refresh_status()["status"] != "disabled"
-        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "completed")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["status"] == "enabled")
+        wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
         assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == 1
 
         wait(lambda: not self._is_refresh_queue_empty())

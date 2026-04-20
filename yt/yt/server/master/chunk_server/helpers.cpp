@@ -1312,9 +1312,18 @@ void SerializeLocationIndexes(
     }
 }
 
-int GetChunkShardIndex(TChunkId chunkId)
+i8 GetChunkShardIndex(TChunkId chunkId)
 {
     return GetShardIndex<ChunkShardCount>(chunkId);
+}
+
+NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId)
+{
+    return NRecords::TChunkReplicasKey{
+        .CellTag = CellTagFromId(chunkId),
+        .ShardIndex = GetChunkShardIndex(chunkId),
+        .ChunkId = chunkId,
+    };
 }
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now)

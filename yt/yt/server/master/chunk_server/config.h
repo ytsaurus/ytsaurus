@@ -532,6 +532,7 @@ struct TDynamicSequoiaChunkReplicasConfig
     bool EnableSequoiaChunkRefresh;
     TDuration SequoiaChunkRefreshPeriod;
     int SequoiaChunkCountToFetchFromRefreshQueue;
+    int MaxUnsuccessfulSequoiaChunkRefreshIterations;
 
     bool UseLocationReplacementForLocationFullHeartbeat;
 
@@ -554,6 +555,12 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
 
     bool FixSequoiaReplicasIfReplicaValidationFailed;
+
+    bool EnableLocationRefresh;
+    TDuration LocationRefreshPeriod;
+    int MaxConcurrentLocationsToRefresh;
+    int MaxLocationsAwaitingRefresh;
+    int MaxUnsuccessfulLocationRefreshAttempts;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 

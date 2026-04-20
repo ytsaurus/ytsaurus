@@ -170,6 +170,17 @@ public:
         }
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
+        return GetSequoiaLocationReplicasWithoutSequoiaChecks(nodeId, locationIndex)
+            .Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
+                return result;
+            }));
+    }
+
+    TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaLocationReplicasWithoutSequoiaChecks(
+        TNodeId nodeId,
+        NNodeTrackerClient::TChunkLocationIndex locationIndex) const override
+    {
         return Bootstrap_
             ->GetSequoiaConnection()
             ->CreateClient(NRpc::GetRootAuthenticationIdentity())
@@ -177,10 +188,7 @@ public:
                 Bootstrap_->GetCellTag(),
                 nodeId,
                 locationIndex
-            )).Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
-                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
-                return result;
-            }));
+            ));
     }
 
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const override
@@ -499,13 +507,6 @@ public:
     TFuture<std::vector<NRecords::TChunkRefreshQueue>> GetChunksToRefresh(int replicatorShard, int limit) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
-
-        const auto& config = GetDynamicConfig();
-        if (!GetDynamicConfig()->Enable) {
-            return MakeFuture<std::vector<NRecords::TChunkRefreshQueue>>({});
-        }
-        const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaConnection()
@@ -518,12 +519,7 @@ public:
                     },
                     .Limit = limit,
                 }
-            )
-            .Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TChunkRefreshQueue>>& chunkRecordsOrError) {
-                ThrowOnSequoiaReplicasError(chunkRecordsOrError, retriableErrorCodes);
-                return chunkRecordsOrError.ValueOrThrow();
-            })
-            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            );
     }
 
 private:
@@ -784,9 +780,7 @@ private:
 
         std::vector<NRecords::TChunkReplicasKey> keys;
         for (auto chunkId : chunkIds) {
-            NRecords::TChunkReplicasKey chunkReplicasKey{
-                .ChunkId = chunkId,
-            };
+            auto chunkReplicasKey = BuildChunkReplicasRecordKey(chunkId);
             keys.push_back(chunkReplicasKey);
         }
 

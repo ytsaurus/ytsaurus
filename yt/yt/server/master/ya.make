@@ -129,7 +129,6 @@ SRCS(
     chunk_server/dynamic_store_proxy.cpp
     chunk_server/dynamic_store_type_handler.cpp
     chunk_server/dynamic_store.cpp
-    chunk_server/global_sequoia_chunk_refresher.cpp
     chunk_server/helpers.cpp
     chunk_server/job_controller.cpp
     chunk_server/job_registry.cpp
@@ -152,6 +151,7 @@ SRCS(
     chunk_server/s3_medium_proxy.cpp
     chunk_server/s3_medium_type_handler.cpp
     chunk_server/s3_medium.cpp
+    chunk_server/sequoia_chunk_refresher.cpp
     chunk_server/sequoia_replicas_modifier.cpp
     chunk_server/stored_chunk_replica.cpp
 
