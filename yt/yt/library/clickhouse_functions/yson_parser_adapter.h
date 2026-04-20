@@ -56,7 +56,7 @@ struct TYsonParserAdapter
         bool isArray() const { return Node_->GetType() == NYTree::ENodeType::List; }
         bool isObject() const { return Node_->GetType() == NYTree::ENodeType::Map; }
         bool isBool() const { return Node_->GetType() == NYTree::ENodeType::Boolean; }
-        bool isNull() const { return false; /* We do not support nulls. */ }
+        bool isNull() const { return Node_->GetType() == NYTree::ENodeType::Entity; }
 
         Int64 getInt64() const { return Node_->AsInt64()->GetValue(); }
         UInt64 getUInt64() const { return Node_->AsUint64()->GetValue(); }
