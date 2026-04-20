@@ -300,6 +300,9 @@ class Queue:
         logger.info(f"Reading everything from queue {self.path}")
 
         for tablet_index in range(self.tablet_count):
+            if tablet_index in self.mount_state.get_unmounted_tablet_indexes(tablet_index, sync=True):
+                logger.info(f"Tablet {tablet_index} of queue {self.path} is unmounted with sync, skip reading it")
+                continue
             actual_rows = []
             while True:
                 rows = list(yt.pull_queue(self.path, offset=len(actual_rows), partition_index=tablet_index))
@@ -343,26 +346,26 @@ class Queue:
         with yt.OperationsTracker() as tracker:
             if need_to_run_map:
                 logger.info(f"Running map on queue {self.path}")
-                map_result_path = self.path + ".map_result"
+                map_result_path = f"{self.path}.map_result.{RSG.generate(8)}"
                 ordered = random.choice([False, True])
                 map_op = yt.run_map(simple_mapper, source_table=self.path, destination_table=map_result_path, ordered=ordered, spec={"job_io": {"control_attributes": {"enable_row_index": True, "enable_tablet_index": True}}}, sync=False)
                 tracker.add(map_op)
 
             if need_to_run_sort:
                 logger.info(f"Running sort on queue {self.path}")
-                sort_result_path = self.path + ".sort_result"
+                sort_result_path = f"{self.path}.sort_result.{RSG.generate(8)}"
                 sort_op = yt.run_sort(self.path, sort_result_path, sort_by=["key", "value"], sync=False)
                 tracker.add(sort_op)
 
             if need_to_run_map_reduce:
                 logger.info(f"Running map-reduce on queue {self.path}")
-                map_reduce_result_path = self.path + ".map_reduce_result"
+                map_reduce_result_path = f"{self.path}.map_reduce_result.{RSG.generate(8)}"
                 map_reduce_op = yt.run_map_reduce(mapper=None, reducer=simple_reducer, reduce_by=["key"], sort_by=["key"], source_table=self.path, destination_table=map_reduce_result_path, sync=False)
                 tracker.add(map_reduce_op)
 
             if need_to_run_merge:
                 logger.info(f"Running merge on queue {self.path}")
-                merge_result_path = self.path + ".merge_result"
+                merge_result_path = f"{self.path}.merge_result.{RSG.generate(8)}"
                 combine_chunks = random.choice([True, False])
                 force_transform = random.choice([True, False])
                 mode = random.choice(["ordered", "unordered"])
@@ -487,6 +490,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     yt.config["backend"] = "rpc"
     yt.config["driver_config"] = {"enable_retries": True}
+    yt.config["dynamic_table_retries"]["backoff"] = {"policy": "constant_time", "constant_time": 0.1}
+    yt.config["dynamic_table_retries"]["total_timeout"] = 30000
 
     queues = {}
     hunk_storages = {}
@@ -559,8 +564,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                     hunk_storage.mount(tablet_index=tablet_index, sync=False)
 
 
-    def _check_write_error(queue, err):
-        unmounted = queue.mount_state.has_unmounted_tablet() or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mount_state.has_mounted_tablet(sync=True))
+    def _check_write_error(queue, only_in_sync_mounted, err):
+        unmounted = (not only_in_sync_mounted and queue.mount_state.has_unmounted_tablet()) or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mount_state.has_mounted_tablet(sync=True))
         if unmounted and is_unmounted_error(err):
             logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
         else:
@@ -585,10 +590,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             try:
                 queue.write(only_in_sync_mounted=only_in_sync_mounted)
             except YtError as err:
-                if not only_in_sync_mounted:
-                    _check_write_error(queue, err)
-                else:
-                    raise err
+                _check_write_error(queue, only_in_sync_mounted, err)
 
 
     def _read():
@@ -648,6 +650,11 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         for hunk_storage in hunk_storages.values():
             if random.random() < spec.queue_and_hunk_storage.remove_probability:
                 try:
+                    if len(hunk_storage.linked_queue_names) > 0:
+                        logger.info(f"Removing hunk storage {hunk_storage.name}, need to unmount linked queues {hunk_storage.linked_queue_names}")
+                        for queue_name in hunk_storage.linked_queue_names:
+                            queues[queue_name].unmount()
+
                     hunk_storage.remove()
                     removed_hunk_storage_names += [hunk_storage.name]
                     removed_hunk_storage_count += 1
