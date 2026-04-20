@@ -1865,6 +1865,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select YSONExtractString('[true; false]', 1) as a") == [{"a": "true"}]
             assert clique.make_query("select YSONExtractString('{a=true; b=false}', 'b') as a") == [{"a": "false"}]
+            assert clique.make_query("select YSONExtractString('{a=#}', 'a') as a") == [{"a": ""}]
 
             assert clique.make_query("select YSONExtract('{a=5;b=[5; 4; 3]}', 'b', 'Array(Int64)') as a") == [
                 {"a": [5, 4, 3]}
