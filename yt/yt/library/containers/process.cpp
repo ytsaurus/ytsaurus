@@ -59,7 +59,7 @@ void TPortoProcess::DoSpawn()
     try {
         // TPortoProcess doesn't support running processes inside rootFS.
         YT_VERIFY(!ContainerLauncher_->HasRoot());
-        std::vector<TString> args(Args_.begin() + 1, Args_.end());
+        std::vector<std::string> args(Args_.begin() + 1, Args_.end());
         auto instance = WaitFor(ContainerLauncher_->Launch(ResolvedPath_, args, DecomposeEnv()))
             .ValueOrThrow();
         ContainerInstance_.Store(instance);

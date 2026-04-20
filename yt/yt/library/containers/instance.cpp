@@ -268,7 +268,7 @@ public:
         };
     }
 
-    const TString& GetName() const override
+    const std::string& GetName() const override
     {
         return Spec_.Name;
     }
@@ -278,27 +278,27 @@ public:
         return static_cast<bool>(Spec_.RootFS);
     }
 
-    void SetStdIn(const TString& inputPath) override
+    void SetStdIn(const std::string& inputPath) override
     {
         Spec_.StdinPath = inputPath;
     }
 
-    void SetStdOut(const TString& outPath) override
+    void SetStdOut(const std::string& outPath) override
     {
         Spec_.StdoutPath = outPath;
     }
 
-    void SetStdErr(const TString& errorPath) override
+    void SetStdErr(const std::string& errorPath) override
     {
         Spec_.StderrPath = errorPath;
     }
 
-    void SetCwd(const TString& pwd) override
+    void SetCwd(const std::string& pwd) override
     {
         Spec_.CurrentWorkingDirectory = pwd;
     }
 
-    void SetCoreDumpHandler(const std::optional<TString>& handler) override
+    void SetCoreDumpHandler(const std::optional<std::string>& handler) override
     {
         if (handler) {
             Spec_.CoreCommand = *handler;
@@ -363,7 +363,7 @@ public:
         Spec_.User = user;
     }
 
-    void SetNetworkInterface(const TString& networkInterface) override
+    void SetNetworkInterface(const std::string& networkInterface) override
     {
         Spec_.NetworkInterface = networkInterface;
     }
@@ -382,19 +382,19 @@ public:
         Spec_.EnableNat64 = false;
     }
 
-    void SetHostName(const TString& hostName) override
+    void SetHostName(const std::string& hostName) override
     {
         Spec_.HostName = hostName;
     }
 
-    void SetPlaces(const std::vector<TString>& places) override
+    void SetPlaces(const std::vector<std::string>& places) override
     {
-        Spec_.Places = places;
+        Spec_.Places = std::vector<TString>(places.begin(), places.end());
     }
 
     TFuture<IInstancePtr> Launch(
-        const TString& path,
-        const std::vector<TString>& args,
+        const std::string& path,
+        const std::vector<std::string>& args,
         const THashMap<TString, TString>& env) override
     {
         TStringBuilder commandBuilder;
@@ -468,16 +468,16 @@ public:
         return New<TPortoInstance>(GetSelfContainerName(executor), executor);
     }
 
-    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name)
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const std::string& name)
     {
         return New<TPortoInstance>(name, executor);
     }
 
-    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface)
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const std::string& name, const std::optional<std::string>& networkInterface)
     {
         return New<TPortoInstance>(
             name,
-            networkInterface.value_or(TString(DefaultPortoNetworkInterface)),
+            networkInterface.value_or(std::string(DefaultPortoNetworkInterface)),
             executor);
     }
 
@@ -886,11 +886,11 @@ private:
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 
-    TPortoInstance(TString name, IPortoExecutorPtr executor)
-        : TPortoInstance(name, TString(DefaultPortoNetworkInterface), executor)
+    TPortoInstance(std::string name, IPortoExecutorPtr executor)
+        : TPortoInstance(name, std::string(DefaultPortoNetworkInterface), executor)
     { }
 
-    TPortoInstance(TString name, TString networkInterface, IPortoExecutorPtr executor)
+    TPortoInstance(std::string name, std::string networkInterface, IPortoExecutorPtr executor)
         : Name_(std::move(name))
         , NetworkInterface_(std::move(networkInterface))
         , Executor_(std::move(executor))
@@ -953,7 +953,7 @@ IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
     return TPortoInstance::GetSelf(executor);
 }
 
-IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface)
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const std::string& name, const std::optional<std::string>& networkInterface)
 {
     return TPortoInstance::GetInstance(executor, name, networkInterface);
 }

@@ -342,8 +342,8 @@ public:
                 .ValueOrThrow();
         } else {
             // COMPAT(pushin): remove me after 21.3.
-            TString path("/bin/bash");
-            std::vector<TString> args;
+            std::string path("/bin/bash");
+            std::vector<std::string> args;
             if (Options_->Command) {
                 args = {"-c", *Options_->Command};
             }

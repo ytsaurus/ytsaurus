@@ -44,7 +44,7 @@ void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descrip
     }
 }
 
-static TError DecodeExitCode(int exitCode, const TString& reason)
+static TError DecodeExitCode(int exitCode, const TProtoStringType& reason)
 {
     if (exitCode == 0) {
         return TError();
@@ -148,7 +148,8 @@ private:
     void DoSpawn() override
     {
         if (ContainerSpec_->Command.empty()) {
-            ContainerSpec_->Command = {Path_};
+            // TODO(dgolear): Switch to std::string.
+            ContainerSpec_->Command = {TString(Path_)};
         }
         ContainerSpec_->Arguments = std::vector<TString>(Args_.begin() + 1, Args_.end());
         ContainerSpec_->WorkingDirectory = WorkingDirectory_;

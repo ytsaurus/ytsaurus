@@ -92,7 +92,7 @@ struct TNetworkAttributes
 struct TGpuCheckOptions
 {
     TString BinaryPath;
-    std::vector<TString> BinaryArgs;
+    std::vector<std::string> BinaryArgs;
     std::optional<TNetworkAttributes> NetworkAttributes;
     THashMap<TString, TString> Environment;
     std::vector<NContainers::TDevice> Devices;

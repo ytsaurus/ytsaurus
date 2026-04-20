@@ -15,7 +15,7 @@ namespace NYT::NExecNode {
 struct TArtifactDownloadOptions
 {
     NChunkClient::TTrafficMeterPtr TrafficMeter;
-    std::vector<TString> WorkloadDescriptorAnnotations;
+    std::vector<std::string> WorkloadDescriptorAnnotations;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
