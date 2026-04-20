@@ -1884,8 +1884,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "b": 6,
                 "c": 10,
             }
-            from gdb_helpers import attach_gdb
-            attach_gdb(clique.get_active_instances()[0].attributes['pid'], ex=["b yt/yt/library/clickhouse_functions/yson_functions.cpp:66"], autoresume=False)
 
             assert clique.make_query("select YSONExtractString(a, 'a', 'c') as v from '//tmp/t'") == [{"v": "12"}]
             assert clique.make_query("select YSONExtractString(YSONExtractRaw(a, 'a'), 'b') as v from '//tmp/t'") == [{"v": "val"}]
