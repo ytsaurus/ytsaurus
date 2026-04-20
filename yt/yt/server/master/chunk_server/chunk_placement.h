@@ -13,8 +13,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <util/generic/map.h>
-#include <util/random/fast.h>
+#include <yt/yt/core/misc/fenwick_tree.h>
 
 #include <optional>
 
@@ -130,14 +129,14 @@ private:
 
     class TAllocationSession;
 
-    class TNodeToLoadFactorMap
+    class TWeightedRandomNodeChooser
     {
     public:
         friend class TAllocationSession;
 
-        TNodeToLoadFactorMap();
+        void InsertNodeOrCrash(TNodeId nodeId, double weight, double loadFactor);
 
-        void InsertNodeOrCrash(TNodeId nodeId, double loadFactor);
+        // NB: This may change the order of the elements in NodeDescriptors_!
         void RemoveNode(TNodeId nodeId);
         bool Contains(TNodeId nodeId) const;
         [[nodiscard]] bool Empty() const;
@@ -147,22 +146,33 @@ private:
         TAllocationSession StartAllocationSession(int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
     private:
-        // NB: This may change the order of the elements in Values_!
-        TNodeId PickRandomNode(int nodesChecked);
-        void SwapNodes(int firstIndex, int secondIndex);
+        struct TNodeDescriptor
+        {
+            TNodeId NodeId;
+            double Weight = 0.0;
+            double LoadFactor = 0.0;
+        };
 
-        std::vector<std::pair<TNodeId, double>> Values_;
+        TNodeId GetNode(double weight) const;
+        double GetLeftBound(TNodeId nodeId) const;
+        double GetWeight(TNodeId nodeId) const;
+        double GetLoadFactor(TNodeId nodeId) const;
+
+        std::vector<TNodeDescriptor> NodeDescriptors_;
         THashMap<TNodeId, i64> NodeToIndex_;
-        TReallyFastRng32 Rng_;
+        TFenwickTree<double> WeightedNodes_;
+        double TotalSumOfWeights_ = 0.0;
     };
 
+    // Allocation session picks random node using the power of two choices
+    // with probabilities proportional to the io_weight of each node.
+    // Does not return the node more than once within the current session.
+    // NB: Worst case time complexity is O(|NodesToCheckBeforeFailing_|^2 log n).
     class TAllocationSession
     {
     public:
-        friend class TNodeToLoadFactorMap;
+        friend class TWeightedRandomNodeChooser;
 
-        //! Picks a random node using the power of two choices.
-        // Does not return the node more than once within the current session.
         [[nodiscard]] TNodeId PickRandomNode();
 
         //! Allocation session is considered unsuccessful iff the amount of attempts to pick a node
@@ -170,12 +180,28 @@ private:
         bool HasFailed() const;
 
     private:
+        NLogging::TLogger Logger = ChunkServerLogger();
+
+        struct TRemovedNodeDescriptor
+        {
+            TNodeId NodeId;
+            double LeftBound = 0.0;
+            double Weight = 0.0;
+
+            bool operator==(const TRemovedNodeDescriptor& other) const = default;
+        };
+
         TAllocationSession(
-            TNodeToLoadFactorMap* associatedMap,
+            TWeightedRandomNodeChooser* weightedRandomNodeChooser,
+            double totalSumOfWeights,
             int nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
 
-        TNodeToLoadFactorMap* AssociatedMap_;
-        int NodesToCheckBeforeFailing_;
+        TNodeId PickOneNode();
+
+        TWeightedRandomNodeChooser* WeightedRandomNodeChooser_;
+        std::list<TRemovedNodeDescriptor> RemovedNodes_;
+        double RemainingSumOfWeights_ = 0.0;
+        int NodesToCheckBeforeFailing_ = 0;
         int NodesChecked_ = 0;
     };
 
@@ -184,9 +210,9 @@ private:
     const TChunkManagerConfigPtr Config_;
     const TConsistentChunkPlacementPtr ConsistentPlacement_;
 
-    using TNodeToLoadFactorMaps = THashMap<const TDomesticMedium*, TNodeToLoadFactorMap>;
+    using TMediumToWeightedRandomNodeChooser = THashMap<const TDomesticMedium*, TWeightedRandomNodeChooser>;
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
-    TNodeToLoadFactorMaps MediumToNodeToLoadFactor_;
+    TMediumToWeightedRandomNodeChooser MediumToNodeChooser_;
 
     // COMPAT(h0pless): Remove this when power of two choices will prove to be working.
     using TLoadFactorToNodeMaps = THashMap<const TDomesticMedium*, TLoadFactorToNodeMap>;
