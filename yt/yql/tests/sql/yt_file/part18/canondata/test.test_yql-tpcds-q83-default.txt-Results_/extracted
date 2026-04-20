@@ -4,22 +4,22 @@
     
         <tmp_path>/program.sql:<main>: Warning: At tuple
         
-            <tmp_path>/program.sql:<main>:39:9: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
-            	        i_item_id
-	        ^
+            <tmp_path>/program.sql:<main>:9:36: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        Sum(sr_return_quantity) AS sr_item_qty
+	                                   ^
                 <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                 
                     <tmp_path>/program.sql:<main>:37:36: Warning: At function: And, At function: And
                     	        AND sr_returned_date_sk == d_date_sk
 	                                   ^
-                        <tmp_path>/program.sql:<main>:33:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
-                        	                            CAST('1998-11-10' AS Date)
-	                                                 ^
+                        <tmp_path>/program.sql:<main>:20:17: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                        	                d_date
+	                ^
                             <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                             
-                                <tmp_path>/program.sql:<main>:33:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
-                                	                            CAST('1998-11-10' AS Date)
-	                                                 ^
+                                <tmp_path>/program.sql:<main>:26:25: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                                	                        d_week_seq
+	                        ^
                                     <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                                     
                                         <tmp_path>/program.sql:<main>:33:50: Warning: At function: SqlIn
@@ -30,22 +30,22 @@
 	                                                 ^
         <tmp_path>/program.sql:<main>: Warning: At tuple
         
-            <tmp_path>/program.sql:<main>:75:9: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
-            	        i_item_id
-	        ^
+            <tmp_path>/program.sql:<main>:45:36: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        Sum(cr_return_quantity) AS cr_item_qty
+	                                   ^
                 <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                 
                     <tmp_path>/program.sql:<main>:73:36: Warning: At function: And, At function: And
                     	        AND cr_returned_date_sk == d_date_sk
 	                                   ^
-                        <tmp_path>/program.sql:<main>:69:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
-                        	                            CAST('1998-11-10' AS Date)
-	                                                 ^
+                        <tmp_path>/program.sql:<main>:56:17: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                        	                d_date
+	                ^
                             <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                             
-                                <tmp_path>/program.sql:<main>:69:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
-                                	                            CAST('1998-11-10' AS Date)
-	                                                 ^
+                                <tmp_path>/program.sql:<main>:62:25: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                                	                        d_week_seq
+	                        ^
                                     <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                                     
                                         <tmp_path>/program.sql:<main>:69:50: Warning: At function: SqlIn
@@ -56,22 +56,22 @@
 	                                                 ^
         <tmp_path>/program.sql:<main>: Warning: At tuple
         
-            <tmp_path>/program.sql:<main>:111:9: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
-            	        i_item_id
-	        ^
+            <tmp_path>/program.sql:<main>:81:36: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        Sum(wr_return_quantity) AS wr_item_qty
+	                                   ^
                 <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                 
                     <tmp_path>/program.sql:<main>:109:36: Warning: At function: And, At function: And
                     	        AND wr_returned_date_sk == d_date_sk
 	                                   ^
-                        <tmp_path>/program.sql:<main>:105:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
-                        	                            CAST('1998-11-10' AS Date)
-	                                                 ^
+                        <tmp_path>/program.sql:<main>:92:17: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                        	                d_date
+	                ^
                             <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                             
-                                <tmp_path>/program.sql:<main>:105:50: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
-                                	                            CAST('1998-11-10' AS Date)
-	                                                 ^
+                                <tmp_path>/program.sql:<main>:98:25: Warning: At function: YqlSubLink, At function: YqlSelect, At tuple, At tuple, At tuple
+                                	                        d_week_seq
+	                        ^
                                     <tmp_path>/program.sql:<main>: Warning: At function: YqlSetItem, At tuple, At tuple, At function: YqlWhere, At lambda
                                     
                                         <tmp_path>/program.sql:<main>:105:50: Warning: At function: SqlIn
