@@ -1840,6 +1840,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_yson_extract(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "any"}]})
+        write_table("//tmp/t", [{"a": {"a": {"b": "val", "c": 12}}}])
+
         with Clique(1) as clique:
             assert clique.make_query("select YSONHas('{a=5;b=6}', 'a') as a") == [{"a": 1}]
             assert clique.make_query("select YSONHas('{a=5;b=6}', 'c') as a") == [{"a": 0}]
@@ -1881,6 +1884,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "b": 6,
                 "c": 10,
             }
+            from gdb_helpers import attach_gdb
+            attach_gdb(clique.get_active_instances()[0].attributes['pid'], ex=["b yt/yt/library/clickhouse_functions/yson_functions.cpp:66"], autoresume=False)
+
+            assert clique.make_query("select YSONExtractString(a, 'a', 'c') as v from '//tmp/t'") == [{"v": "12"}]
+            assert clique.make_query("select YSONExtractString(YSONExtractRaw(a, 'a'), 'b') as v from '//tmp/t'") == [{"v": "val"}]
 
     @authors("dakovalkov")
     def test_yson_extract_invalid(self):
