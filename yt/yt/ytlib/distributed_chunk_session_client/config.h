@@ -1,6 +1,10 @@
 #pragma once
 
+#include <yt/yt/core/misc/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <limits>
 
 namespace NYT::NDistributedChunkSessionClient {
 
@@ -28,6 +32,22 @@ struct TDistributedChunkSessionControllerConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDistributedChunkSessionPoolConfig
+    : public NYTree::TYsonStruct
+{
+    int MaxActiveSessionsPerSlot;
+    TExponentialBackoffOptions ChunkSealRetryBackoff;
+    TDuration ChunkSealRpcTimeout;
+
+    REGISTER_YSON_STRUCT(TDistributedChunkSessionPoolConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionPoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

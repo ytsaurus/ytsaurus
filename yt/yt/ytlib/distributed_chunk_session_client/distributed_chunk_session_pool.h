@@ -10,43 +10,50 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/core/actions/public.h>
+
 namespace NYT::NDistributedChunkSessionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStartedSessionInfo
+struct TSessionDescriptor
 {
     NChunkClient::TSessionId SessionId;
     NNodeTrackerClient::TNodeDescriptor SequencerNode;
+};
+
+struct TSlotChunkInfo
+{
+    NChunkClient::TChunkId ChunkId;
     NChunkClient::TChunkReplicaWithMediumList Replicas;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct IDistributedChunkSessionController
+//! Thread affinity: any.
+struct IDistributedChunkSessionPool
     : virtual public TRefCounted
 {
-    // Starts session and returns write-session metadata.
-    virtual TFuture<TStartedSessionInfo> StartSession() = 0;
+    virtual TFuture<TSessionDescriptor> GetSession(
+        int slotCookie,
+        std::optional<NChunkClient::TSessionId> excludedSessionId = {}) = 0;
 
-    virtual TFuture<void> Close() = 0;
+    virtual TFuture<void> FinalizeSlot(int slotCookie) = 0;
 
-    virtual TFuture<void> GetClosedFuture() = 0;
-
-    virtual NChunkClient::TSessionId GetSessionId() const = 0;
+    virtual TFuture<std::vector<TSlotChunkInfo>> GetSlotChunks(int slotCookie) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionController)
+DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDistributedChunkSessionControllerPtr CreateDistributedChunkSessionController(
+IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
     NApi::NNative::IClientPtr client,
-    TDistributedChunkSessionControllerConfigPtr config,
+    TDistributedChunkSessionPoolConfigPtr config,
+    TDistributedChunkSessionControllerConfigPtr controllerConfig,
     NObjectClient::TTransactionId transactionId,
     NApi::TJournalChunkWriterOptionsPtr writerOptions,
     NApi::TJournalChunkWriterConfigPtr writerConfig,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    NLogging::TLogger logger = DistributedChunkSessionLogger());
 
 ////////////////////////////////////////////////////////////////////////////////
 

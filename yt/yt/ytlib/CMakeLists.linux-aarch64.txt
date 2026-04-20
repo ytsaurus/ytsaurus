@@ -389,6 +389,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
