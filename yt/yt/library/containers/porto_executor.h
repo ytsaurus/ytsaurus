@@ -28,19 +28,19 @@ struct TVolumeSpec
 
 struct TRunnableContainerSpec
 {
-    TString Name;
-    TString Command;
+    std::string Name;
+    std::string Command;
 
     EEnablePorto EnablePorto = EEnablePorto::None;
     bool Isolate = true;
     bool EnableFuse = false;
 
-    std::optional<TString> StdinPath;
-    std::optional<TString> StdoutPath;
-    std::optional<TString> StderrPath;
-    std::optional<TString> CurrentWorkingDirectory;
-    std::optional<TString> CoreCommand;
-    std::optional<TString> User;
+    std::optional<std::string> StdinPath;
+    std::optional<std::string> StdoutPath;
+    std::optional<std::string> StderrPath;
+    std::optional<std::string> CurrentWorkingDirectory;
+    std::optional<std::string> CoreCommand;
+    std::optional<std::string> User;
     std::optional<int> GroupId;
 
     bool EnableCoreDumps = true;
@@ -48,8 +48,8 @@ struct TRunnableContainerSpec
     std::optional<double> CpuWeight;
     std::optional<i64> ThreadLimit;
 
-    std::optional<TString> NetworkInterface;
-    std::optional<TString> HostName;
+    std::optional<std::string> NetworkInterface;
+    std::optional<std::string> HostName;
     std::vector<NYT::NNet::TIP6Address> IPAddresses;
     bool EnableNat64 = false;
     bool DisableNetwork = false;

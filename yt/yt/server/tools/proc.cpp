@@ -45,7 +45,7 @@ void TKillAllByUidTool::operator()(int uid) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveDirAsRootTool::operator()(const TString& path) const
+void TRemoveDirAsRootTool::operator()(const std::string& path) const
 {
     // Child process
     TrySetUid(0);
@@ -57,7 +57,7 @@ void TRemoveDirAsRootTool::operator()(const TString& path) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCreateDirectoryAsRootTool::operator()(const TString& path) const
+void TCreateDirectoryAsRootTool::operator()(const std::string& path) const
 {
     // Child process
     TrySetUid(0);
@@ -82,12 +82,12 @@ void TSpawnShellTool::operator()(TSpawnShellConfigPtr config) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveDirContentAsRootTool::operator()(const TString& path) const
+void TRemoveDirContentAsRootTool::operator()(const std::string& path) const
 {
     // Child process
     SafeSetUid(0);
 
-    if (!TFileStat(path).IsDir()) {
+    if (!TFileStat(TString(path)).IsDir()) {
         THROW_ERROR_EXCEPTION("Path %v is not directory",
             path);
     }
@@ -96,7 +96,7 @@ void TRemoveDirContentAsRootTool::operator()(const TString& path) const
         if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
             return false;
         }
-        if (path.StartsWith(it->fts_path)) {
+        if (path.starts_with(it->fts_path)) {
             return false;
         }
 
@@ -110,7 +110,7 @@ void TRemoveDirContentAsRootTool::operator()(const TString& path) const
     for (int attempt = 0; attempt < RemoveAsRootAttemptCount; ++attempt) {
         std::vector<TError> innerErrors;
         {
-            TDirIterator dir(path);
+            TDirIterator dir(TString{path});
             for (auto it = dir.begin(); it != dir.end(); ++it) {
                 try {
                     if (isRemovable(it)) {
@@ -123,9 +123,9 @@ void TRemoveDirContentAsRootTool::operator()(const TString& path) const
             }
         }
 
-        std::vector<TString> unremovableItems;
+        std::vector<std::string> unremovableItems;
         {
-            TDirIterator dir(path);
+            TDirIterator dir(TString{path});
             for (auto it = dir.begin(); it != dir.end(); ++it) {
                 if (isRemovable(it)) {
                     unremovableItems.push_back(it->fts_path);
@@ -243,7 +243,7 @@ void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TReadProcessSmapsTool::operator()(int pid) const
+std::string TReadProcessSmapsTool::operator()(int pid) const
 {
     SafeSetUid(0);
     return TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll();
@@ -409,7 +409,7 @@ void TRootDirectoryBuilderTool::operator()(const TDirectoryBuilderConfigPtr& arg
             }
 
             NFs::MakeDirectory(
-                directory->Path,
+                TString(directory->Path),
                 NFs::EFilePermission::FP_SECRET_FILE);
         }
 

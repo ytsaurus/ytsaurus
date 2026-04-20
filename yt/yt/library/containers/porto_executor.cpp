@@ -641,11 +641,11 @@ private:
 
             auto* netConfig = portoSpec.mutable_net()->add_cfg();
             netConfig->set_opt("L3");
-            netConfig->add_arg(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
+            netConfig->add_arg(spec.NetworkInterface.value_or(std::string(DefaultPortoNetworkInterface)));
 
             for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
-                ipConfig->set_dev(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
+                ipConfig->set_dev(spec.NetworkInterface.value_or(std::string(DefaultPortoNetworkInterface)));
                 ipConfig->set_ip(ToString(address));
             }
 

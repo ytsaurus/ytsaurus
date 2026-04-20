@@ -23,7 +23,7 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString RootFSBinaryDirectory("/ext_bin/");
+static const std::string RootFSBinaryDirectory("/ext_bin/");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,16 +131,16 @@ DEFINE_REFCOUNTED_TYPE(TSidecarEnvironmentBase)
 struct TUserJobEnvironmentOptions
 {
     //! Path to core watcher pipes directory relative to user job working directory.
-    std::optional<TString> SlotCoreWatcherDirectory;
+    std::optional<std::string> SlotCoreWatcherDirectory;
 
     //! Path to core watcher pipes directory relative to job proxy working directory.
-    std::optional<TString> CoreWatcherDirectory;
+    std::optional<std::string> CoreWatcherDirectory;
 
     std::optional<NContainers::TRootFS> RootFS;
 
     std::vector<int> GpuIndexes;
 
-    std::optional<TString> HostName;
+    std::optional<std::string> HostName;
     std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
     bool EnableNat64;
     bool DisableNetwork;
@@ -158,7 +158,7 @@ struct TUserJobEnvironmentOptions
     bool EnableRootVolumeDiskQuota = false;
 
     //! Allowed places for creation of volumes and layers. "***" means any place.
-    std::vector<TString> Places;
+    std::vector<std::string> Places;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,9 +177,9 @@ struct IUserJobEnvironment
     virtual void SetIOThrottle(i64 operations) = 0;
 
     virtual TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) = 0;
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) = 0;
 
     virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
 

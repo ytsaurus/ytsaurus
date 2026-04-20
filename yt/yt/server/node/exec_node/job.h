@@ -510,7 +510,7 @@ private:
 
     TFuture<void> RunGpuCheckCommand(
         const TString& gpuCheckBinaryPath,
-        std::vector<TString> gpuCheckBinaryArgs,
+        std::vector<std::string> gpuCheckBinaryArgs,
         EGpuCheckType gpuCheckType);
 
     void OnGpuCheckCommandFinished(const TError& error);

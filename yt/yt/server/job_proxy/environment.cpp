@@ -366,9 +366,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -474,7 +474,7 @@ public:
             launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
 
-        launcher->SetNetworkInterface(TString(JobNetworkInterface));
+        launcher->SetNetworkInterface(std::string(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != NContainers::EEnablePorto::Full);
@@ -906,9 +906,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -1194,9 +1194,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
@@ -1520,7 +1520,7 @@ public:
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
+        process->AddArguments(std::vector<std::string>{"-c", std::string(sidecar.Config.Command)});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecar.Process = process;
 

@@ -4332,7 +4332,7 @@ TGpuCheckOptions TJob::GetGpuCheckOptions() const
 
     return TGpuCheckOptions{
         .BinaryPath = UserJobSpec_->gpu_check_binary_path(),
-        .BinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+        .BinaryArgs = FromProto<std::vector<std::string>>(UserJobSpec_->gpu_check_binary_args()),
         .NetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
             ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
             : std::nullopt,

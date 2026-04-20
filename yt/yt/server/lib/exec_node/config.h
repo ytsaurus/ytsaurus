@@ -524,7 +524,7 @@ struct TShellCommandConfig
     : public NYTree::TYsonStruct
 {
     TString Path;
-    std::vector<TString> Args;
+    std::vector<std::string> Args;
     THashMap<TString, TString> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TShellCommandConfig);
