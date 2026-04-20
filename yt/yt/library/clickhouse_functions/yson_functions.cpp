@@ -591,9 +591,14 @@ public:
 
     static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, const std::string_view&, const FormatSettings&)
     {
+        return InsertYsonStringToColumn(dest, element, EYsonFormat::Binary);
+    }
+
+    static bool InsertYsonStringToColumn(IColumn& dest, const YsonElement& element, EYsonFormat format)
+    {
         auto& colStr = static_cast<ColumnString&>(dest);
         auto& chars = colStr.getChars();
-        auto ysonString = ConvertToYsonString(element.GetNode());
+        auto ysonString = ConvertToYsonString(element.GetNode(), format);
         // Add +1 to save zero at the end of the string.
         auto ysonStringBuf = ysonString.AsStringBuf();
         chars.insert(ysonStringBuf.data(), ysonStringBuf.data() + ysonStringBuf.size() + 1);
@@ -617,14 +622,14 @@ public:
         return arguments.size() - 1;
     }
 
-    static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, std::string_view, const FormatSettings& formatSettings)
+    static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, std::string_view, const FormatSettings&)
     {
         if (element.isNull()) {
             return false;
         }
 
         if (!element.isString()) {
-            return TYsonExtractRawImpl::InsertResultToColumn(dest, element, {}, formatSettings);
+            return TYsonExtractRawImpl::InsertYsonStringToColumn(dest, element, EYsonFormat::Text);
         }
 
         auto str = element.getString();
@@ -732,7 +737,7 @@ public:
         auto& colRes = assert_cast<ColumnArray&>(dest);
 
         for (auto value : array) {
-            TYsonExtractRawImpl::InsertResultToColumn(colRes.getData(), value, {}, {});
+            TYsonExtractRawImpl::InsertYsonStringToColumn(colRes.getData(), value, EYsonFormat::Text);
         }
 
         colRes.getOffsets().push_back(colRes.getOffsets().back() + array.size());
@@ -772,7 +777,7 @@ public:
 
         for (auto [key, value] : object) {
             colKey.insertData(key.data(), key.size());
-            TYsonExtractRawImpl::InsertResultToColumn(colValue, value, {}, {});
+            TYsonExtractRawImpl::InsertYsonStringToColumn(colValue, element, EYsonFormat::Text);
         }
 
         colArr.getOffsets().push_back(colArr.getOffsets().back() + object.size());
