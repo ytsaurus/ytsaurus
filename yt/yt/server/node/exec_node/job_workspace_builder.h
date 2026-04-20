@@ -49,6 +49,7 @@ struct TJobWorkspaceBuildingContext
     std::vector<TShellCommandConfigPtr> SetupCommands;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
     std::vector<TVolumeResultPtr> PreparedNonRootVolumes;
+    std::vector<TVolumeResultPtr> ReusedNonRootVolumes;
 
     bool NeedGpu = false;
     std::optional<TGpuCheckOptions> GpuCheckOptions;
@@ -64,7 +65,7 @@ struct TJobWorkspaceBuildingResult
     IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
     std::optional<TString> DockerImageId;
-    std::vector<TVolumeResultPtr> NonRootVolumes;
+    std::vector<TVolumeResultPtr> PreparedNonRootVolumes;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
 

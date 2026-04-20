@@ -295,8 +295,8 @@ TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
 
     // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
     // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
-    if (ResultHolder_.NonRootVolumes.empty()) {
-        ResultHolder_.NonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+    if (ResultHolder_.PreparedNonRootVolumes.empty()) {
+        ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
     }
 
     return std::move(ResultHolder_);
@@ -369,7 +369,7 @@ private:
 
         SetNowTime(TimePoints_.PrepareNonRootVolumesStartTime);
 
-        const auto& volumes = Context_.UserSandboxOptions.NonRootVolumes;
+        const auto& volumes = Context_.FSSecretary->GetNonRootVolumesToPrepare();
         if (volumes.empty()) {
             SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
             return OKFuture;
@@ -439,7 +439,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ResultHolder_.NonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+        ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
 
         YT_LOG_DEBUG("Link non-root volumes is not needed in simple workspace");
 
@@ -465,7 +465,7 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, Context_.FSSecretary->GetNonRootVolumeParams())
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 MakeArtifactSymlinks();
 
@@ -563,6 +563,20 @@ private:
         }
 
         if (!layerArtifactKeys.empty()) {
+            // Check if root volume can be reused from previous job in the allocation.
+            if (const auto& existingRootVolume = Context_.FSSecretary->GetRootVolume()) {
+                YT_VERIFY(Context_.FSSecretary->IsRootVolumeReusable());
+
+                YT_LOG_INFO(
+                    "Reusing root volume from previous job (VolumePath: %v)",
+                    existingRootVolume->GetPath());
+
+                SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
+                ResultHolder_.RootVolume = existingRootVolume;
+                SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                return OKFuture;
+            }
+
             SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
 
             YT_LOG_INFO(
@@ -619,7 +633,7 @@ private:
 
         SetNowTime(TimePoints_.PrepareNonRootVolumesStartTime);
 
-        const auto& volumes = Context_.UserSandboxOptions.NonRootVolumes;
+        const auto& volumes = Context_.FSSecretary->GetNonRootVolumesToPrepare();
         if (volumes.empty()) {
             SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
             return OKFuture;
@@ -751,26 +765,41 @@ private:
 
         SetNowTime(TimePoints_.LinkVolumesStartTime);
 
-        const auto& volumes = Context_.PreparedNonRootVolumes;
+        // Combine newly prepared volumes with reused volumes.
+        std::vector<TVolumeResultPtr> allVolumes;
+        allVolumes.reserve(Context_.PreparedNonRootVolumes.size() + Context_.ReusedNonRootVolumes.size());
+        allVolumes.insert(allVolumes.end(), Context_.PreparedNonRootVolumes.begin(), Context_.PreparedNonRootVolumes.end());
+        allVolumes.insert(allVolumes.end(), Context_.ReusedNonRootVolumes.begin(), Context_.ReusedNonRootVolumes.end());
+
         const auto& slot = Context_.Slot;
-        return slot->LinkVolumes(ResultHolder_.RootVolume, volumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
-            .Apply(BIND([volumeResults = volumes, this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
+        return slot->LinkVolumes(ResultHolder_.RootVolume, allVolumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) mutable {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumeLinkingFailed, "Failed to link non-root volumes")
                         << error;
                 }
 
                 YT_LOG_DEBUG(
-                    "Linked non-root volumes (Volumes: %v)",
-                    MakeFormattableView(volumeResults,
+                    "Linked non-root volumes (PreparedVolumes: %v, ReusedVolumes: %v)",
+                    MakeFormattableView(Context_.PreparedNonRootVolumes,
                         [] (auto* builder, const TVolumeResultPtr& result) {
-                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                            builder->AppendFormat(
+                                "{VolumeId: %v, VolumePath: %v}",
                                 result->VolumeId,
                                 result->Volume->GetPath());
-                    }));
+                        }),
+                    MakeFormattableView(Context_.ReusedNonRootVolumes,
+                        [] (auto* builder, const TVolumeResultPtr& result) {
+                            builder->AppendFormat(
+                                "{VolumeId: %v, VolumePath: %v}",
+                                result->VolumeId,
+                                result->Volume->GetPath());
+                        }));
 
-                ResultHolder_.NonRootVolumes = std::move(volumeResults);
-                Context_.PreparedNonRootVolumes.clear();
+                // Only pass newly prepared volumes to ResultHolder_.
+                // Reused volumes are already in FSSecretary's NonRootVolumes_ map.
+                ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+                Context_.ReusedNonRootVolumes.clear();
 
                 SetNowTime(TimePoints_.LinkVolumesFinishTime);
             }).AsyncVia(Invoker_))
@@ -810,7 +839,7 @@ private:
         // applied a quota to root volume and should not set it again within sandbox preparation.
         bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, Context_.FSSecretary->GetNonRootVolumeParams(), ignoreQuota)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
                     MakeFilesForArtifactBinds();
@@ -1068,7 +1097,7 @@ private:
 
         SetNowTime(TimePoints_.PrepareNonRootVolumesStartTime);
 
-        const auto& volumes = Context_.UserSandboxOptions.NonRootVolumes;
+        const auto& volumes = Context_.FSSecretary->GetNonRootVolumesToPrepare();
         if (volumes.empty()) {
             SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
             return OKFuture;
@@ -1143,7 +1172,7 @@ private:
 
         YT_LOG_DEBUG("Link volumes is not supported in cri workspace");
 
-        ResultHolder_.NonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+        ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
 
         return OKFuture;
     }
@@ -1167,7 +1196,7 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, Context_.FSSecretary->GetNonRootVolumeParams())
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 MakeFilesForArtifactBinds();
 

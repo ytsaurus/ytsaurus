@@ -170,11 +170,16 @@ bool TSimpleTmpfsVolume::IsCached() const
 
 TFuture<void> TSimpleTmpfsVolume::Link(
     TGuid,
-    const TString&,
-    bool)
+    const TString&)
 {
     // Simple volume is created inside sandbox, so we don't need to link it.
     YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
+}
+
+TFuture<void> TSimpleTmpfsVolume::Unlink()
+{
+    // Simple volume is created inside sandbox, so we don't need to unlink it.
+    return OKFuture;
 }
 
 TFuture<void> TSimpleTmpfsVolume::Remove()

@@ -45,6 +45,7 @@ public:
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
+        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota);
 
     //! Inform slot location about tmpfses to be used.

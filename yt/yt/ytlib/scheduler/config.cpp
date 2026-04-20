@@ -1258,6 +1258,8 @@ void TVolume::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("layers", &TThis::Layers)
         .Default();
+    registrar.Parameter("allow_reusing", &TThis::AllowReusing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

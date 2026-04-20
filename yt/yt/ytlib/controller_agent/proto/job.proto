@@ -204,6 +204,8 @@ message TVolume
         NYT.NScheduler.NProto.TTmpfsStorageRequest tmpfs_storage_request = 3;
         NYT.NScheduler.NProto.TNbdDiskRequest nbd_disk_request = 4;
     }
+    // If true, the volume can be reused between sequential jobs within the same allocation.
+    optional bool allow_reusing = 5 [default = false];
 }
 
 message TVolumeMount

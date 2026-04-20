@@ -42,23 +42,55 @@ const std::string& TPortoVolumeBase::GetPath() const
 
 TFuture<void> TPortoVolumeBase::Link(
     TGuid tag,
-    const TString& target,
-    bool sholdCheckTargetDirExists)
+    const TString& target)
 {
     return TAsyncLockWriterGuard::Acquire(&Lock_)
-        .AsUnique().Apply(BIND([tag, target, sholdCheckTargetDirExists, this, this_ = MakeStrong(this)] (
+        .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
             TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
         {
             // Targets_ is protected with guard.
             Y_UNUSED(guard);
 
+            const auto& Logger = ExecNodeLogger();
+
+            YT_LOG_DEBUG(
+                "Starting linking volume (Tag: %v, Target: %v, VolumePath: %v)",
+                tag,
+                target,
+                GetPath());
+
             Targets_.push_back(target);
 
             // TODO(dgolear): Switch to std::string.
             auto source = TString(GetPath());
-            return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
+            return LayerLocation_->LinkVolume(tag, source, target);
         }))
         .ToUncancelable();
+}
+
+TFuture<void> TPortoVolumeBase::Unlink()
+{
+    return TAsyncLockWriterGuard::Acquire(&Lock_)
+        .AsUnique()
+        .Apply(BIND([this, this_ = MakeStrong(this)] (
+            TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
+        {
+            // Targets_ is protected with guard.
+            Y_UNUSED(guard);
+
+            const auto& Logger = ExecNodeLogger();
+
+            YT_LOG_DEBUG(
+                "Starting unlinking volume (Targets: %v, VolumePath: %v)",
+                Targets_,
+                GetPath());
+
+            auto targets = std::move(Targets_);
+            Targets_.clear();
+
+            auto source = TString(GetPath());
+            return UnlinkTargets(LayerLocation_, source, targets);
+        }));
 }
 
 TFuture<void> TPortoVolumeBase::Remove()

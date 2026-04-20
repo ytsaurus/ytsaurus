@@ -1535,6 +1535,10 @@ struct TVolume
 
     std::vector<TLayerPtr> Layers;
 
+    //! If true, the volume can be reused between sequential jobs within the same allocation.
+    //! This avoids re-creating the volume for each job.
+    bool AllowReusing;
+
     REGISTER_YSON_STRUCT(TVolume);
 
     static void Register(TRegistrar registrar);

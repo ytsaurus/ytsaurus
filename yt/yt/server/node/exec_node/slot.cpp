@@ -545,6 +545,7 @@ public:
 
     TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
+        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -559,6 +560,7 @@ public:
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options,
+                    nonRootVolumeParams,
                     ignoreQuota);
             });
     }

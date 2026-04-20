@@ -6,11 +6,12 @@ from yt_commands import (
     raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config,
     wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
-    make_random_string,
+    make_random_string, sync_create_cells, get_allocation_id_from_job_id,
 )
 
 from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt_helpers import profiler_factory
 
@@ -2928,3 +2929,659 @@ class TestVirtualSandbox(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_out3") == [{"Hello": "World"}]
+
+
+##################################################################
+
+
+class _TestVolumeReuseInAllocationBase(TestPortoLayersBase):
+    NUM_TEST_PARTITIONS = 3
+
+    NUM_NODES = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+
+class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("volume_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("with_layers", [False, True])
+    def test_tmpfs_volume_reused_with_allow_reusing(self, volume_type, with_layers):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        data_volume_spec = {
+            "disk_request": {
+                "type": volume_type,
+                "disk_space": 1024 * 1024,
+            },
+            "allow_reusing": True,
+        }
+        if with_layers:
+            data_volume_spec["layers"] = [{"path": "//tmp/layer1"}]
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "data": data_volume_spec,
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "my_volume"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        # Verify both jobs ran in the same allocation
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        # Sort jobs by job_id lexicographically - first job has smaller job_id
+        sorted_job_ids = sorted(job_ids)
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in sorted_job_ids]
+
+        # First job (lexicographically smaller job_id) should see FRESH,
+        # second job should see REUSED
+        assert stderrs[0] == "FRESH"
+        assert stderrs[1] == "REUSED"
+
+    @authors("pogorelov")
+    def test_tmpfs_volume_not_reused_without_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "data": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                            # allow_reusing defaults to False
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "data", "mount_path": "my_volume"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+        # Both jobs should see FRESH since volume is not reused
+        assert stderrs.count("FRESH") == 2
+        assert "REUSED" not in stderrs
+
+    @authors("pogorelov")
+    def test_partial_volume_reuse(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "REUSABLE='FRESH'; NONREUSABLE='FRESH'; "
+                "if [ -f reusable_vol/marker ]; then REUSABLE='REUSED'; fi; "
+                "if [ -f nonreusable_vol/marker ]; then NONREUSABLE='REUSED'; fi; "
+                "echo \"reusable=$REUSABLE nonreusable=$NONREUSABLE\" >&2; "
+                "echo 'marker' > reusable_vol/marker; "
+                "echo 'marker' > nonreusable_vol/marker"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "reusable": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                            "allow_reusing": True,
+                        },
+                        "nonreusable": {
+                            "disk_request": {
+                                "type": "tmpfs",
+                                "disk_space": 1024 * 1024,
+                            },
+                            "allow_reusing": False,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "reusable", "mount_path": "reusable_vol"},
+                        {"volume_id": "nonreusable", "mount_path": "nonreusable_vol"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+
+        # First job should see both volumes as FRESH
+        # Use space prefix to avoid matching "nonreusable=FRESH" which contains "reusable=FRESH"
+        first_job_stderr = [s for s in stderrs if " reusable=FRESH" in (" " + s) and "nonreusable=FRESH" in s]
+        assert len(first_job_stderr) == 1
+
+        # Second job should see reusable as REUSED, nonreusable as FRESH
+        second_job_stderr = [s for s in stderrs if "reusable=REUSED" in s and "nonreusable=FRESH" in s]
+        assert len(second_job_stderr) == 1
+
+    @authors("pogorelov")
+    def test_root_volume_reused_with_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        # Test root volume reuse with allow_reusing=True.
+        # Both jobs should use the same root volume path ($YT_ROOT_FS),
+        # which indicates the volume is being reused.
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat; echo $YT_ROOT_FS >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                            "allow_reusing": True,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        # Verify both jobs ran in the same allocation
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+
+        # Both jobs should use the same root volume path - this means the volume is reused
+        assert stderrs[0] == stderrs[1], \
+            f"Both jobs should use the same root volume path, but got: {stderrs[0]} and {stderrs[1]}"
+        assert stderrs[0] != "", "Root volume path should not be empty"
+
+    @authors("pogorelov")
+    def test_root_volume_not_reused_without_allow_reusing(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat; echo $YT_ROOT_FS >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                            # allow_reusing defaults to False
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in job_ids]
+        assert allocation_ids[0] == allocation_ids[1], "Both jobs should run in the same allocation"
+
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
+
+        assert stderrs[0] != stderrs[1], \
+            f"Both jobs should use different root volume paths when allow_reusing=False, but got: {stderrs[0]}"
+        assert stderrs[0] != "", "Root volume path should not be empty"
+        assert stderrs[1] != "", "Root volume path should not be empty"
+
+
+class TestNestedVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
+    NUM_TEST_PARTITIONS = 3
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("outer_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("inner_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("reuse_inner", [False, True])
+    @pytest.mark.parametrize("reuse_outer", [False, True])
+    def test_nested_volume_reuse(self, outer_type, inner_type, reuse_inner, reuse_outer):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}, {"k": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=(
+                "cat; "
+                "OUTER='FRESH'; INNER='FRESH'; "
+                "if [ -f outer_vol/marker ]; then OUTER='REUSED'; fi; "
+                "if [ -f outer_vol/inner_vol/marker ]; then INNER='REUSED'; fi; "
+                "echo \"outer=$OUTER inner=$INNER\" >&2; "
+                "echo 'marker' > outer_vol/marker; "
+                "echo 'marker' > outer_vol/inner_vol/marker"
+            ),
+            spec={
+                "max_failed_job_count": 1,
+                "data_size_per_job": 1,
+                "enable_multiple_jobs_in_allocation": True,
+                "mapper": {
+                    "volumes": {
+                        "root": {
+                            "layers": [{"path": "//tmp/layer1"}],
+                        },
+                        "outer": {
+                            "disk_request": {
+                                "type": outer_type,
+                                "disk_space": 2 * 1024 * 1024,
+                            },
+                            "allow_reusing": reuse_outer,
+                        },
+                        "inner": {
+                            "disk_request": {
+                                "type": inner_type,
+                                "disk_space": 1024 * 1024,
+                            },
+                            "allow_reusing": reuse_inner,
+                        },
+                    },
+                    "job_volumes_mounts": [
+                        {"volume_id": "root", "mount_path": "/"},
+                        {"volume_id": "outer", "mount_path": "outer_vol"},
+                        {"volume_id": "inner", "mount_path": "outer_vol/inner_vol"},
+                    ],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+
+        sorted_job_ids = sorted(job_ids)
+        stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in sorted_job_ids]
+
+        expected_outer_second = "REUSED" if reuse_outer else "FRESH"
+        expected_inner_second = "REUSED" if reuse_inner else "FRESH"
+
+        assert stderrs[0] == "outer=FRESH inner=FRESH"
+        assert stderrs[1] == f"outer={expected_outer_second} inner={expected_inner_second}"
+
+
+class TestVolumeReuseInGangOperation(TestPortoLayersBase):
+    NUM_NODES = 2
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestVolumeReuseInGangOperation, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    @authors("pogorelov")
+    def test_volume_reused_in_gang_operation(self):
+        self.setup_files()
+
+        op = run_test_vanilla(
+            with_breakpoint(
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi; "
+                "BREAKPOINT"
+            ),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+                "volumes": {
+                    "root": {
+                        "layers": [{"path": "//tmp/layer1"}],
+                    },
+                    "data": {
+                        "disk_request": {
+                            "type": "tmpfs",
+                            "disk_space": 1024 * 1024,
+                        },
+                        "allow_reusing": True,
+                    },
+                },
+                "job_volumes_mounts": [
+                    {"volume_id": "root", "mount_path": "/"},
+                    {"volume_id": "data", "mount_path": "my_volume"},
+                ],
+            },
+            spec={
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+        first_job_id = job_ids[0]
+
+        first_incarnation_reused_job_id = next(jid for jid in job_ids if jid != first_job_id)
+        reused_allocation_id = get_allocation_id_from_job_id(first_incarnation_reused_job_id)
+
+        current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
+
+        # Abort one job to trigger incarnation switch
+        abort_job(first_job_id)
+
+        wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
+        # Find the job that ran in the reused allocation
+        new_job_ids_in_reused_alloc = [
+            jid for jid in new_job_ids
+            if get_allocation_id_from_job_id(jid) == reused_allocation_id
+        ]
+        assert len(new_job_ids_in_reused_alloc) == 1
+
+        # The job in the reused allocation should see the marker file
+        reused_job_stderr = op.read_stderr(new_job_ids_in_reused_alloc[0]).decode("utf-8")
+        assert "REUSED" in reused_job_stderr
+
+    @authors("pogorelov")
+    def test_gang_jobs_aborted_before_volume_preparation(self):
+        self.setup_files()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "testing": {
+                            "delay_in_artifacts_caching": 30000,
+                        },
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint(
+                "if [ -f my_volume/marker ]; then "
+                "  echo 'REUSED' >&2; "
+                "else "
+                "  echo 'FRESH' >&2; "
+                "  echo 'marker_content' > my_volume/marker; "
+                "fi; "
+                "BREAKPOINT"
+            ),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+                "volumes": {
+                    "root": {
+                        "layers": [{"path": "//tmp/layer1"}],
+                    },
+                    "data": {
+                        "disk_request": {
+                            "type": "tmpfs",
+                            "disk_space": 1024 * 1024,
+                        },
+                        "allow_reusing": True,
+                    },
+                },
+                "job_volumes_mounts": [
+                    {"volume_id": "root", "mount_path": "/"},
+                    {"volume_id": "data", "mount_path": "my_volume"},
+                ],
+            },
+            spec={
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+            track=False,
+        )
+
+        # Wait for jobs to start but not complete artifact caching
+        wait(lambda: len(op.list_jobs()) == 2)
+        first_incarnation_job_ids = list(op.list_jobs())
+        job_id = first_incarnation_job_ids[0]
+        wait(lambda: op.get_job_phase(job_id) == "caching_artifacts")
+
+        time.sleep(3)
+
+        # Remove the delay
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "testing": {
+                            "delay_in_artifacts_caching": None,
+                        },
+                    },
+                },
+            },
+        })
+
+        first_incarnation_reused_job_id = next(
+            jid for jid in first_incarnation_job_ids if jid != job_id
+        )
+        reused_allocation_id = get_allocation_id_from_job_id(first_incarnation_reused_job_id)
+
+        current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
+
+        # Abort one job to trigger incarnation switch
+        abort_job(job_id)
+
+        wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
+        # Find the job that ran in the reused allocation
+        new_job_ids_in_reused_alloc = [
+            jid for jid in new_job_ids
+            if get_allocation_id_from_job_id(jid) == reused_allocation_id
+        ]
+        assert len(new_job_ids_in_reused_alloc) == 1
+
+        # The job in the reused allocation should see FRESH because volumes were not prepared
+        # before the abort (abort happened during artifact caching delay)
+        reused_job_stderr = op.read_stderr(new_job_ids_in_reused_alloc[0]).decode("utf-8")
+        assert "FRESH" in reused_job_stderr
