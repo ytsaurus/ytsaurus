@@ -460,6 +460,7 @@ type PutFileToCacheOptions struct {
 	*MasterReadOptions
 	*MutatingOptions
 	*PrerequisiteOptions
+	*TransactionOptions
 }
 
 type GetFileFromCacheOptions struct {

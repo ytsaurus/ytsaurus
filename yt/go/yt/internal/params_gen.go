@@ -871,6 +871,7 @@ func writePutFileToCacheOptions(w *yson.Writer, o *yt.PutFileToCacheOptions) {
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+	writeTransactionOptions(w, o.TransactionOptions)
 }
 
 func logPutFileToCacheOptions(o *yt.PutFileToCacheOptions) []log.Field {
@@ -885,6 +886,7 @@ func logPutFileToCacheOptions(o *yt.PutFileToCacheOptions) []log.Field {
 	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
 	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
 	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
 	return fields
 }
 
@@ -3902,6 +3904,10 @@ func (p *PutFileToCacheParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *PutFileToCacheParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+func (p *PutFileToCacheParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
 }
 
 type GetFileFromCacheParams struct {
