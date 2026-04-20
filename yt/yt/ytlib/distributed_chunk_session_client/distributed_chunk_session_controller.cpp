@@ -75,7 +75,7 @@ public:
         , Logger(DistributedChunkSessionLogger().WithTag("TransactionId: %v", TransactionId_))
     { }
 
-    TFuture<TNodeDescriptor> StartSession() final
+    TFuture<TStartedSessionInfo> StartSession() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -220,7 +220,7 @@ private:
         return req->Invoke().AsVoid();
     }
 
-    TNodeDescriptor InitializePingExecutor(const TError& error)
+    TStartedSessionInfo InitializePingExecutor(const TError& error)
     {
         error.ThrowOnError();
 
@@ -233,20 +233,23 @@ private:
 
         TransitionState(EControllerState::Starting, EControllerState::Running);
 
-        return SequencerDescriptor_;
+        return TStartedSessionInfo{
+            .SessionId = SessionId_,
+            .SequencerNode = SequencerDescriptor_,
+            .Replicas = Targets_,
+        };
     }
 
-    TNodeDescriptor HandleStartResult(const TErrorOr<TNodeDescriptor>& descriptorOrError)
+    TStartedSessionInfo HandleStartResult(const TErrorOr<TStartedSessionInfo>& startedSessionOrError)
     {
-        if (!descriptorOrError.IsOK()) {
-            auto error = TError(descriptorOrError);
+        if (!startedSessionOrError.IsOK()) {
+            const auto& error = static_cast<const TError&>(startedSessionOrError);
             YT_LOG_DEBUG(error, "Failed to start session");
             TransitionState(EControllerState::Starting, EControllerState::Closed);
             ClosedPromise_.Set(error);
-            descriptorOrError.ThrowOnError();
         }
 
-        return descriptorOrError.Value();
+        return startedSessionOrError.ValueOrThrow();
     }
 
     void SendSequencerPing()
