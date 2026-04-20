@@ -149,7 +149,7 @@ public:
         , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
         , OrchidScanBundleCounter_(New<NOrchid::TScanBundleCounter>())
     {
-        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
+        Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
             BIND(&TBundleController::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
