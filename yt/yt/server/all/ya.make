@@ -41,6 +41,7 @@ PEERDIR(
     yt/yt/server/tools
     yt/yt/server/replicated_table_tracker
     yt/yt/server/multidaemon
+    yt/yt/server/offshore_data_gateway
 
     yt/yt/library/oom
 )

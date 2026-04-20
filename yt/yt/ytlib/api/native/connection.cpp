@@ -74,6 +74,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
@@ -312,6 +314,11 @@ public:
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             GetNetworks());
+
+        OffshoreDataGatewayChannel_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannel(
+            config->OffshoreDataGateway,
+            ChannelFactory_,
+            this);
 
         InitializeQueueAgentChannels();
 
@@ -704,6 +711,11 @@ public:
         return TabletBalancerChannel_;
     }
 
+    const IChannelPtr& GetOffshoreDataGatewayChannel() override
+    {
+        return OffshoreDataGatewayChannel_;
+    }
+
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
     {
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellId, peerKind));
@@ -1077,6 +1089,8 @@ private:
     IChannelPtr SchedulerChannel_;
     IChannelPtr BundleControllerChannel_;
     IChannelPtr TabletBalancerChannel_;
+
+    IChannelPtr OffshoreDataGatewayChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
