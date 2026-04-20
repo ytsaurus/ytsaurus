@@ -20,6 +20,7 @@ import os
 import json
 import pytest
 import random
+import subprocess
 import string
 import time
 import uuid
@@ -787,3 +788,10 @@ class TestYtBinary(object):
         assert push_result["last_sequence_number"] == 3
 
         yt_cli.check_output(["yt", "remove-queue-producer-session", "--producer-path", producer_path, "--queue-path", queue_path, "--session-id", session_id])
+
+    @authors("denvr")
+    def test_cli_bad_conditions(self, yt_cli: YtCli):
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            yt_cli.check_output(["yt", "execute", "foo", "{}"])
+            assert "yt.common.YtError: Command \"foo\" is not supported by cluster" in ex.stderr
+            assert ex.returncode == 1

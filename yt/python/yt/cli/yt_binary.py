@@ -1991,12 +1991,14 @@ def add_remove_member_parser(add_parser):
 
 
 def execute(**kwargs):
-    command_description = get_commands_description()[kwargs["command_name"]]
+    command_description = get_commands_description().get(kwargs["command_name"])
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
 
     # command_description behaves differently in python and native implementations.
-    if callable(command_description.input_type):
+    if not command_description:
+        raise yt.YtError(f"Command \"{kwargs['command_name']}\" is not supported by cluster")
+    elif callable(command_description.input_type):
         # native implementation.
         input_type_is_null = command_description.input_type() == b'Null'
     else:
