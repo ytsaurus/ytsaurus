@@ -810,7 +810,7 @@ private:
             Config_->TableAttributeCache,
             TableAttributesToFetch,
             Connection_,
-            ControlInvoker_,
+            FetcherInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/object_attribute_cache"));
 
