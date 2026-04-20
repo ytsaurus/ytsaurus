@@ -2475,6 +2475,16 @@ void TJob::PrepareWorkspace()
         BuildVirtualSandbox();
     }
 
+    // Collect already prepared reusable volumes for linking.
+    std::vector<TVolumeResultPtr> reusedNonRootVolumes;
+    {
+        const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
+        reusedNonRootVolumes.reserve(size(nonRootVolumes));
+        for (const auto& [_, volumeResult] : nonRootVolumes) {
+            reusedNonRootVolumes.push_back(volumeResult);
+        }
+    }
+
     TJobWorkspaceBuildingContext context{
         .Logger = Logger,
         .UserSandboxOptions = BuildUserSandboxOptions(),
@@ -2488,6 +2498,7 @@ void TJob::PrepareWorkspace()
         .Binds = binds,
         .SetupCommands = GetSetupCommands(),
         .DockerAuth = BuildDockerAuthConfig(),
+        .ReusedNonRootVolumes = std::move(reusedNonRootVolumes),
 
         .NeedGpu = NeedGpu(),
         .GpuCheckOptions = NeedsGpuCheck()
@@ -2556,7 +2567,7 @@ void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuild
 
     auto result = workspaceBuilder->ExtractResult();
     FSSecretary_->SetRootVolume(std::move(result.RootVolume));
-    FSSecretary_->SetNonRootVolumes(std::move(result.NonRootVolumes));
+    FSSecretary_->SetNonRootVolumes(std::move(result.PreparedNonRootVolumes));
     FSSecretary_->SetGpuCheckVolume(std::move(result.GpuCheckVolume));
     // Workspace builder may add or replace docker image.
     FSSecretary_->SetDockerImage(std::move(result.DockerImage));
@@ -2932,12 +2943,49 @@ void TJob::Cleanup()
         }
     };
 
-    // Remove tmpfs volumes prior to root volume.
-    for (auto& tmpfsVolume : FSSecretary_->ReleaseNonRootVolumes()) {
-        removeVolume(std::move(tmpfsVolume->Volume));
+    {
+        // Unlink reusable non-root volumes so they can be re-linked in the next job.
+        // Iterate mounts in reverse order to unlink nested mount points from leaf to root
+        // (e.g. "outer/inner" before "outer"), otherwise parent unlink may fail.
+        const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
+        // TODO(pogorelov): If a volume is mounted at multiple mount paths,
+        // deduplication by volume id may violate topological unlink order.
+        THashSet<std::string> unlinkedVolumeIds;
+        const auto& jobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
+        for (auto it = jobVolumeMounts.rbegin(); it != jobVolumeMounts.rend(); ++it) {
+            const auto& volumeMount = *it;
+            if (volumeMount->MountPath == "/") {
+                continue;
+            }
+
+            if (!unlinkedVolumeIds.insert(volumeMount->VolumeId).second) {
+                continue;
+            }
+
+            auto volumeIt = nonRootVolumes.find(volumeMount->VolumeId);
+            if (volumeIt == nonRootVolumes.end()) {
+                continue;
+            }
+
+            const auto& volumeResult = volumeIt->second;
+            auto unlinkResult = WaitFor(volumeResult->Volume->Unlink());
+            YT_LOG_ERROR_IF(
+                !unlinkResult.IsOK(),
+                unlinkResult,
+                "Volume unlink failed (VolumeId: %v, MountPath: %v, VolumePath: %v)",
+                volumeMount->VolumeId,
+                volumeMount->MountPath,
+                volumeResult->Volume->GetPath());
+        }
     }
 
-    removeVolume(FSSecretary_->ReleaseRootVolume());
+    // Remove non-reusable non-root volumes prior to root volume.
+    // Reusable volumes are preserved for the next job in the allocation.
+    for (auto& [_, volumeResult] : FSSecretary_->ReleaseNonReusableNonRootVolumes()) {
+        removeVolume(std::move(volumeResult->Volume));
+    }
+
+    removeVolume(FSSecretary_->ReleaseRootVolumeIfNeeded());
     removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
 
     if (const auto& slot = GetUserSlot()) {
@@ -3188,7 +3236,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
 
     proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(FSSecretary_->GetTmpfsVolumeCount());
-    for (const auto& volume : nonRootVolumes) {
+    for (const auto& [_, volume] : nonRootVolumes) {
         if (volume->VolumeType == EVolumeType::Tmpfs) {
             auto tmpfsVolume = StaticPointerCast<TTmpfsVolumeResult>(volume);
             YT_VERIFY(tmpfsVolume->Index < std::ssize(proxyInternalConfig->TmpfsManager->TmpfsPaths));
@@ -3494,7 +3542,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.SlotPath = GetUserSlot()->GetSlotPath();
     options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
-    options.NonRootVolumes = FSSecretary_->GetNonRootVolumeParams();
     options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
     options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
 

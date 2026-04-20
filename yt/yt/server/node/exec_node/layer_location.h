@@ -135,8 +135,7 @@ public:
     TFuture<void> LinkVolume(
         TGuid tag,
         const TString& source,
-        const TString& target,
-        bool sholdCheckTargetDirExists);
+        const TString& target);
 
     TFuture<void> UnlinkVolume(
         const TString& source,
@@ -274,8 +273,7 @@ private:
     void DoLinkVolume(
         TGuid tag,
         const TString& source,
-        const TString& target,
-        bool sholdCheckTargetDirExists);
+        const TString& target);
 
     void DoUnlinkVolume(
         const TString& source,

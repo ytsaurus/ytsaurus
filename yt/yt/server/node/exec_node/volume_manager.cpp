@@ -683,12 +683,10 @@ public:
             auto volume = GetNonRootVolumeResultByVolumeId(volumeMount->VolumeId, volumes);
             TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volumeMount->MountPath));
 
-            // DestinationDirectory may already be created before LinkVolumes is called.
-            bool sholdCheckTargetDirExists = target != destinationDirectory;
             future = future
                 .Apply(
-                    BIND([tag, volume, target, sholdCheckTargetDirExists] {
-                        return volume->Volume->Link(tag, target, sholdCheckTargetDirExists);
+                    BIND([tag, volume, target] {
+                        return volume->Volume->Link(tag, target);
                     })
                     .AsyncVia(GetCurrentInvoker())
                 );

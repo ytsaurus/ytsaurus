@@ -19,10 +19,18 @@ TBaseVolumeParams::TBaseVolumeParams(std::string volumeId, EVolumeType volumeTyp
 
 bool TBaseVolumeParams::operator==(const TBaseVolumeParams& other) const
 {
-    if (VolumeType != other.VolumeType) {
+    // First compare all base class members.
+    if (VolumeId != other.VolumeId ||
+        VolumeType != other.VolumeType ||
+        UserId != other.UserId ||
+        Size != other.Size ||
+        LayerArtifactKeys != other.LayerArtifactKeys ||
+        AllowReusing != other.AllowReusing)
+    {
         return false;
     }
 
+    // Then dispatch to derived class to compare derived-specific members.
     switch (VolumeType) {
         case EVolumeType::Tmpfs:
             return static_cast<const TTmpfsVolumeParams&>(*this) == static_cast<const TTmpfsVolumeParams&>(other);
@@ -35,7 +43,7 @@ bool TBaseVolumeParams::operator==(const TBaseVolumeParams& other) const
 
 void TBaseVolumeParams::Format(TStringBuilderBase* builder) const
 {
-    builder->AppendFormat("UserId: %v, VolumeId: %v, Size: %v", UserId, VolumeId, Size);
+    builder->AppendFormat("UserId: %v, VolumeId: %v, Size: %v, AllowReusing: %v", UserId, VolumeId, Size, AllowReusing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +58,14 @@ void TTmpfsVolumeParams::Format(TStringBuilderBase* builder) const
     builder->AppendFormat(", TmpfsIndex: %v", Index);
 }
 
+bool TTmpfsVolumeParams::operator==(const TTmpfsVolumeParams& other) const
+{
+    // NB: We only compare derived class members here.
+    // Base class members (VolumeId, Size, LayerArtifactKeys, AllowReusing) are compared
+    // by TBaseVolumeParams::operator== before dispatching to this method.
+    return Index == other.Index;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocalDiskVolumeParams::TLocalDiskVolumeParams(std::string volumeId, int userId)
@@ -60,6 +76,14 @@ void TLocalDiskVolumeParams::Format(TStringBuilderBase* builder) const
 {
     TBaseVolumeParams::Format(builder);
     builder->AppendFormat(", InodeLimit: %v", InodeLimit);
+}
+
+bool TLocalDiskVolumeParams::operator==(const TLocalDiskVolumeParams& other) const
+{
+    // NB: We only compare derived class members here.
+    // Base class members (VolumeId, Size, LayerArtifactKeys, AllowReusing) are compared
+    // by TBaseVolumeParams::operator== before dispatching to this method.
+    return InodeLimit == other.InodeLimit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

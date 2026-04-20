@@ -44,8 +44,9 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target,
-        bool sholdCheckTargetDirExists) override final;
+        const TString& target) override final;
+
+    TFuture<void> Unlink() override final;
 
     TFuture<void> Remove() override final;
 

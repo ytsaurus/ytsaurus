@@ -52,6 +52,7 @@ struct IUserSlot
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
+        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota = false) = 0;
 
     virtual TFuture<void> MakeLink(

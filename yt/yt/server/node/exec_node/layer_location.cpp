@@ -269,16 +269,14 @@ TFuture<void> TLayerLocation::RemoveVolume(
 TFuture<void> TLayerLocation::LinkVolume(
     TGuid tag,
     const TString& source,
-    const TString& target,
-    bool sholdCheckTargetDirExists)
+    const TString& target)
 {
     return BIND(
         &TLayerLocation::DoLinkVolume,
         MakeStrong(this),
         tag,
         source,
-        target,
-        sholdCheckTargetDirExists)
+        target)
         .AsyncVia(LocationQueue_->GetInvoker())
         .Run();
 }
@@ -1413,18 +1411,14 @@ void TLayerLocation::DoRemoveVolume(
 void TLayerLocation::DoLinkVolume(
     TGuid tag,
     const TString& source,
-    const TString& target,
-    bool sholdCheckTargetDirExists)
+    const TString& target)
 {
-    YT_LOG_DEBUG("Linking volume (Tag: %v, Source: %v, Target: %v)",
+    YT_LOG_DEBUG(
+        "Linking volume (Tag: %v, Source: %v, Target: %v)",
         tag,
         source,
         target);
 
-    if (sholdCheckTargetDirExists && NFS::Exists(target)) {
-        THROW_ERROR_EXCEPTION("Target path already exists")
-            << TErrorAttribute("target", target);
-    }
     NFS::MakeDirRecursive(target, 0755);
     WaitFor(VolumeExecutor_->LinkVolume(source, "self", target))
         .ThrowOnError();

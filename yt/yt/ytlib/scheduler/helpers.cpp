@@ -986,6 +986,7 @@ void ToProto(NControllerAgent::NProto::TVolume* volumeProto, const TVolume& volu
             YT_ABORT();
         }
     }
+    volumeProto->set_allow_reusing(volume.AllowReusing);
 }
 
 void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeProto)
@@ -1013,6 +1014,7 @@ void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeP
         case TProtoMessage::DISK_REQUEST_NOT_SET:
             YT_ABORT();
     }
+    volume->AllowReusing = volumeProto.allow_reusing();
 }
 
 void FromProto(

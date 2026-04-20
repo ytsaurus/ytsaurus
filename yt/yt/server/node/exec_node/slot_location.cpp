@@ -448,12 +448,13 @@ void TSlotLocation::DoPrepareSandboxDirectories(
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
+    const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
     bool ignoreQuota)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
     return BIND([=, this_ = MakeStrong(this)] {
-            for (const auto& volumeParams : options.NonRootVolumes) {
+            for (const auto& volumeParams : nonRootVolumeParams) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
                 auto mountPath = GetVolumeMountPathByVolumeId(volumeParams->VolumeId, options.JobVolumeMounts);
