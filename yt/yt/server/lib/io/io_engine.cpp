@@ -289,7 +289,6 @@ TInternalReadResponse DoRead(
                     << TErrorAttribute("really_read", reallyRead)
                     << TErrorAttribute("file_offset", fileOffset)
                     << TErrorAttribute("file_size", request.Handle->GetLength())
-                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
                     << TError::FromSystem();
             } else if (useDirectIO && fileOffset + reallyRead == request.Handle->GetLength()) {
                 toReadRemaining = 0;
@@ -1213,7 +1212,7 @@ public:
             buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index], config->DirectIOBlockSize);
 
             for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer, config->DirectIOBlockSize)) {
-                auto slotId = requests[index].FairShareSlotId;
+                auto slotId = slice.Request.FairShareSlotId;
                 auto requestId = TGuid::Create();
                 auto promise = CreateRequestPromise<TInternalReadResponse>(
                     slotId,
@@ -1310,7 +1309,7 @@ public:
                 slotId,
                 requestId,
                 EFairShareIOEngineRequestType::Write);
-            auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
+            auto toWriteRemaining = static_cast<i64>(GetByteSize(slice.Buffers));
 
             futures.push_back(promise.ToFuture());
 

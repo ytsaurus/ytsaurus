@@ -328,7 +328,7 @@ void TBlobChunkBase::DoReadMeta(
         auto fairShareQueueSlot = Location_->AddFairShareQueueSlot(
             metaSize,
             {},
-            CreateHierarchyLevels(session->Options.FairShareTags));
+            CreateHierarchyLevels(tags));
 
         YT_VERIFY(fairShareQueueSlot.IsOK());
 
@@ -547,7 +547,7 @@ void TBlobChunkBase::DoReadSession(
     auto fairShareSlotOrError = Location_->AddFairShareQueueSlot(
         alignedPendingDataSize,
         {},
-        CreateHierarchyLevels(session->Options.FairShareTags));
+        CreateHierarchyLevels(tags));
 
     YT_VERIFY(fairShareSlotOrError.IsOK());
 
