@@ -526,11 +526,19 @@ private:
                 length,
                 flags);
 
-            TWallTimer timer;
+            TEventTimerGuard readTimeGuard(
+                TNbdProfilerCounters::Get()->GetTimer(
+                    TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                    "/device/read_time"));
+
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) {
-                        auto duration = timer.GetElapsedTime().SecondsFloat();
+                    BIND([=, readTimeGuard = std::move(readTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) mutable {
+                        auto duration = readTimeGuard.GetElapsedTime().SecondsFloat();
+                        {
+                            // Destroy readTimeGuard to finalize read time.
+                            auto guard = std::move(readTimeGuard);
+                        }
 
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
@@ -632,11 +640,19 @@ private:
                 options.Flush = true;
             }
 
-            TWallTimer timer;
+            TEventTimerGuard writeTimeGuard(
+                TNbdProfilerCounters::Get()->GetTimer(
+                    TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                    "/device/write_time"));
+
             Device_->Write(offset, payload, options)
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) {
-                        auto duration = timer.GetElapsedTime().SecondsFloat();
+                    BIND([=, writeTimeGuard = std::move(writeTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) mutable {
+                        auto duration = writeTimeGuard.GetElapsedTime().SecondsFloat();
+                        {
+                            // Destroy writeTimeGuard to finalize write time.
+                            auto guard = std::move(writeTimeGuard);
+                        }
 
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",

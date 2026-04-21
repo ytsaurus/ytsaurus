@@ -67,7 +67,8 @@ public:
 
     TString GetProfileSensorTag() const override
     {
-        return TString();
+        // This is a RW block device.
+        return "rw";
     }
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
