@@ -51,7 +51,7 @@ public:
         NTabletClient::TTabletId tabletId);
 
 private:
-    NThreading::TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     THashSet<TString> AllTables_;
     NProfiling::TGauge ConsumedTableTags_;

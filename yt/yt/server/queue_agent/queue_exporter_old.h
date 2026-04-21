@@ -110,7 +110,7 @@ private:
     const TString ExportName_;
     const NQueueClient::TTablePath Queue_;
 
-    NThreading::TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     NQueueClient::TQueueStaticExportConfigPtr ExportConfig_;
     TQueueExporterDynamicConfig DynamicConfig_;
     TQueueExportProgressOldPtr ExportProgress_;

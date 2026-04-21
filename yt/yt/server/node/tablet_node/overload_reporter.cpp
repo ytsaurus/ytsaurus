@@ -75,7 +75,7 @@ public:
     }
 
 private:
-    TSpinLock SpinLock_;
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TSimpleLruCache<std::string, NOrm::NQuery::IExpressionEvaluatorPtr> EvaluatorCache_;
 };
 
