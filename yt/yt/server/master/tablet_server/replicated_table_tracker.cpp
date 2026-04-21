@@ -867,7 +867,7 @@ private:
         NApi::IClientPtr Client;
     };
 
-    NThreading::TSpinLock ClusterToConnectionLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterToConnectionLock_);
     THashMap<std::string, TClusterConnectionInfo> ClusterToConnection_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;
