@@ -116,6 +116,17 @@ void TOwner::Deserialize(const Poco::XML::Node& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THeadBucketRequest::Serialize(THttpRequest* request) const
+{
+    request->Method = NHttp::EMethod::Head;
+    request->Path = Format("/%v", Bucket);
+}
+
+void THeadBucketResponse::Deserialize(const NHttp::IResponsePtr& /*response*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TListBucketsRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Get;
@@ -444,6 +455,7 @@ public:
     DEFINE_STRUCTURED_COMMAND(AbortMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(CompleteMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(HeadObject)
+    DEFINE_STRUCTURED_COMMAND(HeadBucket)
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
