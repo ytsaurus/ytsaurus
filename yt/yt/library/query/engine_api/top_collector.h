@@ -25,22 +25,14 @@ public:
     Y_FORCE_INLINE const TPIValue* AddRow(const TPIValue* row);
 
 private:
-    struct TRowAndBuffer
-    {
-        TPIValue* Row = nullptr;
-        i64 ContextIndex = -1;
-    };
-
-    using THeap = std::vector<TRowAndBuffer, TAllocatorOverChunkProvider<TRowAndBuffer>>;
+    using THeap = std::vector<TPIValue*, TAllocatorOverChunkProvider<TPIValue*>>;
 
     void AccountGarbage(const TPIValue* row);
-    void CollectGarbageAndAllocateNewContextIfNeeded();
-    TRowAndBuffer Capture(const TPIValue* row, TPIValue* destination);
+    void CollectGarbageIfNeeded();
+    void Capture(const TPIValue* row, TPIValue* destination);
 
-    // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
-    size_t TotalMemorySize_ = 0;
-    size_t AllocatedMemorySize_ = 0;
-    size_t GarbageMemorySize_ = 0;
+    // GarbageMemorySize <= StringLikeValuesContext_.GetSize() <= StringLikeValuesContext_.GetCapacity()
+    i64 GarbageMemorySize_ = 0;
 
     const TComparerFunction Comparer_;
     const size_t RowSize_;
@@ -48,9 +40,7 @@ private:
     const i64 Limit_;
 
     TExpressionContext RowsContext_;
-
-    std::vector<TExpressionContext> StringLikeValueContexts_;
-    std::vector<int> StringLikeValueEmptyContextIds_;
+    TExpressionContext StringLikeValuesContext_;
 
     THeap Heap_;
 };
