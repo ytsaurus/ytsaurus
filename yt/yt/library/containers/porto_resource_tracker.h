@@ -3,7 +3,7 @@
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/cgroup/process.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/ytree/public.h>

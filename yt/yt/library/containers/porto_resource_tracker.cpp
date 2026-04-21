@@ -14,7 +14,6 @@
 
 #include <yt/yt/library/process/process.h>
 
-#include <yt/yt/library/containers/cgroup.h>
 #include <yt/yt/library/containers/config.h>
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>

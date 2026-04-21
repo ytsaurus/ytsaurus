@@ -1,15 +1,6 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/core/actions/public.h>
-
-#include <yt/yt/core/ytree/yson_struct.h>
-#include <yt/yt/core/yson/public.h>
-
-#include <yt/yt/core/misc/property.h>
-
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NContainers {
 
@@ -37,8 +28,6 @@ public:
         TErrorOr<TDuration> GuaranteeTime;
     };
 };
-
-void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,8 +65,6 @@ public:
     };
 };
 
-void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemory
@@ -104,8 +91,6 @@ public:
     };
 };
 
-void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNetwork
@@ -124,8 +109,6 @@ public:
         TErrorOr<i64> RxLimit;
     };
 };
-
-void Serialize(const TNetwork::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

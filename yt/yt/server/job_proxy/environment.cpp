@@ -22,8 +22,9 @@
 #include <util/string/split.h>
 
 #ifdef _linux_
-#include <yt/yt/library/containers/cgroup.h>
-#include <yt/yt/library/containers/cgroups_new.h>
+#include <yt/yt/library/cgroup/process.h>
+#include <yt/yt/library/cgroup/statistics.h>
+
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #endif

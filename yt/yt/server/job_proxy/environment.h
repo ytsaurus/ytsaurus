@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/cgroup/process.h>
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 #include <yt/yt/library/containers/public.h>
 

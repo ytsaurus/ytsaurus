@@ -3,8 +3,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    cgroup.cpp
-    cgroups_new.cpp
     config.cpp
     container_devices_checker.cpp
     helpers.cpp
@@ -19,6 +17,7 @@ SRCS(
 PEERDIR(
     library/cpp/porto/proto
 
+    yt/yt/library/cgroup
     yt/yt/library/pipe_io
     yt/yt/library/process
 
