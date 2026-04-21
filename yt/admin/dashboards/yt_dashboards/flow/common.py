@@ -60,6 +60,13 @@ def build_dashboard_links(dashboard_short_name: str):
 
     return [
         {
+            "link": {
+                "title": "UI YT",
+                "openInNewTab": True,
+                "url": "https://yt.yandex-team.ru/{{pipeline_cluster}}/flows/graph?path={{pipeline_path}}",
+            },
+        },
+        {
             "group": {
                 "items": [
                     {
