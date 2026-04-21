@@ -9,8 +9,10 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/suspendable_action_queue.h>
+
+#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -55,6 +57,8 @@ class TFakeDistributedChunkSessionController
     : public IDistributedChunkSessionController
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(int, CloseCallCount);
+
     explicit TFakeDistributedChunkSessionController(
         TStartedSessionInfo startedSession,
         bool delayStart = false,
@@ -92,11 +96,6 @@ public:
         return StartedSession_.SessionId;
     }
 
-    int GetCloseCallCount() const
-    {
-        return CloseCallCount_;
-    }
-
     void FailUnexpectedly(const TError& error)
     {
         ClosedPromise_.TrySet(error);
@@ -123,8 +122,6 @@ private:
     const std::optional<TError> CloseError_;
     const TPromise<TStartedSessionInfo> StartPromise_ = NewPromise<TStartedSessionInfo>();
     const TPromise<void> ClosedPromise_ = NewPromise<void>();
-
-    int CloseCallCount_ = 0;
 };
 
 using TFakeDistributedChunkSessionControllerPtr = TIntrusivePtr<TFakeDistributedChunkSessionController>;
@@ -142,19 +139,17 @@ public:
         std::optional<TError> CloseError;
     };
 
+    DEFINE_BYVAL_RO_PROPERTY(int, CreateControllerCallCount);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkId>, ScheduledSeals);
+
     explicit TPoolHarness(std::vector<TStartedSessionInfo> startedSessions)
         : TPoolHarness(BuildControllerSpecs(std::move(startedSessions)))
     { }
 
     explicit TPoolHarness(std::vector<TControllerSpec> controllerSpecs)
         : ControllerSpecs_(std::move(controllerSpecs))
-        , ActionQueue_(New<TActionQueue>("PoolTest"))
+        , ActionQueue_(CreateSuspendableActionQueue("PoolTest"))
     { }
-
-    ~TPoolHarness()
-    {
-        ActionQueue_->Shutdown(/*graceful*/ false);
-    }
 
     IDistributedChunkSessionPoolPtr CreatePool(int maxActiveSessionsPerSlot)
     {
@@ -190,19 +185,9 @@ public:
         return StartedSessions_;
     }
 
-    int CreateControllerCallCount() const
-    {
-        return CreateControllerCallCount_;
-    }
-
     TFakeDistributedChunkSessionControllerPtr GetController(TSessionId sessionId) const
     {
         return GetOrCrash(Controllers_, sessionId);
-    }
-
-    const std::vector<TChunkId>& ScheduledSeals() const
-    {
-        return ScheduledSeals_;
     }
 
     void SetChunkSealRetryBackoff(TExponentialBackoffOptions chunkSealRetryBackoff)
@@ -218,8 +203,9 @@ public:
 
     void DrainInvoker()
     {
-        WaitFor(BIND([] { }).AsyncVia(ActionQueue_->GetInvoker()).Run())
+        WaitFor(ActionQueue_->Suspend(/*immediately*/ false))
             .ThrowOnError();
+        ActionQueue_->Resume();
     }
 
 private:
@@ -234,14 +220,12 @@ private:
 
         return startedSessions;
     }(ControllerSpecs_);
-    const TActionQueuePtr ActionQueue_;
+    const ISuspendableActionQueuePtr ActionQueue_;
 
     THashMap<TSessionId, TFakeDistributedChunkSessionControllerPtr> Controllers_;
     TExponentialBackoffOptions ChunkSealRetryBackoff_;
     bool HasChunkSealRetryBackoff_ = false;
     std::vector<TError> ScheduleChunkSealErrors_;
-    std::vector<TChunkId> ScheduledSeals_;
-    int CreateControllerCallCount_ = 0;
     int ScheduleChunkSealCallCount_ = 0;
 
     static std::vector<TControllerSpec> BuildControllerSpecs(std::vector<TStartedSessionInfo> startedSessions)
@@ -290,7 +274,7 @@ TEST(TDistributedChunkSessionPoolTest, CreatesFirstSessionForEmptySlot)
     EXPECT_EQ(
         session.SequencerNode.GetDefaultAddress(),
         harness.StartedSessions()[0].SequencerNode.GetDefaultAddress());
-    EXPECT_EQ(harness.CreateControllerCallCount(), 1);
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 1);
 }
 
 TEST(TDistributedChunkSessionPoolTest, ReusesExistingActiveSession)
@@ -301,11 +285,13 @@ TEST(TDistributedChunkSessionPoolTest, ReusesExistingActiveSession)
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
 
-    auto first = WaitFor(pool->GetSession(17)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(17)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(17))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(17))
+        .ValueOrThrow();
 
     EXPECT_EQ(second.SessionId, first.SessionId);
-    EXPECT_EQ(harness.CreateControllerCallCount(), 1);
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 1);
 }
 
 TEST(TDistributedChunkSessionPoolTest, PicksDifferentActiveSessions)
@@ -317,14 +303,17 @@ TEST(TDistributedChunkSessionPoolTest, PicksDifferentActiveSessions)
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
 
-    auto first = WaitFor(pool->GetSession(17)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(17, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(17))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(17, first.SessionId))
+        .ValueOrThrow();
 
     bool sawFirst = false;
     bool sawSecond = false;
 
     for (int index = 0; index < 100; ++index) {
-        auto picked = WaitFor(pool->GetSession(17)).ValueOrThrow();
+        auto picked = WaitFor(pool->GetSession(17))
+            .ValueOrThrow();
         sawFirst |= picked.SessionId == first.SessionId;
         sawSecond |= picked.SessionId == second.SessionId;
     }
@@ -342,11 +331,13 @@ TEST(TDistributedChunkSessionPoolTest, RetryCreatesNewSessionUnderCap)
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
 
-    auto first = WaitFor(pool->GetSession(5)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(5, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(5))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(5, first.SessionId))
+        .ValueOrThrow();
 
     EXPECT_NE(second.SessionId, first.SessionId);
-    EXPECT_EQ(harness.CreateControllerCallCount(), 2);
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 2);
 }
 
 TEST(TDistributedChunkSessionPoolTest, RetryReturnsDifferentSessionAtCap)
@@ -359,11 +350,14 @@ TEST(TDistributedChunkSessionPoolTest, RetryReturnsDifferentSessionAtCap)
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 2);
 
-    auto first = WaitFor(pool->GetSession(5)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(5, first.SessionId)).ValueOrThrow();
-    auto third = WaitFor(pool->GetSession(5, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(5))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(5, first.SessionId))
+        .ValueOrThrow();
+    auto third = WaitFor(pool->GetSession(5, first.SessionId))
+        .ValueOrThrow();
 
-    EXPECT_EQ(harness.CreateControllerCallCount(), 2);
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 2);
     EXPECT_EQ(third.SessionId, second.SessionId);
 }
 
@@ -376,11 +370,14 @@ TEST(TDistributedChunkSessionPoolTest, RetryReturnsSameSessionWhenCapIsOne)
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 1);
 
-    auto first = WaitFor(pool->GetSession(5)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(5, first.SessionId)).ValueOrThrow();
-    auto third = WaitFor(pool->GetSession(5, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(5))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(5, first.SessionId))
+        .ValueOrThrow();
+    auto third = WaitFor(pool->GetSession(5, first.SessionId))
+        .ValueOrThrow();
 
-    EXPECT_EQ(harness.CreateControllerCallCount(), 1);
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 1);
     EXPECT_EQ(second.SessionId, first.SessionId);
     EXPECT_EQ(third.SessionId, first.SessionId);
 }
@@ -395,15 +392,17 @@ TEST(TDistributedChunkSessionPoolTest, ConcurrentRetriesDoNotExceedCap)
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto first = WaitFor(pool->GetSession(5)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(5))
+        .ValueOrThrow();
 
     std::vector<TFuture<TSessionDescriptor>> futures;
     for (int index = 0; index < 8; ++index) {
         futures.push_back(pool->GetSession(5, first.SessionId));
     }
 
-    WaitFor(AllSucceeded(futures)).ThrowOnError();
-    EXPECT_EQ(harness.CreateControllerCallCount(), 3);
+    WaitFor(AllSucceeded(futures))
+        .ThrowOnError();
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 3);
 }
 
 TEST(TDistributedChunkSessionPoolTest, CancelledWaiterDoesNotPoisonPendingSessionCreation)
@@ -421,15 +420,17 @@ TEST(TDistributedChunkSessionPoolTest, CancelledWaiterDoesNotPoisonPendingSessio
     future.Cancel(TError("cancel"));
 
     harness.DrainInvoker();
-    ASSERT_EQ(harness.CreateControllerCallCount(), 1);
+    ASSERT_EQ(harness.GetCreateControllerCallCount(), 1);
     harness.GetController(harness.StartedSessions()[0].SessionId)->FulfillStartSession();
     harness.DrainInvoker();
 
     auto sessionOrError = WaitFor(pool->GetSession(19));
 
     EXPECT_TRUE(sessionOrError.IsOK());
-    EXPECT_EQ(sessionOrError.ValueOrThrow().SessionId, harness.StartedSessions()[0].SessionId);
-    EXPECT_EQ(harness.CreateControllerCallCount(), 1);
+    auto session = sessionOrError
+        .ValueOrThrow();
+    EXPECT_EQ(session.SessionId, harness.StartedSessions()[0].SessionId);
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 1);
 }
 
 TEST(TDistributedChunkSessionPoolTest, UnexpectedCloseRemovesSessionAndSchedulesSeal)
@@ -439,7 +440,8 @@ TEST(TDistributedChunkSessionPoolTest, UnexpectedCloseRemovesSessionAndSchedules
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto session = WaitFor(pool->GetSession(11)).ValueOrThrow();
+    auto session = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
 
     harness.GetController(session.SessionId)->FailUnexpectedly(TError("boom"));
     harness.DrainInvoker();
@@ -462,7 +464,8 @@ TEST(TDistributedChunkSessionPoolTest, RetriesChunkSealingAfterFailure)
     harness.SetScheduleChunkSealErrors({TError("transient failure")});
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto session = WaitFor(pool->GetSession(11)).ValueOrThrow();
+    auto session = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
 
     harness.GetController(session.SessionId)->FailUnexpectedly(TError("boom"));
     harness.DrainInvoker();
@@ -493,7 +496,8 @@ TEST(TDistributedChunkSessionPoolTest, ExhaustedChunkSealRetriesDoNotAbort)
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto session = WaitFor(pool->GetSession(11)).ValueOrThrow();
+    auto session = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
 
     harness.GetController(session.SessionId)->FailUnexpectedly(TError("boom"));
     harness.DrainInvoker();
@@ -522,7 +526,8 @@ TEST(TDistributedChunkSessionPoolTest, PendingChunkSealRetryDoesNotKeepPoolAlive
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
     auto poolWeakPtr = TWeakPtr(pool);
-    auto session = WaitFor(pool->GetSession(11)).ValueOrThrow();
+    auto session = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
 
     harness.GetController(session.SessionId)->FailUnexpectedly(TError("boom"));
     harness.DrainInvoker();
@@ -546,17 +551,20 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesLateStartedPendingSessi
     auto sessionFuture = pool->GetSession(11);
     harness.DrainInvoker();
 
-    ASSERT_EQ(harness.CreateControllerCallCount(), 1);
+    ASSERT_EQ(harness.GetCreateControllerCallCount(), 1);
     auto sessionId = harness.StartedSessions()[0].SessionId;
 
-    WaitFor(pool->FinalizeSlot(11)).ThrowOnError();
+    WaitFor(pool->FinalizeSlot(11))
+        .ThrowOnError();
     harness.GetController(sessionId)->FulfillStartSession();
     harness.DrainInvoker();
 
     auto sessionOrError = WaitFor(sessionFuture);
     EXPECT_FALSE(sessionOrError.IsOK());
     EXPECT_EQ(harness.GetController(sessionId)->GetCloseCallCount(), 1);
-    EXPECT_THAT(harness.ScheduledSeals(), ::testing::ElementsAre(sessionId.ChunkId));
+
+    auto scheduledSeals = harness.ScheduledSeals();
+    EXPECT_THAT(scheduledSeals, ::testing::ElementsAre(sessionId.ChunkId));
 }
 
 TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesAndSealsAllSessions)
@@ -567,10 +575,13 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesAndSealsAllSessions)
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto first = WaitFor(pool->GetSession(11)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(11, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(11, first.SessionId))
+        .ValueOrThrow();
 
-    WaitFor(pool->FinalizeSlot(11)).ThrowOnError();
+    WaitFor(pool->FinalizeSlot(11))
+        .ThrowOnError();
 
     EXPECT_EQ(harness.GetController(first.SessionId)->GetCloseCallCount(), 1);
     EXPECT_EQ(harness.GetController(second.SessionId)->GetCloseCallCount(), 1);
@@ -593,8 +604,10 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotStartsSealingWithoutWaitingFo
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto first = WaitFor(pool->GetSession(11)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(11, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(11, first.SessionId))
+        .ValueOrThrow();
 
     auto finalizeFuture = pool->FinalizeSlot(11);
     harness.DrainInvoker();
@@ -620,8 +633,10 @@ TEST(TDistributedChunkSessionPoolTest, GetSlotChunksReturnsAllCreatedChunks)
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    auto first = WaitFor(pool->GetSession(11)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(11, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(11, first.SessionId))
+        .ValueOrThrow();
 
     auto chunks = WaitFor(pool->GetSlotChunks(11))
         .ValueOrThrow();
@@ -638,8 +653,10 @@ TEST(TDistributedChunkSessionPoolTest, FinalizedSlotRejectsNewSessions)
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
-    WaitFor(pool->GetSession(11)).ThrowOnError();
-    WaitFor(pool->FinalizeSlot(11)).ThrowOnError();
+    WaitFor(pool->GetSession(11))
+        .ThrowOnError();
+    WaitFor(pool->FinalizeSlot(11))
+        .ThrowOnError();
 
     auto error = WaitFor(pool->GetSession(11));
     EXPECT_FALSE(error.IsOK());
