@@ -341,9 +341,9 @@ class TestTypes(TestQueriesYqlSimpleBase):
             select
                 Just(2) as `SimpleOptional`,
                 Just(Just(2)) as `DoubleOptional`,
-                AsTagged(AsTuple(AsTagged(1, "tag1"), Just(Just(2))), "tag2") as `TaggedTupple`,
+                AsTagged(AsTuple(AsTagged(1, "tag1"), Just(Just(2))), "tag2") as `TaggedTuple`,
                 AsTagged(AsTagged(1, "tag1"), "tag2") as `NestedTagged`\
-            """, [{"SimpleOptional": 2, "DoubleOptional": [2], "TaggedTupple": [1, [2]], "NestedTagged": 1}])
+            """, [{"SimpleOptional": 2, "DoubleOptional": [2], "TaggedTuple": [1, [2]], "NestedTagged": 1}])
 
     @authors("a-romanov")
     def test_double_optional(self, query_tracker, yql_agent):
