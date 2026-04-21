@@ -56,8 +56,6 @@ public:
     template <class TSignature>
     TCallback<TSignature> GetCompiledFunction(const std::string& name);
 
-    void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
-
     bool IsSymbolLoaded(const std::string& symbol) const;
     void AddLoadedSymbol(const std::string& symbol);
 
