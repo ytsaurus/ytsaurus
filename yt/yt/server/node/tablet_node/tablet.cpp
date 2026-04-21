@@ -1347,7 +1347,6 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             using NYT::Save;
 
             // Save effective settings.
-            Save(context, *snapshot->Settings.MountConfig);
             Save(context, *snapshot->Settings.StoreReaderConfig);
             Save(context, *snapshot->Settings.HunkReaderConfig);
             Save(context, *snapshot->Settings.StoreWriterConfig);
@@ -1400,7 +1399,11 @@ void TTablet::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, *Settings_.MountConfig);
+    // COMPAT(dave11ar)
+    if (context.GetVersion() < ETabletReign::DropMaterializedMountConfigPersistence) {
+        auto oldMountConfig = New<TTableMountConfig>();
+        Load(context, *oldMountConfig);
+    }
     Load(context, *Settings_.StoreReaderConfig);
     Load(context, *Settings_.HunkReaderConfig);
     Load(context, *Settings_.StoreWriterConfig);
@@ -1427,6 +1430,11 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *RawSettings_.GlobalPatch);
     RawSettings_.Experiments = ConvertTo<decltype(RawSettings_.Experiments)>(
         Load<TYsonString>(context));
+
+    {
+        std::vector<TError> errors;
+        Settings_.MountConfig = RawSettings_.BuildEffectiveSettings(&errors, nullptr).MountConfig;
+    }
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
