@@ -19,32 +19,31 @@ const TPIValue* TTopCollector::AddRow(const TPIValue* row, TOnInsert onInsert, T
                 sizeof(TPIValue) * RowSize_,
                 NWebAssembly::EAddressSpace::WebAssembly));
 
-        auto capturedRow = Capture(row, destination);
-        Heap_.push_back(capturedRow);
-        onInsert(capturedRow.Row);
+        Heap_.push_back(destination);
+        Capture(row, destination);
+        onInsert(destination);
 
         if (std::ssize(Heap_) == Limit_) {
-            MakeHeap(Heap_.begin(), Heap_.end(), [&] (const auto& lhs, const auto& rhs) {
+            MakeHeap(Heap_.begin(), Heap_.end(), [&] (const auto* lhs, const auto* rhs) {
                 // NB: Inverse |lhs| and |rhs|.
-                return Comparer_(rhs.Row, lhs.Row);
+                return Comparer_(rhs, lhs);
             });
         }
 
-        return capturedRow.Row;
+        return destination;
     }
 
-    if (!Heap_.empty() && Comparer_(row, Heap_[0].Row)) {
-        auto popped = Heap_[0].Row;
+    if (!Heap_.empty() && Comparer_(row, Heap_[0])) {
+        auto* popped = Heap_[0];
         AccountGarbage(popped);
         onEvict(popped);
-        auto capturedRow = Capture(row, popped);
-        Heap_[0].ContextIndex = capturedRow.ContextIndex;
-        AdjustHeapFront(Heap_.begin(), Heap_.end(), [&] (const auto& lhs, const auto& rhs) {
+        Capture(row, popped);
+        AdjustHeapFront(Heap_.begin(), Heap_.end(), [&] (const auto* lhs, const auto* rhs) {
             // NB: Inverse |lhs| and |rhs|.
-            return Comparer_(rhs.Row, lhs.Row);
+            return Comparer_(rhs, lhs);
         });
-        onInsert(capturedRow.Row);
-        return capturedRow.Row;
+        onInsert(popped);
+        return popped;
     }
 
     return nullptr;
