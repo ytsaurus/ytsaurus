@@ -121,7 +121,7 @@ struct TCompositePendingJobCount
     int GetJobCountFor(const TString& tree) const;
     bool IsZero() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TCompositePendingJobCount, 0x7ba21384);
 };
 
 void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer);

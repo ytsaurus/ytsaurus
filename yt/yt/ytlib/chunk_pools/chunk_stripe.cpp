@@ -72,18 +72,18 @@ PHOENIX_DEFINE_TYPE(TChunkStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPersistentChunkStripeStatistics::Persist(const TPersistenceContext& context)
+void TPersistentChunkStripeStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, ChunkCount);
-    Persist(context, DataWeight);
-    Persist(context, RowCount);
-    Persist(context, ValueCount);
-    Persist(context, MaxBlockSize);
-    if (context.GetVersion() >= ESnapshotVersion::MaxCompressedDataSizePerJob) {
-        Persist(context, CompressedDataSize);
-    }
+    PHOENIX_REGISTER_FIELD(1, ChunkCount);
+    PHOENIX_REGISTER_FIELD(2, DataWeight);
+    PHOENIX_REGISTER_FIELD(3, RowCount);
+    PHOENIX_REGISTER_FIELD(4, ValueCount);
+    PHOENIX_REGISTER_FIELD(5, MaxBlockSize);
+    PHOENIX_REGISTER_FIELD(6, CompressedDataSize,
+        .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob));
 }
+
+PHOENIX_DEFINE_TYPE(TPersistentChunkStripeStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
