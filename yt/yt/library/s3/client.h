@@ -60,6 +60,20 @@ struct TDeleteError
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THeadBucketRequest
+{
+    TString Bucket;
+
+    void Serialize(THttpRequest* request) const;
+};
+
+struct THeadBucketResponse
+{
+    void Deserialize(const NHttp::IResponsePtr& response);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TListBucketsRequest
 {
     void Serialize(THttpRequest* request) const;
@@ -341,6 +355,7 @@ struct IClient
     DEFINE_COMMAND(AbortMultipartUpload)
     DEFINE_COMMAND(CompleteMultipartUpload)
     DEFINE_COMMAND(HeadObject)
+    DEFINE_COMMAND(HeadBucket)
 #undef DEFINE_COMMAND
 };
 
