@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NContainers::NCGroups {

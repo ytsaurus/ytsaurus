@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/cgroup/process.h>
 
 #include <yt/yt/core/actions/future.h>
 

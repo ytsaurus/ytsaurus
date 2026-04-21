@@ -1,4 +1,4 @@
-#include "cgroups_new.h"
+#include "statistics.h"
 
 #include <yt/yt/core/logging/log.h>
 
@@ -74,6 +74,8 @@ TMemoryStatistics GetMemoryStatisticsV2(const TString& cgroup)
 
 TCpuStatistics GetCpuStatisticsV1(const TString& cgroup)
 {
+    // TODO(pavook): controller mount name is hardcoded but may differ (e.g. "cpu,cpuacct").
+    // DetectSelfCGroup should save the controller-to-path mapping from /proc/self/cgroup.
     auto cpuAcctStatPath = Format("/sys/fs/cgroup/cpuacct/%v/cpuacct.stat", cgroup);
     auto cpuAcctStatistics = ReadAndParseStatFile(cpuAcctStatPath);
 

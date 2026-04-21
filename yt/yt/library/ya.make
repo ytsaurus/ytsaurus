@@ -4,6 +4,7 @@ RECURSE(
     auth
     auth_server
     backtrace_introspector
+    cgroup
     clickhouse_discovery
     codegen
     codegen_api

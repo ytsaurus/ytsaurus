@@ -6,7 +6,6 @@
 #include "private.h"
 #include "porto_helpers.h"
 
-#include <yt/yt/library/containers/cgroup.h>
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/re2/re2.h>
