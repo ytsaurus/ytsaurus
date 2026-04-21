@@ -72,7 +72,7 @@ class TProtoVisitor
 
 public:
     // Call VisitAttributeDictionary for TAttributeDictionary. Otherwise call VisitRegularMessage.
-    DEFINE_BYVAL_RW_PROPERTY(bool, ProcessAttributeDictionary, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ProcessAttributeDictionary);
 
 protected:
     using TTraits = TProtoVisitorTraits<TWrappedMessage>;
