@@ -3888,10 +3888,10 @@ Y_UNIT_TEST(AlterTableAddIndexWithIsNotSupported) {
 Y_UNIT_TEST(AlterTableAddIndexLocalIsNotSupported) {
 #if ANTLR_VER == 3
     ExpectFailWithFuzzyError("USE ydb;   ALTER TABLE table ADD INDEX idx LOCAL ON (col)",
-                             "<main>:1:40: Error: local: alternative is not implemented yet: \\d+:\\d+: local_index\\n");
+                             "<main>:1:40: Error: local index must specify subtype with USING\n");
 #else
     ExpectFailWithError("USE ydb;   ALTER TABLE table ADD INDEX idx LOCAL ON (col)",
-                        "<main>:1:40: Error: local: alternative is not implemented yet: \n");
+                        "<main>:1:40: Error: local index must specify subtype with USING\n");
 #endif
 }
 
@@ -4000,6 +4000,50 @@ Y_UNIT_TEST(CreateTableWithLocalBloomNgramFilterAndDropIndexIsCorrect) {
             WITH (ngram_size=3, hashes_count=2, filter_size_bytes=512, records_count=1024, case_sensitive=true),
         PRIMARY KEY (pk)
         );
+        ALTER TABLE table DROP INDEX idx;
+        )sql");
+
+    UNIT_ASSERT_C(result.IsOk(), result.Issues.ToString());
+}
+
+Y_UNIT_TEST(CreateTableWithMinMaxIndex) {
+    const auto result = SqlToYql(R"sql(
+        USE ydb;
+        CREATE TABLE table (
+        pk INT32 NOT NULL,
+        col String,
+        INDEX idx LOCAL USING min_max ON (col),
+        PRIMARY KEY (pk))
+        )sql");
+
+    UNIT_ASSERT_C(result.IsOk(), result.Issues.ToString());
+}
+
+Y_UNIT_TEST(AlterTableAddMinMaxIndex) {
+    const auto result = SqlToYql(R"sql(
+        USE ydb;
+        ALTER TABLE table ADD INDEX idx
+        LOCAL USING min_max
+        ON (col)
+        )sql");
+
+    UNIT_ASSERT_C(result.IsOk(), result.Issues.ToString());
+}
+
+Y_UNIT_TEST(AlterTableAddIndexGlobalMinMaxIsNotSupported) {
+    ExpectFailWithError("USE ydb; ALTER TABLE table ADD INDEX idx GLOBAL USING min_max ON (col)",
+                        "<main>:1:55: Error: MIN_MAX index can only be LOCAL\n");
+}
+
+Y_UNIT_TEST(AlterTableAddIndexLocalMinMaxCoverIsNotSupported) {
+    ExpectFailWithError("USE ydb; ALTER TABLE table ADD INDEX idx LOCAL USING min_max ON (col) COVER (payload)",
+                        "<main>:1:66: Error: COVER is not supported for local MIN_MAX index\n");
+}
+
+Y_UNIT_TEST(MinMaxIndexAddDrop) {
+    const auto result = SqlToYql(R"sql(
+        USE ydb;
+        ALTER TABLE table ADD INDEX idx LOCAL USING min_max on (col);
         ALTER TABLE table DROP INDEX idx;
         )sql");
 
@@ -14505,10 +14549,10 @@ Y_UNIT_TEST(DoesntWorkOnOldLangVersion) {
     NSQLTranslation::TTranslationSettings settings;
     settings.LangVer = NYql::MakeLangVersion(2025, 4);
     ExpectFailWithError("create view plato.foo as select 1;",
-                        "<main>:1:13: Error: CREATE VIEW is not available before language version 2025.05\n",
+                        "<main>:1:1: Error: CREATE VIEW is not available before language version 2025.05\n",
                         settings);
     ExpectFailWithError("create view plato.foo as do begin select 1; end do;",
-                        "<main>:1:13: Error: CREATE VIEW is not available before language version 2025.05\n",
+                        "<main>:1:1: Error: CREATE VIEW is not available before language version 2025.05\n",
                         settings);
 }
 
@@ -14576,7 +14620,7 @@ Y_UNIT_TEST(NewSyntaxDoesntWorkOnYdb) {
     NSQLTranslation::TTranslationSettings settings;
     settings.LangVer = NYql::MakeLangVersion(2025, 5);
     ExpectFailWithError("create view ydb.foo as do begin select 1; end do",
-                        "<main>:1:13: Error: CREATE VIEW ... AS DO BEGIN ... END DO syntax is not supported for ydb provider. Please use CREATE VIEW ... AS SELECT\n",
+                        "<main>:1:1: Error: CREATE VIEW ... AS DO BEGIN ... END DO syntax is not supported for ydb provider. Please use CREATE VIEW ... AS SELECT\n",
                         settings);
 }
 
@@ -14584,15 +14628,15 @@ Y_UNIT_TEST(OldSyntaxDoesntWorkOnYt) {
     NSQLTranslation::TTranslationSettings settings;
     settings.LangVer = NYql::MakeLangVersion(2025, 5);
     ExpectFailWithError("create view plato.foo as select 1;",
-                        "<main>:1:13: Error: CREATE VIEW ... AS SELECT syntax is not supported for yt provider. Please use CREATE VIEW ... AS DO BEGIN ... END DO\n",
+                        "<main>:1:1: Error: CREATE VIEW ... AS SELECT syntax is not supported for yt provider. Please use CREATE VIEW ... AS DO BEGIN ... END DO\n",
                         settings);
 }
 
 Y_UNIT_TEST(EmptyViewBody) {
     NSQLTranslation::TTranslationSettings settings;
     settings.LangVer = NYql::MakeLangVersion(2025, 5);
-    ExpectFailWithError("create view plato.foo as do begin end do", "<main>:1:13: Error: Empty view body is not allowed\n", settings);
-    ExpectFailWithError("create view plato.foo as do begin /*comment*/;; end do", "<main>:1:13: Error: Empty view body is not allowed\n", settings);
+    ExpectFailWithError("create view plato.foo as do begin end do", "<main>:1:29: Error: Empty view body is not allowed\n", settings);
+    ExpectFailWithError("create view plato.foo as do begin /*comment*/;; end do", "<main>:1:29: Error: Empty view body is not allowed\n", settings);
 }
 
 Y_UNIT_TEST(MultiSelectsInViewOrStatementAfterSelect) {
@@ -14607,7 +14651,7 @@ Y_UNIT_TEST(MultiSelectsInViewOrStatementAfterSelect) {
 Y_UNIT_TEST(ErrorOnMissingCluster) {
     NSQLTranslation::TTranslationSettings settings;
     settings.LangVer = NYql::MakeLangVersion(2025, 5);
-    ExpectFailWithError("create view foo as do begin select 1; end do", "<main>:1:1: Error: No cluster name given and no default cluster is selected\n", settings);
+    ExpectFailWithError("create view foo as do begin select 1; end do", "<main>:1:13: Error: No cluster name given and no default cluster is selected\n", settings);
 }
 
 Y_UNIT_TEST(CreateViewIfNotExists) {

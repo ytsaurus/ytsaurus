@@ -125,9 +125,11 @@ private:
                 SyncYPathSet(newRoot, path, value);
             }
 
-            if (Started_) {
+            {
                 auto guard = Guard(SpinLock_);
-                std::swap(Root_, newRoot);
+                if (Started_) {
+                    std::swap(Root_, newRoot);
+                }
             }
         }
         YT_LOG_DEBUG("Finished updating monitoring state");
