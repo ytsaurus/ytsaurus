@@ -95,14 +95,15 @@ bool AreAllElementsEqual(const auto& container, auto compare)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInputManager::TStripeDescriptor::Persist(const TPersistenceContext& context)
+void TInputManager::TStripeDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Stripe);
-    Persist(context, Cookie);
-    Persist(context, Task);
-    Persist(context, WaitingChunkCount);
+    PHOENIX_REGISTER_FIELD(1, Stripe);
+    PHOENIX_REGISTER_FIELD(2, Cookie);
+    PHOENIX_REGISTER_FIELD(3, Task);
+    PHOENIX_REGISTER_FIELD(4, WaitingChunkCount);
 }
+
+PHOENIX_DEFINE_TYPE(TInputManager::TStripeDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,13 +113,14 @@ int TInputManager::TInputChunkDescriptor::GetTableIndex() const
     return InputChunks[0]->GetTableIndex();
 }
 
-void TInputManager::TInputChunkDescriptor::Persist(const TPersistenceContext& context)
+void TInputManager::TInputChunkDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, InputStripes);
-    Persist(context, InputChunks);
-    Persist(context, State);
+    PHOENIX_REGISTER_FIELD(1, InputStripes);
+    PHOENIX_REGISTER_FIELD(2, InputChunks);
+    PHOENIX_REGISTER_FIELD(3, State);
 }
+
+PHOENIX_DEFINE_TYPE(TInputManager::TInputChunkDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,17 +241,16 @@ void TInputCluster::ReportIfHasUnavailableChunks() const
     }
 }
 
-void TInputCluster::Persist(const TPersistenceContext& context)
+void TInputCluster::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Name_);
-    Persist(context, Logger);
-    Persist(context, NodeDirectory_);
-    Persist(context, InputTables_);
-    Persist(context, UnavailableInputChunkIds_);
-    Persist(context, PathToInputTables_);
+    PHOENIX_REGISTER_FIELD(1, Name_);
+    PHOENIX_REGISTER_FIELD(2, Logger);
+    PHOENIX_REGISTER_FIELD(3, NodeDirectory_);
+    PHOENIX_REGISTER_FIELD(4, InputTables_);
+    PHOENIX_REGISTER_FIELD(5, UnavailableInputChunkIds_);
+    PHOENIX_REGISTER_FIELD(6, PathToInputTables_);
 }
+PHOENIX_DEFINE_TYPE(TInputCluster);
 
 TLogger TInputCluster::GetLogger() const
 {
@@ -1567,18 +1568,18 @@ IClientPtr TInputManager::GetClient(const TClusterName& clusterName) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInputManager::Persist(const TPersistenceContext& context)
+void TInputManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Host_);
-    Persist(context, Logger);
-    Persist(context, InputTables_);
-    Persist(context, InputChunkMap_);
-    Persist(context, InputHasStaticTableWithHunks_);
-    Persist(context, InputHasOrderedDynamicStores_);
-    Persist(context, Clusters_);
-    Persist(context, ClusterResolver_);
+    PHOENIX_REGISTER_FIELD(1, Host_);
+    PHOENIX_REGISTER_FIELD(2, Logger);
+    PHOENIX_REGISTER_FIELD(3, InputTables_);
+    PHOENIX_REGISTER_FIELD(4, InputChunkMap_);
+    PHOENIX_REGISTER_FIELD(5, InputHasStaticTableWithHunks_);
+    PHOENIX_REGISTER_FIELD(6, InputHasOrderedDynamicStores_);
+    PHOENIX_REGISTER_FIELD(7, Clusters_);
+    PHOENIX_REGISTER_FIELD(8, ClusterResolver_);
 }
+PHOENIX_DEFINE_TYPE(TInputManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

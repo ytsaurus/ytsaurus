@@ -11306,11 +11306,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .template Serializer<TUniquePtrSerializer<>>());
     PHOENIX_REGISTER_FIELD(45, DataFlowGraph_);
     // COMPAT(galtsev)
-    registrar.template VirtualField<46>("LivePreviews_", [] (TThis* this_, auto& context) {
-        NYT::Load(context, *this_->LivePreviews_);
-    }, [] (const TThis* this_, auto& context) {
-        NYT::Save(context, *this_->LivePreviews_);
-    })();
+    PHOENIX_REGISTER_FIELD(46, LivePreviews_,
+        .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_);
     PHOENIX_REGISTER_FIELD(48, BannedNodeIds_);
     PHOENIX_REGISTER_FIELD(49, PathToOutputTable_);

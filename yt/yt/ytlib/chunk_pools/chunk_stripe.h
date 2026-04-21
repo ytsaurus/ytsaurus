@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 struct TPersistentChunkStripeStatistics
     : public NTableClient::TChunkStripeStatistics
 {
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TPersistentChunkStripeStatistics, 0xb4c5d6e7);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
