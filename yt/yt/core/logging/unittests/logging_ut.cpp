@@ -1096,6 +1096,83 @@ INSTANTIATE_TEST_SUITE_P(ValueParametrized, TBuiltinRotationTest,
     std::pair(false, true),
     std::pair(false, false)));
 
+TEST_P(TBuiltinRotationTest, OldSegmentsCleanedUpWithoutRotation)
+{
+    auto [useTimestampSuffix, useLogrotateCompatibleTimestampSuffix] = GetParam();
+
+    auto logFileNamePrefix = GenerateLogFileName();
+    const int MaxSegmentCount = 3;
+    const int OldFileCount = 6;
+
+    // Create pre-existing files simulating leftovers from previous writer instances.
+    std::vector<TTempFile> oldFiles;
+    for (int index = 0; index < OldFileCount; ++index) {
+        TString fileName;
+        if (useTimestampSuffix) {
+            auto suffix = Format(".%v", TInstant::Now().ToStringLocalUpToSeconds());
+            fileName = logFileNamePrefix + suffix;
+        } else if (useLogrotateCompatibleTimestampSuffix) {
+            auto suffix = TInstant::Now().FormatLocalTime(".%Y%m%d-%H%M%S");
+            fileName = logFileNamePrefix + suffix;
+        } else {
+            fileName = Format("%v.%v", logFileNamePrefix, OldFileCount - index);
+        }
+        {
+            TFileOutput out(fileName);
+            out << Format("OldMessage%v\n", index);
+        }
+        oldFiles.emplace_back(fileName);
+        Sleep(TDuration::Seconds(1));
+    }
+
+    // Use a very long rotation period so time-based rotation never fires.
+    Configure(Format(R"({
+        rotation_check_period = 1000;
+        flush_period = 100;
+        rules = [
+            {
+                min_level = info;
+                writers = [ info ];
+            };
+        ];
+        writers = {
+            info = {
+                file_name = "%v";
+                use_timestamp_suffix = %v;
+                use_logrotate_compatible_timestamp_suffix = %v;
+                type = "file";
+                rotation_policy = {
+                    max_segment_count_to_keep = %v;
+                    rotation_period = 3600000;
+                };
+            };
+        };
+    })",
+        logFileNamePrefix,
+        ConvertToYsonString(useTimestampSuffix).AsStringBuf(),
+        ConvertToYsonString(useLogrotateCompatibleTimestampSuffix).AsStringBuf(),
+        MaxSegmentCount));
+
+    // Write a message so the writer is active.
+    WaitForPredicate([&] {
+        YT_LOG_INFO("CleanupTestMessage");
+        auto files = ListLogFiles(logFileNamePrefix, useTimestampSuffix, useLogrotateCompatibleTimestampSuffix);
+        if (files.empty()) {
+            return false;
+        }
+        return CheckPlainTextLogFileContains(files[0], "CleanupTestMessage");
+    });
+
+    // Wait for MaybeRotate() to clean up old segments.
+    WaitForPredicate([&] {
+        auto files = ListLogFiles(logFileNamePrefix, useTimestampSuffix, useLogrotateCompatibleTimestampSuffix);
+        return ssize(files) <= MaxSegmentCount;
+    });
+
+    auto files = ListLogFiles(logFileNamePrefix, useTimestampSuffix, useLogrotateCompatibleTimestampSuffix);
+    EXPECT_LE(ssize(files), MaxSegmentCount);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAppendableZstdFileTest

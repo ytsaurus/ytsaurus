@@ -98,6 +98,11 @@ public:
 
     void MaybeRotate() override
     {
+        if (FirstMaybeRotate_) {
+            FirstMaybeRotate_ = false;
+            RemoveOldSegments();
+        }
+
         const auto& rotationPolicy = Config_->RotationPolicy;
         auto now = TInstant::Now();
         if ((!rotationPolicy->RotationPeriod || LastRotationTimestamp_ + *rotationPolicy->RotationPeriod > now) &&
@@ -172,6 +177,7 @@ private:
     TString FileName_;
 
     std::atomic<bool> Disabled_ = false;
+    bool FirstMaybeRotate_ = true;
     TInstant LastRotationTimestamp_;
 
     std::unique_ptr<TFile> File_;
@@ -285,7 +291,7 @@ private:
         }
     }
 
-    void Rotate()
+    void RemoveOldSegments()
     {
         try {
             auto fileNames = ListFiles();
@@ -295,8 +301,19 @@ private:
                 YT_LOG_DEBUG("Remove log segment (FilePath: %v)", filePath);
                 NFS::Remove(filePath);
             }
-            fileNames.resize(count);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to remove old log segments");
+        } catch (...) {
+            YT_ABORT();
+        }
+    }
 
+    void Rotate()
+    {
+        try {
+            RemoveOldSegments();
+
+            auto fileNames = ListFiles();
             RenameFiles(fileNames);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Failed to rotate log files");
