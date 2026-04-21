@@ -737,7 +737,7 @@ public:
         auto& colRes = assert_cast<ColumnArray&>(dest);
 
         for (auto value : array) {
-            TYsonExtractRawImpl::InsertYsonStringToColumn(colRes.getData(), value, EYsonFormat::Text);
+            TYsonExtractRawImpl::InsertYsonStringToColumn(colRes.getData(), value, EYsonFormat::Binary);
         }
 
         colRes.getOffsets().push_back(colRes.getOffsets().back() + array.size());
@@ -777,7 +777,7 @@ public:
 
         for (auto [key, value] : object) {
             colKey.insertData(key.data(), key.size());
-            TYsonExtractRawImpl::InsertYsonStringToColumn(colValue, element, EYsonFormat::Text);
+            TYsonExtractRawImpl::InsertYsonStringToColumn(colValue, value, EYsonFormat::Binary);
         }
 
         colArr.getOffsets().push_back(colArr.getOffsets().back() + object.size());
