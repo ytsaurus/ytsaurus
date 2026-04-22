@@ -554,13 +554,11 @@ private:
                 sealContext->RescheduleCount);
         }
 
-        if (IsSealNeeded(sealContext->Chunk.Get())) {
-            EnqueueChunk(
-                sealContext->Chunk.Get(),
-                sealContext->RescheduleCount,
-                sealContext->EnqueueTime,
-                delayed);
-        }
+        EnqueueChunk(
+            sealContext->Chunk.Get(),
+            sealContext->RescheduleCount + 1,
+            sealContext->EnqueueTime,
+            delayed);
     }
 
     void EnqueueChunk(TChunk* chunk, int errorCount, TCpuInstant enqueueTime, bool delayed = false)
@@ -617,9 +615,8 @@ private:
             }
             const auto& replicasOrError = GetOrCrash(replicas, chunk->GetId());
             if (!replicasOrError.IsOK()) {
-                YT_LOG_DEBUG(replicasOrError, "Error fetching replicas to seal chunk (ChunkId: %v, Error: %v)",
-                    chunk->GetId(),
-                    replicasOrError);
+                YT_LOG_DEBUG(replicasOrError, "Error fetching replicas to seal chunk (ChunkId: %v)",
+                    chunk->GetId());
 
                 // We do not increase unsuccessful seal counter here, as it will be counted in unsuccessful replica fetching counters.
                 RescheduleSeal(sealContext, /*delayed*/ true);
