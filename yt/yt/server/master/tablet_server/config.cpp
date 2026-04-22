@@ -282,6 +282,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
+    registrar.Parameter("max_reshard_complexity", &TThis::MaxReshardComplexity)
+        .Default(5'000'000);
+
     registrar.Preprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
 
