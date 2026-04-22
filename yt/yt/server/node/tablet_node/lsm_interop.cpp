@@ -101,7 +101,7 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
 
         std::vector<NLsm::TTabletPtr> lsmTablets;
-
+        lsmTablets.reserve(tabletManager->Tablets().size());
         {
             TForbidContextSwitchGuard guard;
 
@@ -117,6 +117,10 @@ private:
             slot->GetCellId(),
             lsmTablets.size());
 
+        if (Bootstrap_->GetTabletNodeDynamicConfig()->TabletManager->YieldBeforeBuildingLsmActions) {
+            Yield();
+        }
+
         auto actions = Backend_->BuildLsmActions(lsmTablets, slot->GetTabletCellBundleName());
         PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
         StoreRotator_->ProcessLsmActionBatch(slot, actions);
@@ -126,6 +130,8 @@ private:
                 tablet->LsmStatistics() = lsmTablet->LsmStatistics();
             }
         }
+
+        GetFinalizerInvoker()->Invoke(BIND([lsmTablets = std::move(lsmTablets)] { }));
     }
 
     void OnEndSlotScan()
@@ -237,6 +243,7 @@ private:
 
         if (tablet->IsPhysicallySorted()) {
             lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());
+            lsmTablet->Partitions().reserve(tablet->PartitionList().size());
             for (const auto& partition : tablet->PartitionList()) {
                 lsmTablet->Partitions().push_back(ScanPartition(partition.get(), lsmTablet.Get()));
             }
@@ -248,6 +255,7 @@ private:
             lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
             lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
         } else {
+            lsmTablet->Stores().reserve(tablet->StoreIdMap().size());
             for (const auto& [id, store] : tablet->StoreIdMap()) {
                 lsmTablet->Stores().push_back(ScanStore(store, lsmTablet.Get()));
             }
@@ -279,6 +287,7 @@ private:
             lsmPartition->CompactionHints().Hints()[controller.GetPartitionCompactionHintKind()] = controller.LsmCompactionHint();
         }
 
+        lsmPartition->Stores().reserve(partition->Stores().size());
         for (const auto& store : partition->Stores()) {
             lsmPartition->Stores().push_back(ScanStore(
                 store,
