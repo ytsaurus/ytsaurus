@@ -352,6 +352,8 @@ struct TDynamicTabletManagerConfig
     // COMPAT(akozhikhov)
     bool EnableAlterToStaticWithHunks;
 
+    i64 MaxReshardComplexity;
+
     TDynamicTabletManagerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);

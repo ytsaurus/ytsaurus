@@ -836,6 +836,29 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"a": r["a"], "b": r["b"]} for r in rows]) == [{"a": i, "b": -i, "c": i, "mul": yson.YsonEntity()} for i in range(1, 4)]
         assert select_rows("mul from [//tmp/t]") == [{"mul": yson.YsonEntity()} for i in range(1, 4)]
 
+    @authors("sabdenovch")
+    def test_validate_reshard_complexity(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(100)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [50]])
+
+        set("//sys/@config/tablet_manager/max_reshard_complexity", 10)
+
+        alter_table("//tmp/t", schema=(
+            [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            + [{"name": f"k_{i}", "type": "int64", "sort_order": "ascending"} for i in range(11)]
+            + [{"name": "value", "type": "string"}]
+        ))
+
+        with raises_yt_error("Reshard complexity exceeds maximum allowed complexity"):
+            sync_reshard_table("//tmp/t", [[], [30], [70]])
+
+        set("//sys/@config/tablet_manager/max_reshard_complexity", 30)
+        sync_reshard_table("//tmp/t", [[], [30], [70]])
+
 
 ##################################################################
 

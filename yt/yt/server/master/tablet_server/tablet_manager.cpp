@@ -1339,6 +1339,29 @@ public:
             }
         }
 
+        if (IsTableType(table->GetType())) {
+            i64 maxReshardComplexity = GetDynamicConfig()->MaxReshardComplexity;
+
+            i64 chunkCount = 0;
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = table->Tablets()[index]->As<TTablet>();
+
+                chunkCount += tablet->GetChunkList()->Statistics().ChunkCount;
+            }
+
+            i64 keyColumnCount = table->As<TTableNode>()->GetSchema()->AsCompactTableSchema()->GetKeyColumnCount();
+
+            i64 complexity = keyColumnCount * chunkCount;
+
+            if (complexity >= maxReshardComplexity) {
+                THROW_ERROR_EXCEPTION("Reshard complexity exceeds maximum allowed complexity, reshard table gradually")
+                    << TErrorAttribute("chunk_count", chunkCount)
+                    << TErrorAttribute("key_column_count", keyColumnCount)
+                    << TErrorAttribute("reshard_complexity", complexity)
+                    << TErrorAttribute("max_reshard_complexity", maxReshardComplexity);
+            }
+        }
+
         // Do after all validations.
         if (IsTableType(table->GetType())) {
             TabletActionManager_->TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
