@@ -45,15 +45,39 @@ Due to the added redundancy, `JsonDocument` is less effective in storage. The ad
 
 ## Date and time {#datetime}
 
+### Basic types {#datetime-basic}
+
+The value range for all basic temporal types is from midnight<sup>1</sup> on 01.01.1970 to midnight<sup>1</sup> on 01.01.2106.
+The value range for the basic interval type is from -136 years to +136 years.
+
 | Type | Description | Notes |
 ----- | ----- | -----
-| `Date` | Date, precision to the day | Range of values for all temporal types except `Interval`: From 00:00 01.01.1970 to 00:00 01.01.2106. Internal `Date` representation: Unsigned 16-bit integer |
+| `Date` | Date, precision to the day | Internal representation: Unsigned 16-bit integer |
 | `Datetime` | Date/time, precision to the second | Internal representation: Unsigned 32-bit integer |
 | `Timestamp` | Date/time, precision to the microsecond | Internal representation: Unsigned 64-bit integer |
 | `Interval` | Time interval (signed), precision to microseconds | Value range: From -136 years to +136 years. Internal representation: Signed 64-bit integer. |
-| `TzDate` | Date with time zone label, precision to the day |
-| `TzDatetime` | Date/time with time zone label, precision to the second |
-| `TzTimestamp` | Date/time with time zone label, precision to the microsecond |
+| `TzDate` | Date with time zone label, precision to the day | Internal representation: Unsigned 16-bit integer and time zone label |
+| `TzDatetime` | Date/time with time zone label, precision to the second | Internal representation: Unsigned 32-bit integer and time zone label |
+| `TzTimestamp` | Date/time with time zone label, precision to the microsecond | Internal representation: Unsigned 64-bit integer and time zone label |
+
+<sup>1</sup> Midnight means a point in time where all _time_ components are zero.
+
+### Extended types {#datetime-extended}
+
+The value range for all extended temporal types is from midnight<sup>1</sup> on 01.01.144169 BC to midnight<sup>1</sup> on 01.01.148107.
+The value range for the extended interval type is from -292277 years to +292277 years.
+
+| Type | Description | Notes |
+----- | ----- | -----
+| `Date32` | Point in time at which midnight<sup>1</sup> occurs in UTC, precision to the day | Internal representation: Signed 32-bit integer |
+| `Datetime64` | Point in time in UTC, precision to the second | Internal representation: Signed 64-bit integer |
+| `Timestamp64` | Point in time in UTC, precision to the microsecond | Internal representation: Signed 64-bit integer |
+| `Interval64` | Time interval, precision to the microsecond | Internal representation: Signed 64-bit integer |
+| `TzDate32` | Point in time in UTC at which midnight occurs in the specified time zone | Internal representation: Signed 32-bit integer and time zone label |
+| `TzDateTime64` | Point in time in UTC with a time zone label, precision to the second | Internal representation: Signed 64-bit integer and time zone label |
+| `TzTimestamp64` | Point in time in UTC with a time zone label, precision to the microsecond | Internal representation: Signed 64-bit integer and time zone label |
+
+<sup>1</sup> Midnight means a point in time where all _time_ components are zero.
 
 ### Supporting types with a time zone label
 
@@ -106,6 +130,10 @@ Explicit casting using [CAST](../syntax/expressions.md#cast):
 | **Datetime** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes | Yes | Yes | No |
 | **Timestamp** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes | Yes | No |
 | **Interval** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes<sup>3,4</sup> | Yes<sup>3,4</sup> | Yes<sup>3,4</sup> | Yes<sup>3</sup> | Yes | Yes | No |
+| **Date32** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes | Yes<sup>4</sup> | Yes | Yes | Yes | Yes | Yes | No |
+| **Datetime64** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes | Yes | Yes | No |
+| **Timestamp64** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes | Yes | No |
+| **Interval64** | No | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes<sup>4</sup> | Yes | Yes<sup>3,4</sup> | Yes<sup>3,4</sup> | Yes<sup>3,4</sup> | Yes<sup>3</sup> | Yes | Yes | No |
 
 <sup>1</sup> `True` is converted to `1` and `False` to `0`.
 <sup>2</sup> Any value other than `0` is converted to `True`, `0` is converted to `False`.
@@ -114,6 +142,8 @@ Explicit casting using [CAST](../syntax/expressions.md#cast):
 <sup>5</sup> Using the built-in function [Yson::ConvertTo](../udf/list/yson.md#ysonconvertto).
 
 #### Converting to date and time data types
+
+##### Basic types
 
 | Type | Date | Datetime | Timestamp | Interval |
 --- | --- | --- | --- | ---
@@ -137,7 +167,41 @@ Explicit casting using [CAST](../syntax/expressions.md#cast):
 | **Date** | — | Yes | Yes | No |
 | **Datetime** | Yes | — | Yes | No |
 | **Timestamp** | Yes | Yes | — | No |
-| **Interval** | No | No | No | — | — |
+| **Interval** | No | No | No | — |
+| **Date32** | Yes | Yes | Yes | No |
+| **Datetime64** | Yes | Yes | Yes | No |
+| **Timestamp64** | Yes | Yes | Yes | No |
+| **Interval64** | No | No | No | Yes |
+
+##### Extended types
+
+| Type | Date32 | Datetime64 | Timestamp64 | Interval64 |
+--- | --- | --- | --- | ---
+| **Bool** | No | No | No | No |
+| **Int8** | Yes | Yes | Yes | Yes |
+| **Int16** | Yes | Yes | Yes | Yes |
+| **Int32** | Yes | Yes | Yes | Yes |
+| **Int64** | Yes | Yes | Yes | Yes |
+| **Uint8** | Yes | Yes | Yes | Yes |
+| **Uint16** | Yes | Yes | Yes | Yes |
+| **Uint32** | Yes | Yes | Yes | Yes |
+| **Uint64** | Yes | Yes | Yes | Yes |
+| **Float** | No | No | No | No |
+| **Double** | No | No | No | No |
+| **Decimal** | No | No | No | No |
+| **String** | Yes | Yes | Yes | Yes |
+| **Utf8** | Yes | Yes | Yes | Yes |
+| **Json** | No | No | No | No |
+| **Yson** | No | No | No | No |
+| **Uuid** | No | No | No | No |
+| **Date** | Yes | Yes | Yes | No |
+| **Datetime** | Yes | Yes | Yes | No |
+| **Timestamp** | Yes | Yes | Yes | No |
+| **Interval** | No | No | No | Yes |
+| **Date32** | — | Yes | Yes | No |
+| **Datetime64** | Yes | — | Yes | No |
+| **Timestamp64** | Yes | Yes | — | No |
+| **Interval64** | No | No | No | — |
 
 #### Conversion to other data types
 
@@ -164,6 +228,10 @@ Explicit casting using [CAST](../syntax/expressions.md#cast):
 | **Datetime** | Yes | Yes | No | No | No |
 | **Timestamp** | Yes | Yes | No | No | No |
 | **Interval** | Yes | Yes | No | No | No |
+| **Date32** | Yes | Yes | No | No | No |
+| **Datetime64** | Yes | Yes | No | No | No |
+| **Timestamp64** | Yes | Yes | No | No | No |
+| **Interval64** | Yes | Yes | No | No | No |
 
 <sup>1</sup> Using the built-in function [Yson::ConvertTo](../udf/list/yson.md#ysonconvertto).
 
@@ -195,12 +263,40 @@ If the numeric types don't match, both arguments are BitCast to the result type 
 
 #### Date and time types
 
+##### Basic types
+
 | Type | Date | Datetime | Timestamp | Interval | TzDate | TzDatetime | TzTimestamp |
 --- | --- | --- | --- | --- | --- | --- | ---
-| **Date** | — | — | — | `Date` | — | — | — |
-| **Datetime** | — | — | — | `Datetime` | — | — | — |
-| **Timestamp** | — | — | — | `Timestamp` | — | — | — |
-| **Interval** | `Date` | `Datetime` | `Timestamp` | — | `TzDate` | `TzDatetime` | `TzTimestamp` |
-| **TzDate** | — | — | — | `TzDate` | — | — | — |
-| **TzDatetime** | — | — | — | `TzDatetime` | — | — | — |
-| **TzTimestamp** | — | — | — | `TzTimestamp` | — | — | — |
+| **Date** | — | `DateTime` | `Timestamp` | — | `TzDate` | `TzDatetime` | `TzTimestamp` |
+| **Datetime** | — | — | `Timestamp` | — | — | `TzDatetime` | `TzTimestamp` |
+| **Timestamp** | — | — | — | — | — | — | `TzTimestamp` |
+| **Interval** | — | — | — | — | — | — | — |
+| **TzDate** | — | — | — | — | — | `TzDatetime` | `TzTimestamp` |
+| **TzDatetime** | — | — | — | — | — | — | `TzTimestamp` |
+| **TzTimestamp** | — | — | — | — | — | — | — |
+| **Date32** | — | — | — | — | — | — | — |
+| **Datetime64** | — | — | — | — | — | — | — |
+| **Timestamp64** | — | — | — | — | — | — | — |
+| **Interval64** | — | — | — | — | — | — | — |
+| **TzDate32** | — | — | — | — | — | — | — |
+| **TzDatetime64** | — | — | — | — | — | — | — |
+| **TzTimestamp64** | — | — | — | — | — | — | — |
+
+##### Extended types
+
+| Type | Date32 | Datetime64 | Timestamp64 | Interval64 | TzDate32 | TzDatetime64 | TzTimestamp64 |
+--- | --- | --- | --- | --- | --- | --- | ---
+| **Date** | `Date32` | `DateTime64` | `Timestamp64` | — | `TzDate32` | `TzDatetime64` | `TzTimestamp64` |
+| **Datetime** | — | `Datetime64` | `Timestamp64` | — | — | `TzDatetime64` | `TzTimestamp64` |
+| **Timestamp** | — | — | `Timestamp64` | — | — | — | `TzTimestamp64` |
+| **Interval** | — | — | — | — | — | — | — |
+| **TzDate** | — | — | — | — | `TzDate32` | `TzDatetime64` | `TzTimestamp64` |
+| **TzDatetime** | — | — | — | — | — | `TzDatetime64` | `TzTimestamp64` |
+| **TzTimestamp** | — | — | — | — | — | — | `TzTimestamp64` |
+| **Date32** | — | `DateTime64` | `Timestamp64` | — | `TzDate32` | `TzDatetime64` | `TzTimestamp64` |
+| **Datetime64** | — | — | `Timestamp64` | — | — | `TzDatetime64` | `TzTimestamp64` |
+| **Timestamp64** | — | — | — | — | — | — | `TzTimestamp64` |
+| **Interval64** | — | — | — | — | — | — | — |
+| **TzDate32** | — | — | — | — | — | `TzDatetime64` | `TzTimestamp64` |
+| **TzDatetime64** | — | — | — | — | — | — | `TzTimestamp64` |
+| **TzTimestamp64** | — | — | — | — | — | — | — |
