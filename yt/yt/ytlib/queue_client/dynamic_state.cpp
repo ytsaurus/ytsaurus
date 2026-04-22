@@ -352,11 +352,7 @@ TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup
     patchedOptions.AllowMissingKeyColumns = true;
     return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
         .AsUnique()
-        .Apply(BIND([patchedOptions] (TUnversionedLookupRowsResult&& rawResult) {
-            if (patchedOptions.EnablePartialResult) {
-                YT_VERIFY(rawResult.UnavailableKeyIndexes.empty());
-            }
-
+        .Apply(BIND([] (TUnversionedLookupRowsResult&& rawResult) {
             auto optionalRecords = ToOptionalRecords<TRecord>(rawResult.Rowset);
 
             std::vector<TErrorOr<TRow>> result;
