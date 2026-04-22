@@ -5911,7 +5911,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
     using TByUser = TMaintenanceFilter::TByUser;
     if (request->has_user()) {
         auto user = request->user();
-        requestInfo.AppendFormat(", User: ", user);
+        requestInfo.AppendFormat(", User: %v", user);
         filter.User = user;
     } else if (request->mine()) {
         filter.User = TByUser::TMine{};
