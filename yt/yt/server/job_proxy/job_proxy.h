@@ -95,6 +95,8 @@ public:
 
     void OnProgressSaved(TInstant when);
 
+    void SecureEnvironmentVariables() const;
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

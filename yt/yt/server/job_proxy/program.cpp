@@ -129,6 +129,7 @@ protected:
         ConfigureSingletons(config);
 
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
+        jobProxy->SecureEnvironmentVariables();
         jobProxy->Run();
 
         // Everything should be properly destructed.
