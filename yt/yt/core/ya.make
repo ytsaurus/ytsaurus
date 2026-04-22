@@ -103,6 +103,7 @@ SRCS(
 
     crypto/config.cpp
     crypto/crypto.cpp
+    crypto/secure_environment.cpp
     crypto/tls.cpp
 
     logging/appendable_compressed_file.cpp
