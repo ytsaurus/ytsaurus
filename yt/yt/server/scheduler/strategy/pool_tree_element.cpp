@@ -1205,7 +1205,7 @@ TYPath TPoolTreeCompositeElement::GetFullPath(bool explicitOnly, bool withTreeId
     }
     for (const auto& token : tokens) {
         path.append('/');
-        path.append(NYPath::ToYPathLiteral(token));
+        path.append(TStringBuf(NYPath::ToYPathLiteral(token)));
     }
     return path;
 }

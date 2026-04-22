@@ -1068,7 +1068,8 @@ private:
 
             for (auto cellConfig : Config_->SecondaryMasters) {
                 auto cellTag = CellTagFromId(cellConfig->CellId);
-                auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
+                // TODO(dgolear): Switch to std::string.
+                TString cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
                 createMasters(cellPath, cellConfig);
             }
 
@@ -1079,27 +1080,27 @@ private:
                     auto cellTag = TCellTag(FromString<TCellTag::TUnderlying>(stringCellTag));
                     if (!knownSecondaryMasterCellTags.contains(cellTag)) {
                         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
-                        auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
+                        TString cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
                         ScheduleRemoveNode(cellPath, transactionId, /*force*/ true);
                     }
                 }
             } else {
                 YT_LOG_WARNING(listResult, "Failed to list secondary masters");
                 YT_LOG_ALERT_UNLESS(listResult.FindMatching(NYTree::EErrorCode::ResolveError),
-                    "Unexpected error occured while listing secondary masters");
+                    "Unexpected error occurred while listing secondary masters");
             }
 
             // TODO(babenko): handle service discovery.
             if (Config_->TimestampProvider->Addresses) {
                 for (const auto& timestampProviderAddress : *Config_->TimestampProvider->Addresses) {
-                    auto addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
+                    TString addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
                     createOrchidNode(addressPath, timestampProviderAddress);
                 }
             }
 
             if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
                 for (const auto& discoveryServerAddress : *Config_->DiscoveryServer->Addresses) {
-                    auto addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);
+                    TString addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);
                     createOrchidNode(addressPath, discoveryServerAddress);
                 }
             }
