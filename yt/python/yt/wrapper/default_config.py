@@ -726,6 +726,7 @@ default_config = {
         # Enable using function name as operation title.
         "use_function_name_as_title": True,
         # Enable modules filtering if client and server OS/python versions are different.
+        # Tries to ignore *.so, *.pyc (do not forget disable `encrypt_pickle_files` and `ignore_yson_bindings_for_incompatible_platforms`)
         "enable_modules_compatibility_filter": False,
         # Compression level of archive with modules (from 1 to 9)
         "modules_archive_compression_level": 6,
@@ -735,7 +736,8 @@ default_config = {
         "modules_chunk_size": 100 * common.MB,
         # Bypass artifacts cache for modules files.
         "modules_bypass_artifacts_cache": None,
-        # Ignore "system" python modules (installed on client's host and presented in YT runtime).
+        # Ignore all "system" python modules (installed on client's host and presented in YT runtime).
+        # "system" means - has __file__ and __file__ matches `system_module_patterns`
         "ignore_system_modules": RemotePatchableBoolean(False, "python_pickling_ignore_system_modules"),
         "system_module_patterns": [
             r"/lib/python[\d\.]+/(site|dist)-packages/",
