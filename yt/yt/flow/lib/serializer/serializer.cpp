@@ -40,7 +40,7 @@ class TFieldSerializer final
 {
 public:
     TFieldSerializer()
-        : TYsonWriter(static_cast<TStringStream*>(this))
+        : TYsonWriter(static_cast<TStringStream*>(this), EYsonFormat::Binary)
     { }
 
     TString Build() &&
