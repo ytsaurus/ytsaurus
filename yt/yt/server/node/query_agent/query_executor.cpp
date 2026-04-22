@@ -199,7 +199,7 @@ std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancingRatios final
-    : public std::vector<THashMap<TTabletId, double>>
+    : public std::vector<THashMap<TTabletId, std::atomic<double>>>
 { };
 
 using TTabletBalancingRatiosPtr = TIntrusivePtr<TTabletBalancingRatios>;
@@ -279,7 +279,7 @@ public:
             SelectRowsCounters_.SelectDuration.Record(Timer_->GetElapsedTime());
         }
 
-        (*TabletRatios_)[SubqueryIndex_][TabletId_] += statistics.data_weight();
+        (*TabletRatios_)[SubqueryIndex_][TabletId_].fetch_add(statistics.data_weight(), std::memory_order::relaxed);
 
         PerformanceCounters_->Increment(TabletChunkReadOptions_, /*isSystemWorkload*/ false);
         SessionChunkReadOptions_.AddStatisticsFrom(TabletChunkReadOptions_);
@@ -1757,7 +1757,7 @@ private:
 
         for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
             for (const auto& [_, ratio] : (*TabletRatios_)[subqueryIndex]) {
-                ratioSums[subqueryIndex] += ratio;
+                ratioSums[subqueryIndex] += ratio.load(std::memory_order::relaxed);
             }
             const auto& innerStatistics = statistics.InnerStatistics[subqueryIndex];
             totalRowsWrittenBySubqueries += innerStatistics.RowsWritten.GetTotal();
@@ -1778,7 +1778,7 @@ private:
                 TabletSnapshots_.GetCachedTabletSnapshot(tabletId)
                     ->PerformanceCounters
                     ->SelectCpuTime.Counter.fetch_add(
-                        safeDiv(ratio, ratioSums[subqueryIndex]) * subqueryCpuTime,
+                        safeDiv(ratio.load(std::memory_order::relaxed), ratioSums[subqueryIndex]) * subqueryCpuTime,
                         std::memory_order::relaxed);
             }
         }
