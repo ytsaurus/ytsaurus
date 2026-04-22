@@ -221,7 +221,6 @@ TEST(TQueryOptimizerTest, PushDownGroupBy)
         " having first(t.v) > 0 and (min(t.p) + max(t.q)) < 0 and ((first(r.w) + sum(r.s) * min(r.q)) / max(r.q)) > 300"
         " order by first(t.o1), min(t.o2), max(t.o3), first(r.o1), sum(r.o2), min(r.o3), max(r.o4)"));
 
-
     // There is no join or group by to push down.
     EXPECT_FALSE(RunPushDownGroupByOptimization(
         "t.v from [//home/table] as t"));

@@ -303,7 +303,6 @@ protected:
             reason);
     }
 
-
     template<typename TVisitParam>
     void VisitNode(
         TVisitParam&& target,

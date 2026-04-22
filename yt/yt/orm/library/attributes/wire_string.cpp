@@ -865,7 +865,6 @@ std::string AddWireTag(
     return result;
 }
 
-
 #undef DEFINE_STREAMS
 #undef IMPLEMENT_SERIALIZE_CASE
 
