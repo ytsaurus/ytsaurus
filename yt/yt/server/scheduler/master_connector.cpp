@@ -950,7 +950,8 @@ private:
         {
             auto proxy = CreateObjectServiceWriteProxy(Owner_->Bootstrap_->GetClient());
             auto batchReq = proxy.ExecuteBatch();
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
+            // TODO(dgolear): Switch to std::string.
+            TString path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
