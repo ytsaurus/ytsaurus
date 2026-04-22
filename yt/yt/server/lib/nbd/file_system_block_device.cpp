@@ -102,14 +102,8 @@ public:
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
 
-        NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
-
         return Reader_->Read(offset, length, options)
-            .Apply(BIND([this, this_ = MakeStrong(this), readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
-                if (!result.IsOK()) {
-                    TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
-                }
-
+            .Apply(BIND([this, this_ = MakeStrong(this), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
                 auto statistics = Reader_->GetStatistics();
                 TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
                     .Increment(statistics.DataBytesReadFromCache);
