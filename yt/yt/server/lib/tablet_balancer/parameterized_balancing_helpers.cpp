@@ -126,6 +126,16 @@ TParameterizedResharderConfig TParameterizedResharderConfig::MergeWith(
     };
 }
 
+void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
+        config->Cell,
+        config->Node,
+        config->TableCell,
+        config->TableNode);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf /*format*/)
 {
     builder->AppendFormat(
@@ -137,16 +147,6 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolver
         config.MinRelativeMetricImprovement,
         config.Metric,
         config.Factors);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*format*/)
-{
-    builder->AppendFormat(
-        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
-        config->Cell,
-        config->Node,
-        config->TableCell,
-        config->TableNode);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*format*/)
