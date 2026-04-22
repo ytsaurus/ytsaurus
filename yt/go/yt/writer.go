@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -414,6 +415,14 @@ func tryGetBackoffDuration(err error) *time.Duration {
 		yterrors.CodeTimeout,
 	} {
 		if _, ok := errorCodes[code]; ok {
+			return ptr.T(defaultRetryBackoff)
+		}
+	}
+
+	var httpErr *yterrors.HTTPError
+	if errors.As(err, &httpErr) {
+		switch httpErr.StatusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			return ptr.T(defaultRetryBackoff)
 		}
 	}
