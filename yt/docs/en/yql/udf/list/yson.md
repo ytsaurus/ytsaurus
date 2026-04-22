@@ -127,7 +127,7 @@ Yson::GetHash(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Uint64
 
 Calculating a 64-bit hash from an object tree.
 
-## Yson::Is...
+## Yson::Is... {#ysonis}
 
 ```yql
 Yson::IsEntity(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
@@ -138,9 +138,12 @@ Yson::IsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 Yson::IsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 Yson::IsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 Yson::IsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
+Yson::IsUtf8(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 ```
 
 Checking that the current node has the appropriate type. The Entity is `#`.
+
+The `Yson::IsUtf8` function is available starting from version [2026.01](../../changelog/2026.01.md#yson-module). It returns success only for nodes obtained from `Yson::ParseJson`/`Yson::ParseJsonDecodeUtf8`, or if the string node was built via `Yson::From` from the `Utf8` type.
 
 ## Yson::GetLength
 
@@ -180,6 +183,8 @@ These functions do not do implicit type casting by default, that is, the value i
 {% endnote %}
 
 `Yson::ConvertTo` is a polymorphic function that converts the data type that is specified in the second argument and supports containers (lists, dictionaries, tuples, structures, and so on) into a Yson resource.
+
+Starting from version [2025.05](../../changelog/2025.05.md#yson-module), it's recommended to use [As*/TryAs*](#ysonas) functions for casting a Yson node to a specific primitive type, list, or dictionary, and `Yson::ConvertTo` in all other cases.
 
 #### Example
 
@@ -227,6 +232,12 @@ Yson::LookupList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource
 
 The above functions are short notations for a typical use case: `Yson::YPath`: go to a level in the dictionary and then extract the value — `Yson::ConvertTo***`. For all the listed functions, the second argument is a key name from the dictionary (unlike YPath, it has no `/`prefix) or an index from the list (for example, `7`). They simplify the query and produce a small gain in speed.
 
+{% note warning %}
+
+Starting from version [2025.05](../../changelog/2025.05.md#yson-module), it's recommended to use `Yson::Lookup` to retrieve a node by key and [As*/TryAs*](#ysonas) functions for further type narrowing. In most cases, instead of multiple `Yson::Lookup` calls, consider converting data using `Yson::ConvertTo` into a set of dictionaries, lists, and primitive types.
+
+{% endnote %}
+
 ## Yson::YPath {#ysonypath}
 
 ```yql
@@ -242,7 +253,11 @@ Yson::YPathList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource<
 
 Lets you get a part of the resource based on the source resource and the part's path in YPath format.
 
+{% note warning %}
 
+Starting from version [2025.05](../../changelog/2025.05.md#yson-module), it's recommended to use `Yson::YPath` to retrieve a node by key and [As*/TryAs*](#ysonas) functions for further type narrowing. In most cases, instead of multiple `Yson::YPath` calls, consider converting data using `Yson::ConvertTo` into a set of dictionaries, lists, and primitive types.
+
+{% endnote %}
 
 ## Yson::Attributes {#ysonattributes}
 
@@ -300,6 +315,12 @@ SELECT Yson::ConvertToDoubleDict($yson, Yson::Options(false as Strict)); --- { "
 ```
 
 If you need to use the same Yson library settings throughout the query, it's more convenient to use [PRAGMA yson.AutoConvert;](../../syntax/pragma/yson.md#autoconvert) and/or [PRAGMA yson.Strict;](../../syntax/pragma/yson.md#strict). Only with these `PRAGMA` you can affect implicit calls to the Yson library occurring when you work with Yson/Json data types.
+
+{% note warning %}
+
+If you explicitly pass a `Yson::Options` object, the default values of its fields may differ from the settings used when no options are passed at all. For example, `Yson::Parse` works in strict mode by default, but if you create and pass an options object without specifying the `Strict` field, it will be set to `false` and the method will work in non-strict mode.
+
+{% endnote %}
 
 ## Yson::Iterate {#ysoniterate}
 
@@ -438,6 +459,7 @@ Yson::AsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Int64
 Yson::AsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Bool
 Yson::AsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Resource<'Yson2.Node'>>
 Yson::AsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String, Resource<'Yson2.Node'>>
+Yson::AsUtf8(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Utf8
 
 Yson::TryAsString(Resource<'Yson2.Node'>{Flags:AutoMap}) -> String?
 Yson::TryAsDouble(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Double?
@@ -446,12 +468,15 @@ Yson::TryAsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Int64?
 Yson::TryAsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Bool?
 Yson::TryAsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Resource<'Yson2.Node'>>?
 Yson::TryAsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String, Resource<'Yson2.Node'>>?
+Yson::TryAsUtf8(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Utf8?
 ```
 
 Added in version [2025.05](../../changelog/2025.05.md#yson-module).
 Casts a Yson node to the specified type.
 If the specified type isn't a valid Yson node type, `TryAs*` functions return `NULL`, while `As*` functions return a query error.
 To process a node with the `Entity` ('#') type, use the [`IsEntity`](#ysonis) function.
+
+The `Yson::AsUtf8` and `Yson::TryAsUtf8` functions are available starting from version [2026.01](../../changelog/2026.01.md#yson-module). See the [`Yson::IsUtf8`](#ysonis) function description for information about when a node can be cast to this type.
 
 ## In-place Yson node editing {#yson-modify}
 

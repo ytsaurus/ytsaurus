@@ -127,7 +127,7 @@ Yson::GetHash(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Uint64
 
 Вычисление 64-битного хэша от дерева объектов.
 
-## Yson::Is...
+## Yson::Is... {#ysonis}
 
 ```yql
 Yson::IsEntity(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
@@ -138,9 +138,12 @@ Yson::IsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 Yson::IsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 Yson::IsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 Yson::IsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
+Yson::IsUtf8(Resource<'Yson2.Node'>{Flags:AutoMap}) -> bool
 ```
 
 Проверка, что текущий узел имеет соответствующий тип. Entity это `#`.
+
+Функция `Yson::IsUtf8` доступна начиная с версии [2026.01](../../changelog/2026.01.md#yson-module). Она возвращает успех только на узлах, полученных после функции `Yson::ParseJson`/`Yson::ParseJsonDecodeUtf8` или если строковой узел был построен через `Yson::From` из типа `Utf8`.
 
 ## Yson::GetLength
 
@@ -180,6 +183,8 @@ Yson::ConvertToStringDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String,
 {% endnote %}
 
 `Yson::ConvertTo` является полиморфной функцией, преобразующей Yson ресурс в указанный во втором аргументе тип данных с поддержкой вложенных контейнеров (списки, словари, кортежи, структуры и т.п.).
+
+Начиная с версии [2025.05](../../changelog/2025.05.md#yson-module), для приведения Yson узла к конкретному примитивному типу, списку или словарю рекомендуется использовать функции [As*/TryAs*](#ysonas), а `Yson::ConvertTo` &mdash; в остальных случаях.
 
 #### Пример
 
@@ -228,6 +233,12 @@ Yson::LookupList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource
 
 Перечисленные выше функции представляют собой краткую форму записи для типичного сценария использования: `Yson::YPath` — переход в словарь на один уровень с последующим извлечением значения — `Yson::ConvertTo***`. Второй аргумент для всех перечисленных функций — имя ключа в словаре (в отличие от YPath, без префикса `/`) или индекс в списке (например, `7`). Упрощают запрос и дают небольшой выигрыш в скорости работы.
 
+{% note warning %}
+
+Начиная с версии [2025.05](../../changelog/2025.05.md#yson-module) рекомендуется использовать `Yson::Lookup` для получения узла по ключу и функции [As*/TryAs*](#ysonas) при необходимости дальнейшего уточнения типов. В большинстве случаев вместо множественных функций `Yson::Lookup` следует рассмотреть преобразование данных с помощью функции `Yson::ConvertTo` в набор словарей, списков и примитивных типов.
+
+{% endnote %}
+
 ## Yson::YPath {#ysonypath}
 
 ```yql
@@ -244,6 +255,12 @@ Yson::YPathList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource<
 Позволяет по входному ресурсу и пути на языке YPath получить ресурс, указывающий на соответствующую пути часть исходного ресурса.
 
 [Информация по YPath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath) на странице документации YT.
+
+{% note warning %}
+
+Начиная с версии [2025.05](../../changelog/2025.05.md#yson-module) рекомендуется использовать `Yson::YPath` для получения узла по ключу и функции [As*/TryAs*](#ysonas) при необходимости дальнейшего уточнения типов. В большинстве случаев вместо множественных функций `Yson::YPath` следует рассмотреть преобразование данных с помощью функции `Yson::ConvertTo` в набор словарей, списков и примитивных типов.
+
+{% endnote %}
 
 ## Yson::Attributes {#ysonattributes}
 
@@ -301,6 +318,12 @@ SELECT Yson::ConvertToDoubleDict($yson, Yson::Options(false as Strict)); --- { "
 ```
 
 Если во всём запросе требуется применять одинаковые значения настроек библиотеки Yson, то удобнее воспользоваться [PRAGMA yson.AutoConvert;](../../syntax/pragma/yson.md#autoconvert) и/или [PRAGMA yson.Strict;](../../syntax/pragma/yson.md#strict). Также эти `PRAGMA` являются единственным способом повлиять на неявные вызовы библиотеки Yson, которые возникают при работе с типами данных Yson/Json.
+
+{% note warning %}
+
+Если вы явно передаёте объект `Yson::Options`, значения его полей по умолчанию могут отличаться от настроек, которые используются, когда опции не передаются вообще. Например, метод `Yson::Parse` по умолчанию работает в строгом режиме, но если вы создаёте и передаёте объект опций без указания значения поля `Strict`, оно будет установлено в `false` и метод будет работать в нестрогом режиме.
+
+{% endnote %}
 
 ## Yson::Iterate {#ysoniterate}
 
@@ -439,6 +462,7 @@ Yson::AsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Int64
 Yson::AsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Bool
 Yson::AsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Resource<'Yson2.Node'>>
 Yson::AsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String, Resource<'Yson2.Node'>>
+Yson::AsUtf8(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Utf8
 
 Yson::TryAsString(Resource<'Yson2.Node'>{Flags:AutoMap}) -> String?
 Yson::TryAsDouble(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Double?
@@ -447,12 +471,15 @@ Yson::TryAsInt64(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Int64?
 Yson::TryAsBool(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Bool?
 Yson::TryAsList(Resource<'Yson2.Node'>{Flags:AutoMap}) -> List<Resource<'Yson2.Node'>>?
 Yson::TryAsDict(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Dict<String, Resource<'Yson2.Node'>>?
+Yson::TryAsUtf8(Resource<'Yson2.Node'>{Flags:AutoMap}) -> Utf8?
 ```
 
 Доступны начиная с версии [2025.05](../../changelog/2025.05.md#yson-module).
 Приводят Yson узел к заданному типу.
 `TryAs*` функции при неверном типе Yson узла возвращают `NULL`, а `As*` функции в этом случае приведут к ошибке запроса.
 Для обработки узла с типом `Entity` ('#') следует использовать функцию [`IsEntity`](#ysonis).
+
+Функции `Yson::AsUtf8` и `Yson::TryAsUtf8` доступны начиная с версии [2026.01](../../changelog/2026.01.md#yson-module). См. описание функции [`Yson::IsUtf8`](#ysonis) для информации о том, когда можно привести узел к этому типу.
 
 ## In-place изменения Yson узлов {#yson-modify}
 
