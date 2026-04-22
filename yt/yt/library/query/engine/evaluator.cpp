@@ -189,19 +189,23 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
+        TQueryFoldingProfilerOptions options{
+            .UseCanonicalNullRelations = useCanonicalNullRelations,
+            .ExecutionBackend = executionBackend,
+            .OptimizationLevel = optimizationLevel,
+            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
+            .MaxJoinBatchSize = maxJoinBatchSize,
+        };
+
         auto makeCodegenQuery = Profile(
             query,
             &id,
             &variables,
             joinProfilerRegistry,
-            useCanonicalNullRelations,
-            executionBackend,
-            optimizationLevel,
+            options,
             functionProfilers,
             aggregateProfilers,
-            sdk,
-            allowUnorderedGroupByWithLimit,
-            maxJoinBatchSize);
+            sdk);
 
         auto Logger = MakeQueryLogger(query);
 

@@ -3,6 +3,7 @@
 #include "cg_helpers.h"
 #include "cg_ir_builder.h"
 #include "cg_types.h"
+#include "public.h"
 
 #include <yt/yt/library/query/base/query_common.h>
 
@@ -350,8 +351,7 @@ void MakeCodegenWriteOp(
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotIndex,
-    NCodegen::EExecutionBackend executionBackend,
-    NCodegen::EOptimizationLevel optimizationLevel,
+    const TQueryFoldingProfilerOptions& options,
     const NWebAssembly::TModuleBytecode& sdk,
     const NWebAssembly::TModuleBytecodeHashSet& usedWebAssemblyFiles);
 
