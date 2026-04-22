@@ -181,6 +181,7 @@ DEFINE_ENUM(EMasterReign,
     ((IntroduceHunkJournalChunkFormat)                              (3227))  // akozhikhov
     ((IntroduceDistributedJournalChunkFormat)                       (3228))  // apollo1321
     ((InternCypressProxyConfig)                                     (3229))  // h0pless
+    ((RemoveEnableSequoiaReplicasInMedium)                          (3230))  // grphil
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

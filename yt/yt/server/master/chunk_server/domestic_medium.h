@@ -23,8 +23,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<std::string>>, DiskFamilyWhitelist);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, EnableSequoiaReplicas, true);
-
 public:
     using TMedium::TMedium;
 
