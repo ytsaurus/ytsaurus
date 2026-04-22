@@ -21,7 +21,7 @@ $ spark-submit-yt ... --conf spark.eventLog.enabled=true
 По умолчанию значение параметра `spark.history.fs.cleaner.enabled` выставлено в `true`. Значения по умолчанию других параметров такое же как в документации к Spark. При настройках по умолчанию SHS удаляет логи старше недели. Срок хранения логов можно изменить следующей настройкой: `spark.history.fs.cleaner.maxAge` (`spark-launch-yt ... --params '{spark_conf={"spark.history.fs.cleaner.maxAge"="14d";...}}'`).
 
 
-## Логи с воркеров {# worker-logs }
+## Логи с воркеров {#worker-logs}
 
 При запуске кластера можно настроить отправку логов с [воркеров](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone) в {{product-name}} таблицы. Логи будут записываться по пути `{cluster_path}/logs/worker_log`, под каждую дату будет создаваться отдельная таблица. Для включения отправки логов при запуске кластера необходимо использовать следующие опции:
 * `--enable-worker-log-transfer` – включает пересылку логов;
