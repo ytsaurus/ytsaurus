@@ -128,7 +128,6 @@ TEST(TMergeAttributesTest, HasPrefixes)
     NYson::TYsonString abdYsonStringBuf{R"(20)"sv};
     NYson::TYsonString acYsonStringBuf{R"({"e"="30"})"sv};
 
-
     auto mergedYsonString = NewMergeAttributes({
             {.Path = "/a", .Value = aYsonStringBuf},
             {.Path = "/a/b/d", .Value = abdYsonStringBuf},
