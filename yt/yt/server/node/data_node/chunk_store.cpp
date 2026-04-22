@@ -559,9 +559,12 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
+void TChunkStore::UpdateExistingChunk(
+    const IChunkPtr& chunk,
+    const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>&)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     const auto& location = chunk->GetLocation();
     if (!location->IsEnabled()) {
@@ -574,26 +577,23 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
 
     TChunkEntry oldChunkEntry;
     TChunkEntry newChunkEntry;
-    {
-        auto guard = WriterGuard(ChunkMapLock_);
 
-        oldChunkEntry = DoFindExistingChunk(chunk);
-        if (!oldChunkEntry.Chunk) {
-            YT_LOG_DEBUG(
-                "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
-                journalChunk->GetId(),
-                version,
-                journalChunk->IsSealed(),
-                journalChunk->IsActive());
-            return;
-        }
-
-        newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
-
-        location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
-
-        ChunkAdded_.Fire(chunk);
+    oldChunkEntry = DoFindExistingChunk(chunk);
+    if (!oldChunkEntry.Chunk) {
+        YT_LOG_DEBUG(
+            "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
+            journalChunk->GetId(),
+            version,
+            journalChunk->IsSealed(),
+            journalChunk->IsActive());
+        return;
     }
+
+    newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
+
+    location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
+
+    ChunkAdded_.Fire(chunk);
 }
 
 void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
@@ -778,11 +778,11 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
 {
     auto guard = ReaderGuard(ChunkMapLock_);
-    return GetPerLocationChunksUnsafe(std::move(guard));
+    return GetPerLocationChunksUnsafe(guard);
 }
 
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
-    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> /*guard*/)
+    const NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
@@ -1135,6 +1135,13 @@ NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> TChunkStore::Acquire
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReaderGuard(ChunkMapLock_);
+}
+
+NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapWriterLock()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return WriterGuard(ChunkMapLock_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

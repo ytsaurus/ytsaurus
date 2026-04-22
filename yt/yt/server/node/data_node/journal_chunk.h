@@ -57,7 +57,8 @@ public:
     i64 GetDataSize() const;
     void UpdateDataSize(i64 dataSize);
 
-    TFuture<void> Seal();
+    TFuture<void> ExecuteSeal();
+    void SetSealed();
     bool IsSealed() const;
 
 private:
@@ -119,4 +120,3 @@ DEFINE_REFCOUNTED_TYPE(TJournalChunk)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-
