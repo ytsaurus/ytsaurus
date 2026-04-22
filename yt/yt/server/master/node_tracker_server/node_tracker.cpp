@@ -1494,10 +1494,7 @@ private:
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
 
-        auto dynamicConfig = GetDynamicConfig();
-        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeRegistration) {
-            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
-        }
+        FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1902,10 +1899,7 @@ private:
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
         response->set_decommissioned(node->IsDecommissioned());
 
-        auto dynamicConfig = GetDynamicConfig();
-        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeHeartbeat) {
-            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
-        }
+        FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
         node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
     }
