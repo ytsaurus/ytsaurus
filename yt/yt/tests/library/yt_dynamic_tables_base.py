@@ -86,6 +86,16 @@ class DynamicTablesBase(YTEnvSetup):
         },
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "tablet_manager": {
+                    "yield_before_building_lsm_actions": True,
+                }
+            }
+        }
+    }
+
     class CellsDisabled():
         def __init__(self, clusters, tablet_bundles=[], chaos_bundles=[], area_ids=[]):
             self._clusters = clusters

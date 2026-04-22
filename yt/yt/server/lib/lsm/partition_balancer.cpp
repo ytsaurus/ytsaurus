@@ -156,10 +156,11 @@ private:
         i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
-        auto Logger = BuildLogger(partition);
+        auto Logger = mountConfig->EnableLsmVerboseLogging
+            ? BuildLogger(partition)
+            : NLogging::TLogger();
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Scanning partition to split (PartitionIndex: %v of %v, "
+        YT_LOG_DEBUG("Scanning partition to split (PartitionIndex: %v of %v, "
             "EstimatedMosc: %v, EstimatedEdenDataSize: %v, AtLeastOneSplitScheduled: %v, "
             "DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
             partition->GetIndex(),
@@ -172,8 +173,7 @@ private:
             secondLargestPartitionStoreCount);
 
         if (partition->GetState() != EPartitionState::Normal) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not split partition due to improper partition state (PartitionState: %v)",
+            YT_LOG_DEBUG("Will not split partition due to improper partition state (PartitionState: %v)",
                 partition->GetState());
             return {};
         }
@@ -181,7 +181,7 @@ private:
         // TODO(ifsmirnov): validate that all stores are persistent.
 
         if (partition->GetIsImmediateSplitRequested()) {
-            if (ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, true)) {
+            if (ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, true, Logger)) {
                 // This is inexact to say the least: immediate split is called when we expect that
                 // most of the stores will stay intact after splitting by the provided pivots.
                 *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
@@ -214,7 +214,10 @@ private:
                 actualDataSize / mountConfig->MinPartitionDataSize,
                 static_cast<i64>(mountConfig->MaxPartitionCount - partitionCount)});
 
-            if (splitFactor > 1 && ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, false)) {
+            if (splitFactor > 1 && ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, false, Logger)) {
+                if (!Logger) {
+                    Logger = BuildLogger(partition);
+                }
                 YT_LOG_DEBUG("Partition is scheduled for split");
                 *estimatedMaxOverlappingStoreCount = maxOverlappingStoreCountAfterSplit;
                 *estimatedEdenDataSize += partition->GetCompressedDataSize();
@@ -236,17 +239,14 @@ private:
         TPartition* partition,
         i64 estimatedEdenDataSize,
         bool atLeastOneSplitScheduled,
-        bool immediateSplit) const
+        bool immediateSplit,
+        const NLogging::TLogger& Logger) const
     {
         const auto* tablet = partition->GetTablet();
 
-        auto Logger = BuildLogger(partition);
-
         const auto& mountConfig = tablet->GetMountConfig();
         if (!immediateSplit && CurrentTime_ < partition->GetAllowedSplitTime()) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not split partition: too early "
-                "(CurrentTime: %v, AllowedSplitTime: %v)",
+            YT_LOG_DEBUG("Will not split partition: too early (CurrentTime: %v, AllowedSplitTime: %v)",
                 CurrentTime_,
                 partition->GetAllowedSplitTime());
             return false;
@@ -262,9 +262,7 @@ private:
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not split partition due to improper store state "
-                    "(StoreId: %v, StoreState: %v)",
+                YT_LOG_DEBUG("Will not split partition due to improper store state (StoreId: %v, StoreState: %v)",
                     store->GetId(),
                     store->GetStoreState());
                 return false;
@@ -295,10 +293,12 @@ private:
             }
         }
 
-        auto Logger = BuildLogger(partition);
+        NLogging::TLogger Logger;
+        if (mountConfig->EnableLsmVerboseLogging) {
+            Logger = BuildLogger(partition);
+        }
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Scanning partition to merge (PartitionIndex: %v of %v, "
+        YT_LOG_DEBUG("Scanning partition to merge (PartitionIndex: %v of %v, "
             "DataSize: %v, MaxPotentialDataSize: %v)",
             partition->GetIndex(),
             partitionCount,
@@ -316,8 +316,7 @@ private:
                 tablet->Partitions()[firstPartitionIndex]->Stores().size() +
                 tablet->Partitions()[lastPartitionIndex]->Stores().size();
 
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Found candidate partitions to merge (FirstPartitionIndex: %v, "
+            YT_LOG_DEBUG("Found candidate partitions to merge (FirstPartitionIndex: %v, "
                 "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
                 firstPartitionIndex,
                 lastPartitionIndex,
@@ -327,7 +326,7 @@ private:
             std::vector<TPartitionId> partitionIds;
             for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
                 partitionIds.push_back(tablet->Partitions()[index]->GetId());
-                if (!ValidateMerge(tablet->Partitions()[index].get())) {
+                if (!ValidateMerge(tablet->Partitions()[index].get(), Logger)) {
                     return {};
                 }
             }
@@ -344,14 +343,11 @@ private:
         return {};
     }
 
-    bool ValidateMerge(TPartition* partition) const
+    bool ValidateMerge(TPartition* partition, const NLogging::TLogger& Logger) const
     {
-        auto Logger = BuildLogger(partition);
-
         const auto& mountConfig = partition->GetTablet()->GetMountConfig();
         if (CurrentTime_ < partition->GetAllowedMergeTime()) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not merge partition: too early "
+            YT_LOG_DEBUG("Will not merge partition: too early "
                 "(CurrentTime: %v, AllowedMergeTime: %v)",
                 CurrentTime_, partition->GetAllowedSplitTime());
             return false;
