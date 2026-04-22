@@ -87,6 +87,7 @@ using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
 using NChunkClient::TypicalChunkLocationCount;
 using NChunkClient::EChunkListContentType;
+using NChunkClient::EChunkReplicaState;
 
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
@@ -241,13 +242,6 @@ DEFINE_ENUM(EChunkListKind,
     ((Hunk)                   (8))
     ((HunkStorageRoot)        (9))
     ((HunkTablet)            (10))
-);
-
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
-    ((Generic)               (0))
-    ((Active)                (1))
-    ((Unsealed)              (2))
-    ((Sealed)                (3))
 );
 
 DEFINE_ENUM(EChunkLocationState,

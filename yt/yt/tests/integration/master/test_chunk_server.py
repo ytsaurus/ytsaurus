@@ -1386,7 +1386,6 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
 ##################################################################
 
 
-@pytest.mark.skip(reason="Will be working again after YT-27202 is completed")
 class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {

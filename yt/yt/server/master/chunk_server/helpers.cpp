@@ -1422,6 +1422,23 @@ void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chu
     ValidateFromProto(chunkMeta);
 }
 
+EChunkReplicaState GetAddedChunkReplicaState(
+    TChunkId chunkId,
+    const NChunkClient::NProto::TChunkAddInfo &chunkAddInfo)
+{
+    if (IsJournalChunkId(chunkId)) {
+        if (chunkAddInfo.active()) {
+            return EChunkReplicaState::Active;
+        } else if (chunkAddInfo.sealed()) {
+            return EChunkReplicaState::Sealed;
+        } else {
+            return EChunkReplicaState::Unsealed;
+        }
+    } else {
+        return EChunkReplicaState::Generic;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(

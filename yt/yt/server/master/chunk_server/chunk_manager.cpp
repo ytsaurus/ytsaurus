@@ -3936,7 +3936,8 @@ private:
     struct TSymmetricDifference
     {
         std::vector<const TChunkAddInfo*> AddedReplicas;
-        THashSet<TChunkIdWithIndex> ReplicasToRemove;
+        std::vector<const TChunkAddInfo*> ReplicasWithChangedState;
+        THashSet<TChunkIdWithIndexAndState> ReplicasToRemove;
     };
 
     TSymmetricDifference ComputeLocationNonSequoiaReplicasDifference(
@@ -3945,7 +3946,9 @@ private:
         const auto& chunks,
         bool validation)
     {
-        THashSet<TChunkIdWithIndex> existingReplicas;
+        THashSet<TChunkIdWithIndexAndState> existingReplicas;
+        THashMap<TChunkIdWithIndex, EChunkReplicaState> journalReplicaStates;
+
         existingReplicas.reserve(location->Replicas().size());
 
         for (const auto& replica : location->Replicas()) {
@@ -3960,13 +3963,25 @@ private:
                 continue;
             }
 
-            existingReplicas.emplace(chunk->GetId(), replica.GetReplicaIndex());
+            existingReplicas.emplace(chunk->GetId(), replica.GetReplicaIndex(), replica.GetReplicaState());
+            if (chunk->IsJournal()) {
+                EmplaceOrCrash(
+                    journalReplicaStates,
+                    TChunkIdWithIndex(
+                        chunk->GetId(),
+                        replica.GetReplicaIndex()),
+                    replica.GetReplicaState());
+            }
         }
 
         TSymmetricDifference result;
 
         for (const auto& chunkInfo : chunks) {
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+            auto chunkIdWithIndexAndState = TChunkIdWithIndexAndState(
+                chunkIdWithIndex,
+                GetAddedChunkReplicaState(chunkIdWithIndex.Id, chunkInfo));
+
             if (chunkInfo.caused_by_medium_change()) {
                 YT_LOG_ALERT(
                     "Chunk caused by medium change is present in full heartbeat "
@@ -3992,10 +4007,17 @@ private:
                     validation);
             }
 
-            if (!existingReplicas.contains(chunkIdWithIndex)) {
+            if (auto it = journalReplicaStates.find(chunkIdWithIndex); it != journalReplicaStates.end()) {
+                if (it->second != chunkIdWithIndexAndState.State) {
+                    result.ReplicasWithChangedState.push_back(&chunkInfo);
+                }
+                EraseOrCrash(
+                    existingReplicas,
+                    TChunkIdWithIndexAndState(chunkIdWithIndex, it->second));
+            } else if (!existingReplicas.contains(chunkIdWithIndexAndState)) {
                 result.AddedReplicas.push_back(&chunkInfo);
             } else {
-                existingReplicas.erase(chunkIdWithIndex);
+                EraseOrCrash(existingReplicas, chunkIdWithIndexAndState);
             }
         }
 
@@ -4012,19 +4034,25 @@ private:
 
         std::vector<TChunk*> announceReplicaRequests;
 
-        for (const auto* chunkInfo : difference.AddedReplicas) {
-            YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo->location_index()) == location->GetIndex());
-            if (auto* chunk = ProcessAddedChunk(
-                node,
-                location,
-                *chunkInfo,
-                /*incremental*/ false))
-            {
-                if (chunk->IsBlob()) {
-                    announceReplicaRequests.push_back(chunk);
+        auto processAddedReplicas = [&] (const auto& addedReplicas) {
+            for (const auto* chunkInfo : addedReplicas) {
+                YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo->location_index()) == location->GetIndex());
+                if (auto* chunk = ProcessAddedChunk(
+                    node,
+                    location,
+                    *chunkInfo,
+                    /*incremental*/ false))
+                {
+                    if (chunk->IsBlob()) {
+                        announceReplicaRequests.push_back(chunk);
+                    }
                 }
             }
-        }
+        };
+
+        processAddedReplicas(difference.AddedReplicas);
+        // Replicas with changed states are processed the same way as added replicas.
+        processAddedReplicas(difference.ReplicasWithChangedState);
 
         // We need to remove all existing replicas that were not reported, which means that existingReplicas set still contains them.
         // We collect them to separate vector because location->Replicas() is modified when replica is removed.
@@ -4050,7 +4078,9 @@ private:
                 }
             }
 
-            if (difference.ReplicasToRemove.contains(TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()))) {
+            if (difference.ReplicasToRemove.contains(
+                TChunkIdWithIndexAndState(chunk->GetId(), replica.GetReplicaIndex(), replica.GetReplicaState())))
+            {
                 replicasToRemove.emplace_back(replica);
             }
         }
@@ -4173,33 +4203,51 @@ private:
             chunks,
             /*validation*/ true);
 
-        std::vector<TChunkIdWithIndex> masterMissingReplicas;
-        for (const auto* chunkInfo : difference.AddedReplicas) {
-            auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo->chunk_id()));
-            if (!location->HasDestroyedReplica(chunkIdWithIndex)) {
-                masterMissingReplicas.push_back(chunkIdWithIndex);
+        auto gatherMissingReplicas = [&] (
+            std::vector<TChunkIdWithIndexAndState>& replicasCollector,
+            const auto& replicasList)
+        {
+            for (const auto& chunkInfo : replicasList) {
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo->chunk_id()));
+                auto chunkIdWithIndexAndState = TChunkIdWithIndexAndState(
+                    chunkIdWithIndex,
+                    GetAddedChunkReplicaState(chunkIdWithIndex.Id, *chunkInfo));
+
+                if (!location->HasDestroyedReplica(chunkIdWithIndex)) {
+                    replicasCollector.push_back(chunkIdWithIndexAndState);
+                }
             }
+        };
+
+        std::vector<TChunkIdWithIndexAndState> masterMissingReplicas;
+        std::vector<TChunkIdWithIndexAndState> replicasWithChangedState;
+        gatherMissingReplicas(masterMissingReplicas, difference.AddedReplicas);
+        if (!GetDynamicConfig()->DataNodeTracker->IgnoreReplicasWithChangedStateDuringValidation) {
+            gatherMissingReplicas(replicasWithChangedState, difference.ReplicasWithChangedState);
         }
 
-        std::vector<TChunkIdWithIndex> masterRedundantReplicas;
-        for (const auto& chunkIdWithIndex : difference.ReplicasToRemove) {
-        if (!location->ChunkRemovalQueue().contains(chunkIdWithIndex)) {
-                masterRedundantReplicas.push_back(chunkIdWithIndex);
+        std::vector<TChunkIdWithIndexAndState> masterRedundantReplicas;
+        for (const auto& chunkIdWithIndexAndState : difference.ReplicasToRemove) {
+            if (!location->ChunkRemovalQueue().contains(chunkIdWithIndexAndState)) {
+                masterRedundantReplicas.push_back(chunkIdWithIndexAndState);
             }
         }
 
         YT_LOG_ALERT_AND_THROW_IF(
-            !masterMissingReplicas.empty() || !masterRedundantReplicas.empty(),
+            !masterMissingReplicas.empty() || !masterRedundantReplicas.empty() || !replicasWithChangedState.empty(),
             "Master state is inconsistent for data node location "
-            "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, MissingChunkCount: %v, RedundantChunkCount: %v, "
-            "MissingChunkIdsSample: %v, RedundantChunkIdsSample: %v)",
+            "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, "
+            "MissingReplicaCount: %v, RedundantReplicaCount: %v, ChangedStateReplicaCount: %v, "
+            "MissingReplicasSample: %v, RedundantReplicasSample: %v, ChangedStateReplicasSample: %v)",
             node->GetId(),
             node->GetDefaultAddress(),
             location->GetUuid(),
             masterMissingReplicas.size(),
             masterRedundantReplicas.size(),
+            replicasWithChangedState.size(),
             MakeShrunkFormattableView(masterMissingReplicas, TDefaultFormatter(), /*limit*/ 10),
-            MakeShrunkFormattableView(masterRedundantReplicas, TDefaultFormatter(), /*limit*/ 10));
+            MakeShrunkFormattableView(masterRedundantReplicas, TDefaultFormatter(), /*limit*/ 10),
+            MakeShrunkFormattableView(replicasWithChangedState, TDefaultFormatter(), /*limit*/ 10));
     }
 
     void UpdateChunkRemovalLockedMap(TNode* node, THeartbeatSequenceNumber heartbeatSequenceNumber)
@@ -6498,24 +6546,6 @@ private:
         ++ChunkReplicasRemoved_;
     }
 
-
-    static EChunkReplicaState GetAddedChunkReplicaState(
-        TChunk* chunk,
-        const TChunkAddInfo& chunkAddInfo)
-    {
-        if (chunk->IsJournal()) {
-            if (chunkAddInfo.active()) {
-                return EChunkReplicaState::Active;
-            } else if (chunkAddInfo.sealed()) {
-                return EChunkReplicaState::Sealed;
-            } else {
-                return EChunkReplicaState::Unsealed;
-            }
-        } else {
-            return EChunkReplicaState::Generic;
-        }
-    }
-
     std::pair<TChunkLocation*, TDomesticMedium*> FindLocationAndMediumOnProcessChunk(
         TNode* node,
         TChunkLocation* realLocation,
@@ -6605,7 +6635,7 @@ private:
             return nullptr;
         }
 
-        auto state = GetAddedChunkReplicaState(chunk, chunkAddInfo);
+        auto state = GetAddedChunkReplicaState(chunk->GetId(), chunkAddInfo);
         TChunkPtrWithReplicaInfo chunkWithIndexes(chunk, chunkIdWithIndexes.ReplicaIndex, state);
         TChunkLocationPtrWithReplicaInfo locationWithIndexes(location, chunkIdWithIndexes.ReplicaIndex, state);
 

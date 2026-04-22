@@ -320,6 +320,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_sequoia_replicas", &TThis::ValidateSequoiaReplicas)
         .Default(false)
         .DontSerializeDefault();
+    registrar.Parameter("ignore_replicas_with_changed_state_during_validation", &TThis::IgnoreReplicasWithChangedStateDuringValidation)
+        .Default(true);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)

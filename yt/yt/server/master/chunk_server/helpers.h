@@ -181,6 +181,10 @@ NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
 
 void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
+EChunkReplicaState GetAddedChunkReplicaState(
+        TChunkId chunkId,
+        const NChunkClient::NProto::TChunkAddInfo& chunkAddInfo);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequoiaConfig
