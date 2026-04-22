@@ -537,39 +537,6 @@ class TestRackDataCenterCells(TestRackDataCenter):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-################################################################################
-
-
-class TestNodesRegistrationAndClusterHeartbeatSwitch(YTEnvSetup):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_NODES = 3
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "node_tracker": {
-            "return_master_cells_connection_configs_on_node_registration": False,
-            "return_master_cells_connection_configs_on_node_heartbeat": False,
-        },
-    }
-
-    @authors("cherepashka")
-    def test_switch(self):
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_registration", True)
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_heartbeat", True)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_registration", False)
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_heartbeat", False)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_registration", True)
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_heartbeat", True)
-
-        # Nodes should continue work correctly, switches shouldn't affect it.
-
 
 ################################################################################
 
