@@ -20,7 +20,7 @@ struct IFunctionCodegen
         const std::vector<TLogicalTypePtr>& argumentTypes,
         const TLogicalTypePtr& type,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsNullable(const std::vector<bool>& nullableArgs) const = 0;
@@ -45,7 +45,7 @@ struct IAggregateCodegen
         const TLogicalTypePtr& stateType,
         const TLogicalTypePtr& resultType,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsFirst() const = 0;
@@ -173,7 +173,7 @@ public:
         const std::vector<TLogicalTypePtr>& argumentTypes,
         const TLogicalTypePtr& type,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id) const override;
 
     NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const override;
@@ -214,7 +214,7 @@ public:
         const TLogicalTypePtr& stateType,
         const TLogicalTypePtr& resultType,
         const std::string& name,
-        NCodegen::EExecutionBackend executionBackend,
+        const TQueryFoldingProfilerOptions& options,
         llvm::FoldingSetNodeID* id) const override;
 
     bool IsFirst() const override;

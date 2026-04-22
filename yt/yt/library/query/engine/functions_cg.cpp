@@ -1,5 +1,6 @@
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
+#include "folding_profiler.h"
 
 #include <yt/yt/client/table_client/llvm_types.h>
 
@@ -685,10 +686,10 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     const std::vector<TLogicalTypePtr>& argumentTypes,
     const TLogicalTypePtr& type,
     const std::string& name,
-    EExecutionBackend executionBackend,
+    const TQueryFoldingProfilerOptions& options,
     llvm::FoldingSetNodeID* id) const
 {
-    THROW_ERROR_EXCEPTION_IF(ImplementationFiles_[executionBackend].Empty(), "Found no implementation for UDF %Qv", FunctionName_);
+    THROW_ERROR_EXCEPTION_IF(ImplementationFiles_[options.ExecutionBackend].Empty(), "Found no implementation for UDF %Qv", FunctionName_);
 
     if (id) {
         id->AddString(ToStringRef(Fingerprint_));
@@ -730,7 +731,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
                 type,
                 UseFunctionContext_);
 
-            if (executionBackend == EExecutionBackend::WebAssembly) {
+            if (options.ExecutionBackend == EExecutionBackend::WebAssembly) {
                 BuildPrototypesForFunctions(
                     innerBuilder,
                     {std::pair(SymbolName_, functionType)});
@@ -777,9 +778,11 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     const TLogicalTypePtr& stateType,
     const TLogicalTypePtr& resultType,
     const std::string& name,
-    EExecutionBackend executionBackend,
+    const TQueryFoldingProfilerOptions& options,
     llvm::FoldingSetNodeID* id) const
 {
+    auto executionBackend = options.ExecutionBackend;
+
     THROW_ERROR_EXCEPTION_IF(
         ImplementationFiles_[executionBackend].Empty(),
         "Found no implementation for aggregate UDF %Qv",

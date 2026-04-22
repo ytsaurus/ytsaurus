@@ -216,7 +216,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                         type,
                         type,
                         aggregateName,
-                        EExecutionBackend::Native),
+                        {.ExecutionBackend = EExecutionBackend::Native}),
                     {wireType},
                     wireType,
                     EExecutionBackend::Native,

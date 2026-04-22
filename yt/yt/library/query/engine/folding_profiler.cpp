@@ -848,7 +848,7 @@ size_t TExpressionProfiler::Profile(
             std::move(argumentTypes),
             functionExpr->LogicalType,
             "{" + InferName(functionExpr, TInferNameOptions{.OmitValues = true}) + "}",
-            ExecutionBackend_,
+            {.ExecutionBackend = ExecutionBackend_},
             Id_),
         functionExpr->GetWireType(),
         function->IsNullable(nullableArgs));
@@ -1470,7 +1470,7 @@ size_t TExpressionProfiler::Profile(
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
-                ExecutionBackend_,
+                {.ExecutionBackend = ExecutionBackend_},
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
@@ -1614,17 +1614,21 @@ public:
         TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        bool useCanonicalNullRelations,
-        EExecutionBackend executionBackend,
-        EOptimizationLevel optimizationLevel,
-        bool allowUnorderedGroupByWithLimit,
-        i64 maxJoinBatchSize,
+        const TQueryFoldingProfilerOptions& options,
         NWebAssembly::TModuleBytecodeHashSet* const usedWebAssemblyFiles,
         const NWebAssembly::TModuleBytecode* const sdk)
-        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles, sdk)
-        , MaxJoinBatchSize_(maxJoinBatchSize)
-        , OptimizationLevel_(optimizationLevel)
-        , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
+        : TExpressionProfiler(
+            id,
+            variables,
+            functionProfilers,
+            aggregateProfilers,
+            options.UseCanonicalNullRelations,
+            options.ExecutionBackend,
+            usedWebAssemblyFiles,
+            sdk)
+        , MaxJoinBatchSize_(options.MaxJoinBatchSize)
+        , OptimizationLevel_(options.OptimizationLevel)
+        , AllowUnorderedGroupByWithLimit_(options.AllowUnorderedGroupByWithLimit)
     { }
 
     void Profile(
@@ -2012,7 +2016,7 @@ void TQueryProfiler::Profile(
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
-                ExecutionBackend_,
+                {.ExecutionBackend = ExecutionBackend_},
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
@@ -2687,14 +2691,10 @@ TCGQueryGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TJoinProfilerRegistry& joinProfilerRegistry,
-    bool useCanonicalNullRelations,
-    EExecutionBackend executionBackend,
-    EOptimizationLevel optimizationLevel,
+    TQueryFoldingProfilerOptions options,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
-    const NWebAssembly::TModuleBytecode& sdk,
-    bool allowUnorderedGroupByWithLimit,
-    i64 maxJoinBatchSize)
+    const NWebAssembly::TModuleBytecode& sdk)
 {
     auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
 
@@ -2703,11 +2703,7 @@ TCGQueryGenerator Profile(
         variables,
         functionProfilers,
         aggregateProfilers,
-        useCanonicalNullRelations,
-        executionBackend,
-        optimizationLevel,
-        allowUnorderedGroupByWithLimit,
-        maxJoinBatchSize,
+        options,
         usedWebAssemblyFiles.get(),
         &sdk);
 
@@ -2726,7 +2722,12 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, sdk, *usedWebAssemblyFiles);
+            return CodegenQuery(
+                &codegenSource,
+                slotCount,
+                options,
+                sdk,
+                *usedWebAssemblyFiles);
         };
 }
 
