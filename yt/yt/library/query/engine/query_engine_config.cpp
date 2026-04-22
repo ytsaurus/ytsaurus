@@ -51,6 +51,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("truncated_query_length_for_tracing", &TThis::TruncatedQueryLengthForTracing)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("allow_heavy_range_inference_in_joins", &TThis::AllowHeavyRangeInferenceInJoins)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

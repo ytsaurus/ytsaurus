@@ -73,6 +73,10 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
+#include <yt/yt/library/query/engine/query_engine_config.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 #include <yt/yt/library/query/misc/rowset_subrange_reader.h>
 
 #include <yt/yt/client/transaction_client/public.h>
@@ -714,6 +718,14 @@ private:
                         executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
                     }
 
+                    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+                    auto queryEngineConfig = singletonsConfig
+                        ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+                        : nullptr;
+                    auto allowHeavyRangeInferenceInJoins = queryEngineConfig
+                        ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+                        : false;
+
                     joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
                         joinClause,
                         executePlanCallback,
@@ -726,6 +738,7 @@ private:
                         },
                         MemoryChunkProvider_,
                         QueryOptions_.UseOrderByInJoinSubqueries,
+                        allowHeavyRangeInferenceInJoins,
                         Logger));
                 }
 

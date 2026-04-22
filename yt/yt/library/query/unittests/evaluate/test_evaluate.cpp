@@ -671,6 +671,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             std::move(getPrefetchJoinDataSource),
             GetDefaultMemoryChunkProvider(),
             /*useOrderByInJoinSubqueries*/ true,
+            /*allowHeavyRangeInferenceInJoins*/ false,
             Logger()));
     }
 

@@ -3114,6 +3114,163 @@ class TestQueryRpcProxy(TestQuery):
         assert statistics[length//2] != 0
         assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
 
+    @authors("dtorilov")
+    def test_yt_27954_1(self):
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fk1", "type": "int64"},
+            ],
+            [
+                {"pk": 1, "fk1": 10},
+                {"pk": 2, "fk1": 20},
+                {"pk": 3, "fk1": 30},
+            ],
+            "scan",
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash(pk1, pk2)"},
+                {"name": "pk1", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            [
+                {"pk1": 10, "pk2": 1, "value": "a"},
+                {"pk1": 10, "pk2": 2, "value": "b"},
+                {"pk1": 10, "pk2": 3, "value": "c"},
+                {"pk1": 20, "pk2": 1, "value": "d"},
+                {"pk1": 20, "pk2": 3, "value": "e"},
+                {"pk1": 30, "pk2": 2, "value": "f"},
+            ],
+            "scan",
+        )
+        query = (
+            "l.pk, l.fk1, r.pk1, r.pk2, r.value "
+            "from [//tmp/l] l join [//tmp/r] r "
+            "on l.fk1 = r.pk1 and r.pk2 in (1, 2)"
+            "limit 1024"
+        )
+        expected = [
+            {"l.pk": 1, "l.fk1": 10, "r.pk1": 10, "r.pk2": 1, "r.value": "a"},
+            {"l.pk": 1, "l.fk1": 10, "r.pk1": 10, "r.pk2": 2, "r.value": "b"},
+            {"l.pk": 2, "l.fk1": 20, "r.pk1": 20, "r.pk2": 1, "r.value": "d"},
+            {"l.pk": 3, "l.fk1": 30, "r.pk1": 30, "r.pk2": 2, "r.value": "f"},
+        ]
+        actual = select_rows(query, allow_join_without_index=False)
+        assert expected == actual
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
+
+    @authors("dtorilov")
+    def test_yt_27954_2(self):
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fk1", "type": "int64"},
+            ],
+            [
+                {"pk": 10, "fk1": 10},
+                {"pk": 20, "fk1": 20},
+                {"pk": 30, "fk1": 30},
+            ],
+            "scan",
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash(pk1, pk2)"},
+                {"name": "pk1", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            [
+                {"pk1": 10, "pk2": 1, "value": "a"},
+                {"pk1": 10, "pk2": 2, "value": "b"},
+                {"pk1": 10, "pk2": 3, "value": "c"},
+                {"pk1": 20, "pk2": 1, "value": "d"},
+                {"pk1": 20, "pk2": 3, "value": "e"},
+                {"pk1": 30, "pk2": 2, "value": "f"},
+            ],
+            "scan",
+        )
+        query = (
+            "l.pk, l.fk1, r.pk1, r.pk2, r.value "
+            "from [//tmp/l] l join [//tmp/r] r "
+            "on l.pk = r.pk1 and r.pk2 in (1, 2)"
+            "limit 1024"
+        )
+        expected = [
+            {"l.pk": 10, "l.fk1": 10, "r.pk1": 10, "r.pk2": 1, "r.value": "a"},
+            {"l.pk": 10, "l.fk1": 10, "r.pk1": 10, "r.pk2": 2, "r.value": "b"},
+            {"l.pk": 20, "l.fk1": 20, "r.pk1": 20, "r.pk2": 1, "r.value": "d"},
+            {"l.pk": 30, "l.fk1": 30, "r.pk1": 30, "r.pk2": 2, "r.value": "f"},
+        ]
+        actual = select_rows(query, allow_join_without_index=False)
+        assert expected == actual
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
+
+    @authors("dtorilov")
+    def test_yt_27954_3(self):
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "fk1", "type": "int64"},
+            ],
+            [
+                {"pk": 10, "fk1": 10},
+                {"pk": 20, "fk1": 20},
+                {"pk": 30, "fk1": 30},
+            ],
+            "scan",
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash(pk1, pk2)"},
+                {"name": "pk1", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk2", "type": "int64", "sort_order": "ascending"},
+                {"name": "pk3", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            [
+                {"pk1": 10, "pk2": 1, "pk3": 1, "value": "a"},
+                {"pk1": 10, "pk2": 2, "pk3": 2, "value": "b"},
+                {"pk1": 10, "pk2": 3, "pk3": 3, "value": "c"},
+                {"pk1": 20, "pk2": 1, "pk3": 1, "value": "d"},
+                {"pk1": 20, "pk2": 3, "pk3": 3, "value": "e"},
+                {"pk1": 30, "pk2": 2, "pk3": 2, "value": "f"},
+            ],
+            "scan",
+        )
+        query = (
+            "l.pk, l.fk1, r.pk1, r.pk2, r.value "
+            "from [//tmp/l] l join [//tmp/r] r "
+            "on l.pk = r.pk1 and r.pk3 in (1, 2)"
+            "limit 1024"
+        )
+        with raises_yt_error("Foreign table key is not used in the join clause; the query is inefficient, consider rewriting it"):
+            select_rows(query, allow_join_without_index=False)
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
+
 
 @pytest.mark.enabled_multidaemon
 class TestSelectWithRowCache(TestLookupCache):
