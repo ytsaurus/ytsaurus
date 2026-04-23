@@ -7,6 +7,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:36
+        ram:48
     )
 ENDIF()
 
