@@ -650,8 +650,6 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleProcess::TSimpleProcess(const std::string& path, bool copyEnv, TDuration pollPeriod)
-    // std::string is guaranteed to be zero-terminated.
-    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
     : TProcessBase(path)
     , PollPeriod_(pollPeriod)
     , PipeFactory_(3)

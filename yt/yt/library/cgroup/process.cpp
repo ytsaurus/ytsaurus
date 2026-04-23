@@ -10,25 +10,25 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TString> ParseProcessCGroups(const TString& str)
+THashMap<std::string, std::string> ParseProcessCGroups(const TString& str)
 {
-    THashMap<TString, TString> result;
+    THashMap<std::string, std::string> result;
 
-    TVector<TString> values;
+    std::vector<std::string> values;
     StringSplitter(str.data()).SplitBySet(":\n").SkipEmpty().Collect(&values);
-    for (size_t i = 0; i + 2 < values.size(); i += 3) {
+    for (int index = 0; index + 2 < std::ssize(values); index += 3) {
         // Check format.
-        FromString<int>(values[i]);
+        FromString<int>(values[index]);
 
-        const auto& subsystemsSet = values[i + 1];
-        const auto& name = values[i + 2];
+        const auto& subsystemsSet = values[index + 1];
+        const auto& name = values[index + 2];
 
-        TVector<TString> subsystems;
+        std::vector<std::string> subsystems;
         StringSplitter(subsystemsSet.data()).Split(',').SkipEmpty().Collect(&subsystems);
         for (const auto& subsystem : subsystems) {
-            if (!subsystem.StartsWith("name=")) {
+            if (!subsystem.starts_with("name=")) {
                 int start = 0;
-                if (name.StartsWith("/")) {
+                if (name.starts_with("/")) {
                     start = 1;
                 }
                 result[subsystem] = name.substr(start);
@@ -39,14 +39,14 @@ THashMap<TString, TString> ParseProcessCGroups(const TString& str)
     return result;
 }
 
-THashMap<TString, TString> GetProcessCGroups(pid_t pid)
+THashMap<std::string, std::string> GetProcessCGroups(pid_t pid)
 {
     auto cgroupsPath = Format("/proc/%v/cgroup", pid);
     auto rawCgroups = TFileInput{cgroupsPath}.ReadAll();
     return ParseProcessCGroups(rawCgroups);
 }
 
-THashMap<TString, TString> GetSelfProcessCGroups()
+THashMap<std::string, std::string> GetSelfProcessCGroups()
 {
     auto rawCgroups = TFileInput{"/proc/self/cgroup"}.ReadAll();
     return ParseProcessCGroups(rawCgroups);
@@ -55,4 +55,3 @@ THashMap<TString, TString> GetSelfProcessCGroups()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NContainers
-

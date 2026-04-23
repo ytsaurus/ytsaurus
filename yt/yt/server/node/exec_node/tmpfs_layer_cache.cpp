@@ -112,7 +112,7 @@ TFuture<void> TTmpfsLayerCache::Initialize()
 
     {
         YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
-        auto error = WaitFor(PortoExecutor_->UnlinkVolume(TString(path), "self"));
+        auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
         if (!error.IsOK()) {
             YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
         }
@@ -124,12 +124,12 @@ TFuture<void> TTmpfsLayerCache::Initialize()
 
         MakeDirRecursive(path, 0777);
 
-        THashMap<TString, TString> volumeProperties;
+        THashMap<std::string, std::string> volumeProperties;
         volumeProperties["backend"] = "tmpfs";
         volumeProperties["permissions"] = "0777";
         volumeProperties["space_limit"] = ToString(Config_->Capacity);
 
-        WaitFor(PortoExecutor_->CreateVolume(TString(path), volumeProperties))
+        WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
             .ThrowOnError();
 
         MemoryUsageTracker_->Acquire(Config_->Capacity);

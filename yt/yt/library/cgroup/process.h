@@ -51,7 +51,7 @@ public:
             TErrorOr<TDuration> IOWaitTime{TError("Resource usage is missing IOWaitTime field")};
         };
 
-        using TDeviceIOStatistics = THashMap<TString, TIOStatistics>;
+        using TDeviceIOStatistics = THashMap<std::string, TIOStatistics>;
 
         TIOStatistics TotalIOStatistics;
         TDeviceIOStatistics DeviceIOStatistics;
@@ -59,8 +59,8 @@ public:
 
     struct TStatisticsItem
     {
-        TString DeviceId;
-        TString Type;
+        std::string DeviceId;
+        std::string Type;
         i64 Value = 0;
     };
 };
@@ -112,9 +112,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TString> ParseProcessCGroups(const TString& str);
-THashMap<TString, TString> GetProcessCGroups(pid_t pid);
-THashMap<TString, TString> GetSelfProcessCGroups();
+THashMap<std::string, std::string> ParseProcessCGroups(const TString& str);
+THashMap<std::string, std::string> GetProcessCGroups(pid_t pid);
+THashMap<std::string, std::string> GetSelfProcessCGroups();
 
 ////////////////////////////////////////////////////////////////////////////////
 

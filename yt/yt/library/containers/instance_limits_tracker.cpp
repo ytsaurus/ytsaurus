@@ -64,7 +64,7 @@ void TInstanceLimitsTracker::DoUpdateLimits()
 #ifdef _linux_
     YT_LOG_DEBUG("Checking for instance limits update");
 
-    auto setIfOk = [] (auto* destination, const auto& valueOrError, const TString& fieldName, bool alert = true) {
+    auto setIfOk = [] (auto* destination, const auto& valueOrError, const std::string& fieldName, bool alert = true) {
         if (valueOrError.IsOK()) {
             *destination = valueOrError.Value();
         } else {

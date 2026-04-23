@@ -242,7 +242,7 @@ DEFINE_REFCOUNTED_TYPE(IIOEngine)
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    TString locationId = "default",
+    std::string locationId = "default",
     NProfiling::TProfiler profiler = {},
     NLogging::TLogger logger = {},
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue = nullptr,

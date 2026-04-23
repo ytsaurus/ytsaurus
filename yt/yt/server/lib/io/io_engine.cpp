@@ -1677,7 +1677,7 @@ private:
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    TString locationId,
+    std::string locationId,
     TProfiler profiler,
     NLogging::TLogger logger,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,

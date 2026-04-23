@@ -21,7 +21,7 @@ class TContainerDevicesChecker
 {
 public:
     TContainerDevicesChecker(
-        TString testDirectoryPath,
+        std::string testDirectoryPath,
         TPortoExecutorDynamicConfigPtr config,
         IInvokerPtr invoker,
         NLogging::TLogger logger);
@@ -33,13 +33,13 @@ public:
     DEFINE_SIGNAL(void(const TError&), Check);
 
 private:
-    const TString TestDirectoryPath_;
+    const std::string TestDirectoryPath_;
 
-    const TString VolumesPath_;
-    const TString LayersPath_;
-    const TString PortoVolumesPath_;
-    const TString PortoStoragePath_;
-    const TString LockPath;
+    const std::string VolumesPath_;
+    const std::string LayersPath_;
+    const std::string PortoVolumesPath_;
+    const std::string PortoStoragePath_;
+    const std::string LockPath;
 
     const TPortoExecutorDynamicConfigPtr Config_;
     const NLogging::TLogger Logger;
@@ -47,7 +47,7 @@ private:
     const IPortoExecutorPtr Executor_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
-    TString RootContainerName_;
+    std::string RootContainerName_;
 
     bool DirectoryPrepared_ = false;
 
@@ -61,7 +61,7 @@ DEFINE_REFCOUNTED_TYPE(TContainerDevicesChecker)
 ////////////////////////////////////////////////////////////////////////////////
 
 TContainerDevicesCheckerPtr CreateContainerDevicesChecker(
-    TString testDirectoryPath,
+    std::string testDirectoryPath,
     TPortoExecutorDynamicConfigPtr config,
     IInvokerPtr invoker,
     NLogging::TLogger logger);

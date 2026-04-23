@@ -44,7 +44,7 @@ void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descrip
     }
 }
 
-static TError DecodeExitCode(int exitCode, const TProtoStringType& reason)
+static TError DecodeExitCode(int exitCode, const std::string& reason)
 {
     if (exitCode == 0) {
         return TError();
@@ -84,7 +84,7 @@ class TCriProcess
 {
 public:
     TCriProcess(
-        const TString& path,
+        const std::string& path,
         ICriExecutorPtr executor,
         TCriContainerSpecPtr containerSpec,
         TCriPodDescriptorPtr podDescriptor,
@@ -151,13 +151,13 @@ private:
             // TODO(dgolear): Switch to std::string.
             ContainerSpec_->Command = {TString(Path_)};
         }
-        ContainerSpec_->Arguments = std::vector<TString>(Args_.begin() + 1, Args_.end());
+        ContainerSpec_->Arguments = std::vector<std::string>(Args_.begin() + 1, Args_.end());
         ContainerSpec_->WorkingDirectory = WorkingDirectory_;
 
         for (const auto& keyVal : Env_) {
             TStringBuf key, val;
             if (TStringBuf(keyVal).TrySplit('=', key, val)) {
-                ContainerSpec_->Environment[key] = val;
+                ContainerSpec_->Environment[std::string(key)] = val;
             }
         }
 
@@ -250,13 +250,13 @@ public:
         , Attempt_(RandomNumber<ui32>())
     { }
 
-    TString GetPodCgroup(TString podName) const override
+    std::string GetPodCgroup(std::string podName) const override
     {
         TStringBuilder cgroup;
         cgroup.AppendString(Config_->BaseCgroup);
         cgroup.AppendString("/");
 
-        if (Config_->BaseCgroup.EndsWith(SystemdSliceSuffix)) {
+        if (Config_->BaseCgroup.ends_with(SystemdSliceSuffix)) {
             auto sliceName = podName;
 
             // Build name of nested slice in systemd notaion, see manpage systemd.slice.
@@ -290,7 +290,7 @@ public:
         {
             auto* filter = req->mutable_filter();
 
-            if (auto namespace_ = Config_->Namespace) {
+            if (auto namespace_ = Config_->Namespace; !namespace_.empty()) {
                 auto& labels = *filter->mutable_label_selector();
                 labels[YTPodNamespaceLabel] = namespace_;
             }
@@ -311,7 +311,7 @@ public:
         {
             auto* filter = req->mutable_filter();
 
-            if (auto namespace_ = Config_->Namespace) {
+            if (auto namespace_ = Config_->Namespace; !namespace_.empty()) {
                 auto& labels = *filter->mutable_label_selector();
                 labels[YTPodNamespaceLabel] = namespace_;
             }
@@ -371,7 +371,7 @@ public:
 
         FillPodSandboxConfig(req->mutable_config(), *podSpec);
 
-        if (Config_->RuntimeHandler) {
+        if (!Config_->RuntimeHandler.empty()) {
             req->set_runtime_handler(Config_->RuntimeHandler);
         }
 
@@ -446,7 +446,7 @@ public:
             device->set_container_path(deviceSpec.ContainerPath);
             device->set_host_path(deviceSpec.HostPath);
 
-            TString permissions;
+            std::string permissions;
             if (Any(deviceSpec.Permissions & ECriBindDevicePermissions::Read)) {
                 permissions += "r";
             }
@@ -538,7 +538,7 @@ public:
 
     void CleanNamespace() override
     {
-        YT_VERIFY(Config_->Namespace);
+        YT_VERIFY(!Config_->Namespace.empty());
         auto pods = WaitFor(ListPodSandbox())
             .ValueOrThrow();
 
@@ -639,7 +639,7 @@ public:
     }
 
     TProcessBasePtr CreateProcess(
-        const TString& path,
+        const std::string& path,
         TCriContainerSpecPtr containerSpec,
         TCriPodDescriptorPtr podDescriptor,
         TCriPodSpecPtr podSpec) override
@@ -700,7 +700,7 @@ private:
 
         {
             auto* linux = config->mutable_linux();
-            linux->set_cgroup_parent(GetPodCgroup(TString(spec.Name)));
+            linux->set_cgroup_parent(GetPodCgroup(spec.Name));
 
             auto* security = linux->mutable_security_context();
             auto* namespaces = security->mutable_namespace_options();

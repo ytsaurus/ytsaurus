@@ -63,7 +63,7 @@ TLocationFairShareSlot::~TLocationFairShareSlot()
 
 TChunkLocationBase::TChunkLocationBase(
     ELocationType type,
-    TString id,
+    std::string id,
     TChunkLocationConfigBasePtr config,
     TCallback<TBriefChunkLocationConfig()> getBriefConfigCallback,
     TCellId cellId,

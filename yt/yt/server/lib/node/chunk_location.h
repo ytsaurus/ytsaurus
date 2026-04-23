@@ -59,7 +59,7 @@ class TChunkLocationBase
 public:
     TChunkLocationBase(
         ELocationType type,
-        TString id,
+        std::string id,
         TChunkLocationConfigBasePtr config,
         TCallback<TBriefChunkLocationConfig()> getBriefConfigCallback,
         NObjectClient::TCellId cellId,

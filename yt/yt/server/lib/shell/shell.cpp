@@ -280,7 +280,7 @@ public:
         launcher->SetCwd(workingDir);
 
         // Init environment variables.
-        THashMap<TString, TString> env;
+        THashMap<std::string, std::string> env;
         env["HOME"] = workingDir;
         env["G_HOME"] = workingDir;
         env["TMPDIR"] = NFS::CombinePaths(workingDir, "tmp");
@@ -293,7 +293,7 @@ public:
         for (const auto& var : Options_->Environment) {
             TStringBuf name, value;
             TStringBuf(var).TrySplit('=', name, value);
-            env[name] = value;
+            env[std::string(name)] = value;
         }
 
         if (Options_->MessageOfTheDay && !IsSubcontainer_) {
