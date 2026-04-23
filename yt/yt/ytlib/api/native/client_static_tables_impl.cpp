@@ -218,7 +218,13 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
 
     auto nameTable = New<TNameTable>();
 
-    auto chunkReaderHost = New<TMultiChunkReaderHost>(New<TChunkReaderHost>(MakeStrong(this)));
+    auto baseHost = New<TChunkReaderHost>(MakeStrong(this));
+    if (cookieProto.has_node_directory()) {
+        const auto& nodeDirectory = baseHost->Client->GetNativeConnection()->GetNodeDirectory();
+        nodeDirectory->MergeFrom(cookieProto.node_directory());
+    }
+
+    auto chunkReaderHost = New<TMultiChunkReaderHost>(std::move(baseHost));
 
     auto columnFilter = TColumnFilter{};
     auto tableReaderOptions = ToInternalTableReaderOptions(options);

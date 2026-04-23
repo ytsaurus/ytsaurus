@@ -6806,20 +6806,22 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.EnableKeyGuarantee = request->enable_key_guarantee();
     options.EnableCookies = request->enable_cookies();
+    options.FetchCookieNodeDescriptors = request->fetch_cookie_node_descriptors();
     options.OmitInaccessibleRows = request->omit_inaccessible_rows();
 
     if (request->has_transactional_options()) {
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
+    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v, FetchCookieNodeDescriptors: %v",
         paths,
         options.PartitionMode,
         options.EnableKeyGuarantee,
         options.DataWeightPerPartition,
         options.CompressedDataSizePerPartition,
         options.AdjustDataWeightPerPartition,
-        options.EnableCookies);
+        options.EnableCookies,
+        options.FetchCookieNodeDescriptors);
 
     ExecuteCall(
         context,
