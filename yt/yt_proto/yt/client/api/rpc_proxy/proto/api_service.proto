@@ -645,6 +645,7 @@ message TReqMultiLookup
     optional EReplicaConsistency replica_consistency = 6;
     optional EMultiplexingBand multiplexing_band = 4;
     optional string execution_pool = 7;
+    optional bool allow_failure = 8 [default = false];
 }
 
 message TRspMultiLookup
@@ -654,6 +655,7 @@ message TRspMultiLookup
         required TRowsetDescriptor rowset_descriptor = 1;
         required int32 attachment_count = 2;
         repeated int32 unavailable_key_indexes = 3;
+        optional NYT.NProto.TError error = 4;
     }
 
     repeated TSubresponse subresponses = 1;
