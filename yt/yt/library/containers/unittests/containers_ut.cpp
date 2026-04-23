@@ -27,7 +27,7 @@ class TContainersTest
     }
 };
 
-TString GetUniqueName()
+std::string GetUniqueName()
 {
     return "yt_ut_" + ToString(TGuid::Create());
 }
@@ -54,11 +54,11 @@ TEST_F(TContainersTest, ListSubcontainers)
 
     auto withRoot = WaitFor(executor->ListSubcontainers(name, true))
         .ValueOrThrow();
-    EXPECT_EQ(std::vector<TString>({absoluteName, nestedName}), withRoot);
+    EXPECT_EQ(std::vector<std::string>({absoluteName, nestedName}), withRoot);
 
     auto withoutRoot = WaitFor(executor->ListSubcontainers(name, false))
         .ValueOrThrow();
-    EXPECT_EQ(std::vector<TString>({nestedName}), withoutRoot);
+    EXPECT_EQ(std::vector<std::string>({nestedName}), withoutRoot);
 
     WaitFor(executor->DestroyContainer(absoluteName))
         .ThrowOnError();

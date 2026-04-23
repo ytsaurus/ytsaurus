@@ -4383,7 +4383,7 @@ TGpuCheckOptions TJob::GetGpuCheckOptions() const
         .NetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
             ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
             : std::nullopt,
-        .Environment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
+        .Environment = FromProto<THashMap<std::string, std::string>>(UserJobSpec_->gpu_check_environment()),
         .Devices = GetGpuDevices(),
         .SetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands(),
         .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),

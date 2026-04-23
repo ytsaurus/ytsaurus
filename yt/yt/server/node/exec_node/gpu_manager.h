@@ -175,7 +175,7 @@ private:
 
     TDuration GetHealthCheckTimeout() const;
     TDuration GetHealthCheckFailureBackoff() const;
-    THashMap<TString, TString> GetCudaToolkitMinDriverVersion() const;
+    THashMap<std::string, std::string> GetCudaToolkitMinDriverVersion() const;
 
     void OnHealthCheck();
     void OnFetchDriverLayerInfo();

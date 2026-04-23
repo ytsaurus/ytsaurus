@@ -22,7 +22,7 @@ static constexpr pid_t InvalidProcessId = -1;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPortoProcess::TPortoProcess(
-    const TString& path,
+    const std::string& path,
     IInstanceLauncherPtr containerLauncher,
     bool copyEnv)
     : TProcessBase(path)
@@ -106,13 +106,13 @@ IInstancePtr TPortoProcess::GetInstance()
     return ContainerInstance_.Acquire();
 }
 
-THashMap<TString, TString> TPortoProcess::DecomposeEnv() const
+THashMap<std::string, std::string> TPortoProcess::DecomposeEnv() const
 {
-    THashMap<TString, TString> result;
+    THashMap<std::string, std::string> result;
     for (const auto& env : Env_) {
         TStringBuf name, value;
         TStringBuf(env).TrySplit('=', name, value);
-        result[name] = value;
+        result[std::string(name)] = value;
     }
     return result;
 }

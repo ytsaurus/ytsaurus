@@ -277,7 +277,7 @@ struct TUserJobSensor
 {
     NProfiling::EMetricType Type;
 
-    TString ProfilingName;
+    std::string ProfilingName;
 
     REGISTER_YSON_STRUCT(TUserJobSensor);
 
@@ -306,9 +306,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobStatisticSensor)
 struct TUserJobMonitoringDynamicConfig
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TUserJobStatisticSensorPtr> StatisticSensors;
+    THashMap<std::string, TUserJobStatisticSensorPtr> StatisticSensors;
 
-    static const THashMap<TString, TUserJobStatisticSensorPtr>& GetDefaultStatisticSensors();
+    static const THashMap<std::string, TUserJobStatisticSensorPtr>& GetDefaultStatisticSensors();
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringDynamicConfig);
 
@@ -472,7 +472,7 @@ struct TGpuManagerConfig
     bool Enable;
 
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
-    std::optional<TString> DriverVersion;
+    std::optional<std::string> DriverVersion;
 
     NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
@@ -501,12 +501,12 @@ struct TGpuManagerDynamicConfig
 
     NConcurrency::TPeriodicExecutorOptions DriverLayerFetching;
 
-    THashMap<TString, TString> CudaToolkitMinDriverVersion;
+    THashMap<std::string, std::string> CudaToolkitMinDriverVersion;
 
     NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     //! This option is specific to nvidia-container-runtime.
-    TString DefaultNvidiaDriverCapabilities;
+    std::string DefaultNvidiaDriverCapabilities;
 
     bool EnableNetworkServiceLevel;
     TDuration ApplyNetworkServiceLevelTimeout;
@@ -523,9 +523,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuManagerDynamicConfig)
 struct TShellCommandConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     std::vector<std::string> Args;
-    THashMap<TString, TString> EnvironmentVariables;
+    THashMap<std::string, std::string> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TShellCommandConfig);
 
@@ -727,8 +727,8 @@ struct TJobProxyLoggingConfig
 
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
 
-    std::optional<TString> JobProxyStderrPath;
-    std::optional<TString> ExecutorStderrPath;
+    std::optional<std::string> JobProxyStderrPath;
+    std::optional<std::string> ExecutorStderrPath;
 
     REGISTER_YSON_STRUCT(TJobProxyLoggingConfig);
 
@@ -799,7 +799,7 @@ struct TLogDumpConfig
     i64 BufferSize;
 
     // Name of the log writer which is used for dump.
-    TString LogWriterName;
+    std::string LogWriterName;
 
     REGISTER_YSON_STRUCT(TLogDumpConfig);
 
@@ -814,7 +814,7 @@ DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
 struct TJobProxyLogManagerConfig
     : public NYTree::TYsonStruct
 {
-    TString Directory;
+    std::string Directory;
 
     int ShardingKeyLength;
 
@@ -840,7 +840,7 @@ struct TLogDumpDynamicConfig
     std::optional<i64> BufferSize;
 
     // Name of the log writer which is used for dump.
-    std::optional<TString> LogWriterName;
+    std::optional<std::string> LogWriterName;
 
     REGISTER_YSON_STRUCT(TLogDumpDynamicConfig);
 

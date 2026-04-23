@@ -279,7 +279,7 @@ class TWorkloadModelManager
     : public virtual TRefCounted
 {
 public:
-    TWorkloadModelManager(TString locationId, NLogging::TLogger logger)
+    TWorkloadModelManager(std::string locationId, NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
         , Logger(std::move(logger))
         , ActionQueue_(New<TActionQueue>(Format("IOWM:%v", LocationId_)))
@@ -322,7 +322,7 @@ public:
     DEFINE_SIGNAL(void(const TRequestLatencies&), RequestLatenciesSignal);
 
 private:
-    const TString LocationId_;
+    const std::string LocationId_;
     const NLogging::TLogger Logger;
 
     const TActionQueuePtr ActionQueue_;
@@ -364,7 +364,7 @@ class TIOModelInterceptor
     : public IIOEngineWorkloadModel
 {
 public:
-    TIOModelInterceptor(TString locationId, IIOEnginePtr underlying, NLogging::TLogger logger)
+    TIOModelInterceptor(std::string locationId, IIOEnginePtr underlying, NLogging::TLogger logger)
         : Underlying_(std::move(underlying))
         , Logger(std::move(logger))
         , ModelManager_(New<TWorkloadModelManager>(std::move(locationId), Logger))
@@ -597,7 +597,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IIOEngineWorkloadModelPtr CreateIOModelInterceptor(
-    TString locationId,
+    std::string locationId,
     IIOEnginePtr underlying,
     NLogging::TLogger logger)
 {

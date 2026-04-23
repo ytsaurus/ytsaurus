@@ -47,7 +47,7 @@ public:
         NContainers::IPortoExecutorPtr volumeExecutor,
         NContainers::IPortoExecutorPtr layerExecutor,
         NContainers::IPortoExecutorPtr fastLayerExecutor,
-        const TString& id);
+        const std::string& id);
 
     TFuture<void> Initialize();
 
@@ -62,7 +62,7 @@ public:
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         int userId,
-        const std::optional<TString>& placePath,
+        const std::optional<std::string>& placePath,
         std::optional<int> diskSpaceLimit,
         std::optional<int> inodeLimit,
         const std::vector<TOverlayData>& overlayDataArray,
@@ -105,8 +105,8 @@ public:
 
     TFuture<TLayerMeta> ImportLayer(
         const TArtifactKey& artifactKey,
-        const TString& archivePath,
-        const TString& container,
+        const std::string& archivePath,
+        const std::string& container,
         TLayerId layerId,
         TGuid tag);
 
@@ -128,18 +128,18 @@ public:
     //! TODO(yuryalekseev): Remove me when slot rbind is removed.
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath);
+        const std::string& slotPath);
 
     bool ResidesOnTmpfs() const;
 
     TFuture<void> LinkVolume(
         TGuid tag,
-        const TString& source,
-        const TString& target);
+        const std::string& source,
+        const std::string& target);
 
     TFuture<void> UnlinkVolume(
-        const TString& source,
-        const TString& target);
+        const std::string& source,
+        const std::string& target);
 
     int GetVolumeCount() const;
 
@@ -147,12 +147,12 @@ public:
 
     //! Remove volumes planted at a given place.
     void RemoveVolumes(
-        const TString& place,
+        const std::string& place,
         TDuration timeout);
 
     //! Remove layers planted at a given place.
     void RemoveLayers(
-        const TString& place,
+        const std::string& place,
         TDuration timeout);
 
 private:
@@ -164,11 +164,11 @@ private:
     const NContainers::IPortoExecutorPtr FastLayerExecutor_;
 
     const NConcurrency::TActionQueuePtr LocationQueue_;
-    const TString VolumesPath_;
-    const TString VolumesMetaPath_;
-    const TString LayersPath_;
-    const TString LayersMetaPath_;
-    const TString PlacePath_;
+    const std::string VolumesPath_;
+    const std::string VolumesMetaPath_;
+    const std::string LayersPath_;
+    const std::string LayersMetaPath_;
+    const std::string PlacePath_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
@@ -214,8 +214,8 @@ private:
 
     TLayerMeta DoImportLayer(
         const TArtifactKey& artifactKey,
-        const TString& archivePath,
-        const TString& container,
+        const std::string& archivePath,
+        const std::string& container,
         TLayerId layerId,
         TGuid tag);
 
@@ -226,7 +226,7 @@ private:
         TTagSet tagSet,
         std::optional<TEventTimerGuard> volumeCreateTimeGuard,
         TVolumeMeta volumeMeta,
-        THashMap<TString, TString>&& volumeProperties,
+        THashMap<std::string, std::string> volumeProperties,
         std::optional<std::string> portoPlacePath = std::nullopt);
 
     TVolumeMeta DoCreateNbdVolume(
@@ -240,7 +240,7 @@ private:
         TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         int userId,
-        const std::optional<TString>& placePath,
+        const std::optional<std::string>& placePath,
         std::optional<int> diskSpaceLimit,
         std::optional<int> inodeLimit,
         const std::vector<TOverlayData>& overlayDataArray,
@@ -272,12 +272,12 @@ private:
 
     void DoLinkVolume(
         TGuid tag,
-        const TString& source,
-        const TString& target);
+        const std::string& source,
+        const std::string& target);
 
     void DoUnlinkVolume(
-        const TString& source,
-        const TString& target);
+        const std::string& source,
+        const std::string& target);
 
     //! Remove volumes planted in VolumesPath_;
     void RemoveVolumes(TDuration timeout);

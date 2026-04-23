@@ -71,7 +71,7 @@ struct TResourceUsage
 {
     struct TTaggedStat
     {
-        TString Tag;
+        std::string Tag;
         i64 Value;
     };
 
@@ -127,9 +127,9 @@ struct IInstanceLauncher
     virtual TFuture<IInstancePtr> Launch(
         const std::string& path,
         const std::vector<std::string>& args,
-        const THashMap<TString, TString>& env) = 0;
+        const THashMap<std::string, std::string>& env) = 0;
     virtual TFuture<IInstancePtr> LaunchMeta(
-        const THashMap<TString, TString>& env) = 0;
+        const THashMap<std::string, std::string>& env) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInstanceLauncher)
@@ -158,12 +158,12 @@ struct IInstance
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
 
-    virtual TString GetStdout() const = 0;
-    virtual TString GetStderr() const = 0;
+    virtual std::string GetStdout() const = 0;
+    virtual std::string GetStderr() const = 0;
 
-    virtual TString GetName() const = 0;
-    virtual std::optional<TString> GetParentName() const = 0;
-    virtual std::optional<TString> GetRootName() const = 0;
+    virtual std::string GetName() const = 0;
+    virtual std::optional<std::string> GetParentName() const = 0;
+    virtual std::optional<std::string> GetRootName() const = 0;
 
     //! Returns externally visible pid of the root process inside container.
     //! Throws if container is not running.
@@ -184,7 +184,7 @@ DEFINE_REFCOUNTED_TYPE(IInstance)
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
-TString GetSelfContainerName(const IPortoExecutorPtr& executor);
+std::string GetSelfContainerName(const IPortoExecutorPtr& executor);
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
 IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor);

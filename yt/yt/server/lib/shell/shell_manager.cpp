@@ -375,19 +375,19 @@ private:
         auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
         if (!Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
-            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
+            auto toolPathOrError = ResolveBinaryPath(std::string(NTools::ToolsProgramName));
         }
 
         if (IsDirEmpty(toolDirectory)) {
-            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
+            auto toolPathOrError = ResolveBinaryPath(std::string(NTools::ToolsProgramName));
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
-            THashMap<TString, TString> volumeProperties;
+            THashMap<std::string, std::string> volumeProperties;
             volumeProperties["backend"] = "bind";
             volumeProperties["read_only"] = "true";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
-            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(std::string(toolDirectory), volumeProperties));
+            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
             THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell");
         }
     }

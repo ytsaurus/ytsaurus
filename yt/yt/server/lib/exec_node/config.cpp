@@ -278,9 +278,9 @@ void TUserJobStatisticSensor::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicConfig::GetDefaultStatisticSensors()
+const THashMap<std::string, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicConfig::GetDefaultStatisticSensors()
 {
-    static const auto DefaultStatisticSensors = ConvertTo<THashMap<TString, TUserJobStatisticSensorPtr>>(BuildYsonStringFluently()
+    static const auto DefaultStatisticSensors = ConvertTo<THashMap<std::string, TUserJobStatisticSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
             // Sensors `job_cpu/*` and `job_memory/*` are relevant for CRI job environment.
             .Item("job_cpu/user").BeginMap()
