@@ -4662,23 +4662,16 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
-
-    std::string truncatedQuery;
-    if (config->TruncatedQueryLengthForRequestInfo &&
-        std::ssize(query) > *config->TruncatedQueryLengthForRequestInfo + std::ssize(DefaultTruncatedMessage))
-    {
-        truncatedQuery = query.substr(0, *config->TruncatedQueryLengthForRequestInfo)
-            .append(DefaultTruncatedMessage);
-    }
+    i64 queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
 
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            !truncatedQuery.empty() ? truncatedQuery : query,
+            TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp,
             options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
-            !truncatedQuery.empty() ? truncatedQuery : query,
+            TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp);
     }
 
