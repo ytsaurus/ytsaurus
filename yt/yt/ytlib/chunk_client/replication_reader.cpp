@@ -274,7 +274,7 @@ public:
         SlownessChecker_ = slownessChecker;
     }
 
-    TError RunSlownessChecker(i64 bytesReceived, TInstant startTimestamp)
+    [[nodiscard]] TError RunSlownessChecker(i64 bytesReceived, TInstant startTimestamp)
     {
         if (!SlownessChecker_) {
             return {};
@@ -380,7 +380,7 @@ private:
             future);
     }
 
-    void OnChunkReplicasLocated(const TAllyReplicasInfo& seedReplicas)
+    [[nodiscard]] TError OnChunkReplicasLocated(const TAllyReplicasInfo& seedReplicas)
     {
         auto guard = Guard(PeersSpinLock_);
 
@@ -389,7 +389,7 @@ private:
         if (FreshSeedsRevision_ >= seedReplicas.Revision &&
             seedReplicas.Revision != TAllyReplicasInfo::SequoiaRevision)
         {
-            return;
+            return {};
         }
 
         FreshSeedsRevision_ = seedReplicas.Revision;
@@ -397,6 +397,13 @@ private:
         for (auto replica : seedReplicas.Replicas) {
             const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!nodeDescriptor) {
+                // NB: This is solely for testing purposes.
+                if (Config_->FailOnUnresolvedNodeId) {
+                    return TError(
+                        NNodeTrackerClient::EErrorCode::NoSuchNode,
+                        "Replica has unresolved node id (NodeId: %v)",
+                        replica.GetNodeId());
+                }
                 YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
                 continue;
             }
@@ -404,6 +411,8 @@ private:
                 BannedForeverPeers_.erase(*address);
             }
         }
+
+        return {};
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
@@ -656,7 +665,7 @@ protected:
         });
     }
 
-    TError OnThrottlingError(TError throttlingError)
+    [[nodiscard]] TError OnThrottlingError(TError throttlingError)
     {
         YT_VERIFY(!throttlingError.IsOK());
         auto error = TError(NChunkClient::EErrorCode::ReaderThrottlingFailed,
@@ -666,7 +675,7 @@ protected:
         return error;
     }
 
-    TError SyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count)
+    [[nodiscard]] TError SyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count)
     {
         auto throttlerFuture = throttler->Throttle(count);
         SetSessionFuture(throttlerFuture);
@@ -1086,6 +1095,11 @@ protected:
                     NNodeTrackerClient::EErrorCode::NoSuchNode,
                     "Unresolved node id %v in node directory",
                     replica.GetNodeId()));
+                // NB: This is solely for testing purposes.
+                if (ReaderConfig_->FailOnUnresolvedNodeId) {
+                    OnSessionFailed(/*fatal*/ true);
+                    return false;
+                }
                 continue;
             }
 
@@ -1193,7 +1207,7 @@ protected:
         InnerErrors_.push_back(error);
     }
 
-    TError BuildCombinedError(const TError& error)
+    [[nodiscard]] TError BuildCombinedError(const TError& error)
     {
         return error << InnerErrors_;
     }
@@ -1583,7 +1597,12 @@ private:
                 });
         }
 
-        reader->OnChunkReplicasLocated(SeedReplicas_);
+        auto error = reader->OnChunkReplicasLocated(SeedReplicas_);
+        if (!error.IsOK()) {
+            RegisterError(error);
+            OnSessionFailed(/*fatal*/ true);
+            return;
+        }
 
         if (!SeedReplicas_) {
             RegisterError(TError(
