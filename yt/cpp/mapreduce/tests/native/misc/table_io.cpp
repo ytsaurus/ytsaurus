@@ -2037,17 +2037,13 @@ TEST(StreamReaders, Yson)
 
 class TTablePartitionNodeReaderTest
     : public ::testing::TestWithParam<TNodeReaderParam>
-{ };
-
-void SimplePartition(bool strictSchema)
 {
-    static auto partitionCount = 1;
-    static auto options = TGetTablePartitionsOptions()
-        .PartitionMode(ETablePartitionMode::Ordered)
-        .DataWeightPerPartition(1)
-        .MaxPartitionCount(partitionCount)
-        .EnableCookies(true);
+public:
+    static constexpr int PartitionCount = 1;
+};
 
+void SimplePartition(bool strictSchema, const TGetTablePartitionsOptions& options)
+{
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -2059,7 +2055,7 @@ void SimplePartition(bool strictSchema)
     }
 
     auto cookies = client->GetTablePartitions({path}, options);
-    EXPECT_EQ(std::ssize(cookies.Partitions), partitionCount);
+    EXPECT_EQ(std::ssize(cookies.Partitions), TTablePartitionNodeReaderTest::PartitionCount);
 
     auto cookie = cookies.Partitions[0].Cookie;
     EXPECT_TRUE(cookie);
@@ -2075,11 +2071,16 @@ void SimplePartition(bool strictSchema)
 TEST_P(TTablePartitionNodeReaderTest, SimplePartition)
 {
     const auto& param = GetParam();
+    const static auto options = TGetTablePartitionsOptions()
+        .PartitionMode(ETablePartitionMode::Ordered)
+        .DataWeightPerPartition(1)
+        .MaxPartitionCount(TTablePartitionNodeReaderTest::PartitionCount)
+        .EnableCookies(true);
 
     TConfigSaverGuard configGuard;
     TConfig::Get()->NodeReaderFormat = param.Format;
 
-    SimplePartition(param.StrictSchema);
+    SimplePartition(param.StrictSchema, options);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -2089,3 +2090,38 @@ INSTANTIATE_TEST_SUITE_P(
         TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ false),
         TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ true),
         TNodeReaderParam(ENodeReaderFormat::Skiff, /*StrictSchema*/ true)));
+
+TEST(TTablePartitionFetchDescriptors, ReadPartition)
+{
+    static const auto partitionCount = 1;
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = CreatePath(workingDir, /*strictSchema*/ true);
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+        writer->Finish();
+    }
+
+    static const auto options = TGetTablePartitionsOptions()
+        .PartitionMode(ETablePartitionMode::Ordered)
+        .DataWeightPerPartition(1)
+        .MaxPartitionCount(partitionCount)
+        .EnableCookies(true)
+        .FetchCookieNodeDescriptors(true);
+
+    auto cookies = client->GetTablePartitions({path}, options);
+    EXPECT_EQ(std::ssize(cookies.Partitions), partitionCount);
+
+    auto cookie = cookies.Partitions[0].Cookie;
+    EXPECT_TRUE(cookie);
+
+    auto reader = client->CreateTablePartitionReader<TNode>(*cookie);
+
+    EXPECT_TRUE(reader->IsValid());
+    EXPECT_EQ(reader->GetRow(), TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+    reader->Next();
+    EXPECT_TRUE(!reader->IsValid());
+}
