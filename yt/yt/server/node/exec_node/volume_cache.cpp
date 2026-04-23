@@ -744,6 +744,17 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
             options.MediumIndex,
             options.Filesystem);
 
+    auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
+    if (!nbdConfig || !nbdConfig->Enabled || !nbdConfig->ReadWriteEnabled) {
+        auto error = TError("RW Nbd disks are disabled")
+            << TErrorAttribute("device_id", options.DeviceId)
+            << TErrorAttribute("job_id", options.JobId)
+            << TErrorAttribute("size", options.Size);
+
+        YT_LOG_ERROR(error, "Failed to create RW NBD volume");
+        return MakeFuture<IBlockDevicePtr>(std::move(error));
+    }
+
     auto config = New<TChunkBlockDeviceConfig>();
     config->Size = options.Size;
     config->MediumIndex = options.MediumIndex;
