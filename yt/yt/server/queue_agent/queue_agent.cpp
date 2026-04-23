@@ -9,8 +9,6 @@
 #include "queue_export_manager.h"
 #include "snapshot.h"
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
-
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -23,6 +21,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/library/orchid/orchid_ypath_service.h>
 

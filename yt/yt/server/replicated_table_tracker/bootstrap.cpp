@@ -7,7 +7,6 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
@@ -30,6 +29,8 @@
 #include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
 

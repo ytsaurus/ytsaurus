@@ -13,7 +13,7 @@
 #include "node_tracker.h"
 #include "orchid_bindings.h"
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>

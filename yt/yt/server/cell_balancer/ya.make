@@ -36,10 +36,10 @@ PEERDIR(
     yt/yt/server/master
 
     yt/yt/server/lib
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/tablet_server
 
+    yt/yt/library/cypress_election
     yt/yt/library/dynamic_config
     yt/yt/library/monitoring
     yt/yt/library/orchid

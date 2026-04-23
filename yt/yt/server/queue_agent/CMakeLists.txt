@@ -35,12 +35,12 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   yutil
   server-lib-admin
   server-lib-alert_manager
-  server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
   yt-yt-ytlib
   yt-yt-client
   yt-client-federated
+  yt-library-cypress_election
   yt-library-dynamic_config
   yt-library-monitoring
   yt-library-orchid

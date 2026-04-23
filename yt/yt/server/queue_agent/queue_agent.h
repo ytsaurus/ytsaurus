@@ -3,7 +3,7 @@
 #include "object.h"
 #include "pass_profiler.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

@@ -11,6 +11,7 @@ RECURSE(
     column_converters
     containers
     coredumper
+    cypress_election
     decimal
     disk_manager
     dns_over_rpc

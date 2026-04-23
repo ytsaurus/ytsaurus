@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(server-lib-cypress_election)
+add_library(yt-library-cypress_election)
 
 
-target_compile_options(server-lib-cypress_election PRIVATE
+target_compile_options(yt-library-cypress_election PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,15 +25,15 @@ target_compile_options(server-lib-cypress_election PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(server-lib-cypress_election PUBLIC
+target_link_libraries(yt-library-cypress_election PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-client
 )
 
-target_sources(server-lib-cypress_election PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_election/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_election/election_manager.cpp
+target_sources(yt-library-cypress_election PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/cypress_election/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/cypress_election/election_manager.cpp
 )
 
