@@ -116,6 +116,10 @@ struct TStrategyOperationControllerConfig
     //! Backoff time after controller schedule allocation failure.
     TDuration ScheduleAllocationFailBackoffTime;
 
+    //! If |true|, tracks schedule allocation backoff deadline per node shard instead of globally.
+    // TODO(bystrovserg): Remove once the global version is dropped.
+    bool EnablePerNodeShardScheduleAllocationBackoff;
+
     //! Configuration of schedule allocation backoffs in case of throttling from controller.
     TStrategyControllerThrottlingPtr ControllerThrottling;
 
