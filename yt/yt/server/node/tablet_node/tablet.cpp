@@ -211,7 +211,8 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
             << TErrorAttribute("trimmed_row_count", trimmedRowCount)
             << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
             << TErrorAttribute("timestamp", timestamp)
-            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp());
+            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp())
+            << TErrorAttribute("store_min_timestamp", store->GetMinTimestamp());
     }
 }
 
