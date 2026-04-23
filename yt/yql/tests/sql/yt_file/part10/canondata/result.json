@@ -1193,9 +1193,6 @@
             "checksum": "0a31c3648a7c1358f4569b7305160eea",
             "size": 3885,
             "uri": "https://{canondata_backend}/1942100/830ee71976e3a65557e4ab430314cf6478b6ae50/resource.tar.gz#test.test_join-mapjoin_with_empty_read-off-Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_join-mapjoin_with_empty_read-off-Results_/extracted"
         }
     ],
     "test.test[join-mergejoin_force_per_link--Debug]": [
@@ -2412,9 +2409,6 @@
             "checksum": "098be6c452b9fbf0fabcd459f67d8825",
             "size": 5317,
             "uri": "https://{canondata_backend}/1942100/830ee71976e3a65557e4ab430314cf6478b6ae50/resource.tar.gz#test.test_window-win_func_aggr_4func--Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_window-win_func_aggr_4func--Results_/extracted"
         }
     ],
     "test.test[window-win_func_auto_arg-default.txt-Debug]": [

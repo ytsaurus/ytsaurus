@@ -2156,9 +2156,6 @@
             "checksum": "a6aafa1cff7f258cf0084b2a8a788a0b",
             "size": 4630,
             "uri": "https://{canondata_backend}/1900335/81f05fb8e40ea58143b753560d58c3eadb389d63/resource.tar.gz#test.test_window-win_func_aggr_4func_no_part_sorted--Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_window-win_func_aggr_4func_no_part_sorted--Results_/extracted"
         }
     ],
     "test.test[window-win_func_aggr_stat--Debug]": [

@@ -173,9 +173,6 @@
             "checksum": "d3ea1e40d88dd96a26c14ccaf04322df",
             "size": 1470,
             "uri": "https://{canondata_backend}/1931696/a373d9ad4820e6d749db963d1d16f3d6e9efda33/resource.tar.gz#test.test_aggregate-table_funcs_group_by-default.txt-Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_aggregate-table_funcs_group_by-default.txt-Results_/extracted"
         }
     ],
     "test.test[ansi_idents-basic_columns-default.txt-Debug]": [

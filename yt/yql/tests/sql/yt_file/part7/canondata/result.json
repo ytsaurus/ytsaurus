@@ -1192,9 +1192,6 @@
             "checksum": "375c9e2ada3623553f737f5c19d912c6",
             "size": 2434,
             "uri": "https://{canondata_backend}/1775059/5da38bec41be3cf08ed419d22e7761bde07c61d1/resource.tar.gz#test.test_lambda-lambda_udf--Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_lambda-lambda_udf--Results_/extracted"
         }
     ],
     "test.test[limit-empty_sort_after_limit-default.txt-Debug]": [

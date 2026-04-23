@@ -1469,9 +1469,6 @@
             "checksum": "99a23a80241cdd0057583910f9155f61",
             "size": 600,
             "uri": "https://{canondata_backend}/1775319/aeee201121ea52039cbc4fd003ccad5bd7d58a2b/resource.tar.gz#test.test_limit-yql-8046_empty_sorted_desc--Results_/Output.yqlrun.txt.attr"
-        },
-        {
-            "uri": "file://test.test_limit-yql-8046_empty_sorted_desc--Results_/extracted"
         }
     ],
     "test.test[lineage-group_by_asstruct_key-default.txt-Debug]": [
@@ -2249,9 +2246,6 @@
             "checksum": "251a009e6d7e79ba12636112e339e613",
             "size": 3412,
             "uri": "https://{canondata_backend}/1942100/1cc3b7c2aa358ba033a674706448bac66713e7f0/resource.tar.gz#test.test_window-all_columns_hide_window_special_ones-default.txt-Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_window-all_columns_hide_window_special_ones-default.txt-Results_/extracted"
         }
     ],
     "test.test[window-full/aggregations_compact--Debug]": [

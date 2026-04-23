@@ -18,9 +18,6 @@
             "checksum": "40bde944ed507c7edce086cea263ac34",
             "size": 11868,
             "uri": "https://{canondata_backend}/1937027/a5119ee62c8d4249fda69e37d8f8f3b6ea49833f/resource.tar.gz#test.test_action-dep_world_quote_code-default.txt-Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_action-dep_world_quote_code-default.txt-Results_/extracted"
         }
     ],
     "test.test[action-eval_for-default.txt-Debug]": [
