@@ -2194,9 +2194,9 @@
     ],
     "test.test[type_v3-tablecontent_flags--Debug]": [
         {
-            "checksum": "248729839fef4fc4587adb2d786f6ccd",
-            "size": 3022,
-            "uri": "https://{canondata_backend}/1031349/55d238a244f3a0983368ea5e21207e3376525d7f/resource.tar.gz#test.test_type_v3-tablecontent_flags--Debug_/opt.yql"
+            "checksum": "2656df5c82415a51e4ae8ad1c668dde0",
+            "size": 2998,
+            "uri": "https://{canondata_backend}/1599023/d710f3885947fa7e4bb86cbbef1160ade11b2dd3/resource.tar.gz#test.test_type_v3-tablecontent_flags--Debug_/opt.yql"
         }
     ],
     "test.test[type_v3-tablecontent_flags--Plan]": [

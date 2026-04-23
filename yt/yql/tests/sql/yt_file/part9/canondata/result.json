@@ -1091,9 +1091,9 @@
             "uri": "https://{canondata_backend}/1942100/19af5573d24104d49b388c02fee41666b0a25654/resource.tar.gz#test.test_insert-udf_empty--Results_/Output.txt"
         },
         {
-            "checksum": "4a7e78c4e07e83159a347aa01276c9ba",
-            "size": 757,
-            "uri": "https://{canondata_backend}/1942100/19af5573d24104d49b388c02fee41666b0a25654/resource.tar.gz#test.test_insert-udf_empty--Results_/Output.yqlrun.txt.attr"
+            "checksum": "481729212052aaf6cd992ccc54679ff2",
+            "size": 599,
+            "uri": "https://{canondata_backend}/995452/59c9abdd8820696902dc769d29a7535e304bb5b4/resource.tar.gz#test.test_insert-udf_empty--Results_/Output.yqlrun.txt.attr"
         }
     ],
     "test.test[join-cbo_7tables--Debug]": [
