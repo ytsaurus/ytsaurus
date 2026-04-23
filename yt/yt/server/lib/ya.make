@@ -38,7 +38,6 @@ RECURSE(
     chunk_pools
     chunk_server
     controller_agent
-    cypress_election
     cypress_registrar
     discovery_server
     distributed_chunk_session_server

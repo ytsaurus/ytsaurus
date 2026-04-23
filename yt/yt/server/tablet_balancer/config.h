@@ -5,13 +5,13 @@
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/public.h>
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
 

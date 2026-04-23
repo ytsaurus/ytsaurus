@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -13,6 +11,8 @@
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
 

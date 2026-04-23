@@ -42,11 +42,11 @@ PEERDIR(
 
     yt/yt/server/lib/admin
     yt/yt/server/lib/alert_manager
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
     yt/yt/server/lib/component_state_checker
 
+    yt/yt/library/cypress_election
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
 
