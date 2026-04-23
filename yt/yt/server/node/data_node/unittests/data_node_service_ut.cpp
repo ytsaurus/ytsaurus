@@ -13,6 +13,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/io/huge_page_manager.h>
+#include <yt/yt/server/lib/io/io_workload_model.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -665,6 +666,62 @@ public:
         return ActionQueue_;
     }
 
+    TSessionId CreateJournalSessionId() const
+    {
+        return TSessionId(MakeRandomId(EObjectType::JournalChunk, TCellTag(0xf003)), GenericMediumIndex);
+    }
+
+    NIO::IIOEngineWorkloadModelPtr GetStoreLocationIOWorkloadModel() const
+    {
+        const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+        YT_VERIFY(!locations.empty());
+        return locations.front()->GetIOEngineModel();
+    }
+
+    static i64 GetWriteRequestCount(const NIO::TRequestLatencies& requestLatencies, EWorkloadCategory category)
+    {
+        return NIO::ComputeHistogramSummary(requestLatencies.Writes[category]).TotalCount;
+    }
+
+    std::optional<i64> WaitForWriteRequestCount(
+        const NIO::IIOEngineWorkloadModelPtr& ioEngineModel,
+        EWorkloadCategory category,
+        TDuration timeout = TDuration::Seconds(10)) const
+    {
+        auto deadline = TInstant::Now() + timeout;
+        while (TInstant::Now() < deadline) {
+            if (auto requestLatencies = ioEngineModel->GetRequestLatencies()) {
+                auto writeRequestCount = GetWriteRequestCount(*requestLatencies, category);
+                if (writeRequestCount > 0) {
+                    return writeRequestCount;
+                }
+            }
+
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+        }
+
+        return std::nullopt;
+    }
+
+    bool WaitForNoWriteRequests(
+        const NIO::IIOEngineWorkloadModelPtr& ioEngineModel,
+        EWorkloadCategory category,
+        TDuration timeout = TDuration::Seconds(15)) const
+    {
+        auto deadline = TInstant::Now() + timeout;
+        while (TInstant::Now() < deadline) {
+            if (auto requestLatencies = ioEngineModel->GetRequestLatencies()) {
+                if (GetWriteRequestCount(*requestLatencies, category) == 0) {
+                    return true;
+                }
+            }
+
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+        }
+
+        return false;
+    }
+
     auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks, bool preallocateDiskSpace, bool useDirectIo, TWorkloadDescriptor workloadDescriptor = {}, bool disableSendBlocks = false)
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
@@ -1034,6 +1091,13 @@ std::vector<TWriteTestCase> GenerateWriteTestParams()
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJournalChunkWorkloadCategoryTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<EWorkloadCategory>
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1635,6 +1699,58 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
             .ThrowOnError();
     }
 }
+
+TEST_P(TJournalChunkWorkloadCategoryTest, JournalChunkUsesPassedWorkloadCategory)
+{
+    static constexpr i64 ExpectedJournalWriteRequestCount = 6;
+    // We assert on workload-model write samples, not on journal blocks. After waiting
+    // for an empty published window, the current main-branch split journal path emits
+    // exactly six samples in the UserBatch control case; the non-UserBatch cases below
+    // are expected to fail until that same sample count moves to the passed category.
+    auto workloadCategory = GetParam();
+    auto sessionId = CreateJournalSessionId();
+    auto ioEngineModel = GetStoreLocationIOWorkloadModel();
+    ASSERT_TRUE(ioEngineModel);
+
+    TRandomGenerator generator{RandomNumber<ui64>()};
+    const int blockCount = 4;
+    auto blocks = CreateBlocks(blockCount, 1_KB, generator);
+    auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+    ASSERT_TRUE(WaitForNoWriteRequests(ioEngineModel, workloadCategory));
+
+    WaitFor(StartChunk(
+        sessionId,
+        /*useProbePutBlocks*/ false,
+        /*preallocateDiskSpace*/ false,
+        /*useDirectIo*/ false,
+        TWorkloadDescriptor(workloadCategory)))
+        .ThrowOnError();
+
+    WaitFor(PutBlocks(sessionId, blocks, /*firstBlockIndex*/ 0, cummulativeBlockSize).AsVoid())
+        .ThrowOnError();
+    WaitFor(FlushBlocks(sessionId, blockCount - 1))
+        .ThrowOnError();
+    WaitFor(FinishChunk(sessionId, blockCount))
+        .ThrowOnError();
+
+    auto writeRequestCount = WaitForWriteRequestCount(
+        ioEngineModel,
+        workloadCategory);
+    ASSERT_TRUE(writeRequestCount);
+    EXPECT_EQ(*writeRequestCount, ExpectedJournalWriteRequestCount);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TJournalChunkWorkloadCategoryTest,
+    TJournalChunkWorkloadCategoryTest,
+    ::testing::Values(
+        EWorkloadCategory::UserBatch,
+        EWorkloadCategory::SystemTabletLogging,
+        EWorkloadCategory::UserInteractive,
+        EWorkloadCategory::SystemTabletCompaction),
+    [] (const auto& info) {
+        return ToString(info.param);
+    });
 
 TEST_P(TWriteTest, DuplicateWrite)
 {
