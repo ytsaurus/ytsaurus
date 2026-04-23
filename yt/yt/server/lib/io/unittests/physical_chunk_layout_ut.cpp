@@ -50,7 +50,7 @@ std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* gene
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
+TEST(TPhysicalChunkLayoutTest, SerializeAndDeserializeBlocks)
 {
     constexpr int BlockCount = 100;
 
@@ -83,7 +83,7 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
     }
 }
 
-TEST(TPhysicalChunkLayout, SerializeAndDeserializeMeta)
+TEST(TPhysicalChunkLayoutTest, SerializeAndDeserializeMeta)
 {
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
 

@@ -57,8 +57,8 @@ DEFINE_ENUM(EDirectIOFlag,
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(cherepashka): move these usings below somewhere more suitable for S3 chunk readers & writers.
-using TOnBrokenMetaCallback = TCallback<void(TRef /*block*/)>;
-using TOnBrokenBlockCallback = TCallback<void(int /*blockIndex*/, const NIO::TBlockInfo& /*blockInfo*/, TRef /*block*/)>;
+using TOnBrokenMetaCallback = TCallback<void(TRef block)>;
+using TOnBrokenBlockCallback = TCallback<void(int blockIndex, const NIO::TBlockInfo& blockInfo, TRef block)>;
 
 //! Deserializes chunk meta from blob with format validation.
 //! For chunk meta version 2+, the local chunk id is validated against the one
