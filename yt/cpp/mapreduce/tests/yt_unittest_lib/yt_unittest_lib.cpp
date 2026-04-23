@@ -54,6 +54,9 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
     try {
         fqdnAttr = client->Get("//sys/@local_mode_fqdn").AsString();
     } catch (const TErrorResponse& error) {
+        if (!error.IsResolveError()) {
+            throw;
+        }
         Y_ABORT("Attribute //sys/@local_mode_fqdn not found; are you trying to run tests on a real cluster?");
     }
     fqdnAttr = to_lower(fqdnAttr);
