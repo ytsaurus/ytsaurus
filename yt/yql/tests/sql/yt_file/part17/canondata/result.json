@@ -1131,9 +1131,6 @@
             "checksum": "5619ef52755b2e2ca88eb38b1a914e09",
             "size": 2440,
             "uri": "https://{canondata_backend}/1937027/4c53324ecca5e76cff00fb59e6a5dbdb35a313b7/resource.tar.gz#test.test_lambda-lambda_use_labmda_as_arg-default.txt-Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_lambda-lambda_use_labmda_as_arg-default.txt-Results_/extracted"
         }
     ],
     "test.test[limit-limit_skip_take-default.txt-Debug]": [

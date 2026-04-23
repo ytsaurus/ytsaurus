@@ -1172,9 +1172,6 @@
             "checksum": "0a31c3648a7c1358f4569b7305160eea",
             "size": 3885,
             "uri": "https://{canondata_backend}/1925821/00c56205d7e3f6cc551c025a70edf36521cdada7/resource.tar.gz#test.test_join-mapjoin_with_empty_read--Results_/results.txt"
-        },
-        {
-            "uri": "file://test.test_join-mapjoin_with_empty_read--Results_/extracted"
         }
     ],
     "test.test[join-mapjoin_with_empty_struct--Debug]": [

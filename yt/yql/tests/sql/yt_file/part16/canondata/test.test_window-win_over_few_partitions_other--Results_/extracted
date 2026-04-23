@@ -12,12 +12,3 @@
                 <tmp_path>/program.sql:<main>:13:43: Warning: Integral type implicit bitcast: Optional<Uint32> and Int32
                 	  w1 as (partition by subkey order by key % 3, key),
 	                                          ^
-        <tmp_path>/program.sql:<main>:4:1: Warning: At tuple, At function: SqlProjectItem, At lambda
-        	select
-	^
-            <tmp_path>/program.sql:<main>:7:5: Warning: At function: *
-            	  2 * sum(key) over w1 as dbl_sum,
-	    ^
-                <tmp_path>/program.sql:<main>:7:5: Warning: Integral type implicit bitcast: Int32 and Optional<Uint64>
-                	  2 * sum(key) over w1 as dbl_sum,
-	    ^
