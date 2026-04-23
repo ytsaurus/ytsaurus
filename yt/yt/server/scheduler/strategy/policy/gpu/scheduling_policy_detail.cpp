@@ -109,7 +109,9 @@ void TSchedulingPolicy::RegisterNode(TNodeId nodeId, const std::string& nodeAddr
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeId, nodeAddress));
+    auto node = EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeId, nodeAddress))->second;
+
+    ReviveNodeState(node);
 
     YT_LOG_DEBUG("Node registered (NodeId: %v, NodeAddress: %v)",
         nodeId,
@@ -484,8 +486,6 @@ void TSchedulingPolicy::UpdateNodeDescriptor(const TNodePtr& node, TExecNodeDesc
     bool wasSchedulable = node->IsSchedulable();
 
     node->SetDescriptor(std::move(descriptor));
-
-    ReviveNodeState(node);
 
     // TODO(eshcherbin): Rework how modules are configured.
     auto oldModule = node->SchedulingModule();
