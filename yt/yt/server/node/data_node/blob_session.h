@@ -89,7 +89,7 @@ private:
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
         bool enableCaching) override;
-    TFuture<void> PreparePutBlocks(
+    void PreparePutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
