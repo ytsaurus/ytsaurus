@@ -1025,7 +1025,7 @@ void TSchedulingPolicy::ScheduleAllocations(
             nodeShardInvoker->Invoke(BIND(
                 &TPoolTreeOperationElement::OnScheduleAllocationFailed,
                 MakeWeak(operationElement),
-                schedulingHeartbeatContext->GetNow(),
+                schedulingHeartbeatContext,
                 operationElement->GetTreeId(),
                 scheduleAllocationResult));
 
