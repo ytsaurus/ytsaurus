@@ -87,7 +87,9 @@ public:
     bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool HasRecentScheduleAllocationFailure(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        bool backoffCheckEnabled) const;
     bool ScheduleAllocationBackoffObserved() const;
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
@@ -106,7 +108,7 @@ public:
         TControllerEpoch allocationEpoch);
 
     void OnScheduleAllocationFailed(
-        NProfiling::TCpuInstant now,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
 
@@ -141,16 +143,20 @@ private:
         TDuration MaxConcurrentControllerScheduleAllocationExecDuration = TDuration::Max();
 
         TDuration ScheduleAllocationExecDurationEstimate;
+
+        TCpuInstant ScheduleAllocationBackoffDeadline = {};
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     const std::vector<IInvokerPtr> NodeShardInvokers_;
 
     std::atomic<bool> EnableConcurrentScheduleAllocationExecDurationThrottling_ = false;
+    std::atomic<bool> EnablePerNodeShardScheduleAllocationBackoff_ = false;
 
     mutable int ScheduleAllocationCallsOverdraft_ = 0;
 
     std::atomic<NProfiling::TCpuDuration> ScheduleAllocationControllerThrottlingBackoff_;
+    // TODO(bystrovserg): Drop global backoff state.
     std::atomic<NProfiling::TCpuInstant> ScheduleAllocationBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
     std::atomic<bool> ScheduleAllocationBackoffObserved_ = false;
 

@@ -1746,7 +1746,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
         deactivateOperationElement(EDeactivationReason::ScheduleAllocationFailed);
 
         element->OnScheduleAllocationFailed(
-            SchedulingHeartbeatContext_->GetNow(),
+            SchedulingHeartbeatContext_,
             element->GetTreeId(),
             scheduleAllocationResult);
 
@@ -2101,9 +2101,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::CheckBlocked(con
         return EDeactivationReason::MaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated;
     }
 
-    if (element->ScheduleAllocationBackoffCheckEnabled() &&
-        element->HasRecentScheduleAllocationFailure(SchedulingHeartbeatContext_->GetNow()))
-    {
+    if (element->HasRecentScheduleAllocationFailure(SchedulingHeartbeatContext_)) {
         return EDeactivationReason::RecentScheduleAllocationFailed;
     }
 

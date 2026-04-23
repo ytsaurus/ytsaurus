@@ -213,9 +213,16 @@ bool TOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeS
     return limitViolated;
 }
 
-bool TOperationController::HasRecentScheduleAllocationFailure(TCpuInstant now) const
+bool TOperationController::HasRecentScheduleAllocationFailure(
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    bool backoffCheckEnabled) const
 {
-    return ScheduleAllocationBackoffDeadline_ > now;
+    auto now = schedulingHeartbeatContext->GetNow();
+    if (EnablePerNodeShardScheduleAllocationBackoff_.load(std::memory_order::relaxed)) {
+        auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
+        return StateShards_[nodeShardId].ScheduleAllocationBackoffDeadline > now;
+    }
+    return backoffCheckEnabled && ScheduleAllocationBackoffDeadline_ > now;
 }
 
 bool TOperationController::ScheduleAllocationBackoffObserved() const
@@ -316,11 +323,13 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
 }
 
 void TOperationController::OnScheduleAllocationFailed(
-    TCpuInstant now,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
     auto config = GetConfig();
+    auto now = schedulingHeartbeatContext->GetNow();
+    auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
 
     TCpuInstant backoffDeadline = 0;
     if (scheduleAllocationResult->Failed[EScheduleFailReason::ControllerThrottling] > 0) {
@@ -358,6 +367,8 @@ void TOperationController::OnScheduleAllocationFailed(
                 }
                 builder->AppendChar('}');
             }));
+        StateShards_[nodeShardId].ScheduleAllocationBackoffDeadline = backoffDeadline;
+        // TODO(bystrovserg): Remove once per-shard backoff is applied.
         ScheduleAllocationBackoffDeadline_.store(backoffDeadline);
         ScheduleAllocationBackoffObserved_.store(true);
     }
@@ -390,6 +401,9 @@ void TOperationController::UpdateConfig(const TStrategyOperationControllerConfig
     EnableConcurrentScheduleAllocationExecDurationThrottling_.store(
         config->EnableConcurrentScheduleAllocationExecDurationThrottling,
         std::memory_order::release);
+    EnablePerNodeShardScheduleAllocationBackoff_.store(
+        config->EnablePerNodeShardScheduleAllocationBackoff,
+        std::memory_order::relaxed);
     UpdateConcurrentScheduleAllocationThrottlingLimits(config);
 }
 

@@ -912,7 +912,7 @@ public:
     bool IsMaxScheduleAllocationCallsViolated() const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
         const std::string& treeId,
@@ -926,7 +926,7 @@ public:
         TDuration timeLimit,
         const std::string& treeId);
     void OnScheduleAllocationFailed(
-        NProfiling::TCpuInstant now,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
     void AbortAllocation(

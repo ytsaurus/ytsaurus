@@ -2294,9 +2294,9 @@ bool TPoolTreeOperationElement::IsMaxConcurrentScheduleAllocationExecDurationPer
     return Controller_->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(schedulingHeartbeatContext);
 }
 
-bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const
+bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
-    return Controller_->HasRecentScheduleAllocationFailure(now);
+    return Controller_->HasRecentScheduleAllocationFailure(schedulingHeartbeatContext, ScheduleAllocationBackoffCheckEnabled_);
 }
 
 bool TPoolTreeOperationElement::IsSaturatedInTentativeTree(
@@ -2325,11 +2325,11 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
 }
 
 void TPoolTreeOperationElement::OnScheduleAllocationFailed(
-    TCpuInstant now,
+    const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
-    Controller_->OnScheduleAllocationFailed(now, treeId, scheduleAllocationResult);
+    Controller_->OnScheduleAllocationFailed(schedulingHeartbeatContext, treeId, scheduleAllocationResult);
 }
 
 void TPoolTreeOperationElement::AbortAllocation(

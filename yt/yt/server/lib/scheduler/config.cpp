@@ -106,6 +106,9 @@ void TStrategyOperationControllerConfig::Register(TRegistrar registrar)
         .Alias("schedule_job_fail_backoff_time")
         .Default(TDuration::MilliSeconds(100));
 
+    registrar.Parameter("enable_per_node_shard_schedule_allocation_backoff", &TThis::EnablePerNodeShardScheduleAllocationBackoff)
+        .Default(false);
+
     registrar.Parameter("controller_throttling", &TThis::ControllerThrottling)
         .DefaultNew();
 
