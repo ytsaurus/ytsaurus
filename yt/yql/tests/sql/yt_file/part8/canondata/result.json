@@ -720,9 +720,9 @@
             "uri": "https://{canondata_backend}/1777230/d749406d61a0f7d7dd2324a8ae0852c515dee79b/resource.tar.gz#test.test_join-left_null_literal--Results_/Output.txt"
         },
         {
-            "checksum": "b9d0ba894747ab722fc35f1e5e9a371d",
-            "size": 631,
-            "uri": "https://{canondata_backend}/1777230/d749406d61a0f7d7dd2324a8ae0852c515dee79b/resource.tar.gz#test.test_join-left_null_literal--Results_/Output.yqlrun.txt.attr"
+            "checksum": "b558b4a305710e6b20405a432a93859a",
+            "size": 478,
+            "uri": "https://{canondata_backend}/1936842/f0262e6f57bb460c71934e006e5393b188409b1a/resource.tar.gz#test.test_join-left_null_literal--Results_/Output.yqlrun.txt.attr"
         }
     ],
     "test.test[join-lookupjoin_semi_subq--Debug]": [

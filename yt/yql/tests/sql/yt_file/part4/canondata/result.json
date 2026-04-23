@@ -773,9 +773,9 @@
             "uri": "https://{canondata_backend}/1931696/13b8b0356360a5304f6b9f901da30a249a0cf548/resource.tar.gz#test.test_insert-insert_null-default.txt-Results_/Output.txt"
         },
         {
-            "checksum": "9c405a8901ebf9440062f4a44772b83f",
-            "size": 523,
-            "uri": "https://{canondata_backend}/1931696/13b8b0356360a5304f6b9f901da30a249a0cf548/resource.tar.gz#test.test_insert-insert_null-default.txt-Results_/Output.yqlrun.txt.attr"
+            "checksum": "7ab8bc7e44ee35abba2df686c95012ef",
+            "size": 370,
+            "uri": "https://{canondata_backend}/1937492/8b108f047bf925669f7fc58b9b0112554aabcfd9/resource.tar.gz#test.test_insert-insert_null-default.txt-Results_/Output.yqlrun.txt.attr"
         }
     ],
     "test.test[insert-override-from_sorted_calc-Debug]": [
