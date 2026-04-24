@@ -53,6 +53,7 @@
 #include <yql/essentials/minikql/mkql_function_registry.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
+#include <yql/essentials/utils/log/context.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/sql/v1/sql.h>
 #include <yql/essentials/sql/v1/lexer/antlr4/lexer.h>
@@ -516,8 +517,9 @@ public:
         std::vector<TQueryFile> files)
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto program = factory->Create("-memory-", queryText);
+        auto fictionalQueryId = TQueryId::Create();
+        auto factory = CreateProgramFactory(fictionalQueryId, *dynamicConfig);
+        auto program = factory->Create("-memory-", queryText, ToString(fictionalQueryId));
 
         program->AddCredentials({
             {"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)},
@@ -600,9 +602,16 @@ public:
     {
 
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
         factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
-        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settings, credentialsStr, dynamicConfig, factory);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
+            queryId,
+            queryText,
+            settings,
+            credentialsStr,
+            dynamicConfig,
+            factory);
+
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
             auto guard = WriterGuard(ProgressSpinLock_);
@@ -724,15 +733,21 @@ public:
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
-        TQueryId /*queryId*/,
+        TQueryId queryId,
         TString user,
         TString queryText,
         TYsonString settingsStr,
         TYsonString credentialsStr) override
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settingsStr, credentialsStr, dynamicConfig, factory);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
+            queryId,
+            queryText,
+            settingsStr,
+            credentialsStr,
+            dynamicConfig,
+            factory);
 
         if (!program->ParseSql(sqlSettings)) {
             ythrow yexception() << IssuesToYtErrorYson(program->Issues());
@@ -1043,7 +1058,9 @@ private:
         return std::move(dynamicConfig);
     }
 
-    NYql::TProgramFactoryPtr CreateProgramFactory(TDynamicConfig& dynamicConfig) {
+    NYql::TProgramFactoryPtr CreateProgramFactory(TQueryId queryId, TDynamicConfig& dynamicConfig) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(ToString(queryId));
+
         YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         NYql::TYtNativeServices ytServices;
@@ -1119,13 +1136,14 @@ private:
     }
 
     std::pair<TProgramPtr, NSQLTranslation::TTranslationSettings> CreateProgramAndSqlSettingsFromParameters(
+        TQueryId queryId,
         const TString& queryText,
         const TYsonString& settingsStr,
         const TYsonString& credentialsStr,
         TDynamicConfigPtr dynamicConfig,
         TProgramFactoryPtr factory)
     {
-        auto program = factory->Create("-memory-", queryText);
+        auto program = factory->Create("-memory-", queryText, ToString(queryId));
 
         TVector<std::pair<TString, NYql::TCredential>> credentials;
         const auto credentialsMap = NodeFromYsonString(credentialsStr.ToString()).AsMap();
