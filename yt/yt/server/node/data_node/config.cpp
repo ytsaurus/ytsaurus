@@ -536,6 +536,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("block_read_timeout_fraction", &TThis::BlockReadTimeoutFraction)
         .Default(0.75);
 
+    registrar.Parameter("delay_before_blob_chunk_read", &TThis::DelayBeforeBlobChunkRead)
+        .Default();
+
     registrar.Parameter("delay_before_blob_session_block_free", &TThis::DelayBeforeBlobSessionBlockFree)
         .Default();
 
@@ -931,6 +934,12 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
         .Default(true);
 
+    registrar.Parameter("return_blocks_if_session_fails", &TThis::ReturnBlocksIfSessionFails)
+        .Default(false);
+
+    registrar.Parameter("fail_session_at_read_blocks_deadline", &TThis::FailSessionAtReadBlocksDeadline)
+        .Default(false);
+
     registrar.Parameter("store_locations", &TThis::StoreLocations)
         .Default();
 
@@ -1206,6 +1215,12 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
+        .Optional();
+
+    registrar.Parameter("return_blocks_if_session_fails", &TThis::ReturnBlocksIfSessionFails)
+        .Optional();
+
+    registrar.Parameter("fail_session_at_read_blocks_deadline", &TThis::FailSessionAtReadBlocksDeadline)
         .Optional();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)

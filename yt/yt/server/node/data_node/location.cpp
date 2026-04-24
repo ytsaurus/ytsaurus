@@ -473,6 +473,11 @@ std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobSessionBlockFree() co
     return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobSessionBlockFree;
 }
 
+std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobChunkRead() const
+{
+    return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobChunkRead;
+}
+
 const IMemoryUsageTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
 {
     return ReadMemoryTracker_;
