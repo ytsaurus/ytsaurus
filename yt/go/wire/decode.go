@@ -27,6 +27,8 @@ type field struct {
 	attrs     bool
 
 	required bool // todo needed?
+
+	aggregate bool
 }
 
 type structType struct {
@@ -88,6 +90,7 @@ func newStructType(t reflect.Type) *structType {
 				omitempty: tag.Omitempty,
 				value:     tag.Value,
 				attrs:     tag.Attrs,
+				aggregate: tag.Aggregate,
 			}
 
 			if structField.value {

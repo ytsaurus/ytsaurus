@@ -13,6 +13,7 @@ type Tag struct {
 	Attr      bool
 	Attrs     bool
 	Key       bool
+	Aggregate bool
 }
 
 // ParseTag parses yson annotation for struct field tag.
@@ -48,6 +49,8 @@ func ParseTag(fieldName string, fieldTag reflect.StructTag) (tag *Tag, skip bool
 		case "attrs":
 			tag.Attrs = true
 			tag.Name = ""
+		case "aggregate":
+			tag.Aggregate = true
 		}
 	}
 
