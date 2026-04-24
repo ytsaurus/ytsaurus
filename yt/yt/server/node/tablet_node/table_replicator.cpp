@@ -475,13 +475,11 @@ private:
             if (replicationRows.empty()) {
                 if (readerResult == EReaderTerminationReason::ThrottlerOverdraft) {
                     THROW_ERROR_EXCEPTION("Table replicator did not write any rows due to network throttler overdraft");
-                } else {
+                } else if (newReplicationRowIndex == startRowIndex) {
                     THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
                         << HardErrorAttribute;
                 }
-            }
-
-            {
+            } else {
                 TEventTimerGuard timerGuard(counters.ReplicationRowsWriteTime);
 
                 TModifyRowsOptions options;
@@ -661,7 +659,26 @@ private:
                 currentRowIndex,
                 readerRows.size());
 
+            auto pivotKey = tabletSnapshot->PivotKey.Get();
+            auto nextPivotKey = tabletSnapshot->NextPivotKey.Get();
+            int keyColumnCount = TableSchema_->GetKeyColumnCount();
+            auto compareLogRowKeys = [&] (TUnversionedRow logRow, TUnversionedRow pivot) {
+                return CompareValueRanges(
+                    GetSortedLogRowKeys(logRow, keyColumnCount),
+                    pivot.Elements());
+            };
             for (auto row : readerRows) {
+                // Skip rows outside of the tablet's key range: after a split reshard
+                // every new tablet inherits all the originator tablet's chunks,
+                // so each tablet's log may contain rows whose keys belong to other tablets.
+                if (TableSchema_->IsSorted() &&
+                    (compareLogRowKeys(row, pivotKey) < 0 ||
+                     (nextPivotKey.GetCount() > 0 && compareLogRowKeys(row, nextPivotKey) >= 0)))
+                {
+                    ++currentRowIndex;
+                    continue;
+                }
+
                 TTypeErasedRow replicationRow;
                 ERowModificationType modificationType;
                 i64 rowIndex;
@@ -742,7 +759,7 @@ private:
 
         YT_VERIFY(result != EReaderTerminationReason::None);
 
-        *newReplicationRowIndex = startRowIndex + rowCount;
+        *newReplicationRowIndex = currentRowIndex;
         *newReplicationTimestamp = prevTimestamp;
         *batchRowCount = rowCount;
         *batchDataWeight = dataWeight;

@@ -222,6 +222,15 @@ public:
         return newReadRange;
     }
 
+    static TOwningKeyBound GetTabletUpperPivotKeyBound(
+        const TTablet* tablet,
+        TMutableRange<TTabletBaseRawPtr> tablets)
+    {
+        return tablet->GetIndex() == std::ssize(tablets) - 1
+            ? TOwningKeyBound::MakeEmpty(/*isUpper*/ false)
+            : tablets[tablet->GetIndex() + 1]->As<TTablet>()->GetPivotKeyBound();
+    }
+
     void ReshardTable(
         TTableNode* table,
         int firstTabletIndex,
@@ -384,9 +393,7 @@ public:
                 for (auto it = tabletsRange.Begin(); it != tabletsRange.End(); ++it) {
                     auto* tablet = (*it)->As<TTablet>();
                     auto lowerPivot = tablet->GetPivotKeyBound();
-                    auto upperPivot = tablet->GetIndex() == std::ssize(tablets) - 1
-                        ? TOwningKeyBound::MakeEmpty(/*isUpper*/ false)
-                        : tablets[tablet->GetIndex() + 1]->As<TTablet>()->GetPivotKeyBound();
+                    auto upperPivot = GetTabletUpperPivotKeyBound(tablet, tablets);
 
                     int relativeNewTabletIndex = std::distance(newTablets.Begin(), it);
                     newTabletHunkChunks[relativeNewTabletIndex].insert(
@@ -464,9 +471,7 @@ public:
             for (int relativeIndex = 0; relativeIndex < std::ssize(newTablets); ++relativeIndex) {
                 auto* tablet = newTablets[relativeIndex]->As<TTablet>();
                 const auto& lowerPivot = tablet->GetPivotKeyBound();
-                const auto& upperPivot = tablet->GetIndex() == std::ssize(tablets) - 1
-                    ? TOwningKeyBound::MakeEmpty(/*isUpper*/ false)
-                    : tablets[tablet->GetIndex() + 1]->As<TTablet>()->GetPivotKeyBound();
+                const auto& upperPivot = GetTabletUpperPivotKeyBound(tablet, tablets);
 
                 std::vector<TChunkTreeRawPtr> mergedChunkViews;
                 try {
@@ -529,6 +534,42 @@ public:
                 if (objectManager->UnrefObject(chunkView) == 0) {
                     YT_LOG_DEBUG("Temporarily referenced chunk view dropped during reshard (ChunkViewId: %v)",
                         chunkView->GetId());
+                }
+            }
+        } else if (table->IsSorted() && table->IsPhysicallyLog()) {
+            auto comparator = table->GetSchema()->AsCompactTableSchema()->ToComparator();
+
+            int relativeNewTabletIndex = 0;
+            for (int relativeOldTabletIndex = 0; relativeOldTabletIndex < oldTabletCount; ++relativeOldTabletIndex) {
+                int oldTabletIndex = firstTabletIndex + relativeOldTabletIndex;
+
+                while (relativeNewTabletIndex < std::ssize(newTablets)) {
+                    auto* newTablet = newTablets[relativeNewTabletIndex]->As<TTablet>();
+
+                    if (relativeOldTabletIndex + 1 < oldTabletCount &&
+                        comparator.CompareKeyBounds(
+                            newTablet->GetPivotKeyBound(),
+                            oldPivotKeyBounds[relativeOldTabletIndex + 1]) >= 0)
+                    {
+                        break;
+                    }
+
+                    // Only split resharding is supported.
+                    YT_VERIFY(comparator.CompareKeyBounds(
+                        GetTabletUpperPivotKeyBound(newTablet, tablets),
+                        oldPivotKeyBounds[relativeOldTabletIndex + 1]) <= 0);
+
+                    auto* oldMainChunkList = oldRootChunkLists[EChunkListContentType::Main]
+                        ->Children()[oldTabletIndex]->AsChunkList();
+                    newTabletChunkLists[EChunkListContentType::Main].push_back(
+                        chunkManager->CloneTabletChunkList(oldMainChunkList));
+
+                    auto* oldHunkChunkList = oldRootChunkLists[EChunkListContentType::Hunk]
+                        ->Children()[oldTabletIndex]->AsChunkList();
+                    newTabletChunkLists[EChunkListContentType::Hunk].push_back(
+                        chunkManager->CloneTabletChunkList(oldHunkChunkList));
+
+                    ++relativeNewTabletIndex;
                 }
             }
         } else {

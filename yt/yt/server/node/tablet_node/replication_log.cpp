@@ -40,6 +40,16 @@ TTimestamp GetLogRowTimestamp(TUnversionedRow logRow, int timestampColumnId)
     return value.Data.Uint64;
 }
 
+// Sorted log row layout: [tablet_index, row_index, timestamp, change_type, key_0..key_{K-1}, ...]
+constexpr int SortedLogRowKeyOffset = 4;
+
+TUnversionedValueRange GetSortedLogRowKeys(TUnversionedRow logRow, int keyColumnCount)
+{
+    return TUnversionedValueRange(
+        logRow.Begin() + SortedLogRowKeyOffset,
+        logRow.Begin() + SortedLogRowKeyOffset + keyColumnCount);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedRow BuildOrderedLogRow(
@@ -384,14 +394,14 @@ private:
         int valueColumnCount = tabletSnapshot->TableSchema->GetValueColumnCount();
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
-        YT_ASSERT(static_cast<int>(logRow.GetCount()) == keyColumnCount + valueColumnCount * 2 + 4);
+        YT_ASSERT(static_cast<int>(logRow.GetCount()) == keyColumnCount + valueColumnCount * 2 + SortedLogRowKeyOffset);
 
         switch (changeType) {
             case ERowModificationType::Write: {
-                YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + 4);
+                YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + SortedLogRowKeyOffset);
 
                 auto getFlags = [&] (int logValueIndex) {
-                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
+                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + SortedLogRowKeyOffset + 1];
                     YT_ASSERT(value.Type == EValueType::Null || value.Type == EValueType::Uint64);
 
                     return value.Type == EValueType::Null
@@ -412,14 +422,14 @@ private:
                     1,  // writeTimestampCount
                     0); // deleteTimestampCount
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
-                    mutableReplicationRow.Keys()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + 4]);
+                    mutableReplicationRow.Keys()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + SortedLogRowKeyOffset]);
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     auto flags = getFlags(logValueIndex);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TVersionedValue value{};
-                        static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);
+                        static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + SortedLogRowKeyOffset]);
                         value.Id = logValueIndex + keyColumnCount;
                         if (Any(flags & EReplicationLogDataFlags::Aggregate)) {
                             value.Flags |= EValueFlags::Aggregate;
@@ -442,7 +452,7 @@ private:
                     0,  // writeTimestampCount
                     1); // deleteTimestampCount
                 for (int index = 0; index < keyColumnCount; ++index) {
-                    mutableReplicationRow.Keys()[index] = rowBuffer->CaptureValue(logRow[index + 4]);
+                    mutableReplicationRow.Keys()[index] = rowBuffer->CaptureValue(logRow[index + SortedLogRowKeyOffset]);
                 }
                 mutableReplicationRow.DeleteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
@@ -474,16 +484,16 @@ private:
         int valueColumnCount = tabletSnapshot->TableSchema->GetValueColumnCount();
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
-        YT_ASSERT(static_cast<int>(logRow.GetCount()) == keyColumnCount + valueColumnCount * 2 + 4);
+        YT_ASSERT(static_cast<int>(logRow.GetCount()) == keyColumnCount + valueColumnCount * 2 + SortedLogRowKeyOffset);
 
         *modificationType = ERowModificationType::Write;
 
         switch (changeType) {
             case ERowModificationType::Write: {
-                YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + 4);
+                YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + SortedLogRowKeyOffset);
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
-                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
+                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + SortedLogRowKeyOffset + 1];
                     auto flags = FromUnversionedValue<EReplicationLogDataFlags>(value);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         ++replicationValueCount;
@@ -492,17 +502,17 @@ private:
                 auto mutableReplicationRow = rowBuffer->AllocateUnversioned(
                     keyColumnCount + replicationValueCount);
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
-                    mutableReplicationRow.Begin()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + 4]);
+                    mutableReplicationRow.Begin()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + SortedLogRowKeyOffset]);
                     mutableReplicationRow.Begin()[keyIndex].Id = keyIndex;
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
-                    const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + 5];
+                    const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + SortedLogRowKeyOffset + 1];
                     YT_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TUnversionedValue value{};
-                        static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);
+                        static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + SortedLogRowKeyOffset]);
                         value.Id = logValueIndex + keyColumnCount;
                         if (Any(flags & EReplicationLogDataFlags::Aggregate)) {
                             value.Flags |= EValueFlags::Aggregate;
@@ -520,7 +530,7 @@ private:
                 auto mutableReplicationRow = rowBuffer->AllocateUnversioned(
                     keyColumnCount);
                 for (int index = 0; index < keyColumnCount; ++index) {
-                    mutableReplicationRow.Begin()[index] = rowBuffer->CaptureValue(logRow[index + 4]);
+                    mutableReplicationRow.Begin()[index] = rowBuffer->CaptureValue(logRow[index + SortedLogRowKeyOffset]);
                     mutableReplicationRow.Begin()[index].Id = index;
                 }
                 replicationRow = mutableReplicationRow;
