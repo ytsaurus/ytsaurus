@@ -223,8 +223,6 @@ void TResourceTreeElement::ResetLocalPreemptedResourceUsagePrecommit()
     ResourceTree_->IncrementUsageLockWriteCount();
 
     PreemptedResourceUsagePrecommit_ = TJobResources();
-
-    return;
 }
 
 bool TResourceTreeElement::CommitLocalResourceUsage(
