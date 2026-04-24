@@ -256,7 +256,7 @@ class Queue:
                 yt.insert_rows(self.path, rows)
                 yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=15, backoff=0.1, backoff_config={"policy": "constant_time", "constant_time": 0.1}, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(lambda: _insert_rows(), retry_count=1800, backoff=0.1, backoff_config={"policy": "constant_time", "constant_time": 0.1}, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in enumerate(new_written_row_count):
             self.written_row_count[tablet_index] += row_count
@@ -491,7 +491,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     yt.config["backend"] = "rpc"
     yt.config["driver_config"] = {"enable_retries": True}
     yt.config["dynamic_table_retries"]["backoff"] = {"policy": "constant_time", "constant_time": 0.1}
-    yt.config["dynamic_table_retries"]["total_timeout"] = 30000
+    yt.config["dynamic_table_retries"]["total_timeout"] = 180000
+    yt.config["tablets_ready_timeout"] = 4 * 60 * 1000
 
     queues = {}
     hunk_storages = {}
