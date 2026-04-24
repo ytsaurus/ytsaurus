@@ -822,6 +822,8 @@ void TNbdConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default();
+    registrar.Parameter("read_write_enabled", &TThis::ReadWriteEnabled)
+        .Default(true);
     registrar.Parameter("client", &TThis::Client)
         .DefaultNew();
     registrar.Parameter("server", &TThis::Server)

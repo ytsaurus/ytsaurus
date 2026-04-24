@@ -707,6 +707,7 @@ struct TNbdConfig
     : public NYTree::TYsonStruct
 {
     bool Enabled;
+    bool ReadWriteEnabled;
     TNbdClientConfigPtr Client;
     NNbd::TNbdServerConfigPtr Server;
     i64 BlockCacheCompressedDataCapacity;
