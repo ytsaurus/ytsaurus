@@ -1326,6 +1326,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Alias("deprecated_mediums")
         .Default();
 
+    registrar.Parameter("nbd_media", &TThis::NbdMedia)
+        .Alias("nbd_mediums")
+        .Default();
+
     registrar.Parameter("enable_master_resource_usage_accounting", &TThis::EnableMasterResourceUsageAccounting)
         .Default(true);
 
