@@ -272,6 +272,86 @@ list_func._yql_lazy_input = False
 SELECT $u(AsList(1,2,3));
 ```
 
+## Using linear types {#python-linear}
+
+Linear types help optimize scenarios where some state is stored inside a Python object. Previously, two options were available:
+* Converting the state to immutable YQL types (strings, lists, etc.) on each call, which adds overhead.
+* Using the `Resource` type, which can be unsafe if the UDF modifies the state in place instead of returning a new value.
+
+Starting from version [2025.04](../changelog/2025.04.md), you can mark a `Resource` as a linear type, which prevents reuse of values of that type within a query and removes the restriction on mutating state directly in the Python object.
+
+In most cases, use static linear types (`Linear`) in arguments or return values when possible (for example, when you don't need to put them in a list).
+
+Using a `Linear` type inside Python is identical to using its base type, except that the query engine checks for reuse of such a value.
+
+Example:
+``` yql
+$script = @@#py
+def producer():
+    return []
+
+def adder(state, i):
+    # mutates state in-place
+    state.append(i)
+    return state
+
+def consumer(state):
+    return ",".join(str(x) for x in state)
+@@;
+
+$linearResource = Linear<Resource<Python3>>;
+$producer = Python3::producer(Callable<()->$linearResource>, $script);
+$adder = Python3::adder(Callable<($linearResource, Int32)->$linearResource>, $script);
+$consumer = Python3::consumer(Callable<($linearResource)->String>, $script);
+
+select Block(($arg)->{
+    $state = Udf($producer, $arg as Depends)();
+    $state = $adder($state, 1);
+    $state = $adder($state, 2);
+    return $consumer($state);
+}); -- "1,2"
+```
+
+When using the `DynamicLinear` type, you must retrieve the value from the argument via the `extract` method, and the Python object returned must also implement an `extract` method.
+
+Example:
+``` yql
+$script = @@#py
+class Result:
+    def __init__(self, lst):
+        self.lst = lst
+
+    def extract(self):
+        ret = self.lst
+        self.lst = None
+        return ret
+
+def producer():
+    return Result([])
+
+def adder(state, i):
+    # mutates state in-place
+    lst = state.extract()
+    lst.append(i)
+    return Result(lst)
+
+def consumer(state):
+    return ",".join(str(x) for x in state.extract())
+@@;
+
+$linearResource = DynamicLinear<Resource<Python3>>;
+$producer = Python3::producer(Callable<()->$linearResource>, $script);
+$adder = Python3::adder(Callable<($linearResource, Int32)->$linearResource>, $script);
+$consumer = Python3::consumer(Callable<($linearResource)->String>, $script);
+
+select Block(($arg)->{
+    $list = [1, 2, 3];
+    $state = Udf($producer, $arg as Depends)();
+    $state = ListFold($list, $state, ($item, $state)->($adder($state, $item)));
+    return $consumer($state);
+}); -- "1,2,3"
+```
+
 {% if audience == "internal" %}
 ## Use of libraries {#how-to-use-libraries}
 
