@@ -758,7 +758,8 @@ public:
         bool populateCache,
         bool fetchFromCache,
         bool fetchFromDisk,
-        TWorkloadDescriptor workloadDescriptor = {})
+        TWorkloadDescriptor workloadDescriptor = {},
+        std::optional<TDuration> requestTimeout = {})
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -772,9 +773,10 @@ public:
         for (auto blockIndex : blockIndices) {
             req->add_block_indexes(blockIndex);
         }
-        req->Header().set_timeout(ToProto(RequestTimeout_));
+        auto timeout = requestTimeout.value_or(RequestTimeout_);
+        req->Header().set_timeout(ToProto(timeout));
         req->Header().set_start_time(ToProto(TInstant::Now()));
-        req->SetTimeout(RequestTimeout_);
+        req->SetTimeout(timeout);
         req->set_populate_cache(populateCache);
         req->set_fetch_from_cache(fetchFromCache);
         req->set_fetch_from_disk(fetchFromDisk);
@@ -1544,6 +1546,80 @@ INSTANTIATE_TEST_SUITE_P(
     TGetBlockSetTest,
     TGetBlockSetTest,
     ::testing::ValuesIn(GenerateGetBlockSetParams())
+);
+
+class TReadBlocksDeadlineTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<std::tuple</*failSession*/ bool, /*returnBlocks*/ bool>>
+{
+public:
+    TReadBlocksDeadlineTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .CoalescedReadMaxGapSize = 0,
+            })
+    { }
+};
+
+TEST_P(TReadBlocksDeadlineTest, GetBlockSet)
+{
+    const auto [failSessionAtDeadline, returnBlocksIfSessionFails] = GetParam();
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto blocks = FillWithRandomBlocks(sessionId, /*blockCount*/ 16, /*blockSize*/ 4_KB);
+
+    auto dyn = GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode;
+    dyn->FailSessionAtReadBlocksDeadline = failSessionAtDeadline;
+    dyn->ReturnBlocksIfSessionFails = returnBlocksIfSessionFails;
+
+    // Make the server-side read routine hit its internal deadline quickly,
+    // while the RPC itself has enough time to complete.
+    dyn->TestingOptions->BlockReadTimeoutFraction = 0.75;
+    dyn->TestingOptions->DelayBeforeBlobChunkRead = TDuration::Seconds(2);
+
+    auto rspOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ std::vector<int>{0, 2, 4, 6},
+        /*populateCache*/ false,
+        /*fetchFromCache*/ false,
+        /*fetchFromDisk*/ true,
+        /*workloadDescriptor*/ {},
+        /*requestTimeout*/ TDuration::Seconds(4)));
+
+    if (!failSessionAtDeadline) {
+        EXPECT_TRUE(rspOrError.IsOK());
+        auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
+        for (const auto& block : gotBlocks) {
+            EXPECT_TRUE(block.Size() == 0);
+        }
+        return;
+    }
+
+    if (!returnBlocksIfSessionFails) {
+        EXPECT_FALSE(rspOrError.IsOK());
+        return;
+    }
+
+    EXPECT_TRUE(rspOrError.IsOK());
+    auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
+    int notEmptyBlocks = 0;
+    for (const auto& block : gotBlocks) {
+        if (block) {
+            ++notEmptyBlocks;
+        }
+    }
+    EXPECT_GT(notEmptyBlocks, 0);
+    EXPECT_LT(notEmptyBlocks, 4);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TReadBlocksDeadlineTest,
+    TReadBlocksDeadlineTest,
+    ::testing::Values(
+        std::tuple(false, false),
+        std::tuple(false, true),
+        std::tuple(true, false),
+        std::tuple(true, true))
 );
 
 TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)

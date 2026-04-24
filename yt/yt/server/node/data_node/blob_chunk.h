@@ -119,6 +119,8 @@ private:
 
     i64 GetAlignedPendingDataSize(i64 pendingDataSize);
 
+    std::vector<NChunkClient::TBlock> CollectBlocks(const TReadBlockSetSessionPtr& session);
+
     void CompleteSession(const TReadBlockSetSessionPtr& session);
     void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
 

@@ -310,6 +310,8 @@ public:
 
     const TChunkStorePtr& GetChunkStore() const;
 
+    std::optional<TDuration> GetDelayBeforeBlobChunkRead() const;
+
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;

@@ -206,23 +206,9 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
         GetCurrentInvoker());
 }
 
-void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
+std::vector<NChunkClient::TBlock> TBlobChunkBase::CollectBlocks(const TReadBlockSetSessionPtr& session)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
-
-    if (session->Finished.exchange(true)) {
-        return;
-    }
-
-    YT_LOG_DEBUG("Read session completed (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-        Id_,
-        Location_->GetId(),
-        Location_->GetUuid(),
-        Location_->GetIndex());
-
-    session->SessionAliveCheckFuture.Cancel(TError("Session completed"));
-
-    ProfileReadBlockSetLatency(session);
 
     auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
 
@@ -244,7 +230,28 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         blocks[originalEntryIndex] = std::move(block);
     }
 
-    session->SessionPromise.TrySet(std::move(blocks));
+    return blocks;
+}
+
+void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    if (session->Finished.exchange(true)) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Read session completed (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
+        Id_,
+        Location_->GetId(),
+        Location_->GetUuid(),
+        Location_->GetIndex());
+
+    session->SessionAliveCheckFuture.Cancel(TError("Session completed"));
+
+    ProfileReadBlockSetLatency(session);
+
+    session->SessionPromise.TrySet(CollectBlocks(session));
     session->LocationMemoryGuard.Transform(std::mem_fn(&TLocationMemoryGuard::Release));
 }
 
@@ -256,7 +263,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         return;
     }
 
-    YT_LOG_DEBUG("Read session failed (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
+    YT_LOG_DEBUG(error, "Read session failed (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         Id_,
         Location_->GetId(),
         Location_->GetUuid(),
@@ -275,7 +282,17 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         future.Cancel(error);
     }
 
-    session->SessionPromise.TrySet(error);
+    if (session->Options.ReturnBlocksIfSessionFails) {
+        auto blocks = CollectBlocks(session);
+        auto blocksWithData = std::count_if(blocks.begin(), blocks.end(), [] (const auto& block) { return static_cast<bool>(block); });
+        if (blocksWithData > 0) {
+            session->SessionPromise.TrySet(blocks);
+        } else {
+            session->SessionPromise.TrySet(error);
+        }
+    } else {
+        session->SessionPromise.TrySet(error);
+    }
 
     if (session->DiskFetchPromise) {
         session->DiskFetchPromise.TrySet(error);
@@ -484,6 +501,12 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }
     }
 
+    if (session->Options.FailSessionAtReadBlocksDeadline) {
+        TDelayedExecutor::Submit(BIND([=, this, this_ = MakeStrong(this)] {
+            FailSession(session, TError(NYT::EErrorCode::Timeout, "Session timeouted"));
+        }).Via(session->Invoker), session->Options.ReadBlocksDeadline - TInstant::Now());
+    }
+
     AllSucceeded(session->Futures)
         .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
@@ -669,6 +692,11 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
     YT_VERIFY(readBlocksRequest.BlocksToRead > 0);
 
     auto reader = GetReader();
+
+    if (auto delay = Location_->GetDelayBeforeBlobChunkRead()) {
+        YT_LOG_DEBUG("Delaying blob chunk read (ChunkId: %v, Delay: %v)", Id_, *delay);
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
 
     YT_VERIFY(session->FairShareSlot);
     auto asyncBlocks = reader->ReadBlocks(
