@@ -330,6 +330,7 @@ class TestYtflowBase(TestQueueAgentBase):
             ytflow_worker_bin=yatest.common.binary_path("yt/yql/tools/ytflow_worker/ytflow_worker"),
             gateway_threads=1,
             default_settings=[
+                dict(name='_RpcTimeout', value='10s'),
                 dict(name='_FiniteStreams', value='1'),
                 dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_ControllerWriteFullLogsToYT', value='true'),
