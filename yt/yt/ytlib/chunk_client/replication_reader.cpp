@@ -600,7 +600,19 @@ protected:
     TInstant RetryStartTime_;
 
     //! Total number of bytes received in this session; used to detect slow reads.
-    i64 TotalBytesReceived_ = 0;
+    //! Extra bytes received upon hedged requests are not included.
+    //! If number of bytes throttled via preliminary throttling is less than this value,
+    //! extra throttling is applied at the end of each subrequest.
+    i64 DataBytesReceived_ = 0;
+
+    //! Total number of bytes throttled in this session excluding bytes throttled within hedged request
+    //! of a THedegedRequest.
+    //! In case of failed reading session excessively throttled bytes will be released.
+    i64 DataBytesThrottled_ = 0;
+
+    //! Number of bytes throttled within hedged request of a THedegedRequest.
+    //! These are throttled to protect node from overconsumption of provided net limit.
+    std::atomic<i64> ExtraBytesThrottled_ = 0;
 
     //! Total number of bytes read from disk in this session.
     std::atomic<i64> TotalBytesReadFromDisk_ = 0;
@@ -708,16 +720,16 @@ protected:
     }
 
     // NB: Now we use this method only in case of failed session. First of all because it breaks fifo property
-    // of fair throttler and the other one is that we now do not account late hedged responses in TotalBytesReceived_.
+    // of fair throttler and the other one is that we now do not account late hedged responses in DataBytesReceived_.
     // We can accept these problem for rare case of a failed session but not in a regular case.
     void ReleaseThrottledBytesExcess(const IThroughputThrottlerPtr& throttler, i64 throttledBytes)
     {
-        if (throttledBytes > TotalBytesReceived_) {
+        if (throttledBytes > DataBytesReceived_) {
             YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v, ReceivedBytes: %v)",
                 throttledBytes,
-                TotalBytesReceived_);
+                DataBytesReceived_);
 
-            throttler->Release(throttledBytes - TotalBytesReceived_);
+            throttler->Release(throttledBytes - DataBytesReceived_);
         }
     }
 
@@ -1637,7 +1649,7 @@ private:
             return true;
         }
 
-        auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTime_);
+        auto error = reader->RunSlownessChecker(DataBytesReceived_, StartTime_);
         if (!error.IsOK()) {
             RegisterError(TError(
                 NChunkClient::EErrorCode::ChunkReadSessionSlow,
@@ -2144,7 +2156,7 @@ private:
             TIntrusivePtr<TReadBlockSetSession> session,
             TPeer primaryPeer,
             TPeer secondaryPeer,
-            i64 bytesToThrottle,
+            bool applyPreliminaryThrottling,
             std::vector<int> blockIndexes,
             const TPeerList& peers,
             bool enableP2P,
@@ -2152,7 +2164,7 @@ private:
             : Session_(std::move(session))
             , PrimaryPeer_(std::move(primaryPeer))
             , SecondaryPeer_(std::move(secondaryPeer))
-            , BytesToThrottle_(bytesToThrottle)
+            , ApplyPreliminaryThrottling_(applyPreliminaryThrottling)
             , BlockIndexes_(std::move(blockIndexes))
             , Barriers_(Session_->FillP2PBarriers(peers, BlockIndexes_))
             , EnableP2P_(enableP2P)
@@ -2183,8 +2195,9 @@ private:
 
         const TPeer PrimaryPeer_;
         const TPeer SecondaryPeer_;
-        // NB: Same value for both peers because we want to throttle requests to either both or none of them.
-        const i64 BytesToThrottle_;
+        // NB: We trottle on primary request only when this value is |true|. For secondary requests we always throttle.
+        // We also apply post-throttling only for secondary requests because for primary ones it is done in a general way.
+        const bool ApplyPreliminaryThrottling_;
         const std::vector<int> BlockIndexes_;
         const std::vector<NProto::TP2PBarrier> Barriers_;
         const bool EnableP2P_;
@@ -2195,7 +2208,7 @@ private:
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
         std::optional<TError> CancelationError_;
-        TCompactVector<TFuture<void>, 4> SessionFutures_;
+        TCompactVector<TFuture<void>, 5> SessionFutures_;
 
         std::atomic<bool> ThrottlingErrorSet_ = false;
 
@@ -2219,33 +2232,36 @@ private:
         {
             YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
 
-            auto future = ThrottleRequest(isPrimaryRequest);
+            i64 bytesToThrottle = ApplyPreliminaryThrottling_ || !isPrimaryRequest
+                ? Session_->ComputeBytesToThrottle(std::ssize(BlockIndexes_))
+                : 0;
+
+            auto future = OKFuture;
+            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Address, bytesToThrottle > 0)) {
+                if (isPrimaryRequest) {
+                    Session_->DataBytesThrottled_ += bytesToThrottle;
+                } else {
+                    Session_->ExtraBytesThrottled_ += bytesToThrottle;
+                }
+
+                future = Session_->CombinedDataByteThrottler_->Throttle(bytesToThrottle);
+                SetSessionFuture(future);
+            }
+
             if (future.IsSet()) {
-                OnRequestThrottled(isPrimaryRequest, future.GetOrCrash());
+                OnRequestThrottled(isPrimaryRequest, bytesToThrottle, future.GetOrCrash());
             } else {
                 future.Subscribe(BIND(&THedgedRequest::OnRequestThrottled,
                     MakeStrong(this),
-                    isPrimaryRequest)
+                    isPrimaryRequest,
+                    bytesToThrottle)
                     .Via(Session_->SessionInvoker_));
-            }
-        }
-
-        TFuture<void> ThrottleRequest(bool isPrimaryRequest)
-        {
-            YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
-
-            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Address, BytesToThrottle_ > 0)) {
-                Session_->BytesThrottled_ += BytesToThrottle_;
-                auto future = Session_->CombinedDataByteThrottler_->Throttle(BytesToThrottle_);
-                SetSessionFuture(future);
-                return future;
-            } else {
-                return OKFuture;
             }
         }
 
         void OnRequestThrottled(
             bool isPrimaryRequest,
+            i64 bytesThrottled,
             TError throttlingResult)
         {
             YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
@@ -2255,17 +2271,7 @@ private:
             }
 
             if (!throttlingResult.IsOK()) {
-                if (!isPrimaryRequest) {
-                    throttlingResult <<= TErrorAttribute(BackupFailedKey, true);
-                }
-
-                // NB: OnThrottlingError is potentially not thread-safe, so we can only call it once.
-                if (ThrottlingErrorSet_.exchange(true)) {
-                    Promise_.TrySet(std::move(throttlingResult));
-                    return;
-                }
-
-                Promise_.TrySet(Session_->OnThrottlingError(throttlingResult));
+                OnThrottlingFailed(std::move(throttlingResult), isPrimaryRequest);
                 return;
             }
 
@@ -2290,7 +2296,8 @@ private:
             future.AsUnique().Subscribe(BIND([
                 this,
                 this_ = MakeStrong(this),
-                isPrimaryRequest
+                isPrimaryRequest,
+                bytesThrottled
             ] (TErrorOr<IRequestBatcher::TGetBlocksResult>&& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     if (!isPrimaryRequest) {
@@ -2301,11 +2308,27 @@ private:
                 }
 
                 auto result = std::move(resultOrError.Value());
+                YT_VERIFY(result.Response.IsOK());
                 if (!isPrimaryRequest) {
-                    YT_VERIFY(result.Response.IsOK());
                     auto* ext = result.Response.Value()->Header().MutableExtension(NRpc::NProto::THedgingExt::hedging_ext);
                     ext->set_backup_responded(true);
                 }
+
+                auto throttledBytesDelta = GetByteSize(result.Response.Value()->Attachments()) - bytesThrottled;
+                if (Session_->ShouldThrottle(
+                    GetPeer(isPrimaryRequest).Address,
+                    !isPrimaryRequest && throttledBytesDelta > 0))
+                {
+                    Session_->ExtraBytesThrottled_ += throttledBytesDelta;
+
+                    auto throttlingResult = WaitForFast(
+                        Session_->CombinedDataByteThrottler_->Throttle(throttledBytesDelta));
+                    if (!throttlingResult.IsOK()) {
+                        OnThrottlingFailed(std::move(throttlingResult), isPrimaryRequest);
+                        return;
+                    }
+                }
+
                 Promise_.TrySet(std::move(result));
             })
                 .Via(Session_->SessionInvoker_));
@@ -2348,6 +2371,23 @@ private:
         {
             return isPrimaryRequest ? PrimaryPeer_ : SecondaryPeer_;
         }
+
+        void OnThrottlingFailed(TError throttlingError, bool isPrimaryRequest)
+        {
+            YT_VERIFY(!throttlingError.IsOK());
+
+            if (!isPrimaryRequest) {
+                throttlingError <<= TErrorAttribute(BackupFailedKey, true);
+            }
+
+            if (ThrottlingErrorSet_.exchange(true)) {
+                Promise_.TrySet(std::move(throttlingError));
+                return;
+            }
+
+            // NB: OnThrottlingError is potentially not thread-safe, so we can only call it once.
+            Promise_.TrySet(Session_->OnThrottlingError(throttlingError));
+        }
     };
 
     //! Block indexes to read during the session.
@@ -2360,7 +2400,7 @@ private:
     //! Promise representing the session.
     const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
-    std::atomic<i64> BytesThrottled_ = 0;
+    bool PreliminaryThrottlingApplied_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RequestHandlerLock_);
     //! Blocks that are fetched so far.
@@ -2642,6 +2682,8 @@ private:
             return true;
         }
 
+        auto applyPreliminaryThrottling = !std::exchange(PreliminaryThrottlingApplied_, true);
+
         SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
             pickPeerTimer.GetElapsedValue(),
             std::memory_order::relaxed);
@@ -2694,7 +2736,8 @@ private:
                     std::move(blockIndexes),
                     peers[peerIndex % peers.size()],
                     peers[(peerIndex + 1) % peers.size()],
-                    peers));
+                    peers,
+                    applyPreliminaryThrottling));
                 peerIndex++;
             }
 
@@ -2712,7 +2755,9 @@ private:
             std::move(blockIndexes),
             primaryPeer,
             backupPeer,
-            peers)).ValueOrThrow();
+            peers,
+            applyPreliminaryThrottling))
+            .ValueOrThrow();
     }
 
     bool HandleBlocks(
@@ -2828,7 +2873,8 @@ private:
             }
 
             bytesReceived += block.Size();
-            TotalBytesReceived_ += block.Size();
+            DataBytesReceived_ += block.Size();
+
             receivedBlockIndexes.push_back(blockIndex);
             EmplaceOrCrash(Blocks_, blockIndex, std::move(block));
         }
@@ -2855,14 +2901,15 @@ private:
             rsp->peer_descriptors_size(),
             invalidBlockCount);
 
-        auto bytesThrottled = BytesThrottled_.load();
-        if (ShouldThrottle(respondedPeer.Address, TotalBytesReceived_ > bytesThrottled)) {
-            auto delta = TotalBytesReceived_ - bytesThrottled;
-            BytesThrottled_ += delta;
+        auto throttledBytesDelta = DataBytesReceived_ - DataBytesThrottled_;
+        if (ShouldThrottle(respondedPeer.Address, throttledBytesDelta > 0)) {
+            DataBytesThrottled_ += throttledBytesDelta;
 
             guard.Release();
 
-            if (auto throttlingError = SyncThrottle(CombinedDataByteThrottler_, delta); !throttlingError.IsOK()) {
+            if (auto throttlingError = SyncThrottle(CombinedDataByteThrottler_, throttledBytesDelta);
+                !throttlingError.IsOK())
+            {
                 CancelAllBlocks(
                     blocks,
                     throttlingError);
@@ -2880,15 +2927,18 @@ private:
         std::vector<int> blockIndexes,
         TPeer primaryPeer,
         std::optional<TPeer> backupPeer,
-        const TPeerList& peers)
+        const TPeerList& peers,
+        bool applyPreliminaryThrottling)
     {
+        YT_VERIFY(std::ssize(blockIndexes) <= std::ssize(BlockIndexes_));
+
         TFuture<IRequestBatcher::TGetBlocksResult> future;
         if (backupPeer && SessionOptions_.AdaptiveHedgingManager) {
             future = New<THedgedRequest>(
                 MakeStrong(this),
                 primaryPeer,
                 *backupPeer,
-                ComputeBytesToThrottle(std::ssize(blockIndexes)),
+                applyPreliminaryThrottling,
                 blockIndexes,
                 peers,
                 /*enableP2P*/ ReaderConfig_->FetchFromPeers,
@@ -2906,14 +2956,17 @@ private:
             YT_VERIFY(channel);
 
             const auto& primaryAddress = primaryPeer.Address;
-            if (ShouldThrottle(primaryAddress, GetThrottlingCondition())) {
-                // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-                // In order not to throttle twice, we check BytesThrottled_ is zero.
-                // Still it protects us from bursty incoming traffic on the host.
-                // If estimated size was not given, we fallback to post-throttling on actual received size.
+            i64 bytesToThrottle = applyPreliminaryThrottling
+                ? ComputeBytesToThrottle(std::ssize(blockIndexes))
+                : 0;
 
-                auto bytesToThrottle = ComputeBytesToThrottle(std::ssize(blockIndexes));
-                BytesThrottled_ += bytesToThrottle;
+            if (ShouldThrottle(primaryAddress, bytesToThrottle > 0)) {
+                // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
+                // In order not to throttle twice, we allow nonzero bytesToThrottle only for the first pass.
+                // Still it protects us from bursty incoming traffic on the host.
+                // If estimated size was not given or was less than actual, we fallback to post-throttling.
+
+                DataBytesThrottled_ += bytesToThrottle;
                 if (auto throttlingError = SyncThrottle(CombinedDataByteThrottler_, bytesToThrottle);
                     !throttlingError.IsOK())
                 {
@@ -3001,22 +3054,6 @@ private:
         return barriers;
     }
 
-    i64 ComputeBytesToThrottle(int requestedBlockCount) const
-    {
-        if (!GetThrottlingCondition()) {
-            return 0;
-        }
-
-        // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
-        YT_VERIFY(requestedBlockCount <= std::ssize(BlockIndexes_));
-        return *EstimatedSize_ * requestedBlockCount / std::ssize(BlockIndexes_);
-    }
-
-    bool GetThrottlingCondition() const
-    {
-        return BytesThrottled_ == 0 && EstimatedSize_;
-    }
-
     void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)
     {
         std::vector<TFuture<void>> cachedBlockFutures;
@@ -3058,13 +3095,14 @@ private:
         }
 
         YT_LOG_DEBUG("All requested blocks are fetched "
-            "(BlockCount: %v, TotalSize: %v, ThrottledSize: %v, EstimatedSize: %v)",
+            "(BlockCount: %v, TotalSize: %v, DataThrottledSize: %v, ExtraThrottledSize: %v, EstimatedSize: %v)",
             blocks.size(),
             GetByteSize(blocks),
-            BytesThrottled_,
+            DataBytesThrottled_,
+            ExtraBytesThrottled_,
             EstimatedSize_);
 
-        AccountExtraMediumBandwidth(BytesThrottled_);
+        AccountExtraMediumBandwidth(DataBytesThrottled_);
 
         Promise_.TrySet(std::vector<TBlock>(blocks));
     }
@@ -3086,7 +3124,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -3102,6 +3140,16 @@ private:
             << error;
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
+    }
+
+    i64 ComputeBytesToThrottle(int requestedBlockCount) const
+    {
+        if (!EstimatedSize_) {
+            return 0;
+        }
+
+        // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
+        return *EstimatedSize_ * requestedBlockCount / std::ssize(BlockIndexes_);
     }
 };
 
@@ -3190,8 +3238,6 @@ private:
     //! Blocks that are fetched so far.
     std::vector<TBlock> FetchedBlocks_;
 
-    i64 BytesThrottled_ = 0;
-
 
     void NextPass() override
     {
@@ -3234,12 +3280,12 @@ private:
             return;
         }
 
-        if (ShouldThrottle(peerAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
+        if (ShouldThrottle(peerAddress, DataBytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we check BytesThrottled_ is zero.
+            // In order not to throttle twice, we check DataBytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-            BytesThrottled_ = *EstimatedSize_;
+            DataBytesThrottled_ = *EstimatedSize_;
             if (!SyncThrottle(CombinedDataByteThrottler_, *EstimatedSize_).IsOK()) {
                 return;
             }
@@ -3254,7 +3300,7 @@ private:
         req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v, Cookie: %x",
             FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
             EstimatedSize_,
-            BytesThrottled_,
+            DataBytesThrottled_,
             SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
@@ -3319,7 +3365,7 @@ private:
 
             blocksReceived += 1;
             bytesReceived += block.Size();
-            TotalBytesReceived_ += block.Size();
+            DataBytesReceived_ += block.Size();
 
             FetchedBlocks_.push_back(std::move(block));
         }
@@ -3342,9 +3388,9 @@ private:
             FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + blocksReceived - 1),
             bytesReceived);
 
-        if (ShouldThrottle(peerAddress, TotalBytesReceived_ > BytesThrottled_)) {
-            auto delta = TotalBytesReceived_ - BytesThrottled_;
-            BytesThrottled_ = TotalBytesReceived_;
+        if (ShouldThrottle(peerAddress, DataBytesReceived_ > DataBytesThrottled_)) {
+            auto delta = DataBytesReceived_ - DataBytesThrottled_;
+            DataBytesThrottled_ = DataBytesReceived_;
             if (!SyncThrottle(CombinedDataByteThrottler_, delta).IsOK()) {
                 return;
             }
@@ -3362,7 +3408,7 @@ private:
         YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v)",
             FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
 
-        AccountExtraMediumBandwidth(BytesThrottled_);
+        AccountExtraMediumBandwidth(DataBytesThrottled_);
 
         Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
@@ -3385,7 +3431,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -3480,8 +3526,6 @@ private:
     //! Promise representing the session.
     const TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
 
-    i64 BytesThrottled_ = 0;
-
 
     void NextPass() override
     {
@@ -3539,11 +3583,11 @@ private:
 
         YT_VERIFY(channel);
 
-        if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
-            BytesThrottled_ = *MetaSize_;
+        if (ShouldThrottle(primaryPeer.Address, DataBytesThrottled_ == 0 && MetaSize_ > 0)) {
+            DataBytesThrottled_ = *MetaSize_;
             if (!CombinedDataByteThrottler_->IsOverdraft()) {
-                CombinedDataByteThrottler_->Acquire(BytesThrottled_);
-            } else if (!SyncThrottle(CombinedDataByteThrottler_, BytesThrottled_).IsOK()) {
+                CombinedDataByteThrottler_->Acquire(DataBytesThrottled_);
+            } else if (!SyncThrottle(CombinedDataByteThrottler_, DataBytesThrottled_).IsOK()) {
                 return;
             }
         }
@@ -3618,15 +3662,15 @@ private:
             HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
         }
 
-        TotalBytesReceived_ += rsp->ByteSize();
+        DataBytesReceived_ += rsp->ByteSize();
         OnSessionSucceeded(std::move(*rsp->mutable_chunk_meta()));
     }
 
     void OnSessionSucceeded(NProto::TChunkMeta&& chunkMeta)
     {
         YT_LOG_DEBUG("Chunk meta obtained (ThrottledBytes: %v, BytesReceived: %v)",
-            BytesThrottled_,
-            TotalBytesReceived_);
+            DataBytesThrottled_,
+            DataBytesReceived_);
 
         Promise_.TrySet(New<TRefCountedChunkMeta>(std::move(chunkMeta)));
     }
@@ -3648,7 +3692,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -3788,7 +3832,6 @@ private:
     std::vector<TSharedRef> Keyset_;
 
     i64 BytesToThrottle_ = 0;
-    i64 BytesThrottled_ = 0;
 
 
     void NextPass() override
@@ -3827,7 +3870,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, DataBytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -3902,18 +3945,18 @@ private:
 
         YT_VERIFY(channel);
 
-        if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
+        if (ShouldThrottle(primaryPeer.Address, DataBytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we check BytesThrottled_ is zero.
+            // In order not to throttle twice, we check DataBytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-            std::swap(BytesThrottled_, BytesToThrottle_);
+            std::swap(DataBytesThrottled_, BytesToThrottle_);
             if (!CombinedDataByteThrottler_->IsOverdraft()) {
-                CombinedDataByteThrottler_->Acquire(BytesThrottled_);
+                CombinedDataByteThrottler_->Acquire(DataBytesThrottled_);
             } else {
                 AsyncThrottle(
                     CombinedDataByteThrottler_,
-                    BytesThrottled_,
+                    DataBytesThrottled_,
                     BIND(
                         &TLookupRowsSession::SendLookupRowsRequest,
                         MakeStrong(this),
@@ -4067,12 +4110,12 @@ private:
         }
 
         auto result = response->Attachments()[0];
-        TotalBytesReceived_ += result.Size();
+        DataBytesReceived_ += result.Size();
         BytesToThrottle_ += result.Size();
 
-        if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > BytesThrottled_)) {
-            auto delta = BytesToThrottle_ - BytesThrottled_;
-            BytesThrottled_ += delta;
+        if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > DataBytesThrottled_)) {
+            auto delta = BytesToThrottle_ - DataBytesThrottled_;
+            DataBytesThrottled_ += delta;
             CombinedDataByteThrottler_->Acquire(delta);
             BytesToThrottle_ = 0;
         }
@@ -4084,10 +4127,10 @@ private:
     {
         YT_LOG_DEBUG("Finished processing rows response "
             "(BytesThrottled: %v, Backup: %v)",
-            BytesThrottled_,
+            DataBytesThrottled_,
             backup);
 
-        AccountExtraMediumBandwidth(BytesThrottled_);
+        AccountExtraMediumBandwidth(DataBytesThrottled_);
 
         Promise_.TrySet(TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(result)));
     }
