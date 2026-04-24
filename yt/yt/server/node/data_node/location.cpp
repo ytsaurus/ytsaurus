@@ -1364,12 +1364,17 @@ double TStoreLocation::GetIOWeight() const
 TErrorOr<double> TStoreLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
-    auto value = evaluator->Evaluate(
-        BuildYsonStringFluently().BeginMap()
-            .Item("available_space").Value(GetAvailableSpace())
-            .Item("used_space").Value(GetUsedSpace())
-        .EndMap(),
-        rowBuffer);
+    auto value = evaluator->Evaluate({
+            // stat
+            BuildYsonStringFluently().BeginMap()
+                .Item("available_space").Value(GetAvailableSpace())
+                .Item("used_space").Value(GetUsedSpace())
+            .EndMap(),
+            // location
+            BuildYsonStringFluently().BeginMap()
+                .Item("id").Value(GetId())
+            .EndMap(),
+        }, rowBuffer);
 
     if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
         return value.Value().Data.Double;
@@ -1385,7 +1390,7 @@ void TStoreLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& f
     if (formula) {
         auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(
             NQueryClient::ParseSource(*formula, NQueryClient::EParseMode::Expression),
-            {"/stat"});
+            {"/stat", "/location"});
         EvaluateIOWeight(evaluator).ThrowOnError();
 
         IOWeightEvaluator_ = std::move(evaluator);
