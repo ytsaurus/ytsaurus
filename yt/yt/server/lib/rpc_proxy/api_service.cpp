@@ -5175,8 +5175,8 @@ void TApiService::PullQueueConsumerImpl(
     context->SetRequestInfo(
         "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
         "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
-        request->consumer_path(),
-        request->queue_path(),
+        consumerPath,
+        queuePath,
         offset,
         request->partition_index(),
         rowBatchReadOptions.MaxRowCount,
