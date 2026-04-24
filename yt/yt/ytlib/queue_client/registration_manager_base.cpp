@@ -149,7 +149,7 @@ IQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
 
     TGetRegistrationResult result{.ResolvedQueue = queue, .ResolvedConsumer = consumer};
 
-    if (auto registration = DoFindRegistration(queue, consumer); registration.has_value()) {
+    if (auto registration = DoFindRegistration(TTablePath::FromRichYPath(queue), TConsumerReference::FromRichYPath(consumer)); registration.has_value()) {
         result.Registration = *registration;
         return result;
     }
@@ -191,7 +191,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManagerBase
     // thus we ignore resolution failures.
     Resolve(config, OptionalToPointer(queue), OptionalToPointer(consumer), /*throwOnFailure*/ false);
 
-    return DoListRegistrations(queue, consumer);
+    return DoListRegistrations(queue.transform(TTablePath::FromRichYPath), consumer.transform(TConsumerReference::FromRichYPath));
 }
 
 void TQueueConsumerRegistrationManagerBase::RegisterQueueConsumer(
@@ -207,8 +207,8 @@ void TQueueConsumerRegistrationManagerBase::RegisterQueueConsumer(
 
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
     WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
-        .Queue = TTablePath::FromRichYPathSafe(queue),
-        .Consumer = TConsumerReference::FromRichYPathSafe(consumer),
+        .Queue = TTablePath::FromRichYPath(queue),
+        .Consumer = TConsumerReference::FromRichYPath(consumer),
         .Vital = vital,
         .Partitions = partitions,
     }}))
@@ -227,8 +227,8 @@ void TQueueConsumerRegistrationManagerBase::UnregisterQueueConsumer(
 
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
     WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
-        .Queue = TTablePath::FromRichYPathSafe(queue),
-        .Consumer = TConsumerReference::FromRichYPathSafe(consumer),
+        .Queue = TTablePath::FromRichYPath(queue),
+        .Consumer = TConsumerReference::FromRichYPath(consumer),
     }}))
         .ValueOrThrow();
 }

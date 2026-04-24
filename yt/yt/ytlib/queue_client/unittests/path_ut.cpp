@@ -70,13 +70,28 @@ TEST(TQueueClientPathTest, BadObjects)
     EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
     EXPECT_THROW(Y_UNUSED(TConsumerReference(path)), TErrorException);
 
+    EXPECT_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)), TErrorException);
+    EXPECT_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)), TErrorException);
+
     path.SetCluster("cluster_1");
     EXPECT_NO_THROW(Y_UNUSED(TTablePath(path)));
     EXPECT_NO_THROW(Y_UNUSED(TConsumerReference(path)));
 
+    EXPECT_NO_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)));
+
+    path.SetQueueConsumerName("my_id");
+    EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)));
+
     path.SetForeign(true);
     EXPECT_THROW(Y_UNUSED(TTablePath(path)), TErrorException);
     EXPECT_THROW(Y_UNUSED(TConsumerReference(path)), TErrorException);
+
+    EXPECT_NO_THROW(Y_UNUSED(TTablePath::FromRichYPath(path)));
+    EXPECT_NO_THROW(Y_UNUSED(TConsumerReference::FromRichYPath(path)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -133,8 +133,8 @@ public:
 
 protected:
     std::optional<TConsumerRegistrationTableRow> DoFindRegistration(
-        NYPath::TRichYPath resolvedQueue,
-        NYPath::TRichYPath resolvedConsumer) override
+        TTablePath resolvedQueue,
+        TConsumerReference resolvedConsumer) override
     {
         auto guard = ReaderGuard(CacheSpinLock_);
 
@@ -148,22 +148,18 @@ protected:
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrations(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer) override
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer) override
     {
         auto guard = ReaderGuard(CacheSpinLock_);
-
-        auto comparePaths = [] (const TRichYPath& lhs, const TRichYPath& rhs) {
-            return lhs.GetPath() == rhs.GetPath() && lhs.GetCluster() == rhs.GetCluster();
-        };
 
         std::vector<TConsumerRegistrationTableRow> result;
         for (const auto& [key, registration] : Registrations_) {
             const auto& [keyQueue, keyConsumer] = key;
-            if (resolvedQueue && !comparePaths(*resolvedQueue, keyQueue)) {
+            if (resolvedQueue && *resolvedQueue != keyQueue) {
                 continue;
             }
-            if (resolvedConsumer && !comparePaths(*resolvedConsumer, keyConsumer)) {
+            if (resolvedConsumer && *resolvedConsumer != keyConsumer) {
                 continue;
             }
 
@@ -218,13 +214,13 @@ protected:
     {
         auto guard = ReaderGuard(CacheSpinLock_);
 
-        auto replicaToReplicatedTableIt = ReplicaToReplicatedTable_.find(objectPath);
+        auto replicaToReplicatedTableIt = ReplicaToReplicatedTable_.find(TTablePath::FromRichYPath(objectPath));
         if (replicaToReplicatedTableIt != ReplicaToReplicatedTable_.end()) {
             YT_LOG_DEBUG(
                 "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
                 objectPath,
                 replicaToReplicatedTableIt->second);
-            return replicaToReplicatedTableIt->second;
+            return TRichYPath(replicaToReplicatedTableIt->second);
         } else if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {
             THROW_ERROR_EXCEPTION(
                 "Cannot perform request for replica %Qv with unknown [chaos_]replicated_table; please contact YT support,"
@@ -239,8 +235,8 @@ private:
     const NConcurrency::TPeriodicExecutorPtr CacheRefreshExecutor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CacheSpinLock_);
-    THashMap<std::pair<NYPath::TRichYPath, NYPath::TRichYPath>, TConsumerRegistrationTableRow> Registrations_;
-    THashMap<NYPath::TRichYPath, NYPath::TRichYPath> ReplicaToReplicatedTable_;
+    THashMap<std::pair<TTablePath, TConsumerReference>, TConsumerRegistrationTableRow> Registrations_;
+    THashMap<TTablePath, TTablePath> ReplicaToReplicatedTable_;
 
     void GuardedRefreshCache()
     {
@@ -283,7 +279,7 @@ private:
 
         for (const auto& replicatedTableInfo : replicatedTableMapping) {
             for (const auto& replica : replicatedTableInfo.GetReplicas()) {
-                ReplicaToReplicatedTable_[replica] = replicatedTableInfo.Path;
+                ReplicaToReplicatedTable_.emplace(TTablePath::FromRichYPath(replica), replicatedTableInfo.Path);
             }
         }
 

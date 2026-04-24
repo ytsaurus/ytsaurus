@@ -570,7 +570,6 @@ private:
         std::vector<std::pair<TString, TString>> queues;
         for (const auto& key : Keys_) {
             if (auto queue = key.Queue; queue.has_value()) {
-                YT_VERIFY(queue->GetCluster().has_value());
                 queues.emplace_back(queue->GetCluster().value(), queue->GetPath());
             }
         }
@@ -599,7 +598,6 @@ private:
         std::vector<std::pair<TString, TString>> consumers;
         for (const auto& key : Keys_) {
             if (auto consumer = key.Consumer; consumer.has_value()) {
-                YT_VERIFY(consumer->GetCluster().has_value());
                 consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath());
             }
         }
@@ -1312,12 +1310,11 @@ private:
     TReplicaMappingLookupCachePtr ReplicaMappingLookupCache_;
 
     std::optional<TConsumerRegistrationTableRow> DoFindRegistration(
-        NYPath::TRichYPath resolvedQueue,
-        NYPath::TRichYPath resolvedConsumer) override
+        TTablePath resolvedQueue,
+        TConsumerReference resolvedConsumer) override
     {
         auto resultOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-            TTablePath::FromRichYPathSafe(resolvedQueue), TGenericObjectReference::FromRichYPathSafe(resolvedConsumer)
-        )));
+            std::move(resolvedQueue), std::move(resolvedConsumer))));
 
         if (!resultOrError.IsOK()) {
             // NB(apachee): Error for missing registration is handled in base class.
@@ -1333,15 +1330,15 @@ private:
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrations(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer) override
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer) override
     {
         YT_VERIFY(resolvedQueue || resolvedConsumer);
 
         std::vector<TConsumerRegistrationTableRow> result;
 
         try {
-            result = DoListRegistrationsGuarded(resolvedQueue, resolvedConsumer);
+            result = DoListRegistrationsGuarded(std::move(resolvedQueue), std::move(resolvedConsumer));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to list queue consumer registrations")
                 << ex;
@@ -1351,13 +1348,13 @@ private:
     }
 
     std::vector<TConsumerRegistrationTableRow> DoListRegistrationsGuarded(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer)
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer)
     {
         // NB(apachee): #TListRegistrationsCache is only used for listing registrations by queue or consumer.
         if (resolvedQueue && resolvedConsumer) {
             auto registrationOrError = WaitFor(RegistrationLookupCache_->Get(TRegistrationCacheKey(
-                TTablePath::FromRichYPathSafe(*resolvedQueue), TConsumerReference::FromRichYPathSafe(*resolvedConsumer))));
+                std::move(*resolvedQueue), std::move(*resolvedConsumer))));
 
             if (!registrationOrError.IsOK() && !registrationOrError.FindMatching(EErrorCode::DynamicStateMissingRow)) {
                 THROW_ERROR_EXCEPTION(registrationOrError);
@@ -1368,7 +1365,7 @@ private:
                 : std::vector<TConsumerRegistrationTableRow>();
         }
 
-        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(resolvedQueue.transform(TTablePath::FromRichYPathSafe), resolvedConsumer.transform(TConsumerReference::FromRichYPathSafe))))
+        return WaitFor(ListRegistrationsCache_->Get(TListRegistrationsCacheKey(std::move(resolvedQueue), std::move(resolvedConsumer))))
             .ValueOrThrow();
     }
 
@@ -1392,7 +1389,7 @@ private:
         // TODO(apachee): Re-work this code for better clarity as mentioned above.
 
         auto resultOrError = WaitFor(ReplicaMappingLookupCache_->Get(TReplicaMappingCacheKey{
-            .Replica = TTablePath::FromRichYPathSafe(objectPath),
+            .Replica = TTablePath::FromRichYPath(objectPath),
         }));
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId) {
@@ -1408,7 +1405,7 @@ private:
                 "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
                 objectPath,
                 result);
-            return NYPath::TRichYPath(std::move(result));
+            return TRichYPath(std::move(result));
         }
 
         if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {

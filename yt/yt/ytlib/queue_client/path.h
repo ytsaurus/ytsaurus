@@ -17,15 +17,16 @@ inline constexpr char QueueConsumerNameAttributeKey[] = "queue_consumer_name";
 inline constexpr char ClusterAttributeKey[] = "cluster";
 
 class TTablePath
-: public NYPath::TConstrainedRichYPath<
+    : public NYPath::TConstrainedRichYPath<
         NYPath::TRequiredAttributesValidator<ClusterAttributeKey>,
         NYPath::TWhitelistAttributesValidator<ClusterAttributeKey>>
 {
 public:
+    TTablePath() = delete;
     using TConstrainedRichYPath::TConstrainedRichYPath;
 
     //! NB(panesher): All unexpected attributes are ignored during conversion.
-    static TTablePath FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
+    static TTablePath FromRichYPath(const NYPath::TRichYPath& richYPath);
 };
 
 class TGenericObjectReference
@@ -34,10 +35,11 @@ class TGenericObjectReference
         NYPath::TWhitelistAttributesValidator<QueueConsumerNameAttributeKey, ClusterAttributeKey>>
 {
 public:
+    TGenericObjectReference() = delete;
     using TConstrainedRichYPath::TConstrainedRichYPath;
 
     //! NB(panesher): All unexpected attributes are ignored during conversion.
-    static TGenericObjectReference FromRichYPathSafe(const NYPath::TRichYPath& richYPath);
+    static TGenericObjectReference FromRichYPath(const NYPath::TRichYPath& richYPath);
 };
 
 using TConsumerReference = TGenericObjectReference;
