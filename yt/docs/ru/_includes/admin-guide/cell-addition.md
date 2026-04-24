@@ -58,6 +58,8 @@ yt set //sys/@config/multicell_manager/descriptors/{cell_tag}/roles []
 
 Если не сделать этого, то новым мастерным селлам автоматически назначатся роли `chunk_host` и `cypress_node_host` (детальнее про существующие роли можно прочитать в пункте 13), и последующее изменение ролей может привести к потере данных.
 
+Также важно учитывать, что при добавлении первого вторичного селла роли первичного селла меняются с `[cypress_node_host, transaction_coordinator, chunk_host]` на `[cypress_node_host, transaction_coordinator]`. Поэтому при таком расширении роли первичного селла тоже должны быть прописаны явно.
+
 ### 7. Построить на мастер-серверах снапшот с read-only
 ```bash
 yt-admin build-master-snapshots —read-only —wait-for-snapshot-completion
