@@ -307,6 +307,10 @@ dashboards = {
         "func": flow.build_flow_companion_manager,
         "monitoring": {},
     },
+    "flow-distributed-throttler": {
+        "func": flow.build_flow_distributed_throttler,
+        "monitoring": {},
+    },
     "queue-metrics": {
         "func": queue_and_consumer_metrics.build_queue_metrics,
         "monitoring": {
