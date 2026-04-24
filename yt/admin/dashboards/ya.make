@@ -29,6 +29,7 @@ PY_SRCS(
     yt_dashboards/flow/computation.py
     yt_dashboards/flow/controller.py
     yt_dashboards/flow/diagnostics.py
+    yt_dashboards/flow/distributed_throttler.py
     yt_dashboards/flow/event_time.py
     yt_dashboards/flow/general.py
     yt_dashboards/flow/message_transfering.py
