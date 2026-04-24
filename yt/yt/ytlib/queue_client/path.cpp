@@ -50,24 +50,34 @@ TString ConvertToString(const TGenericObjectReference& ref)
     return builder.Flush();
 }
 
+template <const char... AttributeKey[]>
+IAttributeDictionaryPtr FilterAttributes(const IAttributeDictionary& attributes)
+{
+    auto filteredAttributes = CreateEphemeralAttributes();
+    auto applyOne = [&] (const char* attribute) {
+        auto value = attributes.Find<std::string>(attribute);
+        if (value) {
+            filteredAttributes->Set(attribute, *value);
+        }
+    };
+    (applyOne(AttributeKey), ...);
+    return filteredAttributes;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablePath TTablePath::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+TTablePath TTablePath::FromRichYPath(const NYPath::TRichYPath& richYPath)
 {
-    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
-    return TTablePath(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
+    return TTablePath(richYPath.GetPath(), *FilterAttributes<ClusterAttributeKey>(richYPath.Attributes()));
 }
 
-TGenericObjectReference TGenericObjectReference::FromRichYPathSafe(const NYPath::TRichYPath& richYPath)
+TGenericObjectReference TGenericObjectReference::FromRichYPath(const NYPath::TRichYPath& richYPath)
 {
-    THROW_ERROR_EXCEPTION_IF(!richYPath.GetCluster().has_value(), "Can't convert %Qv to TTablePath, because there is no cluster attribute", richYPath);
-    TGenericObjectReference result(richYPath.GetPath(), *MakeAttributesWithCluster(richYPath.GetCluster().value()));
-    if (auto consumerName = richYPath.GetQueueConsumerName()) {
-        result.SetQueueConsumerName(consumerName.value());
-    }
-    return result;
+    return TGenericObjectReference(
+        richYPath.GetPath(),
+        *FilterAttributes<ClusterAttributeKey, QueueConsumerNameAttributeKey>(richYPath.Attributes()));
 }
 
 std::weak_ordering operator<=>(const TTablePath& lhs, const TTablePath& rhs)

@@ -23,9 +23,9 @@ namespace {
 
 TYPath GetQueueAgentObjectRemotePath(const std::string& cluster, const std::string& objectKind, const TYPath& objectPath)
 {
-    auto pathWithCluster = Format("%v:%v", cluster, objectPath);
+    auto tablePath = Format("%v:%v", cluster, objectPath);
     // NB: Mind the plural!
-    return Format("//queue_agent/%vs/%v", objectKind, ToYPathLiteral(pathWithCluster));
+    return Format("//queue_agent/%vs/%v", objectKind, ToYPathLiteral(tablePath));
 }
 
 } // namespace
