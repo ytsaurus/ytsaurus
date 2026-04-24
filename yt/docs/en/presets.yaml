@@ -15,5 +15,6 @@ public:
     yt-docs-root: https://ytsaurus.tech/docs/en
     community-tg: https://t.me/ytsaurus
     cluster-ui: https://<host-root>/<cluster-name>
+    python-lib-qt: SystemPython3_8
 
 
