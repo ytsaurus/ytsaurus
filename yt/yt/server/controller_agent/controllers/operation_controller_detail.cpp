@@ -8164,6 +8164,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 if (diskRequest->Account) {
                     accounts.insert(*diskRequest->Account);
                 }
+
+                if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Nbd) {
+                    // Allow only NBD media.
+                    if (!Config_->NbdMedia.contains(mediumName)) {
+                        THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
+                            << TErrorAttribute("medium_name", mediumName);
+                    }
+                }
             }
         }
     }

@@ -1268,6 +1268,9 @@ struct TControllerAgentConfig
     //! List of media that are deprecated to be used in disk requests.
     THashSet<std::string> DeprecatedMedia;
 
+    //! List of media allowed for NBD disks.
+    THashSet<std::string> NbdMedia;
+
     //! The name of the fast medium (SSD) in the communal intermediate account.
     std::string FastIntermediateMedium;
 

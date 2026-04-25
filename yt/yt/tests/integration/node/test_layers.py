@@ -1856,6 +1856,12 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "nbd_media": ["default"],
+        }
+    }
+
     USE_PORTO = True
 
     def _get_node_debug_logs(self, filter_string):
