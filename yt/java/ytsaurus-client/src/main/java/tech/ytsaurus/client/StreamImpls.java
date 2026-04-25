@@ -39,7 +39,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
 
     protected final CompletableFuture<RpcClientResponse<RspType>> result = new CompletableFuture<>();
 
-    private final CompletableFuture<RpcClientStreamControl> controlFuture = new CompletableFuture<>();
+    protected final CompletableFuture<RpcClientStreamControl> controlFuture = new CompletableFuture<>();
 
     protected volatile RpcClientStreamControl control;
 
@@ -231,11 +231,11 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
 
     @Override
     public void onStartStream(RpcClientStreamControl control) {
+        super.onStartStream(control);
         this.supplier = new WrappedSupplier(
                 new MessagesSupplier(),
                 Codec.codecFor(control.getExpectedPayloadCompression())
         );
-        super.onStartStream(control);
     }
 
     private void reinitReadyEvent() {
@@ -329,7 +329,9 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
             }
         }
 
-        control.feedback(payloadOffset);
+        final long currentOffset = payloadOffset;
+        controlFuture.thenAccept(c -> c.feedback(currentOffset));
+
     }
 
     @Override
