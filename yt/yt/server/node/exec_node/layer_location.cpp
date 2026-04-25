@@ -1538,8 +1538,8 @@ void TLayerLocation::RemoveVolumes(
                 continue;
             }
 
-            if (volume.State == "destroyed" || volume.State == "unlinked") {
-                // Skipping destroyed and unlinked volumes.
+            if (volume.State == "destroyed") {
+                // Skipping destroyed volumes.
                 YT_LOG_DEBUG(
                     "Skipping volume (VolumePath: %v, State: %v)",
                     volume.Path,
