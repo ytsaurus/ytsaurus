@@ -50,6 +50,16 @@ on:
         description: 'JSON array of build types: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
         required: true
         type: string
+      version-major:
+        description: 'Passed to ya make as -DYT_VERSION_MAJOR. If empty, not set.'
+        required: false
+        default: ''
+        type: string
+      version-minor:
+        description: 'Passed to ya make as -DYT_VERSION_MINOR. If empty, not set.'
+        required: false
+        default: ''
+        type: string
       version-patch:
         description: 'Passed to ya make as -DYT_VERSION_PATCH. If empty, not set.'
         required: false
@@ -243,6 +253,12 @@ jobs:
           fi
 
           BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
+          if [ -n "${{ inputs.version-major }}" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} -DYT_VERSION_MAJOR=\"${{ inputs.version-major }}\""
+          fi
+          if [ -n "${{ inputs.version-minor }}" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} -DYT_VERSION_MINOR=\"${{ inputs.version-minor }}\""
+          fi
           if [ -n "${{ inputs.version-patch }}" ]; then
             BUILD_FLAGS="${BUILD_FLAGS} -DYT_VERSION_PATCH=\"${{ inputs.version-patch }}\""
           fi

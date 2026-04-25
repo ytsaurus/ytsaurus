@@ -59,6 +59,8 @@ jobs:
       prod-image-tag: ${{ steps.tag.outputs.PROD_IMAGE_TAG }}
       release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
       build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
+      version-major: ${{ steps.tag.outputs.VERSION_MAJOR }}
+      version-minor: ${{ steps.tag.outputs.VERSION_MINOR }}
       version-patch: ${{ steps.tag.outputs.VERSION_PATCH }}
       version-branch: ${{ steps.tag.outputs.VERSION_BRANCH }}
     runs-on: ${{ needs.start-vm.outputs.label }}
@@ -85,7 +87,11 @@ jobs:
           echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
 
+          VERSION_MAJOR=$(echo "$PROD_IMAGE_TAG" | awk -F. '{print $1}')
+          VERSION_MINOR=$(echo "$PROD_IMAGE_TAG" | awk -F. '{print $2}')
           VERSION_PATCH=$(echo "$PROD_IMAGE_TAG" | awk -F. '{print $3}')
+          echo "VERSION_MAJOR=$VERSION_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "VERSION_MINOR=$VERSION_MINOR" >> "$GITHUB_OUTPUT"
           echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
 
           echo "VERSION_BRANCH=stable" >> "$GITHUB_OUTPUT"
@@ -123,6 +129,8 @@ jobs:
       build-query-tracker: true
       version-patch: ${{ needs.tag.outputs.version-patch }}
       version-branch: ${{ needs.tag.outputs.version-branch }}
+      version-major: ${{ needs.tag.outputs.version-major }}
+      version-minor: ${{ needs.tag.outputs.version-minor }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
