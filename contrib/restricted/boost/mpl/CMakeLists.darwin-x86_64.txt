@@ -29,7 +29,6 @@ target_link_libraries(restricted-boost-mpl INTERFACE
   restricted-boost-core
   restricted-boost-predef
   restricted-boost-preprocessor
-  restricted-boost-static_assert
   restricted-boost-type_traits
   restricted-boost-utility
 )
