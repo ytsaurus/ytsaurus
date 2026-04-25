@@ -53,6 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #error This file requires at least C++11 support.
 #endif
 
+#ifndef POCKETFFT_NAMESPACE
+#define POCKETFFT_NAMESPACE pocketfft
+#endif
+
 #ifndef POCKETFFT_CACHE_SIZE
 #define POCKETFFT_CACHE_SIZE 0
 #endif
@@ -98,7 +102,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define POCKETFFT_RESTRICT
 #endif
 
-namespace pocketfft {
+namespace POCKETFFT_NAMESPACE {
 
 namespace detail {
 using std::size_t;
@@ -3387,6 +3391,37 @@ template <typename T, size_t vlen> void copy_hartley(const multi_iter<vlen> &it,
     dst[it.oofs(i1)] = src[i];
   }
 
+template <typename T, size_t vlen> void copy_FHT(const multi_iter<vlen> &it,
+  const vtype_t<T> *POCKETFFT_RESTRICT src, ndarr<T> &dst)
+  {
+  for (size_t j=0; j<vlen; ++j)
+    dst[it.oofs(j,0)] = src[0][j];
+  size_t i=1, i1=1, i2=it.length_out()-1;
+  for (i=1; i<it.length_out()-1; i+=2, ++i1, --i2)
+    for (size_t j=0; j<vlen; ++j)
+      {
+        dst[it.oofs(j,i1)] = src[i][j]-src[i+1][j];
+        dst[it.oofs(j,i2)] = src[i][j]+src[i+1][j];
+      }
+  if (i<it.length_out())
+    for (size_t j=0; j<vlen; ++j)
+      dst[it.oofs(j,i1)] = src[i][j];
+  }
+
+template <typename T, size_t vlen> void copy_FHT(const multi_iter<vlen> &it,
+  const T *POCKETFFT_RESTRICT src, ndarr<T> &dst)
+  {
+  dst[it.oofs(0)] = src[0];
+  size_t i=1, i1=1, i2=it.length_out()-1;
+  for (i=1; i<it.length_out()-1; i+=2, ++i1, --i2)
+    {
+    dst[it.oofs(i1)] = src[i]-src[i+1];
+    dst[it.oofs(i2)] = src[i]+src[i+1];
+    }
+  if (i<it.length_out())
+    dst[it.oofs(i1)] = src[i];
+  }
+
 struct ExecHartley
   {
   template <typename T0, typename T, size_t vlen> void operator () (
@@ -3396,6 +3431,17 @@ struct ExecHartley
     copy_input(it, in, buf);
     plan.exec(buf, fct, true);
     copy_hartley(it, buf, out);
+    }
+  };
+struct ExecFHT
+  {
+  template <typename T0, typename T, size_t vlen> void operator () (
+    const multi_iter<vlen> &it, const cndarr<T0> &in, ndarr<T0> &out,
+    T * buf, const pocketfft_r<T0> &plan, T0 fct) const
+    {
+    copy_input(it, in, buf);
+    plan.exec(buf, fct, true);
+    copy_FHT(it, buf, out);
     }
   };
 
@@ -3737,6 +3783,48 @@ template<typename T> void r2r_genuine_hartley(const shape_t &shape,
     }
   }
 
+template<typename T> void r2r_separable_fht(const shape_t &shape,
+  const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
+  const T *data_in, T *data_out, T fct, size_t nthreads=1)
+  {
+  if (util::prod(shape)==0) return;
+  util::sanity_check(shape, stride_in, stride_out, data_in==data_out, axes);
+  cndarr<T> ain(data_in, shape, stride_in);
+  ndarr<T> aout(data_out, shape, stride_out);
+  general_nd<pocketfft_r<T>>(ain, aout, axes, fct, nthreads, ExecFHT{},
+    false);
+  }
+
+template<typename T> void r2r_genuine_fht(const shape_t &shape,
+  const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
+  const T *data_in, T *data_out, T fct, size_t nthreads=1)
+  {
+  if (util::prod(shape)==0) return;
+  if (axes.size()==1)
+    return r2r_separable_fht(shape, stride_in, stride_out, axes, data_in,
+      data_out, fct, nthreads);
+  util::sanity_check(shape, stride_in, stride_out, data_in==data_out, axes);
+  shape_t tshp(shape);
+  tshp[axes.back()] = tshp[axes.back()]/2+1;
+  arr<std::complex<T>> tdata(util::prod(tshp));
+  stride_t tstride(shape.size());
+  tstride.back()=sizeof(std::complex<T>);
+  for (size_t i=tstride.size()-1; i>0; --i)
+    tstride[i-1]=tstride[i]*ptrdiff_t(tshp[i]);
+  r2c(shape, stride_in, tstride, axes, true, data_in, tdata.data(), fct, nthreads);
+  cndarr<cmplx<T>> atmp(tdata.data(), tshp, tstride);
+  ndarr<T> aout(data_out, shape, stride_out);
+  simple_iter iin(atmp);
+  rev_iter iout(aout, axes);
+  while(iin.remaining()>0)
+    {
+    auto v = atmp[iin.ofs()];
+    aout[iout.ofs()] = v.r-v.i;
+    aout[iout.rev_ofs()] = v.r+v.i;
+    iin.advance(); iout.advance();
+    }
+  }
+
 } // namespace detail
 
 using detail::FORWARD;
@@ -3749,6 +3837,8 @@ using detail::r2c;
 using detail::r2r_fftpack;
 using detail::r2r_separable_hartley;
 using detail::r2r_genuine_hartley;
+using detail::r2r_separable_fht;
+using detail::r2r_genuine_fht;
 using detail::dct;
 using detail::dst;
 
