@@ -123,7 +123,7 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
 
-static const std::string DefaultPullRowsPoolName = "$ChaosPullRows";
+static const std::string DefaultPullRowsPoolName = "$chaos_pull_rows";
 static const std::string DefaultPullRowsTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
