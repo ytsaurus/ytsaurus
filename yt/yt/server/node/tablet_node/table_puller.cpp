@@ -169,8 +169,10 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
         , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
-        , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationCount)
-        , QueueReplicaSelector_(Logger, BannedReplicaTracker_, MountConfig_->TablePullerStronglyPreferLocalQueue)
+        , QueueReplicaSelector_(
+            Logger,
+            MountConfig_->Testing.TablePullerReplicaBanIterationCount,
+            MountConfig_->TablePullerStronglyPreferLocalQueue)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }
@@ -233,7 +235,6 @@ private:
     const IErrorManagerPtr ErrorManager_;
 
     IChaosAgentPtr ChaosAgent_;
-    TBannedReplicaTracker BannedReplicaTracker_;
     TQueueReplicaSelector QueueReplicaSelector_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
@@ -263,7 +264,8 @@ private:
             if (kind == EPullerErrorKind::UnableToPickQueueReplica) {
                 auto aggregatedError = TError("Some queue replicas are banned");
 
-                for (const auto& [replicaId, banInfo] : BannedReplicaTracker_.GetBannedReplicas()) {
+                const auto& bannedReplicaTracker = QueueReplicaSelector_.GetBannedReplicaTracker();
+                for (const auto& [replicaId, banInfo] : bannedReplicaTracker.GetBannedReplicas()) {
                     if (banInfo.Counter > 0) {
                         aggregatedError = aggregatedError
                             << (TError(banInfo.LastError)
@@ -443,7 +445,7 @@ private:
 
                 QueueReplicaSelector_.ResetLastPulledFromReplicaId();
             } else {
-                BannedReplicaTracker_.SyncReplicas(replicationCard);
+                QueueReplicaSelector_.GetBannedReplicaTracker().SyncReplicas(replicationCard);
                 DoPullRows(
                     tabletSnapshot,
                     snapshotEra,
@@ -831,7 +833,7 @@ private:
             counters->RowCount.Increment(rowCount);
             counters->DataWeight.Increment(dataWeight);
         } catch (const std::exception& ex) {
-            BannedReplicaTracker_.BanReplica(queueReplicaId, TError(ex));
+            QueueReplicaSelector_.GetBannedReplicaTracker().BanReplica(queueReplicaId, TError(ex));
             counters->ErrorCount.Increment();
             throw;
         }
