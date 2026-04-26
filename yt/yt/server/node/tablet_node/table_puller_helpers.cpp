@@ -86,11 +86,11 @@ const T& ChooseReplica(const std::vector<T>& candidates, const TReplicaInfo& sel
 
 TQueueReplicaSelector::TQueueReplicaSelector(
     NLogging::TLogger logger,
-    const TBannedReplicaTracker& bannedReplicaTracker,
+    std::optional<int> replicaBanDuration,
     bool stronglyPreferLocalQueue)
-    : Logger(std::move(logger))
-    , BannedReplicaTracker_(bannedReplicaTracker)
+    : Logger(logger)
     , StronglyPreferLocalQueue_(stronglyPreferLocalQueue)
+    , BannedReplicaTracker_(std::move(logger), replicaBanDuration)
     , LastPulledFromReplicaId_(NullObjectId)
     , NextPermittedTimeForProgressBehindAlert_(Now())
 { }
@@ -112,18 +112,18 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
     }
 
     if (!IsReplicationProgressGreaterOrEqual(replicationProgress, selfReplica->ReplicationProgress)) {
-        constexpr auto message = "Will not pull rows since actual replication progress is behind replication card replica progress";
-
         // TODO(ponasenko-rs): Remove alerts after testing period.
         if (now >= NextPermittedTimeForProgressBehindAlert_) {
-            YT_LOG_ALERT("%s (ReplicationProgress: %v, ReplicaInfo: %v)",
-                message,
+            YT_LOG_ALERT(
+                "Will not pull rows since actual replication progress is behind replication card replica progress "
+                "(ReplicationProgress: %v, ReplicaInfo: %v)",
                 replicationProgress,
                 *selfReplica);
             NextPermittedTimeForProgressBehindAlert_ = now + TDuration::Days(1);
         }
 
-        return TError(message)
+        return TError(
+            "Will not pull rows since actual replication progress is behind replication card replica progress")
             << TErrorAttribute("replication_progress", replicationProgress)
             << TErrorAttribute("replica_info", *selfReplica);
     }
@@ -284,6 +284,12 @@ void TQueueReplicaSelector::ResetLastPulledFromReplicaId()
 {
     LastPulledFromReplicaId_ = NullObjectId;
 }
+
+TBannedReplicaTracker& TQueueReplicaSelector::GetBannedReplicaTracker()
+{
+    return BannedReplicaTracker_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namspace NYT::NTabletNode
+} // namespace NYT::NTabletNode

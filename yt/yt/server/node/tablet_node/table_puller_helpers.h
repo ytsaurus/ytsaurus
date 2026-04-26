@@ -52,7 +52,7 @@ public:
 public:
     TQueueReplicaSelector(
         NLogging::TLogger logger,
-        const TBannedReplicaTracker& bannedReplicaTracker,
+        std::optional<int> replicaBanDuration,
         bool stronglyPreferLocalQueue);
 
     TReplicaOrError PickQueueReplica(
@@ -62,16 +62,17 @@ public:
         TInstant now);
 
     void ResetLastPulledFromReplicaId();
+    TBannedReplicaTracker& GetBannedReplicaTracker();
 
 private:
     const NLogging::TLogger Logger;
-    const TBannedReplicaTracker& BannedReplicaTracker_;
     const bool StronglyPreferLocalQueue_;
 
+    TBannedReplicaTracker BannedReplicaTracker_;
     NChaosClient::TReplicaId LastPulledFromReplicaId_;
     TInstant NextPermittedTimeForProgressBehindAlert_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NTabletNode
