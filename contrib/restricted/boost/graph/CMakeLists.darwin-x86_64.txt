@@ -37,7 +37,6 @@ target_link_libraries(restricted-boost-graph PUBLIC
   restricted-boost-conversion
   restricted-boost-core
   restricted-boost-detail
-  restricted-boost-foreach
   restricted-boost-function
   restricted-boost-integer
   restricted-boost-iterator
