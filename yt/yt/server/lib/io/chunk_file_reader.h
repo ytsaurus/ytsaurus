@@ -98,7 +98,7 @@ public:
     TChunkFileReader(
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
-        TString fileName,
+        std::string fileName,
         bool validateBlocksChecksums = true,
         IBlocksExtCache* blocksExtCache = nullptr);
 
@@ -145,7 +145,7 @@ public:
 private:
     const IIOEnginePtr IOEngine_;
     NChunkClient::TChunkId ChunkId_;
-    const TString FileName_;
+    const std::string FileName_;
     const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
 
@@ -177,7 +177,7 @@ private:
         const std::optional<NChunkClient::TPartitionTags>& partitionTags,
         TFairShareSlotId fairShareSlotId);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
-        const TString& metaFileName,
+        const std::string& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TReadResponse& readResponse);
 

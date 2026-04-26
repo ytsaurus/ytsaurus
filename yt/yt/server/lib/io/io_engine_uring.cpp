@@ -474,7 +474,7 @@ DECLARE_REFCOUNTED_STRUCT(IUringThreadPool)
 struct IUringThreadPool
     : public TRefCounted
 {
-    virtual const TString& Name() const = 0;
+    virtual const std::string& Name() const = 0;
 
     virtual void PrepareDequeue(int threadIndex) = 0;
 
@@ -1165,7 +1165,7 @@ class TMoodyCamelQueue
     : public TRefCounted
 {
 public:
-    TMoodyCamelQueue(TString /*locationId*/, TUringConfigProviderPtr config)
+    TMoodyCamelQueue(std::string /*locationId*/, TUringConfigProviderPtr config)
         : EnableIOUringLogging_(config->EnableIOUringLogging)
     { }
 
@@ -1236,7 +1236,7 @@ public:
         RequestNotificationHandle_.Raise();
     }
 
-    static TString GetThreadPoolName()
+    static std::string GetThreadPoolName()
     {
         return "IOU";
     }
@@ -1254,7 +1254,7 @@ class TFairShareQueue
     : public TRefCounted
 {
 public:
-    TFairShareQueue(TString locationId, TUringConfigProviderPtr config)
+    TFairShareQueue(std::string locationId, TUringConfigProviderPtr config)
         : Config_(std::move(config))
         , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , Shards_(MaxUringThreadCount)
@@ -1354,7 +1354,7 @@ public:
         }
     }
 
-    static TString GetThreadPoolName()
+    static std::string GetThreadPoolName()
     {
         return "FSU";
     }
@@ -1490,7 +1490,7 @@ class TUringThreadPoolBase
 public:
     TUringThreadPoolBase(
         std::string threadNamePrefix,
-        TString locationId,
+        std::string locationId,
         TUringIOEngineConfigPtr config,
         TIOEngineSensorsPtr sensors,
         IInvokerPtr reconfigureInvoker)
@@ -1512,7 +1512,7 @@ public:
         StopThreads();
     }
 
-    const TString& Name() const override
+    const std::string& Name() const override
     {
         return ThreadNamePrefix_;
     }
@@ -1584,7 +1584,7 @@ public:
 
 private:
     const TUringConfigProviderPtr Config_;
-    const TString ThreadNamePrefix_;
+    const std::string ThreadNamePrefix_;
     const TIOEngineSensorsPtr Sensors_;
     const IInvokerPtr ReconfigureInvoker_;
     const bool EnableIOUringLogging_;
@@ -1661,7 +1661,7 @@ public:
 
     TUringIOEngineBase(
         TConfigPtr config,
-        TString locationId,
+        std::string locationId,
         IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger)
@@ -1881,7 +1881,7 @@ private:
 IIOEnginePtr CreateIOEngineUring(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    TString locationId,
+    std::string locationId,
     IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)

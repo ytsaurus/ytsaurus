@@ -141,7 +141,7 @@ IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 
 std::optional<TChunkDescriptor> TCacheLocation::Repair(
     TChunkId chunkId,
-    const TString& metaSuffix)
+    const std::string& metaSuffix)
 {
     auto fileName = GetChunkPath(chunkId);
 

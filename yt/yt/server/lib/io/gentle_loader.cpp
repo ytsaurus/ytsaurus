@@ -101,7 +101,7 @@ private:
     {
         TIOEngineHandlePtr Handle;
         i64 FileSize = 0;
-        TString FilePath;
+        std::string FilePath;
     };
 
     const TGentleLoaderConfigPtr Config_;
@@ -171,7 +171,7 @@ public:
 
     TRandomWriter(
         TGentleLoaderConfigPtr config,
-        const TString& path,
+        const std::string& path,
         IIOEngineWorkloadModelPtr engine,
         NLogging::TLogger logger)
         : Config_(std::move(config))
@@ -239,13 +239,13 @@ private:
 
     using TNonblockingQueuePtr = std::shared_ptr<TNonblockingQueue<TRequestInfo>>;
 
-    using TStaleFilesQueue = std::deque<TString>;
+    using TStaleFilesQueue = std::deque<std::string>;
 
     struct TWriterInfo
     {
         int WriterIndex = 0;
 
-        TString FilePath;
+        std::string FilePath;
         TIOEngineHandlePtr Handle;
         i64 Offset = 0;
 
@@ -257,7 +257,7 @@ private:
     const IIOEngineWorkloadModelPtr IOEngine_;
     const NLogging::TLogger Logger;
     const IThreadPoolPtr WriteThreadPool_;
-    const TString TempFilesDir;
+    const std::string TempFilesDir;
 
     std::vector<TNonblockingQueuePtr> WritersQueue_;
     std::atomic<ui32> FileCounter_;
@@ -841,7 +841,7 @@ class TGentleLoader
 public:
     TGentleLoader(
         TGentleLoaderConfigPtr config,
-        TString locationRoot,
+        std::string locationRoot,
         IIOEngineWorkloadModelPtr engine,
         IRandomFileProviderPtr fileProvider,
         IInvokerPtr invoker,
@@ -878,7 +878,7 @@ public:
 
 private:
     const TGentleLoaderConfigPtr Config_;
-    const TString LocationRoot_;
+    const std::string LocationRoot_;
     const NLogging::TLogger Logger;
     const IIOEngineWorkloadModelPtr IOEngine_;
     const IRandomFileProviderPtr RandomFileProvider_;
@@ -1201,7 +1201,7 @@ private:
 
 IGentleLoaderPtr CreateGentleLoader(
     TGentleLoaderConfigPtr config,
-    TString locationRoot,
+    std::string locationRoot,
     IIOEngineWorkloadModelPtr engine,
     IRandomFileProviderPtr fileProvider,
     IInvokerPtr invoker,

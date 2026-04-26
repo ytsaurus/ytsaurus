@@ -103,7 +103,7 @@ TSharedMutableRef SerializeChunkMeta(TChunkId chunkId, const TRefCountedChunkMet
 TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
-    TString fileName,
+    std::string fileName,
     bool syncOnClose,
     bool useDirectIO)
     : IOEngine_(std::move(ioEngine))
@@ -179,7 +179,7 @@ TFuture<void> TChunkFileWriter::Open()
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, GetFileMode()})
+    return IOEngine_->Open({FileName_ + std::string(NFS::TempFileSuffix), GetFileMode()})
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -339,7 +339,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
-            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, GetFileMode()});
+            return IOEngine_->Open({metaFileName + std::string(NFS::TempFileSuffix), GetFileMode()});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
@@ -393,8 +393,8 @@ TFuture<void> TChunkFileWriter::Close(
         ] () mutable {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
-            NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
+            NFS::Rename(metaFileName + std::string(NFS::TempFileSuffix), metaFileName);
+            NFS::Rename(FileName_ + std::string(NFS::TempFileSuffix), FileName_);
 
             if (!SyncOnClose_) {
                 return OKFuture;
@@ -430,7 +430,7 @@ i64 TChunkFileWriter::GetDataSize() const
     return DataSize_;
 }
 
-const TString& TChunkFileWriter::GetFileName() const
+const std::string& TChunkFileWriter::GetFileName() const
 {
     return FileName_;
 }
@@ -449,13 +449,13 @@ TFuture<void> TChunkFileWriter::Cancel()
 
             DataFile_.Reset();
 
-            auto removeIfExists = [] (const TString& path) {
+            auto removeIfExists = [] (const std::string& path) {
                 if (NFS::Exists(path)) {
                     NFS::Remove(path);
                 }
             };
-            removeIfExists(FileName_ + NFS::TempFileSuffix);
-            removeIfExists(FileName_ + ChunkMetaSuffix + NFS::TempFileSuffix);
+            removeIfExists(FileName_ + std::string(NFS::TempFileSuffix));
+            removeIfExists(FileName_ + ChunkMetaSuffix + std::string(NFS::TempFileSuffix));
 
             State_.store(EState::Aborted);
         })
@@ -507,4 +507,3 @@ bool TChunkFileWriter::IsCloseDemanded() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-
