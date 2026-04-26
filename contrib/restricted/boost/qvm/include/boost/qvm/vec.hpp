@@ -21,7 +21,7 @@ vec
         , class = typename enable_if<is_vec<R> >::type
 #endif
     >
-    operator R() const
+    BOOST_QVM_CONSTEXPR operator R() const
         {
         R r;
         assign(r,*this);
