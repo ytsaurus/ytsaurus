@@ -39,7 +39,7 @@ struct TIOTrackerConfig
     TDuration PeriodQuant;
 
     //! Allowed tags for logs aggregated by path.
-    THashSet<TString> PathAggregateTags;
+    THashSet<std::string> PathAggregateTags;
 
     //! If set to true, the events will be dequeued and processed, otherwise they will stay in the queue.
     //! This option is used only for testing and must be always set to true in production.
@@ -136,7 +136,7 @@ struct TGentleLoaderConfig
     bool PreallocateWriteFiles;
 
     // Subfolder to create temporary files.
-    TString WriterDirectory;
+    std::string WriterDirectory;
 
     // Cleanup written files after testing finished.
     bool RemoveWrittenFiles;

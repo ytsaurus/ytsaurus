@@ -41,7 +41,7 @@ class TFileSystemBlockDevice
 {
 public:
     TFileSystemBlockDevice(
-        TString exportId,
+        std::string exportId,
         TFileSystemBlockDeviceConfigPtr config,
         IImageReaderPtr reader,
         IInvokerPtr invoker,
@@ -82,12 +82,12 @@ public:
         return true;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
         return Format("{CypressPath: %v}", Reader_->GetPath());
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
         return Reader_->GetPath();
     }
@@ -142,7 +142,7 @@ public:
     }
 
 private:
-    const TString ExportId_;
+    const std::string ExportId_;
     const TFileSystemBlockDeviceConfigPtr Config_;
     const IImageReaderPtr Reader_;
     const IInvokerPtr Invoker_;
@@ -169,7 +169,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateFileSystemBlockDevice(
-    TString exportId,
+    std::string exportId,
     TFileSystemBlockDeviceConfigPtr config,
     IImageReaderPtr reader,
     IInvokerPtr invoker,

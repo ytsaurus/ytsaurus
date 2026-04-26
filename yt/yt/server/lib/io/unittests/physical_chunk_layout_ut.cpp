@@ -23,9 +23,9 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TPhysicalChunkLayoutTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomString(size_t size, TRandomGenerator* generator)
+std::string GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
-    TString result;
+    std::string result;
     result.reserve(size + sizeof(ui64));
     while (result.size() < size) {
         ui64 value = generator->Generate<ui64>();

@@ -61,7 +61,7 @@ public:
     TChunkFileWriter(
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
-        TString fileName,
+        std::string fileName,
         bool syncOnClose = true,
         bool useDirectIO = false);
 
@@ -124,7 +124,7 @@ public:
     const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
 
     //! Returns the name of the file passed to the writer upon construction.
-    const TString& GetFileName() const;
+    const std::string& GetFileName() const;
 
     //! Returns the total data size accumulated so far.
     /*!
@@ -138,7 +138,7 @@ public:
 private:
     const IIOEnginePtr IOEngine_;
     const NChunkClient::TChunkId ChunkId_;
-    const TString FileName_;
+    const std::string FileName_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
 

@@ -24,14 +24,14 @@ public:
         return false;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
         return Format("{Memory Size, %v}", GetTotalSize());
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
-        return TString();
+        return std::string();
     }
 
     TFuture<TReadResponse> Read(

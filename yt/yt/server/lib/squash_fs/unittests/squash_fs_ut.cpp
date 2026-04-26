@@ -169,7 +169,7 @@ void BuildAndDump(
     layout->Dump(fileOutput);
 }
 
-bool Unsquash(const TString& folderName)
+bool Unsquash(const std::string& folderName)
 {
     auto fileName = folderName + ".img";
     if (!NFS::Exists(fileName)) {
