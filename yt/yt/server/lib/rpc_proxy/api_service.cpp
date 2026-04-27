@@ -477,12 +477,23 @@ DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This context extends standard typed service context. By this moment it is used for structured
-//! logging reasons.
+DECLARE_REFCOUNTED_STRUCT(IApiServiceContext)
+
+struct IApiServiceContext
+    : public virtual IServiceContext
+{
+    virtual void SetClient(std::optional<std::string> clientClusterName, NNative::IClientPtr client) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IApiServiceContext)
+
 template <class TRequestMessage, class TResponseMessage>
 class TApiServiceContext
     : public TTypedServiceContext<TRequestMessage, TResponseMessage>
+    , public IApiServiceContext
 {
+    using TBase = TTypedServiceContext<TRequestMessage, TResponseMessage>;
+
 public:
     // For most cases the most important request field is "path". If it is present in request message,
     // we want to see it in the structured log.
@@ -491,9 +502,28 @@ public:
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
 
+    void Reply(const TError& error = {}) override
+    {
+        if (Client_ && Client_->GetNativeConnection()->IsTerminated()) {
+            auto replyError = TError(NRpc::EErrorCode::TransportError, "Connection to cluster %v was terminated", ClientClusterName_);
+            if (!error.IsOK()) {
+                replyError <<= error;
+            }
+            TBase::Reply(replyError);
+        } else {
+            TBase::Reply(error);
+        }
+    }
+
     void SetLogger(TLogger logger)
     {
         Logger = std::move(logger);
+    }
+
+    void SetClient(std::optional<std::string> clientClusterName, NNative::IClientPtr client) override
+    {
+        ClientClusterName_ = std::move(clientClusterName);
+        Client_ = std::move(client);
     }
 
     void SetupMainMessage(TYsonString requestYson)
@@ -529,6 +559,9 @@ public:
 
 private:
     TLogger Logger;
+
+    std::optional<std::string> ClientClusterName_;
+    NNative::IClientPtr Client_;
 
     //! True if message should be emitted to main topic.
     bool EmitMain_ = false;
@@ -1490,6 +1523,8 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
     if (!client) {
         THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
     }
+
+    VerifyDynamicCast<IApiServiceContext*>(context.Get())->SetClient(multiproxyTargetCluster, client);
 
     return client;
 }
