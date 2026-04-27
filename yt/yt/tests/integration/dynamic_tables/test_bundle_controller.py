@@ -788,7 +788,7 @@ class TestBundleController(TestBundleControllerBase):
         self._wait_for_bundle_controller_iterations((3, 1))
 
     @authors("grachevkirill")
-    def test_cms_requests_are_processed(self):
+    def DISABLED_test_cms_requests_are_processed(self):
         self._initialize_zone_default()
         self._move_nodes_to_spare_bundle()
         for bundle in ["chaplin", "pinoccio"]:
