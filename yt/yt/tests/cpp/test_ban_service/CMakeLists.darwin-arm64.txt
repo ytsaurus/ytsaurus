@@ -54,12 +54,6 @@ target_link_options(cpp-integration-test-ban-service PRIVATE
 
 target_sources(cpp-integration-test-ban-service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_ban_service/test_ban_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/distributed_table_api_test.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/distributed_file_api_test.cpp
 )
 
 
