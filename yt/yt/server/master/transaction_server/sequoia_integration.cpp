@@ -177,16 +177,21 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
         coordinatorCellId = multicellManager->GetCellId(CellTagFromId(transactionIds.front()));
     }
 
-    return ReplicateCypressTransactions(
-        bootstrap
-            ->GetSequoiaConnection()
-            ->CreateClient(GetRootAuthenticationIdentity()),
-        std::move(transactionIds),
-        {bootstrap->GetCellTag()},
-        coordinatorCellId,
-        features,
-        TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
+    auto replicationFuture = OKFuture;
+    if (!transactionIds.empty()) {
+        replicationFuture = ReplicateCypressTransactions(
+            bootstrap
+                ->GetSequoiaConnection()
+                ->CreateClient(GetRootAuthenticationIdentity()),
+            std::move(transactionIds),
+            {bootstrap->GetCellTag()},
+            coordinatorCellId,
+            features,
+            TDispatcher::Get()->GetHeavyInvoker(),
+            TransactionServerLogger());
+    }
+
+    return replicationFuture
         .Apply(BIND([
             hydraManager = bootstrap->GetHydraFacade()->GetHydraManager(),
             latePrepare = coordinatorCellId == bootstrap->GetCellId(),
