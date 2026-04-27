@@ -834,7 +834,7 @@ void TOperationControllerBase::ValidateOutputTablePaths() const
 {
     for (const auto& path : GetOutputTablePaths()) {
         if (auto clusterName = ClusterResolver_->GetClusterName(path); !IsLocal(clusterName)) {
-            auto localClusterName = ClusterResolver_->GetLocalClusterName().value_or("unknown");
+            auto localClusterName = ClusterResolver_->GetLocalClusterName();
             THROW_ERROR_EXCEPTION("Output table must be on the same cluster as operation")
                 << TErrorAttribute("table_cluster_name", path.GetCluster())
                 << TErrorAttribute("operation_cluster_name", localClusterName);
