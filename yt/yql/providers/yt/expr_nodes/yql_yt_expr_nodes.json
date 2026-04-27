@@ -420,6 +420,15 @@
             ]
         },
         {
+            "Name": "TYtAlterTable",
+            "Base": "TYtIsolatedOpBase",
+            "Match": {"Type": "Callable", "Name": "YtAlterTable!"},
+            "Children": [
+                {"Index": 3, "Name": "Actions", "Type": "TCoNameValueTupleList"},
+                {"Index": 4, "Name": "Settings", "Type": "TCoNameValueTupleList"}
+            ]
+        },
+        {
             "Name": "TYtCreateView",
             "Base": "TYtIsolatedOpBase",
             "Match": {"Type": "Callable", "Name": "YtCreateView!"},
@@ -482,6 +491,11 @@
             "Name": "TYtMerge",
             "Base": "TYtTransientOpBase",
             "Match": {"Type": "Callable", "Name": "YtMerge!"}
+        },
+        {
+            "Name": "TYtAlter",
+            "Base": "TYtTransientOpBase",
+            "Match": {"Type": "Callable", "Name": "YtAlter!"}
         },
         {
             "Name": "TYtEquiJoin",
