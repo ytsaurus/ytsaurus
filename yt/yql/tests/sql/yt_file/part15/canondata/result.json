@@ -1187,39 +1187,6 @@
             "uri": "https://{canondata_backend}/1937492/9ebcd3278f1d842f45411b49b52cd0fef0e99000/resource.tar.gz#test.test_lineage-flatten_where--Results_/Output.yqlrun.txt.attr"
         }
     ],
-    "test.test[lineage-in_yql_21186-default.txt-Debug]": [
-        {
-            "checksum": "8e5331e39258de0fab3e685435516617",
-            "size": 1599,
-            "uri": "https://{canondata_backend}/212715/6fab190563b1ab1550a7f7c6f408196ce755bc16/resource.tar.gz#test.test_lineage-in_yql_21186-default.txt-Debug_/opt.yql"
-        }
-    ],
-    "test.test[lineage-in_yql_21186-default.txt-Lineage]": [
-        {
-            "checksum": "24e3782dad52169fc9fb8223fd8dab7e",
-            "size": 940,
-            "uri": "https://{canondata_backend}/212715/6fab190563b1ab1550a7f7c6f408196ce755bc16/resource.tar.gz#test.test_lineage-in_yql_21186-default.txt-Lineage_/results.txt"
-        }
-    ],
-    "test.test[lineage-in_yql_21186-default.txt-Plan]": [
-        {
-            "checksum": "65d5fa04a3fb04257a5d9daa4c76d7db",
-            "size": 4372,
-            "uri": "https://{canondata_backend}/212715/6fab190563b1ab1550a7f7c6f408196ce755bc16/resource.tar.gz#test.test_lineage-in_yql_21186-default.txt-Plan_/plan.txt"
-        }
-    ],
-    "test.test[lineage-in_yql_21186-default.txt-Results]": [
-        {
-            "checksum": "1fd462ec25b0a713fb7fcbbaf65508e8",
-            "size": 130,
-            "uri": "https://{canondata_backend}/212715/6fab190563b1ab1550a7f7c6f408196ce755bc16/resource.tar.gz#test.test_lineage-in_yql_21186-default.txt-Results_/Output.txt"
-        },
-        {
-            "checksum": "d7c4375ad98365c9123557038bcd7241",
-            "size": 383,
-            "uri": "https://{canondata_backend}/212715/6fab190563b1ab1550a7f7c6f408196ce755bc16/resource.tar.gz#test.test_lineage-in_yql_21186-default.txt-Results_/Output.yqlrun.txt.attr"
-        }
-    ],
     "test.test[lineage-list_literal2-default.txt-Debug]": [
         {
             "checksum": "fe4aac784ea058ccd09668a1b74d5423",
