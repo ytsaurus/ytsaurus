@@ -23,7 +23,7 @@ def main():
         name=PACKAGE_NAME,
         version=version,
         python_requires=">=3.8",
-        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.cli", "yt.type_info", "yt.wrapper.schema"] + recursive("yt/packages"),
+        packages=["yt", "yt.admin", "yt.cli", "yt.clickhouse", "yt.skiff", "yt.type_info", "yt.wrapper.schema", "yt.wrapper", "yt.ypath", "yt.yson"] + recursive("yt/packages"),
         package_dir={"yt.packages.requests": "yt/packages/requests"},
         package_data={"yt.packages.requests": ["*.pem"]},
         entry_points=entry_points,
@@ -54,6 +54,7 @@ def main():
 
         extras_require={
             "recommended": ["brotli", "cryptography"],
+            "admin": ["kubernetes>=31.0.0", "python-dateutil", "pyyaml"],
         },
     )
 
