@@ -101,8 +101,8 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    using TTransactionPresenceMap = TConcurrentHashMap<TTransactionId, ETransactionPresence, 256, NThreading::TSpinLock>;
-    using TTransactionReplicationSubscriptionMap = TConcurrentHashMap<TTransactionId, TPromise<void>, 256, NThreading::TSpinLock>;
+    using TTransactionPresenceMap = TConcurrentHashMap<TTransactionId, ETransactionPresence, 256, YT_SPIN_LOCK_INPLACE_TYPE(NThreading::TSpinLock)>;
+    using TTransactionReplicationSubscriptionMap = TConcurrentHashMap<TTransactionId, TPromise<void>, 256, YT_SPIN_LOCK_INPLACE_TYPE(NThreading::TSpinLock)>;
 
     NCellMaster::TBootstrap* const Bootstrap_;
 
