@@ -331,6 +331,14 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Alias("file_storage_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
+    registrar.Parameter("tvm", &TThis::TvmConfig)
+        .Alias("tvm_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
+    registrar.Parameter("yt_access_provider", &TThis::YtAccessProviderConfig)
+        .Alias("yt_access_provider_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
