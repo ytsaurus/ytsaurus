@@ -385,6 +385,29 @@ DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentTyp
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobProxyPeakMemoryProfilerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+    //! NB(coteeq): This is probably what you want to get symbolized profiles,
+    //! but external symbolizer is very slow and consumes large amounts
+    //! of memory (this is a process, so think of 30M+ of additional memory).
+    //! Because of this, external symbolizer is disabled by default.
+    bool RunExternalSymbolizer;
+
+    //! If set, JP will synchronously wait for the last profile before reporting
+    //! result to exec node.
+    bool WaitLastProfile;
+
+    REGISTER_YSON_STRUCT(TJobProxyPeakMemoryProfilerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyPeakMemoryProfilerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobProxyInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
@@ -559,6 +582,8 @@ struct TJobProxyInternalConfig
 
     TJobApiServiceConfigPtr JobApiService;
 
+    TJobProxyPeakMemoryProfilerConfigPtr JobProxyPeakMemoryProfiler;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -613,6 +638,8 @@ struct TJobProxyDynamicConfig
 
     bool EnableGrpcServer;
     bool EnableHttpServer;
+
+    TJobProxyPeakMemoryProfilerConfigPtr JobProxyPeakMemoryProfiler;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

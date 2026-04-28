@@ -1379,11 +1379,18 @@ void TJob::SetHasGpuCheckStderr(bool hasGpuCheckStderr)
         .ArchiveFeatures(BuildArchiveFeatures()));
 }
 
-void TJob::AddProfile(TJobProfile value)
+void TJob::AddProfile(TJobProfile profile)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    Profiles_.push_back(std::move(value));
+    if (profile.ProfilingBinary == EProfilingBinary::JobProxy && profile.ProfilerType == EProfilerType::PeakMemory) {
+        // NB(coteeq): JobProxy's peak memory profile is a special case.
+        // We want the most recent profile and since it's peak profile,
+        // it's okay to overwrite previous one.
+        JobProxyPeakMemoryProfile_ = std::move(profile);
+    } else {
+        Profiles_.push_back(std::move(profile));
+    }
 }
 
 void TJob::SetCoreInfos(TCoreInfos value)
@@ -1558,7 +1565,8 @@ IYPathServicePtr TJob::CreateStaticOrchidService()
                     ex,
                     "Failed to get brief job info for static orchid");
             }
-        }))->Via(Invoker_);
+        }))
+        ->Via(Invoker_);
 }
 
 IYPathServicePtr TJob::CreateJobProxyOrchidService()
@@ -1588,7 +1596,22 @@ IYPathServicePtr TJob::CreateDynamicOrchidService()
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return New<TCompositeMapService>()
-        ->AddChild("job_proxy", CreateJobProxyOrchidService());
+        ->AddChild("job_proxy", CreateJobProxyOrchidService())
+        ->AddChild("testing", CreateTestingOrchidService());
+}
+
+IYPathServicePtr TJob::CreateTestingOrchidService()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return IYPathService::FromProducer(
+        BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("profile_count").Value(std::ssize(Profiles_) + JobProxyPeakMemoryProfile_.has_value())
+                .EndMap();
+        }))
+        ->Via(Invoker_);
 }
 
 IYPathServicePtr TJob::GetOrchidService()
@@ -1749,9 +1772,17 @@ void TJob::ReportProfile()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    for (const auto& profile : Profiles_) {
+    for (auto& profile : Profiles_) {
         HandleJobReport(TNodeJobReport()
             .Profile(std::move(profile)));
+    }
+
+    Profiles_.clear();
+
+    if (JobProxyPeakMemoryProfile_) {
+        HandleJobReport(TNodeJobReport()
+            .Profile(std::move(*JobProxyPeakMemoryProfile_)));
+        JobProxyPeakMemoryProfile_.reset();
     }
 }
 
@@ -3447,6 +3478,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
         proxyInternalConfig->EnableHttpServer = proxyDynamicConfig->EnableHttpServer;
+        proxyInternalConfig->JobProxyPeakMemoryProfiler = CloneYsonStruct(proxyDynamicConfig->JobProxyPeakMemoryProfiler);
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);

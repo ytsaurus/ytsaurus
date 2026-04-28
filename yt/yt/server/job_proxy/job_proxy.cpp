@@ -82,12 +82,18 @@
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
+#include <yt/yt/library/process/subprocess.h>
+
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
+
+#include <yt/yt/library/ytprof/external_pprof.h>
+#include <yt/yt/library/ytprof/profile.h>
+#include <yt/yt/library/ytprof/symbolize.h>
 
 #include <yt/yt/core/rpc/http/server.h>
 
@@ -149,6 +155,7 @@ using namespace NControllerAgent::NProto;
 using namespace NControllerAgent;
 using namespace NExecNode::NProto;
 using namespace NExecNode;
+using namespace NJobAgent;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NLogging;
@@ -166,6 +173,7 @@ using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NUserJob;
 using namespace NYPath;
+using namespace NYTProf;
 using namespace NYTree;
 using namespace NYson;
 
@@ -404,6 +412,28 @@ void TJobProxy::SendHeartbeat()
         req->set_last_progress_save_time(ToProto(*time));
     }
 
+    if (auto& profileFuture = JobProxyPeakMemoryProfile_; profileFuture.has_value()) {
+        if (!profileFuture->IsSet()) {
+            YT_LOG_DEBUG("JobProxy peak memory profile is not ready to be reported in the current heartbeat");
+        } else {
+            YT_LOG_DEBUG("Reporting JobProxy peak memory profile");
+            auto profile = profileFuture
+                ->AsUnique()
+                .GetOrCrash()
+                .ValueOrThrow();
+
+            ToProto(
+                req->add_profiles(),
+                TJobProfile{
+                    .ProfilingBinary = EProfilingBinary::JobProxy,
+                    .ProfilerType = EProfilerType::PeakMemory,
+                    .Blob = std::move(profile),
+                    .ProfilingProbability = 1.0,
+                });
+            profileFuture.reset();
+        }
+    }
+
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }
 
@@ -532,6 +562,11 @@ void TJobProxy::RetrieveJobSpec()
     } else {
         JobProxyMemoryReserve_ = totalMemoryReserve;
     }
+
+    // COMPAT(coteeq)
+    JobProxyEstimatedMemory_ = jobSpecExt.has_estimated_job_proxy_memory()
+        ? jobSpecExt.estimated_job_proxy_memory()
+        : JobProxyMemoryReserve_;
 
     std::vector<TString> annotations{
         Format("Type: SchedulerJob"),
@@ -1110,6 +1145,12 @@ TJobResult TJobProxy::RunJob()
             .ThrowOnError();
     }
 
+    std::vector<char> dummyBuffer;
+    if (auto byteCount = GetJobSpecHelper()->GetJobTestingOptions()->DummyAllocationBytes) {
+        dummyBuffer.resize(*byteCount);
+        DoNotOptimizeAway(dummyBuffer);
+    }
+
     return job->Run();
 }
 
@@ -1192,13 +1233,39 @@ void TJobProxy::ReportResult(
         }
     }
 
-    if (auto job = FindJob()) {
+    if (job) {
         try {
             for (const auto& profile : job->GetProfiles()) {
-                auto* protoProfile = req->add_profiles();
-                protoProfile->set_type(profile.Type);
-                protoProfile->set_blob(profile.Blob);
-                protoProfile->set_profiling_probability(profile.ProfilingProbability);
+                ToProto(req->add_profiles(), profile);
+            }
+
+            // We must extract JobProxyPeakMemoryProfile_ from |JobThread_|.
+            std::optional<TFuture<TString>> profileFuture;
+            YT_UNUSED_FUTURE(WaitFor(
+                BIND([this, &profileFuture] {
+                    profileFuture.swap(JobProxyPeakMemoryProfile_);
+                })
+                    .AsyncVia(JobThread_->GetInvoker())
+                    .Run()
+            ));
+            if (profileFuture) {
+                if (Config_->JobProxyPeakMemoryProfiler->WaitLastProfile) {
+                    WaitUntilSet(profileFuture->AsVoid());
+                }
+
+                if (profileFuture->IsSet()) {
+                    ToProto(
+                        req->add_profiles(),
+                        TJobProfile{
+                            .ProfilingBinary = EProfilingBinary::JobProxy,
+                            .ProfilerType = EProfilerType::PeakMemory,
+                            .Blob = profileFuture
+                                ->AsUnique()
+                                .GetOrCrash()
+                                .Value(),
+                            .ProfilingProbability = 1.0,
+                        });
+                }
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get job profile on teardown");
@@ -1856,6 +1923,10 @@ void TJobProxy::CheckMemoryUsage()
         OnMemoryReserveExceeded(usage);
     }
 
+    if (usage > JobProxyEstimatedMemory_) {
+        OnMemoryEstimationExceeded(usage);
+    }
+
     if (JobProxyMemoryOvercommitLimit_ && jobProxyMemoryUsage > JobProxyMemoryReserve_ + *JobProxyMemoryOvercommitLimit_) {
         YT_LOG_FATAL("Job proxy exceeded the memory overcommit limit "
             "(JobProxyMemoryUsage: %v, JobProxyMemoryReserve: %v, MemoryOvercommitLimit: %v, RefCountedTracker: %v)",
@@ -2149,6 +2220,8 @@ void TJobProxy::SetOomScoreAdj(int score)
 
 void TJobProxy::OnMemoryReserveExceeded(i64 usage)
 {
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
     constexpr double LoggingExponentialFactor = 1.2;
 
     bool shouldLog = usage > LastLoggedJobProxyMaxMemoryUsage_ * LoggingExponentialFactor &&
@@ -2171,6 +2244,62 @@ void TJobProxy::OnMemoryReserveExceeded(i64 usage)
         LastRefCountedTrackerLogTime_ = TInstant::Now();
         LastLoggedJobProxyMaxMemoryUsage_ = usage;
     }
+}
+
+void TJobProxy::OnMemoryEstimationExceeded(i64 usage)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (LastProfiledJobProxyMaxMemoryUsage_ >= usage) {
+        return;
+    }
+
+    if (!Config_->JobProxyPeakMemoryProfiler->Enabled) {
+        return;
+    }
+
+    if (JobProxyPeakMemoryProfile_) {
+        YT_LOG_DEBUG("Not profiling job proxy peak memory usage since another profile is already being gathered");
+        return;
+    }
+
+    auto job = FindJob();
+    if (job) {
+        YT_LOG_INFO(
+            "Profiling Job proxy peak memory (RunExternalSymbolizer: %v)",
+            Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);
+        JobProxyPeakMemoryProfile_ = ProfileJobProxyPeakMemory(
+            Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);
+
+        LastProfiledJobProxyMaxMemoryUsage_ = usage;
+    }
+}
+
+TFuture<TString> TJobProxy::ProfileJobProxyPeakMemory(bool runExternalSymbolizer) const
+{
+    auto profile = CaptureHeapProfile(tcmalloc::ProfileType::kPeakHeap);
+
+    return BIND([runExternalSymbolizer, profile = std::move(profile)] () mutable {
+        Symbolize(
+            &profile,
+            {
+                .SymbolizeExistingFunctions = true,
+                .SymbolizeLocations = true,
+            });
+        AddBuildInfo(&profile, NYTProf::TBuildInfo::GetDefault());
+
+        if (runExternalSymbolizer) {
+            SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
+                .RunTool = RunSubprocess,
+            });
+        }
+
+        TStringStream stream;
+        WriteCompressedProfile(&stream, profile);
+        return stream.Str();
+    })
+        .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

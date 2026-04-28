@@ -7,14 +7,14 @@ PROTO_NAMESPACE(yt)
 SRCS(
     config.cpp
     structs.cpp
+
+    proto/job_profile.proto
 )
 
 PEERDIR(
     library/cpp/protobuf/interop
 
     yt/yt/ytlib
-    yt/yt/server/lib/job_proxy
-    yt/yt/server/lib/misc
 )
 
 END()

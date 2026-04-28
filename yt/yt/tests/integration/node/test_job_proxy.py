@@ -3,19 +3,23 @@ from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    ls, get, set, print_debug, authors, wait, wait_no_assert, raises_yt_error,
+    list_jobs, ls, get, map, select_rows, set, print_debug, authors, sync_create_cells, wait, wait_no_assert, raises_yt_error,
     wait_breakpoint, with_breakpoint, release_breakpoint,
     run_test_vanilla, create_user, create, remove, read_table,
-    get_driver, update_nodes_dynamic_config, get_allocation_id_from_job_id,
+    get_driver, update_nodes_dynamic_config, get_allocation_id_from_job_id, write_table,
 )
 
 from yt.common import update_inplace
+import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper import YtClient
+from yt.wrapper.common import uuid_hash_pair
 
 import yt.yson
 
 from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqOnProgressSaved, TRspOnProgressSaved
+import yt.library.ytprof.proto.profile_pb2 as profile_pb2
 
+from google.protobuf.json_format import MessageToJson
 import grpc
 
 import pytest
@@ -26,9 +30,11 @@ import os.path
 import re
 import shutil
 import time
+import gzip
 
 import requests
 import httpx
+
 
 ##################################################################
 
@@ -802,3 +808,144 @@ class TestJobProxyJobApi(YTEnvSetup):
 
         assert t1 < self.try_get_last_save_time(job_id) < t2
         wait(lambda: self.try_get_last_save_time(job_id) == self.get_preemptible_progress_time(job_id))
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobProxyMemoryProfiling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+        }
+    }
+
+    @staticmethod
+    def get_profiles(op):
+        operation_id = uuid_hash_pair(op.id)
+        return list(
+            select_rows(
+                "profile_blob from [//sys/operations_archive/job_profiles] "
+                f"where operation_id_lo={operation_id.lo}u and operation_id_hi={operation_id.hi}u"
+            )
+        )
+
+    @staticmethod
+    def parse_profile(blob):
+        from io import BytesIO
+        blob_io = BytesIO(yt.yson.get_bytes(blob))
+
+        with gzip.open(blob_io) as f:
+            profile = profile_pb2.Profile()
+            profile.ParseFromString(f.read())
+            return profile
+
+    @staticmethod
+    def assert_large_allocation(profile, size):
+        assert len(profile.sample) > 0
+        total_bytes = sum(sum(sample.value) for sample in profile.sample if len(sample.value) > 0)
+        assert total_bytes >= size, f"Expected large allocation, got {total_bytes} bytes"
+
+    def setup_method(self, method):
+        super(TestJobProxyMemoryProfiling, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("abort", [True, False], ids=["abort", "noabort"])
+    def test_job_proxy_profiling(self, abort):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "force_transform": True,
+                "job_testing_options": {
+                    "dummy_allocation_bytes": 400_000_000,
+                },
+            },
+        )
+
+        wait(lambda: len(op.list_jobs()) > 0)
+        job, = list_jobs(op.id)["jobs"]
+        job_id = job["id"]
+        node = job["address"]
+
+        @wait
+        def get_orchid_profile_count():
+            node_orchid = f"//sys/cluster_nodes/{node}/orchid/exec_node"
+            return get(f"{node_orchid}/job_controller/active_jobs/{job_id}/testing/profile_count") > 0
+
+        if abort:
+            op.abort()
+        else:
+            release_breakpoint()
+            op.track()
+
+        wait(lambda: len(self.get_profiles(op)) > 0)
+
+        profiles = self.get_profiles(op)
+        assert len(profiles) == 1
+        profile = self.parse_profile(profiles[0]["profile_blob"])
+        print_debug(f"Profile json:\n{MessageToJson(profile)}")
+        self.assert_large_allocation(profile, 400_000_000)
+
+    @authors("coteeq")
+    def test_wait_last_profile(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "job_proxy_peak_memory_profiler": {
+                            "wait_last_profile": True,
+                        },
+                    },
+                },
+            },
+        })
+
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            command="sleep 1; cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "force_transform": True,
+                "job_testing_options": {
+                    "dummy_allocation_bytes": 400_000_000,
+                },
+            },
+        )
+
+        profiles = self.get_profiles(op)
+        assert len(profiles) == 1
+        profile = self.parse_profile(profiles[0]["profile_blob"])
+        print_debug(f"Profile json:\n{MessageToJson(profile)}")
+        self.assert_large_allocation(profile, 400_000_000)

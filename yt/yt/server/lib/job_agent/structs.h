@@ -2,9 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/job_agent/proto/job_profile.pb.h>
+
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/core/phoenix/context.h>
 #include <yt/yt/core/phoenix/type_decl.h>
@@ -22,10 +26,17 @@ using NPhoenix::TPersistenceContext;
 
 struct TJobProfile
 {
-    TString Type;
+    NScheduler::EProfilingBinary ProfilingBinary;
+    NScheduler::EProfilerType ProfilerType;
+
     TString Blob;
     double ProfilingProbability;
+
+    std::string GetType() const;
 };
+
+void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile);
+void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,7 @@
 package NYT.NExecNode.NProto;
 
+import "yt/server/lib/job_agent/proto/job_profile.proto";
+
 import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/client/misc/proto/signature.proto";
@@ -97,13 +99,7 @@ message TReqOnJobFinished
     optional bytes job_stderr = 6;
     optional bytes fail_context = 7;
 
-    message TProfile
-    {
-        required string type = 1;
-        required bytes blob = 2;
-        required double profiling_probability = 3;
-    }
-    repeated TProfile profiles = 12;
+    repeated NYT.NJobAgent.NProto.TJobProfile profiles = 12;
 
     repeated NYT.NControllerAgent.NProto.TCoreInfo core_infos = 10;
 
@@ -126,6 +122,7 @@ message TReqOnJobProgress
     optional bool has_job_trace = 7;
     required int64 epoch = 8;
     optional uint64 last_progress_save_time = 9;
+    repeated NYT.NJobAgent.NProto.TJobProfile profiles = 10;
 }
 
 message TRspOnJobProgress

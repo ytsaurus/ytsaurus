@@ -4964,6 +4964,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
                 YT_ABORT();
             }
         });
+
+    jobSpecExt->set_estimated_job_proxy_memory(
+        joblet->EstimatedResourceUsage.GetFootprintMemory() + joblet->EstimatedResourceUsage.GetJobProxyMemory());
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
