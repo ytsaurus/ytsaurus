@@ -2674,6 +2674,7 @@ void TJob::RunJobProxy()
 
     SetJobPhase(EJobPhase::SpawningJobProxy);
     InitializeJobProbe();
+    InitializeJobProxyLogging();
 
     auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
     auto hotChunks = JobInputCache_->FilterHotChunkIds(eligibleChunks);
@@ -4200,6 +4201,19 @@ void TJob::InitializeJobProbe()
     {
         auto guard = Guard(JobProbeLock_);
         std::swap(JobProbe_, probe);
+    }
+}
+
+void TJob::InitializeJobProxyLogging()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    const auto proxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
+
+    if (proxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+        const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+        YT_VERIFY(jobProxyLogManager);
+        jobProxyLogManager->BindJobLogDirectoryWithSymlink(Id_);
     }
 }
 

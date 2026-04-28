@@ -26,6 +26,10 @@ struct IJobProxyLogManager
         TJobId jobId,
         const NYPath::TYPath& path,
         NObjectClient::TTransactionId transactionId) = 0;
+
+    virtual bool IsEnabled() const = 0;
+
+    virtual void BindJobLogDirectoryWithSymlink(TJobId jobId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyLogManager);

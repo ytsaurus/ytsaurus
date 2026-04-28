@@ -924,8 +924,6 @@ void TLogDumpConfig::Register(TRegistrar registrar)
 
 void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("directory", &TThis::Directory);
-
     registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
         .GreaterThan(0);
 
@@ -935,7 +933,17 @@ void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0);
 
+    registrar.Parameter("location_check_period", &TThis::LocationCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("log_dump", &TThis::LogDump);
+
+    // COMPAT(epsilond1): Use NonEmpty >= 26.1
+    registrar.Parameter("job_proxy_log_symlinks_path", &TThis::JobProxyLogSymlinksPath)
+        .Default();
+
+    registrar.Parameter("locations", &TThis::Locations)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -952,6 +960,9 @@ void TLogDumpDynamicConfig::Register(TRegistrar registrar)
 
 void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("location_check_period", &TThis::LocationCheckPeriod)
+        .Default();
+
     registrar.Parameter("logs_storage_period", &TThis::LogsStoragePeriod)
         .Default();
 
@@ -960,6 +971,14 @@ void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("log_dump", &TThis::LogDump)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobProxyLogManagerLocationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
         .Default();
 }
 
@@ -986,6 +1005,25 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("signature_components", &TThis::SignatureComponents)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+            THROW_ERROR_EXCEPTION_IF(
+                config->JobProxyLogManager->JobProxyLogSymlinksPath.empty(),
+                "job_proxy_log_symlinks_path must not be empty");
+
+            THROW_ERROR_EXCEPTION_IF(
+                config->JobProxyLogManager->Locations.empty(),
+                "`locations` must be non-empty when job proxy logging mode is `per_job_directory`");
+
+            for (int idx = 0; idx < std::ssize(config->JobProxyLogManager->Locations); ++idx) {
+                THROW_ERROR_EXCEPTION_IF(
+                    config->JobProxyLogManager->Locations[idx]->Path.empty(),
+                    "Location has empty path (LocationIndex: %v)",
+                    idx);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

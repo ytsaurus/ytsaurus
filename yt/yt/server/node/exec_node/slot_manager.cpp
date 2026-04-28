@@ -4,6 +4,7 @@
 #include "job.h"
 #include "job_controller.h"
 #include "job_environment.h"
+#include "job_proxy_log_manager.h"
 #include "private.h"
 #include "slot.h"
 #include "slot_location.h"
@@ -582,13 +583,16 @@ bool TSlotManager::IsEnabled() const
         JobEnvironmentType_ && JobEnvironmentType_ != NJobProxy::EJobEnvironmentType::Porto ||
         volumeManager && volumeManager->IsEnabled();
 
+    const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+
     return
         JobProxyReady_.load() &&
         IsInitialized() &&
         SlotCount_ > 0 &&
         hasAliveLocations &&
         jobEnvironment->IsEnabled() &&
-        isVolumeManagerEnabled;
+        isVolumeManagerEnabled &&
+        (!jobProxyLogManager || jobProxyLogManager->IsEnabled());
 }
 
 bool TSlotManager::GuardedHasArmedAlerts() const
