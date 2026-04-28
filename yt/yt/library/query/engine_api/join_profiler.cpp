@@ -175,7 +175,7 @@ public:
 
         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinFragment.Query->Id);
 
-        auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
+        auto pipe = NTableClient::CreateSchemafulPipe(MemoryChunkProvider_);
 
         ExecutePlan_(joinFragment, pipe->GetWriter())
             .AsUnique().Subscribe(BIND([this, this_ = MakeStrong(this), pipe] (TErrorOr<TQueryStatistics>&& error) {

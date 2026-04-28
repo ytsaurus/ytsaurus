@@ -2561,7 +2561,7 @@ class TSchemafulPipeAdapter
 {
 public:
     TSchemafulPipeAdapter(
-        TSchemafulPipePtr pipe,
+        ISchemafulPipePtr pipe,
         const TTabletSnapshotPtr& tabletSnapshot,
         std::unique_ptr<NRowMerger::TSchemafulRowMerger> merger,
         TSharedRange<TUnversionedRow> lookupKeys)
@@ -2582,7 +2582,7 @@ protected:
     static constexpr auto QueryKind = EInitialQueryKind::SelectRows;
 
     const IUnversionedRowsetWriterPtr Writer_;
-    const TSchemafulPipePtr Pipe_;
+    const ISchemafulPipePtr Pipe_;
     std::unique_ptr<NRowMerger::TSchemafulRowMerger> Merger_;
 
     const TPromise<void> ResultPromise_ = NewPromise<void>();
@@ -2608,7 +2608,7 @@ protected:
                 dataStatistics = std::move(DataStatistics_)
             ] (const TError& error) mutable {
                 if (error.IsOK()) {
-                    pipe->SetDataStatistics(std::move(dataStatistics));
+                    pipe->SetReaderDataStatistics(std::move(dataStatistics));
                 }
                 resultPromise.TrySet(error);
             }));
@@ -2651,7 +2651,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
 
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag(), memoryChunkProvider);
 
-    auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
+    auto pipe = CreateSchemafulPipe(memoryChunkProvider);
     auto reader = pipe->GetReader();
 
     auto latestTimestampColumnFilter = ToLatestTimestampColumnFilter(
