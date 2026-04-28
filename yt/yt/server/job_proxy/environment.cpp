@@ -384,12 +384,13 @@ public:
             launcher->SetRoot(*Options_.RootFS);
         }
 
+        // TODO(severovv): List not only nvidia devices by calling to GpuManager
         std::vector<TDevice> devices;
-        for (const auto& descriptor : ListGpuDevices()) {
+        for (const auto& descriptor : ListNvidiaGpuDevices()) {
             int deviceIndex = descriptor.DeviceIndex;
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
-                    .DeviceName = GetGpuDeviceName(deviceIndex),
+                    .DeviceName = GetNvidiaGpuDeviceName(deviceIndex),
                     .Access = "-",
                 });
             }

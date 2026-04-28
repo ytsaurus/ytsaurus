@@ -54,7 +54,7 @@ std::optional<int> TryParseGpuDeviceNumber(const TString& deviceName)
     return deviceNumber;
 }
 
-std::vector<TGpuDeviceDescriptor> ListGpuDevices()
+std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices()
 {
     int foundMetaDeviceCount = 0;
     std::vector<TGpuDeviceDescriptor> result;
@@ -102,7 +102,7 @@ std::vector<TGpuDeviceDescriptor> ListGpuDevices()
     return result;
 }
 
-TString GetGpuDeviceName(int deviceNumber)
+TString GetNvidiaGpuDeviceName(int deviceNumber)
 {
     return DevNvidiaPath + ToString(deviceNumber);
 }
@@ -145,7 +145,7 @@ bool operator<(const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs)
     return lhs.Components < rhs.Components;
 }
 
-TString GetGpuDriverVersionString()
+TString GetNvidiaGpuDriverVersionString()
 {
     try {
         TFileInput moduleVersion(NvidiaModuleVersionPath);

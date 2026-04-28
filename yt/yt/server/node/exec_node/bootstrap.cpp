@@ -116,7 +116,6 @@ public:
         SlotManager_ = New<TSlotManager>(this);
 
         GpuManager_ = New<TGpuManager>(this);
-        GpuManager_->Initialize();
 
         JobReporter_ = New<TJobReporter>(
             New<TJobReporterConfig>(),
@@ -296,6 +295,7 @@ public:
             JobProxyLogManager_->Start();
         }
 
+        GpuManager_->Start();
         SlotManager_->Start();
         JobController_->Start();
 
