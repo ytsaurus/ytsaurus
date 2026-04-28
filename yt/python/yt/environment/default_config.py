@@ -155,6 +155,7 @@ def get_dynamic_master_config():
         "table_manager": {
             "enable_column_constraints_for_tables": True,
             "validate_no_descending_sort_order": True,
+            "fix_tablet_cell_bundle_inheritance": True,
         },
 
         "multicell_manager": {

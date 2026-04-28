@@ -36,6 +36,8 @@ struct TDynamicTableManagerConfig
     // COMPAT(h0pless): Remove this in 26.1.
     bool ValidateNoDescendingSortOrder;
 
+    bool FixTabletCellBundleInheritance;
+
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 
     static void Register(TRegistrar registrar);

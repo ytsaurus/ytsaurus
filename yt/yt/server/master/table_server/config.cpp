@@ -33,6 +33,10 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("fix_tablet_cell_bundle_inheritance", &TThis::FixTabletCellBundleInheritance)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableSchemaCache->ExpirationPeriod = TDuration::Seconds(10);
         config->TableSchemaCache->RefreshTime = std::nullopt;

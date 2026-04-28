@@ -120,9 +120,14 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         ValidateErasureCodec(eraseCodecValue, chunkManagerConfig->ForbiddenErasureCodecs);
     }
 
+    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
+
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
-    auto optionalTabletCellBundleName = context.ExplicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
+
+    auto optionalTabletCellBundleName = dynamicConfig->FixTabletCellBundleInheritance
+        ? combinedAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern())
+        : context.ExplicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::TabletCellBundle.Unintern());
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
         "optimize_for",
@@ -178,7 +183,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto constraints = combinedAttributes->FindAndRemove<TColumnNameToConstraintMap>("constraints");
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
-    auto dynamicConfig = GetBootstrap()->GetConfigManager()->GetConfig()->TableManager;
     if ((constrainedSchema || constraints) && !dynamicConfig->EnableColumnConstraintsForTables) {
         THROW_ERROR_EXCEPTION("Creation of tables with column constraints is prohibited by system administrator");
     }
