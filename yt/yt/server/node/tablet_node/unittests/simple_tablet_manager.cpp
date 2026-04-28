@@ -246,7 +246,8 @@ TTabletNodeDynamicConfigPtr TSimpleTabletManager::GetDynamicConfig() const
 {
     auto config = New<TTabletNodeDynamicConfig>();
     YT_VERIFY(config->TabletCellWriteManager);
-    YT_VERIFY(!config->TabletCellWriteManager->WriteFailureProbability);
+    YT_VERIFY(!config->TabletCellWriteManager->FailureProbabilityBeforeWrite);
+    YT_VERIFY(!config->TabletCellWriteManager->FailureProbabilityAfterWrite);
     return config;
 }
 
