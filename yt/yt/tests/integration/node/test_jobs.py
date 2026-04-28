@@ -1136,6 +1136,17 @@ class TestFreeUserJobsMemoryWatermark(YTEnvSetup):
             "job_resource_manager": {
                 "free_user_job_memory_watermark_multiplier": 0.9,
             },
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "job_proxy_peak_memory_profiler": {
+                            # NB(coteeq): JP will exceed estimated memory which will trigger profiler
+                            # which will eat even more memory (for the profiling itself).
+                            "enabled": False,
+                        },
+                    },
+                },
+            },
         },
     }
 

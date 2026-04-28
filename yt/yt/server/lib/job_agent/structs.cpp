@@ -15,6 +15,31 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile)
+{
+    protoProfile->set_profiling_binary(ToProto(profile.ProfilingBinary));
+    protoProfile->set_profiler_type(ToProto(profile.ProfilerType));
+    protoProfile->set_blob(profile.Blob);
+    protoProfile->set_profiling_probability(profile.ProfilingProbability);
+}
+
+void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile)
+{
+    profile->ProfilingBinary = GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilingBinary>(protoProfile.profiling_binary()));
+    profile->ProfilerType = GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilerType>(protoProfile.profiler_type()));
+    profile->Blob = protoProfile.blob();
+    profile->ProfilingProbability = protoProfile.profiling_probability();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TJobProfile::GetType() const
+{
+    return Format("%lv_%lv", ProfilingBinary, ProfilerType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
 {
     using namespace NStatisticPath;

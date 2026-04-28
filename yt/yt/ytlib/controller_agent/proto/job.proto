@@ -481,6 +481,7 @@ message TJobSpecExt
     optional bool is_approximate = 9 [default = false];
 
     optional int64 job_proxy_memory_overcommit_limit = 16;
+    optional int64 estimated_job_proxy_memory = 48;
 
     // Deprecated = 11
 

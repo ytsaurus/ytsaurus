@@ -112,6 +112,7 @@ private:
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;
+    i64 JobProxyEstimatedMemory_ = 0;
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = 0;
     // Job proxy cumulative memory usage in bytes * seconds.
@@ -164,6 +165,7 @@ private:
     TDuration RefCountedTrackerLogPeriod_;
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
+    i64 LastProfiledJobProxyMaxMemoryUsage_ = 0;
 
     THashMap<NChunkClient::TChunkId, NExecNode::TRefCountedChunkSpecPtr> ChunkIdToOriginalSpec_;
 
@@ -196,6 +198,8 @@ private:
     NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
 
     std::optional<int> OomScoreAdj_;
+
+    std::optional<TFuture<TString>> JobProxyPeakMemoryProfile_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
@@ -283,6 +287,9 @@ private:
     void SetOomScoreAdj(int score);
 
     void OnMemoryReserveExceeded(i64 usage);
+    void OnMemoryEstimationExceeded(i64 usage);
+
+    TFuture<TString> ProfileJobProxyPeakMemory(bool runExternalSymbolizer) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

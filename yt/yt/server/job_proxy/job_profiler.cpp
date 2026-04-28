@@ -191,7 +191,8 @@ private:
         };
         JobProxyCpuProfiler_ = std::make_unique<TCpuProfiler>(options);
         JobProxyCpuProfile_ = TJobProfile{
-            .Type = GetProfileTypeString(spec),
+            .ProfilingBinary = spec->Binary,
+            .ProfilerType = spec->Type,
             .ProfilingProbability = spec->ProfilingProbability,
         };
         JobProxyCpuProfilerSpec_ = std::move(spec);
@@ -200,7 +201,8 @@ private:
     void InitializeJobProxyMemoryProfiler(const TJobProfilerSpecPtr& spec)
     {
         JobProxyMemoryProfile_ = TJobProfile{
-            .Type = GetProfileTypeString(spec),
+            .ProfilingBinary = spec->Binary,
+            .ProfilerType = spec->Type,
             .ProfilingProbability = spec->ProfilingProbability,
         };
         JobProxyMemoryProfilerSpec_ = spec;
@@ -214,7 +216,8 @@ private:
 
         UserJobProfileStream_ = std::make_unique<TStringStream>();
         UserJobProfile_ = TJobProfile{
-            .Type = GetProfileTypeString(spec),
+            .ProfilingBinary = spec->Binary,
+            .ProfilerType = spec->Type,
             .ProfilingProbability = spec->ProfilingProbability,
         };
         UserJobProfilerSpec_ = std::move(spec);
@@ -226,11 +229,13 @@ private:
             spec = New<TJobProfilerSpec>();
             spec->Binary = EProfilingBinary::JobProxy;
             spec->Type = EProfilerType::PeakMemory;
+            spec->RunExternalSymbolizer = true;
         }
 
         if (!DumpPeakMemoryUsage_.exchange(true)) {
             TJobProfile profile{
-                .Type = GetProfileTypeString(spec),
+                .ProfilingBinary = spec->Binary,
+                .ProfilerType = spec->Type,
                 .ProfilingProbability = spec->ProfilingProbability,
             };
             JobProxyPeakMemoryProfile_ = profile;
@@ -238,7 +243,7 @@ private:
         }
     }
 
-    void SymbolizeProfile(
+    static void SymbolizeProfile(
         NYTProf::NProto::Profile* profile,
         const TJobProfilerSpecPtr& spec)
     {
@@ -257,11 +262,6 @@ private:
         return type == EProfilerType::Cpu ||
             type == EProfilerType::Memory ||
             type == EProfilerType::Cuda;
-    }
-
-    static TString GetProfileTypeString(const TJobProfilerSpecPtr& spec)
-    {
-        return Format("%lv_%lv", spec->Binary, spec->Type);
     }
 
     static TString SerializeProfile(const NYTProf::NProto::Profile& profile)

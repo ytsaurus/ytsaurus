@@ -284,6 +284,20 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProxyPeakMemoryProfilerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+
+    registrar.Parameter("run_external_symbolizer", &TThis::RunExternalSymbolizer)
+        .Default(false);
+
+    registrar.Parameter("wait_last_profile", &TThis::WaitLastProfile)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
@@ -502,6 +516,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_api_service", &TThis::JobApiService)
         .DefaultNew();
 
+    registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -587,6 +604,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
         .Default(false);
+
+    registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
