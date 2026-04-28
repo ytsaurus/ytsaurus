@@ -52,6 +52,8 @@
 
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/library/tracing/jaeger/tracer.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -368,6 +370,9 @@ void TweakConfigForDryRun(TCellMasterProgramConfigPtr config, bool skipTvmServic
         authManagerConfig->EnableValidation = false;
         authManagerConfig->EnableSubmission = false;
         authManagerConfig->TvmService = nullptr;
+
+        auto jaegerTracerConfig = config->GetSingletonConfig<NTracing::TJaegerTracerConfig>();
+        jaegerTracerConfig->TvmService = nullptr;
     }
 }
 

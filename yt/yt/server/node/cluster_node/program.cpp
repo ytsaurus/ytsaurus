@@ -16,6 +16,8 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
+#include <yt/yt/library/tracing/jaeger/tracer.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/auth/config.h>
@@ -211,6 +213,9 @@ private:
                 authManagerConfig->EnableValidation = false;
                 authManagerConfig->EnableSubmission = false;
                 authManagerConfig->TvmService = nullptr;
+
+                auto jaegerTracerConfig = config->GetSingletonConfig<NTracing::TJaegerTracerConfig>();
+                jaegerTracerConfig->TvmService = nullptr;
             }
 
             config->TabletNode->ResourceLimits->Slots = std::max(config->TabletNode->ResourceLimits->Slots, 1);
