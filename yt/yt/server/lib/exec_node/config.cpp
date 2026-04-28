@@ -593,6 +593,12 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
+
+    registrar.Parameter("use_gpu_info_provider_for_device_discovery", &TThis::UseGpuInfoProviderForDeviceDiscovery)
+        .Default(false);
+
+    registrar.Parameter("gpu_flavor", &TThis::GpuFlavor)
+        .Default(EGpuFlavor::Nvidia);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -634,6 +640,9 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("apply_network_service_level_timeout", &TThis::ApplyNetworkServiceLevelTimeout)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("use_gpu_info_provider_for_device_discovery", &TThis::UseGpuInfoProviderForDeviceDiscovery)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

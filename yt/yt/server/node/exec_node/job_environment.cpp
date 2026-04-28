@@ -1315,12 +1315,15 @@ private:
         }
 
         auto config = New<TContainerGpuConfig>();
-        config->NvidiaDriverCapabilities = Bootstrap_
-            ->GetDynamicConfig()
-            ->ExecNode
-            ->GpuManager
-            ->DefaultNvidiaDriverCapabilities;
-        config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
+
+        if (Bootstrap_->GetGpuManager()->GetGpuFlavor() == EGpuFlavor::Nvidia) {
+            config->NvidiaDriverCapabilities = Bootstrap_
+                ->GetDynamicConfig()
+                ->ExecNode
+                ->GpuManager
+                ->DefaultNvidiaDriverCapabilities;
+            config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
+        }
 
         auto infinibandDevices = ListInfinibandDevices();
         config->InfinibandDevices.reserve(infinibandDevices.size());
