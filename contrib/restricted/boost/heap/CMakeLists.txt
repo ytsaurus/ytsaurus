@@ -35,7 +35,6 @@ target_link_libraries(restricted-boost-heap INTERFACE
   restricted-boost-intrusive
   restricted-boost-iterator
   restricted-boost-parameter
-  restricted-boost-static_assert
   restricted-boost-throw_exception
 )
 
