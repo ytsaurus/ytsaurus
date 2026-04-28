@@ -377,7 +377,7 @@ private:
     const TPeriodicExecutorPtr ProfilingExecutor_;
     const TPeriodicExecutorPtr QueueFlushExecutor_;
 
-    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, NThreading::TSpinLock> AllyReplicasInfos_;
+    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, YT_SPIN_LOCK_INPLACE_TYPE(NThreading::TSpinLock)> AllyReplicasInfos_;
 
     struct TNodeState
     {
