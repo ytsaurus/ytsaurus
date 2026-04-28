@@ -2256,7 +2256,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
         auto responseSizeLimit = dynamicConfig->DefaultGetResponseSizeLimit;
 
         context->SetRequestInfo("ResponseSizeLimit: %v, AttributeFilter: %v",
