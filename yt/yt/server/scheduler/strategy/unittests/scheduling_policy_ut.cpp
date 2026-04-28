@@ -12,18 +12,15 @@
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 #include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
+#include <yt/yt/server/scheduler/strategy/unittests/mocks.h>
+
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>
 #include <yt/yt/server/scheduler/common/allocation.h>
 
-#include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
-
 #include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
-#include <yt/yt/core/yson/null_consumer.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -34,6 +31,7 @@ namespace {
 
 using namespace NControllerAgent;
 using namespace NConcurrency;
+using namespace NTestMocks;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,234 +40,6 @@ static constexpr bool EnableDebugLogging = false;
 static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
     ? NLogging::TLogger("TestDebug")
     : NLogging::TLogger());
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchedulerStrategyHostMock
-    : public TRefCounted
-    , public IStrategyHost
-    , public TEventLogHostBase
-{
-public:
-    TSchedulerStrategyHostMock(std::vector<IInvokerPtr> nodeShardInvokers, std::vector<TExecNodePtr> execNodes)
-        : NodeShardInvokers_(std::move(nodeShardInvokers))
-        , ExecNodes_(std::move(execNodes))
-        , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
-    {
-        NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* protoMediumDescriptor = protoDirectory.add_medium_descriptors();
-        protoMediumDescriptor->set_name(NChunkClient::DefaultSlotsMediumName);
-        protoMediumDescriptor->set_index(NChunkClient::DefaultSlotsMediumIndex);
-        protoMediumDescriptor->set_priority(0);
-        MediumDirectory_->LoadFrom(protoDirectory);
-
-        for (const auto& node : ExecNodes_) {
-            NodeToState_.emplace(node, New<TNodeState>());
-        }
-    }
-
-    IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    IInvokerPtr GetFairShareLoggingInvoker() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    IInvokerPtr GetFairShareProfilingInvoker() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    IInvokerPtr GetFairShareUpdateInvoker() const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    IInvokerPtr GetBackgroundInvoker() const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    IInvokerPtr GetOrchidWorkerInvoker() const override
-    {
-        return GetCurrentInvoker();
-    }
-
-    int GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const override
-    {
-        return 0;
-    }
-
-    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
-    {
-        return NodeShardInvokers_;
-    }
-
-    NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant /*now*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant /*now*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
-    {
-        TJobResources result;
-        for (const auto& execNode : ExecNodes_) {
-            if (execNode->CanSchedule(filter)) {
-                result += execNode->ResourceLimits();
-            }
-        }
-        return result;
-    }
-
-    TJobResources GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void Disconnect(const TError& /*error*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    TInstant GetConnectionTime() const override
-    {
-        return TInstant();
-    }
-
-    void MarkOperationAsRunningInStrategy(TOperationId /*operationId*/) override
-    { }
-
-    void AbortOperation(TOperationId /*operationId*/, const TError& /*error*/) override
-    { }
-
-    void FlushOperationNode(TOperationId /*operationId*/) override
-    { }
-
-    TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
-    {
-        TMemoryDistribution result;
-        for (const auto& execNode : ExecNodes_)
-            if (execNode->CanSchedule(filter)) {
-                ++result[execNode->ResourceLimits().GetMemory()];
-            }
-        return result;
-    }
-
-    void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    std::optional<int> FindMediumIndexByName(const std::string& /*mediumName*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    const std::string& GetMediumNameByIndex(int /*mediumIndex*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void ValidatePoolPermission(
-        const std::string& /*treeId*/,
-        NObjectClient::TObjectId /*poolObjectId*/,
-        const TString& /*poolName*/,
-        const std::string& /*user*/,
-        NYTree::EPermission /*permission*/) const override
-    { }
-
-    void SetSchedulerAlert(ESchedulerAlertType /*alertType*/, const TError& /*alert*/) override
-    { }
-
-    TFuture<void> SetOperationAlert(
-        TOperationId /*operationId*/,
-        EOperationAlertType /*alertType*/,
-        const TError& /*alert*/,
-        std::optional<TDuration> /*timeout*/) override
-    {
-        return OKFuture;
-    }
-
-    NYson::IYsonConsumer* GetEventLogConsumer() override
-    {
-        return NYson::GetNullYsonConsumer();
-    }
-
-    const NLogging::TLogger* GetEventLogger() override
-    {
-        return nullptr;
-    }
-
-    TString FormatResources(const TJobResourcesWithQuota& resources) const override
-    {
-        YT_VERIFY(MediumDirectory_);
-        return NScheduler::FormatResources(resources);
-    }
-
-    void SerializeResources(const TJobResourcesWithQuota& /*resources*/, NYson::IYsonConsumer* /*consumer*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void SerializeDiskQuota(const TDiskQuota& /*diskQuota*/, NYson::IYsonConsumer* /*consumer*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void LogResourceMetering(
-        const TMeteringKey& /*key*/,
-        const TMeteringStatistics& /*statistics*/,
-        const THashMap<TString, TString>& /*otherTags*/,
-        TInstant /*connectionTime*/,
-        TInstant /*previousLogTime*/,
-        TInstant /*currentTime*/) override
-    { }
-
-    int GetDefaultAbcId() const override
-    {
-        return -1;
-    }
-
-    const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const
-    {
-        return MediumDirectory_;
-    }
-
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/) override
-    { }
-
-    TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
-    {
-        return OKFuture;
-    }
-
-    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
-    {
-        static const THashMap<std::string, TString> stub;
-        return stub;
-    }
-
-    const TNodeStatePtr& GetNodeState(const TExecNodePtr node)
-    {
-        return GetOrCrash(NodeToState_, node);
-    }
-
-private:
-    std::vector<IInvokerPtr> NodeShardInvokers_;
-    std::vector<TExecNodePtr> ExecNodes_;
-    THashMap<TExecNodePtr, TNodeStatePtr> NodeToState_;
-    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
-};
-
-using TSchedulerStrategyHostMockPtr = TIntrusivePtr<TSchedulerStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -524,35 +294,6 @@ private:
 };
 
 using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPoolTreeElementHostMock
-    : public IPoolTreeElementHost
-{
-public:
-    explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
-    { }
-
-    TResourceTree* GetResourceTree() override
-    {
-        return ResourceTree_.Get();
-    }
-
-    void BuildElementLoggingStringAttributes(
-        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-private:
-    TResourceTreePtr ResourceTree_;
-};
-
-using TPoolTreeElementHostMockPtr = TIntrusivePtr<TPoolTreeElementHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
