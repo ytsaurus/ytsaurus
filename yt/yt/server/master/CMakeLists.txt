@@ -57,6 +57,7 @@ target_link_libraries(yt-server-master PUBLIC
   yt-library-orchid
   yt-library-server_program
   yt-library-monitoring
+  library-tracing-jaeger
   yt-ytlib-distributed_throttler
   ytserver
   server-lib-cell_server
