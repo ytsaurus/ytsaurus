@@ -61,7 +61,7 @@ struct heap_merge_emulate
             rhs.pop();
         }
 
-        lhs.set_stability_count( ( std::max )( lhs.get_stability_count(), rhs.get_stability_count() ) );
+        lhs.set_stability_count( (std::max)( lhs.get_stability_count(), rhs.get_stability_count() ) );
         rhs.set_stability_count( 0 );
     }
 };
@@ -118,6 +118,6 @@ void heap_merge( Heap1& lhs, Heap2& rhs )
 }
 
 
-}}     // namespace boost::heap
+}} // namespace boost::heap
 
 #endif /* BOOST_HEAP_MERGE_HPP */
