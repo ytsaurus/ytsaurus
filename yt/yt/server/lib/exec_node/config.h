@@ -821,8 +821,6 @@ DEFINE_REFCOUNTED_TYPE(TLogDumpConfig)
 struct TJobProxyLogManagerConfig
     : public NYTree::TYsonStruct
 {
-    std::string Directory;
-
     int ShardingKeyLength;
 
     TDuration LogsStoragePeriod;
@@ -830,7 +828,13 @@ struct TJobProxyLogManagerConfig
     // Value std::nullopt means unlimited concurrency.
     int DirectoryTraversalConcurrency;
 
+    TDuration LocationCheckPeriod;
+
     TLogDumpConfigPtr LogDump;
+
+    std::string JobProxyLogSymlinksPath;
+
+    std::vector<TJobProxyLogManagerLocationConfigPtr> Locations;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
@@ -861,6 +865,7 @@ DEFINE_REFCOUNTED_TYPE(TLogDumpDynamicConfig)
 struct TJobProxyLogManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
+    std::optional<TDuration> LocationCheckPeriod;
     std::optional<TDuration> LogsStoragePeriod;
     std::optional<int> DirectoryTraversalConcurrency;
 
@@ -872,6 +877,20 @@ struct TJobProxyLogManagerDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerDynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobProxyLogManagerLocationConfig
+    : public NYTree::TYsonStruct
+{
+    std::string Path;
+
+    REGISTER_YSON_STRUCT(TJobProxyLogManagerLocationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerLocationConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -590,6 +590,8 @@ private:
 
     void InitializeJobProbe();
 
+    void InitializeJobProxyLogging();
+
     void ResetJobProbe();
 
     NJobProxy::IJobProbePtr GetJobProbeOrThrow();
