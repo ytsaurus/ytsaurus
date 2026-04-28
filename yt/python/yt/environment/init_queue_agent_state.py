@@ -586,8 +586,8 @@ def get_latest_version():
 
 
 # Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
-def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
-    """ Creates queue agent state tables of latest version """
+def create_tables(client, target_version, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
+    """ Creates queue agent state tables of given version """
 
     migration = prepare_migration(client, root=root, override_tablet_cell_bundle=override_tablet_cell_bundle)
 
@@ -595,12 +595,24 @@ def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_
 
     migration.run(
         client=client,
-        target_version=migration.get_latest_version(),
+        target_version=target_version,
         tables_path=root,
         shard_count=shard_count,
         force=False,
         retransform=False,
         pool=None,
+    )
+
+
+# Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
+def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
+    """ Creates queue agent state tables of latest version """
+    create_tables(
+        client=client,
+        target_version=MIGRATION.get_latest_version(),
+        root=root,
+        shard_count=shard_count,
+        override_tablet_cell_bundle=override_tablet_cell_bundle,
     )
 
 
