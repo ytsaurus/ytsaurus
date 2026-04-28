@@ -7,6 +7,7 @@ from yt_commands import (
     sort, wait_for_nodes, update_nodes_dynamic_config,
     wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
     make_random_string, sync_create_cells, get_allocation_id_from_job_id,
+    create_domestic_medium,
 )
 
 from yt.common import YtError, YtResponseError, update
@@ -2086,11 +2087,33 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "nbd_media": ["default"],
+            "nbd_media": ["ssd_nbd"],
         }
     }
 
     USE_PORTO = True
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        ssd_store_path = os.path.join(cls.fake_ssd_disk_path, "store")
+        ssd_slot_path = os.path.join(cls.fake_ssd_disk_path, "slots")
+        for path in (ssd_store_path, ssd_slot_path):
+            if not os.path.exists(path):
+                os.makedirs(path)
+        config["data_node"]["store_locations"].append({
+            "path": ssd_store_path,
+            "medium_name": "ssd_nbd",
+        })
+        config["exec_node"]["slot_manager"]["locations"].append({
+            "path": ssd_slot_path,
+            "disk_quota": 2 * 1024 * 1024 * 1024,
+            "disk_usage_watermark": 0,
+            "medium_name": "ssd_nbd",
+        })
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("ssd_nbd")
 
     def _get_node_debug_logs(self, filter_string):
         writers = self.Env.configs["node"][0]["logging"]["writers"]
@@ -2165,7 +2188,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             command = "ls $YT_ROOT_FS/dir | tee $YT_ROOT_FS/ls_output.txt 1>&2"
 
             spec["mapper"]["disk_request"] = {
-                "medium_name": "default",
+                "medium_name": "ssd_nbd",
                 "disk_space": 16 * 1024 * 1024,
             }
 
