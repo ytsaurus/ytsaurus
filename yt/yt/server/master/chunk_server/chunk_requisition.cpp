@@ -196,7 +196,9 @@ bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isE
         }
 
         YT_VERIFY(medium->IsDomestic());
-        if (!medium->AsDomestic()->GetTransient() && (entry.Policy().GetReplicationFactor() > 1 || isErasureChunk)) {
+        if (!medium->AsDomestic()->GetTransient() &&
+            (entry.Policy().GetReplicationFactor() >= MinVitalReplicationFactor || isErasureChunk))
+        {
             return true;
         }
     }

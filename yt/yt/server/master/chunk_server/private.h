@@ -88,6 +88,8 @@ DEFINE_ENUM(ESequoiaReplicaModificationPhase,
 // Keep in sync with NChunkClient::EChunkFormat.
 TStringBuf SerializeChunkFormatAsTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 
+constexpr int MinVitalReplicationFactor = 3;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
