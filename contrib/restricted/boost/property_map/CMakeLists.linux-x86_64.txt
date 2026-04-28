@@ -38,7 +38,6 @@ target_link_libraries(restricted-boost-property_map INTERFACE
   restricted-boost-lexical_cast
   restricted-boost-mpl
   restricted-boost-smart_ptr
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-type_traits
   restricted-boost-utility
