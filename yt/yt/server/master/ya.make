@@ -451,6 +451,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/server_program
     yt/yt/library/monitoring
+    yt/yt/library/tracing/jaeger
 
     yt/yt/ytlib/distributed_throttler
 
