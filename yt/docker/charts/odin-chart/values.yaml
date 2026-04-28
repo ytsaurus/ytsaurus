@@ -317,6 +317,10 @@ config:
       displayName: Scheduler Alerts Jobs Archivation
       enable: true
       config: {}
+    scheduler_alerts_nodes_with_insufficient_resource_limits:
+      displayName: Scheduler Alerts Nodes With Insufficient Resource Limits
+      enable: true
+      config: {}
     scheduler_alerts_update_fair_share:
       displayName: Scheduler Alerts Update Fair Share
       enable: true

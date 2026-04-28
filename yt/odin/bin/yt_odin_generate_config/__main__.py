@@ -172,6 +172,7 @@ CHECKS_LIST = [
     "scheduler",
     "scheduler_alerts",
     "scheduler_alerts_jobs_archivation",
+    "scheduler_alerts_nodes_with_insufficient_resource_limits",
     "scheduler_alerts_update_fair_share",
     "scheduler_uptime",
     "sort_result",
