@@ -33,6 +33,8 @@ TYqlPluginOptions ConvertToOptions(
         .SolomonGatewayConfig = ConvertToYsonString(config->SolomonGatewayConfig),
         .DqManagerConfig = config->EnableDQ ? ConvertToYsonString(config->DQManagerConfig) : TYsonString(),
         .FileStorageConfig = ConvertToYsonString(config->FileStorageConfig),
+        .TvmConfig = ConvertToYsonString(config->TvmConfig),
+        .YtAccessProviderConfig = ConvertToYsonString(config->YtAccessProviderConfig),
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),
         .Libraries = ConvertToYsonString(config->Libraries),
         .YTTokenPath = config->YTTokenPath,

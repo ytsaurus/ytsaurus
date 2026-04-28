@@ -176,6 +176,12 @@ struct TYqlPluginConfig
     //! Fields from NYql::TFileStorageConfig with snake case keys.
     NYTree::INodePtr FileStorageConfig;
 
+    //! Fields from NYql::TYtTvmConfig with snake case keys.
+    NYTree::INodePtr TvmConfig;
+
+    //! Fields from NYql::TYtAccessProviderConfig with snake case keys.
+    NYTree::INodePtr YtAccessProviderConfig;
+
     NYTree::INodePtr OperationAttributes;
 
     THashMap<TString, TString> Libraries;

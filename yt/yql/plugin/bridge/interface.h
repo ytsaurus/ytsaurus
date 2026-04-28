@@ -41,6 +41,12 @@ struct TBridgeYqlPluginOptions
     const char* FileStorageConfig = nullptr;
     size_t FileStorageConfigLength = 0;
 
+    const char* TvmConfig = nullptr;
+    size_t TvmConfigLength = 0;
+
+    const char* YtAccessProviderConfig = nullptr;
+    size_t YtAccessProviderConfigLength = 0;
+
     const char* OperationAttributes = nullptr;
     size_t OperationAttributesLength = 0;
 

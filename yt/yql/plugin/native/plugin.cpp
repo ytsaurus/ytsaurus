@@ -411,6 +411,22 @@ public:
 
             FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
 
+            NYql::TYtTvmConfig tvmConfig;
+            tvmConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.TvmConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtTvmConfig>(),
+                protobufWriterOptions));
+
+            TvmClient_ = CreateTvmClient(tvmConfig);
+
+            NYql::TYtAccessProviderConfig ytAccessProviderConfig;
+            ytAccessProviderConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.YtAccessProviderConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtAccessProviderConfig>(),
+                protobufWriterOptions));
+
+            YtAccessProvider_ = CreateYtAccessProvider(TvmClient_, ytAccessProviderConfig);
+
             FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
                 NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
             const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
@@ -931,6 +947,8 @@ private:
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
+    NYql::ITvmClient::TPtr TvmClient_;
+    NYql::IYtAccessProvider::TPtr YtAccessProvider_;
 
     std::atomic<TLangVersion> MaxYqlLangVersion_;
     TLangVersion MaxYqlLangVersionInitial_;
@@ -1068,8 +1086,8 @@ private:
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
-        ytServices.TvmClient = CreateTvmClient(dynamicConfig.GatewaysConfig.GetYt());
-        ytServices.YtAccessProvider = CreateYtAccessProvider(ytServices.TvmClient, dynamicConfig.GatewaysConfig.GetYt());
+        ytServices.TvmClient = TvmClient_;
+        ytServices.YtAccessProvider = YtAccessProvider_;
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
