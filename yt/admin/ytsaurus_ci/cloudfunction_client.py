@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import curlify
 import requests
+import json
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -64,4 +65,4 @@ class CloudFunctionClient:
         response = self._session.send(req)
         response.raise_for_status()
 
-        return response.json()
+        return json.loads(response.json()["body"])

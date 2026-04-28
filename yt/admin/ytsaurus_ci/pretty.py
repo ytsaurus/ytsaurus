@@ -40,7 +40,7 @@ def print_job_info(data, job_id):
         click.echo()
         click.secho("  Operator:", bold=True)
         _print_component(operator.get("operator", {}))
-        click.secho(f"    {'Helm:':<12}", nl=False)
+        click.secho(f"    {'Helm:':<15}", nl=False)
         click.secho(operator.get("helm_url", "—"), fg="bright_black")
 
     failed = data.get("failed_checks", [])
@@ -63,14 +63,14 @@ def _format_duration(data):
     if not from_str or not to_str:
         return "—"
 
-    t0 = datetime.strptime(from_str, "%Y-%m-%dT%H:%M:%SZ")
-    t1 = datetime.strptime(to_str, "%Y-%m-%dT%H:%M:%SZ")
+    t0 = datetime.fromisoformat(from_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    t1 = datetime.fromisoformat(to_str.replace("Z", "+00:00")).replace(tzinfo=None)
     minutes = int((t1 - t0).total_seconds() // 60)
     return f"{t0.strftime('%Y-%m-%d %H:%M')} → {t1.strftime('%H:%M')} ({minutes}m)"
 
 
 def _print_component(c):
-    click.secho(f"    {c.get('name', '—'):<12}", nl=False, bold=True)
+    click.secho(f"    {c.get('name', '—'):<15}", nl=False, bold=True)
     click.secho(f"{c.get('branch', '—'):<8}", nl=False)
     click.secho(f"v{c.get('version', '—'):<10}", nl=False, fg="cyan")
     click.secho(f"({c.get('revision', '—')[:7]}, {c.get('commit_date', '—')})", fg="bright_black")
