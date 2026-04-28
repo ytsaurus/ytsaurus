@@ -285,6 +285,14 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
 
     operation->SetEnabled(false);
 
+    // NB(severovv): We remove disabled all operation assignments during dry-run to
+    // avoid preempting them during allocation plan update and crashing the scheduler
+    for (const auto& assignment : GetItems(operation->Assignments())) {
+        if (IsAssignmentPreliminary(assignment)) {
+            RemoveAssignment(assignment);
+        }
+    }
+
     YT_LOG_DEBUG("Operation disabled (OperationId: %v)", operation->GetId());
 }
 

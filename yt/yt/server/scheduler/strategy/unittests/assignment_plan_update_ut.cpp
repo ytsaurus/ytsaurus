@@ -1,7 +1,12 @@
+#include "mocks.h"
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.h>
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update_context_detail.h>
+
+#include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
+#include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -2407,6 +2412,77 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOpportunisticOperationLimits)
 
     ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
     ASSERT_EQ(1, std::ssize(operations[1]->Assignments()));
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(severovv): move to separate gpu_scheduling_policy_ut.cpp
+class TOperationNotInPoolTreeTest
+    : public TGpuAllocationAssignmentPlanUpdateTest
+{
+protected:
+    TPoolTreeSnapshotPtr CreateEmptyTreeSnapshot()
+    {
+        auto treeConfig = New<TStrategyTreeConfig>();
+        auto strategyHost = New<NTestMocks::TSchedulerStrategyHostMock>();
+        auto poolTreeElementHost = New<NTestMocks::TPoolTreeElementHostMock>(treeConfig);
+        auto rootElement = New<TPoolTreeRootElement>(
+            strategyHost.Get(),
+            poolTreeElementHost.Get(),
+            treeConfig,
+            "default",
+            Logger);
+        return New<TPoolTreeSnapshot>(
+            TTreeSnapshotId::Create(),
+            TInstant{},
+            std::move(rootElement),
+            /*enabledOperationMap*/ TNonOwningOperationElementMap{},
+            /*disabledOperationMap*/ TNonOwningOperationElementMap{},
+            /*poolMap*/ TNonOwningPoolElementMap{},
+            std::move(treeConfig),
+            /*controllerConfig*/ nullptr,
+            /*resourceUsage*/ TJobResources{},
+            /*resourceLimits*/ TJobResources{},
+            /*nodeAddresses*/ TNodeIdToAddress{},
+            /*schedulingPolicyState*/ nullptr,
+            /*resourceLimitsByTagFilter*/ TJobResourcesByTagFilter{});
+    }
+};
+
+TEST_F(TOperationNotInPoolTreeTest, TestAssignmentPlanUpdateForAbsentOperation)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    auto operation = CreateSingleGroupTestOperationWithExtraResources(
+        UnitResources,
+        /*allocationCount*/ 1,
+        UnitResources,
+        /*extraAllocationCount*/ 1);
+
+    auto operationsMap = MakeOperationMap({operation});
+    auto nodesMap = MakeNodeMap(nodes);
+    auto treeSnapshot = CreateEmptyTreeSnapshot();
+
+    TAssignmentHandler assignmentHandler(Logger);
+    TAssignmentPlanUpdateContext context(
+        Logger,
+        operationsMap,
+        nodesMap,
+        treeSnapshot,
+        assignmentHandler);
+
+    context.UpdatePreemptionStatuses();
+    context.FillOperationUsage();
+    context.PreemptLimitViolatingOperations();
+    for (const auto& [_, currentOperation] : operationsMap) {
+        context.UpdateOperationResources(currentOperation);
+    }
+
+    EXPECT_TRUE(context.Operations().empty());
+    EXPECT_TRUE(operation->ExtraGroupedNeededResources().empty());
+    EXPECT_TRUE(operation->ReadyToAssignGroupedNeededResources().empty());
+
+    DoAllocationAssignmentPlanUpdate(&context);
 }
 
 

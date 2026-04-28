@@ -98,7 +98,11 @@ private:
 
     TDynamicAttributesList AttributesList_;
 
-    TPoolTreeOperationElement* GetOperationElement(const TOperationPtr& operation) const;
+    const TOperationMap SchedulableOperations_;
+
+    TOperationMap FilterOperationsWithElement(const TOperationMap& operations) const;
+
+    TPoolTreeOperationElement* FindOperationElement(const TOperationPtr& operation) const;
 
     void UpdatePreemptionStatus(
         const TOperationPtr& operation,

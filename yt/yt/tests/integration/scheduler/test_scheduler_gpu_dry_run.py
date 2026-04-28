@@ -4,11 +4,16 @@ import time
 
 import pytest
 
+import yt.yson as yson
+
+from yt.test_helpers import are_almost_equal
+
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
     NODES_SERVICE,
     SCHEDULERS_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
 )
 
 from yt_commands import (
@@ -1677,5 +1682,62 @@ class TestDryRunGpuSchedulingPolicyMultiModule(YTEnvSetup):
 
         update_pool_tree_config_option("gpu", "gpu_scheduling_policy/module_reconsideration_timeout", 5000)
         wait_for_assignments_in_gpu_policy_orchid(op, 2)
+
+    @authors("severovv")
+    def test_assignment_plan_update_after_controller_restart(self):
+        # profiler updates only after assignment plan update
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu"})
+        enabled_operations_counter = profiler.gauge("scheduler/gpu_policy/enabled_operations_count")
+
+        # this operation will have normal resources, but will not be scheduled
+        _ = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_tag_filter": "unschedulable"},
+            job_count=4,
+        )
+
+        # this operation will have extra unscheduled resources
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=10,
+        )
+
+        wait_for_operations_in_gpu_policy_orchid(operation_count=2)
+
+        # wait for plan update to complete and set extra resources
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=8)
+
+        # with controller agent disabled
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            # wait for operation to get disabled in gpu policy
+            wait(lambda: not get_operation_from_gpu_policy_orchid(op)['enabled'])
+            # wait for plan update to see operations disabled
+            wait(lambda: enabled_operations_counter.get() == 0)
+
+            # freeze snapshot with op disabled
+            wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id, "gpu") + "/detailed_dominant_fair_share/total"), 0))
+            update_scheduler_config("fair_share_update_period", 60000)
+
+        # wait for operation to get enabled (but not in snapshot)
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)['enabled'])
+
+        # wait for plan update to see enabled operations
+        wait(lambda: enabled_operations_counter.get() == 2)
+
+    @authors("severovv")
+    def test_disable_operation_clears_pending_assignments(self):
+        # This test verifies that pending assignments (without AllocationId)
+        # are removed when DisableOperation is called during controller restart.
+
+        pending_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait_for_assignments_in_gpu_policy_orchid(pending_op, assignment_count=1)
+        wait(lambda: get_operation_from_gpu_policy_orchid(pending_op)["assignments"][0]["allocation_id"] == yson.YsonEntity())
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: not get_operation_from_gpu_policy_orchid(pending_op)["enabled"])
+            wait(lambda: len(get_operation_from_gpu_policy_orchid(pending_op)["assignments"]) == 0)
+
 
 ##################################################################
