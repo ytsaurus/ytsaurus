@@ -121,7 +121,7 @@ public:
         return Bootstrap_->GetMasterConnector()->IsUp();
     }
 
-    const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
+    TObjectServiceDynamicConfigPtr GetDynamicConfig() const
     {
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
@@ -302,6 +302,7 @@ public:
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
+        , DynamicConfig_(Owner_->GetDynamicConfig())
         , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
@@ -362,6 +363,8 @@ private:
     };
     std::vector<TSubrequest> Subrequests_;
 
+    const TObjectServiceDynamicConfigPtr DynamicConfig_;
+
     const NLogging::TLogger Logger;
 
     void GuardedRun()
@@ -369,7 +372,7 @@ private:
         ValidateUserNotBanned();
         ParseSubrequests();
 
-        if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
+        if (!DynamicConfig_->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
         } else {
@@ -613,7 +616,7 @@ private:
                 NObjectServer::ComputeForwardingTimeout(
                     *RpcContext_->GetTimeout(),
                     RpcContext_->GetStartTime(),
-                    Owner_->GetDynamicConfig()->ForwardedRequestTimeoutReserve));
+                    DynamicConfig_->ForwardedRequestTimeoutReserve));
         }
 
         // Copy some header extensions.
