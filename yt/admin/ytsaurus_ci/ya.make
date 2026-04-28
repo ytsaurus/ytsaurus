@@ -11,6 +11,8 @@ PY_SRCS(
     ghcr.py
     MAIN main.py
     models.py
+    pretty.py
+    enums.py
     scenario_processor.py
 )
 
