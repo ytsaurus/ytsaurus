@@ -18,11 +18,13 @@ RECURSE(
     yt/wrapper/bin
 
     yt/cli
+    yt/admin
 
     yt/data/pandas
 
     client
     client_lite
+    client_with_admin
     client_with_rpc
 )
 

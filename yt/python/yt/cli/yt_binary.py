@@ -33,6 +33,9 @@ try:
 except ImportError:
     HAS_IDM_CLI_HELPERS = False
 
+from yt.admin.describe import add_describe_parser
+from yt.admin.logs_k8s import add_logs_parser
+
 try:
     from yt.packages.six import PY3, iteritems
     from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
@@ -2566,6 +2569,12 @@ def add_admin_parser(root_subparsers):
 
     # switch leader
     add_switch_leader_parser(admin_subparsers)
+
+    # describe
+    add_describe_parser(admin_subparsers)
+
+    # logs
+    add_logs_parser(admin_subparsers)
 
 
 def add_dirtable_parser(root_subparsers):
