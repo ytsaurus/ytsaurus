@@ -11,6 +11,7 @@ from yt.admin.ytsaurus_ci import compatibility_graph
 from yt.admin.ytsaurus_ci import component_registry
 from yt.admin.ytsaurus_ci import consts
 from yt.admin.ytsaurus_ci import ghcr
+from yt.admin.ytsaurus_ci import pretty
 from yt.admin.ytsaurus_ci import scenario_processor
 
 
@@ -160,6 +161,20 @@ def run_scenario(
                 color = "red"
 
             click.secho(content, fg=color)
+
+
+@cli.command()
+@click.option("--job-id", type=str, required=True, help="Id of the job to get info for")
+@click.option("--cloud-function-token", type=str, required=False, default="")
+def job_info(job_id, cloud_function_token):
+    client = cloudfunction_client.CloudFunctionClient(
+        cloudfunction_client.YCFunctionAuth(
+            cloud_function_token=cloud_function_token,
+        )
+    )
+
+    content = client.get_task_info(job_id)
+    pretty.print_job_info(content, job_id)
 
 
 def main():
