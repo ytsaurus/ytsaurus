@@ -53,6 +53,11 @@ DEFINE_ENUM(EThrottlerTrafficType,
     (Rps)
 );
 
+DEFINE_ENUM(EGpuFlavor,
+    (Nvidia)
+    (Other)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;
