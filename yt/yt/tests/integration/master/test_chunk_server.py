@@ -361,19 +361,20 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
 
     @authors("gritukan")
-    def test_historically_non_vital(self):
+    @pytest.mark.parametrize("replication_factor", [1, 2])
+    def test_historically_non_vital_simple(self, replication_factor):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
 
         assert not get(f"#{chunk_id}/@historically_non_vital")
 
-        set("//tmp/t/@replication_factor", 1)
+        set("//tmp/t/@replication_factor", replication_factor)
         wait(lambda: get(f"#{chunk_id}/@historically_non_vital"))
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replication_factor)
 
-        node = get(f"#{chunk_id}/@stored_replicas")[0]
-        set_node_banned(node, True)
+        for node in get(f"#{chunk_id}/@stored_replicas"):
+            set_node_banned(node, True)
 
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert get("//sys/@lost_vital_chunk_count") == 0

@@ -2662,6 +2662,9 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
+    // COMPAT(aleksandra-zh)
+    bool RecomputeHistoricallyNonVital_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -5604,6 +5607,8 @@ private:
         } else {
             Load(context, SequoiaChunkPurgatory_);
         }
+
+        RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -5659,6 +5664,10 @@ private:
                 runner.Add(chunk);
 
                 UpdateChunkCount(chunk, +1);
+
+                if (RecomputeHistoricallyNonVital_ && !IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex())) {
+                    chunk->SetHistoricallyNonVital(true);
+                }
             }
 
             runner.Run([] (TChunk* chunk) {
@@ -5822,6 +5831,7 @@ private:
         DefaultStoreMedium_ = nullptr;
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
+        RecomputeHistoricallyNonVital_ = false;
     }
 
     void SetZeroState() override

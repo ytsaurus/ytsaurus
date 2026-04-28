@@ -508,7 +508,7 @@ class TestMedia(YTEnvSetup):
                 "primary_medium": self.NON_DEFAULT_MEDIUM,
                 "media": {
                     self.NON_DEFAULT_MEDIUM: {
-                        "replication_factor": 2,
+                        "replication_factor": 3,
                         "data_parts_only": False,
                     }
                 },
@@ -521,7 +521,7 @@ class TestMedia(YTEnvSetup):
                 "primary_medium": self.NON_DEFAULT_TRANSIENT_MEDIUM,
                 "media": {
                     self.NON_DEFAULT_TRANSIENT_MEDIUM: {
-                        "replication_factor": 2,
+                        "replication_factor": 3,
                         "data_parts_only": False,
                     }
                 },
@@ -535,8 +535,8 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda:
-                len(get("#{0}/@stored_replicas".format(chunk1))) == 2
-                and len(get("#{0}/@stored_replicas".format(chunk2))) == 2)
+                len(get("#{0}/@stored_replicas".format(chunk1))) == 3
+                and len(get("#{0}/@stored_replicas".format(chunk2))) == 3)
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))

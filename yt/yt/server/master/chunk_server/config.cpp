@@ -45,6 +45,14 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("repair_queue_balancer_weight_decay_factor", &TThis::RepairQueueBalancerWeightDecayFactor)
         .Default(0.5);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
+            THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
+                << TErrorAttribute("max_replication_factor", config->MaxReplicationFactor)
+                << TErrorAttribute("min_vital_replication_factor", MinVitalReplicationFactor);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +79,14 @@ void TDomesticMediumConfig::Register(TRegistrar registrar)
         .Default(std::numeric_limits<int>::max());
     registrar.Parameter("prefer_local_host_for_dynamic_tables", &TThis::PreferLocalHostForDynamicTables)
         .Default(true);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
+            THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
+                << TErrorAttribute("max_replication_factor", config->MaxReplicationFactor)
+                << TErrorAttribute("min_vital_replication_factor", MinVitalReplicationFactor);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
