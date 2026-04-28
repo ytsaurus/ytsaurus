@@ -29,7 +29,8 @@ class TGpuSlot
 public:
     TGpuSlot(
         TGpuManagerPtr manager,
-        int deviceIndex);
+        int deviceIndex,
+        TString deviceName);
 
     TString GetDeviceName() const;
     int GetDeviceIndex() const;
@@ -41,6 +42,7 @@ public:
 private:
     const TGpuManagerPtr Manager_;
     const int DeviceIndex_;
+    const TString DeviceName_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuSlot)
@@ -94,14 +96,15 @@ class TGpuManager
 public:
     explicit TGpuManager(IBootstrap* bootstrap);
 
-    void Initialize();
+    void Start();
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
     bool HasGpuDevices() const;
 
-    const std::vector<TString>& GetGpuDevices() const;
+    std::vector<TGpuDeviceDescriptor> GetGpuDevices() const;
+    int GetGpuDeviceCount() const;
     THashMap<int, NGpu::TGpuInfo> GetGpuInfoMap() const;
 
     std::vector<NGpu::TRdmaDeviceInfo> GetRdmaDevices() const;
@@ -128,6 +131,7 @@ public:
     bool ShouldTestExtraGpuCheckCommandFailure() const;
     bool ShouldTestLayers() const;
     bool ShouldTestSetupCommands() const;
+    EGpuFlavor GetGpuFlavor() const;
 
 private:
     static inline const NGpu::TNetworkPriority DefaultNetworkPriority = 0;
@@ -141,12 +145,13 @@ private:
     const NConcurrency::TPeriodicExecutorPtr RdmaDeviceInfoUpdateExecutor_;
     const NConcurrency::TPeriodicExecutorPtr TestGpuInfoUpdateExecutor_;
 
-    std::vector<TString> GpuDevices_;
+    std::atomic<int> GpuDeviceCount_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> GpuDeviceIndices_;
     THashSet<int> LostGpuDeviceIndices_;
+    std::vector<TGpuDeviceDescriptor> GpuDevices_;
 
     std::vector<NGpu::TRdmaDeviceInfo> RdmaDevices_;
 
@@ -188,6 +193,8 @@ private:
     void OnTestGpuInfoUpdate();
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;
+
+    bool ShouldDiscoverNewGpuDevices() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)

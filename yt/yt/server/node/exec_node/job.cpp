@@ -2309,10 +2309,10 @@ std::vector<TDevice> TJob::GetGpuDevices() const
     auto gpuSlots = GetGpuSlots();
 
     std::vector<TDevice> devices;
-    for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
+    for (const auto& device : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
         bool deviceFound = false;
         for (const auto& gpuSlot : gpuSlots) {
-            if (gpuSlot->GetDeviceName() == deviceName) {
+            if (gpuSlot->GetDeviceIndex() == device.DeviceIndex) {
                 deviceFound = true;
                 break;
             }
@@ -2322,7 +2322,7 @@ std::vector<TDevice> TJob::GetGpuDevices() const
         if (!deviceFound && !Bootstrap_->GetGpuManager()->ShouldTestResource()) {
             // Exclude device explicitly.
             devices.emplace_back(TDevice{
-                .DeviceName = deviceName,
+                .DeviceName = device.DeviceName,
                 .Access = "-"
             });
         }
@@ -2334,7 +2334,7 @@ std::vector<TDevice> TJob::GetGpuDevices() const
 bool TJob::IsFullHostGpuJob() const
 {
     const auto& gpuSlots = GetGpuSlots();
-    return !gpuSlots.empty() && gpuSlots.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
+    return !gpuSlots.empty() && std::ssize(gpuSlots) == Bootstrap_->GetGpuManager()->GetGpuDeviceCount();
 }
 
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)

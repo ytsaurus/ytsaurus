@@ -474,6 +474,10 @@ struct TGpuManagerConfig
 
     TGpuManagerTestingConfigPtr Testing;
 
+    bool UseGpuInfoProviderForDeviceDiscovery;
+
+    EGpuFlavor GpuFlavor;
+
     REGISTER_YSON_STRUCT(TGpuManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -506,6 +510,8 @@ struct TGpuManagerDynamicConfig
 
     bool EnableNetworkServiceLevel;
     TDuration ApplyNetworkServiceLevelTimeout;
+
+    std::optional<bool> UseGpuInfoProviderForDeviceDiscovery;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 
