@@ -15,6 +15,7 @@ import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
+import tech.ytsaurus.client.request.AttachTransaction;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CommitTransaction;
@@ -117,6 +118,12 @@ public interface ApiServiceClient extends TransactionalClient {
     @Deprecated
     default CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
         return startTransaction(options.toStartTransaction());
+    }
+
+    CompletableFuture<ApiServiceTransaction> attachTransaction(AttachTransaction req);
+
+    default CompletableFuture<ApiServiceTransaction> attachTransaction(GUID id) {
+        return attachTransaction(AttachTransaction.builder(id).build());
     }
 
     CompletableFuture<Void> pingTransaction(PingTransaction req);
