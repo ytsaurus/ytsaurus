@@ -3409,6 +3409,20 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t4", "//tmp/dir1/t1", force=True)
         assert get("//tmp/dir1/t1/@chunk_merger_mode") == "deep"
 
+    @authors("kvk1920")
+    def test_effective_inheritable_attributes_bundle(self):
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+
+        create("table", "//tmp/a/b/t1", recursive=True, attributes={"tablet_cell_bundle": "b1"})
+
+        set("//tmp/a/@tablet_cell_bundle", "b2")
+
+        create("table", "//tmp/a/b/t2", attributes={"tablet_cell_bundle": "b1"})
+
+        assert get("//tmp/a/b/t1/@tablet_cell_bundle") == "b1"
+        assert get("//tmp/a/b/t2/@tablet_cell_bundle") == "b1"
+
     @authors("kvk1920", "h0pless")
     def test_effective_inheritable_attributes_attribute(self):
         create("map_node", "//tmp/grandparent")
