@@ -284,4 +284,52 @@ TSelectRowsOptions GetDefaultSelectRowsOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDuration InvalidateMountCacheAndGetRetryDelay(
+    const IClientPtr& client,
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    const TLogger& Logger,
+    const TError& error,
+    int* retryCount)
+{
+    const auto& config = client->GetNativeConnection()->GetStaticConfig();
+    const auto& tableMountCache = client->GetNativeConnection()->GetTableMountCache();
+
+    auto invalidationResult = tableMountCache->InvalidateOnError(
+        error,
+        /*forceRetry*/ false);
+
+    YT_LOG_INFO(error, "ERRORCODE (5) invalidationResult (Retryable: %v, ErrorCode: %v, RetryCount: %v, OnErrorRetryCount: %v)",
+        invalidationResult.Retryable, invalidationResult.ErrorCode,
+        *retryCount, config->TableMountCache->OnErrorRetryCount);
+
+    TDuration timeToWait;
+    if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {
+        YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
+            *retryCount,
+            config->TableMountCache->OnErrorRetryCount);
+
+        if (!invalidationResult.TableInfoUpdatedFromError) {
+            auto now = Now();
+            const auto& tabletInfo = invalidationResult.TabletInfo;
+            auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
+                config->TableMountCache->OnErrorSlackPeriod;
+            if (retryTime > now) {
+                timeToWait = retryTime - now;
+            }
+        }
+
+        if (profilingInfo) {
+            profilingInfo->RetryReasons.push_back(invalidationResult.ErrorCode);
+        }
+
+        return timeToWait;
+    }
+
+    YT_LOG_INFO(error, "ERRORCODE (6) throwing error (RetryCount: %v)", *retryCount);
+
+    THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

@@ -4,6 +4,7 @@
 #include "client.h"
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "tablet_request_batcher.h"
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -25,6 +26,24 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsRetryableFirstBatchError(const TError& error)
+{
+    static const THashSet<TErrorCode> retryableCodes = {
+        NTabletClient::EErrorCode::NoSuchTablet,
+        NTabletClient::EErrorCode::TestingFailureBeforeWrite,
+    };
+
+    return error.FindMatching(retryableCodes).has_value();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCommitSession
@@ -43,10 +62,10 @@ public:
         , Config_(Client_->GetNativeConnection()->GetConfig())
         , Options_(std::move(options))
         , Transaction_(std::move(transaction))
+        , CellCommitSession_(cellCommitSessionProvider->GetOrCreateCellCommitSession(tabletInfo->CellId))
+        , Logger(logger.WithTag("TabletId: %v", tabletInfo->TabletId))
         , TabletInfo_(std::move(tabletInfo))
         , TableInfo_(std::move(tableInfo))
-        , CellCommitSession_(cellCommitSessionProvider->GetOrCreateCellCommitSession(TabletInfo_->CellId))
-        , Logger(logger.WithTag("TabletId: %v", TabletInfo_->TabletId))
     {
         auto maxRowsPerTablet = Client_->GetOptions().GetAuthenticatedUser() == NSecurityClient::ReplicatorUserName
             ? std::nullopt
@@ -160,10 +179,11 @@ private:
     const TConnectionDynamicConfigPtr Config_;
     const TTabletCommitOptions Options_;
     const TWeakPtr<TTransaction> Transaction_;
-    const TTabletInfoPtr TabletInfo_;
-    const TTableMountInfoPtr TableInfo_;
     const ICellCommitSessionPtr CellCommitSession_;
     const TLogger Logger;
+
+    TTabletInfoPtr TabletInfo_;
+    TTableMountInfoPtr TableInfo_;
 
     std::optional<THunkChunksInfo> HunkChunksInfo_;
 
@@ -183,6 +203,7 @@ private:
 
     struct TCommitContext final
     {
+        int LocalRetryIndex = 0;
         int RetryIndex;
         int BatchIndex = 0;
         IChannelPtr CellChannel;
@@ -292,20 +313,141 @@ private:
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));
     }
 
+    TFuture<void> InvalidateTableMountCache(
+        TCommitContextPtr commitContext,
+        const TError& firstBatchError)
+    {
+        try {
+            // May throw if retry count limit is exceeded.
+            auto delay = InvalidateMountCacheAndGetRetryDelay(
+                Client_,
+                /*profilingInfo*/ nullptr,
+                Logger,
+                firstBatchError,
+                &commitContext->LocalRetryIndex);
+
+            if (delay) {
+                return TDelayedExecutor::MakeDelayed(delay);
+            }
+
+            return OKFuture;
+        } catch (const std::exception& ex) {
+            return MakeFuture(firstBatchError << TErrorAttribute("retry_skip_reason", "retry_limit_exceeded"));
+        }
+    }
+
+    TError ProcessUpdatedMountInfo(TTableMountInfoPtr tableMountInfo, const TError& firstBatchError)
+    {
+        auto newTabletInfo = tableMountInfo->FindTabletById(TabletInfo_->TabletId);
+        if (!newTabletInfo) {
+            YT_LOG_DEBUG("Cannot retry sending transaction rows because updated mount info does not contain this tablet");
+            return firstBatchError << TErrorAttribute("retry_skip_reason", "no_such_tablet");
+        }
+
+        // TODO(alexelexa): Compare logical mount revision here.
+        if (newTabletInfo->MountRevision != TabletInfo_->MountRevision) {
+            YT_LOG_DEBUG("Cannot retry sending transaction rows because mount revision changed "
+                "(OldMountRevision: %v, NewMountRevision: %v)",
+                TabletInfo_->MountRevision,
+                newTabletInfo->MountRevision);
+            return firstBatchError << TErrorAttribute("retry_skip_reason", "mount_revision_changed");
+        }
+
+        if (TabletInfo_->CellId != newTabletInfo->CellId) {
+            YT_LOG_DEBUG("Cannot retry sending transaction rows because tablet has moved to different cell "
+                "(OldCellId: %v, NewCellId: %v)",
+                TabletInfo_->CellId,
+                newTabletInfo->CellId);
+            return firstBatchError << TErrorAttribute("retry_skip_reason", "tablet_moved");
+        }
+
+        TabletInfo_ = std::move(newTabletInfo);
+        TableInfo_ = std::move(tableMountInfo);
+        return {};
+    }
+
+    void OnFirstBatchRetryFailed(
+        TCommitContextPtr commitContext,
+        TError firstBatchError,
+        std::string retrySkipReason = {},
+        TError maybeAnnotatedError = {})
+    {
+        if (maybeAnnotatedError.Attributes().Contains("retry_skip_reason")) {
+            firstBatchError = maybeAnnotatedError;
+        }
+
+        if (!firstBatchError.Attributes().Contains("retry_skip_reason")) {
+            YT_VERIFY(!retrySkipReason.empty());
+            firstBatchError <<= TErrorAttribute("retry_skip_reason", std::move(retrySkipReason));
+        }
+
+        HandleErrorOrInvokeNextBatch(commitContext, firstBatchError);
+    }
+
+    void RetrySendingFirstBatch(
+        TCommitContextPtr commitContext,
+        const TError& firstBatchError)
+    {
+        InvalidateTableMountCache(commitContext, firstBatchError)
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& rsp) {
+                if (!rsp.IsOK()) {
+                    OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_invalidate_mount_cache", rsp);
+                    return;
+                }
+
+                try {
+                    Client_->GetTableMountCache()->GetTableInfo(TableInfo_->Path)
+                        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTableMountInfoPtr>& tableMountInfo) {
+                            if (!tableMountInfo.IsOK()) {
+                                YT_LOG_DEBUG(tableMountInfo, "Cannot retry sending transaction rows because updating mount info failed");
+                                OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_update_mount_info");
+                                return;
+                            }
+
+                            auto error = ProcessUpdatedMountInfo(tableMountInfo.Value(), firstBatchError);
+                            if (!error.IsOK()) {
+                                OnFirstBatchRetryFailed(commitContext, error);
+                                return;
+                            }
+
+                            InvokeNextBatch(commitContext);
+                        }));
+                } catch (const std::exception& ex) {
+                    OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_update_mount_info");
+                }
+            }));
+    }
+
     void OnResponse(
         TCommitContextPtr commitContext,
         const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
     {
-        if (!rspOrError.IsOK()) {
-            auto error = TError("Error sending transaction rows")
+        if (!rspOrError.IsOK() &&
+            commitContext->BatchIndex == 0 &&
+            commitContext->RetryIndex == 0 &&
+            commitContext->LocalRetryIndex < Config_->LocalTabletWriteRetryCount &&
+            IsRetryableFirstBatchError(rspOrError))
+        {
+            RetrySendingFirstBatch(commitContext, rspOrError);
+            return;
+        }
+
+        HandleErrorOrInvokeNextBatch(commitContext, rspOrError);
+    }
+
+    void HandleErrorOrInvokeNextBatch(
+        TCommitContextPtr commitContext,
+        const TError& error)
+    {
+        if (!error.IsOK()) {
+            auto wrappedError = TError("Error sending transaction rows")
                 << TErrorAttribute("table_id", TableInfo_->TableId)
                 << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
                 << TErrorAttribute("cell_id", TabletInfo_->CellId)
                 << TErrorAttribute("batch_index", commitContext->BatchIndex)
-                << rspOrError;
-            YT_LOG_DEBUG(error);
-            Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
-            commitContext->CommitPromise.Set(error);
+                << error;
+            Client_->GetTableMountCache()->InvalidateOnError(wrappedError, /*forceRetry*/ true);
+            commitContext->CommitPromise.Set(wrappedError);
             return;
         }
 

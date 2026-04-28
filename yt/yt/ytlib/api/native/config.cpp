@@ -532,6 +532,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(3);
 
+    registrar.Parameter("local_tablet_write_retry_count", &TThis::LocalTabletWriteRetryCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
+
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
         .Default(false);
 
