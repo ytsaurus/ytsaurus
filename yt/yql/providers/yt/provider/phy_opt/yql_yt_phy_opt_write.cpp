@@ -285,7 +285,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::YtDqProcessWrite(TExprB
 
             const auto cluster = input.Cast<TYtReadTable>().DataSource().Cluster().StringValue();
             TMaybeNode<TCoSecureParam> secParams;
-            if (State_->ResolveClusterToken(cluster)) {
+            if (YtUnspecifiedCluster != cluster && State_->ResolveClusterToken(cluster)) {
                 secParams = Build<TCoSecureParam>(ctx, node.Pos()).Name().Build(TString("cluster:default_").append(cluster)).Done();
             }
 
