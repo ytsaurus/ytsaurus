@@ -8,7 +8,7 @@ def run_check(yt_client, logger, options, states):
         logger,
         options,
         states,
-        skip_alert_types=("jobs_archivation", "update_fair_share", "nodes_with_insufficient_resource_limits"),
+        include_alert_types=("nodes_with_insufficient_resource_limits",),
     )
 
 
