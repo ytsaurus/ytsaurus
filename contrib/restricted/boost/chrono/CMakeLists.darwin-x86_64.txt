@@ -33,7 +33,6 @@ target_link_libraries(restricted-boost-chrono PUBLIC
   restricted-boost-mpl
   restricted-boost-predef
   restricted-boost-ratio
-  restricted-boost-static_assert
   restricted-boost-system
   restricted-boost-throw_exception
   restricted-boost-type_traits
