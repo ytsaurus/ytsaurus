@@ -500,7 +500,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         value = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
         assert value == [{"key": 1, "value": {"a": 3}}, {"key": 2, "value": {"h": 25, "q": 1}}]
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "grphil")
     def test_aggregate_stored_replica_set(self):
         sync_create_cells(1)
         schema = [
@@ -510,12 +510,29 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         create_dynamic_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
-            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]],
-            []
-        ])}], aggregate=True)
+        insert_rows("//tmp/t", [
+            {
+                "key": 1,
+                "value": yson.YsonList([
+                    [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]],
+                    []
+                ])
+            },
+            {
+                "key": 2,
+                "value": yson.YsonList([
+                    [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(1)],
+                     [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)]],
+                    [],
+                ])
+            }], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == [
+            [yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(1)],
+            [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)],
+        ]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
@@ -537,6 +554,27 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         ])}], aggregate=True)
 
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == []
+
+        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
+            [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)]],
+            [],
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)], [yson.YsonUint64(2), 2, yson.YsonUint64(2), yson.YsonUint64(2)]]
+
+        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
+            [],
+            [[yson.YsonUint64(2), 2, yson.YsonUint64(2)]]
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
+        assert value == [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(2)]]
+
+        insert_rows("//tmp/t", [{"key": 2, "value": yson.YsonList([
+            [],
+            [[yson.YsonUint64(1), 1, yson.YsonUint64(1), yson.YsonUint64(3)]]
+        ])}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
         assert value == []
 
     @authors("aleksandra-zh")

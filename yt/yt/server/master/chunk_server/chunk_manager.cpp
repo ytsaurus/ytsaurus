@@ -3656,7 +3656,7 @@ private:
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         // COMPAT(cherepashka): remove this after 25.4.
-        THashMap<TChunkId, std::vector<TChunkReplicaWithLocationIndex>> sequoiaChunkReplicas;
+        THashMap<TChunkId, std::vector<TChunkReplicaWithLocationIndexAndState>> sequoiaChunkReplicas;
         for (const auto& request : requests) {
             auto chunkId = FromProto<TChunkId>(request.chunk_id());
 
@@ -3684,10 +3684,11 @@ private:
                     locationIndex = location->GetIndex();
                 }
 
-                TChunkReplicaWithLocationIndex replicaWithLocationIndex(
+                TChunkReplicaWithLocationIndexAndState replicaWithLocationIndex(
                     nodeId,
                     replica.GetReplicaIndex(),
-                    locationIndex);
+                    locationIndex,
+                    IsJournalChunkId(chunkId) ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
                 sequoiaChunkReplicas[chunkId].push_back(replicaWithLocationIndex);
             }
         }
@@ -3727,7 +3728,8 @@ private:
                     *chunkConfirmation->mutable_schema_id() = request.schema_id();
 
                     auto it = sequoiaChunkReplicas.find(chunkId);
-                    const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndex>() : it->second;
+                    const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndexAndState>() : it->second;
+
                     NRecords::TUnapprovedChunkReplicas chunkReplicas{
                         .Key = {
                             .ChunkId = chunkId,
@@ -3787,7 +3789,7 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, config);
 
-        std::vector<TChunkReplicaWithLocationIndex> sequoiaReplicas;
+        std::vector<TChunkReplicaWithLocationIndexAndState> sequoiaReplicas;
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
@@ -3812,10 +3814,11 @@ private:
                 locationIndex = location->GetIndex();
             }
 
-            TChunkReplicaWithLocationIndex replicaWithLocationIndex(
+            TChunkReplicaWithLocationIndexAndState replicaWithLocationIndex(
                 nodeId,
                 replica.GetReplicaIndex(),
-                locationIndex);
+                locationIndex,
+                IsJournalChunkId(chunkId) ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
             sequoiaReplicas.push_back(replicaWithLocationIndex);
         }
 

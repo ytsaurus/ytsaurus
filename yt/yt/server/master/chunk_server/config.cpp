@@ -569,10 +569,6 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
             regularStoreConfig->AllowExtraMasterReplicasDuringValidation = config->CompatAllowExtraMasterReplicasDuringValidation;
             config->BlobReplicasStoreConfig = regularStoreConfig;
         }
-
-        if (config->JournalReplicasStoreConfig->StoreInSequoia) {
-            THROW_ERROR_EXCEPTION("Journal chunk replicas are not supported in Sequoia");
-        }
     });
 }
 

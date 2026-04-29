@@ -31,6 +31,7 @@ using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NObjectServer;
 
 using namespace NSequoiaClient;
 
@@ -106,8 +107,8 @@ private:
 
     struct TReplicaList
     {
-        std::vector<TChunkReplicaWithLocationIndex> AddedReplicas;
-        std::vector<TChunkReplicaWithLocationIndex> RemovedReplicas;
+        std::vector<TChunkReplicaWithLocationIndexAndState> AddedReplicas;
+        std::vector<TChunkReplicaWithLocationIndexAndState> RemovedReplicas;
     };
 
     THashSet<TChunkId> ChunksWithMediumChange_;
@@ -170,12 +171,13 @@ private:
             return;
         }
 
-        TChunkReplicaWithLocationIndex replica(
+        auto replica = TChunkReplicaWithLocationIndexAndState(
             NodeId_,
             chunkIdWithIndex.ReplicaIndex,
             locationIndex);
 
         if constexpr (chunkAdded) {
+            replica.ReplicaState = GetAddedChunkReplicaState(chunkId, chunkInfo);
             ModifiedReplicas_[chunkId].AddedReplicas.push_back(replica);
         } else {
             ModifiedReplicas_[chunkId].RemovedReplicas.push_back(replica);
@@ -217,7 +219,7 @@ private:
                 .NodeId = NodeId_,
                 .LocationIndex = locationIndex,
                 .ChunkId = chunkId,
-                .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
+                .ReplicaIndex = static_cast<i8>(chunkIdWithIndex.ReplicaIndex)
             };
             removedReplicasKeys.push_back(locationReplicaKey);
             YT_LOG_TRACE("Preparing removed Sequoia replicas keys (ChunkId: %v, ReplicaIndex: %v, LocationIndex: %v)",
@@ -291,31 +293,45 @@ private:
     {
         auto existingReplicas = LookupExistingReplicasInReplacedLocation();
 
-        THashSet<TChunkIdWithIndex> existingReplicasSet;
-        existingReplicasSet.reserve(existingReplicas.size());
+        THashMap<TChunkIdWithIndex, EChunkReplicaState> existingReplicaStates;
+        existingReplicaStates.reserve(existingReplicas.size());
 
         auto locationIndex = ReplaceLocationRequest_->location_index();
 
         for (const auto& replica : existingReplicas) {
-            existingReplicasSet.emplace(replica.Key.ChunkId, replica.Key.ReplicaIndex);
+            EmplaceOrCrash(
+                existingReplicaStates,
+                TChunkIdWithIndex(replica.Key.ChunkId, replica.Key.ReplicaIndex),
+                replica.ReplicaState);
         }
+
+        int changedReplicas = 0;
 
         for (const auto& chunkInfo : ReplaceLocationRequest_->chunks()) {
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-            if (!existingReplicasSet.contains(chunkIdWithIndex)) {
-                GatherModifiedChunkReplica(chunkInfo);
 
+            if (auto it = existingReplicaStates.find(chunkIdWithIndex); it != existingReplicaStates.end()) {
+                if (it->second != GetAddedChunkReplicaState(chunkIdWithIndex.Id, chunkInfo)) {
+                    // Replicas with changed states should be processed the same way as added replicas.
+                    GatherModifiedChunkReplica(chunkInfo);
+                    // Chunk may be needed for master chunk refresh.
+                    Request_->add_added_chunks()->CopyFrom(chunkInfo);
+                    ++changedReplicas;
+                }
+                existingReplicaStates.erase(chunkIdWithIndex);
+            } else if (!existingReplicaStates.contains(chunkIdWithIndex)) {
+                GatherModifiedChunkReplica(chunkInfo);
                 // Chunk may be needed for master chunk refresh.
                 Request_->add_added_chunks()->CopyFrom(chunkInfo);
             } else {
-                existingReplicasSet.erase(chunkIdWithIndex);
+                existingReplicaStates.erase(chunkIdWithIndex);
             }
         }
 
-        // We need to remove all existing replicas that were not reported, which means that existingReplicasSet set still contains them.
+        // We need to remove all existing replicas that were not reported, which means that existingReplicaStates set still contains them.
         for (const auto& replica : existingReplicas) {
             auto chunkIdWithIndex = TChunkIdWithIndex(replica.Key.ChunkId, replica.Key.ReplicaIndex);
-            if (existingReplicasSet.contains(chunkIdWithIndex)) {
+            if (existingReplicaStates.contains(chunkIdWithIndex)) {
                 TChunkRemoveInfo chunkInfo;
                 ToProto(chunkInfo.mutable_chunk_id(), EncodeChunkId(chunkIdWithIndex));
                 chunkInfo.set_location_index(locationIndex);
@@ -328,11 +344,13 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Gathered replaced location Sequoia replicas difference (NodeId: %v, LocationIndex: %v, AddedReplicas: %v, RemovedReplicas: %v)",
+            "Gathered replaced location Sequoia replicas difference "
+            "(NodeId: %v, LocationIndex: %v, AddedReplicas: %v, RemovedReplicas: %v, ChangedReplicas: %v)",
             NodeId_,
             locationIndex,
             Request_->added_chunks_size(),
-            Request_->removed_chunks_size());
+            Request_->removed_chunks_size(),
+            changedReplicas);
 
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::GatherReplacedLocationReplicasDifference].Add(Timer_.GetElapsedTime());
         Timer_.Restart();
@@ -386,8 +404,8 @@ private:
 
             YT_LOG_TRACE("Sequoia chunk replicas changed (ChunkId: %v, StoredReplicasDiff: %v, LastSeenReplicasDiff: %v)",
                 chunkId,
-                MakeFormattableView(chunkModifiedReplicas.AddedReplicas, TChunkReplicaWithLocationIndexFormatter()),
-                MakeFormattableView(chunkModifiedReplicas.RemovedReplicas, TChunkReplicaWithLocationIndexFormatter()));
+                MakeFormattableView(chunkModifiedReplicas.AddedReplicas, TChunkReplicaWithLocationIndexAndStateFormatter()),
+                MakeFormattableView(chunkModifiedReplicas.RemovedReplicas, TChunkReplicaWithLocationIndexAndStateFormatter()));
 
             YT_VERIFY(chunkModifiedReplicas.AddedReplicas.size() + chunkModifiedReplicas.RemovedReplicas.size() > 0);
             Transaction_->WriteRow(
@@ -402,9 +420,9 @@ private:
                         .NodeId = NodeId_,
                         .LocationIndex = addedReplica.LocationIndex,
                         .ChunkId = chunkId,
-                        .ReplicaIndex = addedReplica.ReplicaIndex,
+                        .ReplicaIndex = static_cast<i8>(addedReplica.ReplicaIndex),
                     },
-                    .Fake = true,
+                    .ReplicaState = addedReplica.ReplicaState,
                 };
                 Transaction_->WriteRow(locationReplica);
             }
@@ -415,7 +433,7 @@ private:
                     .NodeId = NodeId_,
                     .LocationIndex = removedReplica.LocationIndex,
                     .ChunkId = chunkId,
-                    .ReplicaIndex = removedReplica.ReplicaIndex,
+                    .ReplicaIndex = static_cast<i8>(removedReplica.ReplicaIndex),
                 };
                 Transaction_->DeleteRow(locationReplicaKey);
             }

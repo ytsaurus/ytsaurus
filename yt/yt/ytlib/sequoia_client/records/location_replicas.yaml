@@ -5,6 +5,15 @@ types:
     table_group: location_replicas_table
     type_name: TLocationReplicas
     fields:
+      {% if version >= 4 %}
+      - cpp_name: ChunkIdHash
+        cpp_type: ui64
+        column_name: chunk_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(chunk_id) % 16
+      {% endif %}
+
       - cpp_name: CellTag
         cpp_type: NObjectClient::TCellTag
         column_name: cell_tag
@@ -29,6 +38,18 @@ types:
         column_type: String
         sort_order: Ascending
 
+      {% if version >= 4 %}
+      - cpp_name: ReplicaIndex
+        cpp_type: i8
+        column_name: replica_index
+        column_type: Int8
+        sort_order: Ascending
+
+      - cpp_name: ReplicaState
+        cpp_type: NChunkClient::EChunkReplicaState
+        column_name: replica_state
+        column_type: Int8
+      {% else %}
       - cpp_name: ReplicaIndex
         cpp_type: i32
         column_name: replica_index
@@ -40,6 +61,7 @@ types:
         column_name: fake
         column_type: Boolean
         aggregate: first
+      {% endif %}
 
     verbatim: |
         static constexpr auto Table = ESequoiaTable::LocationReplicas;
