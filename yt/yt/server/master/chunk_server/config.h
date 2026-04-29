@@ -850,8 +850,11 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
-    // COMPAT(grphil)
     bool AlwaysFetchNonOnlineReplicas;
+
+    // COMPAT(grphil)
+    bool RefreshNodeOnRegistered;
+    bool RefreshNodeOnOnline;
 
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;
