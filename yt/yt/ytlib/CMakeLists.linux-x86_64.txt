@@ -30,6 +30,7 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(admin)
 add_subdirectory(discovery_client)
 add_subdirectory(query_tracker_client)
 add_subdirectory(distributed_throttler)
@@ -105,105 +106,12 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-query-secondary_index
   yt-library-vector_hdrf
   library-web_assembly-api
+  yt-ytlib-admin
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
   flow-lib-client
   flow-lib-native_client
-)
-
-target_proto_messages(yt-yt-ytlib PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/admin/proto/admin_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_writer_statistics.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_nbd_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/location_indexes.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/coverage/proto/coverage.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/cell_directory.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/hive_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/user_directory.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/input_query.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/acl.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/row_level_security.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_partition_cookie.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/proto/tablet_balancer_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_ypath.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/action.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_plugin/proto/yql_plugin.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_client/proto/shuffle_service.proto
 )
 
 target_sources(yt-yt-ytlib PRIVATE
@@ -677,8 +585,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.pb.h
@@ -768,6 +674,98 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_plugin/proto/yql_plugin.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/shuffle_client/proto/shuffle_service.pb.h
+)
+
+target_proto_messages(yt-yt-ytlib PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/ban_client/proto/ban_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_writer_statistics.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_nbd_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/location_indexes.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/coverage/proto/coverage.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/cell_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/hive_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/user_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/input_query.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/acl.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/row_level_security.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_partition_cookie.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_balancer_client/proto/tablet_balancer_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/bulk_insert_locking.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/action.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_plugin/proto/yql_plugin.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/shuffle_client/proto/shuffle_service.proto
 )
 
 
@@ -1900,6 +1898,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-query-secondary_index
   yt-library-vector_hdrf
   library-web_assembly-api
+  yt-ytlib-admin
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client

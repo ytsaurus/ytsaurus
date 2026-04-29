@@ -8,9 +8,6 @@ INCLUDE(../ya_check_dependencies.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    admin/proto/admin_service.proto
-    admin/proto/restart_service.proto
-
     api/connection.cpp
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
@@ -839,6 +836,7 @@ PEERDIR(
     yt/yt/library/query/secondary_index
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api
+    yt/yt/ytlib/admin
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client
