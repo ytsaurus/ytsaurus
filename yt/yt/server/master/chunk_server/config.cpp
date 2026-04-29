@@ -967,10 +967,15 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(100)
         .DontSerializeDefault();
 
-    // COMPAT(grphil)
     registrar.Parameter("always_fetch_non_online_replicas", &TThis::AlwaysFetchNonOnlineReplicas)
         .Default(true)
         .DontSerializeDefault();
+
+    registrar.Parameter("refresh_node_on_registered", &TThis::RefreshNodeOnRegistered)
+        .Default(true);
+
+    registrar.Parameter("refresh_node_on_online", &TThis::RefreshNodeOnOnline)
+        .Default(false);
 
     registrar.Parameter("update_historically_non_vital_in_unexport", &TThis::UpdateHistoricallyNonVitalInUnexport)
         .Default(false)
@@ -988,6 +993,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         // COMPAT(aleksandra-zh).
         if (config->SequoiaChunkReplicas->Enable && config->ChunkRefreshDelay < config->ReplicaApproveTimeout) {
             config->ChunkRefreshDelay = config->ReplicaApproveTimeout;
+        }
+
+        if (!config->AlwaysFetchNonOnlineReplicas && !config->RefreshNodeOnOnline) {
+            THROW_ERROR_EXCEPTION("Can not disable always_fetch_non_online_replicas without online node refresh");
         }
     });
 }
