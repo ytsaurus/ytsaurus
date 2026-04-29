@@ -31,7 +31,6 @@ target_link_libraries(restricted-boost-proto INTERFACE
   restricted-boost-mpl
   restricted-boost-preprocessor
   restricted-boost-range
-  restricted-boost-static_assert
   restricted-boost-type_traits
   restricted-boost-typeof
   restricted-boost-utility
