@@ -31,6 +31,7 @@ target_link_libraries(essentials-minikql-computation PUBLIC
   essentials-public-udf
   public-udf-arrow
   essentials-minikql-arrow
+  essentials-minikql-runtime_settings
 )
 
 target_sources(essentials-minikql-computation PRIVATE

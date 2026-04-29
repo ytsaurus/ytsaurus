@@ -1796,6 +1796,27 @@
             "uri": "https://{canondata_backend}/1916746/32c6f461ff556d71931136bc6999a39f67a5eebf/resource.tar.gz#test.test_produce-reduce_with_python_row--Results_/results.txt"
         }
     ],
+    "test.test[runtime_features-runtime_feature_basic--Debug]": [
+        {
+            "checksum": "dd42753a2e4d89cd3881694cf86483aa",
+            "size": 352,
+            "uri": "https://{canondata_backend}/1814674/4d9b68d8fc736dd774a764aae8a378b40063a855/resource.tar.gz#test.test_runtime_features-runtime_feature_basic--Debug_/opt.yql"
+        }
+    ],
+    "test.test[runtime_features-runtime_feature_basic--Plan]": [
+        {
+            "checksum": "b4dd508a329723c74293d80f0278c705",
+            "size": 505,
+            "uri": "https://{canondata_backend}/1814674/4d9b68d8fc736dd774a764aae8a378b40063a855/resource.tar.gz#test.test_runtime_features-runtime_feature_basic--Plan_/plan.txt"
+        }
+    ],
+    "test.test[runtime_features-runtime_feature_basic--Results]": [
+        {
+            "checksum": "967c739a4e2379f52ec12cf22cff51ce",
+            "size": 1379,
+            "uri": "https://{canondata_backend}/1814674/4d9b68d8fc736dd774a764aae8a378b40063a855/resource.tar.gz#test.test_runtime_features-runtime_feature_basic--Results_/results.txt"
+        }
+    ],
     "test.test[sampling-bind_topsort-default.txt-Debug]": [
         {
             "checksum": "b52afe8c79aabbd505128cbd4319f2ff",
