@@ -1457,6 +1457,78 @@ protected:
     { }
 };
 
+TEST_F(TRefineKeyRangeTest, Yt28005)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
+
+    {
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("hash", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression("farm_hash(first) % 1"),
+            TColumnSchema("second", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("third", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("first", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("fourth", EValueType::Int64)
+                .SetRequired(true),
+        });
+
+        auto inferredRanges = GetPrunedRanges(
+            nullptr,
+            schema,
+            schema->GetKeyColumns(),
+            {},
+            MakeSingletonRowRange(NTableClient::MinKey(), NTableClient::MaxKey()),
+            rowBuffer,
+            columnEvaluatorCache,
+            GetBuiltinRangeExtractors(),
+            TQueryOptions{.RangeExpansionLimit = 200000},
+            GetDefaultMemoryChunkProvider(),
+            /*forceLightRangeInference*/ false);
+
+        EXPECT_EQ(1, columnEvaluatorCache->GetSize());
+    }
+
+    {
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("hash", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression("farm_hash(first) % 1"),
+            TColumnSchema("first", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("third", EValueType::String)
+                .SetRequired(true),
+            TColumnSchema("second", EValueType::Int64)
+                .SetRequired(true),
+            TColumnSchema("fourth", EValueType::Int64)
+                .SetRequired(true),
+        });
+
+        GetPrunedRanges(
+            nullptr,
+            schema,
+            schema->GetKeyColumns(),
+            {},
+            MakeSingletonRowRange(NTableClient::MinKey(), NTableClient::MaxKey()),
+            rowBuffer,
+            columnEvaluatorCache,
+            GetBuiltinRangeExtractors(),
+            TQueryOptions{.RangeExpansionLimit = 200000},
+            GetDefaultMemoryChunkProvider(),
+            /*forceLightRangeInference*/ false);
+
+        EXPECT_EQ(2, columnEvaluatorCache->GetSize());
+    }
+}
+
 TEST_P(TInferRangesTest, Stress)
 {
     // 1. Generate expression.

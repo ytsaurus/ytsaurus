@@ -4,9 +4,11 @@
 #include "llvm_folding_set.h"
 #include "functions_cg.h"
 
+#include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
@@ -53,6 +55,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (AggregateItem)
 
     (TableSchema)
+    (TableSchemaColumn)
     (FinalMode)
     (MergeMode)
     (TotalsMode)
@@ -168,14 +171,29 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
 {
     const auto& columns = tableSchema->Columns();
     Fold(EFoldingObjectType::TableSchema);
+
     for (int index = 0; index < std::ssize(columns); ++index) {
+        Fold(EFoldingObjectType::TableSchemaColumn);
+
         const auto& column = columns[index];
         Fold(static_cast<ui8>(column.GetWireType()));
+        Fold(column.Expression().has_value());
+        Fold(column.Aggregate().has_value());
+        Fold(column.Required());
 
-        int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
-        Fold(aux);
         if (column.Expression()) {
             Fold(column.Expression()->c_str());
+
+            auto parsedExpression = ParseSource(*column.Expression(), EParseMode::Expression);
+            TColumnSet referencedColumns;
+            NAst::TReferenceHarvester(&referencedColumns).Visit(
+                std::get<NAst::TExpressionPtr>(parsedExpression->AstHead.Ast));
+
+            for (int index = 0; index < std::ssize(columns); ++index) {
+                if (referencedColumns.contains(columns[index].Name())) {
+                    Fold(index);
+                }
+            }
         }
         if (column.Aggregate()) {
             Fold(column.Aggregate()->c_str());

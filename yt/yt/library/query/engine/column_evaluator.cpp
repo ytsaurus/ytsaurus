@@ -298,6 +298,11 @@ public:
         TSyncSlruCacheBase::Reconfigure(config->CGCache);
     }
 
+    i64 GetSize() const override
+    {
+        return TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>::GetSize();
+    }
+
 private:
     const TConstTypeInferrerMapPtr TypeInferrers_;
     const TConstFunctionProfilerMapPtr Profilers_;

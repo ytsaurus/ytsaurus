@@ -1634,6 +1634,49 @@ TEST_F(TComputedColumnTest, Null)
     }
 }
 
+TEST_F(TComputedColumnTest, EvaluatedColumnCollision)
+{
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
+
+    {
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("id_hash", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression("farm_hash(id0) % 100"),
+            TColumnSchema("id0", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("id1", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        columnEvaluatorCache->Find(schema);
+
+        EXPECT_EQ(1, columnEvaluatorCache->GetSize());
+    }
+
+    {
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("id_hash", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression("farm_hash(id0) % 100"),
+            TColumnSchema("id1", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("id0", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        columnEvaluatorCache->Find(schema);
+
+        EXPECT_EQ(2, columnEvaluatorCache->GetSize());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
