@@ -368,8 +368,9 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         assert _run_and_get_action()["kind"] == "move"
 
     @authors("atalmenev")
-    def test_inplace_reshard(self):
-        sync_create_cells(1)
+    @pytest.mark.parametrize("cell_count", [1, 2])
+    def test_inplace_reshard(self, cell_count):
+        cell_ids = sync_create_cells(cell_count)
 
         existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
 
@@ -377,22 +378,43 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             "pick_reshard_pivot_keys": True,
         })
 
-        def _get_singular_new_action_id():
+        def _run_and_get_actions(desired_tablet_count, expected_action_count=1):
             nonlocal existing_action_ids
 
-            def _has_new_action():
+            config = get("//tmp/t/@tablet_balancer_config")
+            config.update({
+                "enable_auto_reshard": True,
+                "desired_tablet_count": desired_tablet_count,
+            })
+            set("//tmp/t/@tablet_balancer_config", config)
+
+            new_action_ids = None
+
+            def _has_enough_actions():
+                nonlocal new_action_ids
+                all_action_ids = builtins.set(ls("//sys/tablet_actions"))
+                diff = all_action_ids - existing_action_ids
+                if len(diff) >= expected_action_count:
+                    new_action_ids = diff
+                    return True
                 self._wait_full_iteration()
-                new_action_ids = builtins.set(ls("//sys/tablet_actions"))
-                diff = new_action_ids - existing_action_ids
-                return len(diff) == 1
+                return False
 
-            wait(_has_new_action)
+            wait(_has_enough_actions)
+            existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
+            set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
 
-            new_action_ids = builtins.set(ls("//sys/tablet_actions"))
-            diff = new_action_ids - existing_action_ids
-            existing_action_ids = new_action_ids
+            def _check_action(action_id):
+                action = get(f"#{action_id}/@", attributes=["kind", "state", "error", "inplace_reshard"])
+                return action["state"] in ("completed", "failed"), action
 
-            return diff.pop()
+            actions = []
+            for action_id in new_action_ids:
+                wait(lambda: _check_action(action_id)[0])
+                _, action = _check_action(action_id)
+                actions.append(action)
+
+            return actions
 
         self._create_sorted_table(
             "//tmp/t",
@@ -406,49 +428,59 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         insert_rows("//tmp/t", [{"key": key, "value": "A"} for key in range(100)])
         sync_flush_table("//tmp/t")
 
-        def _run_and_get_action(desired_tablet_count):
-            config = get("//tmp/t/@tablet_balancer_config")
-            config.update({
-                "enable_auto_reshard": True,
-                "desired_tablet_count": desired_tablet_count,
-            })
-            set("//tmp/t/@tablet_balancer_config", config)
+        if cell_count == 1:
+            # Feature config: split and merge without inplace.
+            assert not _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 2
 
-            action_id = _get_singular_new_action_id()
-            set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+            set("//sys/tablet_balancer/config/enable_inplace_split", True)
+            set("//sys/tablet_balancer/config/enable_inplace_merge", True)
 
-            action = None
+            # Merge with inplace enabled (same cell).
+            assert _run_and_get_actions(desired_tablet_count=1)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 1
 
-            def _check():
-                nonlocal action
-                action = get(f"#{action_id}/@", attributes=["kind", "state", "error", "inplace_reshard"])
-                return action["state"] == "completed"
+            # Split with inplace enabled.
+            assert _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 2
 
-            wait(_check)
+            # Feature config: disable inplace.
+            set("//sys/tablet_balancer/config/enable_inplace_split", False)
+            set("//sys/tablet_balancer/config/enable_inplace_merge", False)
 
-            return action
+            assert not _run_and_get_actions(desired_tablet_count=1)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 1
 
-        # Split
-        assert not _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 2
+            assert not _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
+            assert get("//tmp/t/@tablet_count") == 2
 
-        set("//sys/tablet_balancer/config/enable_inplace_reshard", True)
-        # Merge
-        assert not _run_and_get_action(desired_tablet_count=1)["inplace_reshard"]
+            return
+
+        # Cross-cell merge with smooth movement.
+        set("//sys/tablet_balancer/config/enable_inplace_split", True)
+        set("//sys/tablet_balancer/config/enable_inplace_merge", True)
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [50]])
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0, cell_id=cell_ids[0])
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, cell_id=cell_ids[1])
+
+        tablet_cell_ids = [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
+        assert tablet_cell_ids[0] != tablet_cell_ids[1]
+
+        config = get("//tmp/t/@tablet_balancer_config")
+        config.update({
+            "enable_smooth_movement": True,
+        })
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        actions = _run_and_get_actions(desired_tablet_count=1, expected_action_count=2)
+
+        actions_by_kind = {action["kind"]: action for action in actions}
+        assert "smooth_move" in actions_by_kind
+        assert "reshard" in actions_by_kind
+        assert actions_by_kind["reshard"]["inplace_reshard"]
         assert get("//tmp/t/@tablet_count") == 1
-
-        # Split
-        assert _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 2
-
-        set("//tmp/t/@tablet_balancer_config/enable_inplace_reshard", False)
-        # Merge
-        assert not _run_and_get_action(desired_tablet_count=1)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 1
-
-        # Split
-        assert not _run_and_get_action(desired_tablet_count=2)["inplace_reshard"]
-        assert get("//tmp/t/@tablet_count") == 2
 
     def test_many_bundles(self):
         bundles = ["default", "another", "third", "fourth"]
