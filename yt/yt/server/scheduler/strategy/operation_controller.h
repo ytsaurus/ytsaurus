@@ -128,7 +128,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NThreading::TReaderWriterSpinLock ConfigLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigLock_);
     TAtomicIntrusivePtr<TStrategyOperationControllerConfig> Config_;
 
     struct alignas(CacheLineSize) TStateShard

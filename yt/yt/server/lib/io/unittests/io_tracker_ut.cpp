@@ -318,7 +318,7 @@ TEST(TIOTrackerTest, PathAggr)
     config->PathAggregateTags = {"first@", "third@"};
     auto ioTracker = CreateIOTracker(std::move(config));
 
-    NThreading::TSpinLock lock;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
     std::vector<TIOTagList> events;
     int totalBytes = 0;
 

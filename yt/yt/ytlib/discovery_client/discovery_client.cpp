@@ -105,7 +105,7 @@ private:
     const TServerAddressPoolPtr AddressPool_;
     const TDiscoveryConnectionConfigPtr ConnectionConfig_;
 
-    NThreading::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     TDiscoveryClientConfigPtr ClientConfig_;
 };
 
