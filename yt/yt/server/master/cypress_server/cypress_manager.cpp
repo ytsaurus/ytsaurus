@@ -202,12 +202,6 @@ public:
     void Commit() noexcept override
     {
         TTransactionalNodeFactoryBase::Commit();
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        if (Transaction_) {
-            for (auto* node : CreatedNodes_) {
-                transactionManager->StageNode(Transaction_, node);
-            }
-        }
 
         const auto& portalManager = Bootstrap_->GetPortalManager();
         for (const auto& entrance : CreatedPortalEntrances_) {
@@ -260,7 +254,13 @@ public:
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
+        // It's OK to unref nodes here, because nodes also have ref from the parent node or
+        // from the branched node in case of transactions and MaterializeNode.
         ReleaseStagedObjects();
+
+        for (auto* node : CreatedNodes_) {
+            YT_VERIFY(IsObjectAlive(node));
+        }
     }
 
     void Rollback() noexcept override

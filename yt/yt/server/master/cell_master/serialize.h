@@ -185,6 +185,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateReshardComplexity)                                    (3231))  // sabdenovch
     ((FixTabletCellBundleInheritance)                               (3232))  // kvk120
     ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
+    ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
