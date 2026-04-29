@@ -236,8 +236,8 @@ private:
         THashMap<TGlobalGroupTag, i64> GroupToActionCount;
         i64 GroupLimit;
 
-        bool TryIncrease(const TGlobalGroupTag& groupTag);
-        bool CanIncrease(const TGlobalGroupTag& groupTag);
+        bool TryIncrease(const TGlobalGroupTag& groupTag, int actionCount = 1);
+        bool CanIncrease(const TGlobalGroupTag& groupTag, int actionCount = 1);
     };
 
     struct TBundleErrors
@@ -768,6 +768,7 @@ void TTabletBalancer::TryBalancerIteration()
 void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
 {
     const auto& bundleName = bundleSnapshot->Bundle->Name;
+
     auto groups = bundleSnapshot->Bundle->GetBalancingGroups();
 
     if (DynamicConfig_.Acquire()->IgnoreTabletToCellRatio) {
@@ -836,19 +837,19 @@ bool TTabletBalancer::IsBalancingAllowed(const IBundleStatePtr& bundleState) con
          bundleState->GetConfig(/*allowStale*/ true).GetOrCrash().Value()->EnableStandaloneTabletBalancer);
 }
 
-bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
+bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag, int actionCount)
 {
-    if (!CanIncrease(groupTag)) {
+    if (!CanIncrease(groupTag, actionCount)) {
         return false;
     }
 
-    ++GroupToActionCount[groupTag];
+    GroupToActionCount[groupTag] += actionCount;
     return true;
 }
 
-bool TTabletBalancer::TScheduledActionCountLimiter::CanIncrease(const TGlobalGroupTag& groupTag)
+bool TTabletBalancer::TScheduledActionCountLimiter::CanIncrease(const TGlobalGroupTag& groupTag, int actionCount)
 {
-    if (GroupToActionCount[groupTag] >= GroupLimit) {
+    if (GroupToActionCount[groupTag] + actionCount > GroupLimit) {
         YT_LOG_WARNING("Action per iteration limit exceeded (BundleName: %v, Group: %v, Limit: %v)",
             groupTag.first,
             groupTag.second,
@@ -863,7 +864,11 @@ bool TTabletBalancer::TryScheduleActionCreation(
     const TActionDescriptor& descriptor)
 {
     auto guard = WriterGuard(Lock_);
-    auto increased = ActionCountLimiter_.TryIncrease(groupTag);
+    int actionCount = 1;
+    if (const auto* reshardDescriptor = std::get_if<TReshardDescriptor>(&descriptor)) {
+        actionCount += std::ssize(reshardDescriptor->PendingTabletIds);
+    }
+    bool increased = ActionCountLimiter_.TryIncrease(groupTag, actionCount);
     if (increased) {
         ActionManager_->ScheduleActionCreation(groupTag.first, descriptor);
     }
@@ -1752,6 +1757,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
             beginIt,
             endIt,
             reshardIteration);
+        reshardIteration->AnnotateInplaceReshardDescriptors(&limitedDescriptors);
 
         for (const auto& descriptor : limitedDescriptors) {
             auto firstTablet = GetOrCrash(reshardIteration->GetBundle()->Tablets, descriptor.Tablets[0]);
@@ -1767,7 +1773,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
 
             ++actionCount;
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, "
-                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, TablePath: %v, CorrelationId: %v)",
+                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, TablePath: %v, CorrelationId: %v, PendingTabletIds: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
@@ -1775,7 +1781,8 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
                 firstTabletIndex,
                 lastTabletIndex,
                 table->Path,
-                descriptor.CorrelationId);
+                descriptor.CorrelationId,
+                descriptor.PendingTabletIds);
 
             reshardIteration->UpdateProfilingCounters(table, descriptor);
         }
