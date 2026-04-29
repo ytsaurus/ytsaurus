@@ -529,10 +529,16 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
+        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Reversed) {
+            std::reverse(allSplits.begin(), allSplits.end());
+            YT_LOG_DEBUG("Reversed tablet order for DESC scan (SplitCount: %v)", allSplits.size());
+        }
+
         std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
-        if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Ordered) {
-            // Splits are ordered by tablet bounds.
+        auto scanOrder = coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
+        if (scanOrder == EScanOrder::Ordered || scanOrder == EScanOrder::Reversed) {
+            // Splits are ordered by tablet bounds (or reversed for DESC scans).
             YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
 
             for (const auto& [dataSource, address] : allSplits) {

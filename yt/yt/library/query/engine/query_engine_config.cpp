@@ -52,6 +52,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Optional();
 
+    registrar.Parameter("allow_reverse_scan_for_order_by", &TThis::AllowReverseScanForOrderBy)
+        .Optional();
+
     registrar.Parameter("allow_heavy_range_inference_in_joins", &TThis::AllowHeavyRangeInferenceInJoins)
         .Optional();
 }

@@ -259,6 +259,44 @@ class TestExplainQuery(YTEnvSetup):
         grouped_ranges = response["query"]["grouped_ranges"]
         assert len(grouped_ranges) == 1
 
+    @authors("dtorilov")
+    def test_explain_scan_order(self):
+        sync_create_cells(1)
+
+        schema = make_schema(
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ]
+        )
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        response = explain_query("* from [//tmp/t] order by a asc limit 10")
+        assert response["query"]["scan_order"] == "ordered"
+
+        response = explain_query("* from [//tmp/t] order by b desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query("* from [//tmp/t] order by a desc, b asc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query("* from [//tmp/t] where a > 5 order by a asc limit 10")
+        assert response["query"]["scan_order"] == "ordered"
+
+        response = explain_query("* from [//tmp/t] where a between 2 and 8 order by b desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query("* from [//tmp/t] where a >= 2 and b < 5 order by a desc, b asc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query("* from [//tmp/t] where a in (1, 3, 5) order by b desc limit 10")
+        assert response["query"]["scan_order"] == "unordered"
+
+        response = explain_query("* from [//tmp/t] where c > 0 order by a asc limit 10")
+        assert response["query"]["scan_order"] == "ordered"
+
     @authors("sabdenovch")
     def test_explain_subquery(self):
         sync_create_cells(1)
