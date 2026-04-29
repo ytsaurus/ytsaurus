@@ -22,6 +22,9 @@ struct TCypressCookie
     //! Revision of password in the moment of cookie issue.
     ui64 PasswordRevision;
 
+    //! Which authentication backend issued this cookie.
+    EAuthSource AuthSource;
+
     //! Cookie expiration instant.
     TInstant ExpiresAt;
 
