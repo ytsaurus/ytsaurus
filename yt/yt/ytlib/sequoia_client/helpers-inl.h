@@ -97,6 +97,13 @@ void ParseChunkReplicas(
         consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
             parsedReplica.NodeId = NNodeTrackerClient::TNodeId(current.UncheckedAsUint64());
         });
+
+        const auto& current = cursor->GetCurrent();
+        if (current.GetType() == EYsonItemType::Uint64Value) {
+            parsedReplica.ReplicaState = NChunkClient::EChunkReplicaState(current.UncheckedAsUint64());
+            cursor->Next();
+        }
+
         consume(EYsonItemType::EndList, [] (const TYsonItem&) {});
 
         onReplica(parsedReplica);

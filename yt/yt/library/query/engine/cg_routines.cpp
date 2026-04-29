@@ -20,6 +20,8 @@
 
 #include <yt/yt/library/query/misc/allocator.h>
 
+#include <yt/yt/client/chunk_client/public.h>
+
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
@@ -3408,37 +3410,64 @@ struct TChunkReplica
     TChunkLocationIndex::TUnderlying LocationIndex;
     int ReplicaIndex;
     TNodeId::TUnderlying NodeId;
+    EChunkReplicaState ReplicaState = EChunkReplicaState::Generic;
 
     auto operator<=>(const TChunkReplica& other) const = default;
 };
 
+auto CompareReplicasWithoutState(const TChunkReplica& lhs, const TChunkReplica& rhs)
+{
+    return std::tie(lhs.LocationIndex, lhs.ReplicaIndex) <=> std::tie(rhs.LocationIndex, rhs.ReplicaIndex);
+}
+
 using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
 
-TChunkReplicaList SortUniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
+TChunkReplicaList UniteSortedReplicas(const TChunkReplicaList& storedReplicas, const TChunkReplicaList& addedReplicas)
 {
     TChunkReplicaList result;
-    result.insert(result.end(), first.begin(), first.end());
-    result.insert(result.end(), second.begin(), second.end());
+    auto it = storedReplicas.begin();
+    auto jt = addedReplicas.begin();
+    while (it < storedReplicas.end() || jt < addedReplicas.end()) {
+        auto replicasCompareResult = std::strong_ordering::equal;
+        if (it == storedReplicas.end()) {
+            replicasCompareResult = std::strong_ordering::greater;
+        } else if (jt == addedReplicas.end()) {
+            replicasCompareResult = std::strong_ordering::less;
+        } else {
+            replicasCompareResult = CompareReplicasWithoutState(*it, *jt);
+        }
 
-    SortUniqueBy(
-        result,
-        [] (const TChunkReplica& replica) {
-            return std::tie(replica.LocationIndex, replica.ReplicaIndex);
-        });
+        if (replicasCompareResult < 0) {
+            result.push_back(*it);
+            ++it;
+        } else if (replicasCompareResult > 0) {
+            result.push_back(*jt);
+            ++jt;
+        } else {
+            // We should always choose added replicas because ReplicaState may change.
+            result.push_back(*jt);
+            ++it;
+            ++jt;
+        }
+    }
 
     return result;
 }
 
-TChunkReplicaList FilterReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
+TChunkReplicaList FilterSortedReplicas(const TChunkReplicaList& storedReplicas, const TChunkReplicaList& removedReplicas)
 {
     TChunkReplicaList result;
-    auto it = first.begin();
-    auto jt = second.begin();
-    while (it < first.end()) {
-        if (jt == second.end() || *it < *jt) {
+    auto it = storedReplicas.begin();
+    auto jt = removedReplicas.begin();
+    while (it < storedReplicas.end()) {
+        auto replicasCompareResult = (jt == removedReplicas.end())
+            ? std::strong_ordering::less
+            : CompareReplicasWithoutState(*it, *jt);
+
+        if (replicasCompareResult < 0) {
             result.push_back(*it);
             ++it;
-        } else if (*jt < *it) {
+        } else if (replicasCompareResult > 0) {
             ++jt;
         } else {
             ++it;
@@ -3469,6 +3498,12 @@ TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
     replica.LocationIndex = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
     replica.ReplicaIndex = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
     replica.NodeId = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
+
+    auto current = cursor->GetCurrent();
+    if (current.GetType() == EYsonItemType::Uint64Value) {
+        replica.ReplicaState = NChunkClient::EChunkReplicaState(current.UncheckedAsUint64());
+        cursor->Next();
+    }
 
     Consume(cursor, EYsonItemType::EndList);
 
@@ -3525,19 +3560,23 @@ void DumpReplicas(IYsonConsumer* consumer, const TChunkReplicaList& replicas)
 {
     BuildYsonFluently(consumer)
         .DoListFor(replicas, [] (TFluentList fluent, const TChunkReplica& replica) {
-            fluent
+            auto replicaFluent = fluent
                 .Item()
                 .BeginList()
                     .Item().Value(replica.LocationIndex)
                     .Item().Value(replica.ReplicaIndex)
-                    .Item().Value(replica.NodeId)
-                .EndList();
+                    .Item().Value(replica.NodeId);
+
+            if (replica.ReplicaState != EChunkReplicaState::Generic) {
+                replicaFluent.Item().Value(static_cast<ui8>(replica.ReplicaState));
+            }
+            replicaFluent.EndList();
         });
 }
 
 size_t EstimateReplicasYsonLength(const TChunkReplicaList& replicas)
 {
-    return (MaxGuidStringSize + 2 * MaxVarInt64Size + 10) * replicas.size() + 10;
+    return (MaxGuidStringSize + 3 * MaxVarInt64Size + 10) * replicas.size() + 10;
 }
 
 void StoredReplicaSetMerge(
@@ -3559,8 +3598,10 @@ void StoredReplicaSetMerge(
     TChunkReplicaList replicasToRemove2;
     ParseReplicasDelta(state2, &replicasToAdd2, &replicasToRemove2);
 
+    std::ranges::sort(replicasToAdd1);
+    std::ranges::sort(replicasToAdd2);
     std::ranges::sort(replicasToRemove2);
-    auto replicasToAdd = FilterReplicas(SortUniteReplicas(replicasToAdd1, replicasToAdd2), replicasToRemove2);
+    auto replicasToAdd = FilterSortedReplicas(UniteSortedReplicas(replicasToAdd1, replicasToAdd2), replicasToRemove2);
 
     auto bufferSize = EstimateReplicasYsonLength(replicasToAdd);
     char* outputBuffer = AllocateBytes(context, bufferSize);
