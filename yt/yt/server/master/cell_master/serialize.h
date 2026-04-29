@@ -185,6 +185,9 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateReshardComplexity)                                    (3231))  // sabdenovch
     ((FixTabletCellBundleInheritance)                               (3232))  // kvk120
     ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
+
+    // 26.2 starts here.
+    ((Start_26_2)                                                   (3300))  // ermolovd
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
