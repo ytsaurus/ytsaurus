@@ -39,7 +39,7 @@ target_link_libraries(minikql-jsonpath-parser PUBLIC
   essentials-public-issue
   yql-essentials-ast
   yql-essentials-utils
-  core-issue-protos
+  public-issue-protos
   parser-proto_ast-antlr3
   proto_ast-gen-jsonpath
   tools-enum_parser-enum_serialization_runtime
