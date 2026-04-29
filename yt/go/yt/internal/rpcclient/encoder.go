@@ -795,6 +795,108 @@ func (e *Encoder) RemoveQueueProducerSession(
 	return e.Invoke(ctx, call, &rsp)
 }
 
+func (e *Encoder) PullQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.PullQueueConsumerOptions,
+) (r yt.TableReader, result *yt.PullQueueConsumerResult, err error) {
+	if opts == nil {
+		opts = &yt.PullQueueConsumerOptions{}
+	}
+
+	req := &rpc_proxy.TReqPullQueueConsumer{
+		ConsumerPath:   []byte(consumerPath.String()),
+		QueuePath:      []byte(queuePath.String()),
+		Offset:         opts.Offset,
+		PartitionIndex: opts.PartitionIndex,
+		RowBatchReadOptions: &rpc_proxy.TRowBatchReadOptions{
+			MaxRowCount:          opts.MaxRowCount,
+			MaxDataWeight:        opts.MaxDataWeight,
+			DataWeightPerRowHint: opts.DataWeightPerRowHint,
+		},
+	}
+
+	call := e.newCall(MethodPullQueueConsumer, NewPullQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspPullQueueConsumer
+	r, err = e.InvokeReadRow(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	result = &yt.PullQueueConsumerResult{
+		StartOffset: rsp.GetStartOffset(),
+	}
+	return
+}
+
+func (e *Encoder) AdvanceQueueConsumer(
+	ctx context.Context,
+	consumerPath ypath.Path,
+	queuePath ypath.Path,
+	opts *yt.AdvanceQueueConsumerOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.AdvanceQueueConsumerOptions{}
+	}
+
+	req := &rpc_proxy.TReqAdvanceQueueConsumer{
+		TransactionId:  getTxID(opts.TransactionOptions),
+		ConsumerPath:   []byte(consumerPath.String()),
+		QueuePath:      []byte(queuePath.String()),
+		PartitionIndex: opts.PartitionIndex,
+		OldOffset:      opts.OldOffset,
+		NewOffset:      opts.NewOffset,
+	}
+
+	call := e.newCall(MethodAdvanceQueueConsumer, NewAdvanceQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspAdvanceQueueConsumer
+	return e.Invoke(ctx, call, &rsp)
+}
+
+func (e *Encoder) RegisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.RegisterQueueConsumerOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.RegisterQueueConsumerOptions{}
+	}
+
+	req := &rpc_proxy.TReqRegisterQueueConsumer{
+		QueuePath:    []byte(queuePath.String()),
+		ConsumerPath: []byte(consumerPath.String()),
+		Vital:        opts.Vital,
+	}
+
+	if len(opts.Partitions) > 0 {
+		req.Partitions = &rpc_proxy.TReqRegisterQueueConsumer_TRegistrationPartitions{
+			Items: opts.Partitions,
+		}
+	}
+
+	call := e.newCall(MethodRegisterQueueConsumer, NewRegisterQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspRegisterQueueConsumer
+	return e.Invoke(ctx, call, &rsp)
+}
+
+func (e *Encoder) UnregisterQueueConsumer(
+	ctx context.Context,
+	queuePath ypath.Path,
+	consumerPath ypath.Path,
+	opts *yt.UnregisterQueueConsumerOptions,
+) (err error) {
+	req := &rpc_proxy.TReqUnregisterQueueConsumer{
+		QueuePath:    []byte(queuePath.String()),
+		ConsumerPath: []byte(consumerPath.String()),
+	}
+
+	call := e.newCall(MethodUnregisterQueueConsumer, NewUnregisterQueueConsumerRequest(req), nil)
+	var rsp rpc_proxy.TRspUnregisterQueueConsumer
+	return e.Invoke(ctx, call, &rsp)
+}
+
 func (e *Encoder) InsertRowBatch(
 	ctx context.Context,
 	path ypath.Path,

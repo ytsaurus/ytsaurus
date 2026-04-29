@@ -1988,6 +1988,117 @@ func (r RemoveQueueProducerSessionRequest) Path() (string, bool) {
 	return string(r.GetProducerPath()), false
 }
 
+type PullQueueConsumerRequest struct {
+	*rpc_proxy.TReqPullQueueConsumer
+}
+
+func NewPullQueueConsumerRequest(r *rpc_proxy.TReqPullQueueConsumer) *PullQueueConsumerRequest {
+	return &PullQueueConsumerRequest{TReqPullQueueConsumer: r}
+}
+
+func (r PullQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("consumer_path", string(r.GetConsumerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
+	}
+	if v := r.GetOffset(); v != 0 {
+		fields = append(fields, log.Int64("offset", v))
+	}
+	if v := r.GetPartitionIndex(); v != 0 {
+		fields = append(fields, log.Int32("partition_index", v))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqPullQueueConsumer)
+	return fields
+}
+
+func (r PullQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetConsumerPath()), false
+}
+
+var _ TransactionalRequest = (*AdvanceQueueConsumerRequest)(nil)
+
+type AdvanceQueueConsumerRequest struct {
+	*rpc_proxy.TReqAdvanceQueueConsumer
+}
+
+func NewAdvanceQueueConsumerRequest(r *rpc_proxy.TReqAdvanceQueueConsumer) *AdvanceQueueConsumerRequest {
+	return &AdvanceQueueConsumerRequest{TReqAdvanceQueueConsumer: r}
+}
+
+func (r AdvanceQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("consumer_path", string(r.GetConsumerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
+	}
+	if v := r.GetPartitionIndex(); v != 0 {
+		fields = append(fields, log.Int32("partition_index", v))
+	}
+	if v := r.GetOldOffset(); v != 0 {
+		fields = append(fields, log.Int64("old_offset", v))
+	}
+	if v := r.GetNewOffset(); v != 0 {
+		fields = append(fields, log.Int64("new_offset", v))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqAdvanceQueueConsumer)
+	return fields
+}
+
+func (r AdvanceQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetConsumerPath()), false
+}
+
+func (r *AdvanceQueueConsumerRequest) SetTxOptions(opts *TransactionOptions) {
+	if opts == nil {
+		return
+	}
+	r.TransactionId = convertTxID(opts.TransactionID)
+}
+
+type RegisterQueueConsumerRequest struct {
+	*rpc_proxy.TReqRegisterQueueConsumer
+}
+
+func NewRegisterQueueConsumerRequest(r *rpc_proxy.TReqRegisterQueueConsumer) *RegisterQueueConsumerRequest {
+	return &RegisterQueueConsumerRequest{TReqRegisterQueueConsumer: r}
+}
+
+func (r RegisterQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("queue_path", string(r.GetQueuePath())),
+		log.String("consumer_path", string(r.GetConsumerPath())),
+	}
+	if r.GetVital() {
+		fields = append(fields, log.Bool("vital", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqRegisterQueueConsumer)
+	return fields
+}
+
+func (r RegisterQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetQueuePath()), false
+}
+
+type UnregisterQueueConsumerRequest struct {
+	*rpc_proxy.TReqUnregisterQueueConsumer
+}
+
+func NewUnregisterQueueConsumerRequest(r *rpc_proxy.TReqUnregisterQueueConsumer) *UnregisterQueueConsumerRequest {
+	return &UnregisterQueueConsumerRequest{TReqUnregisterQueueConsumer: r}
+}
+
+func (r UnregisterQueueConsumerRequest) Log() []log.Field {
+	fields := []log.Field{
+		log.String("queue_path", string(r.GetQueuePath())),
+		log.String("consumer_path", string(r.GetConsumerPath())),
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqUnregisterQueueConsumer)
+	return fields
+}
+
+func (r UnregisterQueueConsumerRequest) Path() (string, bool) {
+	return string(r.GetQueuePath()), false
+}
+
 var _ TransactionalRequest = (*DeleteRowsRequest)(nil)
 
 type DeleteRowsRequest struct {

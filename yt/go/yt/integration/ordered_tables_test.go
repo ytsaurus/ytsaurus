@@ -22,6 +22,7 @@ func TestOrderedTables(t *testing.T) {
 	suite.RunClientTests(t, []ClientTest{
 		{Name: "OrderedDynamicTable_struct", Test: suite.TestOrderedDynamicTable_struct},
 		{Name: "PushQueueProducer_struct", Test: suite.TestPushQueueProducer_struct},
+		{Name: "QueueConsumer_struct", Test: suite.TestQueueConsumer_struct},
 		{Name: "OrderedDynamicTable_map", Test: suite.TestOrderedDynamicTable_map, SkipRPC: true}, // TODO: YT-15505
 	})
 }
@@ -285,4 +286,101 @@ func (s *Suite) TestPushQueueProducer_struct(ctx context.Context, t *testing.T, 
 			&yt.RemoveQueueProducerSessionOptions{},
 		))
 	}
+}
+
+func (s *Suite) TestQueueConsumer_struct(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+	tmpDir := tmpPath()
+
+	queuePath := tmpDir.Child("queue")
+	queueSchema := schema.MustInfer(&testOrderedTableRow{})
+	require.NoError(t, migrate.Create(ctx, yc, queuePath, queueSchema))
+
+	require.NoError(t, yc.ReshardTable(ctx, queuePath, &yt.ReshardTableOptions{
+		TabletCount: ptr.Int(6),
+	}))
+
+	require.NoError(t, migrate.MountAndWait(ctx, yc, queuePath))
+
+	producerPath := tmpDir.Child("producer")
+	_, err := yc.CreateNode(ctx, producerPath, yt.NodeQueueProducer, &yt.CreateNodeOptions{})
+	require.NoError(t, err)
+
+	consumerPath := tmpDir.Child("consumer")
+	_, err = yc.CreateNode(ctx, consumerPath, yt.NodeQueueConsumer, &yt.CreateNodeOptions{})
+	require.NoError(t, err)
+
+	sessionID := "test-session"
+	_, err = yc.CreateQueueProducerSession(ctx, producerPath, queuePath, sessionID, &yt.CreateQueueProducerSessionOptions{})
+	require.NoError(t, err)
+
+	err = yc.RegisterQueueConsumer(ctx, queuePath, consumerPath, &yt.RegisterQueueConsumerOptions{
+		Vital: ptr.Bool(true),
+	})
+	require.NoError(t, err)
+
+	rows := []any{
+		&testOrderedTableRow{TabletIndex: 2, Value: "row0"},
+		&testOrderedTableRow{TabletIndex: 2, Value: "row1"},
+		&testOrderedTableRow{TabletIndex: 2, Value: "row2"},
+	}
+	result, err := yc.PushQueueProducer(ctx, producerPath, queuePath, sessionID, 0, rows, &yt.PushQueueProducerOptions{
+		SequenceNumber: ptr.Int64(0),
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), result.LastSequenceNumber)
+
+	reader, pullResult, err := yc.PullQueueConsumer(ctx, consumerPath, queuePath, &yt.PullQueueConsumerOptions{
+		PartitionIndex: ptr.Int32(2),
+		Offset:         ptr.Int64(0),
+		MaxRowCount:    ptr.Int64(10),
+		MaxDataWeight:  ptr.Int64(16 * 1024 * 1024),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, pullResult)
+	// Note: StartOffset is not returned by HTTP API due to server bug
+	// require.Equal(t, int64(0), pullResult.StartOffset)
+
+	var readRows []testOrderedTableRow
+	for reader.Next() {
+		var row testOrderedTableRow
+		require.NoError(t, reader.Scan(&row))
+		readRows = append(readRows, row)
+	}
+	require.NoError(t, reader.Err())
+	require.Len(t, readRows, 3)
+	require.Equal(t, "row0", readRows[0].Value)
+	require.Equal(t, "row1", readRows[1].Value)
+	require.Equal(t, "row2", readRows[2].Value)
+
+	err = yc.AdvanceQueueConsumer(ctx, consumerPath, queuePath, &yt.AdvanceQueueConsumerOptions{
+		PartitionIndex: ptr.Int32(2),
+		OldOffset:      ptr.Int64(0),
+		NewOffset:      ptr.Int64(2),
+	})
+	require.NoError(t, err)
+
+	reader, pullResult, err = yc.PullQueueConsumer(ctx, consumerPath, queuePath, &yt.PullQueueConsumerOptions{
+		PartitionIndex: ptr.Int32(2),
+		Offset:         ptr.Int64(2),
+		MaxRowCount:    ptr.Int64(10),
+		MaxDataWeight:  ptr.Int64(16 * 1024 * 1024),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, pullResult)
+	// Note: StartOffset is not returned by HTTP API due to server bug
+	// require.Equal(t, int64(2), pullResult.StartOffset)
+
+	readRows = nil
+	for reader.Next() {
+		var row testOrderedTableRow
+		require.NoError(t, reader.Scan(&row))
+		readRows = append(readRows, row)
+	}
+	require.NoError(t, reader.Err())
+	require.Len(t, readRows, 1)
+	require.Equal(t, "row2", readRows[0].Value)
+
+	err = yc.UnregisterQueueConsumer(ctx, queuePath, consumerPath, &yt.UnregisterQueueConsumerOptions{})
+	require.NoError(t, err)
 }

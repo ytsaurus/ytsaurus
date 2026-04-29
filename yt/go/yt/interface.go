@@ -1517,6 +1517,42 @@ type TabletClient interface {
 		rowBatch RowBatch,
 		options *PushQueueProducerOptions,
 	) (result *PushQueueProducerResult, err error)
+
+	// http:verb:"pull_queue_consumer"
+	// http:params:"consumer_path","queue_path"
+	PullQueueConsumer(
+		ctx context.Context,
+		consumerPath ypath.Path,
+		queuePath ypath.Path,
+		options *PullQueueConsumerOptions,
+	) (r TableReader, result *PullQueueConsumerResult, err error)
+
+	// http:verb:"advance_queue_consumer"
+	// http:params:"consumer_path","queue_path"
+	AdvanceQueueConsumer(
+		ctx context.Context,
+		consumerPath ypath.Path,
+		queuePath ypath.Path,
+		options *AdvanceQueueConsumerOptions,
+	) error
+
+	// http:verb:"register_queue_consumer"
+	// http:params:"queue_path","consumer_path"
+	RegisterQueueConsumer(
+		ctx context.Context,
+		queuePath ypath.Path,
+		consumerPath ypath.Path,
+		options *RegisterQueueConsumerOptions,
+	) error
+
+	// http:verb:"unregister_queue_consumer"
+	// http:params:"queue_path","consumer_path"
+	UnregisterQueueConsumer(
+		ctx context.Context,
+		queuePath ypath.Path,
+		consumerPath ypath.Path,
+		options *UnregisterQueueConsumerOptions,
+	) error
 }
 
 type CreateQueueProducerSessionOptions struct {
@@ -1534,6 +1570,40 @@ type CreateQueueProducerSessionResult struct {
 	SequenceNumber int64         `yson:"sequence_number"`
 	Epoch          int64         `yson:"epoch"`
 	UserMeta       yson.RawValue `yson:"user_meta,omitempty"`
+}
+
+type PullQueueConsumerOptions struct {
+	Offset               *int64 `http:"offset,omitnil"`
+	PartitionIndex       *int32 `http:"partition_index,omitnil"`
+	MaxRowCount          *int64 `http:"max_row_count,omitnil"`
+	MaxDataWeight        *int64 `http:"max_data_weight,omitnil"`
+	DataWeightPerRowHint *int64 `http:"data_weight_per_row_hint,omitnil"`
+
+	*TimeoutOptions
+}
+
+type PullQueueConsumerResult struct {
+	StartOffset int64 `yson:"start_offset"`
+}
+
+type AdvanceQueueConsumerOptions struct {
+	PartitionIndex *int32 `http:"partition_index,omitnil"`
+	OldOffset      *int64 `http:"old_offset,omitnil"`
+	NewOffset      *int64 `http:"new_offset,omitnil"`
+
+	*TransactionOptions
+	*TimeoutOptions
+}
+
+type RegisterQueueConsumerOptions struct {
+	Vital      *bool   `http:"vital,omitnil"`
+	Partitions []int32 `http:"partitions,omitnil"`
+
+	*TimeoutOptions
+}
+
+type UnregisterQueueConsumerOptions struct {
+	*TimeoutOptions
 }
 
 type QueueClient interface {
