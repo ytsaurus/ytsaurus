@@ -140,11 +140,6 @@ struct ITransactionManager
         NObjectServer::TObject* object,
         bool recursive) = 0;
 
-    //! Registers (and references) the node with the transaction.
-    virtual void StageNode(
-        TTransaction* transaction,
-        NCypressServer::TCypressNode* trunkNode) = 0;
-
     //! Registers and references the object with the transaction.
     //! The reference is dropped if the transaction aborts
     //! but is preserved if the transaction commits.
@@ -235,6 +230,9 @@ struct ITransactionManager
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 
     virtual TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
+
+    // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions
+    bool NeedUnrefStagedNodes_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

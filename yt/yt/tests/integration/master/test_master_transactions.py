@@ -349,11 +349,6 @@ class TestMasterTransactions(YTEnvSetup):
             assert_items_equal(locked_node_ids["13"], [table_id, portal_exit_id])
             assert locked_node_ids[tx_cell_tag] == []
 
-            staged_node_ids = get("#" + tx + "/@staged_node_ids")
-            assert len(staged_node_ids) == 2
-            assert_items_equal(staged_node_ids["13"], [table_id])
-            assert staged_node_ids[tx_cell_tag] == []
-
             assert len(get("#" + tx + "/@lock_ids/13")) == 2
 
     @authors("babenko")
