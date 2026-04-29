@@ -12,12 +12,12 @@ namespace NYT::NDistributedChunkSessionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TCreateControllerCallback = TCallback<IDistributedChunkSessionControllerPtr()>;
-using TScheduleChunkSealCallback = TCallback<TFuture<void>(NChunkClient::TChunkId)>;
+using TSendChunkSealRequestCallback = TCallback<TFuture<void>(NChunkClient::TChunkId)>;
 
 struct TDistributedChunkSessionPoolTestingOptions
 {
     TCreateControllerCallback CreateController;
-    TScheduleChunkSealCallback ScheduleChunkSeal;
+    TSendChunkSealRequestCallback SendChunkSealRequest;
 };
 
 IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(

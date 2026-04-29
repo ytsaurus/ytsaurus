@@ -50,12 +50,12 @@ public:
     TDistributedChunkSessionPool(
         TDistributedChunkSessionPoolConfigPtr config,
         TCreateControllerCallback createController,
-        TScheduleChunkSealCallback scheduleChunkSeal,
+        TSendChunkSealRequestCallback sendChunkSealRequest,
         IInvokerPtr invoker,
         TLogger logger = DistributedChunkSessionLogger())
         : Config_(std::move(config))
         , CreateController_(std::move(createController))
-        , ScheduleChunkSeal_(std::move(scheduleChunkSeal))
+        , SendChunkSealRequest_(std::move(sendChunkSealRequest))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
         , Logger(std::move(logger))
     { }
@@ -122,7 +122,7 @@ private:
 
     const TDistributedChunkSessionPoolConfigPtr Config_;
     const TCreateControllerCallback CreateController_;
-    const TScheduleChunkSealCallback ScheduleChunkSeal_;
+    const TSendChunkSealRequestCallback SendChunkSealRequest_;
     const IInvokerPtr SerializedInvoker_;
     const TLogger Logger;
 
@@ -380,7 +380,7 @@ private:
         YT_LOG_DEBUG(closeError, "Session closed (SlotCookie: %v, SessionId: %v)", slotCookie, sessionId);
 
         if (auto chunkId = MaybeMarkSessionSealed(&entry)) {
-            ScheduleSeal(slotCookie, sessionId, *chunkId);
+            ScheduleChunkSeal(slotCookie, sessionId, *chunkId);
         }
     }
 
@@ -436,7 +436,7 @@ private:
 
         // TODO(apollo1321): Batch chunk seal scheduling instead of issuing one request per chunk.
         for (auto sessionId : sessionsToSeal) {
-            ScheduleSeal(slotCookie, sessionId, sessionId.ChunkId);
+            ScheduleChunkSeal(slotCookie, sessionId, sessionId.ChunkId);
         }
 
         YT_LOG_DEBUG(
@@ -463,7 +463,7 @@ private:
             sessionId);
     }
 
-    void ScheduleSeal(int slotCookie, TSessionId sessionId, TChunkId chunkId)
+    void ScheduleChunkSeal(int slotCookie, TSessionId sessionId, TChunkId chunkId)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -473,7 +473,7 @@ private:
             sessionId,
             chunkId);
 
-        ScheduleChunkSeal_(chunkId)
+        SendChunkSealRequest_(chunkId)
             .Subscribe(BIND_NO_PROPAGATE(
                 &TDistributedChunkSessionPool::OnChunkSealScheduled,
                 MakeStrong(this),
@@ -543,7 +543,7 @@ private:
 
         TDelayedExecutor::Submit(
             BIND_NO_PROPAGATE(
-                &TDistributedChunkSessionPool::ScheduleSeal,
+                &TDistributedChunkSessionPool::ScheduleChunkSeal,
                 MakeWeak(this),
                 slotCookie,
                 sessionId,
@@ -611,8 +611,8 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
             invoker);
     });
 
-    auto scheduleChunkSeal = BIND([client, chunkSealRpcTimeout, Logger] (TChunkId chunkId) {
-        YT_LOG_DEBUG("Invoking ScheduleChunkSeal RPC (ChunkId: %v)", chunkId);
+    auto sendChunkSealRequest = BIND_NO_PROPAGATE([client, chunkSealRpcTimeout, Logger] (TChunkId chunkId) {
+        YT_LOG_DEBUG("Sending chunk seal request (ChunkId: %v)", chunkId);
 
         auto channel = client->GetMasterChannelOrThrow(
             NApi::EMasterChannelKind::Leader,
@@ -627,9 +627,9 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
         auto future = req->Invoke().AsVoid();
         future.Subscribe(BIND_NO_PROPAGATE([Logger, chunkId] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_DEBUG("ScheduleChunkSeal RPC completed (ChunkId: %v)", chunkId);
+                YT_LOG_DEBUG("Chunk seal request succeeded (ChunkId: %v)", chunkId);
             } else {
-                YT_LOG_WARNING(error, "ScheduleChunkSeal RPC failed (ChunkId: %v)", chunkId);
+                YT_LOG_WARNING(error, "Chunk seal request failed (ChunkId: %v)", chunkId);
             }
         }));
 
@@ -639,7 +639,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
     return New<TDistributedChunkSessionPool>(
         std::move(config),
         std::move(createController),
-        std::move(scheduleChunkSeal),
+        std::move(sendChunkSealRequest),
         std::move(invoker),
         std::move(logger));
 }
@@ -653,7 +653,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(
     return New<TDistributedChunkSessionPool>(
         std::move(config),
         std::move(options.CreateController),
-        std::move(options.ScheduleChunkSeal),
+        std::move(options.SendChunkSealRequest),
         std::move(invoker),
         std::move(logger));
 }

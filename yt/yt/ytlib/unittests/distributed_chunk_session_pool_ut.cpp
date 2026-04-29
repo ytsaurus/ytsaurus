@@ -166,7 +166,7 @@ public:
                 .CreateController = BIND([this] {
                     return CreateController();
                 }),
-                .ScheduleChunkSeal = BIND([this] (TChunkId chunkId) {
+                .SendChunkSealRequest = BIND([this] (TChunkId chunkId) {
                     ScheduledSeals_.push_back(chunkId);
 
                     int callIndex = ScheduleChunkSealCallCount_++;
