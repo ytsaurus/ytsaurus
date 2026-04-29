@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(type_info)
 add_subdirectory(sanitizer)
-add_subdirectory(yson_pull)
 add_subdirectory(malloc)
+add_subdirectory(type_info)
+add_subdirectory(yson_pull)
 add_subdirectory(getopt)
 add_subdirectory(colorizer)
 add_subdirectory(cppparser)
