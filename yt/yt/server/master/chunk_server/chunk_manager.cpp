@@ -474,6 +474,7 @@ public:
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeOnline(BIND_NO_PROPAGATE(&TChunkManager::OnNodeOnline, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeRestarted(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRestarted, MakeWeak(this)));
         nodeTracker->SubscribeNodeHostChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeHostChanged, MakeWeak(this)));
@@ -3032,7 +3033,18 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        ScheduleNodeRefresh(node);
+        const auto& config = GetDynamicConfig();
+        if (config->RefreshNodeOnRegistered) {
+            ScheduleNodeRefresh(node);
+        }
+    }
+
+    void OnNodeOnline(TNode* node)
+    {
+        const auto& config = GetDynamicConfig();
+        if (config->RefreshNodeOnOnline) {
+            ScheduleNodeRefresh(node);
+        }
     }
 
     void OnNodeUnregisteredOrRestarted(TNode* node)
