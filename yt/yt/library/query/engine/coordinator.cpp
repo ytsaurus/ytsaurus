@@ -45,17 +45,22 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     bottomQuery->InferRanges = query->InferRanges;
     bottomQuery->IsFinal = false;
     bottomQuery->WhereClause = query->WhereClause;
+    bottomQuery->IsReverseScan = false;
 
     auto frontQuery = New<TFrontQuery>();
 
     frontQuery->GroupClause = query->GroupClause;
     frontQuery->HavingClause = query->HavingClause;
-    frontQuery->OrderClause = query->OrderClause;
+    // When the scan is reversed, tablets are read in descending key order so
+    // the merged stream is already sorted correctly. The front query only
+    // needs to apply OFFSET/LIMIT without re-sorting.
+    frontQuery->OrderClause = query->IsReverseScan ? nullptr : query->OrderClause;
     frontQuery->Offset = query->Offset;
     frontQuery->Limit = query->Limit;
     frontQuery->IsFinal = query->IsFinal;
     frontQuery->ProjectClause = query->ProjectClause;
     frontQuery->Schema = bottomQuery->GetTableSchema();
+    frontQuery->IsReverseScan = query->IsReverseScan;
 
     return {frontQuery, bottomQuery};
 }
@@ -369,11 +374,18 @@ TQueryStatistics CoordinateAndExecute(
         useAdaptiveOrderedSchemafulReader);
 
     // TODO: Use separate condition for prefetch after protocol update
-    auto topReader = (scanOrder == EScanOrder::Ordered)
-        ? (prefetch
-            ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
-            : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader))
-        : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+    ISchemafulUnversionedReaderPtr topReader;
+    switch (scanOrder) {
+        case EScanOrder::Ordered:
+        case EScanOrder::Reversed:
+            topReader = prefetch
+                ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
+                : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader);
+            break;
+        case EScanOrder::Unordered:
+            topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+            break;
+    }
 
     auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
 

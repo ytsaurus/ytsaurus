@@ -1922,6 +1922,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
                 ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
                 : false,
+            .AllowReverseScanForOrderBy = queryEngineConfig
+                ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2114,6 +2117,9 @@ NYson::TYsonString TClient::DoExplainQuery(
             .HyperLogLogPrecision = GetHyperLogLogPrecision(options.HyperLogLogPrecision),
             .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
                 ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
+                : false,
+            .AllowReverseScanForOrderBy = queryEngineConfig
+                ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
                 : false,
         },
         HeavyRequestMemoryUsageTracker_);

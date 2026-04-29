@@ -48,6 +48,8 @@ int GetConstraintSignatureScore(const std::vector<EConstraintKind>& signature);
 
 bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::string> keyColumns);
 
+bool CanReverseScanForOrderBy(TRange<TOrderItem> orderItems, TRange<std::string> keyColumns);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string ToLower(TStringBuf original);

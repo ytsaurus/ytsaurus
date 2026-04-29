@@ -8,7 +8,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    alter_table, authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
+    alter_table, authors, create_dynamic_table, explain_query, wait, create, ls, get, set, move, create_user, make_ace,
     insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_timestamp, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
@@ -3270,6 +3270,173 @@ class TestQueryRpcProxy(TestQuery):
         with raises_yt_error("Foreign table key is not used in the join clause; the query is inefficient, consider rewriting it"):
             select_rows(query, allow_join_without_index=False)
         set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
+
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_1(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+        total_rows = num_tablets * rows_per_tablet
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", True)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i * rows_per_tablet] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(path, [{"key": i, "val": i} for i in range(total_rows)])
+
+        path2 = "//tmp/t2"
+        schema2 = [
+            make_sorted_column("a", "int64"),
+            make_sorted_column("b", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path2, attributes={"dynamic": True, "schema": schema2})
+        reshard_table(path2, [[]] + [[a, 0] for a in range(1, num_tablets)])
+        sync_mount_table(path2)
+        insert_rows(
+            path2,
+            [
+                {"a": a, "b": b, "val": a * rows_per_tablet + b}
+                for a in range(num_tablets)
+                for b in range(rows_per_tablet)
+            ]
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 5")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16},
+                          {"key": 15, "val": 15}]
+        assert rows_read <= 3 * rows_per_tablet  # +1 tablet because of adaptive ordered schemaful reader
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key >= 8 order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key between 4 and 15 order by key desc limit 4")
+        assert result == [{"key": 15, "val": 15}, {"key": 14, "val": 14},
+                          {"key": 13, "val": 13}, {"key": 12, "val": 12}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key >= 4 and key < 12 order by key desc limit 4")
+        assert result == [{"key": 11, "val": 11}, {"key": 10, "val": 10},
+                          {"key": 9, "val": 9}, {"key": 8, "val": 8}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key < 12 order by key desc limit 4")
+        assert result == [{"key": 11, "val": 11}, {"key": 10, "val": 10},
+                          {"key": 9, "val": 9}, {"key": 8, "val": 8}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path2}] where a >= 2 order by a desc, b desc limit 4")
+        assert result == [{"a": 4, "b": 3, "val": 19}, {"a": 4, "b": 2, "val": 18},
+                          {"a": 4, "b": 1, "val": 17}, {"a": 4, "b": 0, "val": 16}]
+        assert rows_read == rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path2}] where a between 1 and 3 order by a desc, b desc limit 8")
+        assert result == [{"a": 3, "b": 3, "val": 15}, {"a": 3, "b": 2, "val": 14},
+                          {"a": 3, "b": 1, "val": 13}, {"a": 3, "b": 0, "val": 12},
+                          {"a": 2, "b": 3, "val": 11}, {"a": 2, "b": 2, "val": 10},
+                          {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
+        assert rows_read <= 3 * rows_per_tablet  # +1 tablet because of adaptive ordered schemaful reader
+
+        response = explain_query(f"* from [{path}] order by key desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path}] where key >= 8 order by key desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        response = explain_query(f"* from [{path2}] where a between 1 and 3 order by a desc, b desc limit 10")
+        assert response["query"]["scan_order"] == "reversed"
+
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+
+    @authors("dtorilov")
+    def test_reverse_scan_for_order_by_2(self):
+        num_tablets = 5
+        rows_per_tablet = 4
+        total_rows = num_tablets * rows_per_tablet
+
+        sync_create_cells(1)
+
+        set("//sys/rpc_proxies/@config/query_engine_config", {})
+        set("//sys/rpc_proxies/@config/query_engine_config/allow_reverse_scan_for_order_by", False)
+        time.sleep(5)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i * rows_per_tablet] for i in range(1, num_tablets)])
+        sync_mount_table(path)
+        insert_rows(path, [{"key": i, "val": i} for i in range(total_rows)])
+
+        path2 = "//tmp/t2"
+        schema2 = [
+            make_sorted_column("a", "int64"),
+            make_sorted_column("b", "int64"),
+            make_column("val", "int64"),
+        ]
+        create("table", path2, attributes={"dynamic": True, "schema": schema2})
+        reshard_table(path2, [[]] + [[a, 0] for a in range(1, num_tablets)])
+        sync_mount_table(path2)
+        insert_rows(
+            path2,
+            [
+                {"a": a, "b": b, "val": a * rows_per_tablet + b}
+                for a in range(num_tablets)
+                for b in range(rows_per_tablet)
+            ]
+        )
+
+        def select_rows_returning_statistics(query):
+            response_parameters = {}
+            result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            return result, response_parameters['inner_statistics'][0]['rows_read']
+
+        assert explain_query(f"* from [{path}] order by key desc limit 10")["query"]["scan_order"] == "unordered"
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == total_rows
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key >= 8 order by key desc limit 4")
+        assert result == [{"key": 19, "val": 19}, {"key": 18, "val": 18},
+                          {"key": 17, "val": 17}, {"key": 16, "val": 16}]
+        assert rows_read == 3 * rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path}] where key between 4 and 15 order by key desc limit 4")
+        assert result == [{"key": 15, "val": 15}, {"key": 14, "val": 14},
+                          {"key": 13, "val": 13}, {"key": 12, "val": 12}]
+        assert rows_read == 3 * rows_per_tablet
+
+        result, rows_read = select_rows_returning_statistics(f"* from [{path2}] where a between 1 and 3 order by a desc, b desc limit 8")
+        assert result == [{"a": 3, "b": 3, "val": 15}, {"a": 3, "b": 2, "val": 14},
+                          {"a": 3, "b": 1, "val": 13}, {"a": 3, "b": 0, "val": 12},
+                          {"a": 2, "b": 3, "val": 11}, {"a": 2, "b": 2, "val": 10},
+                          {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
+        assert rows_read == 3 * rows_per_tablet
 
 
 @pytest.mark.enabled_multidaemon
