@@ -367,59 +367,15 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        return New<TAuthenticationSession>(this, credentials)->GetResult();
+        return New<TCompositeAuthSession<ITokenAuthenticator, TTokenCredentials, TAuthenticationResult>>(
+            Authenticators_,
+            credentials,
+            TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed"))
+            ->GetResult();
     }
 
 private:
     const std::vector<ITokenAuthenticatorPtr> Authenticators_;
-
-    class TAuthenticationSession
-        : public TRefCounted
-    {
-    public:
-        TAuthenticationSession(
-            TIntrusivePtr<TCompositeTokenAuthenticator> owner,
-            const TTokenCredentials& credentials)
-            : Owner_(std::move(owner))
-            , Credentials_(credentials)
-        {
-            InvokeNext();
-        }
-
-        TFuture<TAuthenticationResult> GetResult()
-        {
-            return Promise_;
-        }
-
-    private:
-        const TIntrusivePtr<TCompositeTokenAuthenticator> Owner_;
-        const TTokenCredentials Credentials_;
-
-        TPromise<TAuthenticationResult> Promise_ = NewPromise<TAuthenticationResult>();
-        std::vector<TError> Errors_;
-        size_t CurrentIndex_ = 0;
-
-    private:
-        void InvokeNext()
-        {
-            if (CurrentIndex_ >= Owner_->Authenticators_.size()) {
-                Promise_.Set(TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed")
-                    << Errors_);
-                return;
-            }
-
-            const auto& authenticator = Owner_->Authenticators_[CurrentIndex_++];
-            authenticator->Authenticate(Credentials_).Subscribe(
-                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TAuthenticationResult>& result) {
-                    if (result.IsOK()) {
-                        Promise_.Set(result.Value());
-                    } else {
-                        Errors_.push_back(result);
-                        InvokeNext();
-                    }
-                }));
-        }
-    };
 };
 
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
