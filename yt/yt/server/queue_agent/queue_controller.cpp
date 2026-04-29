@@ -512,7 +512,7 @@ private:
 
     using TQueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
     TQueueExportsMappingOrError QueueExports_;
-    TReaderWriterSpinLock QueueExportsLock_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, QueueExportsLock_);
 
     void UpdateProfilers()
     {
