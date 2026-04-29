@@ -1,8 +1,6 @@
 PY3_LIBRARY()
 
 PEERDIR(
-    contrib/python/python-dateutil
-    contrib/python/PyYAML
     yt/python/yt/wrapper
 )
 
