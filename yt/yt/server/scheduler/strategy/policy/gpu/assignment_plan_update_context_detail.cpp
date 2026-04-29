@@ -75,6 +75,34 @@ void TAssignmentHandler::PreemptAssignment(
         assignment->Operation->GetId());
 }
 
+void TAssignmentHandler::RemoveAssignment(const TAssignmentPtr& assignment, bool strict) const
+{
+    YT_LOG_DEBUG(
+        "Removing assignment "
+        "(ResourceUsage: %v, NodeAddress: %v, OperationId: %v, Strict: %v)",
+        assignment->ResourceUsage,
+        assignment->Node->Address(),
+        assignment->Operation->GetId(),
+        strict);
+
+    if (strict) {
+        YT_VERIFY(assignment->Node->Assignments().contains(assignment));
+        assignment->Node->RemoveAssignment(assignment);
+
+        YT_VERIFY(assignment->Operation->Assignments().contains(assignment));
+        assignment->Operation->RemoveAssignment(assignment);
+
+        return;
+    }
+
+    if (assignment->Node->Assignments().contains(assignment)) {
+        assignment->Node->RemoveAssignment(assignment);
+    }
+    if (assignment->Operation->Assignments().contains(assignment)) {
+        assignment->Operation->RemoveAssignment(assignment);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
@@ -90,11 +118,15 @@ TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
     , TreeSnapshot_(treeSnapshot)
     , AssignmentHandler_(assignmentHandler)
     , AttributesList_(TreeSnapshot_->RootElement()->GetTreeSize())
+    , SchedulableOperations_(FilterOperationsWithElement(operations))
 { }
 
 const TOperationMap& TAssignmentPlanUpdateContext::Operations() const
 {
-    return Operations_;
+    // NB(severovv): An operation may be absent from the snapshot due to a temporal gap:
+    // EnableOperation updates pool tree synchronously but it takes some time to update the snapshot.
+    // We filter such operations before returning them to dry-run to avoid scheduling them.
+    return SchedulableOperations_;
 }
 
 const TNodeMap& TAssignmentPlanUpdateContext::Nodes() const
@@ -129,7 +161,7 @@ void TAssignmentPlanUpdateContext::PreemptAssignment(
 
 TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TOperationPtr& operation) const
 {
-    const TPoolTreeElement* treeElement = GetOperationElement(operation);
+    const TPoolTreeElement* treeElement = FindOperationElement(operation);
     YT_VERIFY(treeElement);
 
     auto availableLimits = TJobResources::Infinite();
@@ -162,7 +194,7 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatuses() const
     for (const auto& [_, operation] : Operations_) {
         YT_VERIFY(operation->IsInitialized());
 
-        const auto* operationElement = GetOperationElement(operation);
+        const auto* operationElement = FindOperationElement(operation);
         if (!operationElement) {
             YT_LOG_DEBUG("Operation is not present in the tree snapshot (OperationId: %v, TreeSnapshotId: %v)",
                 operation->GetId(),
@@ -178,22 +210,16 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatuses() const
 
 void TAssignmentPlanUpdateContext::FillOperationUsage()
 {
-    for (const auto& [_, operation] : Operations_) {
-        if (!GetOperationElement(operation)) {
-            continue;
-        }
-
+    for (const auto& [_, operation] : SchedulableOperations_) {
         IncreaseOperationUsage(operation, operation->AssignedResourceUsage());
     }
 }
 
 void TAssignmentPlanUpdateContext::PreemptLimitViolatingOperations()
 {
-    for (const auto& [_, operation] : Operations_) {
-        auto element = GetOperationElement(operation);
-        if (!element) {
-            continue;
-        }
+    for (const auto& [_, operation] : SchedulableOperations_) {
+        auto element = FindOperationElement(operation);
+        YT_VERIFY(element);
 
         // NB(severovv): Copy assignments with |GetItems|, because the set will be modified.
         for (const auto& assignment : GetItems(operation->Assignments())) {
@@ -225,7 +251,7 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
     YT_VERIFY(operation->IsInitialized());
 
     // Skip disabled operation.
-    const auto* operationElement = GetOperationElement(operation);
+    const auto* operationElement = FindOperationElement(operation);
     if (!operationElement) {
         return;
     }
@@ -320,6 +346,7 @@ void TAssignmentPlanUpdateContext::ResetOperationResources(const TOperationPtr& 
     }
 
     operation->ReadyToAssignGroupedNeededResources().clear();
+    operation->ExtraGroupedNeededResources().clear();
 
     if (operation->IsFullHostModuleBound()) {
         operation->SetPreemptible(true);
@@ -330,7 +357,16 @@ void TAssignmentPlanUpdateContext::ResetOperationResources(const TOperationPtr& 
     }
 }
 
-TPoolTreeOperationElement* TAssignmentPlanUpdateContext::GetOperationElement(const TOperationPtr& operation) const
+TOperationMap TAssignmentPlanUpdateContext::FilterOperationsWithElement(const TOperationMap& operations) const
+{
+    auto operationsWithElement = operations | std::views::filter([&] (const auto& pair) {
+        const auto& [_, operation] = pair;
+        return FindOperationElement(operation);
+    });
+    return TOperationMap(operationsWithElement.begin(), operationsWithElement.end());
+}
+
+TPoolTreeOperationElement* TAssignmentPlanUpdateContext::FindOperationElement(const TOperationPtr& operation) const
 {
     return TreeSnapshot_->FindEnabledOperationElement(operation->GetId());
 }
@@ -416,7 +452,7 @@ TAllocationGroupResourcesMap TAssignmentPlanUpdateContext::GetGroupedNeededResou
 
 void TAssignmentPlanUpdateContext::IncreaseOperationUsage(const TOperationPtr& operation, const TJobResources& resourceDelta)
 {
-    const TPoolTreeElement* treeElement = GetOperationElement(operation);
+    const TPoolTreeElement* treeElement = FindOperationElement(operation);
     YT_VERIFY(treeElement);
 
     while (treeElement) {

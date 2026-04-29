@@ -192,6 +192,8 @@ private:
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
+    void RemoveAssignment(const TAssignmentPtr& assignment, bool strict = true);
+
     void ReviveNodeState(TNodeId nodeId, const TNodePtr& node);
 
     void ReviveOperationState(TOperationPtr operation);

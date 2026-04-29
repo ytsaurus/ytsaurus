@@ -35,6 +35,8 @@ public:
         EAllocationPreemptionReason preemptionReason,
         std::string preemptionDescription) const;
 
+    void RemoveAssignment(const TAssignmentPtr& assignment, bool strict = true) const;
+
 private:
     const NLogging::TLogger Logger;
 };
@@ -91,7 +93,11 @@ private:
 
     TDynamicAttributesList AttributesList_;
 
-    TPoolTreeOperationElement* GetOperationElement(const TOperationPtr& operation) const;
+    const TOperationMap SchedulableOperations_;
+
+    TOperationMap FilterOperationsWithElement(const TOperationMap& operations) const;
+
+    TPoolTreeOperationElement* FindOperationElement(const TOperationPtr& operation) const;
 
     void UpdatePreemptionStatus(
         const TOperationPtr& operation,

@@ -12,11 +12,11 @@
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 #include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
+#include <yt/yt/server/scheduler/strategy/unittests/mocks.h>
+
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>
 #include <yt/yt/server/scheduler/common/allocation.h>
-
-#include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 #include <yt/yt/client/scheduler/private.h>
 
@@ -32,6 +32,8 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 namespace {
 
 using namespace NControllerAgent;
+using namespace NConcurrency;
+using namespace NTestMocks;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,35 +524,6 @@ private:
 };
 
 using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPoolTreeElementHostMock
-    : public IPoolTreeElementHost
-{
-public:
-    explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
-    { }
-
-    TResourceTree* GetResourceTree() override
-    {
-        return ResourceTree_.Get();
-    }
-
-    void BuildElementLoggingStringAttributes(
-        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-private:
-    TResourceTreePtr ResourceTree_;
-};
-
-using TPoolTreeElementHostMockPtr = TIntrusivePtr<TPoolTreeElementHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
