@@ -17,6 +17,7 @@ from library.python.port_manager import PortManager
 
 from contextlib import closing
 
+from yt.environment import init_operations_archive
 from yt.environment.helpers import assert_items_equal
 from yt.wrapper.flow_commands import PipelineState
 from yt.yql.tests.common.test_framework.test_utils import (
@@ -323,6 +324,10 @@ class TestYtflowBase(TestQueueAgentBase):
     SOLOMON_PROJECT = "project"
     SOLOMON_SERVICE = "service"
     SOLOMON_CLUSTER = "cluster"
+
+    def setup_method(self, method):
+        super(TestYtflowBase, self).setup_method(method)
+        init_operations_archive.create_tables_latest_version(self.Env.create_client())
 
     @classmethod
     def modify_yql_agent_config(cls, config):
