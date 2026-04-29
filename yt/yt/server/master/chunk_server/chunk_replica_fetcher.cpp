@@ -76,11 +76,21 @@ std::vector<TSequoiaChunkReplica> ParseReplicas(
                     .ReplicaIndex = parsedReplica.ReplicaIndex,
                     .NodeId = parsedReplica.NodeId,
                     .LocationIndex = parsedReplica.LocationIndex,
+                    .ReplicaState = parsedReplica.ReplicaState,
                 });
             });
     }
 
     return replicas;
+}
+
+void KeepFirstStateOfDuplicatedReplicas(std::vector<TSequoiaChunkReplica>& replicas)
+{
+    StableSortUniqueBy(
+        replicas,
+        [] (const auto& replica) {
+            return std::tie(replica.ChunkId, replica.ReplicaIndex, replica.NodeId, replica.LocationIndex);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,13 +667,17 @@ private:
             return MakeFuture(result);
         }
 
-        auto unapprovedReplicasFuture = state->ChunkIdsToFetchUnapprovedReplicasFromSequoia.empty()
-            ? MakeFuture<std::vector<TSequoiaChunkReplica>>({})
-            : GetUnapprovedSequoiaChunkReplicas(state->ChunkIdsToFetchUnapprovedReplicasFromSequoia, state->Timestamp);
+        auto hasUnapprovedReplicas = !state->ChunkIdsToFetchUnapprovedReplicasFromSequoia.empty();
+
+        auto unapprovedReplicasFuture = hasUnapprovedReplicas
+            ? GetUnapprovedSequoiaChunkReplicas(state->ChunkIdsToFetchUnapprovedReplicasFromSequoia, state->Timestamp)
+            : MakeFuture<std::vector<TSequoiaChunkReplica>>({});
         auto replicasFuture = GetApprovedSequoiaChunkReplicas(state->ChunkIdsToFetchReplicasFromSequoia, state->Timestamp);
+
+        // It is important to keep approved replicas before unapproved.
         std::vector futures({replicasFuture, unapprovedReplicasFuture});
         return AllSucceeded(futures)
-            .Apply(BIND([result = std::move(result)] (const std::vector<std::vector<TSequoiaChunkReplica>>& sequoiaReplicas) mutable {
+            .Apply(BIND([hasUnapprovedReplicas, result = std::move(result)] (const std::vector<std::vector<TSequoiaChunkReplica>>& sequoiaReplicas) mutable {
                 for (const auto& replicas : sequoiaReplicas) {
                     for (const auto& replica : replicas) {
                         auto chunkId = replica.ChunkId;
@@ -671,8 +685,16 @@ private:
                     }
                 }
 
+                if (hasUnapprovedReplicas) {
+                    for (auto& [chunkId, replicas] : result) {
+                        // Unapproved replicas are added later than approved replicas.
+                        KeepFirstStateOfDuplicatedReplicas(replicas);
+                    }
+                }
+
                 return result;
-            }));
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> CombineAndValidateReplicas(
@@ -714,7 +736,7 @@ private:
 
             auto& replicas = replicasIt->second.Value();
             replicas.insert(replicas.end(), sequoiaReplicas.begin(), sequoiaReplicas.end());
-            SortUnique(replicas);
+            KeepFirstStateOfDuplicatedReplicas(replicas);
         }
         return result;
     }

@@ -1,3 +1,4 @@
+from yt.sequoia_tools.descriptors import DESCRIPTORS
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build
 
 from yt_commands import (
@@ -12,6 +13,8 @@ from yt_commands import (
 from yt_helpers import (
     get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges,
     master_exit_read_only_sync)
+
+from yt_sequoia_helpers import select_rows_from_ground
 
 import yt.yson as yson
 from yt.common import YtError
@@ -737,6 +740,117 @@ class TestJournalsSequoia(TestJournalsMulticell):
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
+class TestJournalsSequoiaReplicasWithValidation(TestJournals):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_chunk_confirmation": True,
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "store_sequoia_replicas_on_master_percentage": 100,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+            },
+        },
+    }
+
+    @authors("grphil")
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    @pytest.mark.parametrize("use_location_replacement", [False, True])
+    def test_replicas_are_stored_in_sequoia(self, enable_chunk_preallocation, use_location_replacement):
+        create("journal", "//tmp/j")
+        write_journal(
+            "//tmp/j",
+            PAYLOAD,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+            journal_writer={
+                "dont_close": False,
+            },
+        )
+
+        def check():
+            chunk_ids = get("//tmp/j/@chunk_ids")
+            chunk_replicas_rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
+
+            for chunk_id in chunk_ids:
+                found = False
+                for chunk_replicas in chunk_replicas_rows:
+                    if chunk_replicas["chunk_id"] != chunk_id:
+                        continue
+                    found = True
+
+                    if len(chunk_replicas["stored_replicas"]) != len(get(f"#{chunk_id}/@stored_replicas")):
+                        return False
+
+                    for replica in chunk_replicas["stored_replicas"]:
+                        if replica[3] != 3:
+                            return False
+                if not found:
+                    return False
+            return True
+
+        wait(check)
+
+        if use_location_replacement:
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/use_location_replacement_for_location_full_heartbeat", True)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(check)
+
+
+class TestJournalsSequoiaReplicasMulticellWithValidation(TestJournalsSequoiaReplicasWithValidation):
+    ENABLE_MULTIDAEMON = False
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+class TestJournalsOnlySequoiaReplicasMulticell(TestJournalsSequoiaReplicasWithValidation):
+    ENABLE_MULTIDAEMON = False
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_chunk_confirmation": True,
+                "journal_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": False,
+                    "process_removed_sequoia_replicas_on_master": False,
+                    "validate_sequoia_replicas_fetch": False,
+                },
+            },
+        },
     }
 
 

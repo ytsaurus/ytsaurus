@@ -1424,7 +1424,7 @@ void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chu
 
 EChunkReplicaState GetAddedChunkReplicaState(
     TChunkId chunkId,
-    const NChunkClient::NProto::TChunkAddInfo &chunkAddInfo)
+    const NChunkClient::NProto::TChunkAddInfo& chunkAddInfo)
 {
     if (IsJournalChunkId(chunkId)) {
         if (chunkAddInfo.active()) {
