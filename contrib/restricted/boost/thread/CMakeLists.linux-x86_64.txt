@@ -53,7 +53,6 @@ target_link_libraries(restricted-boost-thread PUBLIC
   restricted-boost-predef
   restricted-boost-preprocessor
   restricted-boost-smart_ptr
-  restricted-boost-static_assert
   restricted-boost-system
   restricted-boost-throw_exception
   restricted-boost-tuple
