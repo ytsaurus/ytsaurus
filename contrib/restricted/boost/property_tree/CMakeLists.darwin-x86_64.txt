@@ -36,7 +36,6 @@ target_link_libraries(restricted-boost-property_tree INTERFACE
   restricted-boost-optional
   restricted-boost-range
   restricted-boost-serialization
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-type_traits
 )
