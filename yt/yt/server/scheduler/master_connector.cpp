@@ -593,8 +593,7 @@ public:
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
-        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
-        auto rspOrError = WaitFor(proxy.Execute(req));
+        auto rspOrError = GetCumulativeError(WaitFor(batchReq->Invoke()));
         if (!rspOrError.IsOK()) {
             YT_LOG_ERROR(rspOrError, "Error storing persistent strategy state");
         } else {
@@ -1292,13 +1291,13 @@ private:
                                 << secureVaultRspOrError;
                         }
 
-                        auto atttibutesNodeStr = TYsonString(attributesRsp->value());
+                        auto attributesNodeStr = TYsonString(attributesRsp->value());
                         TYsonString secureVaultYson;
                         if (secureVaultRspOrError.IsOK()) {
                             secureVaultYson = TYsonString(secureVaultRspOrError.Value()->value());
                         }
 
-                        operationsDataToProcessBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
+                        operationsDataToProcessBatch.push_back({std::move(attributesNodeStr), std::move(secureVaultYson), operationId});
                     }
 
                     futures.push_back(BIND(

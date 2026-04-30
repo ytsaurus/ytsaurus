@@ -785,7 +785,7 @@ public:
         }
 
         if (operation->GetState() == EOperationState::Orphaned) {
-            operation->SetOrhanedOperationAbortionError(error);
+            operation->SetOrphanedOperationAbortionError(error);
         } else {
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
@@ -3917,7 +3917,7 @@ private:
                 return;
             }
 
-            if (auto abortionError = operation->GetOrhanedOperationAbortionError(); !abortionError.IsOK()) {
+            if (auto abortionError = operation->GetOrphanedOperationAbortionError(); !abortionError.IsOK()) {
                 AbortOperationWithoutRevival(
                     operation,
                     abortionError);

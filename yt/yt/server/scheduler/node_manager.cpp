@@ -70,6 +70,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
                     BIND(&TNodeShard::UnregisterAndRemoveNodeById, GetNodeShard(oldNodeId), oldNodeId)
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run();
+                it->second = nodeId;
             }
         } else {
             NodeAddressToNodeId_[address] = nodeId;
