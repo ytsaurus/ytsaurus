@@ -2249,7 +2249,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         },
     }
 
-    def _prepare_test(self, failure_probability=0.2):
+    def _prepare_test(self, path, failure_probability=0.2):
         set("//sys/rpc_proxies/@config", {
             "cluster_connection": {
                 "local_tablet_write_retry_count": 3,
@@ -2277,20 +2277,21 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
             {"name": "value", "type": "int64"},
         ]
         self._create_sorted_table(
-            "//tmp/t",
+            path,
             schema=schema,
             pivot_keys=[[]] + [[i * 10] for i in range(1, len(cell_ids))])
 
-        sync_mount_table("//tmp/t", target_cell_ids=cell_ids)
+        sync_mount_table(path, target_cell_ids=cell_ids)
 
         return cell_ids
 
     @authors("alexelexa")
     def test_first_batch_write_retries_after_tablet_moving(self):
-        cell_ids = self._prepare_test()
+        path = "//tmp/tablet_move"
+        cell_ids = self._prepare_test(path)
         tx1 = start_transaction(type="tablet")
 
-        insert_rows("//tmp/t", [{"key": 1, "value": 1}], update=True, tx=tx1)
+        insert_rows(path, [{"key": 1, "value": 1}], update=True, tx=tx1)
 
         action = create(
             "tablet_action",
@@ -2299,7 +2300,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
                 "kind": "move",
                 "skip_freezing": True,
                 "keep_finished": True,
-                "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                "tablet_ids": [get(f"{path}/@tablets/0/tablet_id")],
                 "cell_ids": [cell_ids[1]],
             },
         )
@@ -2312,7 +2313,8 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
 
     @authors("alexelexa")
     def test_first_batch_write_retries(self):
-        cell_ids = self._prepare_test(failure_probability=0.1)
+        path = "//tmp/simple"
+        cell_ids = self._prepare_test(path, failure_probability=0.1)
         peers = defaultdict(list)
         for cell_id in cell_ids:
             peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
@@ -2327,12 +2329,10 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         # Sending the first batch for some tablets may fail with "Test error before write call execution".
         # Retry mechanism causes mount cache to be refreshed and retries sending those batches.
 
-        tx1 = start_transaction(type="tablet")
         rows = [{"key": 10 * i + 1, "value": 3} for i in range(4)]
-        insert_rows("//tmp/t", rows, update=True, tx=tx1)
-        commit_transaction(tx1)
+        insert_rows(path, rows, update=True)
 
-        assert lookup_rows("//tmp/t", [{"key": 10 * i + 1} for i in range(4)]) == rows
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
 
         set_node_banned(peer, False)
 
