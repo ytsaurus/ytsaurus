@@ -47,13 +47,20 @@ def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffi
                 return
 
             sorted_by = attributes.pop("sorted_by", [])
+            is_dynamic = attributes.get("dynamic", False)
 
             client.create("table", dest_filename, attributes=attributes)
-            with open(local_filename, "rb") as table_file:
-                client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
 
-            if sorted_by:
-                client.run_sort(dest_filename, sort_by=sorted_by)
+            if is_dynamic:
+                client.mount_table(dest_filename, sync=True)
+                with open(local_filename, "rb") as table_file:
+                    client.insert_rows(dest_filename, table_file.read(), format=meta["format"], raw=True)
+            else:
+                with open(local_filename, "rb") as table_file:
+                    client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
+
+                if sorted_by:
+                    client.run_sort(dest_filename, sort_by=sorted_by)
 
         elif meta["type"] == "file":
             client.create("file", dest_filename, attributes=attributes)
