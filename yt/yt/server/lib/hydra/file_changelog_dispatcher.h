@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/misc/public.h>
+
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/server/lib/io/public.h>
@@ -29,6 +31,7 @@ struct IFileChangelogDispatcher
         int id,
         const std::string& path,
         const NProto::TChangelogMeta& meta,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TFileChangelogConfigPtr& config) = 0;
 
     //! Synchronously opens an existing changelog.

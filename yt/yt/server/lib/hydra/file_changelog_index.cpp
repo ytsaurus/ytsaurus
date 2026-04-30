@@ -31,11 +31,11 @@ TFileChangelogIndex::TFileChangelogIndex(
     IMemoryUsageTrackerPtr memoryUsageTracker,
     std::string fileName,
     TFileChangelogConfigPtr config,
-    EWorkloadCategory workloadCategory)
+    const TWorkloadDescriptor& workloadDescriptor)
     : IOEngine_(std::move(ioEngine))
     , FileName_(std::move(fileName))
     , Config_(std::move(config))
-    , WorkloadCategory_(workloadCategory)
+    , WorkloadDescriptor_(workloadDescriptor)
     , Logger(HydraLogger().WithTag("Path: %v", FileName_))
     , MemoryUsageTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(memoryUsageTracker, 0))
 { }
@@ -188,7 +188,7 @@ void TFileChangelogIndex::Create()
             .Offset = 0,
             .Buffers = {std::move(buffer)}
         },
-        WorkloadCategory_))
+        WorkloadDescriptor_.Category))
         .ThrowOnError();
 
     Handle_ = std::move(handle);
@@ -335,7 +335,7 @@ void TFileChangelogIndex::AsyncFlush()
             .Buffers = {std::move(buffer)},
             .Flush = true,
         },
-        WorkloadCategory_)
+        WorkloadDescriptor_.Category)
         .AsVoid()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(Flushing_.exchange(false));

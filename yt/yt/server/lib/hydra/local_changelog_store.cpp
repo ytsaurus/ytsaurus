@@ -7,6 +7,8 @@
 #include "changelog_store_helpers.h"
 #include "config.h"
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
@@ -400,7 +402,14 @@ private:
         auto path = GetChangelogPath(Config_->Path, id);
 
         try {
-            auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(id, path, meta, Config_))
+            auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(
+                id,
+                path,
+                meta,
+                // TODO(krock21): Propagate the actual local Hydra writer workload
+                // descriptor instead of hardcoding the legacy fallback here.
+                TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+                Config_))
                 .ValueOrThrow();
 
             YT_LOG_INFO("Local changelog created (ChangelogId: %v, Epoch: %v)",

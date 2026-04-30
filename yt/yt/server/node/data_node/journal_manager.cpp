@@ -809,6 +809,9 @@ private:
             id,
             GetMultiplexedChangelogPath(id),
             /*meta*/ {},
+            // TODO(krock21): Propagate the actual multiplexed changelog workload
+            // descriptor instead of using the legacy UserBatch fallback.
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             config))
             .ValueOrThrow();
 
@@ -1119,7 +1122,7 @@ private:
     IFileChangelogPtr DoCreateChangelog(
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& /*workloadDescriptor*/)
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         IFileChangelogPtr changelog;
 
@@ -1133,6 +1136,7 @@ private:
                 /*id*/ -1,
                 fileName,
                 /*meta*/ {},
+                workloadDescriptor,
                 GetSplitChangelogConfig(enableMultiplexing)))
                 .ValueOrThrow();
         }

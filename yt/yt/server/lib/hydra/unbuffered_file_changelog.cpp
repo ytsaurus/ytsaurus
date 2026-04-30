@@ -55,11 +55,13 @@ public:
         IIOEnginePtr ioEngine,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         std::string fileName,
+        const TWorkloadDescriptor& workloadDescriptor,
         TFileChangelogConfigPtr config)
         : IOEngine_(std::move(ioEngine))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , FileName_(std::move(fileName))
         , Config_(std::move(config))
+        , WorkloadDescriptor_(workloadDescriptor)
         , Logger(HydraLogger().WithTag("Path: %v", FileName_))
         , Index_(MakeIndex(MakeIndexFileName()))
     { }
@@ -483,6 +485,7 @@ private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const std::string FileName_;
     const TFileChangelogConfigPtr Config_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
     const NLogging::TLogger Logger;
 
     TError Error_;
@@ -551,8 +554,7 @@ private:
             MemoryUsageTracker_,
             std::move(fileName),
             Config_,
-            // TODO(capone212): better workload category?
-            EWorkloadCategory::UserBatch);
+            WorkloadDescriptor_);
     }
 
 
@@ -655,7 +657,7 @@ private:
                     .Offset = 0,
                     .Buffers = {std::move(buffer)}
                 },
-                EWorkloadCategory::UserBatch))
+                WorkloadDescriptor_.Category))
                 .ThrowOnError();
 
             WaitFor(IOEngine_->Close({.Handle = dataFile, .Flush = true}))
@@ -765,7 +767,7 @@ private:
                     .Offset = CurrentFileOffset_.load(),
                     .Buffers = std::move(buffers)
                 },
-                EWorkloadCategory::UserBatch))
+                WorkloadDescriptor_.Category))
                 .ThrowOnError();
 
             RecordCount_ += std::ssize(records);
@@ -1105,7 +1107,7 @@ private:
                     .Offset = currentOffset,
                     .Buffers = {std::move(currentBuffer)}
                 },
-                EWorkloadCategory::UserBatch))
+                WorkloadDescriptor_.Category))
                 .ThrowOnError();
             currentOffset += currentSize;
         }
@@ -1120,12 +1122,14 @@ IUnbufferedFileChangelogPtr CreateUnbufferedFileChangelog(
     IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     std::string fileName,
+    const TWorkloadDescriptor& workloadDescriptor,
     TFileChangelogConfigPtr config)
 {
     return New<TUnbufferedFileChangelog>(
         std::move(ioEngine),
         std::move(memoryUsageTracker),
         std::move(fileName),
+        workloadDescriptor,
         std::move(config));
 }
 
