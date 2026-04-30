@@ -1259,7 +1259,6 @@ private:
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
 
-    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const std::string& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const std::string& clusterName);
 
     TDuration CheckPermissionsForQuery(
