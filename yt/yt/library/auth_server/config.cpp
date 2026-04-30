@@ -6,6 +6,9 @@
 
 #include <yt/yt/core/https/config.h>
 
+#include <util/stream/file.h>
+#include <util/system/env.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,6 +326,69 @@ void TCachingSecretVaultServiceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCypressPasswordAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString TLdapServiceConfig::GetAdminPassword() const
+{
+    if (AdminPasswordPath) {
+        TFileInput input(*AdminPasswordPath);
+        return input.ReadAll();
+    }
+    if (AdminPasswordEnvVar) {
+        if (auto value = TryGetEnv(TString(*AdminPasswordEnvVar))) {
+            return *value;
+        }
+        THROW_ERROR_EXCEPTION(
+            "Environment variable %Qv specified in \"admin_password_env_var\" is not set",
+            *AdminPasswordEnvVar);
+    }
+    YT_VERIFY(false, "One of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+}
+
+void TLdapServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("host", &TThis::Host)
+        .NonEmpty();
+    registrar.Parameter("port", &TThis::Port)
+        .Optional();
+    registrar.Parameter("encryption", &TThis::Encryption)
+        .Default(ELdapEncryption::None);
+    registrar.Parameter("ca", &TThis::CertificateAuthority)
+        .Optional();
+    registrar.Parameter("admin_dn", &TThis::AdminDn)
+        .NonEmpty();
+    registrar.Parameter("admin_password_path", &TThis::AdminPasswordPath)
+        .Optional();
+    registrar.Parameter("admin_password_env_var", &TThis::AdminPasswordEnvVar)
+        .Optional();
+    registrar.Parameter("search_base", &TThis::SearchBase)
+        .NonEmpty();
+    registrar.Parameter("search_filter", &TThis::SearchFilter)
+        .Default("(uid={login})");
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Port) {
+            config->Port = (config->Encryption == ELdapEncryption::Ldaps) ? 636 : 389;
+        }
+        if (static_cast<int>(config->AdminPasswordPath.has_value()) +
+            static_cast<int>(config->AdminPasswordEnvVar.has_value()) != 1)
+        {
+            THROW_ERROR_EXCEPTION(
+                "Exactly one of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressCookieStoreConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("full_fetch_period", &TThis::FullFetchPeriod)
@@ -351,6 +417,9 @@ void TCypressCookieGeneratorConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("path", &TThis::Path)
         .Default("/");
+
+    registrar.Parameter("ldap_cookie_expiration_timeout", &TThis::LdapCookieExpirationTimeout)
+        .Default(TDuration::Hours(8));
 
     registrar.Parameter("redirect_url", &TThis::RedirectUrl)
         .Default();
@@ -462,6 +531,10 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Alias("yc_authenticator")
         .Optional();
     registrar.Parameter("cypress_user_manager", &TThis::CypressUserManager)
+        .Optional();
+    registrar.Parameter("cypress_password_authenticator", &TThis::CypressPasswordAuthenticator)
+        .DefaultNew();
+    registrar.Parameter("ldap_service", &TThis::LdapService)
         .Optional();
 }
 

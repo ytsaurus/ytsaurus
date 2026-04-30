@@ -42,6 +42,8 @@
 #include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/cypress_cookie_login.h>
 #include <yt/yt/library/auth_server/cypress_cookie_manager.h>
+#include <yt/yt/library/auth_server/cypress_login_authenticator.h>
+#include <yt/yt/library/auth_server/ldap_authenticator.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -74,6 +76,8 @@
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -271,10 +275,20 @@ void TBootstrap::DoInitialize()
         RootClient_);
 
     if (Config_->Auth->CypressCookieManager) {
+        std::vector<NAuth::ILoginAuthenticatorPtr> authenticators;
+        if (Config_->Auth->LdapService) {
+            authenticators.push_back(NAuth::CreateLdapLoginAuthenticator(
+                Config_->Auth->LdapService,
+                NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        }
+        if (Config_->Auth->CypressPasswordAuthenticator->Enabled) {
+            authenticators.push_back(NAuth::CreateCypressLoginAuthenticator(RootClient_));
+        }
         CypressCookieLoginHandler_ = CreateCypressCookieLoginHandler(
             Config_->Auth->CypressCookieManager->CookieGenerator,
             RootClient_,
-            AuthenticationManager_->GetCypressCookieManager()->GetCookieStore());
+            AuthenticationManager_->GetCypressCookieManager()->GetCookieStore(),
+            std::move(authenticators));
     }
 
     auto httpAuthenticator = New<THttpAuthenticator>(

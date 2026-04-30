@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/https/public.h>
@@ -428,6 +430,66 @@ DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressPasswordAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+    bool Enabled;
+
+    REGISTER_YSON_STRUCT(TCypressPasswordAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressPasswordAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLdapServiceConfig
+    : public virtual NYTree::TYsonStruct
+{
+    //! LDAP server hostname.
+    TString Host;
+
+    //! LDAP server port. Defaults to 636 for Ldaps, 389 for None/StartTls.
+    std::optional<int> Port;
+
+    //! TLS mode: None (plain ldap://), Ldaps (ldaps://, port 636), StartTls (upgrade, port 389).
+    ELdapEncryption Encryption;
+
+    //! CA certificate for TLS verification. Only FileName is supported for LDAP.
+    NCrypto::TPemBlobConfigPtr CertificateAuthority;
+
+    //! DN used for admin bind (search phase).
+    TString AdminDn;
+
+    //! Path to a file containing the admin bind password (one line, no trailing newline required).
+    std::optional<TString> AdminPasswordPath;
+
+    //! Name of the environment variable holding the admin bind password.
+    std::optional<TString> AdminPasswordEnvVar;
+
+    //! LDAP search base DN.
+    TString SearchBase;
+
+    //! LDAP search filter template. Use {login} as placeholder for the username.
+    //! Example: "(sAMAccountName={login})" or "(uid={login})"
+    TString SearchFilter;
+
+    //! Timeout for LDAP network and request operations.
+    TDuration RequestTimeout;
+
+    //! Resolves the admin password from the configured source. Throws if none is set.
+    TString GetAdminPassword() const;
+
+    REGISTER_YSON_STRUCT(TLdapServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLdapServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressCookieStoreConfig
     : public NYTree::TYsonStruct
 {
@@ -472,6 +534,9 @@ struct TCypressCookieGeneratorConfig
 
     //! Path parameter of generated cookies.
     TString Path;
+
+    //! Cookie expiration timeout for LDAP-authenticated users.
+    TDuration LdapCookieExpirationTimeout;
 
     //! If set and if cookie is generated via login page,
     //! will redirect user to this page.
@@ -547,6 +612,11 @@ struct TAuthenticationManagerConfig
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
     TCachingCypressUserManagerConfigPtr CypressUserManager;
+
+    TCypressPasswordAuthenticatorConfigPtr CypressPasswordAuthenticator;
+
+    //! If set, enables LDAP password authentication in the cookie login handler.
+    TLdapServiceConfigPtr LdapService;
 
     TString GetCsrfSecret() const;
 

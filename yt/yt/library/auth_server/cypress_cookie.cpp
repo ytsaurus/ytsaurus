@@ -37,6 +37,8 @@ void TCypressCookie::Register(TRegistrar registrar)
     registrar.Parameter("value", &TThis::Value);
     registrar.Parameter("user", &TThis::User);
     registrar.Parameter("password_revision", &TThis::PasswordRevision);
+    registrar.Parameter("auth_source", &TThis::AuthSource)
+        .Default(EAuthSource::Cypress);
     registrar.Parameter("expires_at", &TThis::ExpiresAt);
 }
 

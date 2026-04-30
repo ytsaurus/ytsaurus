@@ -3,6 +3,7 @@
 #include "config.h"
 #include "credentials.h"
 #include "cypress_cookie_store.h"
+#include "private.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -86,26 +87,28 @@ private:
 
     const IClientPtr Client_;
 
-    TFuture<ui64> GetUserPasswordRevision(const std::string& user)
+    TFuture<ui64> GetUserPasswordRevision(const std::string& user, TStringBuf attribute)
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 
-        static const std::string PasswordRevisionAttribute = "password_revision";
-
         TGetNodeOptions options{
-            .Attributes = {PasswordRevisionAttribute},
+            .Attributes = {attribute},
         };
 
         return Client_->GetNode(path, options)
-            .Apply(BIND([] (const TYsonString& rsp) {
-                auto rspNode = ConvertToNode(rsp);
-                return rspNode->Attributes().Get<ui64>(PasswordRevisionAttribute);
+            .Apply(BIND([attribute] (const TYsonString& rsp) {
+                // ldap_password_revision may not exist on the user node — default to 0.
+                return ConvertToNode(rsp)->Attributes().Get<ui64>(attribute, /*default*/ 0);
             }));
     }
 
     TFuture<TAuthenticationResult> OnGotCookie(const TCypressCookiePtr& cookie)
     {
-        return GetUserPasswordRevision(cookie->User)
+        const auto& attribute = (cookie->AuthSource == EAuthSource::Ldap)
+            ? LdapPasswordRevisionAttribute
+            : PasswordRevisionAttribute;
+
+        return GetUserPasswordRevision(cookie->User, attribute)
             .Apply(BIND(&TCypressCookieAuthenticator::OnGotPasswordRevision, MakeStrong(this), cookie)
                 .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker()));
     }
@@ -133,7 +136,9 @@ private:
             .Login = user,
         };
 
-        if (cookie->ExpiresAt < now + Config_->CookieRenewalPeriod) {
+        if (cookie->AuthSource == EAuthSource::Cypress &&
+            cookie->ExpiresAt < now + Config_->CookieRenewalPeriod)
+        {
             auto latestCookie = CookieStore_->GetLastCookieForUser(user);
 
             // Very unlikely, but might happen during cookie duration reconfiguration.
@@ -145,11 +150,16 @@ private:
             if (latestCookie && latestCookie->ExpiresAt > now + Config_->CookieRenewalPeriod) {
                 result.SetCookie = latestCookie->ToHeader(Config_);
             } else {
+                auto expirationTimeout = (cookie->AuthSource == EAuthSource::Ldap)
+                    ? Config_->LdapCookieExpirationTimeout
+                    : Config_->CookieExpirationTimeout;
+
                 auto newCookie = New<TCypressCookie>();
                 newCookie->Value = GenerateCookieValue();
                 newCookie->User = user;
+                newCookie->AuthSource = cookie->AuthSource;
                 newCookie->PasswordRevision = passwordRevision;
-                newCookie->ExpiresAt = TInstant::Now() + Config_->CookieExpirationTimeout;
+                newCookie->ExpiresAt = TInstant::Now() + expirationTimeout;
 
                 YT_LOG_DEBUG("Issuing new cookie for renewal "
                     "(User: %v, CookieMD5: %v, PasswordRevision: %v, ExpiresAt: %v)",
