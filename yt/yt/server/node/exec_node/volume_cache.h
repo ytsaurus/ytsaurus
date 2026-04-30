@@ -137,6 +137,12 @@ class TNbdVolumeFactory
 public:
     using TVolume = TCachedVolume<TString>;
     using TVolumePtr = TIntrusivePtr<TVolume>;
+    using TVolumeFactory = TExtendedCallback<IVolumePtr(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta volumeMeta,
+        TLayerLocationPtr layerLocation,
+        TString nbdDeviceId,
+        NNbd::INbdServerPtr nbdServer)>;
 
     TNbdVolumeFactory(
         IBootstrap* const bootstrap,
@@ -152,38 +158,11 @@ public:
         TPrepareRWNbdVolumeOptions options);
 
 private:
-    using TVolumeFactory = TExtendedCallback<IVolumePtr(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta volumeMeta,
-        TLayerLocationPtr layerLocation,
-        TString nbdDeviceId,
-        NNbd::INbdServerPtr nbdServer)>;
-
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InsertLock_);
 
     static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
     static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);
-
-    template <typename TNbdVolume>
-    static TVolumeFactory MakeVolumeFactory()
-    {
-        return BIND(
-            [] (
-                NProfiling::TTagSet tagSet,
-                TVolumeMeta volumeMeta,
-                TLayerLocationPtr layerLocation,
-                TString nbdDeviceId,
-                NNbd::INbdServerPtr nbdServer) -> IVolumePtr {
-
-            return New<TNbdVolume>(
-                std::move(tagSet),
-                std::move(volumeMeta),
-                std::move(layerLocation),
-                std::move(nbdDeviceId),
-                std::move(nbdServer));
-        });
-    }
 
     TInsertCookie GetInsertCookie(const TString& deviceId, const NNbd::INbdServerPtr& nbdServer);
 
