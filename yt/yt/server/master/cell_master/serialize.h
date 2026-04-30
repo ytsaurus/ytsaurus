@@ -189,6 +189,7 @@ DEFINE_ENUM(EMasterReign,
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
+    ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

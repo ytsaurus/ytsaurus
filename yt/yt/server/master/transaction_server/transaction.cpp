@@ -301,7 +301,8 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Locks_);
     Load(context, BranchedNodes_);
     // COMPAT(theevilbird)
-    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions) {
+    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
         Load(context, StagedNodes_);
     }
     Load(context, AccountResourceUsage_);
