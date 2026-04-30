@@ -260,7 +260,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, LockedNodes_);
     Save(context, Locks_);
     Save(context, BranchedNodes_);
-    Save(context, StagedNodes_);
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
     Save(context, PrerequisiteTransactions_);
@@ -301,7 +300,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, LockedNodes_);
     Load(context, Locks_);
     Load(context, BranchedNodes_);
-    Load(context, StagedNodes_);
+    // COMPAT(theevilbird)
+    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions) {
+        Load(context, StagedNodes_);
+    }
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     Load(context, PrerequisiteTransactions_);

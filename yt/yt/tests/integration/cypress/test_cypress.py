@@ -404,10 +404,10 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         d = create("map_node", "//tmp/d", tx=tx)
         if self.ENABLE_TMP_ROOTSTOCK:
-            assert get(f"#{d}/@ref_counter") == 2
+            assert get(f"#{d}/@ref_counter") == 1
         else:
-            # parent + branch + transaction
-            assert get(f"#{d}/@ref_counter") == 3
+            # parent + branch
+            assert get(f"#{d}/@ref_counter") == 2
         commit_transaction(tx)
         assert get(f"#{d}/@ref_counter") == 1
 

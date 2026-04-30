@@ -159,6 +159,7 @@ public:
     using TLockSet = THashSet<NCypressServer::TLockRawPtr>;
     DEFINE_BYREF_RO_PROPERTY(TLockSet, Locks);
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeSet, BranchedNodes);
+    // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
     using TStagedNodeList = std::vector<NCypressServer::TCypressNodeRawPtr>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
     DEFINE_BYREF_RW_PROPERTY(TBulkInsertState, BulkInsertState, this);

@@ -1383,16 +1383,6 @@ public:
         }
     }
 
-    void StageNode(TTransaction* transaction, TCypressNode* trunkNode) override
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(trunkNode->IsTrunk());
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        transaction->StagedNodes().push_back(trunkNode);
-        objectManager->RefObject(trunkNode);
-    }
-
     void ImportObject(TTransaction* transaction, TObject* object) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -3606,8 +3596,12 @@ private:
         TransactionMap_.LoadValues(context);
         Load(context, TimestampHolderMap_);
         BoomerangTracker_->Load(context);
-    }
 
+        // COMPAT(theevilbird)
+        if (context.GetVersion() >= EMasterReign::RemoveStagedNodesInTransactions) {
+            NeedUnrefStagedNodes_ = true;
+        }
+    }
 
     void OnAfterSnapshotLoaded() override
     {
@@ -3635,6 +3629,20 @@ private:
                 CacheTransactionStarted(transaction);
             }
         }
+
+        // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions
+        if (NeedUnrefStagedNodes_) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (auto [id, transaction] : TransactionMap_) {
+                if (!IsObjectAlive(transaction)) {
+                    continue;
+                }
+                for (auto node : transaction->StagedNodes()) {
+                    objectManager->UnrefObject(node);
+                }
+                transaction->StagedNodes().clear();
+            }
+        }
     }
 
     void Clear() override
@@ -3648,6 +3656,8 @@ private:
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
         TransactionPresenceCache_->Clear();
+        // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
+        NeedUnrefStagedNodes_ = false;
     }
 
     void OnStartLeading() override

@@ -185,6 +185,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateReshardComplexity)                                    (3231))  // sabdenovch
     ((FixTabletCellBundleInheritance)                               (3232))  // kvk120
     ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
+    ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
