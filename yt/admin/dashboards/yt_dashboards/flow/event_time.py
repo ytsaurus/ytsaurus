@@ -65,9 +65,74 @@ def build_late_messages():
     )
 
 
+def build_event_lag_per_computation():
+    # Per-message lag = now() - EventTimestamp, captured at three points:
+    # input (in PostCommit, per processed input message/timer),
+    # output (in PostCommit, per produced output message),
+    # sink (inside the sink itself at its natural delivery moment — at
+    # registration for sync sinks, on per-message ack for async sinks).
+    def lag_percentile(metric, alias, percentile, *extra):
+        sensor = (MonitoringExpr(FlowWorker(metric))
+            .aggr("host")
+            .all("computation_id")
+            .all("stream_id")
+            .all("bin"))
+        for label in extra:
+            sensor = sensor.all(label)
+        labels_vector = "as_vector(" + ", ".join(f'"{l}"' for l in ["computation_id", "stream_id"] + list(extra)) + ")"
+        return (MonitoringExpr.func("group_by_labels", sensor, labels_vector, f"v -> histogram_percentile({percentile}, v)")
+            .alias(alias)
+            .unit("UNIT_SECONDS")
+            .stack(False))
+
+    input_desc = "Lag = now() - EventTimestamp, measured at input (per processed message/timer)."
+    output_desc = "Lag = now() - EventTimestamp, measured at output (per emitted message)."
+    sink_desc = (
+        "Lag = now() - EventTimestamp, measured by the sink at its natural delivery "
+        "moment. For async sinks (e.g. logbroker) this is the per-message ack, which "
+        "may arrive long after the epoch commit.")
+
+    return (Rowset()
+        .row()
+            .cell(
+                "Input event lag — p50 per stream",
+                lag_percentile("yt.flow.worker.computation.event_lag.input.lag",
+                    "{{computation_id}} / {{stream_id}}", 50),
+                description=input_desc)
+            .cell(
+                "Input event lag — p90 per stream",
+                lag_percentile("yt.flow.worker.computation.event_lag.input.lag",
+                    "{{computation_id}} / {{stream_id}}", 90),
+                description=input_desc)
+        .row()
+            .cell(
+                "Output event lag — p50 per stream",
+                lag_percentile("yt.flow.worker.computation.event_lag.output.lag",
+                    "{{computation_id}} / {{stream_id}}", 50),
+                description=output_desc)
+            .cell(
+                "Output event lag — p90 per stream",
+                lag_percentile("yt.flow.worker.computation.event_lag.output.lag",
+                    "{{computation_id}} / {{stream_id}}", 90),
+                description=output_desc)
+        .row()
+            .cell(
+                "Sink event lag — p50 per sink",
+                lag_percentile("yt.flow.worker.computation.sink.event_lag.lag",
+                    "{{computation_id}} / {{stream_id}} → {{sink_id}}", 50, "sink_id"),
+                description=sink_desc)
+            .cell(
+                "Sink event lag — p90 per sink",
+                lag_percentile("yt.flow.worker.computation.sink.event_lag.lag",
+                    "{{computation_id}} / {{stream_id}} → {{sink_id}}", 90, "sink_id"),
+                description=sink_desc)
+    )
+
+
 def build_flow_event_time():
     def fill(d):
         d.add(build_lags())
         d.add(build_late_messages())
+        d.add(build_event_lag_per_computation())
 
     return create_dashboard("event-time", fill)
