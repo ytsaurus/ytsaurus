@@ -44,58 +44,70 @@ export YQL_BUILD_PATH=$(realpath $YQL_BUILD_PATH)
 
 mkdir -p $YQL_BUILD_PATH
 
-# Build yql agent binary.
-${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
+CORE_TARGETS=(
+    # Build yql agent binary.
+    "${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin"
+    
+    # Build mrjob binary.
+    "${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob"
+    
+    # Build mrjob udfs.
+    "${YTSAURUS_SOURCE_PATH}/contrib/libs/libidn/dynamic"
+    "${YTSAURUS_SOURCE_PATH}/contrib/libs/libiconv/dynamic"
+    
+    # Build required binaries and libraries
+    "${YTSAURUS_SOURCE_PATH}/yt/yql/plugin/dynamic"
+    "${YTSAURUS_SOURCE_PATH}/yt/yql/dq_vanilla_job"
+    "${YTSAURUS_SOURCE_PATH}/yt/yql/dq_vanilla_job.lite"
+    "${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/logs/dsv"
+    "${YTSAURUS_SOURCE_PATH}/yt/yql/udfs/yt_clickhouse"
+    "${YTSAURUS_SOURCE_PATH}/contrib/ydb/library/yql/udfs/common/clickhouse/client"
+)
 
-# Build mrjob binary.
-${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
-
-# Build mrjob udfs.
-${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/contrib/libs/libidn/dynamic
-${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/contrib/libs/libiconv/dynamic
-
-# Build required binaries and libraries.
-for path in "yt/yql/plugin/dynamic" \
-            "yt/yql/dq_vanilla_job" \
-            "yt/yql/dq_vanilla_job.lite" \
-            "yql/essentials/udfs/logs/dsv" \
-            "yt/yql/udfs/yt_clickhouse" \
-            "contrib/ydb/library/yql/udfs/common/clickhouse/client"
-do
-    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/$path
-done
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} "${CORE_TARGETS[@]}"
 
 # Build common yql udfs.
-for udf_name in compress_base \
-                datetime2 \
-                digest \
-                file \
-                histogram \
-                hyperloglog \
-                hyperscan \
-                ip_base \
-                json \
-                json2 \
-                math \
-                pire \
-                protobuf \
-                re2 \
-                set \
-                stat \
-                streaming \
-                string \
-                top \
-                topfreq \
-                unicode_base \
-                url_base \
-                vector \
-                yson2
-do
-    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
-    if [[ "$BUILD_FLAGS" != *"--bazel-remote-put"* ]]; then
-        strip --remove-section=.gnu_debuglink ${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
-    fi
+UDF_NAMES=(
+    compress_base
+    datetime2
+    digest
+    file
+    histogram
+    hyperloglog
+    hyperscan
+    ip_base
+    json
+    json2
+    math
+    pire
+    protobuf
+    re2
+    set
+    stat
+    streaming
+    string
+    top
+    topfreq
+    unicode_base
+    url_base
+    vector
+    yson2
+)
+
+TARGETS=()
+for udf in "${UDF_NAMES[@]}"; do
+    TARGETS+=("${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/common/${udf}")
 done
+
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} "${TARGETS[@]}"
+
+if [[ "$BUILD_FLAGS" != *"--bazel-remote-put"* ]]; then
+    for udf_name in "${UDF_NAMES[@]}"; do
+        strip --remove-section=.gnu_debuglink ${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
+    done
+fi
+
+BUILD_FLAGS_ISOLATED=${BUILD_FLAGS/ --yt-store / }
 
 if [ "$build_python_udfs" == "yes" ]; then
   # Build yql system python udfs inside a docker container.
@@ -104,7 +116,7 @@ if [ "$build_python_udfs" == "yes" ]; then
     -v $YQL_BUILD_PATH:/yql_build \
     --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env YQL_BUILD_PATH=/yql_build \
-    --env "BUILD_FLAGS=$BUILD_FLAGS" \
+    --env "BUILD_FLAGS=$BUILD_FLAGS_ISOLATED" \
     ghcr.io/ytsaurus/build-env:latest \
     /bin/bash -c \
     "/ytsaurus/yt/docker/ya-build/query-tracker/build_system_python_udfs.sh"

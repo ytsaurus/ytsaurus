@@ -21,6 +21,15 @@
         },
         {
             "source": {
+                "type": "ARCADIA",
+                "path": "yt/docker/ytsaurus/credits/ytsaurus/init_query_tracker_state.CREDITS",
+            },
+            "destination": {
+                "path": "/credits/init_query_tracker_state.CREDITS",
+            },
+        },
+        {
+            "source": {
                 "type": "BUILD_OUTPUT",
                 "build_key": "build::gpu_agent",
                 "path": "yt/yt/gpuagent/cmd/agent/agent",
@@ -34,6 +43,16 @@
                 "type": "BUILD_OUTPUT",
                 "build_key": "build::server_tools",
                 "path": "yt/python/yt/environment/bin/init_operations_archive/init-operations-archive",
+            },
+            "destination": {
+                "path": "/",
+            },
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "build_key": "build::server_tools",
+                "path": "yt/python/yt/environment/bin/init_query_tracker_state/init_query_tracker_state",
             },
             "destination": {
                 "path": "/",
