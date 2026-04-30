@@ -410,6 +410,26 @@ void TNbdVolumeFactory::ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVol
 void TNbdVolumeFactory::ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions&)
 { }
 
+template <typename TNbdVolume>
+static TNbdVolumeFactory::TVolumeFactory MakeVolumeFactory()
+{
+    return BIND(
+        [] (
+            NProfiling::TTagSet tagSet,
+            TVolumeMeta volumeMeta,
+            TLayerLocationPtr layerLocation,
+            TString nbdDeviceId,
+            INbdServerPtr nbdServer) -> IVolumePtr {
+
+        return New<TNbdVolume>(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation),
+            std::move(nbdDeviceId),
+            std::move(nbdServer));
+    });
+}
+
 TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const TString& deviceId, const INbdServerPtr& nbdServer)
 {
     auto guard = TGuard(InsertLock_);
