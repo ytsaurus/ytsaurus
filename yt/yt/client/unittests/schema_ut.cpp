@@ -327,6 +327,36 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
         TColumnSchema("Name", EValueType::String)
             .SetAggregate(std::string("sum")));
 
+    // HLL aggregate columns.
+    for (int precision = 7; precision <= 14; ++precision) {
+        ValidateColumnSchema(
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Format("hll_%v", precision)));
+        ValidateColumnSchema(
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Format("hll_%v_state", precision)));
+        ValidateColumnSchema(
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Format("hll_%v_merge", precision)));
+        ValidateColumnSchema(
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Format("hll_%v_merge_state", precision)));
+    }
+
+    // Invalid aggregate function names.
+    expectBad(
+        TColumnSchema("Name", EValueType::String)
+            .SetAggregate(std::string("cardinality")));
+    expectBad(
+        TColumnSchema("Name", EValueType::String)
+            .SetAggregate(std::string("avg")));
+    expectBad(
+        TColumnSchema("Name", EValueType::String)
+            .SetAggregate(std::string("hll_5_merge_state")));
+    expectBad(
+        TColumnSchema("Name", EValueType::String)
+            .SetAggregate(std::string("hll_15_merge_state")));
+
     // Struct field validation
     expectBad(
         TColumnSchema("Column", StructLogicalType({

@@ -1967,16 +1967,22 @@ void ValidateColumnSchema(
     bool isTableDynamic,
     const TSchemaValidationOptions& options)
 {
-    static const auto allowedAggregates = THashSet<std::string, THash<TStringBuf>, TEqualTo<>>{
-        "sum",
-        "min",
-        "max",
-        "first",
-        "xdelta",
-        "_yt_stored_replica_set",
-        "_yt_last_seen_replica_set",
-        "dict_sum",
-    };
+    static const auto allowedAggregates = [] {
+        auto result = THashSet<std::string, THash<TStringBuf>, TEqualTo<>>{
+            "sum",
+            "min",
+            "max",
+            "first",
+            "xdelta",
+            "_yt_stored_replica_set",
+            "_yt_last_seen_replica_set",
+            "dict_sum",
+        };
+        for (int precision = 7; precision <= 14; ++precision) {
+            result.insert(Format("hll_%v_merge_state", precision));
+        }
+        return result;
+    }();
 
     static const auto allowedNestedAggregates = THashSet<std::string, THash<TStringBuf>, TEqualTo<>>{
         "sum",
