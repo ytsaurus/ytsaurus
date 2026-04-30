@@ -15,6 +15,13 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Tries each authenticator in order; resolves on first success,
+//! or with a combined error if all fail.
+template <class TAuthenticator, class TCredentials, class TResult>
+class TCompositeAuthSession;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path);
 

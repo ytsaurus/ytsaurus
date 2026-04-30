@@ -23,5 +23,10 @@ constexpr TStringBuf YCSessionCookieRealm = "yciam:cookie";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr TStringBuf PasswordRevisionAttribute = "password_revision";
+constexpr TStringBuf LdapPasswordRevisionAttribute = "ldap_password_revision";
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth
 
