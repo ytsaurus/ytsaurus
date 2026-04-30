@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -230,7 +231,16 @@ public:
                 request);
 
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
-            statistics |= request;
+            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+            if (chunkManagerConfig->ChunkMerger->UpdateModificationTime) {
+                statistics |= request;
+            } else {
+                statistics.UpdateTabletResourceUsage |= request.UpdateTabletResourceUsage;
+                statistics.UpdateDataStatistics |= request.UpdateDataStatistics;
+                statistics.UpdateModificationTime = true;
+                statistics.UpdateAccessTime = true;
+                statistics.UseNativeContentRevisionCas = request.UseNativeContentRevisionCas;
+            }
 
             auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
             ongoingUpdate.RequestCount++;
