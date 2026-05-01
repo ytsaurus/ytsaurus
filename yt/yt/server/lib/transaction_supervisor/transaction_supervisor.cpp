@@ -3492,7 +3492,6 @@ private:
         }
         TransientAbortMap_.clear();
 
-        TransientCommitMap_.Clear();
         ParticipantMap_.clear();
 
         ClearBarriers(error);
