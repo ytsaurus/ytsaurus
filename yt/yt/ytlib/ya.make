@@ -260,6 +260,7 @@ SRCS(
     distributed_chunk_session_client/distributed_chunk_session_pool.cpp
     distributed_chunk_session_client/distributed_chunk_writer.cpp
     distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+    distributed_chunk_session_client/distributed_chunk_session_reader.cpp
 
     distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
 
