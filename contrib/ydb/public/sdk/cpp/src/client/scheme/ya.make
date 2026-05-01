@@ -9,6 +9,7 @@ GENERATE_ENUM_SERIALIZATION(contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/clien
 
 PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/impl/internal/make_request
+    contrib/ydb/public/sdk/cpp/src/client/impl/internal/scheme_helpers
     contrib/ydb/public/sdk/cpp/src/client/common_client/impl
     contrib/ydb/public/sdk/cpp/src/client/driver
 )

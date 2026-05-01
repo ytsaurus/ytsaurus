@@ -5,6 +5,7 @@
 #include <contrib/ydb/core/kqp/proxy_service/script_executions_utils/kqp_script_execution_compression.h>
 #include <contrib/ydb/core/kqp/proxy_service/kqp_script_executions.h>
 #include <contrib/ydb/core/tx/datashard/const.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/providers/common/structured_token/yql_token_builder.h>

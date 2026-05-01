@@ -23,6 +23,7 @@ PEERDIR(
     contrib/ydb/core/kqp/gateway/utils
     contrib/ydb/core/kqp/provider
     contrib/ydb/core/kqp/query_data
+    contrib/ydb/core/persqueue/public/schema
     contrib/ydb/core/statistics/service
     contrib/ydb/core/sys_view/common
     contrib/ydb/library/actors/core

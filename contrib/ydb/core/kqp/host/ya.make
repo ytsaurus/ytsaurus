@@ -13,9 +13,11 @@ SRCS(
 PEERDIR(
     contrib/ydb/core/base
     contrib/ydb/core/kqp/common
+    contrib/ydb/core/kqp/query_data
     contrib/ydb/core/kqp/federated_query
     contrib/ydb/core/kqp/gateway/utils
     contrib/ydb/core/kqp/opt
+    contrib/ydb/core/kqp/opt/cbo/solver
     contrib/ydb/core/kqp/provider
     contrib/ydb/core/tx/long_tx_service/public
     contrib/ydb/library/yql/dq/opt

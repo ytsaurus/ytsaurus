@@ -32,6 +32,7 @@ PEERDIR(
     library/cpp/threading/future/subscription
     library/cpp/monlib/metrics
     library/cpp/string_utils/url
+    contrib/ydb/library/persqueue
     contrib/ydb/public/sdk/cpp/src/library/persqueue/obfuscate
     contrib/ydb/public/api/grpc/draft
     contrib/ydb/public/api/grpc

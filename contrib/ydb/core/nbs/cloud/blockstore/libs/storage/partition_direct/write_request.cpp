@@ -1,22 +1,22 @@
 #include "write_request.h"
 
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/common/constants.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/context.h>
-
-#include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/future_helper.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/diagnostics/trace_helpers.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWriteRequestExecutor::TWriteRequestExecutor(
+TBaseWriteRequestExecutor::TBaseWriteRequestExecutor(
     NActors::TActorSystem* actorSystem,
     const TVChunkConfig& vChunkConfig,
     IDirectBlockGroupPtr directBlockGroup,
     TBlockRange64 vChunkRange,
     TCallContextPtr callContext,
     std::shared_ptr<TWriteBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    ui64 lsn,
+    NWilson::TTraceId traceId,
+    TDuration hedgingDelay)
     : ActorSystem(actorSystem)
     , VChunkConfig(vChunkConfig)
     , DirectBlockGroup(std::move(directBlockGroup))
@@ -24,16 +24,17 @@ TWriteRequestExecutor::TWriteRequestExecutor(
     , CallContext(std::move(callContext))
     , Request(std::move(request))
     , TraceId(std::move(traceId))
-    , Lsn(Request->Lsn)
+    , Lsn(lsn)
+    , HedgingDelay(hedgingDelay)
 {}
 
-TWriteRequestExecutor::~TWriteRequestExecutor()
+TBaseWriteRequestExecutor::~TBaseWriteRequestExecutor()
 {
     if (!Promise.IsReady()) {
         LOG_ERROR(
             *ActorSystem,
             NKikimrServices::NBS_PARTITION,
-            "TWriteRequestExecutor. Reply not sent %s %s",
+            "TBaseWriteRequestExecutor. Reply not sent %s %s",
             Request->Headers.VolumeConfig->DiskId.Quote().c_str(),
             Request->Headers.Range.Print().c_str());
 
@@ -41,21 +42,29 @@ TWriteRequestExecutor::~TWriteRequestExecutor()
     }
 }
 
-void TWriteRequestExecutor::Run()
-{
-    SendWriteRequest(ELocation::PBuffer0);
-    SendWriteRequest(ELocation::PBuffer1);
-    SendWriteRequest(ELocation::PBuffer2);
-}
-
-NThreading::TFuture<TWriteRequestExecutor::TResponse>
-TWriteRequestExecutor::GetFuture() const
+NThreading::TFuture<TBaseWriteRequestExecutor::TResponse>
+TBaseWriteRequestExecutor::GetFuture() const
 {
     return Promise.GetFuture();
 }
 
-void TWriteRequestExecutor::SendWriteRequest(ELocation location)
+void TBaseWriteRequestExecutor::Reply(NProto::TError error)
 {
+    Promise.TrySetValue(TResponse{
+        .Error = std::move(error),
+        .Lsn = Lsn,
+        .RequestedWrites = RequestedWrites,
+        .CompletedWrites = CompletedWrites});
+}
+
+void TBaseWriteRequestExecutor::SendWriteRequest(ELocation location)
+{
+    auto span =
+        DirectBlockGroup->CreateChildSpan(TraceId, "TBaseWriteRequestExecutor");
+    if (span) {
+        span->Attribute("Location", ToString(location));
+    }
+
     RequestedWrites.Set(location);
 
     auto future = DirectBlockGroup->WriteBlocksToPBuffer(
@@ -64,16 +73,19 @@ void TWriteRequestExecutor::SendWriteRequest(ELocation location)
         Lsn,
         VChunkRange,
         Request->Sglist,
-        NWilson::TTraceId(TraceId));
+        span ? span->GetTraceId() : NWilson::TTraceId());
 
-    future.Subscribe([self = shared_from_this(), location]   //
-                     (const NThreading::TFuture<TDBGWriteBlocksResponse>& f)
-                     { self->OnWriteResponse(location, f.GetValue()); });
+    future.Subscribe(
+        [self = shared_from_this(), location, span = std::move(span)]       //
+        (const NThreading::TFuture<TDBGWriteBlocksResponse>& f) mutable {   //
+            self->OnWriteResponse(location, f.GetValue(), std::move(span));
+        });
 }
 
-void TWriteRequestExecutor::OnWriteResponse(
+void TBaseWriteRequestExecutor::OnWriteResponse(
     ELocation location,
-    const TDBGWriteBlocksResponse& response)
+    const TDBGWriteBlocksResponse& response,
+    std::shared_ptr<NWilson::TSpan> span)
 {
     if (!HasError(response.Error)) {
         CompletedWrites.Set(location);
@@ -87,7 +99,7 @@ void TWriteRequestExecutor::OnWriteResponse(
         LOG_WARN(
             *ActorSystem,
             NKikimrServices::NBS_PARTITION,
-            "TWriteRequestExecutor. Try first hand-off. %s",
+            "TBaseWriteRequestExecutor. Try first hand-off. %s",
             FormatError(response.Error).c_str());
 
         SendWriteRequest(ELocation::HOPBuffer0);
@@ -95,7 +107,7 @@ void TWriteRequestExecutor::OnWriteResponse(
         LOG_WARN(
             *ActorSystem,
             NKikimrServices::NBS_PARTITION,
-            "TWriteRequestExecutor. Try second hand-off. %s",
+            "TBaseWriteRequestExecutor. Try second hand-off. %s",
             FormatError(response.Error).c_str());
 
         SendWriteRequest(ELocation::HOPBuffer1);
@@ -103,20 +115,13 @@ void TWriteRequestExecutor::OnWriteResponse(
         LOG_ERROR(
             *ActorSystem,
             NKikimrServices::NBS_PARTITION,
-            "TWriteRequestExecutor. All hand-offs attempts are over. %s",
+            "TBaseWriteRequestExecutor. All hand-offs attempts are over. %s",
             FormatError(response.Error).c_str());
 
         Reply(response.Error);
-    }
-}
 
-void TWriteRequestExecutor::Reply(NProto::TError error)
-{
-    Promise.TrySetValue(TResponse{
-        .Error = std::move(error),
-        .Lsn = Lsn,
-        .RequestedWrites = RequestedWrites,
-        .CompletedWrites = CompletedWrites});
+        auto ender = TEndSpanWithError(std::move(span), response.Error);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

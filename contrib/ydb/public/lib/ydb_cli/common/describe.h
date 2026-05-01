@@ -3,6 +3,7 @@
 #include <contrib/ydb/public/lib/ydb_cli/common/formats.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/driver/driver.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/scheme/scheme.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/secret/secret.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/topic/client.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/coordination/coordination.h>
@@ -58,6 +59,9 @@ private:
 
     int DescribeSystemView(const TString& path, EDataFormat format);
     int PrintSystemViewResponsePretty(const NYdb::NTable::TSystemViewDescription& result) const;
+
+    int DescribeSecret(const TString& path, EDataFormat format);
+    int PrintSecretResponsePretty(const NSecret::TDescribeSecretResult& result) const;
 
     int TryTopicConsumerDescribeOrFail(const TString& path, const NScheme::TDescribePathResult& result, const TDescribeOptions& options, EDataFormat format);
     std::pair<TString, TString> ParseTopicConsumer(const TString& path) const;

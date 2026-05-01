@@ -3,6 +3,7 @@
 #include <contrib/ydb/core/persqueue/public/constants.h>
 #include <contrib/ydb/core/persqueue/public/utils.h>
 #include <contrib/ydb/core/protos/grpc_pq_old.pb.h>
+#include <contrib/ydb/core/protos/pqdata_mlp.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_topic.pb.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/topic/codecs.h>
 
@@ -114,7 +115,8 @@ void TReaderActor::DoRead() {
         PartitionId,
         Settings.WaitTime ? Settings.WaitTime->ToDeadLine() : TDuration::MilliSeconds(ConsumerConfig->GetDefaultReceiveMessageWaitTimeMs()).ToDeadLine(),
         Settings.ProcessingTimeout ? Settings.ProcessingTimeout.value() : TDuration::Seconds(ConsumerConfig->GetDefaultProcessingTimeoutSeconds()),
-        Settings.MaxNumberOfMessage
+        Settings.MaxNumberOfMessage,
+        Settings.SkipMessageGroups
     );
     SendToTablet(PQTabletId, request);
 }

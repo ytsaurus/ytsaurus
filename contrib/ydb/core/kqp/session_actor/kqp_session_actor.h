@@ -5,7 +5,6 @@
 #include <contrib/ydb/core/kqp/counters/kqp_counters.h>
 #include <contrib/ydb/core/kqp/federated_query/kqp_federated_query_helpers.h>
 #include <contrib/ydb/core/kqp/gateway/kqp_gateway.h>
-#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/kqp/executer_actor/kqp_executer.h>
 #include <contrib/ydb/core/protos/table_service_config.pb.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io_factory.h>
@@ -106,7 +105,7 @@ IActor* CreateKqpSessionActor(const TActorId& owner,
     TIntrusivePtr<TModuleResolverState> moduleResolverState, TIntrusivePtr<TKqpCounters> counters,
     const TActorId& kqpTempTablesAgentActor,
     std::shared_ptr<NYql::NDq::IDqChannelService> channelService,
-    const TString& userSID);
+    NACLib::TUserContext::TPtr userCtx);
 
 IActor* CreateKqpTempTablesManager(
     TKqpTempTablesState tempTablesState, TIntrusiveConstPtr<NACLib::TUserToken> userToken, const TActorId& target, const TString& database);

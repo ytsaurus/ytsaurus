@@ -34,6 +34,7 @@ PEERDIR(
     contrib/ydb/library/aclib/protos
     yql/essentials/types/binary_json
     yql/essentials/types/dynumber
+    contrib/ydb/core/kqp/opt/cbo
     yql/essentials/core/services
     yql/essentials/minikql
     yql/essentials/public/decimal

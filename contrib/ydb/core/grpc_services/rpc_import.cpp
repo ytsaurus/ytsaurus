@@ -18,11 +18,6 @@
 #include <util/generic/ptr.h>
 #include <util/string/builder.h>
 
-#ifdef _linux_
-#include <sys/vfs.h>
-#include <linux/magic.h>
-#endif
-
 namespace NKikimr {
 namespace NGRpcService {
 
@@ -105,7 +100,9 @@ class TImportRPC: public TRpcOperationRequestActor<TDerived, TEvRequest, true>, 
             createImport.MutableImportFromS3Settings()->CopyFrom(request.settings());
         }
         if constexpr (IsFsImport) {
-            createImport.MutableImportFromFsSettings()->CopyFrom(request.settings());
+            auto* fsSettings = createImport.MutableImportFromFsSettings();
+            fsSettings->CopyFrom(request.settings());
+            fsSettings->set_base_path(StripTrailingSlashes(fsSettings->base_path()));
         }
 
         return ev.Release();
@@ -156,6 +153,8 @@ public:
         }
         if (settings.items().empty() && !commonSourcePathSpecified) {
             return this->Reply(StatusIds::BAD_REQUEST, TIssuesIds::DEFAULT_ERROR, "No source prefix specified. Don't know where to import from");
+        } else if (settings.items().empty() && !encryptedExportFeatureFlag) {
+            return this->Reply(StatusIds::BAD_REQUEST, TIssuesIds::DEFAULT_ERROR, "No items to import. Don't know where to import from");
         }
         for (const auto& item : settings.items()) {
             if (TTraits::GetSourcePath(item).empty() && !commonSourcePathSpecified) {
@@ -190,16 +189,6 @@ public:
                 return this->Reply(StatusIds::BAD_REQUEST, TIssuesIds::DEFAULT_ERROR,
                     "base_path must be an absolute path");
             }
-
-#ifdef _linux_
-            struct statfs fsInfo;
-            if (statfs(settings.base_path().c_str(), &fsInfo) == 0) {
-                if (fsInfo.f_type != NFS_SUPER_MAGIC) {
-                    return this->Reply(StatusIds::BAD_REQUEST, TIssuesIds::DEFAULT_ERROR,
-                        "base_path must be on NFS filesystem");
-                }
-            }
-#endif
 
             TString error;
             if (!ValidateFsPath(settings.base_path(), "base_path", error)) {

@@ -3,6 +3,7 @@
 #include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
+#include <contrib/ydb/core/protos/pqdata_transaction.pb.h>
 #include <contrib/ydb/core/protos/msgbus_kv.pb.h>
 #include <contrib/ydb/core/protos/tx.pb.h>
 #include <contrib/ydb/core/tx/tx_processing.h>

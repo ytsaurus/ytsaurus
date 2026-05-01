@@ -83,6 +83,7 @@
 #include <contrib/ydb/core/tx/coordinator/coordinator.h>
 #include <contrib/ydb/core/tx/datashard/datashard.h>
 #include <contrib/ydb/core/tx/long_tx_service/public/events.h>
+#include <contrib/ydb/core/tx/long_tx_service/public/snapshot_registry.h>
 #include <contrib/ydb/core/tx/long_tx_service/long_tx_service.h>
 #include <contrib/ydb/core/tx/mediator/mediator.h>
 #include <contrib/ydb/core/tx/replication/controller/controller.h>
@@ -1469,6 +1470,7 @@ namespace Tests {
         }
 
         {
+            Runtime->GetAppData(nodeIdx).SnapshotRegistryHolder = CreateImmutableSnapshotRegistryHolder();
             IActor* longTxService = NLongTxService::CreateLongTxService();
             TActorId longTxServiceId = Runtime->Register(longTxService, nodeIdx, userPoolId);
             Runtime->RegisterService(NLongTxService::MakeLongTxServiceID(Runtime->GetNodeId(nodeIdx)), longTxServiceId, nodeIdx);

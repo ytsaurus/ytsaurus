@@ -1,8 +1,11 @@
 #pragma once
 #include <contrib/ydb/library/accessor/accessor.h>
 #include <contrib/ydb/library/conclusion/status.h>
-#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/protos/tx_datashard.pb.h>
+
+namespace NKikimrConfig {
+    class TConveyorConfig;
+}
 
 namespace NKikimr::NConveyor {
 

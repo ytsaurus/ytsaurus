@@ -11,15 +11,21 @@ SRCS(
     guarded_sglist.cpp
     helpers.cpp
     page_size.cpp
+    scheduler_test.cpp
+    scheduler.cpp
     sglist_iter.cpp
-    sglist.cpp
     sglist_test.cpp
+    sglist.cpp
     startable.cpp
     thread.cpp
+    timer.cpp
+    timer_test.cpp
 )
 
 PEERDIR(
     contrib/ydb/core/nbs/cloud/storage/core/protos
+
+    contrib/ydb/library/actors/prof
 
     library/cpp/lwtrace
     library/cpp/json/writer

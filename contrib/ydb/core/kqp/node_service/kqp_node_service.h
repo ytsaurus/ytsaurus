@@ -5,7 +5,6 @@
 #include <contrib/ydb/core/kqp/common/kqp_event_ids.h>
 #include <contrib/ydb/core/kqp/counters/kqp_counters.h>
 #include <contrib/ydb/core/kqp/federated_query/kqp_federated_query_helpers.h>
-#include <contrib/ydb/core/protos/config.pb.h>
 
 #include <contrib/ydb/library/yql/dq/runtime/dq_tasks_runner.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io_factory.h>

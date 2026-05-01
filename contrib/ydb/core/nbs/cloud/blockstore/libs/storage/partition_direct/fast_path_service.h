@@ -2,11 +2,14 @@
 
 #include "region.h"
 
-#include <contrib/ydb/core/nbs/cloud/blockstore/config/protos/storage.pb.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/public.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/diagnostics/volume_counters.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/partition_direct_service.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/public.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/storage.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/core/public.h>
+
+#include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/public.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
@@ -20,6 +23,8 @@ class TFastPathService
 private:
     NActors::TActorSystem* const ActorSystem = nullptr;
     const TString DiskId;
+    const ISchedulerPtr Scheduler;
+    const ITimerPtr Timer;
     const TVector<std::shared_ptr<TRegion>> Regions;   // 4 GiB each
 
     std::atomic<ui64> SequenceGenerator;
@@ -29,6 +34,8 @@ private:
 
     TVolumeCounters Counters;
     TVolumeConfigPtr VolumeConfig;
+    const EWriteMode WriteMode;
+    TDuration PBufferReplyTimeout;
 
 public:
     TFastPathService(
@@ -38,8 +45,10 @@ public:
         ui64 blockCount,
         ui32 blockSize,
         TVector<IDirectBlockGroupPtr> directBlockGroups,
-        const NProto::TStorageServiceConfig& storageConfig,
-        TIntrusivePtr<NMonitoring::TDynamicCounters> counters = nullptr);
+        TStorageConfigPtr storageConfig,
+        ISchedulerPtr scheduler,
+        ITimerPtr timer,
+        TIntrusivePtr<NMonitoring::TDynamicCounters> counters);
 
     ~TFastPathService() override = default;
 
@@ -61,6 +70,11 @@ public:
     // IPartitionDirectService implementation
     TVolumeConfigPtr GetVolumeConfig() const override;
     NWilson::TSpan CreteRootSpan(TStringBuf name) override;
+
+    void ScheduleAfterDelay(
+        NYdb::NBS::TExecutorPtr executor,
+        TDuration delay,
+        NYdb::NBS::TCallback callback) override;
 
 private:
     ui64 GenerateSequenceNumber();

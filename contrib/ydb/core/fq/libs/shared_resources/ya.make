@@ -18,6 +18,7 @@ PEERDIR(
     contrib/ydb/core/util
     contrib/ydb/library/actors/core
     contrib/ydb/library/db_pool
+    contrib/ydb/library/db_pool/protos
     contrib/ydb/library/logger
     contrib/ydb/library/security
     contrib/ydb/public/sdk/cpp/src/client/driver
