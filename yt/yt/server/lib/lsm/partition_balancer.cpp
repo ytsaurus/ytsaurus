@@ -349,7 +349,7 @@ private:
         if (CurrentTime_ < partition->GetAllowedMergeTime()) {
             YT_LOG_DEBUG("Will not merge partition: too early "
                 "(CurrentTime: %v, AllowedMergeTime: %v)",
-                CurrentTime_, partition->GetAllowedSplitTime());
+                CurrentTime_, partition->GetAllowedMergeTime());
             return false;
         }
         return true;

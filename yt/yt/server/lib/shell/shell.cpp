@@ -116,8 +116,8 @@ public:
         if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
             YT_LOG_WARNING(
                 "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
-                ConsumedOffset_,
-                inputOffset);
+                inputOffset,
+                ConsumedOffset_);
         }
 
         size_t offset = ConsumedOffset_ - inputOffset;
