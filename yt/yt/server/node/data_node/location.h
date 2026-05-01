@@ -496,7 +496,8 @@ private:
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
 
-    TAtomicPtr<TStoreLocationConfig> RuntimeConfig_;
+    // NB: Shadows TChunkLocation::RuntimeConfig_ which has a narrower type.
+    TAtomicPtr<TStoreLocationConfig, /*AcquireHazard*/ true> RuntimeConfig_;
 
     static TJournalManagerConfigPtr BuildJournalManagerConfig(
         const TDataNodeConfigPtr& dataNodeConfig,
