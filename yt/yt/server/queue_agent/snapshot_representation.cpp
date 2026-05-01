@@ -102,6 +102,7 @@ void BuildQueuePartitionYson(const TQueuePartitionSnapshotPtr& snapshot, TFluent
 
     fluent
         .BeginMap()
+            .Item("barrier_timestamp").Value(snapshot->BarrierTimestamp)
             .Item("lower_row_index").Value(snapshot->LowerRowIndex)
             .Item("upper_row_index").Value(snapshot->UpperRowIndex)
             .Item("available_row_count").Value(snapshot->AvailableRowCount)

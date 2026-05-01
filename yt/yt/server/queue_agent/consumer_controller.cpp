@@ -247,7 +247,11 @@ private:
         {
             auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(/*queueClient*/ nullptr, queueRef);
 
-            auto consumerPartitionInfos = WaitFor(subConsumerClient->CollectPartitions(partitionCount, /*withLastConsumeTime*/ true))
+            auto consumerPartitionInfos = WaitFor(
+                subConsumerClient->CollectPartitions(
+                    partitionCount,
+                    queueSnapshot->LowestPartitionBarrierTimestamp,
+                    /*withLastConsumeTime*/ true))
                 .ValueOrThrow();
 
             for (const auto& consumerPartitionInfo : consumerPartitionInfos) {

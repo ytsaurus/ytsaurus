@@ -311,7 +311,11 @@ private:
     void ReportLag()
     {
         i64 nextRowIndex = 0;
-        auto partitionInfos = WaitFor(ConsumerClient_->CollectPartitions(std::vector<int>{0}, /*withLastConsumeTime*/ false))
+        auto partitionInfos = WaitFor(
+            ConsumerClient_->CollectPartitions(
+                std::vector<int>{0},
+                /*timestamp*/ std::nullopt,
+                /*withLastConsumeTime*/ false))
             .ValueOrThrow();
         if (!partitionInfos.empty()) {
             YT_VERIFY(partitionInfos.size() == 1);

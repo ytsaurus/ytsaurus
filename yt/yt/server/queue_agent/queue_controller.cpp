@@ -229,6 +229,7 @@ private:
                 ? PreviousQueueSnapshot_->PartitionSnapshots[index]
                 : nullptr;
             const auto& tabletInfo = tabletInfos[index];
+            partitionSnapshot->BarrierTimestamp = tabletInfo.BarrierTimestamp;
             partitionSnapshot->UpperRowIndex = tabletInfo.TotalRowCount;
             partitionSnapshot->LowerRowIndex = tabletInfo.TrimmedRowCount;
             partitionSnapshot->AvailableRowCount = partitionSnapshot->UpperRowIndex - partitionSnapshot->LowerRowIndex;
@@ -258,6 +259,13 @@ private:
         for (int index = 0; index < std::ssize(tabletInfos); ++index) {
             const auto& partitionSnapshot = partitionSnapshots[tabletIndexes[index]];
             QueueSnapshot_->WriteRate += partitionSnapshot->WriteRate;
+
+            if (NullTimestamp == QueueSnapshot_->LowestPartitionBarrierTimestamp) {
+                QueueSnapshot_->LowestPartitionBarrierTimestamp = partitionSnapshot->BarrierTimestamp;
+            } else {
+                QueueSnapshot_->LowestPartitionBarrierTimestamp =
+                    std::min(partitionSnapshot->BarrierTimestamp, QueueSnapshot_->LowestPartitionBarrierTimestamp);
+            }
         }
 
         QueueSnapshot_->Registrations = Registrations_;
@@ -399,6 +407,7 @@ public:
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
             .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
+            .Item("lowest_partition_barrier_timestamp").Value(queueSnapshot->LowestPartitionBarrierTimestamp)
             .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
         .EndMap();
     }

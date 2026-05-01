@@ -43,6 +43,8 @@ struct TQueueSnapshot
     bool HasCumulativeDataWeightColumn = false;
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
+    NTransactionClient::TTimestamp LowestPartitionBarrierTimestamp = NTransactionClient::NullTimestamp;
+
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
 };
 
@@ -57,6 +59,7 @@ struct TQueuePartitionSnapshot
     TError Error;
 
     // Fields below are not set if error is set.
+    NTransactionClient::TTimestamp BarrierTimestamp = NTransactionClient::NullTimestamp;
     i64 LowerRowIndex = -1;
     i64 UpperRowIndex = -1;
     i64 AvailableRowCount = -1;
