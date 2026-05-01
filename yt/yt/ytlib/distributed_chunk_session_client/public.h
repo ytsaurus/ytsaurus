@@ -18,6 +18,13 @@ DECLARE_REFCOUNTED_STRUCT(TDistributedChunkSessionControllerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDistributedChunkSessionPoolConfig)
 DECLARE_REFCOUNTED_STRUCT(TDistributedChunkWriterConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionReader)
+DECLARE_REFCOUNTED_STRUCT(TDistributedChunkSessionReaderConfig)
+DECLARE_REFCOUNTED_STRUCT(TDistributedChunkSessionReaderStatistics)
+
+using TDistributedChunkSessionReaderStatisticsConstPtr =
+    TIntrusivePtr<const TDistributedChunkSessionReaderStatistics>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, DistributedChunkSessionLogger, "DistributedChunkSessionClient");
