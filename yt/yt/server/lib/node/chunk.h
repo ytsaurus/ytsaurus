@@ -44,6 +44,7 @@ private:
 
     TLockedChunkGuard(TChunkLocationBasePtr location, TChunkId chunkId);
 
+    void Unlock();
     void MoveFrom(TLockedChunkGuard&& other);
 
     TChunkLocationBasePtr Location_;
