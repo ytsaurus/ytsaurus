@@ -10,6 +10,7 @@
 #include <contrib/ydb/core/base/appdata_fwd.h>
 #include <contrib/ydb/core/base/counters.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/protos/schemeshard/operations.pb.h>
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/yverify_stream/yverify_stream.h>

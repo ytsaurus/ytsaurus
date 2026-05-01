@@ -26,13 +26,21 @@ TRegion::TRegion(
     ui32 regionIndex,
     TVector<IDirectBlockGroupPtr> directBlockGroups,
     ui32 syncRequestsBatchSize,
-    TDuration traceSamplePeriod)
+    ui64 vChunkSize,
+    TDuration writeHandoffDelay,
+    TDuration traceSamplePeriod,
+    NMonitoring::TDynamicCounterPtr counters)
     : ActorSystem(actorSystem)
 {
-    for (size_t i = 0; i < VChunksPerRegionCount; i++) {
+    Y_ABORT_UNLESS(vChunkSize > 0 && vChunkSize <= RegionSize);
+    const ui32 vChunksPerRegionCount = RegionSize / vChunkSize;
+    for (size_t i = 0; i < vChunksPerRegionCount; i++) {
         const size_t vChunkIndex =
-            (regionIndex * VChunksPerRegionCount) + static_cast<ui32>(i);
+            (regionIndex * vChunksPerRegionCount) + static_cast<ui32>(i);
         const size_t dbgIndex = i % directBlockGroups.size();
+
+        NMonitoring::TDynamicCounterPtr vChunkCounters =
+            counters->GetSubgroup("vchunk", ToString(vChunkIndex));
 
         auto vChunk = std::make_shared<TVChunk>(
             ActorSystem,
@@ -40,7 +48,10 @@ TRegion::TRegion(
             TVChunkConfig::Make(vChunkIndex),
             directBlockGroups[dbgIndex],
             syncRequestsBatchSize,
-            traceSamplePeriod);
+            vChunkSize,
+            writeHandoffDelay,
+            traceSamplePeriod,
+            vChunkCounters);
         vChunk->Start();
         VChunks.push_back(std::move(vChunk));
     }
@@ -49,27 +60,33 @@ TRegion::TRegion(
 NThreading::TFuture<TReadBlocksLocalResponse> TRegion::ReadBlocksLocal(
     TCallContextPtr callContext,
     std::shared_ptr<TReadBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    const NWilson::TTraceId& traceId)
 {
     const size_t vChunkIndex = VChunkIndexFromHeaders(request->Headers);
 
     return VChunks[vChunkIndex]->ReadBlocksLocal(
         std::move(callContext),
         std::move(request),
-        std::move(traceId));
+        traceId);
 }
 
 NThreading::TFuture<TWriteBlocksLocalResponse> TRegion::WriteBlocksLocal(
     TCallContextPtr callContext,
     std::shared_ptr<TWriteBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    EWriteMode writeMode,
+    TDuration pbufferReplyTimeout,
+    ui64 lsn,
+    const NWilson::TTraceId& traceId)
 {
     const size_t vChunkIndex = VChunkIndexFromHeaders(request->Headers);
 
     return VChunks[vChunkIndex]->WriteBlocksLocal(
         std::move(callContext),
         std::move(request),
-        std::move(traceId));
+        writeMode,
+        pbufferReplyTimeout,
+        lsn,
+        traceId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

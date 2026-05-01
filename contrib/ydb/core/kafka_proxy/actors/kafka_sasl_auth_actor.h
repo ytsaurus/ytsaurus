@@ -99,7 +99,7 @@ private:
     void HandleTimeout(const NActors::TActorContext& ctx);
     void HandleNavigate(TEvTxProxySchemeCache::TEvNavigateKeySetResult::TPtr& ev, const TActorContext& ctx);
 
-    void StartPlainAuth(const NActors::TActorContext& ctx);
+    [[nodiscard]] bool StartPlainAuth(const NActors::TActorContext& ctx);
     void StartScramAuth();
     void StartMtlsAuth();
     void SendPlainLoginRequest(const NActors::TActorContext& ctx);
@@ -107,10 +107,10 @@ private:
     void SendMtlsAuthRequest(const NActors::TActorContext& ctx);
     void SendTicketParserRequest();
     void SendDescribeRequest();
-    bool TryParseAuthDataTo(TKafkaSaslAuthActor::TAuthData& authData, const NActors::TActorContext& ctx);
+    [[nodiscard]] bool TryParseAuthDataTo(TKafkaSaslAuthActor::TAuthData& authData, const NActors::TActorContext& ctx);
     void CleanupAndDie(const NActors::TActorContext& ctx);
     void SendResponse();
-    void SendResponseAndDie(EKafkaErrors errorCode, const TString& errorMessage, const TString& details, const NActors::TActorContext& ctx);
+    void SendResponseAndDie(EKafkaErrors errorCode, Ydb::StatusIds::StatusCode status, const TString& errorMessage, const TString& details, const NActors::TActorContext& ctx);
     void GetPathByPathId(const TPathId& pathId);
 
 private:

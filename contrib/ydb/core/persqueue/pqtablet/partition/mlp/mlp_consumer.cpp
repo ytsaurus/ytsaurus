@@ -708,9 +708,15 @@ void TConsumerActor::ProcessEventQueue() {
         size_t count = ev->Get()->GetMaxNumberOfMessages();
         auto visibilityDeadline = ev->Get()->GetProcessingTimeout().ToDeadLine();
 
+        absl::flat_hash_set<ui32> skipMessageGroups; // TODO: remove after SQS migration finished
+        skipMessageGroups.reserve(ev->Get()->Record.GetSkipMessageGroup().size());
+        for (auto& skipMessageGroup : ev->Get()->Record.GetSkipMessageGroup()) {
+            skipMessageGroups.insert(static_cast<ui32>(Hash(skipMessageGroup)) & 0x7FFFFFFF);
+        }
+
         std::deque<TReadMessage> messages;
         for (; count; --count) {
-            auto result = Storage->Next(visibilityDeadline, position);
+            auto result = Storage->Next(visibilityDeadline, position, skipMessageGroups);
             if (!result) {
                 break;
             }
@@ -961,9 +967,11 @@ void TConsumerActor::HandleOnWork(TEvents::TEvWakeup::TPtr& ev) {
     switch (ev->Get()->Tag) {
         case EWakeUpTag::Regular: {
             FetchMessagesIfNeeded();
-            ScheduleProcessing();
+            if (!ProcessingScheduled) {
+                ProcessEventQueue();
+            }
+            NotifyPQRB(true);
             UpdateMetrics();
-            NotifyPQRB();
             Schedule(WakeupInterval, new TEvents::TEvWakeup(EWakeUpTag::Regular));
             break;
         }
@@ -986,7 +994,7 @@ void TConsumerActor::MoveToDLQIfPossible() {
 
     auto destinationTopic = [&]() -> TString {
         auto databasePrefix = TStringBuilder() << Database << "/";
-        if (Config.GetDeadLetterQueue().StartsWith(databasePrefix)) {
+        if (Config.GetDeadLetterQueue().StartsWith("sqs://") || Config.GetDeadLetterQueue().StartsWith(databasePrefix)) {
             return Config.GetDeadLetterQueue();
         } else {
             return databasePrefix << Config.GetDeadLetterQueue();
@@ -1043,8 +1051,8 @@ void TConsumerActor::Handle(TEvents::TEvWakeup::TPtr& ev) {
         UpdateLockedGroupsIdInChildPartitions(false);
         return;
     }
+    NotifyPQRB(true);
     UpdateMetrics();
-    NotifyPQRB();
     Schedule(WakeupInterval, new TEvents::TEvWakeup(EWakeUpTag::Regular));
 }
 
@@ -1064,8 +1072,17 @@ bool TConsumerActor::UseForReading() const {
 void TConsumerActor::NotifyPQRB(bool force) {
     auto useForReading = UseForReading();
     if (force || useForReading != LastUseForReading) {
-        auto ev = std::make_unique<TEvPQ::TEvMLPConsumerStatus>(Config.GetName(), PartitionId,
-            PartitionEndOffset - LastCommittedOffset, useForReading);
+        auto ev = std::make_unique<TEvPQ::TEvMLPConsumerStatus>(Config.GetName(), PartitionId, useForReading);
+
+        const auto& metrics = Storage->GetMetrics();
+        const i64 rawMessageCount = static_cast<i64>(PartitionEndOffset)
+            - static_cast<i64>(LastCommittedOffset)
+            - static_cast<i64>(metrics.CommittedMessageCount);
+
+        ev->Record.SetLockedMessageCount(metrics.LockedMessageCount);
+        ev->Record.SetDelayedMessageCount(metrics.DelayedMessageCount);
+        ev->Record.SetMessageCount(std::max<i64>(0, rawMessageCount));
+
         Send(PartitionActorId, std::move(ev));
         LastUseForReading = useForReading;
     }

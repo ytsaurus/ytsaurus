@@ -19,6 +19,7 @@ PEERDIR(
     contrib/ydb/core/kqp/compile_service/helpers
     contrib/ydb/library/actors/interconnect
     contrib/ydb/library/query_actor
+    library/cpp/protobuf/json
 )
 
 YQL_LAST_ABI_VERSION()

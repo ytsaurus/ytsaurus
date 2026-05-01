@@ -10,6 +10,7 @@ SRCS(
 PEERDIR(
     contrib/ydb/library/actors/protos
     contrib/ydb/public/api/protos
+    contrib/ydb/public/api/protos/annotations
     contrib/ydb/library/yql/dq/proto
     yql/essentials/public/issue/protos
     yql/essentials/public/types

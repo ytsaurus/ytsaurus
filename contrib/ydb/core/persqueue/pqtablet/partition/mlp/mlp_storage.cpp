@@ -1,6 +1,7 @@
 #include "mlp_storage.h"
 
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
+#include <contrib/ydb/core/protos/pqdata_mlp.pb.h>
 #include <contrib/ydb/core/persqueue/common/percentiles.h>
 #include <contrib/ydb/library/actors/core/log.h>
 
@@ -124,7 +125,7 @@ bool TStorage::CanReadMessageGroupIdHash(const ui32 messageGroupIdHash) const {
     return !LockedMessageGroupsId.contains(messageGroupIdHash);
 }
 
-std::optional<TReadMessage> TStorage::Next(TInstant deadline, TPosition& position) {
+std::optional<TReadMessage> TStorage::Next(TInstant deadline, TPosition& position, const absl::flat_hash_set<ui32>& skipMessageGroups) {
     std::optional<ui64> retentionDeadlineDelta = GetRetentionDeadlineDelta();
 
     if (!position.SlowPosition) {
@@ -143,6 +144,10 @@ std::optional<TReadMessage> TStorage::Next(TInstant deadline, TPosition& positio
         };
     };
 
+    auto isMessageGroupLocked = [&](TMessage& message) {
+        return message.HasMessageGroupId && (!CanReadMessageGroupIdHash(message.MessageGroupIdHash) || skipMessageGroups.contains(message.MessageGroupIdHash));
+    };
+
     for(; position.SlowPosition != SlowMessages.end(); ++position.SlowPosition.value()) {
         auto offset = position.SlowPosition.value()->first;
         auto& message = position.SlowPosition.value()->second;
@@ -151,7 +156,7 @@ std::optional<TReadMessage> TStorage::Next(TInstant deadline, TPosition& positio
                 continue;
             }
 
-            if (message.HasMessageGroupId && !CanReadMessageGroupIdHash(message.MessageGroupIdHash)) {
+            if (isMessageGroupLocked(message)) {
                 continue;
             }
 
@@ -171,7 +176,7 @@ std::optional<TReadMessage> TStorage::Next(TInstant deadline, TPosition& positio
                 continue;
             }
 
-            if (message.HasMessageGroupId && !CanReadMessageGroupIdHash(message.MessageGroupIdHash)) {
+            if (isMessageGroupLocked(message)) {
                 moveUnlockedOffset = false;
                 continue;
             }
@@ -1191,7 +1196,7 @@ bool TStorage::TBatch::Empty() const {
         && DeletedFromSlowZone.empty()
         && CompactedMessages == 0
         && !Purged
-        && !UpdateExternalLockedMessageGroupsId.empty();
+        && UpdateExternalLockedMessageGroupsId.empty();
 }
 
 size_t TStorage::TBatch::AddedMessageCount() const {

@@ -2,7 +2,6 @@
 
 #include "clean_unused_tables_template.h"
 
-#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard_private_events.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard_schema.h>
 

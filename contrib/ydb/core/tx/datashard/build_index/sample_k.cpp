@@ -5,7 +5,6 @@
 
 #include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/base/counters.h>
-#include <contrib/ydb/core/kqp/common/kqp_types.h>
 #include <contrib/ydb/core/scheme/scheme_tablecell.h>
 #include <contrib/ydb/core/tablet_flat/flat_row_state.h>
 

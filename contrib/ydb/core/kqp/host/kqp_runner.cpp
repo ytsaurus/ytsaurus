@@ -171,7 +171,9 @@ public:
         , OptimizeCtx(MakeIntrusive<TKqpOptimizeContext>(cluster, Config, sessionCtx->QueryPtr(),
             sessionCtx->TablesPtr(), sessionCtx->GetUserRequestContext()))
         , BuildQueryCtx(MakeIntrusive<TKqpBuildQueryContext>())
-        , Pctx(TKqpProviderContext(*OptimizeCtx, Config->CostBasedOptimizationLevel.Get().GetOrElse(Config->GetDefaultCostBasedOptimizationLevel())))
+        , Pctx(TKqpProviderContext(*OptimizeCtx, 
+            Config->CostBasedOptimizationLevel.Get().GetOrElse(Config->GetDefaultCostBasedOptimizationLevel()),
+            Config->UseBlockHashJoin.Get().GetOrElse(false)))
         , ActorSystem(actorSystem)
     {
         CreateGraphTransformer(typesCtx, sessionCtx, funcRegistry);
@@ -438,7 +440,8 @@ private:
 
         // Create a NewRBO composite transformer only if the special flag is enabled.
         if (Config->GetEnableNewRBO()) {
-            auto newRBOPreparedExplainTransformer = CreateKqpExplainPreparedTransformer(
+            
+            auto newRBOPreparedExplainTransformer = CreateKqpRBOExplainPreparedTransformer(
                 Gateway, Cluster, TransformCtx, &funcRegistry, *typesCtx, OptimizeCtx);
 
             auto rboKqpTypeAnnTransformer = TTransformationPipeline(typesCtx)
@@ -472,7 +475,7 @@ private:
                 .Add(CreateKqpNewRBOTransformer(OptimizeCtx, *typesCtx, std::move(rboKqpTypeAnnTransformer),
                         CreateTypeAnnotationTransformer(
                             CreateKqpTypeAnnotationTransformer(Cluster, sessionCtx->TablesPtr(), *typesCtx, Config), *typesCtx), SessionCtx->Tables(), Cluster,
-                                                               sessionCtx->GetDatabase(), ActorSystem, funcRegistry), "NewRBOTransformer")
+                                                               sessionCtx->GetDatabase(), ActorSystem, funcRegistry, TransformCtx), "NewRBOTransformer")
                 .Add(CreateKqpRBOCleanupTransformer(*typesCtx), "RBOCleanupTransformer")
 
                 //.Add(CreatePhysicalDataProposalsInspector(*typesCtx), "ProvidersPhysicalOptimize")

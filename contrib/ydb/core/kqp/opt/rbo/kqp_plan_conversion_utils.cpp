@@ -328,7 +328,13 @@ TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpJoin(TExprNode::TPtr node) 
 
         joinKeys.push_back(std::make_pair(leftKey, rightKey));
     }
-    return MakeIntrusive<TOpJoin>(leftInput, rightInput, node->Pos(), joinKind, joinKeys);
+
+    TVector<TExpression> joinFilters;
+    for (auto f : opJoin.JoinFilters()) {
+        joinFilters.push_back(TExpression(f.Lambda().Ptr(), &Ctx));
+    }
+
+    return MakeIntrusive<TOpJoin>(leftInput, rightInput, node->Pos(), joinKind, joinKeys, joinFilters);
 }
 
 TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpUnionAll(TExprNode::TPtr node) {
@@ -340,10 +346,15 @@ TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpUnionAll(TExprNode::TPtr no
 }
 
 TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpLimit(TExprNode::TPtr node) {
-    auto opLimit = TKqpOpLimit(node);
-    auto input = ExprNodeToOperator(opLimit.Input().Ptr());
+    const auto opLimit = TKqpOpLimit(node);
+    const auto input = ExprNodeToOperator(opLimit.Input().Ptr());
     TExpression count(opLimit.Count().Ptr(), &Ctx);
-    return MakeIntrusive<TOpLimit>(input, node->Pos(), count);
+    auto maybeOffset = opLimit.Offset();
+    if (maybeOffset) {
+        TExpression offset(maybeOffset.Cast().Ptr(), &Ctx);
+        return MakeIntrusive<TOpLimit>(input, node->Pos(), count, offset, EOpPhase::Undefined);
+    }
+    return MakeIntrusive<TOpLimit>(input, node->Pos(), count, EOpPhase::Undefined);
 }
 
 TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpProject(TExprNode::TPtr node) {
@@ -387,8 +398,8 @@ TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpSort(TExprNode::TPtr node) 
 }
 
 TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpAggregate(TExprNode::TPtr node) {
-    auto opAggregate = TKqpOpAggregate(node);
-    auto input = ExprNodeToOperator(opAggregate.Input().Ptr());
+    const auto opAggregate = TKqpOpAggregate(node);
+    const auto input = ExprNodeToOperator(opAggregate.Input().Ptr());
 
     TVector<TOpAggregationTraits> opAggTraitsList;
     for (const auto& traits : opAggregate.AggregationTraitsList()) {
@@ -405,7 +416,7 @@ TIntrusivePtr<IOperator> PlanConverter::ConvertTKqpOpAggregate(TExprNode::TPtr n
     }
 
     const bool distinctAll = opAggregate.DistinctAll() == "True" ? true : false;
-    return MakeIntrusive<TOpAggregate>(input, opAggTraitsList, keyColumns, EAggregationPhase::Final, distinctAll, node->Pos());
+    return MakeIntrusive<TOpAggregate>(input, opAggTraitsList, keyColumns, EOpPhase::Final, distinctAll, node->Pos());
 }
 
 } // namespace NKqp

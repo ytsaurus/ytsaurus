@@ -4,6 +4,7 @@
 
 #include <contrib/ydb/core/protos/msgbus_kv.pb.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
+#include <contrib/ydb/core/protos/pqdata_transaction.pb.h>
 
 #include <util/generic/hash.h>
 #include <util/generic/string.h>

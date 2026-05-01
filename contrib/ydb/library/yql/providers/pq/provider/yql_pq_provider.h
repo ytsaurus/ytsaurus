@@ -54,6 +54,7 @@ public:
     bool UseActorSystemThreadsInTopicClient = true;
     bool AllowTransparentSystemColumns = true;
     bool StreamingTopicsReadByDefault = true;
+    bool UseYtflowEngine = false;
     const TString SessionId;
     THashMap<std::pair<TString, TString>, TTopicMeta> Topics;
 
