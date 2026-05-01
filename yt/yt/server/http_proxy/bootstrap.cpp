@@ -346,7 +346,11 @@ void TBootstrap::DoInitialize()
             Config_->HttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            NCrypto::TCertProfiler{
+                .Profiler = HttpProxyProfiler().WithPrefix("/https_server"),
+                .Invoker = GetControlInvoker()
+            });
         RegisterRoutes(ApiHttpsServer_);
     }
 
