@@ -1893,8 +1893,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
 
     context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v, PrerequisiteTransactionIds: %v",
         transactionId,
-        options.PrerequisiteTransactionIds,
-        options.AdditionalParticipantCellIds);
+        options.AdditionalParticipantCellIds,
+        options.PrerequisiteTransactionIds);
 
     TTransactionAttachOptions attachOptions = {};
     attachOptions.Ping = false;
