@@ -72,6 +72,10 @@ config:
     lost_vital_chunks:
       displayName: Lost Vital Chunks
       enable: true
+      alert:
+        failureFor: 1m
+        # partialFor: 1m
+        # absentFor: 5m
       config:
         options:
           max_size: 10
@@ -86,6 +90,8 @@ config:
     quorum_health:
       displayName: Quorum Health
       enable: true
+      alert:
+        failureFor: 1m
       config:
         options:
           monitoring_port: 10010
@@ -248,6 +254,8 @@ config:
     master:
       displayName: Master
       enable: true
+      alert:
+        failureFor: 1m
       config: {}
     master_alerts:
       displayName: Master Alerts
@@ -308,6 +316,9 @@ config:
     scheduler:
       displayName: Scheduler
       enable: true
+      alert:
+        failureFor: 1m
+        partialFor: 1m
       config: {}
     scheduler_alerts:
       displayName: Scheduler Alerts
@@ -386,3 +397,28 @@ metrics:
     enable: true
     labels:
       release: kube-prom
+
+rule:
+  enable: false
+  labels:
+    release: kube-prom
+    yt_alerts: "true"
+  groupName: odin.checks
+
+  defaults:
+    failureFor: 5m
+    partialFor: 5m
+    absentFor: 3m
+    severityFail: critical
+    severityPartial: warning
+    severityAbsent: warning
+    extraLabels: {}
+    summaryFail: 'Odin check "{{ .displayName }}" failed on cluster {{`{{ $labels.cluster }}`}}'
+    summaryPartial: 'Odin check "{{ .displayName }}" is partially available on cluster {{`{{ $labels.cluster }}`}}'
+    summaryAbsent: 'Odin is not reporting check "{{ .displayName }}" on cluster {{ .cluster }}'
+    descriptionFail: |
+      yt_odin_{{ .name }} state is {{`{{ $value }}`}} on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionPartial: |
+      yt_odin_{{ .name }} state is 0.5 on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionAbsent: |
+      No samples for yt_odin_{{ .name }}{cluster="{{ .cluster }}"}.
