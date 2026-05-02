@@ -152,7 +152,7 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Initializing File system block divice (Path: %v)", Reader_->GetPath());
+        YT_LOG_INFO("Initializing File system block device (Path: %v)", Reader_->GetPath());
 
         Reader_->Initialize();
 

@@ -791,7 +791,7 @@ private:
                             Device_->SetError(TError("Connection has been closed without NBD_CMD_DISC"));
                         }
 
-                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DevicDebugString: %v, DeviceError: %v)",
+                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DeviceDebugString: %v, DeviceError: %v)",
                             Abort_,
                             Device_->DebugString(),
                             Device_->GetError());
