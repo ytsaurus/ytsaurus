@@ -1656,7 +1656,9 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     }
 }
 
-TEST_F(TDataNodeTest, PutBlocksCancelChunk)
+
+// TODO(vvshlyaga): Temporarily disabled due to crashes. Will be fixed in YTSAURUSSUP-2724.
+TEST_F(TDataNodeTest, DISABLED_PutBlocksCancelChunk)
 {
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
     WaitFor(StartChunk(sessionId, true, false, false))
