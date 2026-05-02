@@ -4157,7 +4157,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._create_table()
         self._setup_for_dictionary_compression("//tmp/t")
         set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
-        set("//tmp/t/@chunk_writer", {"block_size": 64, "tesing_delay_before_chunk_close": 1000})
+        set("//tmp/t/@chunk_writer", {"block_size": 64, "testing_delay_before_chunk_close": 1000})
         set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
