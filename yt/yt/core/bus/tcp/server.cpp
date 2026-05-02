@@ -27,8 +27,6 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <openssl/bio.h>
-#include <openssl/err.h>
 #include <openssl/pem.h>
 
 #include <cerrno>
@@ -439,6 +437,9 @@ public:
         if (CertProfiler_ && Config_->CertificateChain) {
             // There is certificate so update cert sensors periodically.
             CertChainToExpiry_ = CertProfiler_->Profiler.Gauge("/cert_chain_to_expiry");
+            // Update expiry time ASAP after creation.
+            CertChainToExpiry_->Update(NCrypto::GetCertTimeToExpiry(Config_->CertificateChain));
+
             UpdateCertSensorsExecutor_ = New<TPeriodicExecutor>(
                 CertProfiler_->Invoker,
                 BIND_NO_PROPAGATE(&TTcpBusServerProxy::UpdateCertSensors, MakeWeak(this)),
@@ -514,62 +515,11 @@ private:
     void UpdateCertSensors()
     {
         try {
-            auto cert = ReadCert(Config_->CertificateChain);
-            auto secondsToExpiry = GetTimeToExpiry(cert);
-
-            CertChainToExpiry_->Update(secondsToExpiry);
+            CertChainToExpiry_->Update(NCrypto::GetCertTimeToExpiry(Config_->CertificateChain));
         } catch (const std::exception& ex) {
             const auto& Logger = BusLogger();
             YT_LOG_WARNING(ex, "Failed to update cert sensors");
         }
-    }
-
-    static TX509Ptr ReadCert(TPemBlobConfigPtr pem)
-    {
-        if (!pem) {
-            THROW_ERROR_EXCEPTION("Can not read empty pem blob config");
-        }
-
-        auto blob = pem->LoadBlob(/*pathResolver*/ nullptr);
-
-        TBioPtr bio(BIO_new_mem_buf(blob.c_str(), blob.size()));
-        if (!bio) {
-            THROW_ERROR_EXCEPTION("Failed to load pem blob into bio")
-                << TErrorAttribute("openssl_error_code", ERR_get_error());
-        }
-
-        TX509Ptr cert(PEM_read_bio_X509_AUX(bio.get(), nullptr, nullptr, nullptr));
-        if (!cert) {
-            THROW_ERROR_EXCEPTION("Failed to read cert from bio")
-                << TErrorAttribute("openssl_error_code", ERR_get_error());
-        }
-
-        return cert;
-    }
-
-    static double GetTimeToExpiry(const TX509Ptr& cert)
-    {
-        if (!cert) {
-            THROW_ERROR_EXCEPTION("Can not get time from null certificate");
-        }
-
-        const auto* notAfter = X509_get0_notAfter(cert.get());
-        if (!notAfter) {
-            THROW_ERROR_EXCEPTION("Failed to get not after time from certificate")
-                << TErrorAttribute("openssl_error_code", ERR_get_error());
-        }
-
-        // Convert ASN1_TIME to time_t
-        struct tm tmExpire;
-        if (!ASN1_TIME_to_tm(notAfter, &tmExpire)) {
-            THROW_ERROR_EXCEPTION("Failed to convert ASN1_TIME to tm structure")
-                << TErrorAttribute("openssl_error_code", ERR_get_error());
-        }
-
-        time_t expirationTime = mktime(&tmExpire);
-        time_t currentTime = time(nullptr);
-
-        return difftime(expirationTime, currentTime);
     }
 
     void BuildOrchid(IYsonConsumer* consumer) const
@@ -582,8 +532,8 @@ private:
                 .Item("peer_alternative_host_name").Value(Config_->PeerAlternativeHostName)
                 .DoIf(!!Config_->CertificateChain, [&] (auto fluent) {
                     try {
-                        auto cert = ReadCert(Config_->CertificateChain);
-                        auto secondsToExpiry = GetTimeToExpiry(cert);
+                        auto cert = NCrypto::ReadCertFromPemBlob(Config_->CertificateChain);
+                        auto secondsToExpiry = NCrypto::GetCertTimeToExpiry(cert);
 
                         fluent
                             .Item("certificate_chain").BeginMap()

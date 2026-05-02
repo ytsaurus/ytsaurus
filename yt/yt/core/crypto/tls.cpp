@@ -108,6 +108,62 @@ TString GetFingerprintSHA256(const TX509Ptr& certificate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TX509Ptr ReadCertFromPemBlob(const TPemBlobConfigPtr& pem)
+{
+    if (!pem) {
+        THROW_ERROR_EXCEPTION("Cannot read certificate from null PEM blob config");
+    }
+
+    auto blob = pem->LoadBlob(/*pathResolver*/ nullptr);
+
+    TBioPtr bio(BIO_new_mem_buf(blob.c_str(), blob.size()));
+    if (!bio) {
+        THROW_ERROR_EXCEPTION("Failed to load PEM blob into BIO")
+            << TErrorAttribute("openssl_error_code", ERR_get_error());
+    }
+
+    TX509Ptr cert(PEM_read_bio_X509_AUX(bio.get(), nullptr, nullptr, nullptr));
+    if (!cert) {
+        THROW_ERROR_EXCEPTION("Failed to read certificate from BIO")
+            << TErrorAttribute("openssl_error_code", ERR_get_error());
+    }
+
+    return cert;
+}
+
+double GetCertTimeToExpiry(const TX509Ptr& cert)
+{
+    if (!cert) {
+        THROW_ERROR_EXCEPTION("Cannot get expiry time from null certificate");
+    }
+
+    const auto* notAfter = X509_get0_notAfter(cert.get());
+    if (!notAfter) {
+        THROW_ERROR_EXCEPTION("Failed to get not-after time from certificate")
+            << TErrorAttribute("openssl_error_code", ERR_get_error());
+    }
+
+    // Convert ASN1_TIME to time_t
+    struct tm tmExpire;
+    if (!ASN1_TIME_to_tm(notAfter, &tmExpire)) {
+        THROW_ERROR_EXCEPTION("Failed to convert ASN1_TIME to tm structure")
+            << TErrorAttribute("openssl_error_code", ERR_get_error());
+    }
+
+    time_t expirationTime = mktime(&tmExpire);
+    time_t currentTime = time(nullptr);
+
+    return difftime(expirationTime, currentTime);
+}
+
+double GetCertTimeToExpiry(const TPemBlobConfigPtr& pem)
+{
+    auto cert = ReadCertFromPemBlob(pem);
+    return GetCertTimeToExpiry(cert);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSslContextImpl
     : public TRefCounted
 {
