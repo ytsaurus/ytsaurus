@@ -48,7 +48,7 @@ can be found [here](https://www.youtube.com/watch?v=mK4WjpvLj4c).
 ## Using Multiprecision
 
 <p align="center">
-  <a href="https://godbolt.org/z/hd95P3ovK" alt="godbolt">
+  <a href="https://godbolt.org/z/cPeboe4Ge" alt="godbolt">
     <img src="https://img.shields.io/badge/try%20it%20on-godbolt-green" /></a>
 </p>
 
@@ -62,7 +62,7 @@ where we also observe that Multiprecision can seamlesly interoperate with
 
 ```cpp
 // ------------------------------------------------------------------------------
-// Copyright Christopher Kormanyos 2024 - 2025.
+// Copyright Christopher Kormanyos 2024 - 2026.
 // Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt
 // or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -105,6 +105,13 @@ auto main() -> int
 
   std::cout << strm.str() << std::endl;
 }
+```
+
+The expected output is
+
+```
+sqrt_pi   : 1.772453850905516027298167483341145182797549456122387128213807789852911284591032181374950656738544665
+gamma_half: 1.772453850905516027298167483341145182797549456122387128213807789852911284591032181374950656738544666
 ```
 
 ## Standalone
