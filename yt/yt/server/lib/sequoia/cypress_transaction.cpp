@@ -1689,11 +1689,11 @@ private:
             Invoker_)
                 ->Run()
                 .AsUnique().Apply(
-                    BIND(&TDoomCypressTransaction::MarkTrasactionSubtreeDoomed, MakeStrong(this))
+                    BIND(&TDoomCypressTransaction::MarkTransactionSubtreeDoomed, MakeStrong(this))
                         .AsyncVia(Invoker_));
     }
 
-    void MarkTrasactionSubtreeDoomed(TDependentTransactionCollector::TResult&& transactionInfos)
+    void MarkTransactionSubtreeDoomed(TDependentTransactionCollector::TResult&& transactionInfos)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 

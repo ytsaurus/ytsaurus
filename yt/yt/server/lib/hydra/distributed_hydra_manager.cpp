@@ -1842,7 +1842,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // NB: Leader lease remains active after restart and is transfered to
+        // NB: Leader lease remains active after restart and is transferred to
         // a newly selected leader without delay.
 
         ScheduleRestart(epochContext, error);

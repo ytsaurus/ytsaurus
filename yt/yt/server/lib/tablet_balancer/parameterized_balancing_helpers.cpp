@@ -679,10 +679,10 @@ void TParameterizedReassignSolver::Initialize()
     TableNodeFactors_.resize(tableCount);
 
     for (const auto& tablet : Tablets_) {
-        const auto& nodeAdress = Cells_[tablet.CellIndex].Cell->NodeAddress.value();
+        const auto& nodeAddress = Cells_[tablet.CellIndex].Cell->NodeAddress.value();
 
         Cells_[tablet.CellIndex].Metric += tablet.Metric * CellFactor_;
-        Nodes_[nodeAdress].Metric += tablet.Metric * NodeFactor_;
+        Nodes_[nodeAddress].Metric += tablet.Metric * NodeFactor_;
         TableByCellMetric_[tablet.TableIndex][tablet.CellIndex] += tablet.Metric;
         TableByNodeMetric_[tablet.TableIndex][tablet.NodeIndex] += tablet.Metric;
     }

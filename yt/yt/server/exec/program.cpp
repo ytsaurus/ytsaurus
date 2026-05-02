@@ -99,7 +99,7 @@ private:
         }
 
         try {
-            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirrectToDevNull) {
+            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirectToDevNull) {
                 TFile devNull("/dev/null", EOpenModeFlag::WrOnly);
                 SafeDup2(devNull.GetHandle(), STDOUT_FILENO);
             }

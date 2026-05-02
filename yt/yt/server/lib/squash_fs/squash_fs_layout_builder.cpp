@@ -455,7 +455,7 @@ private:
 
     // Store image in buffer by metadata rules
     // https://dr-emann.github.io/squashfs/squashfs.html#_packing_metadata
-    // and return lookup table at the begining of each block.
+    // and return lookup table at the beginning of each block.
     // https://dr-emann.github.io/squashfs/squashfs.html#_storing_lookup_tables .
     static std::vector<ui64> AppendMetadata(
         TBlobOutput& buffer,
