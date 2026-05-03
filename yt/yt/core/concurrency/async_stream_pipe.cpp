@@ -44,9 +44,8 @@ TFuture<void> TAsyncStreamPipe::Close()
 
 TFuture<void> TAsyncStreamPipe::Abort(const TError& error)
 {
-    auto writeComplete = NewPromise<void>();
     Queue_.Enqueue(error);
-    return writeComplete;
+    return OKFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
