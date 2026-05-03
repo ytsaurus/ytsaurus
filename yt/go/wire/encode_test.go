@@ -397,3 +397,49 @@ func compareNameTables(t *testing.T, expected, actual NameTable) {
 
 	require.Equal(t, expected, actual)
 }
+
+type customRow struct {
+	A string
+	B uint64
+}
+
+func (s *customRow) MarshalRow(r Resolver) (Row, error) {
+	return Row{
+		NewBytes(r.LookupOrAdd("a"), []byte(s.A)),
+		NewUint64(r.LookupOrAdd("b"), s.B),
+	}, nil
+}
+
+var _ RowMarshaler = (*customRow)(nil)
+
+func TestEncodeRowMarshaler(t *testing.T) {
+	nt, rows, err := Encode([]any{
+		&customRow{A: "x", B: 7},
+		&customRow{A: "y", B: 8},
+	})
+	require.NoError(t, err)
+	require.Equal(t, NameTable{{Name: "a"}, {Name: "b"}}, nt)
+	require.Equal(t, []Row{
+		{NewBytes(0, []byte("x")), NewUint64(1, 7)},
+		{NewBytes(0, []byte("y")), NewUint64(1, 8)},
+	}, rows)
+}
+
+// rowMarshalerOverReflect implements RowMarshaler in addition to having
+// reflectable yson-tagged fields. Encode must call MarshalRow and never
+// fall through to the reflection path.
+type rowMarshalerOverReflect struct {
+	Reflected string `yson:"reflected"`
+}
+
+func (s *rowMarshalerOverReflect) MarshalRow(r Resolver) (Row, error) {
+	return Row{NewBytes(r.LookupOrAdd("from_marshaler"), []byte(s.Reflected))}, nil
+}
+
+func TestEncodeRowMarshalerTakesPrecedenceOverReflect(t *testing.T) {
+	nt, _, err := Encode([]any{
+		&rowMarshalerOverReflect{Reflected: "value"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, NameTable{{Name: "from_marshaler"}}, nt)
+}

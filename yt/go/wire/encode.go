@@ -17,6 +17,48 @@ type NameTableEntry struct {
 	Name string
 }
 
+// Resolver translates a column name to its NameTable id, registering the
+// name on first use. Implementations must be safe for concurrent use,
+// because Encode invokes row marshaling in parallel.
+type Resolver interface {
+	LookupOrAdd(name string) uint16
+}
+
+// RowMarshaler is implemented by types that supply their own wire row
+// encoding. If a value passed to Encode (or its pointed-to value, when
+// the value is a non-nil pointer) implements RowMarshaler, Encode calls
+// MarshalRow instead of using reflection. Column ids must be obtained
+// via the supplied Resolver so that all rows in the batch reference the
+// same NameTable.
+type RowMarshaler interface {
+	MarshalRow(r Resolver) (Row, error)
+}
+
+// nameTableResolver wraps Encode's per-call indexMap so RowMarshaler
+// implementations can register column names without touching internals.
+type nameTableResolver struct {
+	indexMap map[NameTableEntry]uint16
+	mapLock  *sync.RWMutex
+}
+
+func (r *nameTableResolver) LookupOrAdd(name string) uint16 {
+	k := NameTableEntry{Name: name}
+	r.mapLock.RLock()
+	id, ok := r.indexMap[k]
+	r.mapLock.RUnlock()
+	if ok {
+		return id
+	}
+	r.mapLock.Lock()
+	defer r.mapLock.Unlock()
+	if id, ok = r.indexMap[k]; ok {
+		return id
+	}
+	id = uint16(len(r.indexMap))
+	r.indexMap[k] = id
+	return id
+}
+
 func Encode(items []any) (NameTable, []Row, error) {
 	rows := make([]Row, len(items))
 	if len(items) == 0 {
@@ -62,6 +104,10 @@ func encode(item any, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex)
 	vv := reflect.ValueOf(item)
 	if item == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		return nil, xerrors.Errorf("unsupported nil item")
+	}
+
+	if m, ok := item.(RowMarshaler); ok {
+		return m.MarshalRow(&nameTableResolver{indexMap: indexMap, mapLock: mapLock})
 	}
 
 	return encodeReflect(vv, indexMap, mapLock)
