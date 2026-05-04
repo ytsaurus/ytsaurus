@@ -924,7 +924,8 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const std::string& treeId);
+        const std::string& treeId,
+        std::optional<std::string> allocationGroupName = {});
     void OnScheduleAllocationFailed(
         const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,

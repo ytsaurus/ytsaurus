@@ -31,7 +31,8 @@ struct ISchedulingOperationController
         const TDiskResources& availableDiskResources,
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
     virtual void OnNonscheduledAllocationAborted(
@@ -99,7 +100,8 @@ public:
         TDuration timeLimit,
         const std::string& treeId,
         const TString& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout);
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName);
 
     // TODO(eshcherbin): Move to private.
     void AbortAllocation(

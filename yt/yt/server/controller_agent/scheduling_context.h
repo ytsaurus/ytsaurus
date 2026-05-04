@@ -64,12 +64,16 @@ public:
         NScheduler::TDiskResources diskResources,
         NControllers::TJobNodeDescriptor nodeDescriptor,
         std::optional<TString> poolPath,
-        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec);
+        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec,
+        std::optional<std::string> requestedTaskName);
 
     bool CanSatisfyDemand(const NScheduler::TJobResourcesWithQuota& demand) const final;
 
     // COMPAT(pogorelov)
     const NScheduler::NProto::TScheduleAllocationSpec* GetScheduleAllocationSpec() const final;
+
+    //! If set, the scheduler requested scheduling a job from a specific allocation group.
+    const std::optional<std::string>& GetRequestedTaskName() const;
 
     TString ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
     TString GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
@@ -78,6 +82,7 @@ private:
     TJobResources ResourceLimits_;
     const NScheduler::TDiskResources DiskResources_;
     const NScheduler::NProto::TScheduleAllocationSpec ScheduleAllocationSpec_;
+    const std::optional<std::string> RequestedTaskName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
