@@ -43,6 +43,8 @@ struct TQueueSnapshot
     bool HasCumulativeDataWeightColumn = false;
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
+    NTransactionClient::TTimestamp LowestPartitionBarrierTimestamp = NTransactionClient::NullTimestamp;
+
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
 };
 
@@ -57,6 +59,7 @@ struct TQueuePartitionSnapshot
     TError Error;
 
     // Fields below are not set if error is set.
+    NTransactionClient::TTimestamp BarrierTimestamp = NTransactionClient::NullTimestamp;
     i64 LowerRowIndex = -1;
     i64 UpperRowIndex = -1;
     i64 AvailableRowCount = -1;
@@ -90,6 +93,8 @@ struct TConsumerSnapshot
     NQueueClient::TConsumerTableRow Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
+    NTransactionClient::TTimestamp QueueLowestPartitionBarrierTimestamp = NTransactionClient::NullTimestamp;
+
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
     THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
 };
@@ -111,6 +116,8 @@ struct TSubConsumerSnapshot
     //! Temporary information for debugging. Equal to the same value of the corresponding queue.
     //! COMPAT(achulkov2): Remove this.
     bool HasCumulativeDataWeightColumn = false;
+
+    NTransactionClient::TTimestamp QueueLowestPartitionBarrierTimestamp = NTransactionClient::NullTimestamp;
 
     std::vector<TConsumerPartitionSnapshotPtr> PartitionSnapshots;
 };

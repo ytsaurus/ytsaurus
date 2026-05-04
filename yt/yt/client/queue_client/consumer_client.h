@@ -58,12 +58,14 @@ struct ISubConsumerClient
     //! indices outside of range [0, expectedPartitionCount), they will be ignored.
     virtual TFuture<std::vector<TPartitionInfo>> CollectPartitions(
         int expectedPartitionCount,
+        std::optional<NTransactionClient::TTimestamp> timestamp = std::nullopt,
         bool withLastConsumeTime = false) const = 0;
 
     //! Collect partition infos.
     //! Entries in the consumer table with partition indices not in the given vector will be ignored.
     virtual TFuture<std::vector<TPartitionInfo>> CollectPartitions(
         const std::vector<int>& partitionIndexes,
+        std::optional<NTransactionClient::TTimestamp> timestamp = std::nullopt,
         bool withLastConsumeTime = false) const = 0;
 
     struct TPartitionStatistics

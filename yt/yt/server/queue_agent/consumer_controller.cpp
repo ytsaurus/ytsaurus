@@ -195,6 +195,17 @@ private:
                 subConsumerSnapshot = New<TSubConsumerSnapshot>();
                 subConsumerSnapshot->Error = std::move(subConsumerSnapshotOrError);
             }
+
+            auto subBarrierTimestamp = subConsumerSnapshot->QueueLowestPartitionBarrierTimestamp;
+            if (NullTimestamp != subBarrierTimestamp) {
+                if (NullTimestamp == ConsumerSnapshot_->QueueLowestPartitionBarrierTimestamp) {
+                    ConsumerSnapshot_->QueueLowestPartitionBarrierTimestamp = subBarrierTimestamp;
+                } else {
+                    ConsumerSnapshot_->QueueLowestPartitionBarrierTimestamp =
+                        std::min(ConsumerSnapshot_->QueueLowestPartitionBarrierTimestamp, subBarrierTimestamp);
+                }
+            }
+
             ConsumerSnapshot_->SubSnapshots[queueRef] = std::move(subConsumerSnapshot);
         }
 
@@ -228,6 +239,7 @@ private:
         }
 
         subSnapshot->HasCumulativeDataWeightColumn = queueSnapshot->HasCumulativeDataWeightColumn;
+        subSnapshot->QueueLowestPartitionBarrierTimestamp = queueSnapshot->LowestPartitionBarrierTimestamp;
 
         // Assume partition count to be the same as the partition count in the current queue snapshot.
         auto partitionCount = queueSnapshot->PartitionCount;
@@ -246,8 +258,11 @@ private:
 
         {
             auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(/*queueClient*/ nullptr, queueRef);
-
-            auto consumerPartitionInfos = WaitFor(subConsumerClient->CollectPartitions(partitionCount, /*withLastConsumeTime*/ true))
+            auto consumerPartitionInfos = WaitFor(
+                subConsumerClient->CollectPartitions(
+                    partitionCount,
+                    queueSnapshot->LowestPartitionBarrierTimestamp,
+                    /*withLastConsumeTime*/ true))
                 .ValueOrThrow();
 
             for (const auto& consumerPartitionInfo : consumerPartitionInfos) {
@@ -588,6 +603,7 @@ public:
             .Item("replicated_table_mapping_row").Value(consumerSnapshot->ReplicatedTableMappingRow)
             .Item("status").Do(std::bind(BuildConsumerStatusYson, consumerSnapshot, _1))
             .Item("partitions").Do(std::bind(BuildConsumerPartitionListYson, consumerSnapshot, _1))
+            .Item("queue_lowest_barrier_timestamp").Value(consumerSnapshot->QueueLowestPartitionBarrierTimestamp)
         .EndMap();
     }
 

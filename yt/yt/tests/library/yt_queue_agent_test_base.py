@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
 from yt_commands import (execute_batch, get, get_batch_output, get_connection_orchid_value, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table,
-                         sync_create_cells, exists, select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer, sync_freeze_table, sync_unfreeze_table,
+                         sync_create_cells, exists, select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer, sync_freeze_table, sync_unfreeze_table, generate_timestamp,
                          create_table_replica, sync_enable_table_replica, advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions, raises_yt_error)
 
 from yt_helpers import parse_yt_time, calculate_object_diff
@@ -266,6 +266,21 @@ class QueueOrchid(ObjectOrchid):
     def get_exporter_orchid(self, export_name: str = "default"):
         return QueueExporterOrchid(self, export_name)
 
+    def get_lowest_barrier_timestamp(self):
+        return get(f"{self.orchid_path()}/lowest_barrier_timestamp")
+
+    def wait_fresh_pass(self):
+        fresh_ts = generate_timestamp()
+        pass_index = self.get_pass_index()
+
+        def _is_ready():
+            if self.get_pass_index() < pass_index + 2:
+                return False
+            barrier = self.get_lowest_barrier_timestamp()
+            return barrier == 0 or barrier >= fresh_ts
+
+        wait(_is_ready, sleep_backoff=0.15)
+
 
 class OwnedQueueOrchid(ObjectOrchid):
     OBJECT_TYPE = "owned_queue"
@@ -285,6 +300,21 @@ class ConsumerOrchid(ObjectOrchid):
     def get_subconsumer(self, queue_ref):
         status, partitions = self.get_consumer()
         return status["queues"][queue_ref], partitions[queue_ref]
+
+    def get_queue_lowest_barrier_timestamp(self):
+        return get(f"{self.orchid_path()}/queue_lowest_barrier_timestamp")
+
+    def wait_fresh_pass(self):
+        fresh_ts = generate_timestamp()
+        pass_index = self.get_pass_index()
+
+        def _is_ready():
+            if self.get_pass_index() < pass_index + 2:
+                return False
+            barrier = self.get_queue_lowest_barrier_timestamp()
+            return barrier == 0 or barrier >= fresh_ts
+
+        wait(_is_ready, sleep_backoff=0.15)
 
 
 class QueueAgentOrchid(OrchidWithRegularPasses):
