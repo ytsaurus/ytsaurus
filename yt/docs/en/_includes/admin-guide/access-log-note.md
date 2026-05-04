@@ -9,3 +9,4 @@
       * EndUpload: Completing the upload transaction.
 3. When reading/writing data, the GetBasicAttributes command targets one cell, while Fetch, BeginUpload, and EndUpload target another — this is normal.
 4. In most cases, copying or moving a table looks like the Copy or Move commands. The BeginCopy and EndCopy commands are used when copying/moving crosses the Cypress sharding boundaries. In practice, such cases are rare.
+5. Dynamic table requests (insert-rows, select-rows, lookup-rows, and other data operations) are **not recorded** in the table access history. The log only captures requests to the Cypress master (metadata and static table operations); requests to tablet nodes bypass the master and are not included in the log.
