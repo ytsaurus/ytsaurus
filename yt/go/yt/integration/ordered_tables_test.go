@@ -338,6 +338,7 @@ func (s *Suite) TestQueueConsumer_struct(ctx context.Context, t *testing.T, yc y
 	})
 	require.NoError(t, err)
 	require.NotNil(t, pullResult)
+	defer reader.Close()
 	// Note: StartOffset is not returned by HTTP API due to server bug
 	// require.Equal(t, int64(0), pullResult.StartOffset)
 
@@ -367,6 +368,7 @@ func (s *Suite) TestQueueConsumer_struct(ctx context.Context, t *testing.T, yc y
 		MaxDataWeight:  ptr.Int64(16 * 1024 * 1024),
 	})
 	require.NoError(t, err)
+	defer reader.Close()
 	require.NotNil(t, pullResult)
 	// Note: StartOffset is not returned by HTTP API due to server bug
 	// require.Equal(t, int64(2), pullResult.StartOffset)
