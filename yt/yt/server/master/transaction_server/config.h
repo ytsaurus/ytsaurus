@@ -115,6 +115,8 @@ struct TDynamicTransactionManagerConfig
     // COMPAT(aleksandra-zh)
     int RecomputeStronglyOrderedTransactionRefs;
 
+    bool SkipTxPermissionValidationOnParticipants;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

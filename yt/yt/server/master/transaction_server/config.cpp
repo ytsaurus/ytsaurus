@@ -83,6 +83,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(0)
         .DontSerializeDefault();
 
+    registrar.Parameter("skip_tx_permission_validation_on_participants", &TThis::SkipTxPermissionValidationOnParticipants)
+        .Default(false)
+        .DontSerializeDefault();
+
     THashMap<EObjectType, THashSet<std::string>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
         "BeginUpload",
