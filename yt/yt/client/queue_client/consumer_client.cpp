@@ -247,6 +247,7 @@ public:
 
     TFuture<std::vector<TPartitionInfo>> CollectPartitions(
         int expectedPartitionCount,
+        std::optional<TTimestamp> timestamp = std::nullopt,
         bool withLastConsumeTime = false) const override
     {
         if (expectedPartitionCount <= 0) {
@@ -277,6 +278,7 @@ public:
             &TGenericConsumerClient::DoCollectPartitions,
             MakeStrong(this),
             selectQuery,
+            timestamp,
             withLastConsumeTime)
             .AsyncVia(GetCurrentInvoker())
             .Run()
@@ -296,6 +298,7 @@ public:
 
     TFuture<std::vector<TPartitionInfo>> CollectPartitions(
         const std::vector<int>& partitionIndexes,
+        std::optional<TTimestamp> timestamp = std::nullopt,
         bool withLastConsumeTime) const override
     {
         auto selectQuery = Format(
@@ -310,6 +313,7 @@ public:
             &TGenericConsumerClient::DoCollectPartitions,
             MakeStrong(this),
             selectQuery,
+            timestamp,
             withLastConsumeTime)
             .AsyncVia(GetCurrentInvoker())
             .Run()
@@ -390,6 +394,7 @@ private:
 
     std::vector<TPartitionInfo> DoCollectPartitions(
         const std::string& selectQuery,
+        std::optional<TTimestamp> timestamp,
         bool withLastConsumeTime) const
     {
         std::vector<TPartitionInfo> result;
@@ -398,6 +403,9 @@ private:
 
         TSelectRowsOptions selectRowsOptions;
         selectRowsOptions.ReplicaConsistency = EReplicaConsistency::Sync;
+        if (timestamp.has_value()) {
+            selectRowsOptions.Timestamp = timestamp.value();
+        }
         auto selectRowsResult = WaitFor(ConsumerClusterClient_->SelectRows(selectQuery, selectRowsOptions))
             .ValueOrThrow();
 
