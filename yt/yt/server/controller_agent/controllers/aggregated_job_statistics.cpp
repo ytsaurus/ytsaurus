@@ -7,14 +7,14 @@ using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobStatisticsTags::Persist(const TStreamPersistenceContext& context)
+void TJobStatisticsTags::RegisterMetadata(auto&& registrar)
 {
-    using ::NYT::Persist;
-
-    Persist(context, JobState);
-    Persist(context, JobType);
-    Persist(context, PoolTree);
+    PHOENIX_REGISTER_FIELD(1, JobState);
+    PHOENIX_REGISTER_FIELD(2, JobType);
+    PHOENIX_REGISTER_FIELD(3, PoolTree);
 }
+
+PHOENIX_DEFINE_TYPE(TJobStatisticsTags);
 
 bool operator<(const TJobStatisticsTags& lhs, const TJobStatisticsTags& rhs)
 {
