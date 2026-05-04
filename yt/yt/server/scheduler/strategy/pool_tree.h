@@ -94,7 +94,7 @@ struct IPoolTree
 
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShareAt(TInstant now) const = 0;
-    virtual void LogAccumulatedUsage() const = 0;
+    virtual void LogAccumulatedResourceDistribution() const = 0;
     virtual void EssentialLogFairShareAt(TInstant now) const = 0;
 
     //! Updates accumulated resources usage information. Update current resource usages in snapshot.

@@ -3030,7 +3030,7 @@ private:
         }
     }
 
-    void LogAccumulatedUsage() const override
+    void LogAccumulatedResourceDistribution() const override
     {
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
@@ -3042,7 +3042,7 @@ private:
                 .Do(BIND(&TPoolTree::DoBuildPoolsStructureInfo, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap()
             .Item("operations").BeginMap()
-                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedUsageInfo, Unretained(this), ConstRef(treeSnapshot)))
+                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedResourceDistribution, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap();
     }
 
@@ -3386,7 +3386,7 @@ private:
             .EndMap();
     }
 
-    void DoBuildOperationsAccumulatedUsageInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
+    void DoBuildOperationsAccumulatedResourceDistribution(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
     {
         auto operationIdToAccumulatedResourceDistribution = AccumulatedOperationsResourceDistributionForLogging_.ExtractOperationResourceDistributionVolumes();
 

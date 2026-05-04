@@ -82,10 +82,10 @@ public:
             BIND(&TStrategy::OnFairShareLogging, MakeWeak(this)),
             Config_->FairShareLogPeriod);
 
-        AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
+        AccumulatedResourceDistributionLoggingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareLoggingInvoker(),
-            BIND(&TStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
-            Config_->AccumulatedUsageLogPeriod);
+            BIND(&TStrategy::OnLogAccumulatedResourceDistribution, MakeWeak(this)),
+            Config_->AccumulatedResourceDistributionLogPeriod);
 
         GroupedNeededResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::Strategy),
@@ -138,7 +138,7 @@ public:
         FairShareProfilingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
         FairShareLoggingExecutor_->Start();
-        AccumulatedUsageLoggingExecutor_->Start();
+        AccumulatedResourceDistributionLoggingExecutor_->Start();
         GroupedNeededResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
@@ -154,7 +154,7 @@ public:
         YT_UNUSED_FUTURE(FairShareProfilingExecutor_->Stop());
         YT_UNUSED_FUTURE(FairShareUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(YT_UNUSED_FUTURE(FairShareLoggingExecutor_->Stop()));
-        YT_UNUSED_FUTURE(AccumulatedUsageLoggingExecutor_->Stop());
+        YT_UNUSED_FUTURE(AccumulatedResourceDistributionLoggingExecutor_->Stop());
         YT_UNUSED_FUTURE(GroupedNeededResourcesUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceMeteringExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceUsageUpdateExecutor_->Stop());
@@ -205,7 +205,7 @@ public:
         OnFairShareLoggingAt(TInstant::Now());
     }
 
-    void OnLogAccumulatedUsage()
+    void OnLogAccumulatedResourceDistribution()
     {
         YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
@@ -216,7 +216,7 @@ public:
             return;
         }
         for (const auto& tree : snapshot->Trees()) {
-            tree->LogAccumulatedUsage();
+            tree->LogAccumulatedResourceDistribution();
         }
     }
 
@@ -568,7 +568,7 @@ public:
         FairShareProfilingExecutor_->SetPeriod(Config_->FairShareProfilingPeriod);
         FairShareUpdateExecutor_->SetPeriod(Config_->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config_->FairShareLogPeriod);
-        AccumulatedUsageLoggingExecutor_->SetPeriod(Config_->AccumulatedUsageLogPeriod);
+        AccumulatedResourceDistributionLoggingExecutor_->SetPeriod(Config_->AccumulatedResourceDistributionLogPeriod);
         GroupedNeededResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
@@ -1564,7 +1564,7 @@ private:
     TPeriodicExecutorPtr FairShareProfilingExecutor_;
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
-    TPeriodicExecutorPtr AccumulatedUsageLoggingExecutor_;
+    TPeriodicExecutorPtr AccumulatedResourceDistributionLoggingExecutor_;
     TPeriodicExecutorPtr GroupedNeededResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
