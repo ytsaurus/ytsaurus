@@ -2359,6 +2359,9 @@ private:
 
     TEntityMap<TTransaction> TransactionMap_;
 
+    // COMPAT(h0pless): AbortStuckTransactions.
+    std::vector<TTransactionId> StuckTransactions_;
+
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
     THashSet<TTransaction*> ForeignTransactions_;
@@ -3630,6 +3633,21 @@ private:
             }
         }
 
+        // COMPAT(h0pless): AbortStuckTransactions.
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsCypressTransactionType(transaction->GetType())) {
+                continue;
+            }
+
+            if (transaction->IsNativeTxExternalizationEnabled()) {
+                continue;
+            }
+
+            YT_LOG_ALERT("Found a stuck transaction; aborting (TransactionId: %v)", id);
+
+            StuckTransactions_.push_back(id);
+        }
+
         // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions
         if (NeedUnrefStagedNodes_) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -3658,6 +3676,8 @@ private:
         TransactionPresenceCache_->Clear();
         // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
         NeedUnrefStagedNodes_ = false;
+
+        StuckTransactions_.clear();
     }
 
     void OnStartLeading() override
@@ -3700,6 +3720,22 @@ private:
         LeaseTracker_->Start();
 
         BoomerangTracker_->Start();
+
+        for (auto transactionId : StuckTransactions_) {
+            auto* transaction = FindTransaction(transactionId);
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            auto request = BuildAbortCypressTransactionRequest(
+                transactionId,
+                /*force*/ true,
+                NRpc::GetRootAuthenticationIdentity());
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            mutation->SetMutationId(NRpc::GenerateMutationId(), /*isRetry*/ false);
+            YT_UNUSED_FUTURE(mutation->Commit());
+        }
     }
 
     void OnStopLeading() override
