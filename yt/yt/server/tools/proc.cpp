@@ -327,7 +327,7 @@ void TGetDirectorySizesAsRootConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetTotalDirectoriesSizeAsRootConfig::Register(TRegistrar)
+void TGetTotalDirectoriesSizeAsRootConfig::Register(TRegistrar /*registrar*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
