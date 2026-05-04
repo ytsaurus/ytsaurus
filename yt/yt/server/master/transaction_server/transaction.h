@@ -235,6 +235,8 @@ public:
     void SetSuccessorTransactionLeaseCount(int newLeaseCount);
     int GetSuccessorTransactionLeaseCount() const;
 
+    bool IsNativeTxExternalizationEnabled() const;
+
     //! Can be confused with IsSequiaTransaction().
     bool IsSequoia() const = delete;
 
@@ -245,6 +247,9 @@ private:
     int RecursiveLockCount_ = 0;
 
     int SuccessorTransactionLeaseCount_ = 0;
+
+    // COMPAT(h0pless): AbortStuckTransactions.
+    bool NativeTxExternalizationEnabled_ = true;
 
     ETransactionLeasesState LeasesState_ = ETransactionLeasesState::Active;
 

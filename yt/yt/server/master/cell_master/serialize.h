@@ -186,10 +186,12 @@ DEFINE_ENUM(EMasterReign,
     ((FixTabletCellBundleInheritance)                               (3232))  // kvk120
     ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
     ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
+    ((AbortStuckTransactions)                                       (3235))  // h0pless
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
     ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
+    ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

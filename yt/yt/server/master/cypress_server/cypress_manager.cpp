@@ -3260,7 +3260,6 @@ private:
                 }
             }
         }
-
     }
 
     void CheckInvariants() override
