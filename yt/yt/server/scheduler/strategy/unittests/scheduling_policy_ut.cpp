@@ -113,7 +113,8 @@ public:
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
         const TString& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -857,9 +858,9 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     std::atomic<int> heartbeatsInScheduling(0);
     EXPECT_CALL(
         operationControllerStrategyHost,
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1131,9 +1132,9 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
         auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1337,9 +1338,9 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
         auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(

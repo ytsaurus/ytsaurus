@@ -242,7 +242,8 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
     TDuration timeLimit,
     const std::string& treeId,
     const TString& poolPath,
-    std::optional<TDuration> waitingForResourcesOnNodeTimeout)
+    std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+    std::optional<std::string> allocationGroupName)
 {
     auto scheduleAllocationResultFuture = Controller_->ScheduleAllocation(
         context,
@@ -250,7 +251,8 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
         availableDiskResources,
         treeId,
         poolPath,
-        waitingForResourcesOnNodeTimeout);
+        waitingForResourcesOnNodeTimeout,
+        std::move(allocationGroupName));
 
     auto scheduleAllocationResultFutureWithTimeout = scheduleAllocationResultFuture
         .ToUncancelable()

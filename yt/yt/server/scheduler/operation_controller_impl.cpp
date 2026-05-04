@@ -715,7 +715,8 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const TDiskResources& diskResourceLimits,
     const std::string& treeId,
     const TYPath& poolPath,
-    std::optional<TDuration> waitingForResourcesOnNodeTimeout)
+    std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+    std::optional<std::string> allocationGroupName)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -757,6 +758,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     request->NodeResourceLimits = context->ResourceLimits();
     request->NodeDiskResources = diskResourceLimits;
     request->Spec.WaitingForResourcesOnNodeTimeout = waitingForResourcesOnNodeTimeout;
+    request->AllocationGroupName = std::move(allocationGroupName);
 
     TIncarnationId incarnationId;
     {

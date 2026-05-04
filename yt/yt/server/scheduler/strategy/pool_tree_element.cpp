@@ -2310,7 +2310,8 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const std::string& treeId)
+    const std::string& treeId,
+    std::optional<std::string> allocationGroupName)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2319,7 +2320,8 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
         timeLimit,
         treeId,
         GetParent()->GetFullPath(/*explicitOnly*/ false),
-        EffectiveWaitingForResourcesOnNodeTimeout_);
+        EffectiveWaitingForResourcesOnNodeTimeout_,
+        std::move(allocationGroupName));
 }
 
 void TPoolTreeOperationElement::OnScheduleAllocationFailed(
