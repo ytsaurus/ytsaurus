@@ -1,5 +1,6 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
+from yt_dynamic_tables_base import SmoothMovementHelper
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user, remount_table,
@@ -695,6 +696,26 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         _check_dynamic_row_write_counter_after_unmount(
             expected_value=9,
             rows=[{"key": i, "value": "F"} for i in range(3, 10)])
+
+    @authors("atalmenev")
+    def test_performance_counters_after_smooth_move(self):
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "A"}])
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 1)
+
+        with SmoothMovementHelper(tablet_id).forwarding_context():
+            insert_rows("//tmp/t", [{"key": 1, "value": "B"}])
+            wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 2)
+
+        insert_rows("//tmp/t", [{"key": 2, "value": "B"}])
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 3)
 
     @authors("sabdenovch")
     def test_select_cpu_performance_counters(self):
