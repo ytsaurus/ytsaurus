@@ -2012,6 +2012,20 @@ Y_UNIT_TEST(ColumnAtSubqueryExpresson) {
     UNIT_ASSERT_VALUES_EQUAL(CompleteTop(expected.size(), engine, input[3]), expected);
 }
 
+Y_UNIT_TEST(ColumnAfterAs) {
+    auto engine = MakeSqlCompletionEngineUT();
+
+    TVector<TString> input = {
+        R"sql(SELECT a AS # FROM (SELECT 1 AS a);)sql",
+        R"sql(SELECT * FROM (SELECT 1 AS a) GROUP BY a AS #;)sql",
+    };
+
+    TVector<TCandidate> expected = {};
+
+    UNIT_ASSERT_VALUES_EQUAL(CompleteTop(8, engine, input[0]), expected);
+    UNIT_ASSERT_VALUES_EQUAL(CompleteTop(8, engine, input[1]), expected);
+}
+
 Y_UNIT_TEST(NoBindingAtQuoted) {
     auto engine = MakeSqlCompletionEngineUT();
 
