@@ -245,6 +245,16 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     TObject::Save(context);
     TTransactionBase::Save(context);
 
+    // All transactions should have this flag set to true, unless they were started before 24.2
+    // and something went wrong when attempting to abort it.
+    // But let's write a detailed message here anyway.
+    YT_LOG_ALERT_UNLESS(
+        NativeTxExternalizationEnabled_,
+        "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
+        "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
+        "to data corruption! Please abort said transaction (TransactionId: %v)",
+        Id_);
+
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
@@ -278,6 +288,9 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+    if (IsCypressTransactionType(GetType())) {
+        Save(context, NativeTxExternalizationEnabled_);
+    }
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -335,19 +348,13 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    if (context.GetVersion() < EMasterReign::RemoveNativeTxExternalizationEnabledFlag) {
+    auto version = context.GetVersion();
+    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
+        (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
+        EMasterReign::AbortStuckTransactions_26_2 <= version)
+    {
         if (IsCypressTransactionType(GetType())) {
-            bool nativeTxExternalizationEnabled;
-            Load(context, nativeTxExternalizationEnabled);
-
-            // All transactions should have this flag set to true, unless they were started before 24.2.
-            // But let's write a detailed message here anyway.
-            YT_LOG_FATAL_UNLESS(
-                nativeTxExternalizationEnabled,
-                "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
-                "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
-                "to data corruption! Please abort said transaction in order for master to be able to be started (TransactionId: %v)",
-                Id_);
+            Load(context, NativeTxExternalizationEnabled_);
         }
     }
 }
@@ -503,6 +510,11 @@ void TTransaction::SetSuccessorTransactionLeaseCount(int newLeaseCount)
 int TTransaction::GetSuccessorTransactionLeaseCount() const
 {
     return SuccessorTransactionLeaseCount_;
+}
+
+bool TTransaction::IsNativeTxExternalizationEnabled() const
+{
+    return NativeTxExternalizationEnabled_;
 }
 
 auto TTransaction::GetActionStateFactory() -> IActionStateFactory*
