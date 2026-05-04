@@ -210,7 +210,8 @@ public:
         const TDiskResources& diskResourceLimits,
         const std::string& /* treeId */,
         const TString& /* poolPath */,
-        std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */) override;
+        std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */,
+        std::optional<std::string> /* allocationGroupName */) override;
 
     void UpdateGroupedNeededResources() override;
     TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
@@ -451,7 +452,8 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
     const TDiskResources& /*diskResourceLimits*/,
     const std::string& /* treeId */,
     const TString& /* poolPath */,
-    std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */)
+    std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */,
+    std::optional<std::string> /* allocationGroupName */)
 {
     MaybeDelay(ScheduleJobDelay_);
 

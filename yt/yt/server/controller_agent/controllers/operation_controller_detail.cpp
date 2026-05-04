@@ -5096,6 +5096,10 @@ void TOperationControllerBase::TryScheduleFirstJob(
             break;
         }
 
+        if (context.GetRequestedTaskName() && task->GetVertexDescriptor() != *context.GetRequestedTaskName()) {
+            continue;
+        }
+
         if (auto failReason = TryScheduleJob(allocation, *task, context, scheduleLocalJob, std::nullopt)) {
             if (*failReason == EScheduleFailReason::NoPendingJobs) {
                 continue;

@@ -2002,7 +2002,8 @@ private:
                             FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
                             descriptorIt->second,
                             YT_OPTIONAL_FROM_PROTO(*protoRequest, pool_path),
-                            protoRequest->spec());
+                            protoRequest->spec(),
+                            YT_OPTIONAL_FROM_PROTO(*protoRequest, allocation_group_name));
 
                         response.OperationId = operationId;
                         response.AllocationId = allocationId;

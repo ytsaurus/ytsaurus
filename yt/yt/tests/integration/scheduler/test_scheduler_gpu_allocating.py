@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
-    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id,
+    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla,
 )
 
 from yt_scheduler_helpers import (
@@ -973,6 +973,73 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
         wait(lambda: get(scheduler_orchid_operation_path(op3.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
 
         wait(lambda: len(op2.get_running_jobs()) == 0)
+
+    # See YT-27935: the GPU planner decides per-assignment which allocation group to schedule,
+    # and tells the CA via the schedule request. The CA must only schedule jobs from the requested
+    # group, even if a different group would also fit into the node's resource envelope.
+    @authors("eshcherbin")
+    def test_heterogeneous_operation(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_small": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gpu_limit": 1,
+                        "enable_gpu_layers": False,
+                    },
+                    "task_big": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gpu_limit": 4,
+                        "enable_gpu_layers": False,
+                    },
+                },
+            },
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 6)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
+
+        wait_for_operations_in_gpu_policy_orchid(operation_count=1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=3, exactly=True)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        assignments_by_group = {}
+        for assignment in operation["assignments"]:
+            assignments_by_group.setdefault(assignment["allocation_group_name"], []).append(assignment)
+
+        assert len(assignments_by_group["task_small"]) == 2
+        assert len(assignments_by_group["task_big"]) == 1
+        for assignment in assignments_by_group["task_small"]:
+            assert assignment["resource_usage"]["gpu"] == 1
+        for assignment in assignments_by_group["task_big"]:
+            assert assignment["resource_usage"]["gpu"] == 4
+
+        # Every assignment must be realized (have an allocation_id) and the job the CA actually
+        # started under that allocation must be from the task the planner asked for. If the CA
+        # had picked a different task, the job's task_name (from the CA running_jobs orchid)
+        # would not match the assignment's allocation_group_name.
+        allocation_id_to_group_name = {}
+        for assignment in operation["assignments"]:
+            assert assignment["allocation_id"] != yson.YsonEntity()
+            allocation_id_to_group_name[assignment["allocation_id"]] = assignment["allocation_group_name"]
+
+        running_by_task = {"task_small": 0, "task_big": 0}
+        for job_id, job_info in op.get_running_jobs().items():
+            allocation_id = get_allocation_id_from_job_id(job_id)
+            assert allocation_id in allocation_id_to_group_name
+            assert job_info["task_name"] == allocation_id_to_group_name[allocation_id]
+            running_by_task[job_info["task_name"]] += 1
+
+        assert running_by_task["task_small"] == 2
+        assert running_by_task["task_big"] == 1
+
+        release_breakpoint()
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
 
 
 ##################################################################

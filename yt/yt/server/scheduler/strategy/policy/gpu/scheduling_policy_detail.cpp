@@ -1111,7 +1111,6 @@ void TSchedulingPolicy::PreemptAllocation(
         preemptionReason);
 }
 
-// TODO(YT-27935): (!) Ask for a specific allocation group.
 // TODO(YT-27867): Add diagnostics like in regular policy.
 TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     const TNodePtr& node,
@@ -1137,7 +1136,8 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         availableResources,
         schedulingHeartbeatContext->GetNodeFreeDiskResourcesWithDiscount(assignment->ResourceUsage),
         treeSnapshot->ControllerConfig()->ScheduleAllocationTimeLimit,
-        operationElement->GetTreeId())
+        operationElement->GetTreeId(),
+        assignment->AllocationGroupName)
         .AsyncVia(nodeShardInvoker)
         .Run();
 
