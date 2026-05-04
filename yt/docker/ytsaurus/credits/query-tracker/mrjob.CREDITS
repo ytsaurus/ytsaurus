@@ -9813,6 +9813,24 @@ Distributed under the [Boost Software License, Version 1.0](http://www.boost.org
 
 
 ====================BSL-1.0====================
+// (C) Copyright Ion Gaztanaga 2025-2026. Distributed under the Boost
+// Software License, Version 1.0. (See accompanying file
+// LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================BSL-1.0====================
+// (C) Copyright Ion Gaztanaga 2025. Distributed under the Boost
+// Software License, Version 1.0. (See accompanying file
+// LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================BSL-1.0====================
+// (C) Copyright Ion Gaztanaga 2026. Distributed under the Boost
+// Software License, Version 1.0. (See accompanying file
+// LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================BSL-1.0====================
 // (C) Copyright Pablo Halpern 2009. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10015,6 +10033,29 @@ DEALINGS IN THE SOFTWARE.
 // (C) Copyright Ion Gaztanaga 2025-2025. Distributed under the Boost
 // Software License, Version 1.0. (See accompanying file
 // LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================COPYRIGHT====================
+// (C) Copyright Ion Gaztanaga 2025-2026. Distributed under the Boost
+// Software License, Version 1.0. (See accompanying file
+// LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================COPYRIGHT====================
+// (C) Copyright Ion Gaztanaga 2025. Distributed under the Boost
+// Software License, Version 1.0. (See accompanying file
+// LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================COPYRIGHT====================
+// (C) Copyright Ion Gaztanaga 2026. Distributed under the Boost
+// Software License, Version 1.0. (See accompanying file
+// LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+
+====================COPYRIGHT====================
+// (C) Copyright Joaquin M Lopez Munoz 2025-2026.
+// (C) Copyright Ion Gaztanaga 2025-2026.
 
 
 ====================COPYRIGHT====================
@@ -12092,6 +12133,10 @@ Copyright (C) 2006-2021 Emil Dotchevski. Distributed under the [Boost Software L
 
 ====================COPYRIGHT====================
 //Copyright (c) 2006-2013 Emil Dotchevski and Reverge Studios, Inc.
+
+
+====================COPYRIGHT====================
+//Copyright (c) 2006-2026 Emil Dotchevski and Reverge Studios, Inc.
 
 
 ====================COPYRIGHT====================
