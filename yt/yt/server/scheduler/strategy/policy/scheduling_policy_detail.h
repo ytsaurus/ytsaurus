@@ -332,7 +332,7 @@ public:
         const TAllocationPtr& allocation,
         TPoolTreeOperationElement* element,
         EAllocationPreemptionReason preemptionReason,
-        bool commitPreemptedResourceUsage = false) const;
+        const std::optional<TJobResources>& preemptedResourceUsagePrecommit = {}) const;
 
     TNonOwningOperationElementList ExtractBadPackingOperations();
 

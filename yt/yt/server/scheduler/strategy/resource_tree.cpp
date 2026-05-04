@@ -488,7 +488,8 @@ EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreem
 
 bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
     const TResourceTreeElementPtr& element,
-    const TJobResources& resourceUsageDelta)
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -507,11 +508,12 @@ bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
     YT_VERIFY(element->Initialized_);
 
     auto commitLocalPreemptedResourceUsageUnsafe = [&] (auto* current) -> bool {
-        bool success = current->CommitLocalPreemptedResourceUsageUnsafe(resourceUsageDelta);
+        bool success = current->CommitLocalPreemptedResourceUsageUnsafe(resourceUsageDelta, precommittedResources);
         YT_LOG_DEBUG_UNLESS(
             success,
-            "Local commit of preempted usage failed (ResourceUsageDelta: %v, CurrentElement: %v, SourceElement: %v)",
+            "Local commit of preempted usage failed (ResourceUsageDelta: %v, PrecommittedResources: %v, CurrentElement: %v, SourceElement: %v)",
             resourceUsageDelta,
+            precommittedResources,
             current->GetId(),
             element->GetId());
         return success;

@@ -2374,9 +2374,14 @@ void TPoolTreeOperationElement::DecreaseHierarchicalResourceUsagePrecommit(const
     TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
 }
 
-void TPoolTreeOperationElement::CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources)
+void TPoolTreeOperationElement::CommitHierarchicalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
-    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
+    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(
+        ResourceTreeElement_,
+        resourceUsageDelta,
+        precommittedResources);
 }
 
 void TPoolTreeOperationElement::ReleaseResources(bool markAsNonAlive)
@@ -2392,9 +2397,14 @@ EResourceTreeIncreasePreemptedResult TPoolTreeOperationElement::TryIncreaseHiera
         violatedIdOutput);
 }
 
-bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta)
+bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
-    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(ResourceTreeElement_, delta);
+    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(
+        ResourceTreeElement_,
+        resourceUsageDelta,
+        precommittedResources);
 }
 
 void TPoolTreeOperationElement::InitializeResourceUsageAndDemand()
