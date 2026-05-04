@@ -2173,7 +2173,8 @@ void TPoolTreeOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const {
+std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const
+{
     return PersistentAttributes_.StarvingSince;
 }
 
