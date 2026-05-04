@@ -314,6 +314,7 @@ struct TDynamicDataNodeTrackerConfig
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
     bool ValidateSequoiaReplicas;
+    bool ValidateMasterReplicas;
     // COMPAT(grphil)
     bool IgnoreReplicasWithChangedStateDuringValidation;
 

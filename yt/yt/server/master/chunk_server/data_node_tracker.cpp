@@ -216,6 +216,13 @@ public:
             }
         }
 
+        if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
+            if (!GetDynamicConfig()->ValidateMasterReplicas && preparedRequest->NonSequoiaRequest.is_validation()) {
+                context->Reply();
+                return;
+            }
+        }
+
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         i64 chunkReplicasCount = 0;
         if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
