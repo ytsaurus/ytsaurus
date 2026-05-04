@@ -279,7 +279,7 @@ private:
         const std::string& source,
         const std::string& target);
 
-    //! Remove volumes planted in VolumesPath_;
+    //! Remove volumes planted in VolumesPath_.
     void RemoveVolumes(TDuration timeout);
 };
 
