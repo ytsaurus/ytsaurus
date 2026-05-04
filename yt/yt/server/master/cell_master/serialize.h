@@ -187,12 +187,14 @@ DEFINE_ENUM(EMasterReign,
     ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
     ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
     ((AbortStuckTransactions)                                       (3235))  // h0pless
+    ((DontValidateTransactionPermissionsOnPartitipants_26_1)        (3236))  // kvk1920
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
     ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
     ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
     ((DisableModificationTimeUpdateInChunkMerger)                   (3303))  // h0pless
+    ((DontValidateTransactionPermissionsOnPartitipants)             (3304))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

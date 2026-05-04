@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, generate_uuid, link)
+    raises_yt_error, generate_uuid, link, make_ace)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -793,6 +793,16 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         "14": {"roles": ["transaction_coordinator"]},
         "15": {"roles": ["transaction_coordinator"]},
     }
+
+    @authors("kvk1920")
+    def test_transaction_permission_on_participant(self):
+        create_user("cannot_abort_tx")
+        tx = start_transaction(replicate_to_master_cell_tags=[11], authenticated_user="cannot_abort_tx")
+        set(
+            f"//sys/foreign_transactions/{tx}/@acl",
+            [make_ace("deny", "cannot_abort_tx", "write")],
+            driver=get_driver(1))
+        abort_transaction(tx, authenticated_user="cannot_abort_tx")
 
     @authors("kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
