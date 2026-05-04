@@ -329,7 +329,7 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            return MakeFuture<IVolumePtr>(TError("Can not prepare root volume without volume manager."));
+            return MakeFuture<IVolumePtr>(TError("Cannot prepare root volume without volume manager."));
         }
 
         return RunPreparationAction(
@@ -349,7 +349,7 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            return MakeFuture<IVolumePtr>(TError("Can not bind root volume without volume manager."));
+            return MakeFuture<IVolumePtr>(TError("Cannot bind root volume without volume manager."));
         }
 
         return RunPreparationAction(
