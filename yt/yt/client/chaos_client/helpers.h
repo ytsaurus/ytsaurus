@@ -21,4 +21,4 @@ void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progre
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletClient
+} // namespace NYT::NChaosClient
