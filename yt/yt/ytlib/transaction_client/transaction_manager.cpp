@@ -276,8 +276,7 @@ private:
         return BIND_NO_PROPAGATE([id] (const TError& error) {
             return
                 IsRetriableError(error) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
-                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
 
@@ -287,7 +286,6 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError) ||
                 ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
