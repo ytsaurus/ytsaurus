@@ -956,34 +956,34 @@ TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionI
         options.Filesystem,
         options.DeviceId);
 
-        return FindDataNodesWithMedium(sessionId, options)
-            .Apply(BIND(
-                [
-                    this,
-                    this_ = MakeStrong(this),
+    return FindDataNodesWithMedium(sessionId, options)
+        .Apply(BIND(
+            [
+                this,
+                this_ = MakeStrong(this),
+                sessionId,
+                options
+            ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+                auto dataNodeAddresses = rspOrError.Value();
+                if (dataNodeAddresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
+                        << TErrorAttribute("medium_index", options.MediumIndex)
+                        << TErrorAttribute("size", options.Size)
+                        << TErrorAttribute("fs_type", options.Filesystem);
+                }
+
+                return BIND(
+                    &TNbdVolumeFactory::TryOpenNbdSession,
+                    MakeStrong(this),
                     sessionId,
-                    options
-                ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-
-                    auto dataNodeAddresses = rspOrError.Value();
-                    if (dataNodeAddresses.empty()) {
-                        THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
-                            << TErrorAttribute("medium_index", options.MediumIndex)
-                            << TErrorAttribute("size", options.Size)
-                            << TErrorAttribute("fs_type", options.Filesystem);
-                    }
-
-                    return BIND(
-                        &TNbdVolumeFactory::TryOpenNbdSession,
-                        MakeStrong(this),
-                        sessionId,
-                        Passed(std::move(dataNodeAddresses)),
-                        options)
-                    .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker())
-                    .Run();
-                })
-                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()));
+                    Passed(std::move(dataNodeAddresses)),
+                    options)
+                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker())
+                .Run();
+            })
+            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()));
 }
 
 DEFINE_REFCOUNTED_TYPE(TNbdVolumeFactory)
