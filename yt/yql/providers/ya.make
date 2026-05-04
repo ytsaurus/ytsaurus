@@ -1,4 +1,5 @@
 RECURSE(
+    dq
     yt
     ytflow
 )
