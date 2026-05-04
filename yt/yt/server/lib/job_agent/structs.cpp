@@ -90,6 +90,7 @@ bool TTimeStatistics::IsEmpty() const
         !ValidateRootFSDuration &&
         !PrepareNonRootVolumesDuration &&
         !LinkVolumesDuration &&
+        !ExecDuration &&
         !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
 }
