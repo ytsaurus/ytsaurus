@@ -816,8 +816,7 @@ public:
 
         auto transactionId = transaction->GetId();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        MaybeValidateWritePermission(transaction);
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
@@ -960,6 +959,7 @@ public:
             options.CommitTimestampClusterTag,
             time);
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
@@ -1012,8 +1012,7 @@ public:
         }
 
         if (validatePermissions) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(transaction, EPermission::Write);
+            MaybeValidateWritePermission(transaction);
         }
 
         // See the same place in CommitTransaction().
@@ -1629,8 +1628,7 @@ public:
             ThrowTransactionSuccessorHasLeases(transaction);
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        MaybeValidateWritePermission(transaction);
 
         auto state = transaction->GetState(persistent);
         YT_VERIFY(state == ETransactionState::Active);
@@ -1708,7 +1706,7 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        MaybeValidateWritePermission(transaction);
 
         transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
@@ -2458,9 +2456,14 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* schema = objectManager->GetSchema(EObjectType::Transaction);
-        securityManager->ValidatePermission(schema, EPermission::Create);
+        auto hintId = YT_OPTIONAL_FROM_PROTO(*request, hint_id, TTransactionId)
+            .value_or(NullTransactionId);
+
+        if (!hintId || CellTagFromId(hintId) == Bootstrap_->GetCellTag()) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* schema = objectManager->GetSchema(EObjectType::Transaction);
+            securityManager->ValidatePermission(schema, EPermission::Create);
+        }
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
@@ -2479,8 +2482,6 @@ private:
         auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto timeout = FromProto<TDuration>(request->timeout());
         auto deadline = YT_OPTIONAL_FROM_PROTO(*request, deadline, TInstant);
-        auto hintId = YT_OPTIONAL_FROM_PROTO(*request, hint_id, TTransactionId)
-            .value_or(TTransactionId{});
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
@@ -2694,12 +2695,14 @@ private:
                 prerequisiteTransactionIds,
                 request->commit_timestamp());
         } catch (const std::exception& ex) {
-            TTransactionAbortRequest abortRequest;
-            abortRequest.AuthenticationIdentity = identity;
-            abortRequest.Force = true;
 
-            const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
-            transactionFinisher->PersistRequest(transaction, abortRequest, /*update*/ true);
+            if (TError(ex).GetNonTrivialCode() != NSecurityClient::EErrorCode::AuthorizationError) {
+                TTransactionAbortRequest abortRequest;
+                abortRequest.AuthenticationIdentity = identity;
+                abortRequest.Force = true;
+                const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+                transactionFinisher->PersistRequest(transaction, abortRequest, /*update*/ true);
+            }
 
             throw;
         }
@@ -2806,7 +2809,6 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
-        securityManager->ValidatePermission(transaction, EPermission::Write);
 
         TTransactionAbortOptions abortOptions{
             .Force = force,
@@ -4113,6 +4115,14 @@ private:
         }
 
         return false;
+    }
+
+    void MaybeValidateWritePermission(TTransaction* transaction)
+    {
+        if (transaction->IsNative() && !transaction->IsExternalized()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(transaction, EPermission::Write);
+        }
     }
 };
 
