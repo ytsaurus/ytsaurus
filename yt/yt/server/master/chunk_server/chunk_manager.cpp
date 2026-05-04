@@ -4215,6 +4215,11 @@ private:
         TChunkLocation* location,
         const auto& chunks)
     {
+        YT_LOG_DEBUG("Validating non-Sequoia location replicas (NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
+            node->GetId(),
+            node->GetDefaultAddress(),
+            location->GetUuid());
+
         auto difference = ComputeLocationNonSequoiaReplicasDifference(
             node,
             location,
