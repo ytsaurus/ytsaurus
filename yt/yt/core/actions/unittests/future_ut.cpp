@@ -2409,8 +2409,6 @@ TEST_F(TFutureTest, UniqueFutureGetOrCrashOnUnset)
     EXPECT_DEATH({ auto _ = future.GetOrCrash(); }, "IsSet");
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
