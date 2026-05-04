@@ -18,7 +18,6 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
-
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 using namespace NConcurrency;

@@ -661,7 +661,7 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
 
     YT_LOG_DEBUG(
         "Operation state revived "
-        "(OperationId: %v,SchedulingModule: %v)",
+        "(OperationId: %v, SchedulingModule: %v)",
         operation->GetId(),
         operation->SchedulingModule());
 }
