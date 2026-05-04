@@ -15,6 +15,7 @@ RECURSE(
     test_tools
     tvm
     utils
+    vanilla
     worker
     yt_job_service
 )

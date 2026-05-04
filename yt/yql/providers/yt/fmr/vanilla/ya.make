@@ -1,0 +1,3 @@
+RECURSE(
+    peer_tracker
+)
