@@ -33,6 +33,7 @@ public:
         const TActionDescriptor& descriptor);
 
     bool IsFinished() const;
+    bool IsMove() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletAction)
