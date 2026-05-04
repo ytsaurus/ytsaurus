@@ -433,8 +433,10 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             assert not _run_and_get_actions(desired_tablet_count=2)[0]["inplace_reshard"]
             assert get("//tmp/t/@tablet_count") == 2
 
-            set("//sys/tablet_balancer/config/enable_inplace_split", True)
-            set("//sys/tablet_balancer/config/enable_inplace_merge", True)
+            self._apply_dynamic_config_patch({
+                "enable_inplace_split": True,
+                "enable_inplace_merge": True,
+            })
 
             # Merge with inplace enabled (same cell).
             assert _run_and_get_actions(desired_tablet_count=1)[0]["inplace_reshard"]
@@ -445,8 +447,10 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             assert get("//tmp/t/@tablet_count") == 2
 
             # Feature config: disable inplace.
-            set("//sys/tablet_balancer/config/enable_inplace_split", False)
-            set("//sys/tablet_balancer/config/enable_inplace_merge", False)
+            self._apply_dynamic_config_patch({
+                "enable_inplace_split": False,
+                "enable_inplace_merge": False,
+            })
 
             assert not _run_and_get_actions(desired_tablet_count=1)[0]["inplace_reshard"]
             assert get("//tmp/t/@tablet_count") == 1
@@ -457,8 +461,10 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             return
 
         # Cross-cell merge with smooth movement.
-        set("//sys/tablet_balancer/config/enable_inplace_split", True)
-        set("//sys/tablet_balancer/config/enable_inplace_merge", True)
+        self._apply_dynamic_config_patch({
+            "enable_inplace_split": True,
+            "enable_inplace_merge": True,
+        })
 
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [50]])
