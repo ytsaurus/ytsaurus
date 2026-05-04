@@ -13,7 +13,8 @@ DEFINE_ENUM(ESlowdownType,
     (HW)
     (HWPowerBrake)
     (HWThermal)
-    (SWThermal));
+    (SWThermal)
+);
 
 struct TGpuInfo
 {

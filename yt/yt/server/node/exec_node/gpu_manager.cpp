@@ -789,7 +789,6 @@ void TGpuManager::PopulateAlerts(std::vector<TError>* alerts) const
     }
 }
 
-
 void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPriority)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);

@@ -5117,8 +5117,7 @@ void TOperationControllerBase::TryScheduleFirstJob(
                 allocation.TreeId,
                 task->GetJobType(),
                 /*isJobFirst*/ true,
-                /*isLocal*/ scheduleLocalJob
-            );
+                /*isLocal*/ scheduleLocalJob);
 
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
@@ -5192,8 +5191,7 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
         allocation.TreeId,
         allocation.Task->GetJobType(),
         /*isJobFirst*/ false,
-        /*isLocal*/ scheduleLocalJob
-    );
+        /*isLocal*/ scheduleLocalJob);
 
     return std::nullopt;
 }

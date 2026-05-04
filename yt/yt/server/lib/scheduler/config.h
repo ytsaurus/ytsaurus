@@ -601,7 +601,7 @@ struct TStrategyConfig
     TDuration FairShareUpdatePeriod;
     TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
-    TDuration AccumulatedUsageLogPeriod;
+    TDuration AccumulatedResourceDistributionLogPeriod;
 
     //! How often min needed resources for allocations are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
