@@ -230,17 +230,11 @@ public:
                 chunkOwner->GetId(),
                 request);
 
+            // NB: Mixing statistics update requests with and without CAS might
+            // lead to some unexpected results, because the resulting request
+            // will use CAS.
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
-            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-            if (chunkManagerConfig->ChunkMerger->UpdateModificationTime) {
-                statistics |= request;
-            } else {
-                statistics.UpdateTabletResourceUsage |= request.UpdateTabletResourceUsage;
-                statistics.UpdateDataStatistics |= request.UpdateDataStatistics;
-                statistics.UpdateModificationTime = true;
-                statistics.UpdateAccessTime = true;
-                statistics.UseNativeContentRevisionCas = request.UseNativeContentRevisionCas;
-            }
+            statistics |= request;
 
             auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
             ongoingUpdate.RequestCount++;
