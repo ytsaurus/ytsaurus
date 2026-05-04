@@ -72,7 +72,6 @@ var (
 	PushQueueProducerResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
 	PushQueueProducerBatchResultDecoder     AnyValueResultDecoder       = newValueResultDecoder()
 	CreateQueueProducerSessionResultDecoder AnyValueResultDecoder       = newValueResultDecoder()
-	PullQueueConsumerResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
 	DisableChunkLocationsResultDecoder      AnyValueResultDecoder       = newValueResultDecoder()
 	DestroyChunkLocationsResultDecoder      AnyValueResultDecoder       = newValueResultDecoder()
 	ResurrectChunkLocationsResultDecoder    AnyValueResultDecoder       = newValueResultDecoder()
