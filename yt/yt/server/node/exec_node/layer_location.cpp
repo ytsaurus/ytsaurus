@@ -1581,7 +1581,8 @@ void TLayerLocation::RemoveVolumes(
 
             if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
                     unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound &&
-                    unlinkError.GetCode() != EPortoErrorCode::VolumeNotReady) {
+                    unlinkError.GetCode() != EPortoErrorCode::VolumeNotReady)
+            {
                 THROW_ERROR(unlinkError);
             }
         }
