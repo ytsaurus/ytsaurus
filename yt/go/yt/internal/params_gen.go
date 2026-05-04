@@ -5956,7 +5956,7 @@ func NewPullQueueConsumerParams(
 	}
 	optionsCopy := *options
 	return &PullQueueConsumerParams{
-		Verb("pull_queue_consumer"),
+		VerbPullQueueConsumer,
 		consumerPath,
 		queuePath,
 		&optionsCopy,
