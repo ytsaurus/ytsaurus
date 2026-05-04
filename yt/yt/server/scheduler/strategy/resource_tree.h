@@ -52,7 +52,8 @@ public:
         std::string* violatedIdOutput);
     bool CommitHierarchicalPreemptedResourceUsage(
         const TResourceTreeElementPtr& element,
-        const TJobResources& delta);
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
     void ChangeParent(

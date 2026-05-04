@@ -946,11 +946,11 @@ public:
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources);
+    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void ReleaseResources(bool markAsNonAlive);
 
     EResourceTreeIncreasePreemptedResult TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(const TJobResources& delta, std::string* violatedIdOutput);
-    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta);
+    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
 
     //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;
