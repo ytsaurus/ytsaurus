@@ -52,9 +52,11 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
@@ -64,6 +66,8 @@ static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
     }
     return result;
 }
+
+} // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1448,8 +1452,6 @@ void TLayerCache::OnProfiling()
         ProfileLocation(location);
     }
 }
-
-DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
