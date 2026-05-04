@@ -1221,7 +1221,8 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
 
         if (treeConfig->UsePrecommitForPreemption) {
             std::string violatedId;
-            auto increaseStatus = operationElement->TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(allocation->ResourceUsage(), &violatedId);
+            auto precommittedResources = std::optional(allocation->ResourceUsage());
+            auto increaseStatus = operationElement->TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(*precommittedResources, &violatedId);
             if (increaseStatus != EResourceTreeIncreasePreemptedResult::Success) {
                 continue;
             }
@@ -1240,7 +1241,7 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 allocation,
                 operationElement,
                 EAllocationPreemptionReason::ResourceLimitsViolated,
-                /*commitPreemptedResourceUsage*/ true);
+                precommittedResources);
             continue;
         }
 
@@ -1304,7 +1305,7 @@ void TScheduleAllocationsContext::PreemptAllocation(
     const TAllocationPtr& allocation,
     TPoolTreeOperationElement* element,
     EAllocationPreemptionReason preemptionReason,
-    bool commitPreemptedResourceUsage) const
+    const std::optional<TJobResources>& preemptedResourceUsagePrecommit) const
 {
     MaybeDelay(element->Spec()->TestingOperationOptions->DelayBeforeAllocationPreemption);
 
@@ -1312,10 +1313,11 @@ void TScheduleAllocationsContext::PreemptAllocation(
     allocation->ResourceUsage() = TJobResources();
 
     const auto& operationSharedState = GetPoolTreeSnapshotState(TreeSnapshot_)->GetEnabledOperationSharedState(element);
-    if (commitPreemptedResourceUsage) {
+    if (preemptedResourceUsagePrecommit) {
         operationSharedState->ProcessAllocationPreemption(
             element,
-            allocation->GetId());
+            allocation->GetId(),
+            *preemptedResourceUsagePrecommit);
     } else {
         operationSharedState->ProcessAllocationUpdate(
             element,

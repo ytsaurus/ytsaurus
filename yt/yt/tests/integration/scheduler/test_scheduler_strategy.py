@@ -5052,3 +5052,140 @@ class TestMinSpareResources(YTEnvSetup):
         assert data["default"]["disk_space"] == 1000
         assert data["other"]["cpu"] == 2.0
         assert data["other"]["disk_space"] == 2000
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestPreemptionPrecommitRace(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "alerts_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {"resource_limits": {"user_slots": 2, "cpu": 2.0}},
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 100,
+                    },
+                },
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 100,
+                    }
+                }
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestPreemptionPrecommitRace, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "preemptive_scheduling_backoff": 0,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "fair_share_starvation_timeout": 500,
+            "preemption_satisfaction_threshold": 0.99,
+        })
+
+    @authors("eshcherbin", "yaishenka")
+    def test_race_between_allocation_update_and_preempted_resource_usage_commit(self):
+        # This test reproduces a race between applying preempted resource usage precommit and an allocation update
+        # caused by a preemptible progress reset. In short, this allocation update introduces an inconsistency
+        # between allocation's resource usage as stored in an TAllocation object vs in the operation's shared state.
+        # This leads to commiting an amount of resources different to which has been precommited earlier.
+
+        update_scheduler_config("node_shard_submit_allocations_to_strategy_period", 6000000)
+        update_scheduler_config("running_allocations_update_period", 6000000)
+
+        update_pool_tree_config("default", {
+            "allocation_preemption_timeout": 6000000,
+            "use_precommit_for_preemption": True,
+        })
+
+        nodes = ls("//sys/cluster_nodes")
+
+        create_pool(
+            "root",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4.0},
+            },
+        )
+        run_sleeping_vanilla(
+            spec={
+                "pool": "root",
+                "scheduling_tag_filter": nodes[0],
+            },
+        )
+
+        create_pool(
+            "limited",
+            parent_name="root",
+            attributes={
+                "resource_limits": {"cpu": 2.0},
+                "strong_guarantee_resources": {"cpu": 2.0},
+            },
+        )
+        create_pool(
+            "poolStarving",
+            parent_name="limited",
+            attributes={"strong_guarantee_resources": {"cpu": 2.0}},
+        )
+        create_pool("poolVictim", parent_name="limited")
+
+        op_victim = run_test_vanilla(
+            command="(trap \"sleep 10\" SIGINT; sleep 2)",
+            job_count=100,
+            spec={
+                "pool": "poolVictim",
+                "enable_multiple_jobs_in_allocation": True,
+                "scheduling_tag_filter": nodes[0],
+                "testing": {"delay_before_allocation_preemption": {"duration": 3000, "type": "async"}},
+            },
+            task_patch={
+                "interruption_signal": "SIGINT",
+            },
+        )
+
+        wait(lambda: len(op_victim.get_running_jobs()) == 1)
+
+        op_starving = run_sleeping_vanilla(
+            job_count=2,
+            spec={
+                "pool": "poolStarving",
+                "scheduling_tag_filter": nodes[1],
+            },
+        )
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_victim.id) + "/fair_resources/cpu", default=None), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_starving.id) + "/fair_resources/cpu", default=None), 2.0))
+
+        wait(lambda: get(scheduler_orchid_operation_path(op_starving.id) + "/resource_usage/cpu", default=None) == 1.0)
+
+        time.sleep(0.3)
+
+        wait(lambda: get(scheduler_orchid_operation_path(op_starving.id) + "/resource_usage/cpu", default=None) == 1.0)
+
+        set("//sys/pool_trees/default/root/limited/@resource_limits_overcommit_tolerance", {"cpu": 1.0})
+
+        wait(lambda: get(scheduler_orchid_operation_path(op_starving.id) + "/resource_usage/cpu", default=None) == 2.0)
+        wait(lambda: len(ls(f"//sys/cluster_nodes/{nodes[0]}/orchid/exec_node/job_controller/allocations")) == 1)

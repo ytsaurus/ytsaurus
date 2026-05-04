@@ -106,7 +106,9 @@ private:
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
-    bool CommitLocalPreemptedResourceUsageUnsafe(const TJobResources& resourceUsageDelta);
+    bool CommitLocalPreemptedResourceUsageUnsafe(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     bool IncreaseLocalResourceUsage(const TJobResources& delta);
 
