@@ -12,7 +12,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/runtime
     yql/essentials/providers/common/comp_nodes
     contrib/ydb/library/yql/providers/dq/common
-    contrib/ydb/library/yql/providers/dq/runtime
+    yt/yql/providers/dq/runtime
     yt/yql/providers/yt/comp_nodes/dq/llvm16
     yt/yql/providers/yt/mkql_dq
     yt/yql/providers/yt/codec/codegen

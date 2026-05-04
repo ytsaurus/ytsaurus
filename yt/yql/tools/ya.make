@@ -6,6 +6,7 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        dq
         query_replay
         ytfilerun
         ytflowrun
