@@ -52,6 +52,7 @@ public:
 
     // Thread affinity: Profiler thread.
     void ProfileStarvationIntervals(const TPoolTreeSnapshotPtr& treeSnapshot);
+
 private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
