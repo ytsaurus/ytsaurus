@@ -192,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((Start_26_2)                                                   (3300))  // ermolovd
     ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
     ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
+    ((DisableModificationTimeUpdateInChunkMerger)                   (3303))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
