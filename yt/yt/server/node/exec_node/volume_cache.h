@@ -332,6 +332,8 @@ private:
     void OnProfiling();
 };
 
+DEFINE_REFCOUNTED_TYPE(TLayerCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
