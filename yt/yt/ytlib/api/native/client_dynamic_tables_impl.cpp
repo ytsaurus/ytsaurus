@@ -4174,10 +4174,6 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     const TChaosLeaseAttachOptions& options)
 {
     auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
-    auto proxy = TChaosNodeServiceProxy(channel);
-    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
-
-    auto req = proxy.GetChaosLease();
     auto timeoutPath = Format("%v/@timeout", FromObjectId(chaosLeaseId));
     auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
         .ValueOrThrow();
