@@ -2403,6 +2403,67 @@ class YtClient(ClientState):
             result_index=result_index, stage=stage, format=format, raw=raw
         )
 
+    def read_state(
+        self,
+        pipeline_path: str,
+        name: str,
+        computation_id=None,
+        partition_id=None,
+        key=None,
+        use_source_key=False,
+        output_format=None
+    ):
+        """
+        Read one specific state row and return its raw YSON value.
+
+        The address must be unique: exactly one of ``key``, ``partition_id``, or
+        ``partition_id + use_source_key`` is required. Errors out if no row matches.
+        ``computation_id`` is required only when reading by ``key``; for partition-based reads it
+        is derived from the layout.
+
+        :param pipeline_path: path to pipeline.
+        :param name: state name.
+        :param computation_id: computation id; required when ``key`` is set.
+        :param partition_id: partition id; without ``use_source_key`` reads from partition_states.
+        :param key: TKey value (list or map form, see ``read_states``).
+        :param use_source_key: when set together with ``partition_id``, reads key_states using the partition's SourceKey instead of partition_states.
+        """
+        return client_api.read_state(
+            pipeline_path, name,
+            client=self,
+            computation_id=computation_id, partition_id=partition_id, key=key, use_source_key=use_source_key,
+            output_format=output_format
+        )
+
+    def read_states(
+        self,
+        pipeline_path: str,
+        computation_id=None,
+        partition_id=None,
+        key=None,
+        name=None,
+        output_format=None
+    ):
+        """
+        Read every state row matching the supplied filters.
+
+        Returns a map with two arrays: "key_states" (list of {computation_id, key, entries}) and
+        "partition_states" (list of {partition_id, entries}); each "entries" is a {name: state} map.
+
+        At least one of ``computation_id`` or ``partition_id`` must be supplied.
+
+        :param pipeline_path: path to pipeline.
+        :param computation_id: filter by computation id (required if `key` is set).
+        :param partition_id: filter by partition id; also pulls key_states for the partition's SourceKey, if any.
+        :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator.
+        :param name: optional state name filter, narrows both key_states and partition_states.
+        """
+        return client_api.read_states(
+            pipeline_path,
+            client=self,
+            computation_id=computation_id, partition_id=partition_id, key=key, name=name, output_format=output_format
+        )
+
     def read_table(
         self,
         table: Union[str, ForwardRef("TablePath")],

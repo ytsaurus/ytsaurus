@@ -2733,6 +2733,8 @@ def add_flow_parser(root_subparsers):
     add_flow_show_logs_parser(add_flow_subparser)
     add_flow_execute_parser(add_flow_subparser)
     add_flow_describe_parser(add_flow_subparser)
+    add_flow_read_states_parser(add_flow_subparser)
+    add_flow_read_state_parser(add_flow_subparser)
 
 
 def wait_pipeline_change(operation, state):
@@ -2927,6 +2929,70 @@ def add_flow_execute_parser(add_parser):
     add_hybrid_argument(parser, "flow_argument", group_required=False,
                         help="Argument of the command (optional)")
     add_structured_format_argument(parser, "--input-format")
+    add_structured_format_argument(parser, "--output-format")
+
+
+def _parse_flow_key_argument(value):
+    """Parse the --key flag for read-state(s): accepts a YSON list or a YSON map.
+
+    A list is the positional form ([v0, v1, ...] in schema-position order, including expression
+    columns). A map is the named form ({col: value, ...}); missing expression columns are filled
+    by the column evaluator on the controller side.
+    """
+    if value is None:
+        return None
+    return yson._loads_from_native_str(value)
+
+
+def show_flow_read_states_result(**kwargs):
+    """Read every state row matching the supplied filters."""
+    kwargs["key"] = _parse_flow_key_argument(kwargs.get("key"))
+    output_format = kwargs.pop("output_format")
+    result = yt.read_states(**kwargs, output_format=output_format)
+    if output_format is None:
+        result = dump_data(result)
+    print_to_output(result)
+
+
+def add_flow_read_states_parser(add_parser):
+    parser = add_parser("read-states", show_flow_read_states_result,
+                        help="Read every state row matching the supplied filters")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--computation-id",
+                        help="Filter by computation id; required if --key is given")
+    parser.add_argument("--partition-id",
+                        help="Filter by partition id; also pulls key_states for the partition's source key, if any")
+    parser.add_argument("--key",
+                        help="TKey value as a YSON list ([v0, v1, ...]) or a named map ({col: value, ...}); requires --computation-id")
+    parser.add_argument("--name",
+                        help="Optional state name filter")
+    add_structured_format_argument(parser, "--output-format")
+
+
+def show_flow_read_state_result(**kwargs):
+    """Read one specific state row and print its raw value."""
+    kwargs["key"] = _parse_flow_key_argument(kwargs.get("key"))
+    output_format = kwargs.pop("output_format")
+    result = yt.read_state(**kwargs, output_format=output_format)
+    if output_format is None:
+        result = dump_data(result)
+    print_to_output(result)
+
+
+def add_flow_read_state_parser(add_parser):
+    parser = add_parser("read-state", show_flow_read_state_result,
+                        help="Read one specific state row and print its raw YSON value")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--computation-id",
+                        help="Computation id; required when reading by --key")
+    parser.add_argument("--name", required=True,
+                        help="State name")
+    parser.add_argument("--partition-id",
+                        help="Partition id; without --use-source-key reads from partition_states")
+    parser.add_argument("--key",
+                        help="TKey value as a YSON list ([v0, v1, ...]) or a named map ({col: value, ...})")
+    parser.add_argument("--use-source-key", action="store_true", default=False,
+                        help="With --partition-id, read key_states using the partition's SourceKey instead of partition_states")
     add_structured_format_argument(parser, "--output-format")
 
 
