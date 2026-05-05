@@ -839,6 +839,13 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
     CurrentNetworkPriority_ = newNetworkPriority;
 }
 
+std::vector<std::string> TGpuManager::GetRequiredHostPaths() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return GpuInfoProvider_.Acquire()->GetRequiredHostPaths();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
