@@ -496,8 +496,8 @@ public:
         SpawnFileActions_.AddChdirFileAction(workingDirectory);
     #else
         SpawnActions_.push_back(TSpawnAction{
-            [&] {
-                NFs::SetCurrentWorkingDirectory(TString(workingDirectory));
+            [workingDirectory = TString(workingDirectory)] {
+                NFs::SetCurrentWorkingDirectory(workingDirectory);
                 return true;
             },
             "Error changing working directory"
