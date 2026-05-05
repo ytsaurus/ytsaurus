@@ -231,7 +231,7 @@ public:
 
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
             const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-            if (chunkManagerConfig->ChunkMerger->UpdateModificationTime) {
+            if (!chunkManagerConfig->ChunkMerger->UpdateModificationTime) {
                 statistics |= request;
             } else {
                 statistics.UpdateTabletResourceUsage |= request.UpdateTabletResourceUsage;
