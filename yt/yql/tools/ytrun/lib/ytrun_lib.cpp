@@ -235,8 +235,8 @@ IYtGateway::TPtr TYtRunTool::CreateYtGateway() {
     fmrServices.JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{
         .RunInSeparateProcess = true,
         .FmrJobBinaryPath = FmrJobBin_,
-        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_,
-        .GatewayType = "native"
+        .GatewayType = "native",
+        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_
     });
 
     fmrServices.FileUploadService = fmrInitializationOpts.FmrFileUploadService;

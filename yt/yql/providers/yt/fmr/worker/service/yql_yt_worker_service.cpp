@@ -160,13 +160,14 @@ int main(int argc, const char *argv[]) {
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
             .RunInSeparateProcess = true,
             .FmrJobBinaryPath = options.FmrJobBinaryPath,
-            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath,
-            .GatewayType = underlyingGatewayType
+            .GatewayType = underlyingGatewayType,
+            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath
         });
         // TODO - add different job Settings here
         TString tableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath;
         auto func = [tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, tvmSettings] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
+            auto discovery = MakeFileTableDataServiceDiscovery({.Path = tableDataServiceDiscoveryFilePath});
+            return RunJob(task, discovery, Nothing(), fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
         };
 
         auto settings = GetDefaultJobFactorySettings();

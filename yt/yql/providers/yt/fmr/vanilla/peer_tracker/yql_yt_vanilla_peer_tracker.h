@@ -5,6 +5,7 @@
 #include <util/generic/vector.h>
 #include <util/system/mutex.h>
 #include <util/system/thread.h>
+#include <util/ysaveload.h>
 
 #include <atomic>
 
@@ -20,19 +21,34 @@ namespace NYql::NFmr {
         TDuration PingTimeout = TDuration::Seconds(5);
     };
 
-    class TVanillaPeerTracker {
+    class IVanillaPeerTracker {
+    public:
+        virtual ~IVanillaPeerTracker() = default;
+
+        virtual TString GetOperationId() const = 0;
+        virtual ui64 GetSelfIndex() const = 0;
+        virtual TString GetSelfJobId() const = 0;
+        virtual TString GetSelfIpAddress() const = 0;
+        virtual ui64 GetPeerCount() const = 0;
+        // IP address may be empty
+        virtual TString GetPeerAddress(ui64 index) const = 0;
+        // some IP addresses may be empty
+        virtual TVector<TString> GetPeerAddresses() const = 0;
+    };
+
+    class TVanillaPeerTracker : public IVanillaPeerTracker {
     public:
         explicit TVanillaPeerTracker(TVanillaPeerTrackerSettings settings);
 
-        TString GetOperationId() const;
-        ui64 GetSelfIndex() const;
-        TString GetSelfJobId() const;
-        TString GetSelfIpAddress() const;
-        ui64 GetPeerCount() const;
+        TString GetOperationId() const final;
+        ui64 GetSelfIndex() const final;
+        TString GetSelfJobId() const final;
+        TString GetSelfIpAddress() const final;
+        ui64 GetPeerCount() const final;
         // IP address may be empty
-        TString GetPeerAddress(ui64 index) const;
+        TString GetPeerAddress(ui64 index) const final;
         // some IP addresses may be empty
-        TVector<TString> GetPeerAddresses() const;
+        TVector<TString> GetPeerAddresses() const final;
 
         // this method should be called once inside Do method
         // it returns only if this job should exit
@@ -57,6 +73,72 @@ namespace NYql::NFmr {
         std::atomic<bool> Shutdown_{false};
         THolder<TThread> ServerThread_;
         THolder<TThread> ClientThread_;
+    };
+
+    struct TStaticVanillaPeerTrackerSettings {
+        TString OperationId;
+        ui64 SelfIndex = 0;
+        TString SelfJobId;
+        TVector<TString> PeerIps;
+
+        void Save(IOutputStream* s) const {
+            ::SaveMany(s,
+                OperationId,
+                SelfIndex,
+                SelfJobId,
+                PeerIps
+            );
+        }
+
+        void Load(IInputStream* s) {
+            ::LoadMany(s,
+                OperationId,
+                SelfIndex,
+                SelfJobId,
+                PeerIps
+            );
+        }
+    };
+
+    class TStaticVanillaPeerTracker : public IVanillaPeerTracker {
+    public:
+        TStaticVanillaPeerTracker(TStaticVanillaPeerTrackerSettings settings)
+            : Settings_(std::move(settings))
+        {}
+
+        TString GetOperationId() const final {
+            return Settings_.OperationId;
+        }
+
+        ui64 GetSelfIndex() const final {
+            return Settings_.SelfIndex;
+        }
+
+        TString GetSelfJobId() const final {
+            return Settings_.SelfJobId;
+        }
+
+        TString GetSelfIpAddress() const final {
+            return Settings_.PeerIps[Settings_.SelfIndex];
+        }
+
+        ui64 GetPeerCount() const final {
+            return Settings_.PeerIps.size();
+        }
+
+        // IP address may be empty
+        TString GetPeerAddress(ui64 index) const final {
+            Y_ENSURE(index < Settings_.PeerIps.size());
+            return Settings_.PeerIps[index];
+        }
+
+        // some IP addresses may be empty
+        TVector<TString> GetPeerAddresses() const final {
+            return Settings_.PeerIps;
+        }
+
+    private:
+        const TStaticVanillaPeerTrackerSettings Settings_;
     };
 
     ////////////////////////////////////////////////////////////////////////////////
