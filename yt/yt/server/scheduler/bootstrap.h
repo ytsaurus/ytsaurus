@@ -22,8 +22,6 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +64,6 @@ private:
     NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
-    mutable NThreading::TAtomicObject<THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr>> RemoteClients_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     void DoRun();
