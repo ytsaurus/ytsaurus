@@ -525,6 +525,8 @@ struct TJobProxyInternalConfig
 
     std::optional<i64> SlotContainerMemoryLimit;
 
+    NRpc::TServerDynamicConfigPtr RpcServerDynamic;
+
     NYT::NRpcProxy::TApiServiceConfigPtr JobProxyApiServiceStatic;
     NYT::NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
@@ -630,6 +632,8 @@ struct TJobProxyDynamicConfig
     bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;
+
+    NRpc::TServerDynamicConfigPtr RpcServer;
 
     NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
