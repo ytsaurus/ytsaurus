@@ -3214,8 +3214,10 @@ private:
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
 
             const auto* context = GetCurrentMutationContext();
-            tablet->Servant().SetMountRevision(context->GetVersion().ToRevision());
-            tablet->SetSettingsRevision(context->GetVersion().ToRevision());
+            auto revision = context->GetVersion().ToRevision();
+            tablet->Servant().SetMountRevision(revision);
+            tablet->Servant().SetLogicalMountRevision(revision);
+            tablet->SetSettingsRevision(revision);
             tablet->SetWasForcefullyUnmounted(false);
             tablet->Servant().SetMountTime(context->GetTimestamp());
 
@@ -3583,6 +3585,7 @@ private:
         auxiliaryServant.SetCell(cell);
         auxiliaryServant.SetState(ETabletState::Mounting);
         auxiliaryServant.SetMountRevision(revision);
+        auxiliaryServant.SetLogicalMountRevision(tablet->Servant().GetLogicalMountRevision());
         auxiliaryServant.SetMountTime(GetCurrentMutationContext()->GetTimestamp());
 
         auxiliaryServant.SetMovementRole(NTabletNode::ESmoothMovementRole::Target);
@@ -4812,6 +4815,7 @@ private:
             ToProto(request.add_new_tablet_ids(), tablet->GetId());
             ToProto(request.add_new_tablet_pivot_keys(), tablet->As<TTablet>()->GetPivotKey());
         }
+
         request.set_new_tablets_mount_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
