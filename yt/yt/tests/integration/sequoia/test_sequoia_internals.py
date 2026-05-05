@@ -181,6 +181,10 @@ class TestSequoiaInternals(YTEnvSetup):
         id = create("document", "//tmp/d")
         tt = get("//tmp", attributes=["id"])
         assert tt["d"].attributes["id"] == id
+        rsp = get(f"#{id}/@", attributes=["id", "effective_acl", "recursive_attribute_usage"])
+        assert rsp["id"] == id
+        assert rsp["effective_acl"]
+        assert "recursive_attribute_usage" not in rsp
 
     @authors("danilalexeev")
     def test_get_recursive_limits(self):
@@ -672,7 +676,8 @@ class TestSequoiaInternals(YTEnvSetup):
         write_table("//tmp/a/b/c", [{"x": "hello"}])
         create("table", "//tmp/a/b/d")
         write_table("//tmp/a/b/d", [{"x": "hello2"}])
-        set("//tmp/a/@annotation", "test")
+        annotation = "test"
+        set("//tmp/a/@annotation", annotation)
         for i in range(5):
             set(f"//tmp/a/{i}", i)
 
@@ -743,11 +748,13 @@ class TestSequoiaInternals(YTEnvSetup):
                 assert child.attributes["recursive_resource_usage"]["node_count"] == 3
                 assert child.attributes["resource_usage"]["node_count"] == 1
 
-        # TODO(grphil): Implement ls in attributes
-        # assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert exists("//tmp/a/@recursive_resource_usage/node_count")
+        assert not exists("//tmp/a/@recursive_resource_usage/non_existing")
 
-        # TODO(grphil): Implement attributes in get for non map node
-        # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
+        c_attr = get("//tmp/a/b/c", attributes=["recursive_resource_usage", "annotation"]).attributes
+        assert c_attr["recursive_resource_usage"]["node_count"] == 1
+        assert c_attr["annotation"] == annotation
 
     @authors("danilalexeev")
     def test_recursive_attributes_heavy(self):
