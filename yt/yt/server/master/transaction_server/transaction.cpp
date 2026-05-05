@@ -349,10 +349,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AuthenticationIdentity_.UserTag);
 
     auto version = context.GetVersion();
-    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
-        (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
-        EMasterReign::AbortStuckTransactions_26_2 <= version)
-    {
+    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag || EMasterReign::AbortStuckTransactions <= version) {
         if (IsCypressTransactionType(GetType())) {
             Load(context, NativeTxExternalizationEnabled_);
         }
