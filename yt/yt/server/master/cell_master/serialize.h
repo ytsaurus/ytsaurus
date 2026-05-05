@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
     ((AbortStuckTransactions)                                       (3235))  // h0pless
     ((DontValidateTransactionPermissionsOnPartitipants_26_1)        (3236))  // kvk1920
+    ((DoNotCreateSplitActionsIfTooManyTablets)                      (3237))  // alexelexa
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
