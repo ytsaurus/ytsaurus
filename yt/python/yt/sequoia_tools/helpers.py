@@ -1,15 +1,9 @@
 import yt.wrapper as yt
 
-from . import descriptors
+from . import actions, app as sequoia_app
 
-
-def get_sequoia_table_descriptors(
-    group_names: list[str],
-    version: int,
-) -> dict[str, descriptors.TableDescriptor]:
-    """Return table descriptors from the parsed versioned registry."""
-    tds = descriptors.get_table_descriptors(version).as_dict()
-    return {k: v for k, v in tds.items() if v.group in group_names}
+import logging
+logger = logging.getLogger(__name__)
 
 
 def list_master_cell_tags(yt_client: yt.YtClient) -> list[str]:
@@ -27,5 +21,12 @@ def list_master_cell_tags(yt_client: yt.YtClient) -> list[str]:
                 suppress_upstream_sync=True)))
 
 
-def make_ground_reign_path(root_path: str) -> str:
-    return f"{root_path}/@ground_reign"
+def promote_reign(app: sequoia_app.SequoiaTool, reign: int) -> None:
+    ground_config = app.config_provider.get_ground_config()
+    path = sequoia_app.make_ground_reign_path(ground_config.sequoia_root_cypress_path)
+    action = actions.SetAttributeAction(path, reign)
+    logger.info(action.describe())
+    if app.options.dry_run:
+        action.dry_run(app)
+    else:
+        action.execute(app)

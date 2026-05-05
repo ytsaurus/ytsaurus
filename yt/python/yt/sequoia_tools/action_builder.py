@@ -11,10 +11,19 @@ from yt.environment import migrationlib
 import yt.sequoia_tools as yt_sequoia
 import yt.wrapper as yt
 
-from . import actions, app as sequoia_app, config as cfg, helpers, utils
+from . import actions, app as sequoia_app, config as cfg, descriptors, helpers, utils
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _get_sequoia_table_descriptors(
+    group_names: list[str],
+    version: int,
+) -> dict[str, descriptors.TableDescriptor]:
+    """Return table descriptors from the parsed versioned registry."""
+    tds = descriptors.get_table_descriptors(version).as_dict()
+    return {k: v for k, v in tds.items() if v.group in group_names}
 
 
 class ComponentContext:
@@ -139,7 +148,7 @@ class ActionBuilder:
             root_dir = self._ground_config.sequoia_root_cypress_path
 
             group_names = [d.name for d in component_config.table_groups]
-            table_descriptors = helpers.get_sequoia_table_descriptors(group_names, self._version)
+            table_descriptors = _get_sequoia_table_descriptors(group_names, self._version)
 
             for descriptor in table_descriptors.values():
                 attributes = component_context.get_table_attributes(descriptor)
@@ -202,20 +211,6 @@ class ActionBuilder:
         return self
 
     def with_action(self, action: actions.Action) -> ActionBuilder:
-        self._actions.append(action)
-        return self
-
-    def promote_reign(
-        self,
-        initialize: bool = False,
-    ) -> ActionBuilder:
-        """Add reign promotion action."""
-        path = helpers.make_ground_reign_path(
-            self._ground_config.sequoia_root_cypress_path)
-        old_reign = (self._version - 1 if not initialize
-                     else actions.SetAttributeAction.NON_EXISTING_KEY)
-
-        action = actions.SetAttributeAction(path, self._version, old_reign)
         self._actions.append(action)
         return self
 

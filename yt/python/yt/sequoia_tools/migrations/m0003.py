@@ -44,5 +44,4 @@ def alter_chunk_replicas_table(app: sequoia_app.SequoiaTool) -> actions.ActionPl
                     })
             ])
         .then()
-        .promote_reign()
         .build())
