@@ -2396,7 +2396,7 @@ private:
             return pool;
         }
 
-        YT_LOG_INFO("Using %v as default parent pool", RootPoolName);
+        YT_LOG_INFO("Using root pool as default parent pool (PoolName: %v)", RootPoolName);
 
         return RootElement_;
     }
