@@ -29,12 +29,26 @@ std::vector<TRdmaDeviceInfo> TGpuInfoProviderBase::GetRdmaDeviceInfos(TDuration 
 void TGpuInfoProviderBase::ApplyNetworkServiceLevel(const std::vector<TString>& /*deviceIds*/, TNetworkPriority /*serviceLevel*/, TDuration /*timeout*/)
 { }
 
+std::vector<std::string> TGpuInfoProviderBase::GetRequiredHostPaths() const
+{
+    return {};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TGrpcGpuInfoProviderBase::TGrpcGpuInfoProviderBase(TGrpcGpuInfoProviderConfigBasePtr config)
     : BaseGrpcConfig_(std::move(config))
     , Channel_(CreateGrpcChannel())
 { }
+
+std::vector<std::string> TGrpcGpuInfoProviderBase::GetRequiredHostPaths() const
+{
+    constexpr std::string_view UnixPrefix = "unix:";
+    if (BaseGrpcConfig_->Address.starts_with(UnixPrefix)) {
+        return {BaseGrpcConfig_->Address.substr(UnixPrefix.size())};
+    }
+    return {};
+}
 
 IChannelPtr TGrpcGpuInfoProviderBase::CreateGrpcChannel()
 {
