@@ -27,5 +27,4 @@ def alter_location_replicas_table(app: sequoia_app.SequoiaTool) -> actions.Actio
                     })
             ])
         .then()
-        .promote_reign()
         .build())
