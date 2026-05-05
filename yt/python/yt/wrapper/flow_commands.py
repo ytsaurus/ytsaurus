@@ -9,6 +9,7 @@ from yt.common import YtError
 from datetime import datetime, timedelta
 
 import yt.logger as logger
+import yt.yson as yson
 
 import enum
 import time
@@ -289,15 +290,18 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, inpu
     :param flow_argument: optional argument of the command.
     """
 
-    is_format_specified = input_format is not None
-    input_format = get_structured_format(input_format, client=client)
-    if not is_format_specified:
-        flow_argument = input_format.dumps_node(flow_argument)
+    if input_format is None:
+        input_format = "yson"
+        flow_argument = yson.dumps(flow_argument)
+
+    if flow_argument is not None and not isinstance(flow_argument, (str, bytes, bytearray)):
+        raise TypeError("Serialized flow_argument must be str, bytes or bytearray, got {}".format(type(flow_argument).__name__))
 
     params = {
         "pipeline_path": YPath(pipeline_path, client=client),
-        "input_format": input_format.to_yson_type(),
         "flow_command": flow_command,
+        # Validate `input_format` by get_structured_format call.
+        "input_format": get_structured_format(input_format, client=client).to_yson_type(),
     }
 
     return make_formatted_request(
