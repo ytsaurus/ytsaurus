@@ -84,7 +84,7 @@ mkdir -p ${output_path}
 dockerfile="${ytsaurus_source_path}/yt/docker/ytsaurus/Dockerfile"
 cp ${dockerfile} ${output_path}
 
-mkdir ${output_path}/credits
+mkdir -p ${output_path}/credits
 
 if [[ "${component}" == "ytsaurus" ]]; then
 
