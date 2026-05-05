@@ -78,7 +78,7 @@ set -eux -o pipefail
 export DEBIAN_FRONTEND=noninteractive
 export TZ=Etc/UTC
 
-apt-get update -q --error-on=any
+apt-get -o Acquire::ForceIPv4=true update -q --error-on=any
 
 packages=(
   curl
