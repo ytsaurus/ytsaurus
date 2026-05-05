@@ -76,7 +76,7 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         auto tablet = std::make_unique<TTablet>(
             NullTabletId,
             TTableSettings::CreateNew(),
-            NHydra::NullRevision,
+            /*mountRevision*/ NHydra::NullRevision,
             NullObjectId,
             "ut",
             &TabletContext_,

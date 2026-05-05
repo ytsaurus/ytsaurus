@@ -2288,7 +2288,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
     @authors("alexelexa")
     def test_first_batch_write_retries_after_tablet_moving(self):
         path = "//tmp/tablet_move"
-        cell_ids = self._prepare_test(path)
+        cell_ids = self._prepare_test(path, failure_probability=0.)
         tx1 = start_transaction(type="tablet")
 
         insert_rows(path, [{"key": 1, "value": 1}], update=True, tx=tx1)
@@ -2297,7 +2297,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
             "tablet_action",
             "",
             attributes={
-                "kind": "move",
+                "kind": "smooth_move",
                 "skip_freezing": True,
                 "keep_finished": True,
                 "tablet_ids": [get(f"{path}/@tablets/0/tablet_id")],

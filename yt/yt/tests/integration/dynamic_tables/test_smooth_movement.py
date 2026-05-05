@@ -93,20 +93,6 @@ class SmoothMovementBase(DynamicTablesBase):
         except YtError:
             return None
 
-    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
-        def _get_peer_address():
-            for peer in get(f"#{cell_id}/@peers"):
-                if address := peer.get("address"):
-                    return address
-
-        node_address = _get_peer_address()
-        if with_snapshot:
-            build_snapshot(cell_id)
-        disable_tablet_cells_on_node(node_address)
-        wait(lambda: _get_peer_address() != node_address)
-        enable_tablet_cells_on_node(node_address)
-        if sync:
-            wait(lambda: get(f"#{cell_id}/@health") == "good")
 
 ##################################################################
 
@@ -931,6 +917,28 @@ class TestSmoothMovement(SmoothMovementBase):
         h = SmoothMovementHelper("//tmp/t")
         h.start()
         h.finish()
+
+    @authors("alexelexa")
+    def test_logical_mount_revision(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        tablet_id = tablet["tablet_id"]
+        old_mount_revision = tablet["mount_revision"]
+        old_logical_mount_revision = tablet["logical_mount_revision"]
+
+        self._sync_move_tablet(tablet_id)
+
+        tablet = get("//tmp/t/@tablets/0")
+        new_mount_revision = tablet["mount_revision"]
+        new_logical_mount_revision = tablet["logical_mount_revision"]
+
+        assert old_mount_revision < new_mount_revision
+        assert old_mount_revision == old_logical_mount_revision
+        assert old_logical_mount_revision == new_logical_mount_revision
+
 
 ##################################################################
 

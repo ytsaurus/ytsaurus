@@ -353,9 +353,11 @@ private:
         // TODO(alexelexa): Compare logical mount revision here.
         if (newTabletInfo->MountRevision != TabletInfo_->MountRevision) {
             YT_LOG_DEBUG("Cannot retry sending transaction rows because mount revision changed "
-                "(OldMountRevision: %v, NewMountRevision: %v)",
+                "(OldMountRevision: %x, NewMountRevision: %x, OldLogicalMountRevision: %x, NewLogicalMountRevision: %x)",
                 TabletInfo_->MountRevision,
-                newTabletInfo->MountRevision);
+                newTabletInfo->MountRevision,
+                TabletInfo_->LogicalMountRevision,
+                newTabletInfo->LogicalMountRevision);
             return firstBatchError << TErrorAttribute("retry_skip_reason", "mount_revision_changed");
         }
 

@@ -379,6 +379,11 @@ private:
                 tabletInfo->UpdateTime = Now();
                 tabletInfo->InMemoryMode = FromProto<EInMemoryMode>(protoTabletInfo.in_memory_mode());
 
+                // COMPAT(alexelexa): remove when 26.1 is deployed (IntroduceLogicalMountRevision reign).
+                tabletInfo->LogicalMountRevision = protoTabletInfo.has_logical_mount_revision()
+                    ? FromProto<NHydra::TRevision>(protoTabletInfo.logical_mount_revision())
+                    : tabletInfo->MountRevision;
+
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.
                     tabletInfo->PivotKey = FromProto<TLegacyOwningKey>(protoTabletInfo.pivot_key());
