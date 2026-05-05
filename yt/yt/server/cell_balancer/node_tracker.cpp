@@ -39,6 +39,7 @@ public:
 
         if (nodeState.RequestConfigUpdate) {
             response->set_force_update_config(true);
+            response->set_expected_tag(nodeState.ExpectedTag);
             nodeState.RequestConfigUpdate = false;
         }
     }
@@ -87,7 +88,7 @@ public:
                 ? now - heartbeatState.LastPingTime >= timeout
                     ? ELocalNodeState::Offline
                     : ELocalNodeState::Online
-                    : ELocalNodeState::Unknown;
+                : ELocalNodeState::Unknown;
 
             if (masterState == NNodeTrackerClient::ENodeState::Online &&
                 info->LocalState == ELocalNodeState::Offline &&
@@ -104,11 +105,14 @@ public:
         YT_LOG_INFO("Finished node states update through the heartbeat node tracker");
     }
 
-    void RequestConfigUpdate(const std::string& nodeAddress) override
+    void RequestConfigUpdate(const std::string& nodeAddress, std::string nodeTag) override
     {
+        YT_LOG_INFO("Requested node config update (NodeAddress: %v, ExpectedTag: %v)",
+            nodeAddress,
+            nodeTag);
+
         NodeHeartbeatStates_[nodeAddress].RequestConfigUpdate = true;
-        YT_LOG_INFO("Requested node config update (NodeAddress: %v)",
-            nodeAddress);
+        NodeHeartbeatStates_[nodeAddress].ExpectedTag = std::move(nodeTag);
     }
 
 private:
@@ -119,6 +123,7 @@ private:
         ELocalNodeState LastReportedLocalState;
 
         bool RequestConfigUpdate = false;
+        std::string ExpectedTag;
     };
 
     THashMap<std::string, TNodeState> NodeHeartbeatStates_;

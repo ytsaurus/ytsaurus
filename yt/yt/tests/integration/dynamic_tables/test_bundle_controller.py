@@ -2,14 +2,13 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 import yt.yson as yson
 import yt.packages.requests as requests
 from yt_commands import (
-    authors, ls, update, wait, exists, set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove)
+    authors, ls, update, update_nodes_dynamic_config, wait, exists,
+    set, get, create, create_tablet_cell_bundle, create_area, execute_command, remove)
 
 from yt.common import YtError, update_inplace
 
 import time
 from typing import Tuple, override
-
-from yt_error_codes import ResolveErrorCode
 
 ##################################################################
 
@@ -883,20 +882,18 @@ class TestBundleControllerLongPeriods(TestBundleControllerBase):
 
         self._wait_for_bundle_controller_iterations((10, 0), fail_on_error=True)
 
-        def _has_cell_created():
-            try:
-                cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
-                return exists(f"#{cell_ids[0]}/@peers/0/address")
-            except YtError as e:
-                if e.contains_code(ResolveErrorCode):
-                    return False
-                raise
+        def _check_cell_active():
+            cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
 
-        wait(lambda: _has_cell_created())
+            if not cell_ids:
+                return False
+
+            return get(f"#{cell_ids[0]}/@health") == "good"
+
+        wait(lambda: _check_cell_active())
+
         cell_ids = get("//sys/tablet_cell_bundles/chaplin/@tablet_cell_ids")
         node = get(f"#{cell_ids[0]}/@peers/0/address")
-
-        wait(lambda: get(f"#{cell_ids[0]}/@health") == "good")
 
         set("//sys/tablet_cell_bundles/chaplin/@enable_instance_allocation", False)
         set("//sys/@config/tablet_manager/peer_revocation_timeout", 1000)
@@ -905,9 +902,17 @@ class TestBundleControllerLongPeriods(TestBundleControllerBase):
             try:
                 return get(f"#{cell_ids[0]}/@peers/0/address") != node
             except YtError as e:
-                if e.contains_code(ResolveErrorCode):
+                if e.is_resolve_error():
                     return False
                 raise
+
+        update_nodes_dynamic_config({
+            "master_connector": {
+                "heartbeat_executor": {
+                    "period": 120000,
+                }
+            },
+        })
 
         node_index = get(f"//sys/cluster_nodes/{node}/@annotations/yt_env_index")
 

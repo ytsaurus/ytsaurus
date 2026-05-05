@@ -317,6 +317,16 @@ public:
         return MasterCellTags_;
     }
 
+    virtual TFuture<std::vector<TError>> GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags) override
+    {
+        return TMasterHeartbeatReporterBase::GetExecutedEvents(masterCellTags);
+    }
+
+    void ScheduleMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags) override
+    {
+        return TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(masterCellTags);
+    }
+
 protected:
     TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
