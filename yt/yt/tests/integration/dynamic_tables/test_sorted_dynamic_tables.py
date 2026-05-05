@@ -2314,7 +2314,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
     @authors("alexelexa")
     def test_first_batch_write_retries(self):
         path = "//tmp/simple"
-        cell_ids = self._prepare_test(path, failure_probability=0.1)
+        cell_ids = self._prepare_test(path, failure_probability=0.2)
         peers = defaultdict(list)
         for cell_id in cell_ids:
             peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
@@ -2330,7 +2330,19 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         # Retry mechanism causes mount cache to be refreshed and retries sending those batches.
 
         rows = [{"key": 10 * i + 1, "value": 3} for i in range(4)]
-        insert_rows(path, rows, update=True)
+
+        # Retry inserting rows because the request may fail with ParticipantFailedToPrepare
+        # if prepare is sent to an old node and connections to banned nodes are unavailable.
+        for retry_index in range(5):
+            try:
+                insert_rows(path, rows, update=True)
+                break
+            except YtError as err:
+                if not err.is_rpc_unavailable() or not err.contains_code(yt_error_codes.ParticipantFailedToPrepare):
+                    raise
+                if retry_index == 5:
+                    raise
+            time.sleep(2)
 
         assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
 

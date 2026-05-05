@@ -287,7 +287,7 @@ private:
 
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
             "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, "
-            "UpstreamReplicaId: %v%v, PrerequisiteTransactionIds: %v)",
+            "UpstreamReplicaId: %v%v, PrerequisiteTransactionIds: %v%v)",
             batchIndex,
             Batches_.size(),
             batch->RowCount,
@@ -307,7 +307,13 @@ private:
                             }));
                 }
             }),
-            Options_.PrerequisiteTransactionIds);
+            Options_.PrerequisiteTransactionIds,
+            MakeFormatterWrapper([&] (auto* builder) {
+                if (commitContext->LocalRetryIndex) {
+                    builder->AppendFormat(", LocalRetryIndex: %v",
+                        commitContext->LocalRetryIndex);
+                }
+            }));
 
         req->Invoke().Subscribe(
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));
