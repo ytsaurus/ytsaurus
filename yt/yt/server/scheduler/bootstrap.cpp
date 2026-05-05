@@ -216,15 +216,8 @@ const NNative::IClientPtr& TBootstrap::GetClient() const
 
 NNative::IClientPtr TBootstrap::GetRemoteClient(TCellTag tag) const
 {
-    return RemoteClients_.Transform([&] (THashMap<TCellTag, NNative::IClientPtr>& clients) {
-        auto it = clients.find(tag);
-        if (it == clients.end()) {
-            auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
-            auto client = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
-            it = EmplaceOrCrash(clients, tag, std::move(client));
-        }
-        return it->second;
-    });
+    auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
+    return connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const
