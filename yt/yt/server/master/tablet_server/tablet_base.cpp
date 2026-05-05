@@ -44,6 +44,7 @@ void TTabletServant::Clear()
     Cell_ = nullptr;
     State_ = ETabletState::Unmounted;
     MountRevision_ = {};
+    LogicalMountRevision_ = {};
     MountTime_ = {};
     MovementRole_ = ESmoothMovementRole::None;
     MovementStage_ = ESmoothMovementStage::None;
@@ -54,6 +55,7 @@ void TTabletServant::Swap(TTabletServant* other)
     std::swap(Cell_, other->Cell_);
     std::swap(State_, other->State_);
     std::swap(MountRevision_, other->MountRevision_);
+    std::swap(LogicalMountRevision_, other->LogicalMountRevision_);
     std::swap(MountTime_, other->MountTime_);
     std::swap(MovementRole_, other->MovementRole_);
     std::swap(MovementStage_, other->MovementStage_);
@@ -66,6 +68,12 @@ void TTabletServant::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, Cell_);
     Persist(context, State_);
     Persist(context, MountRevision_);
+    // COMPAT(alexelexa)
+    if (context.GetVersion() < NCellMaster::EMasterReign::IntroduceLogicalMountRevision) {
+        LogicalMountRevision_ = MountRevision_;
+    } else {
+        Persist(context, LogicalMountRevision_);
+    }
     Persist(context, MountTime_);
     Persist(context, MovementRole_);
     Persist(context, MovementStage_);

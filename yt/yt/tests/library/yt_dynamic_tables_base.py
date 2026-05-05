@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
     disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug,
-    remove, insert_rows, write_hunks
+    remove, insert_rows, write_hunks, build_snapshot, enable_tablet_cells_on_node
 )
 
 # Used by SmoothMovementHelper by name lookup.
@@ -491,6 +491,21 @@ class DynamicTablesBase(YTEnvSetup):
                 if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
                    not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
+
+    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
+        def _get_peer_address():
+            for peer in get(f"#{cell_id}/@peers"):
+                if address := peer.get("address"):
+                    return address
+
+        node_address = _get_peer_address()
+        if with_snapshot:
+            build_snapshot(cell_id)
+        disable_tablet_cells_on_node(node_address)
+        wait(lambda: _get_peer_address() != node_address)
+        enable_tablet_cells_on_node(node_address)
+        if sync:
+            wait(lambda: get(f"#{cell_id}/@health") == "good")
 
 
 ##################################################################

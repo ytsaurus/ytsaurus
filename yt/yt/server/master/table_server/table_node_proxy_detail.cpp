@@ -634,6 +634,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .DoIf(cell, [&] (TFluentMap fluent) {
                                 fluent.Item("mount_revision").Value(tablet->Servant().GetMountRevision());
                             })
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("logical_mount_revision").Value(tablet->Servant().GetLogicalMountRevision());
+                            })
                             .Item("error_count").Value(tablet->GetTabletErrorCount())
                             .Item("replication_error_count").Value(tablet->GetReplicationErrorCount())
                         .EndMap();
@@ -2147,6 +2150,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         protoTablet->set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+        protoTablet->set_logical_mount_revision(ToProto(tablet->Servant().GetLogicalMountRevision()));
         protoTablet->set_state(ToProto(tablet->GetState()));
         protoTablet->set_in_memory_mode(ToProto(tablet->GetInMemoryMode()));
         ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
