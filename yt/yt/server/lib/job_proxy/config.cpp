@@ -428,6 +428,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_bridge", &TThis::TvmBridge)
         .Default();
 
+    registrar.Parameter("rpc_server_dynamic", &TThis::RpcServerDynamic)
+        .DefaultNew();
+
     registrar.Parameter("job_proxy_api_service_static", &TThis::JobProxyApiServiceStatic)
         .DefaultNew();
 
@@ -591,6 +594,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_profile_dump_path", &TThis::MemoryProfileDumpPath)
         .Alias("heap_dump_directory")
         .Default();
+
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
 
     registrar.Parameter("job_proxy_api_service", &TThis::JobProxyApiService)
         .DefaultNew();
