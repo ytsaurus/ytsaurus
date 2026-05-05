@@ -162,7 +162,7 @@ public:
 
     void Start() override {
         HttpServer_->Start();
-        Cerr << "Coordinator server is listnening on url " <<  "http://" + Host_ + ":" + ToString(Port_) << "\n";
+        YQL_CLOG(INFO, FastMapReduce) << "Coordinator server is listnening on url " <<  "http://" + Host_ + ":" + ToString(Port_);
     }
 
     void Stop() override {

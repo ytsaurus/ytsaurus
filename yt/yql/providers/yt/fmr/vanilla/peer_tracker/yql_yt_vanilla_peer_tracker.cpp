@@ -1,7 +1,12 @@
 #include "yql_yt_vanilla_peer_tracker.h"
 
+#include <yt/yql/providers/yt/fmr/vanilla/common/yql_yt_vanilla_common.h>
+
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/operation.h>
+
+#include <yql/essentials/utils/log/log.h>
+#include <yql/essentials/utils/log/log_component.h>
 
 #include <library/cpp/http/server/http.h>
 #include <library/cpp/http/server/response.h>
@@ -21,10 +26,6 @@ namespace NYql::NFmr {
 
         constexpr int VanillaPingPort = 8000;
 
-        bool IsBackboneMtn(const TString& ip) {
-            return ip.StartsWith("2a02:6b8:c");
-        }
-
     } // namespace
 
     TVanillaPeerTracker::TVanillaPeerTracker(TVanillaPeerTrackerSettings settings)
@@ -39,10 +40,9 @@ namespace NYql::NFmr {
 
         PeerIps_.resize(Settings_.JobCount);
 
-        Cerr << "Job started " << SelfJobId_
+        YQL_CLOG(INFO, FastMapReduce) << "Job started " << SelfJobId_
              << " cookie=" << SelfCookie_
-             << " ip=" << SelfIpAddress_
-             << " at " << Now() << Endl;
+             << " ip=" << SelfIpAddress_;
     }
 
     TString TVanillaPeerTracker::GetOperationId() const {
@@ -123,9 +123,9 @@ namespace NYql::NFmr {
                                                         Settings_.PingTimeout, Settings_.PingTimeout);
                         TStringStream response;
                         httpClient.DoGet("/ping", &response);
-                        Cerr << "Pinged " << ip << ": " << response.Str() << Endl;
+                        YQL_CLOG(TRACE, FastMapReduce) << "pinged " << ip << ": " << response.Str();
                     } catch (...) {
-                        Cerr << "Ping to " << ip << " failed: " << CurrentExceptionMessage() << Endl;
+                        YQL_CLOG(ERROR, FastMapReduce) << "ping to " << ip << " failed: " << CurrentExceptionMessage();
                     }
                 }
                 Sleep(Settings_.PingClientInterval);
@@ -139,7 +139,7 @@ namespace NYql::NFmr {
         bool running = true;
         while (running) {
             try {
-                Cerr << "Listing jobs at " << Now() << Endl;
+                YQL_CLOG(TRACE, FastMapReduce) << "listing jobs";
 
                 auto result = client->ListJobs(GetGuid(OperationId_),
                                                TListJobsOptions()
@@ -156,32 +156,19 @@ namespace NYql::NFmr {
 
                     if (job.Cookie) {
                         Y_ENSURE(*job.Cookie < Settings_.JobCount,
-                                 "Peer cookie " << *job.Cookie << " is out of range [0, " << Settings_.JobCount << ")");
+                                 "peer cookie " << *job.Cookie << " is out of range [0, " << Settings_.JobCount << ")");
                     }
 
                     if (job.Cookie && *job.Cookie == SelfCookie_ && jobId != SelfJobId_) {
-                        Cerr << "Superseded by job " << jobId << ", exiting" << Endl;
+                        YQL_CLOG(INFO, FastMapReduce) << "Superseded by job " << jobId << ", exiting";
                         running = false;
                     }
 
-                    TString ip;
-                    if (job.ExecAttributes) {
-                        try {
-                            for (const auto& node : (*job.ExecAttributes)["ip_addresses"].AsList()) {
-                                const auto& candidate = node.AsString();
-                                // backbone MTN prefix
-                                if (IsBackboneMtn(candidate)) {
-                                    ip = candidate;
-                                    break;
-                                }
-                            }
-                        } catch (...) {
-                        }
-                    }
+                    TString ip = ExtractBackboneMtnIp(job);
 
-                    Cerr << "Job " << jobId
+                    YQL_CLOG(TRACE, FastMapReduce) << "job " << jobId
                          << " cookie=" << job.Cookie
-                         << " ip=" << (ip.empty() ? "<unknown>" : ip) << Endl;
+                         << " ip=" << (ip.empty() ? "<unknown>" : ip);
 
                     if (job.Cookie) {
                         newPeerIps[*job.Cookie] = ip;
@@ -193,7 +180,7 @@ namespace NYql::NFmr {
                     PeerIps_ = std::move(newPeerIps);
                 }
             } catch (...) {
-                Cerr << "Error: " << CurrentExceptionMessage() << Endl;
+                YQL_CLOG(ERROR, FastMapReduce) << CurrentExceptionMessage();
             }
 
             if (running) {
@@ -231,25 +218,13 @@ namespace NYql::NFmr {
         }
 
         if (!cookie0Job) {
-            Cerr << "No running job with cookie 0 found in operation " << operationId << Endl;
+            Cerr << "no running job with cookie 0 found in operation " << operationId << Endl;
             return;
         }
 
-        TString ip;
-        if (cookie0Job->ExecAttributes) {
-            try {
-                for (const auto& node : (*cookie0Job->ExecAttributes)["ip_addresses"].AsList()) {
-                    const auto& candidate = node.AsString();
-                    if (IsBackboneMtn(candidate)) {
-                        ip = candidate;
-                        break;
-                    }
-                }
-            } catch (...) {
-            }
-        }
+        TString ip = ExtractBackboneMtnIp(*cookie0Job);
 
-        Cerr << "Job with cookie=0"
+        Cerr << "job with cookie=0"
              << " id=" << GetGuidAsString(*cookie0Job->Id)
              << " ip=" << (ip.empty() ? "<unknown>" : ip) << Endl;
 
@@ -258,7 +233,7 @@ namespace NYql::NFmr {
         }
 
         if (ip.empty()) {
-            Cerr << "Cannot ping: IP address is unknown" << Endl;
+            Cerr << "cannot ping: IP address is unknown" << Endl;
             return;
         }
 
@@ -266,9 +241,9 @@ namespace NYql::NFmr {
             TKeepAliveHttpClient httpClient(ip, VanillaPingPort, pingTimeout, pingTimeout);
             TStringStream response;
             httpClient.DoGet("/ping", &response);
-            Cerr << "Ping to " << ip << " succeeded: " << response.Str() << Endl;
+            Cerr << "ping to " << ip << " succeeded: " << response.Str() << Endl;
         } catch (...) {
-            Cerr << "Ping to " << ip << " failed: " << CurrentExceptionMessage() << Endl;
+            Cerr << "ping to " << ip << " failed: " << CurrentExceptionMessage() << Endl;
         }
     }
 
