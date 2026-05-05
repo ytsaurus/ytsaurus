@@ -16,3 +16,5 @@ main:
  <<: *strawberry_0_0_12
 0.0.16:
   <<: *strawberry_0_0_12
+0.0.17:
+  <<: *strawberry_0_0_12
