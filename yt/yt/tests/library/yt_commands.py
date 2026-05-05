@@ -3910,6 +3910,14 @@ def flow_execute(
         unwrap_v4_result=False)
 
 
+def read_states(pipeline_path, flow_argument=None, **kwargs):
+    return flow_execute(pipeline_path, "read-states", flow_argument, **kwargs)
+
+
+def read_state(pipeline_path, flow_argument=None, **kwargs):
+    return flow_execute(pipeline_path, "read-state", flow_argument, **kwargs)
+
+
 def make_externalized_tx_id(tx_id, externalizing_cell_tag):
     parts = list(builtins.map(lambda p: int(p, 16), tx_id.split("-")))
 

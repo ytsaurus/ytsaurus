@@ -313,6 +313,62 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, inpu
         client=client)
 
 
+def read_states(pipeline_path: str, computation_id=None, partition_id=None, key=None, name=None, output_format=None, client=None):
+    """Read every state row matching the supplied filters.
+
+    Returns a map with two arrays: "key_states" (list of {computation_id, key, entries}) and
+    "partition_states" (list of {partition_id, entries}); each "entries" is a {name: state} map.
+
+    At least one of ``computation_id`` or ``partition_id`` must be supplied.
+
+    :param pipeline_path: path to pipeline.
+    :param computation_id: filter by computation id (required if `key` is set).
+    :param partition_id: filter by partition id; also pulls key_states for the partition's SourceKey, if any.
+    :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator.
+    :param name: optional state name filter, narrows both key_states and partition_states.
+    """
+    argument = {}
+    set_param(argument, "computation_id", computation_id)
+    set_param(argument, "partition_id", partition_id)
+    set_param(argument, "key", key)
+    set_param(argument, "name", name)
+    return flow_execute(
+        pipeline_path,
+        flow_command="read-states",
+        flow_argument=argument,
+        output_format=output_format,
+        client=client)
+
+
+def read_state(pipeline_path: str, name: str, computation_id=None, partition_id=None, key=None, use_source_key=False, output_format=None, client=None):
+    """Read one specific state row and return its raw YSON value.
+
+    The address must be unique: exactly one of ``key``, ``partition_id``, or
+    ``partition_id + use_source_key`` is required. Errors out if no row matches.
+    ``computation_id`` is required only when reading by ``key``; for partition-based reads it
+    is derived from the layout.
+
+    :param pipeline_path: path to pipeline.
+    :param name: state name.
+    :param computation_id: computation id; required when ``key`` is set.
+    :param partition_id: partition id; without ``use_source_key`` reads from partition_states.
+    :param key: TKey value (list or map form, see ``read_states``).
+    :param use_source_key: when set together with ``partition_id``, reads key_states using the partition's SourceKey instead of partition_states.
+    """
+    argument = {"name": name}
+    set_param(argument, "computation_id", computation_id)
+    set_param(argument, "partition_id", partition_id)
+    set_param(argument, "key", key)
+    if use_source_key:
+        argument["use_source_key"] = True
+    return flow_execute(
+        pipeline_path,
+        flow_command="read-state",
+        flow_argument=argument,
+        output_format=output_format,
+        client=client)
+
+
 def get_controller_logs(pipeline_path, count, offset=None, client=None):
     """Get YT Flow controller logs
 
