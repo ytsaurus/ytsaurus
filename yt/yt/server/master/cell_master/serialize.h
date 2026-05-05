@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
     ((AbortStuckTransactions)                                       (3235))  // h0pless
     ((DontValidateTransactionPermissionsOnPartitipants_26_1)        (3236))  // kvk1920
+    ((DoNotCreateSplitActionsIfTooManyTablets)                      (3237))  // alexelexa
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
