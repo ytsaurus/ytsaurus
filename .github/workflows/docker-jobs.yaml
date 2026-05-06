@@ -80,7 +80,7 @@ jobs:
         run: |
           cat << 'EOF' > docker-jobs-retry.sh
           function retry {
-              local retries=3
+              local retries=30
               local count=0
               until "$@"; do
                   exit_code=$?
