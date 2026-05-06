@@ -27,12 +27,16 @@ namespace {
 
 class TVanillaFmrCoordinatorClient : public IFmrCoordinator {
 public:
-    explicit TVanillaFmrCoordinatorClient(const IVanillaPeerTracker& peerTracker,
+    explicit TVanillaFmrCoordinatorClient(const IVanillaExternalPeerTracker& peerTracker,
         TVanillaFmrCoordinatorClientSettings settings)
         : PeerTracker_(peerTracker)
         , Settings_(std::move(settings))
     {
-        RefreshThread_ = MakeHolder<TThread>([this]() { RefreshLoop(); });
+        auto logCtx = NYql::NLog::CurrentLogContextPath();
+        RefreshThread_ = MakeHolder<TThread>([this, logCtx]() {
+            YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
+            RefreshLoop();
+        });
         RefreshThread_->Start();
     }
 
@@ -89,7 +93,8 @@ public:
 private:
     IFmrCoordinator::TPtr GetInner() const {
         TGuard guard(Mutex_);
-        IpAvailable_.WaitI(Mutex_, [this] { return Inner_ != nullptr || Shutdown_.load(); });
+        IpAvailable_.WaitI(Mutex_, [this] { return LastError_ || Inner_ != nullptr || Shutdown_.load(); });
+        Y_ENSURE(!LastError_, "TVanillaFmrCoordinatorClient fatal error: " + *LastError_);
         Y_ENSURE(Inner_, "Coordinator client is shutting down");
         return Inner_;
     }
@@ -129,19 +134,25 @@ private:
             } else {
                 YQL_CLOG(TRACE, FastMapReduce) << "coordinator IP unchanged ip=" << ip;
             }
+            LastError_.Clear();
         } catch (...) {
             YQL_CLOG(ERROR, FastMapReduce) << "failed to refresh coordinator IP: "
                 << CurrentExceptionMessage();
+
+            TGuard guard(Mutex_);
+            LastError_ = CurrentExceptionMessage();
+            IpAvailable_.BroadCast();
         }
     }
 
 private:
-    const IVanillaPeerTracker& PeerTracker_;
+    const IVanillaExternalPeerTracker& PeerTracker_;
     const TVanillaFmrCoordinatorClientSettings Settings_;
     mutable TMutex Mutex_;
     mutable TCondVar IpAvailable_;
     TString CoordinatorIp_;
     IFmrCoordinator::TPtr Inner_;
+    TMaybe<TString> LastError_;
     std::atomic<bool> Shutdown_{false};
     THolder<TThread> RefreshThread_;
 };
@@ -151,7 +162,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IFmrCoordinator::TPtr MakeVanillaFmrCoordinatorClient(
-    const IVanillaPeerTracker& peerTracker,
+    const IVanillaExternalPeerTracker& peerTracker,
     const TVanillaFmrCoordinatorClientSettings& settings)
 {
     return MakeIntrusive<TVanillaFmrCoordinatorClient>(peerTracker, settings);

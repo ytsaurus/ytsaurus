@@ -21,6 +21,7 @@
 
 #include <yql/essentials/core/file_storage/file_storage.h>
 #include <yql/essentials/core/file_storage/proto/file_storage.pb.h>
+#include <yql/essentials/utils/backtrace/backtrace.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 
@@ -235,6 +236,9 @@ int main(int argc, const char* argv[]) {
     } catch (yexception&) {
         Cerr << "mlockall failed, but that's fine" << Endl;
     }
+
+    NYql::NBacktrace::RegisterKikimrFatalActions();
+    NYql::NBacktrace::EnableKikimrSymbolize();
 
     Initialize(argc, argv);
 
