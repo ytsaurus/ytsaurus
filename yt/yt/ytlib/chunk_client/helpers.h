@@ -310,7 +310,7 @@ struct TAllyReplicasInfo
     NChunkClient::TChunkReplicaWithMediumSlimList Replicas;
 
     NHydra::TRevision Revision = NHydra::NullRevision;
-    static constexpr NHydra::TRevision SequoiaRevision = std::numeric_limits<NHydra::TRevision>::max();
+    static constexpr NHydra::TRevision SequoiaRevision = std::numeric_limits<NHydra::TRevision>::min();
 
     bool operator==(const TAllyReplicasInfo& other) const = default;
     Y_FORCE_INLINE explicit operator bool() const;
