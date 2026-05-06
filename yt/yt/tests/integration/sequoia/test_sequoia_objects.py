@@ -48,9 +48,7 @@ def sequoia_tables_empty():
 
     return all(
         select_rows_from_ground(f"* from [{table.get_default_path()}]") == []
-        for table in (
-            DESCRIPTORS.get_group("chunk_tables") +
-            DESCRIPTORS.get_group("unapproved_replicas_table")))
+        for table in DESCRIPTORS.get_group("chunk_tables"))
 
 
 class TestSequoiaReplicas(YTEnvSetup):
