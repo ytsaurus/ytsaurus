@@ -9,26 +9,36 @@
 #include <yt/yql/providers/yt/fmr/utils/comparator/yql_yt_binary_yson_comparator.h>
 #include <yql/essentials/utils/log/log.h>
 
+#include <queue>
 
 namespace NYql::NFmr {
 
-struct TSortedPartitionSettings {
+struct TReducePartitionSettings {
     TFmrPartitionerSettings FmrPartitionSettings;
+    ui64 MaxKeySizePerPart = 0;
 };
 
-class TSortedPartitioner: public TSortedPartitionerBase {
+class TReducePartitioner: public TSortedPartitionerBase {
 public:
-    TSortedPartitioner(
+    TReducePartitioner(
         const std::unordered_map<TFmrTableId, std::vector<TString>>& partIdsForTables,
         const std::unordered_map<TString, std::vector<TChunkStats>>& partIdStats,
-        TSortingColumns keyColumns,
-        const TSortedPartitionSettings& settings
+        const TSortingColumns& reduceBy,
+        const TReducePartitionSettings& settings
     );
 
 private:
-    TTaskTableInputRef CreateTaskInputFromSlices(const std::vector<TSlice>& slices, const std::vector<TFmrTableRef>& inputTables, bool isLastRange) override;
+    TPartitionResult PartitionFmrTables(const std::vector<TFmrTableRef>& inputTables);
+
+    TTaskTableInputRef CreateTaskInputFromSlices(
+        const std::vector<TSlice>& slices,
+        const std::vector<TFmrTableRef>& inputTables,
+        bool isLastRange
+    ) override;
 
     TFmrTableKeysRange GetReadRangeFromSlices(const std::vector<TSlice>& slices, bool isLastRange) override;
+
+    void CheckMaxKeySizePerSlices(const std::vector<TSlice>& slices);
 
     void ChangeLeftKeyBoundaryIfNeeded(
         TFmrTableKeysBoundary& leftKey,
@@ -38,7 +48,15 @@ private:
 
     void ChangeRightKeyBoundaryIfNeeded(TFmrTableKeysBoundary& rightKey, const TFmrTableKeysBoundary& taskRangeLastKey) override;
 
+
     void ExtendChunksPerTable(std::unordered_map<TString, std::vector<TChunkUnit>>& chunksByTable) override;
+
+private:
+    const TSortingColumns ReduceBy_;
+    const TReducePartitionSettings Settings_;
+    TMaybe<TFmrTableKeysBoundary> LeftBoundary_; // key right boundary with which we non-inclusively chopped previous reduce job.
+    std::queue<std::unordered_map<TString, std::vector<TChunkUnit>>> LeftBoundaryChunks_;
+    ui64 CurrentLastKeyWeight_ = 0 ;
 };
 
 } // namespace NYql::NFmr
