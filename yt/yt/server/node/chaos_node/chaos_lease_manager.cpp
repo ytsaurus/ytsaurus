@@ -619,6 +619,11 @@ private:
 
             auto protoChaosLease = req.add_chaos_leases();
             ToProto(protoChaosLease->mutable_chaos_lease_id(), chaosLease->GetId());
+            if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+                reign >= EChaosReign::FixParentIdDuringChaosLeaseMigration)
+            {
+                ToProto(protoChaosLease->mutable_parent_chaos_lease_id(), chaosLease->GetParentId());
+            }
             protoChaosLease->set_timeout(ToProto(chaosLease->GetTimeout()));
             ToProto(protoChaosLease->mutable_root_chaos_lease_id(), chaosLease->GetRootId());
 
