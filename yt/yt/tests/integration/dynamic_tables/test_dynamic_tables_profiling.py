@@ -708,14 +708,17 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
         insert_rows("//tmp/t", [{"key": 0, "value": "A"}])
-        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 1)
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 1,
+             ignore_exceptions=True)
 
         with SmoothMovementHelper(tablet_id).forwarding_context():
             insert_rows("//tmp/t", [{"key": 1, "value": "B"}])
-            wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 2)
+            wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 2,
+                 ignore_exceptions=True)
 
         insert_rows("//tmp/t", [{"key": 2, "value": "B"}])
-        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 3)
+        wait(lambda: self._get_counter(table_id, tablet_id, "dynamic_row_write") == 3,
+             ignore_exceptions=True)
 
     @authors("sabdenovch")
     def test_select_cpu_performance_counters(self):
