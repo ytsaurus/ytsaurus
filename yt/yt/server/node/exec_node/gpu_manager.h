@@ -116,6 +116,8 @@ public:
     std::vector<TArtifactKey> GetToppingLayers();
     void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
 
+    std::vector<std::string> GetRequiredHostPaths() const;
+
     void ReleaseGpuSlot(int deviceIndex);
 
     NYTree::IYPathServicePtr GetOrchidService() const;

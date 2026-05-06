@@ -17,6 +17,8 @@ class TGpuInfoProviderBase
     std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration timeout) const override;
 
     void ApplyNetworkServiceLevel(const std::vector<TString>& deviceIds, TNetworkPriority networkServiceLevel, TDuration timeout) override;
+
+    std::vector<std::string> GetRequiredHostPaths() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +28,8 @@ class TGrpcGpuInfoProviderBase
 {
 public:
     explicit TGrpcGpuInfoProviderBase(TGrpcGpuInfoProviderConfigBasePtr config);
+
+    std::vector<std::string> GetRequiredHostPaths() const override;
 
 protected:
     const TGrpcGpuInfoProviderConfigBasePtr BaseGrpcConfig_;

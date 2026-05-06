@@ -820,10 +820,19 @@ private:
 
         YT_VERIFY(ResultHolder_.GpuCheckVolume);
 
+        std::vector<NContainers::TBind> binds;
+        for (const auto& path : GpuManager_->GetRequiredHostPaths()) {
+            binds.push_back(NContainers::TBind{
+                .SourcePath = TString(path),
+                .TargetPath = TString(path),
+                .ReadOnly = true,
+            });
+        }
+
         return TRootFS{
             .RootPath = TString(ResultHolder_.GpuCheckVolume->GetPath()),
             .IsRootReadOnly = false,
-            .Binds = {},
+            .Binds = std::move(binds),
         };
     }
 
