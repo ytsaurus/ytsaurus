@@ -6097,6 +6097,8 @@ class TestChaosMetaCluster(ChaosTestBase):
             for lease_id in lease_ids:
                 wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
 
+            remove(f"#{lease_ids[0]}")
+
             for lease_id in lease_ids:
                 with pytest.raises(YtError):
                     get_chaos_lease_from_orchid(enabled_cell, lease_id)
