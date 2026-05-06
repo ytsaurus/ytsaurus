@@ -3603,7 +3603,8 @@ private:
         BoomerangTracker_->Load(context);
 
         // COMPAT(theevilbird)
-        if (context.GetVersion() >= EMasterReign::RemoveStagedNodesInTransactions) {
+        if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
+            (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
             NeedUnrefStagedNodes_ = true;
         }
     }
