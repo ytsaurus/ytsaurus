@@ -616,8 +616,7 @@ private:
                                             YT_LOG_DEBUG("Root volume prepared");
                                             SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                                         })
-                                        .AsyncVia(Invoker_))
-                                    .ToUncancelable();
+                                        .AsyncVia(Invoker_));
 
                         })
                         .AsyncVia(Invoker_));
