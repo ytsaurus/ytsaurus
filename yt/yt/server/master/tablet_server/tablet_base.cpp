@@ -69,7 +69,9 @@ void TTabletServant::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, State_);
     Persist(context, MountRevision_);
     // COMPAT(alexelexa)
-    if (context.GetVersion() < NCellMaster::EMasterReign::IntroduceLogicalMountRevision) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::IntroduceLogicalMountRevision ||
+        context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::IntroduceLogicalMountRevision_26_2)
+    {
         LogicalMountRevision_ = MountRevision_;
     } else {
         Persist(context, LogicalMountRevision_);
