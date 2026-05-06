@@ -7,6 +7,7 @@ RECURSE(
     impl/merge
     impl/sorted_merge
     impl/map
+    impl/reduce
     impl/sorted_upload
     impl/sort
 )
