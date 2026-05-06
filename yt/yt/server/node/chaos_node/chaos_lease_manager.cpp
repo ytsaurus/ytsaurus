@@ -530,7 +530,7 @@ private:
                         : GetChaosLeaseOrThrow(chaosLease->GetRootId());
                 }
 
-                // TODO(osidorkin) Can do this more optimally if some extra data is stored inside lease object.
+                // TODO(osidorkin): Can do this more optimally if some extra data is stored inside lease object.
                 std::vector<TChaosLease*> traversedLeases;
                 TraverseLeaseSubtree(rootLease, &traversedLeases);
                 for (const auto* nestedLease : traversedLeases) {
