@@ -55,7 +55,6 @@ def _make_mount_action_plan(
     app: sequoia_app.SequoiaTool,
     ground_reign: int,
     unmount: bool,
-    **kwargs,
 ) -> actions.ActionPlan:
     plan_name = "unmount-tables" if unmount else "mount-tables"
     return (
@@ -63,19 +62,19 @@ def _make_mount_action_plan(
         .for_each_table()
         .with_table_factory(
             lambda ctx: [
-                actions.MountTabletAction(ctx.path, unmount, **kwargs)
+                actions.MountTabletAction(ctx.path, unmount)
             ])
         .then()
         .build())
 
 
-def mount_tables(app: sequoia_app.SequoiaTool, ground_reign: int, sync: bool = False) -> None:
+def mount_tables(app: sequoia_app.SequoiaTool, ground_reign: int) -> None:
     """Mount Sequoia ground dynamic tables."""
-    plan = _make_mount_action_plan(app, ground_reign, unmount=False, sync=sync)
+    plan = _make_mount_action_plan(app, ground_reign, unmount=False)
     actions.run_action_plan(plan, app)
 
 
-def unmount_tables(app: sequoia_app.SequoiaTool, ground_reign: int, sync: bool = False) -> None:
+def unmount_tables(app: sequoia_app.SequoiaTool, ground_reign: int) -> None:
     """Unmount Sequoia ground dynamic tables."""
-    plan = _make_mount_action_plan(app, ground_reign, unmount=True, sync=sync)
+    plan = _make_mount_action_plan(app, ground_reign, unmount=True)
     actions.run_action_plan(plan, app)
