@@ -36,6 +36,7 @@ PEERDIR(
     yql/essentials/public/udf/service/terminate_policy
     yql/essentials/sql/pg
     yql/essentials/core/file_storage
+    yql/essentials/utils/backtrace
     yql/essentials/utils/log
 )
 

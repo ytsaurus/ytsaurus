@@ -18,7 +18,7 @@ struct TVanillaFmrCoordinatorClientSettings {
 // vanilla job via ListJobs and forwarding all requests to it.
 // The address is refreshed in a background thread.
 IFmrCoordinator::TPtr MakeVanillaFmrCoordinatorClient(
-    const IVanillaPeerTracker& peerTracker,
+    const IVanillaExternalPeerTracker& peerTracker,
     const TVanillaFmrCoordinatorClientSettings& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
