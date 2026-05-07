@@ -354,9 +354,7 @@ double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory cate
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
-    return config->FairShareWorkloadCategoryWeights[category]
-        ? config->FairShareWorkloadCategoryWeights[category].value()
-        : DefaultFairShareWorkloadCategoryWeights[category];
+    return config->FairShareWorkloadCategoryWeights[category].value_or(DefaultFairShareWorkloadCategoryWeights[category]);
 }
 
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
