@@ -9,6 +9,7 @@ default:
     yt-stable-branch: 25.3
     python-sdk-version: 0.13.48
     java-sdk-version: 1.2.14
+    flink-version: 1.20.X
     python-yson-version: 0.4.10
     cert-manager-version: v1.17.1
     cron-version: 0.0.4
