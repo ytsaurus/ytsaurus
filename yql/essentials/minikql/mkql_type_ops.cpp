@@ -2945,11 +2945,7 @@ bool DeserializeTzDate(TStringBuf buf, ui16& date, ui16& tzId) {
 
     tzId = ReadUnaligned<ui16>(buf.data() + sizeof(date));
     tzId = SwapBytes(tzId);
-    if (!IsValidTimezoneId(tzId)) {
-        return false;
-    }
-
-    return true;
+    return IsValidTimezoneId(tzId);
 }
 
 bool DeserializeTzDatetime(TStringBuf buf, ui32& datetime, ui16& tzId) {
@@ -2965,11 +2961,7 @@ bool DeserializeTzDatetime(TStringBuf buf, ui32& datetime, ui16& tzId) {
 
     tzId = ReadUnaligned<ui16>(buf.data() + sizeof(datetime));
     tzId = SwapBytes(tzId);
-    if (!IsValidTimezoneId(tzId)) {
-        return false;
-    }
-
-    return true;
+    return IsValidTimezoneId(tzId);
 }
 
 bool DeserializeTzTimestamp(TStringBuf buf, ui64& timestamp, ui16& tzId) {
@@ -2985,11 +2977,7 @@ bool DeserializeTzTimestamp(TStringBuf buf, ui64& timestamp, ui16& tzId) {
 
     tzId = ReadUnaligned<ui16>(buf.data() + sizeof(timestamp));
     tzId = SwapBytes(tzId);
-    if (!IsValidTimezoneId(tzId)) {
-        return false;
-    }
-
-    return true;
+    return IsValidTimezoneId(tzId);
 }
 
 void SerializeTzDate32(i32 date, ui16 tzId, IOutputStream& out) {
@@ -3026,11 +3014,7 @@ bool DeserializeTzDate32(TStringBuf buf, i32& date, ui16& tzId) {
 
     tzId = ReadUnaligned<ui16>(buf.data() + sizeof(date));
     tzId = SwapBytes(tzId);
-    if (!IsValidTimezoneId(tzId)) {
-        return false;
-    }
-
-    return true;
+    return IsValidTimezoneId(tzId);
 }
 
 bool DeserializeTzDatetime64(TStringBuf buf, i64& datetime, ui16& tzId) {
@@ -3046,11 +3030,7 @@ bool DeserializeTzDatetime64(TStringBuf buf, i64& datetime, ui16& tzId) {
 
     tzId = ReadUnaligned<ui16>(buf.data() + sizeof(datetime));
     tzId = SwapBytes(tzId);
-    if (!IsValidTimezoneId(tzId)) {
-        return false;
-    }
-
-    return true;
+    return IsValidTimezoneId(tzId);
 }
 
 bool DeserializeTzTimestamp64(TStringBuf buf, i64& timestamp, ui16& tzId) {
@@ -3066,11 +3046,7 @@ bool DeserializeTzTimestamp64(TStringBuf buf, i64& timestamp, ui16& tzId) {
 
     tzId = ReadUnaligned<ui16>(buf.data() + sizeof(timestamp));
     tzId = SwapBytes(tzId);
-    if (!IsValidTimezoneId(tzId)) {
-        return false;
-    }
-
-    return true;
+    return IsValidTimezoneId(tzId);
 }
 
 } // namespace NKikimr::NMiniKQL

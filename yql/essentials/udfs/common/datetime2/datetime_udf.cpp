@@ -3249,10 +3249,7 @@ struct ParseNDigits {
             // to be parsed (see the class specialization
             // above) or there are given less than N digits
             // to be parsed.
-            if constexpr (Variable) {
-                return true;
-            }
-            return false;
+            return Variable;
         }
         out *= 10U;
         out += d - '0';
