@@ -270,7 +270,7 @@ TReadPlanWithFilterPtr ExtractPrewhereOnlyReadPlan(const TReadPlanWithFilterPtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, const TCompositeSettingsPtr& settings)
+DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, const TConversionSettingsPtr& settings)
 {
     TBlockWithFilter blockWithFilter(/*rowCount*/ 0);
 
@@ -291,7 +291,7 @@ DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, 
     return blockWithFilter.Block;
 }
 
-bool SuitableForDistinctReadOptimization(const TReadPlanWithFilterPtr& readPlan, const TCompositeSettingsPtr& settings)
+bool SuitableForDistinctReadOptimization(const TReadPlanWithFilterPtr& readPlan, const TConversionSettingsPtr& settings)
 {
     return DeriveHeaderBlockFromReadPlan(readPlan, settings).columns() == 1;
 }

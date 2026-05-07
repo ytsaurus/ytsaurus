@@ -2746,7 +2746,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
         if lc_mode is not None:
             update_inplace(config, {
                 "yt": {
-                    "query_settings": {"composite": {"low_cardinality_mode": lc_mode}}
+                    "query_settings": {"conversion": {"low_cardinality": {"mode": lc_mode}}}
                 }
             })
 
@@ -2810,7 +2810,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
         with Clique(1, config_patch=self.low_cardinality_config()) as clique:
             settings = {
-                "chyt.composite.low_cardinality_mode": "all",
+                "chyt.conversion.low_cardinality.mode": "all",
             }
 
             self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', data, settings=settings)
@@ -2889,8 +2889,8 @@ class TestDataTypeConversion(ClickHouseTestBase):
             result = clique.make_query('describe table "//tmp/dict_encoded"', settings=settings)
             assert all(t["type"].startswith("LowCardinality") for t in result)
 
-            settings["chyt.composite.low_cardinality_mode"] = "from_statistics"
-            settings["chyt.composite.low_cardinality_threshold"] = 10
+            settings["chyt.conversion.low_cardinality.mode"] = "from_statistics"
+            settings["chyt.conversion.low_cardinality.threshold"] = 10
             arr = []
             for i in range(20):
                 arr.append({"a": "a", "b": str(i)})
@@ -2910,7 +2910,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
             result = clique.make_query('describe table "//tmp/nested_optional"', settings=settings)
             assert all(not t["type"].startswith("LowCardinality") for t in result)
 
-            settings["chyt.composite.low_cardinality_mode"] = "string_only"
+            settings["chyt.conversion.low_cardinality.mode"] = "string_only"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
             for t in result:
                 if t["name"] == "string_column" or t["name"] == "utf8_column":
@@ -2918,11 +2918,11 @@ class TestDataTypeConversion(ClickHouseTestBase):
                 else:
                     assert not t["type"].startswith("LowCardinality")
 
-            settings["chyt.composite.low_cardinality_mode"] = "none"
+            settings["chyt.conversion.low_cardinality.mode"] = "none"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
             assert all(not t["type"].startswith("LowCardinality") for t in result)
 
-            settings["chyt.composite.low_cardinality_regexp"] = "uint8_column"
+            settings["chyt.conversion.low_cardinality.regexp"] = "uint8_column"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
             for t in result:
                 if t["name"] == "uint8_column":

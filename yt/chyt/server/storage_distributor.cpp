@@ -322,12 +322,12 @@ void SetLowCardinalityFromRegExp(
 
 TTableSchemaPtr BuildLowCardinalitySchema(TStorageContext* storageContext, TTableSchemaPtr schema, const std::vector<TTablePtr>& tables)
 {
-    auto settings = storageContext->Settings->Composite;
+    auto settings = storageContext->Settings->Conversion;
 
     const auto& columns = schema->Columns();
 
-    std::vector<bool> mask(columns.size(), settings->LowCardinalityMode == ELowCardinalityMode::All);
-    if (settings->LowCardinalityMode == ELowCardinalityMode::FromStatistics) {
+    std::vector<bool> mask(columns.size(), settings->LowCardinality->Mode == ELowCardinalityMode::All);
+    if (settings->LowCardinality->Mode == ELowCardinalityMode::FromStatistics) {
         std::vector<std::string> columnNames;
         columnNames.reserve(columns.size());
         for (const auto& column : columns) {
@@ -343,15 +343,15 @@ TTableSchemaPtr BuildLowCardinalitySchema(TStorageContext* storageContext, TTabl
         if (statistics.has_value() && statistics->HasLargeStatistics() && !statistics->LargeStatistics.ColumnHyperLogLogDigests.empty()) {
             SetLowCardinalityFromStatistics(
                 mask,
-                settings->LowCardinalityThreshold,
+                settings->LowCardinality->Threshold,
                 statistics->LargeStatistics.ColumnHyperLogLogDigests);
         }
-    } else if (settings->LowCardinalityMode == ELowCardinalityMode::StringOnly) {
+    } else if (settings->LowCardinality->Mode == ELowCardinalityMode::StringOnly) {
         SetStringOnlyLowCardinality(mask, columns);
     }
 
-    if (settings->LowCardinalityRegExp) {
-        SetLowCardinalityFromRegExp(mask, columns, settings->LowCardinalityRegExp);
+    if (settings->LowCardinality->RegExp) {
+        SetLowCardinalityFromRegExp(mask, columns, settings->LowCardinality->RegExp);
     }
 
     if (std::none_of(mask.begin(), mask.end(), [] (bool value) { return value; })) {
@@ -1036,13 +1036,12 @@ public:
             columnNames.push_back(column.Name());
         }
 
-        auto settings = storageContext->Settings->Composite;
+        auto settings = storageContext->Settings->Conversion;
         if (context->hasInsertionTable() || QueryContext_->CreatedTablePath.has_value()) {
-            settings->LowCardinalityMode = ELowCardinalityMode::None;
-            settings->LowCardinalityRegExp = nullptr;
+            settings->LowCardinality = New<TLowCardinalitySettings>();
         }
 
-        if (settings->LowCardinalityMode != ELowCardinalityMode::None || settings->LowCardinalityRegExp) {
+        if (settings->LowCardinality->Mode != ELowCardinalityMode::None || settings->LowCardinality->RegExp) {
             Schema_ = BuildLowCardinalitySchema(storageContext, Schema_, Tables_);
         }
 
@@ -1320,7 +1319,7 @@ public:
             queryContext->InitializeQueryWriteTransaction();
         }
 
-        auto dataTypes = ToDataTypes(*Schema_, QueryContext_->SessionSettings->Composite, /*isReadConversions*/ false);
+        auto dataTypes = ToDataTypes(*Schema_, QueryContext_->SessionSettings->Conversion, /*isReadConversions*/ false);
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
             Schema_,
@@ -1375,7 +1374,7 @@ public:
                 Schema_,
                 dataTypes,
                 QueryContext_->SessionSettings->DynamicTable,
-                QueryContext_->SessionSettings->Composite,
+                QueryContext_->SessionSettings->Conversion,
                 QueryContext_->Client(),
                 std::move(finalCallback),
                 QueryContext_->Logger,
@@ -1388,7 +1387,7 @@ public:
                 Schema_,
                 dataTypes,
                 QueryContext_->SessionSettings->TableWriter,
-                QueryContext_->SessionSettings->Composite,
+                QueryContext_->SessionSettings->Conversion,
                 QueryContext_->Client(),
                 queryContext->WriteTransactionId,
                 std::move(finalCallback),
@@ -1813,7 +1812,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     // Underscore indicates that the columns should be ignored, and that schema should be taken from the attributes.
     if (args.columns.getNamesOfPhysical() != std::vector<std::string>{"_"}) {
-        auto schema = ToTableSchema(args.columns, keyColumns, queryContext->SessionSettings->Composite);
+        auto schema = ToTableSchema(args.columns, keyColumns, queryContext->SessionSettings->Conversion);
         YT_LOG_DEBUG("Inferred table schema from columns (Schema: %v)", schema);
         attributes->Set("schema", schema);
     } else if (attributes->Contains("schema")) {

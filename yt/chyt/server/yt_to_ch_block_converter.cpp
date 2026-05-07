@@ -30,7 +30,7 @@ public:
     TImpl(
         const std::vector<TColumnSchema>& readColumnSchemas,
         const TNameTablePtr& nameTable,
-        const TCompositeSettingsPtr& compositeSettings,
+        const TConversionSettingsPtr& conversionSettings,
         bool optimizeDistinctRead)
         : OptimizeDistinctRead_(optimizeDistinctRead)
     {
@@ -44,7 +44,7 @@ public:
         for (int i = 0; i < std::ssize(readColumnSchemas); ++i) {
             const auto& converter = ColumnConverters_.emplace_back(
                 TComplexTypeFieldDescriptor(readColumnSchemas[i]),
-                compositeSettings);
+                conversionSettings);
                 headerColumnTypeAndNames.emplace_back(converter.GetDataType(), readColumnSchemas[i].Name());
         }
 
@@ -196,9 +196,9 @@ private:
 TYTToCHBlockConverter::TYTToCHBlockConverter(
     const std::vector<TColumnSchema>& readColumnSchemas,
     const TNameTablePtr& nameTable,
-    const TCompositeSettingsPtr& compositeSettings,
+    const TConversionSettingsPtr& conversionSettings,
     bool optimizeDistinctRead)
-    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings, optimizeDistinctRead))
+    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, conversionSettings, optimizeDistinctRead))
 { }
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(TYTToCHBlockConverter&& other) = default;

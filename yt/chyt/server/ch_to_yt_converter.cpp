@@ -904,7 +904,7 @@ private:
 class TCHToYTConverter::TImpl
 {
 public:
-    TImpl(DB::DataTypePtr dataType, TCompositeSettingsPtr settings)
+    TImpl(DB::DataTypePtr dataType, TConversionSettingsPtr settings)
         : DataType_(std::move(dataType))
         , Settings_(std::move(settings))
         , RootConverter_(CreateConverter(DataType_))
@@ -980,7 +980,7 @@ public:
 
 private:
     const DB::DataTypePtr DataType_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
 
     const IConverterPtr RootConverter_;
 
@@ -1032,7 +1032,7 @@ private:
             {
                 int scale = DB::getDecimalScale(*dataType);
                 if (scale != 0 && scale != 6) {
-                    if (Settings_->ConvertUnsupportedTypesToString) {
+                    if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                         return CreateUnsupportedTypesToStringConverter(dataType);
                     } else {
                         THROW_ERROR_EXCEPTION("ClickHouse type %Qv with scale %v is not representable as YT type: "
@@ -1101,7 +1101,7 @@ private:
         int scale = DB::getDecimalScale(*dataType);
 
         if (precision > MaxSupportedCHDecimalPrecision) {
-            if (Settings_->ConvertUnsupportedTypesToString) {
+            if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                 return CreateUnsupportedTypesToStringConverter(dataType);
             } else {
                 THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
@@ -1214,7 +1214,7 @@ private:
             case DB::TypeIndex::Map:
                 return CreateMapConverter(dataType);
             default:
-                if (Settings_->ConvertUnsupportedTypesToString) {
+                if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                     return CreateUnsupportedTypesToStringConverter(dataType);
                 } else {
                     THROW_ERROR_EXCEPTION(
@@ -1229,7 +1229,7 @@ private:
 
 TCHToYTConverter::TCHToYTConverter(
     DB::DataTypePtr dataType,
-    TCompositeSettingsPtr settings)
+    TConversionSettingsPtr settings)
     : Impl_(std::make_unique<TImpl>(std::move(dataType), std::move(settings)))
 { }
 

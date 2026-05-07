@@ -29,7 +29,7 @@ public:
     TGranuleMinMaxFilter(
         DB::KeyCondition keyCondition,
         TTableSchemaPtr queryRealColumnsSchema,
-        TCompositeSettingsPtr settings,
+        TConversionSettingsPtr settings,
         TCallback<void(const TStatisticPath&, i64)> statisticsSampleCallback,
         std::shared_ptr<DB::ActionsDAG> filterActions)
         : KeyCondition_(std::move(keyCondition))
@@ -102,7 +102,7 @@ private:
 
 IGranuleFilterPtr CreateGranuleMinMaxFilter(
     const DB::SelectQueryInfo& queryInfo,
-    TCompositeSettingsPtr compositeSettings,
+    TConversionSettingsPtr conversionSettings,
     const TTableSchemaPtr& schema,
     const DB::ContextPtr& context,
     const std::vector<std::string>& realColumnNames)
@@ -115,7 +115,7 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
     }
 
     auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-        ToNamesAndTypesList(*filteredSchema, compositeSettings)));
+        ToNamesAndTypesList(*filteredSchema, conversionSettings)));
 
     std::shared_ptr<DB::ActionsDAG> whereFilters = (queryInfo.filter_actions_dag != nullptr) ?
         std::make_shared<DB::ActionsDAG>(queryInfo.filter_actions_dag->clone())
@@ -142,7 +142,7 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
     return New<TGranuleMinMaxFilter>(
         std::move(keyCondition),
         std::move(filteredSchema),
-        std::move(compositeSettings),
+        std::move(conversionSettings),
         std::move(statisticsSampleCallback),
         std::move(mergedFilters));
 }
