@@ -1794,7 +1794,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CancelableControlInvoker_->Invoke(
-            BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
     void ProfileRestart(const std::string& reason)
