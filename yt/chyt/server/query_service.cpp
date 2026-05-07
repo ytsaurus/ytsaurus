@@ -78,7 +78,7 @@ public:
         , Host_(host)
         , User_(user)
         , InitialQueryId_(queryId)
-        , CompositeSettings_(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true))
+        , ConversionSettings_(TConversionSettings::Create(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)))
     { }
 
     TErrorOr<std::vector<TRowset>> Execute()
@@ -121,7 +121,7 @@ private:
     TQueryId InitialQueryId_;
     DB::ContextMutablePtr QueryContext_;
     DB::BlockIO BlockIO_;
-    TCompositeSettingsPtr CompositeSettings_;
+    TConversionSettingsPtr ConversionSettings_;
     std::vector<TRowset> Result_;
 
     void Run()
@@ -224,7 +224,7 @@ private:
             if (!block) {
                 continue;
             }
-            auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, CompositeSettings_);
+            auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, ConversionSettings_);
             auto capturedRows = rowBuffer->CaptureRows(rowRange);
             rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
         }
@@ -264,7 +264,7 @@ private:
         std::vector<TColumnSchema> columnSchemas;
         columnSchemas.reserve(block.columns());
         for (auto& column : block) {
-            columnSchemas.emplace_back(column.name, ToLogicalType(column.type, CompositeSettings_));
+            columnSchemas.emplace_back(column.name, ToLogicalType(column.type, ConversionSettings_));
         }
         return TTableSchema(columnSchemas);
     }

@@ -227,7 +227,7 @@ public:
         TLogger logger,
         TCallback<void(const TStatistics&)> statisticsCallback)
         : DB::ISource(
-            DeriveHeaderBlockFromReadPlan(readPlan, settings->Composite),
+            DeriveHeaderBlockFromReadPlan(readPlan, settings->Conversion),
             /*enable_auto_progress*/ false)
         , ReadPlan_(std::move(readPlan))
         , TraceContext_(std::move(traceContext))
@@ -458,7 +458,7 @@ protected:
         Converters_.reserve(ReadPlan_->Steps.size());
         for (int i = 0; i < std::ssize(ReadPlan_->Steps); ++i) {
             bool enableOptimizeDistinctRead = (i == std::ssize(ReadPlan_->Steps) - 1) ? Options_.UseDistinctReadOptimization : false;
-            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Composite, enableOptimizeDistinctRead);
+            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Conversion, enableOptimizeDistinctRead);
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());

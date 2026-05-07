@@ -77,7 +77,7 @@ class TCHToYTConversionTest
 public:
     void SetUp() override
     {
-        Settings_ = New<TCompositeSettings>();
+        Settings_ = New<TConversionSettings>();
     }
 
     std::vector<TUnversionedValue> ExpectConversion(
@@ -124,7 +124,7 @@ public:
     }
 
 protected:
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     std::optional<TCHToYTConverter> Converter_;
 
 private:
@@ -757,8 +757,10 @@ TEST_F(TCHToYTConversionTest, UnsupportedTypesToString)
 
     EXPECT_THROW(Converter_.emplace(dataTypeArrayUUID, Settings_), std::exception);
 
-    auto settings = New<TCompositeSettings>();
-    settings->ConvertUnsupportedTypesToString = true;
+    auto compositeSettings = New<TCompositeSettings>();
+    compositeSettings->ConvertUnsupportedTypesToString = true;
+    auto settings = New<TConversionSettings>();
+    settings->Composite = compositeSettings;
 
     Converter_.emplace(dataTypeUUID, settings);
     ExpectConversion(columnUUID, expectedUUIDLogicalType, expectedUUIDValueYsons);

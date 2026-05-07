@@ -12,12 +12,11 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison, ELowCardinalityMode lowCardinalityMode)
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison)
 {
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
     settings->EnableComplexNullConverison = enableComplexNullConverison;
-    settings->LowCardinalityMode = lowCardinalityMode;
     return settings;
 }
 
@@ -31,15 +30,39 @@ void TCompositeSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
+}
 
-    registrar.Parameter("low_cardinality_mode", &TThis::LowCardinalityMode)
+////////////////////////////////////////////////////////////////////////////////
+
+void TLowCardinalitySettings::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mode", &TThis::Mode)
         .Default(ELowCardinalityMode::None);
 
-    registrar.Parameter("low_cardinality_threshold", &TThis::LowCardinalityThreshold)
+    registrar.Parameter("threshold", &TThis::Threshold)
         .Default(100);
 
-    registrar.Parameter("low_cardinality_regexp", &TThis::LowCardinalityRegExp)
+    registrar.Parameter("regexp", &TThis::RegExp)
         .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConversionSettingsPtr TConversionSettings::Create(TCompositeSettingsPtr compositeSettings, TLowCardinalitySettingsPtr lowCardinalitySettings)
+{
+    auto settings = New<TConversionSettings>();
+    settings->Composite = std::move(compositeSettings);
+    settings->LowCardinality = std::move(lowCardinalitySettings);
+    return settings;
+}
+
+void TConversionSettings::Register(TRegistrar registrar)
+{
+    registrar.Parameter("composite", &TThis::Composite)
+        .DefaultNew();
+
+    registrar.Parameter("low_cardinality", &TThis::LowCardinality)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,7 +279,7 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("infer_dynamic_table_ranges_from_pivot_keys", &TThis::InferDynamicTableRangesFromPivotKeys)
         .Default(true);
 
-    registrar.Parameter("composite", &TThis::Composite)
+    registrar.Parameter("conversion", &TThis::Conversion)
         .DefaultNew();
 
     registrar.Parameter("dynamic_table", &TThis::DynamicTable)
