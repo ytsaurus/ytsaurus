@@ -3114,6 +3114,17 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
     YT_LOG_INFO("Start preparing node directory");
 
+    auto maybeDataSourceDirectory = std::invoke([&] {
+        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(jobSpecExt.extensions());
+        if (dataSourceDirectoryExt) {
+            return FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
+        }
+        if (jobSpecExt.input_table_specs_size() + jobSpecExt.foreign_input_table_specs_size() > 0) {
+            YT_LOG_WARNING("Expected to have DataSource directory in job spec but found none");
+        }
+        return TDataSourceDirectoryPtr();
+    });
+
     const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
 
     for (int attempt = 1;; ++attempt) {
@@ -3128,6 +3139,19 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             const TNodeDirectoryPtr& nodeDirectory)
         {
             for (const auto& chunkSpec : chunkSpecs) {
+                auto tableIndex = chunkSpec.table_index();
+                bool isTableRemote = maybeDataSourceDirectory && !IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName());
+                if (isTableRemote) {
+                    // NB(coteeq): We cannot come to this branch if data source was missing,
+                    // so there is a chance that we will try to resolve remote node ids.
+                    // In this case, there is nothing we can do other than keep retrying.
+                    // Retries will eventually be drained and we will skip such nodes.
+
+                    // Node cannot resolve remote node id.
+                    // JP will either receive descriptors in remote_input_clusters
+                    // or the reader will fetch them from master.
+                    continue;
+                }
                 auto replicas = GetReplicasFromChunkSpec(chunkSpec);
                 for (auto replica : replicas) {
                     auto nodeId = replica.GetNodeId();

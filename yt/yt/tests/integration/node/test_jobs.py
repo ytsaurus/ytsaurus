@@ -7,12 +7,14 @@ from yt_commands import (
     interrupt_job, update_nodes_dynamic_config, set_nodes_banned,
     abort_job, run_sleeping_vanilla, set_node_banned, extract_statistic_v2,
     get_allocation_id_from_job_id, alter_table, write_file, print_debug,
-    wait_no_assert,
+    wait_no_assert, get_driver, read_table,
 )
 
 from yt_helpers import JobCountProfiler, profiler_factory, is_uring_supported, is_uring_disabled
 
 from yt.common import YtError
+
+from yt import yson
 
 import pytest
 import builtins
@@ -1392,5 +1394,81 @@ class TestExeNodeProfiling(YTEnvSetup):
         wait(lambda: profiler.get(sensor, tags=get_labels("<unknown>")) == 0.0)
         assert profiler.get(sensor, tags=get_labels("default")) is None
 
+
+class TestNodeDirectory(YTEnvSetup):
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
+    NUM_NODES_REMOTE_0 = 9
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                }
+            }
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        # Hang node forever if it cannot resolve replica's node.
+                        "node_directory_prepare_retry_count": 1_000_000_000,
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("use_local_table", [True, False], ids=["remote_and_local", "only_remote"])
+    def test_node_does_not_resolve_remote_nodes(self, use_local_table):
+        remote_driver = get_driver(cluster=self.REMOTE_CLUSTER_NAME)
+
+        def get_node_id(addr, driver=get_driver()):
+            id = get(f"//sys/cluster_nodes/{addr}/@id", driver=driver)
+            return int(id.split("-")[1], 16)
+
+        # Ban nodes whose ids can be seen on local cluster,
+        # so resolving a remote node will deterministically fail.
+        local_node_ids = [get_node_id(node) for node in ls("//sys/cluster_nodes")]
+        for node in ls("//sys/cluster_nodes", driver=remote_driver):
+            if get_node_id(node, remote_driver) in local_node_ids:
+                set_node_banned(node, True, driver=remote_driver)
+
+        if use_local_table:
+            create("table", "//tmp/t_local", attributes={"replication_factor": 1})
+            write_table("//tmp/t_local", {"a": "b"})
+        create("table", "//tmp/t1", driver=remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+
+        in_ = [f"<cluster={self.REMOTE_CLUSTER_NAME}>//tmp/t1"]
+        if use_local_table:
+            in_.append("//tmp/t_local")
+
+        map(
+            in_=in_,
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "mapper": {
+                    "format": yson.loads(b"<line_prefix=tskv; enable_table_index=false>dsv"),
+                },
+            },
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}] * (1 + use_local_table)
 
 ##################################################################
