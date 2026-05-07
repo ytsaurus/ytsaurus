@@ -867,10 +867,7 @@ public:
 
     bool Equals(NUdf::TUnboxedValuePod lhs, NUdf::TUnboxedValuePod rhs) const override {
         if (!lhs) {
-            if (!rhs) {
-                return true;
-            }
-            return false;
+            return !rhs;
         } else {
             if (!rhs) {
                 return false;
@@ -1112,10 +1109,7 @@ public:
 
     bool Less(NUdf::TUnboxedValuePod lhs, NUdf::TUnboxedValuePod rhs) const override {
         if (!lhs) {
-            if (!rhs) {
-                return false;
-            }
-            return true;
+            return static_cast<bool>(rhs);
         } else {
             if (!rhs) {
                 return false;

@@ -6376,10 +6376,7 @@ private:
 
         auto resolveStatus = Types_.ArrowResolver->AreTypesSupported(Ctx_.GetPosition(pos), allInputTypes, Ctx_, OnUnsupportedTypeCallback_);
         YQL_ENSURE(resolveStatus != IArrowResolver::ERROR);
-        if (resolveStatus != IArrowResolver::OK) {
-            return false;
-        }
-        return true;
+        return resolveStatus == IArrowResolver::OK;
     }
 
     TExprNode::TListType CreateArgs(size_t size, TPositionHandle pos) {

@@ -60,7 +60,7 @@ Y_UNIT_TEST(TestDeallocated) {
 }
 
 Y_UNIT_TEST(FreeInWrongAllocator) {
-    if (true) {
+    {
         return;
     }
     TScopedAlloc alloc1(__LOCATION__);

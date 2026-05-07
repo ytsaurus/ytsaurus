@@ -2988,10 +2988,7 @@ bool EnsureTypeWithStructType(const TExprNode& node, TExprContext& ctx) {
     }
     auto nodeType = node.GetTypeAnn()->Cast<TTypeExprType>()->GetType();
     YQL_ENSURE(nodeType);
-    if (!EnsureStructType(node.Pos(), *nodeType, ctx)) {
-        return false;
-    }
-    return true;
+    return EnsureStructType(node.Pos(), *nodeType, ctx);
 }
 
 bool EnsureComposable(const TExprNode& node, TExprContext& ctx) {
