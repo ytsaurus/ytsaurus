@@ -992,6 +992,7 @@ void TSchedulingPolicy::ScheduleAllocations(
             /*allowLimitsOvercommit*/ false,
             /*additionalLocalResourceLimits*/ {},
             &availableResourceLimits);
+        auto precommittedResources = assignment->ResourceUsage;
 
         auto availableResources = Min(availableResourceLimits, schedulingHeartbeatContext->GetNodeFreeResourcesWithDiscount());
 
@@ -1027,8 +1028,7 @@ void TSchedulingPolicy::ScheduleAllocations(
 
             RemoveAssignment(assignment, /*strict*/ false);
 
-            operationElement->DecreaseHierarchicalResourceUsagePrecommit(
-                assignment->ResourceUsage);
+            operationElement->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
 
             nodeShardInvoker->Invoke(BIND(
                 &TPoolTreeOperationElement::OnScheduleAllocationFailed,
