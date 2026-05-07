@@ -290,9 +290,9 @@ private:
             }
 
             newQuery->InferRanges = false;
-            if (foreignKeyPrefix > 0) {
+            newQuery->Limit = OrderedReadWithPrefetchHint;
+            if (UseOrderByInJoinSubqueries_) {
                 newQuery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
-                newQuery->Limit = OrderedReadWithPrefetchHint;
             }
         }
 
