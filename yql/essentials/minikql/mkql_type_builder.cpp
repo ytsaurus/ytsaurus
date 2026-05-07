@@ -1727,6 +1727,7 @@ void TArrowType::Export(ArrowSchema* out) const {
 //////////////////////////////////////////////////////////////////////////////
 TFunctionTypeInfoBuilder::TFunctionTypeInfoBuilder(
     NYql::TLangVersion langver,
+    const NYql::TRuntimeSettings& runtimeSettings,
     const TTypeEnvironment& env,
     NUdf::ITypeInfoHelper::TPtr typeInfoHelper,
     const TStringBuf& moduleName,
@@ -1735,6 +1736,7 @@ TFunctionTypeInfoBuilder::TFunctionTypeInfoBuilder(
     const NUdf::ISecureParamsProvider* secureParamsProvider,
     const NUdf::ILogProvider* logProvider)
     : LangVer_(langver)
+    , RuntimeSettings_(runtimeSettings)
     , Env_(env)
     , ReturnType_(nullptr)
     , RunConfigType_(Env_.GetTypeOfVoidLazy())
@@ -1851,6 +1853,10 @@ void TFunctionTypeInfoBuilder::SetMaxLangVer(ui32 langver) {
 
 ui32 TFunctionTypeInfoBuilder::GetCurrentLangVer() const {
     return LangVer_;
+}
+
+NUdf::TStringRef TFunctionTypeInfoBuilder::GetRuntimeSetting(NUdf::TStringRef name) const {
+    return RuntimeSettings_.GetUdfSetting(ModuleName_, name);
 }
 
 NUdf::ILinearTypeBuilder::TPtr TFunctionTypeInfoBuilder::Linear(bool isDynamic) const {
