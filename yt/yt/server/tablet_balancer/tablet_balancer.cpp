@@ -883,7 +883,7 @@ TTabletBalancer::TBundleOrchidService::TBundleOrchidService(TTabletBalancerPtr o
 
 i64 TTabletBalancer::TBundleOrchidService::GetSize() const
 {
-    return Owner_->Bundles_.size();
+    return std::ssize(Owner_->Bundles_);
 }
 
 IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const std::string& key) const
@@ -984,7 +984,7 @@ std::vector<std::string> TTabletBalancer::TTableOrchidService::GetKeys(i64 limit
 
 i64 TTabletBalancer::TTableOrchidService::GetSize() const
 {
-    return Bundle_->Tables.size();
+    return std::ssize(Bundle_->Tables);
 }
 
 IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std::string& key) const
