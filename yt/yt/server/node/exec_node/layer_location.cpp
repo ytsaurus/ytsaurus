@@ -1127,10 +1127,12 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
     if (!placePath) {
         portoPlacePath = PlacePath_;
         YT_LOG_DEBUG("Place overlay volume in layer location (PortoPlace: %v)",
-            placePath);
+            portoPlacePath);
     } else {
         // See PORTO-460 for "//" prefix.
-        portoPlacePath = (Config_->LocationIsAbsolute ? "" : "//") + placePath.value();
+        portoPlacePath = (!Config_->LocationIsAbsolute && !placePath->starts_with("//") ? "//" : "") + placePath.value();
+        YT_LOG_DEBUG("Place overlay volume in custom location (PortoPlace: %v)",
+            portoPlacePath);
     }
 
     THashMap<std::string, std::string> volumeProperties = {

@@ -460,9 +460,9 @@ public:
     }
 
     std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
-        const std::vector<TArtifactKey>& artifactKeys,
         TGuid tag,
         TJobId jobId,
+        const std::vector<TArtifactKey>& artifactKeys,
         const TArtifactDownloadOptions& artifactDownloadOptions)
     {
         std::vector<TFuture<TOverlayData>> overlayDataFutures;
@@ -526,7 +526,7 @@ public:
             THROW_ERROR(error);
         }
 
-        auto overlayDataFutures = PrepareOverlayLayers(artifactKeys, tag, options.JobId, options.ArtifactDownloadOptions);
+        auto overlayDataFutures = PrepareOverlayLayers(tag, options.JobId, artifactKeys, options.ArtifactDownloadOptions);
 
         if (auto data = userSandboxOptions.VirtualSandboxData) {
             overlayDataFutures.push_back(GetOrCreateRONbdVolume(
@@ -602,9 +602,9 @@ public:
         for (const auto& volume : volumes) {
             // TODO: Remove call PrepareOverlayLayers (YT-27698)
             futures.push_back(AllSucceeded(PrepareOverlayLayers(
-                    volume->LayerArtifactKeys,
                     tag,
                     jobId,
+                    volume->LayerArtifactKeys,
                     artifactDownloadOptions))
                 .AsUnique()
                 .Apply(BIND(
@@ -998,7 +998,7 @@ private:
                         << TErrorAttribute("second_root_volume", overlayData.GetPath());
                 }
                 // See PORTO-460 for "//" prefix.
-           //     placePath = "//" + overlayData.GetPath();
+                placePath = "//" + overlayData.GetPath();
 
                 YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)",
                     placePath);
@@ -1016,8 +1016,6 @@ private:
                 placePath);
 
             placeInUserSlot = true;
-            // See PORTO-460 for "//" prefix.
-            //placePath = (Config_->LocationIsAbsolute ? "" : "//") + placePath.value();
         }
 
         std::optional<int> diskSpaceLimit;
