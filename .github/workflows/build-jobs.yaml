@@ -50,6 +50,16 @@ on:
         description: 'JSON array of build types: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
         required: true
         type: string
+      version-patch:
+        description: 'Passed to ya make as -DYT_VERSION_PATCH. If empty, not set.'
+        required: false
+        default: ''
+        type: string
+      version-branch:
+        description: 'Passed to ya make as -DYT_VERSION_BRANCH. If empty, not set.'
+        required: false
+        default: ''
+        type: string
 
     secrets:
       BUILD_CACHE_BAZEL_USERNAME:
@@ -233,6 +243,12 @@ jobs:
           fi
 
           BUILD_FLAGS="${BUILD_FLAGS} --build=${BUILD_TYPE}"
+          if [ -n "${{ inputs.version-patch }}" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} -DYT_VERSION_PATCH=\"${{ inputs.version-patch }}\""
+          fi
+          if [ -n "${{ inputs.version-branch }}" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} -DYT_VERSION_BRANCH=\"${{ inputs.version-branch }}\""
+          fi
           echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_OUTPUT
           echo "STRIP_VALUE=$STRIP_VALUE" >> $GITHUB_OUTPUT
 
