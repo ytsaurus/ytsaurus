@@ -1161,6 +1161,11 @@ public:
             auto currentBucket = GetBucket(category);
 
             EXPECT_NEAR(
+                1.0 * weight,
+                1.0 * currentBucket->SummaryRequestWeight / currentBucket->RequestWindowLogCount,
+                0.05);
+
+            EXPECT_NEAR(
                 1.0 * weight / sumWeight,
                 1.0 * currentBucket->RequestWindowSize / rootBucket->RequestWindowSize,
                 0.15);

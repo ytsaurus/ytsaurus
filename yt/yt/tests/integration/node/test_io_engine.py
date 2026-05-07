@@ -4,6 +4,9 @@ from yt_helpers import profiler_factory, is_uring_supported, is_uring_disabled
 
 import pytest
 import threading
+import os
+import time
+
 import yt
 
 from yt_commands import (
@@ -65,7 +68,7 @@ class TestIoEngine(YTEnvSetup):
             return True
 
         wait(check_media)
-        self._wait_for_io_engine_enabled("thread_pool")
+        self._wait_for_io_engine_enabled(self.NODE_IO_ENGINE_TYPE)
 
     def get_write_sensors(self, node):
         node_profiler = profiler_factory().at_node(node)
@@ -861,6 +864,113 @@ class TestIoEngine(YTEnvSetup):
 @pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
 class TestIoEngineUringStats(TestIoEngine):
     NODE_IO_ENGINE_TYPE = "uring"
+
+
+@authors("vvshlyaga")
+class TestFairShareHierarchicalIoEngine(TestIoEngine):
+    NODE_IO_ENGINE_TYPE = "fair_share_hierarchical"
+
+    @staticmethod
+    def _category_orchid_key(category):
+        return "".join(w.capitalize() for w in category.split("_"))
+
+    def _verify_bucket_tree_on_node(self, node, category_weights):
+        orchid = get("//sys/cluster_nodes/{}/orchid/fair_share_hierarchical_scheduler".format(node))
+        root = orchid["root"]
+
+        for category, weight in category_weights.items():
+            bucket = root["buckets"][self._category_orchid_key(category)]
+
+            actual_request_weight = bucket["request_weight"]
+            assert abs(actual_request_weight - weight) <= 0.05, (
+                "Node {}: category={}, expected request_weight={:.3f}, got {:.3f}".format(
+                    node, category, weight, actual_request_weight))
+
+    @authors("vvshlyaga")
+    @pytest.mark.parametrize("category_weights", [
+        {"user_batch": 1.0, "user_interactive": 1.0},
+        {"user_batch": 1.0, "user_interactive": 2.0},
+        {"user_batch": 1.0, "user_interactive": 2.0, "user_realtime": 4.0},
+        {"idle": 0.0, "user_batch": 1.0, "user_interactive": 2.0, "user_realtime": 4.0},
+    ])
+    def test_category_weights(self, category_weights):
+        nodes = ls("//sys/cluster_nodes")
+
+        dynamic_config = {
+            "fair_share_hierarchical_scheduler": {
+                "window_size": 5000,
+            },
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_config": {
+                            "enable_slicing": True,
+                            "desired_request_size": 2097152,
+                            "min_request_size": 1048576,
+                            "max_bytes_per_read": 2097152,
+                            "fair_share_thread_count": 1,
+                        },
+                    }
+                }
+            },
+        }
+        if category_weights:
+            dynamic_config["data_node"]["store_location_config_per_medium"]["default"]["fair_share_workload_category_weights"] = category_weights
+
+        update_nodes_dynamic_config(dynamic_config)
+
+        self._wait_for_io_engine_enabled("fair_share_hierarchical")
+
+        # wait fair_share_hierarchical_scheduler window time
+        time.sleep(5)
+
+        ROWS = 10
+        ROW_SIZE = 2097152
+
+        categories = list(category_weights.keys()) if category_weights else [None]
+
+        for cat_idx, _ in enumerate(categories):
+            create(
+                "table",
+                "//tmp/test_{}".format(cat_idx),
+                attributes={
+                    "primary_medium": "default",
+                    "replication_factor": len(nodes),
+                })
+
+        data = [{"key": os.urandom(ROW_SIZE).hex()} for _ in range(ROWS)]
+
+        def write_session(cat_idx, category):
+            writer_opts = {}
+            if category is not None:
+                writer_opts["table_writer"] = {
+                    "workload_descriptor": {"category": category},
+                    "upload_replication_factor": len(nodes),
+                    "min_upload_replication_factor": len(nodes),
+                }
+            return write_table("//tmp/test_{}".format(cat_idx), data, return_response=True, **writer_opts)
+
+        responses = [write_session(cat_idx, category) for cat_idx, category in enumerate(categories)]
+
+        def any_categories_active():
+            try:
+                for node in nodes:
+                    orchid = get("//sys/cluster_nodes/{}/orchid/fair_share_hierarchical_scheduler".format(node))
+                    root = orchid["root"]
+                    if all(
+                        root["buckets"].get(self._category_orchid_key(cat), {}).get("request_window_size", 0) > 0
+                        for cat in categories
+                    ):
+                        self._verify_bucket_tree_on_node(node, category_weights)
+                        return True
+                return False
+            except Exception:
+                return False
+
+        wait(any_categories_active)
+
+        for r in responses:
+            r.wait()
 
 
 @authors("don-dron")
