@@ -208,9 +208,9 @@ DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
 
 struct TEffectiveTableConfig
 {
-    i64 MinTabletSize;
-    i64 MaxTabletSize;
-    i64 DesiredTabletSize;
+    i64 MinTabletSize = 0;
+    i64 MaxTabletSize = 0;
+    i64 DesiredTabletSize = 0;
 
     TTimeFormula Schedule;
 
