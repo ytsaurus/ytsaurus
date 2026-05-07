@@ -5,8 +5,8 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     list_jobs, ls, get, map, select_rows, set, print_debug, authors, sync_create_cells, wait, wait_no_assert, raises_yt_error,
     wait_breakpoint, with_breakpoint, release_breakpoint,
-    run_test_vanilla, create_user, create, remove, read_table,
-    get_driver, update_nodes_dynamic_config, get_allocation_id_from_job_id, write_table,
+    run_test_vanilla, create_user, create, remove, read_table, write_table,
+    get_driver, update_nodes_dynamic_config, get_allocation_id_from_job_id, sorted_dicts,
 )
 
 from yt.common import update_inplace
@@ -949,3 +949,43 @@ class TestJobProxyMemoryProfiling(YTEnvSetup):
         profile = self.parse_profile(profiles[0]["profile_blob"])
         print_debug(f"Profile json:\n{MessageToJson(profile)}")
         self.assert_large_allocation(profile, 400_000_000)
+
+
+class TestJobProxyPrepareWithMisconfiguredClusterConnection(JobProxyTestBase):
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_NODES = 3
+
+    DELTA_LOCAL_YT_CONFIG = {
+        "default_abort_on_alert": False,
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_online_node_count": 2,
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
+        },
+    }
+
+    @authors("apachee")
+    def test_basic(self):
+        remote_driver = get_driver(cluster="remote_0")
+        set("//sys/clusters/misconfigured_cluster", {
+            "queue_agent": 67,
+        })
+
+        create("table", "//tmp/t_in", driver=remote_driver)
+        write_table("//tmp/t_in", [{"a": 1}, {"a": 2}], driver=remote_driver)
+        create("table", "//tmp/t_out")
+
+        map(
+            in_="remote_0://tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+        )
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts([{"a": 1}, {"a": 2}])

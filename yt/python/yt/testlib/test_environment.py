@@ -57,6 +57,7 @@ class YtTestEnvironment(object):
                  delta_node_config=None,
                  delta_dynamic_node_config=None,
                  delta_proxy_config=None,
+                 default_abort_on_alert=None,
                  modify_configs_func=None,
                  cluster_name="primary",
                  need_suid=False):
@@ -207,6 +208,7 @@ class YtTestEnvironment(object):
             log_compression_method="zstd",
             cluster_name=cluster_name,
             native_client_supported=native_client_supported,
+            default_abort_on_alert=default_abort_on_alert,
             **env_options
         )
 
