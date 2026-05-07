@@ -2,46 +2,61 @@
 
 #include <yt/yt/library/cgroup/statistics.h>
 
-#include <yt/yt/core/misc/fs.h>
-
-namespace NYT::NContainers::NCGroups {
+namespace NYT::NCGroups {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-
-TEST(TSelfCGroupsStatisticsFetcherTest, Construction)
+TEST(TCGroupStatisticsFetcherTest, Singleton)
 {
-    EXPECT_NO_THROW(TSelfCGroupsStatisticsFetcher());
+    const auto* a = TSelfCGroupsStatisticsFetcher::Get();
+    ASSERT_NE(a, nullptr);
+    const auto* b = TSelfCGroupsStatisticsFetcher::Get();
+    EXPECT_EQ(a, b);
+}
+
+TEST(TSelfCGroupsStatisticsFetcherTest, IsV2)
+{
+    EXPECT_NO_THROW(TSelfCGroupsStatisticsFetcher::Get()->IsV2());
 }
 
 TEST(TSelfCGroupsStatisticsFetcherTest, MemoryStatistics)
 {
-    TSelfCGroupsStatisticsFetcher fetcher;
-    auto stats = fetcher.GetMemoryStatistics();
-    EXPECT_GE(stats.ResidentAnon, 0);
+    auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
+    EXPECT_GT(stats.ResidentAnon, 0);
+    EXPECT_GT(stats.Cache, 0);
 }
 
-// TODO(pavook): Re-enable after bug fix on cgroups v1.
-TEST(TSelfCGroupsStatisticsFetcherTest, DISABLED_CpuStatistics)
+TEST(TSelfCGroupsStatisticsFetcherTest, MemoryLimits)
 {
-    TSelfCGroupsStatisticsFetcher fetcher;
-    auto stats = fetcher.GetCpuStatistics();
+    EXPECT_NO_THROW(TSelfCGroupsStatisticsFetcher::Get()->GetMemoryLimits());
+}
+
+TEST(TSelfCGroupsStatisticsFetcherTest, CpuStatistics)
+{
+    auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
     EXPECT_GE(stats.UserTime, TDuration::Zero());
     EXPECT_GE(stats.SystemTime, TDuration::Zero());
 }
 
-TEST(TSelfCGroupsStatisticsFetcherTest, BlockIOStatistics)
+TEST(TSelfCGroupsStatisticsFetcherTest, CpuThrottlingStatistics)
 {
-    TSelfCGroupsStatisticsFetcher fetcher;
-    auto stats = fetcher.GetBlockIOStatistics();
-    EXPECT_GE(stats.IOReadByte, 0);
+    EXPECT_NO_THROW(TSelfCGroupsStatisticsFetcher::Get()->GetCpuThrottlingStatistics());
 }
 
-#endif
+TEST(TSelfCGroupsStatisticsFetcherTest, BlockIOStatistics)
+{
+    auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetBlockIOStatistics();
+    EXPECT_GT(stats.IOReadByte, 0);
+}
+
+TEST(TSelfCGroupsStatisticsFetcherTest, OomKillCount)
+{
+    auto count = TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
+    EXPECT_GE(count, 0);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NContainers::NCGroups
+} // namespace NYT::NCGroups

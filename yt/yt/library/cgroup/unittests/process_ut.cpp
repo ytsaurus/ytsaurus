@@ -2,7 +2,7 @@
 
 #include <yt/yt/library/cgroup/process.h>
 
-namespace NYT::NContainers {
+namespace NYT::NCGroups {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,17 +61,13 @@ TEST(TParseProcessCGroupsTest, TrailingNewline)
     EXPECT_EQ(result["cpu"], "user.slice");
 }
 
-#ifdef _linux_
-
 TEST(TGetProcessCGroupsTest, SelfReturnsNonEmpty)
 {
     auto result = GetSelfProcessCGroups();
     EXPECT_FALSE(result.empty());
 }
 
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NContainers
+} // namespace NYT::NCGroups

@@ -1,15 +1,20 @@
 #include "statistics.h"
 
-#include <yt/yt/core/logging/log.h>
+#include <library/cpp/yt/logging/logger.h>
 
-#include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/fs.h>
+#include <library/cpp/yt/misc/global.h>
 
 #include <util/stream/file.h>
+
 #include <util/string/vector.h>
 
-namespace NYT::NContainers::NCGroups {
+#include <util/system/fs.h>
+
+#include <linux/magic.h>
+
+#include <sys/vfs.h>
+
+namespace NYT::NCGroups {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,261 +22,485 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "CGroups");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetCGroupFilePath(const std::string& cgroupPath, const std::string& fileName)
+{
+    // NB: consecutive slashes in the resulting path are intentionally ignored
+    // for clarity and ease of correctness across different environments.
+    // Linux treats consecutive slashes as a single separator.
+    return Format("/sys/fs/cgroup/%v/%v", cgroupPath, fileName);
+}
+
 THashMap<std::string, i64> ReadAndParseStatFile(const TString& fileName)
 {
     THashMap<std::string, i64> statistics;
 
-    auto rawStatFile = TFileInput(fileName).ReadAll();
-    for (auto line : SplitString(rawStatFile, "\n")) {
+    TString rawStatFile;
+    try {
+        rawStatFile = TFileInput(fileName).ReadAll();
+    } catch (const TFileError& error) {
+        return {};
+    }
+
+    for (const auto& line : SplitString(rawStatFile, "\n")) {
         auto fields = SplitString(line, " ");
         if (fields.size() != 2) {
             continue;
         }
 
-        EmplaceOrCrash(statistics, fields[0], FromString<i64>(fields[1]));
+        auto [_, emplaced] = statistics.emplace(fields[0], FromString<i64>(fields[1]));
+        YT_VERIFY(emplaced, Format("EmplaceOrCrash failed, item is already in container (Key: %v)", fields[0]));
     }
 
     return statistics;
 }
 
-i64 ReadAndParseValueFile(const TString& fileName)
+std::optional<i64> ReadMemoryLimit(const TString& path)
 {
-    auto rawValueFile = TFileInput(fileName).ReadLine();
-    return FromString<i64>(rawValueFile);
+    try {
+        if (!NFs::Exists(path)) {
+            return std::nullopt;
+        }
+        auto rawValue = TFileInput(path).ReadLine();
+        if (rawValue == "max") {
+            return std::nullopt;
+        }
+        return FromString<i64>(rawValue);
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryStatistics GetMemoryStatisticsV1(const std::string& cgroup)
+struct TV1ControllerInfo
 {
-    auto statistics = ReadAndParseStatFile(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup));
+    std::string MountName;
+    std::string CGroupPath;
+};
 
-    // NB: Use hierarchical "total_*" counter to be in sync with sane v2 behaviour.
-    // NB: Statistics name "rss" isn't correct - it accounts only anonymous pages.
-    return TMemoryStatistics{
-        .ResidentAnon = statistics["total_rss"],
-        .TmpfsUsage = statistics["total_shmem"],
-        .MappedFile = statistics["total_mapped_file"],
-        .MajorPageFaults = statistics["total_pgmajfault"],
-    };
-}
-
-TMemoryStatistics GetMemoryStatisticsV2(const std::string& cgroup)
+void FormatValue(TStringBuilderBase* builder, const TV1ControllerInfo& value, TStringBuf /*spec*/)
 {
-    auto statistics = ReadAndParseStatFile(Format("/sys/fs/cgroup/%v/memory.stat", cgroup));
-
-    // NB: Statistics name "anon" isn't accurate, it counts resident and mapped anonymous pages.
-    // Swap and swap-cache are are not accounted. In kernel it is called "NR_ANON_MAPPED".
-    return TMemoryStatistics{
-        .ResidentAnon = statistics["anon"],
-        .TmpfsUsage = statistics["shmem"],
-        .MappedFile = statistics["mapped_file"],
-        .MajorPageFaults = statistics["pgmajfault"],
-    };
+    builder->AppendString(GetCGroupFilePath(value.MountName, value.CGroupPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuStatistics GetCpuStatisticsV1(const std::string& cgroup)
+class TV1CGroupStatisticsFetcher
+    : public ICGroupStatisticsFetcher
 {
-    // TODO(pavook): controller mount name is hardcoded but may differ (e.g. "cpu,cpuacct").
-    // DetectSelfCGroup should save the controller-to-path mapping from /proc/self/cgroup.
-    auto cpuAcctStatPath = Format("/sys/fs/cgroup/cpuacct/%v/cpuacct.stat", cgroup);
-    auto cpuAcctStatistics = ReadAndParseStatFile(cpuAcctStatPath);
+public:
+    explicit TV1CGroupStatisticsFetcher(THashMap<std::string, TV1ControllerInfo> controllers)
+        : Controllers_(std::move(controllers))
+    {
+        YT_LOG_INFO("CGroups statistics fetcher initialized (IsV2: false, Controllers: %v)", Controllers_);
+    }
 
-    i64 ticksPerSecond;
+    bool IsV2() const override
+    {
+        return false;
+    }
+
+    TMemoryStatistics GetMemoryStatistics() const override
+    {
+        auto statistics = ReadAndParseStatFile(GetStatPath("memory", "memory.stat"));
+
+        return TMemoryStatistics{
+            .ResidentAnon = statistics["total_rss"],
+            .TmpfsUsage = statistics["total_shmem"],
+            .MappedFile = statistics["total_mapped_file"],
+            .MajorPageFaults = statistics["total_pgmajfault"],
+            .Cache = statistics["total_cache"],
+            .RssHuge = statistics["total_rss_huge"],
+            .Dirty = statistics["total_dirty"],
+            .Writeback = statistics["total_writeback"],
+        };
+    }
+
+    TMemoryLimits GetMemoryLimits() const override
+    {
+        auto statistics = ReadAndParseStatFile(GetStatPath("memory", "memory.stat"));
+        auto* memoryLimit = statistics.FindPtr("hierarchical_memory_limit");
+
+        return TMemoryLimits{
+            .MemoryLimit = memoryLimit ? std::optional(*memoryLimit) : std::nullopt,
+            .AnonymousMemoryLimit = ReadMemoryLimit(GetStatPath("memory", "memory.anon.limit")),
+        };
+    }
+
+    TCpuStatistics GetCpuStatistics() const override
+    {
+        auto cpuAcctStatistics = ReadAndParseStatFile(GetStatPath("cpuacct", "cpuacct.stat"));
+
+        i64 ticksPerSecond;
 #if defined(__linux__)
-    ticksPerSecond = sysconf(_SC_CLK_TCK);
+        ticksPerSecond = sysconf(_SC_CLK_TCK);
 #else
-    ticksPerSecond = 1'000'000'000;
+        ticksPerSecond = 1'000'000'000;
 #endif
 
-    auto fromJiffies = [&] (i64 jiffies) {
-        return TDuration::MicroSeconds(1'000'000 * jiffies / ticksPerSecond);
-    };
+        auto fromJiffies = [&] (i64 jiffies) {
+            return TDuration::MicroSeconds(1'000'000 * jiffies / ticksPerSecond);
+        };
 
-    return TCpuStatistics{
-        .UserTime = fromJiffies(cpuAcctStatistics["user"]),
-        .SystemTime = fromJiffies(cpuAcctStatistics["system"]),
-    };
-}
-
-TCpuStatistics GetCpuStatisticsV2(const std::string& cgroup)
-{
-    auto cpuStatPath = Format("/sys/fs/cgroup/%v/cpu.stat", cgroup);
-    auto cpuStatistics = ReadAndParseStatFile(cpuStatPath);
-
-    return TCpuStatistics{
-        .UserTime = TDuration::MicroSeconds(cpuStatistics["user_usec"]),
-        .SystemTime = TDuration::MicroSeconds(cpuStatistics["system_usec"]),
-    };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-THashMap<std::string, i64> ReadAndParseBlkIOStatFile(const TString& fileName)
-{
-    THashMap<std::string, i64> statistics;
-
-    auto rawStatFile = TFileInput(fileName).ReadAll();
-    for (const auto& line : SplitString(rawStatFile, "\n")) {
-        auto fields = SplitString(line, " ");
-        if (fields.size() != 3) {
-            continue;
-        }
-
-        statistics[fields[1]] += FromString<i64>(fields[2]);
+        return TCpuStatistics{
+            .UserTime = fromJiffies(cpuAcctStatistics["user"]),
+            .SystemTime = fromJiffies(cpuAcctStatistics["system"]),
+        };
     }
 
-    return statistics;
-}
+    TCpuThrottlingStatistics GetCpuThrottlingStatistics() const override
+    {
+        auto cpuStatistics = ReadAndParseStatFile(GetStatPath("cpu", "cpu.stat"));
 
-THashMap<std::string, i64> ReadAndParseIOStatFile(const TString& fileName)
-{
-    THashMap<std::string, i64> statistics;
+        return TCpuThrottlingStatistics{
+            .NrPeriods = static_cast<ui64>(cpuStatistics["nr_periods"]),
+            .NrThrottled = static_cast<ui64>(cpuStatistics["nr_throttled"]),
+            .ThrottledTime = TDuration::MicroSeconds(cpuStatistics["h_throttled_time"] / 1000),
+            .WaitTime = ReadCpuWaitTime(),
+        };
+    }
 
-    auto rawStatFile = TFileInput(fileName).ReadAll();
-    for (auto line : SplitString(rawStatFile, "\n")) {
-        auto fields = SplitString(line, " ");
-        for (int index = 1; index < std::ssize(fields); ++index) {
-            auto tokens = SplitString(fields[index], ":");
-            if (tokens.size() != 2) {
+    TBlockIOStatistics GetBlockIOStatistics() const override
+    {
+        auto it = Controllers_.find("blkio");
+        auto cgroupPath = it != Controllers_.end()
+            ? Format("/%v/%v", it->second.MountName, it->second.CGroupPath)
+            : TString("/blkio");
+
+        TBlockIOStatistics statistics;
+
+        for (auto fileName : {"blkio.io_service_bytes_recursive", "blkio.throttle.io_service_bytes_recursive"}) {
+            auto filePath = GetCGroupFilePath(cgroupPath, fileName);
+            if (!NFs::Exists(filePath)) {
                 continue;
             }
-            statistics[tokens[0]] += FromString<i64>(tokens[1]);
-        }
-    }
 
-    return statistics;
-}
-
-TBlockIOStatistics GetBlockIOStatisticsV1(const std::string& cgroup)
-{
-    TBlockIOStatistics statistics;
-
-    for (auto fileName : {"blkio.io_service_bytes_recursive", "blkio.throttle.io_service_bytes_recursive"}) {
-        auto filePath = Format("/sys/fs/cgroup/blkio/%v/%v", cgroup, fileName);
-        if (!NFS::Exists(filePath)) {
-            continue;
+            auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
+            statistics.IOReadByte += blkioStatistics["Read"];
+            statistics.IOWriteByte += blkioStatistics["Write"];
+            break;
         }
 
-        auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
-        statistics.IOReadByte += blkioStatistics["Read"];
-        statistics.IOWriteByte += blkioStatistics["Write"];
-        break;
-    }
+        for (auto fileName : {"blkio.io_serviced_recursive", "blkio.throttle.io_serviced_recursive"}) {
+            auto filePath = GetCGroupFilePath(cgroupPath, fileName);
+            if (!NFs::Exists(filePath)) {
+                continue;
+            }
 
-    for (auto fileName : {"blkio.io_serviced_recursive", "blkio.throttle.io_serviced_recursive"}) {
-        auto filePath = Format("/sys/fs/cgroup/blkio/%v/%v", cgroup, fileName);
-        if (!NFS::Exists(filePath)) {
-            continue;
+            auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
+            statistics.IOReadOps += blkioStatistics["Read"];
+            statistics.IOWriteOps += blkioStatistics["Write"];
+            break;
         }
 
-        auto blkioStatistics = ReadAndParseBlkIOStatFile(filePath);
-        statistics.IOReadOps += blkioStatistics["Read"];
-        statistics.IOWriteOps += blkioStatistics["Write"];
-        break;
+        return statistics;
     }
 
-    return statistics;
-}
+    i64 GetOomKillCount() const override
+    {
+        auto oomPath = GetStatPath("memory", "memory.oom_control");
+        if (!NFs::Exists(oomPath)) {
+            return 0;
+        }
+        auto statistics = ReadAndParseStatFile(oomPath);
+        return statistics["oom_kill"];
+    }
 
-TBlockIOStatistics GetBlockIOStatisticsV2(const std::string& cgroup)
-{
-    auto ioStatPath = Format("/sys/fs/cgroup/%v/io.stat", cgroup);
-    auto ioStatistics = ReadAndParseIOStatFile(ioStatPath);
+private:
+    THashMap<std::string, TV1ControllerInfo> Controllers_;
 
-    return TBlockIOStatistics{
-        .IOReadByte = ioStatistics["rbytes"],
-        .IOWriteByte = ioStatistics["wbytes"],
-        .IOReadOps = ioStatistics["rios"],
-        .IOWriteOps = ioStatistics["wios"],
-    };
-}
+    TString GetStatPath(const std::string& controller, const std::string& fileName) const
+    {
+        auto it = Controllers_.find(controller);
+        if (it == Controllers_.end()) {
+            return GetCGroupFilePath(Format("/%v", controller), fileName);
+        }
+        return GetCGroupFilePath(Format("/%v/%v", it->second.MountName, it->second.CGroupPath), fileName);
+    }
+
+    // cpuacct.wait is a single value in thread-nanoseconds (kernel extension).
+    TDuration ReadCpuWaitTime() const
+    {
+        auto path = GetStatPath("cpuacct", "cpuacct.wait");
+        try {
+            if (NFs::Exists(path)) {
+                auto ns = FromString<ui64>(TFileInput(path).ReadLine());
+                return TDuration::MicroSeconds(ns / 1000);
+            }
+        } catch (const std::exception&) {
+        }
+
+        return TDuration::Zero();
+    }
+
+    static THashMap<std::string, i64> ReadAndParseBlkIOStatFile(const TString& fileName)
+    {
+        THashMap<std::string, i64> statistics;
+
+        auto rawStatFile = TFileInput(fileName).ReadAll();
+        for (const auto& line : SplitString(rawStatFile, "\n")) {
+            auto fields = SplitString(line, " ");
+            if (fields.size() != 3) {
+                continue;
+            }
+
+            statistics[fields[1]] += FromString<i64>(fields[2]);
+        }
+
+        return statistics;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSelfCGroupsStatisticsFetcher::TSelfCGroupsStatisticsFetcher()
+class TV2CGroupStatisticsFetcher
+    : public ICGroupStatisticsFetcher
 {
-    DetectSelfCGroup();
+public:
+    explicit TV2CGroupStatisticsFetcher(std::string cgroupPath)
+        : CGroupPath_(std::move(cgroupPath))
+    {
+        YT_LOG_INFO("CGroups statistics fetcher initialized (IsV2: true, CGroupPath: %v)", GetCGroupFilePath(CGroupPath_, ""));
+    }
 
-    YT_LOG_INFO("CGroups statistics fetcher initialized (CGroup: %v, IsV2: %v)",
-        CGroup_,
-        IsV2_);
+    bool IsV2() const override
+    {
+        return true;
+    }
+
+    TMemoryStatistics GetMemoryStatistics() const override
+    {
+        auto statistics = ReadAndParseStatFile(GetCGroupFilePath(CGroupPath_, "memory.stat"));
+
+        return TMemoryStatistics{
+            .ResidentAnon = statistics["anon"],
+            .TmpfsUsage = statistics["shmem"],
+            .MappedFile = statistics["mapped_file"],
+            .MajorPageFaults = statistics["pgmajfault"],
+            .Cache = statistics["file"],
+            .RssHuge = statistics["anon_thp"],
+            .Dirty = statistics["file_dirty"],
+            .Writeback = statistics["file_writeback"],
+        };
+    }
+
+    TMemoryLimits GetMemoryLimits() const override
+    {
+        return TMemoryLimits{
+            .MemoryLimit = ReadMemoryLimit(GetCGroupFilePath(CGroupPath_, "memory.max")),
+            .AnonymousMemoryLimit = ReadMemoryLimit(GetCGroupFilePath(CGroupPath_, "memory.anon.limit")),
+        };
+    }
+
+    TCpuStatistics GetCpuStatistics() const override
+    {
+        auto cpuStatistics = ReadAndParseStatFile(GetCGroupFilePath(CGroupPath_, "cpu.stat"));
+
+        return TCpuStatistics{
+            .UserTime = TDuration::MicroSeconds(cpuStatistics["user_usec"]),
+            .SystemTime = TDuration::MicroSeconds(cpuStatistics["system_usec"]),
+        };
+    }
+
+    TCpuThrottlingStatistics GetCpuThrottlingStatistics() const override
+    {
+        auto cpuStatistics = ReadAndParseStatFile(GetCGroupFilePath(CGroupPath_, "cpu.stat"));
+
+        return TCpuThrottlingStatistics{
+            .NrPeriods = static_cast<ui64>(cpuStatistics["nr_periods"]),
+            .NrThrottled = static_cast<ui64>(cpuStatistics["nr_throttled"]),
+            .ThrottledTime = TDuration::MicroSeconds(cpuStatistics["h_throttled_usec"]),
+            .WaitTime = ReadCpuWaitTime(),
+        };
+    }
+
+    TBlockIOStatistics GetBlockIOStatistics() const override
+    {
+        auto ioStatPath = GetCGroupFilePath(CGroupPath_, "io.stat");
+        if (!NFs::Exists(ioStatPath)) {
+            return {};
+        }
+        auto ioStatistics = ReadAndParseIOStatFile(ioStatPath);
+
+        return TBlockIOStatistics{
+            .IOReadByte = ioStatistics["rbytes"],
+            .IOWriteByte = ioStatistics["wbytes"],
+            .IOReadOps = ioStatistics["rios"],
+            .IOWriteOps = ioStatistics["wios"],
+        };
+    }
+
+    i64 GetOomKillCount() const override
+    {
+        auto oomPath = GetCGroupFilePath(CGroupPath_, "memory.events");
+        if (!NFs::Exists(oomPath)) {
+            return 0;
+        }
+        auto statistics = ReadAndParseStatFile(oomPath);
+        return statistics["oom_kill"];
+    }
+
+private:
+    const std::string CGroupPath_;
+
+    // Tries cpuacct.wait (kernel extension, nanoseconds),
+    // falls back to PSI cpu.pressure (upstream kernel, microseconds).
+    // NB(pavook): we prefer cpuacct.wait because it is an honest sum of
+    // individual thread wait times, not the union of those wait times ("pressure").
+    TDuration ReadCpuWaitTime() const
+    {
+        auto cpuacctWaitPath = GetCGroupFilePath(CGroupPath_, "cpuacct.wait");
+        try {
+            if (NFs::Exists(cpuacctWaitPath)) {
+                auto ns = FromString<ui64>(TFileInput(cpuacctWaitPath).ReadLine());
+                return TDuration::MicroSeconds(ns / 1000);
+            }
+        } catch (const std::exception&) {
+        }
+
+        auto cpuPressurePath = GetCGroupFilePath(CGroupPath_, "cpu.pressure");
+        try {
+            auto raw = TFileInput(cpuPressurePath).ReadAll();
+            for (const auto& line : SplitString(raw, "\n")) {
+                if (!line.StartsWith("some ")) {
+                    continue;
+                }
+                for (auto token : StringSplitter(line).Split(' ')) {
+                    TStringBuf buf(token);
+                    if (buf.SkipPrefix("total=")) {
+                        return TDuration::MicroSeconds(FromString<ui64>(buf));
+                    }
+                }
+            }
+        } catch (const std::exception&) {
+        }
+
+        return TDuration::Zero();
+    }
+
+    static THashMap<std::string, i64> ReadAndParseIOStatFile(const TString& fileName)
+    {
+        THashMap<std::string, i64> statistics;
+
+        auto rawStatFile = TFileInput(fileName).ReadAll();
+        for (auto line : SplitString(rawStatFile, "\n")) {
+            auto fields = SplitString(line, " ");
+            for (int index = 1; index < std::ssize(fields); ++index) {
+                auto tokens = SplitString(fields[index], "=");
+                if (tokens.size() != 2) {
+                    continue;
+                }
+                statistics[tokens[0]] += FromString<i64>(tokens[1]);
+            }
+        }
+
+        return statistics;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool DetectIsV2()
+{
+    struct statfs sfs;
+    if (statfs("/sys/fs/cgroup", &sfs) != 0) {
+        YT_LOG_WARNING("Failed to statfs /sys/fs/cgroup, assuming cgroup v1");
+        return false;
+    }
+
+    if (sfs.f_type == CGROUP2_SUPER_MAGIC) {
+        return true;
+    }
+
+    // On v1 systems, /sys/fs/cgroup should be a tmpfs with per-controller mounts underneath.
+    if (sfs.f_type != TMPFS_MAGIC) {
+        YT_LOG_ERROR(
+            "Unexpected filesystem type on /sys/fs/cgroup (FsType: 0x%x), assuming cgroup v1",
+            sfs.f_type);
+    }
+
+    return false;
 }
 
-TMemoryStatistics TSelfCGroupsStatisticsFetcher::GetMemoryStatistics() const
+// Parses /proc/self/cgroup to extract the cgroup path for the current process.
+// For v2: returns the unified cgroup path from the "0::" line.
+// For v1: returns per-controller mount names and paths.
+std::unique_ptr<ICGroupStatisticsFetcher> CreateFetcher()
 {
-    return IsV2_ ? GetMemoryStatisticsV2(CGroup_) : GetMemoryStatisticsV1(CGroup_);
-}
+    bool isV2 = DetectIsV2();
 
-TCpuStatistics TSelfCGroupsStatisticsFetcher::GetCpuStatistics() const
-{
-    return IsV2_ ? GetCpuStatisticsV2(CGroup_) : GetCpuStatisticsV1(CGroup_);
-}
+    TString rawSelfCGroups;
+    try {
+        rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING("Failed to read /proc/self/cgroup (Error: %v)", ex.what());
+    }
 
-TBlockIOStatistics TSelfCGroupsStatisticsFetcher::GetBlockIOStatistics() const
-{
-    return IsV2_ ? GetBlockIOStatisticsV2(CGroup_) : GetBlockIOStatisticsV1(CGroup_);
-}
+    if (isV2) {
+        // Extract the unified cgroup path from the "0::<path>" line.
+        for (const auto& line : SplitString(rawSelfCGroups, "\n")) {
+            std::vector<std::string> tokens = StringSplitter(line).Split(':').Limit(3);
+            if (tokens.size() < 3 || !tokens[1].empty()) {
+                continue;
+            }
 
-i64 TSelfCGroupsStatisticsFetcher::GetOomKillCount() const
-{
-    auto oomEventsPath = IsV2_ ? Format("/sys/fs/cgroup/%v/memory.events", CGroup_) : Format("/sys/fs/cgroup/memory/%v/memory.oom_control", CGroup_);
-    auto statistics = ReadAndParseStatFile(oomEventsPath);
+            // NB: There are issues with cgroup namespaces in Kubernetes
+            // (see https://github.com/kubernetes/enhancements/pull/1370),
+            // where /proc/self/cgroup contains real cgroup path
+            // but in /sys/fs/cgroup it is just root cgroup.
+            auto cgroupPath = tokens[2];
+            if (!NFs::Exists(GetCGroupFilePath(cgroupPath, "memory.stat"))) {
+                cgroupPath = "/";
+            }
 
-    // Count of tasks killed by OOM killer in this cgroup or its children.
-    return statistics["oom_kill"];
-}
+            return std::make_unique<TV2CGroupStatisticsFetcher>(std::move(cgroupPath));
+        }
 
-void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
-{
-    // NB: There are issues with cgroup namespaces in Kubernetes
-    // (see https://github.com/kubernetes/enhancements/pull/1370),
-    // so sometimes /proc/self/cgroup contains real cgroup path
-    // but in /sys/fs/cgroup it is just root cgroup.
-    // We will try our best to detect such a situation below.
+        YT_LOG_WARNING("Failed to find v2 cgroup path in /proc/self/cgroup, falling back to root");
+        return std::make_unique<TV2CGroupStatisticsFetcher>("/");
+    }
 
-    auto rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
-    for (auto line : SplitString(rawSelfCGroups, "\n")) {
-        // NB: CGroup name may contain ":".
+    // V1: parse per-controller entries.
+    THashMap<std::string, TV1ControllerInfo> v1Controllers;
+
+    for (const auto& line : SplitString(rawSelfCGroups, "\n")) {
         std::vector<std::string> tokens = StringSplitter(line).Split(':').Limit(3);
-        if (tokens.size() < 3) {
+        if (tokens.size() < 3 || tokens[1].empty()) {
             continue;
         }
 
         const auto& cgroupType = tokens[1];
         const auto& cgroup = tokens[2];
 
-        if (cgroupType == "memory") {
-            if (NFS::Exists(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup))) {
-                CGroup_ = cgroup;
-                IsV2_ = false;
-                return;
-            } else if (NFS::Exists("/sys/fs/cgroup/memory/memory.stat")) {
-                CGroup_ = "/";
-                IsV2_ = false;
-                return;
-            }
-        } else if (cgroupType == "") {
-            if (NFS::Exists(Format("/sys/fs/cgroup/%v/memory.stat", cgroup))) {
-                CGroup_ = cgroup;
-                IsV2_ = true;
-                return;
-            } else if (NFS::Exists("/sys/fs/cgroup/memory.stat")) {
-                CGroup_ = "/";
-                IsV2_ = true;
-                return;
-            }
+        for (const auto& controller : StringSplitter(cgroupType).Split(',')) {
+            v1Controllers[controller] = TV1ControllerInfo{
+                .MountName = cgroupType,
+                .CGroupPath = cgroup,
+            };
         }
     }
 
-    YT_LOG_WARNING("Failed to detect cgroup, assuming root cgroup v1 is used");
+    if (v1Controllers.empty()) {
+        YT_LOG_WARNING("Failed to parse /proc/self/cgroup, no v1 controllers found");
+    }
 
-    IsV2_ = false;
-    CGroup_ = "/";
+    return std::make_unique<TV1CGroupStatisticsFetcher>(std::move(v1Controllers));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers::NCGroups
+} // namespace
+
+const ICGroupStatisticsFetcher* TSelfCGroupsStatisticsFetcher::Get()
+{
+    static auto impl = CreateFetcher();
+    return impl.get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCGroups
