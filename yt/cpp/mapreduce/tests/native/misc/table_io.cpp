@@ -849,28 +849,35 @@ TEST(TableIo, ReaderTakesLockOnTableIdNotPath)
     TConfig::Get()->UseAbortableResponse = true;
 
     auto firstPath = TRichYPath(workingDir + "/table1");
-    auto secondPath = TRichYPath(workingDir + "/table2");
-    int numRows = 4e6;
+    // Keep the response body large enough (~100 MB) so it is still streaming
+    // when AbortAll() fires below.
+    constexpr int numRows = 1000;
+    const TString payload(100000, 'x');
     {
         auto writer = client->CreateTableWriter<TNode>(firstPath);
         for (int i = 0; i < numRows; ++i) {
-            writer->AddRow(TNode()("first_key", i));
-        }
-        writer->Finish();
-    }
-    {
-        auto writer = client->CreateTableWriter<TNode>(secondPath);
-        for (int i = 0; i < numRows; ++i) {
-            writer->AddRow(TNode()("second_key", i));
+            writer->AddRow(TNode()("first_key", payload));
         }
         writer->Finish();
     }
     auto reader = client->CreateTableReader<TNode>(firstPath);
-    client->Move(secondPath.Path_, firstPath.Path_, TMoveOptions().Force(true));
+    // Append a few rows after the snapshot lock was taken: the reader must
+    // not see them because its lock pins the original table id/state.
+    {
+        auto writer = client->CreateTableWriter<TNode>(
+            TRichYPath(firstPath).Append(true));
+        for (int i = 0; i < 3; ++i) {
+            writer->AddRow(TNode()("second_key", i));
+        }
+        writer->Finish();
+    }
     EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_table") > 0);
+    int rowsRead = 0;
     for (; reader->IsValid(); reader->Next()) {
         EXPECT_TRUE(reader->GetRow().AsMap().contains("first_key"));
+        ++rowsRead;
     }
+    EXPECT_EQ(rowsRead, numRows);
 }
 
 TEST(TableIo, UnsuccessfulRetries)
