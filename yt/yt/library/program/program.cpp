@@ -78,6 +78,7 @@ private:
 TProgram::TProgram()
 {
     Opts_.AddHelpOption();
+    Opts_.AddHelpOption('h');
     Opts_.AddLongOption("yt-version", "Prints YT version")
         .NoArgument()
         .StoreValue(&PrintYTVersion_, true);
