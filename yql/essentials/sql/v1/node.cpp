@@ -1888,7 +1888,7 @@ void IAggregation::AddFactoryArguments(TNodePtr& apply) const {
 }
 
 std::vector<ui32> IAggregation::GetFactoryColumnIndices() const {
-    return {0u};
+    return {0U};
 }
 
 TNodePtr IAggregation::WindowTraits(const TNodePtr& type, TContext& ctx) const {

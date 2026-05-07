@@ -11,7 +11,7 @@ bool IsRangeWindowFrameEnabled(TTypeAnnotationContext& types) {
 }
 
 bool IsWindowNewPipelineEnabled(TTypeAnnotationContext& types) {
-    if (types.WindowNewPipeline && NKikimr::NMiniKQL::RuntimeVersion >= 76u) {
+    if (types.WindowNewPipeline && NKikimr::NMiniKQL::RuntimeVersion >= 76U) {
         return true;
     }
     return false;

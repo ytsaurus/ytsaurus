@@ -2305,7 +2305,7 @@ TExprNode::TPtr ExpandSqlIn(const TExprNode::TPtr& input, TExprContext& ctx) {
     return result;
 }
 
-template <ui8 FirstLambdaIndex = 1u, ui8 LastLambdaIndex = FirstLambdaIndex>
+template <ui8 FirstLambdaIndex = 1U, ui8 LastLambdaIndex = FirstLambdaIndex>
 TExprNode::TPtr CleckClosureOnUpperLambdaOverList(const TExprNode::TPtr& input, TExprContext& ctx) {
     if (input->Head().GetTypeAnn()->GetKind() == ETypeAnnotationKind::List) {
         for (auto i = FirstLambdaIndex; i <= LastLambdaIndex; ++i) {
@@ -9300,8 +9300,8 @@ TExprNode::TPtr OptimizeCoalesce(const TExprNode::TPtr& node, TExprContext& ctx)
     return node;
 }
 
-ui64 ToDate(ui64 now)      { return std::min<ui64>(NUdf::MAX_DATE - 1U, now / 86400000000ull); }
-ui64 ToDatetime(ui64 now)  { return std::min<ui64>(NUdf::MAX_DATETIME - 1U, now / 1000000ull); }
+ui64 ToDate(ui64 now)      { return std::min<ui64>(NUdf::MAX_DATE - 1U, now / 86400000000ULL); }
+ui64 ToDatetime(ui64 now)  { return std::min<ui64>(NUdf::MAX_DATETIME - 1U, now / 1000000ULL); }
 ui64 ToTimestamp(ui64 now) { return std::min<ui64>(NUdf::MAX_TIMESTAMP - 1ULL, now); }
 
 struct TPeepHoleRules {
