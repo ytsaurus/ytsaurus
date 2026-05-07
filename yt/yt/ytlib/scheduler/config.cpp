@@ -377,6 +377,9 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("settle_job_delay", &TThis::SettleJobDelay)
         .Default();
+    registrar.Parameter("schedule_allocation_cpu_multiplier", &TThis::ScheduleAllocationCpuMultiplier)
+        .GreaterThan(0.0)
+        .Default();
     registrar.Parameter("fail_settle_job_requests", &TThis::FailSettleJobRequests)
         .Default(false);
     registrar.Parameter("testing_speculative_launch_mode", &TThis::TestingSpeculativeLaunchMode)
