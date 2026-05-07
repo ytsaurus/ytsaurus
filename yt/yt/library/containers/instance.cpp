@@ -33,6 +33,7 @@
 
 namespace NYT::NContainers {
 
+using namespace NCGroups;
 using namespace NConcurrency;
 using namespace NNet;
 

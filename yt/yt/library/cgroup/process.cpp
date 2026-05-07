@@ -4,9 +4,7 @@
 
 #include <util/string/split.h>
 
-namespace NYT::NContainers {
-
-using namespace NYTree;
+namespace NYT::NCGroups {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,4 +52,4 @@ THashMap<std::string, std::string> GetSelfProcessCGroups()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NCGroups

@@ -1335,7 +1335,7 @@ public:
 
     std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetMemoryStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
             .ResidentAnon = statistics.ResidentAnon,
             .TmpfsUsage = statistics.TmpfsUsage,
@@ -1346,7 +1346,7 @@ public:
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetBlockIOStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetBlockIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
             .IOWriteByte = statistics.IOWriteByte,
@@ -1357,7 +1357,7 @@ public:
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetCpuStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
             .UserUsageTime = statistics.UserTime,
             .SystemUsageTime = statistics.SystemTime,
@@ -1367,7 +1367,7 @@ public:
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
-            return StatisticsFetcher_.GetOomKillCount();
+            return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get OOM kill count");
             return std::nullopt;
@@ -1626,8 +1626,6 @@ private:
     };
 
     THashMap<TString, TRunningSidecar> RunningSidecars_;
-
-    NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriJobProxyEnvironment)

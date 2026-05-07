@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/misc/error.h>
+#include <library/cpp/yt/error/error.h>
 
-namespace NYT::NContainers {
+namespace NYT::NCGroups {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,4 +118,4 @@ THashMap<std::string, std::string> GetSelfProcessCGroups();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+} // namespace NYT::NCGroups
