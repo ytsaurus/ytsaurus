@@ -2331,7 +2331,7 @@ private:
         mapJobBuilder.SetInputType(mapJob.get(), map);
         mapJobBuilder.SetBlockInput(mapJob.get(), map);
         mapJobBuilder.SetBlockOutput(mapJob.get(), map);
-        TString mapLambda = mapJobBuilder.SetMapLambdaCode(mapJob.get(), map, execCtx, ctx);
+        TString mapLambda = mapJobBuilder.SetMapLambdaCode(mapJob.get(), map, execCtx, ctx, false);
 
         TRemapperMap remapperMap;
         TSet<TString> remapperAllFiles;
