@@ -362,6 +362,7 @@ struct TComputationNodeFactoryContext {
     TComputationMutables& Mutables;
     TComputationNodeOnNodeMap& ElementsCache;
     const TNodePushBack NodePushBack;
+    const NYql::TRuntimeSettings::TConstPtr RuntimeSettings;
 
     TComputationNodeFactoryContext(
         TNodeLocator nodeLocator,
@@ -380,7 +381,8 @@ struct TComputationNodeFactoryContext {
         EGraphPerProcess graphPerProcess,
         TComputationMutables& mutables,
         TComputationNodeOnNodeMap& elementsCache,
-        TNodePushBack&& nodePushBack);
+        TNodePushBack&& nodePushBack,
+        NYql::TRuntimeSettings::TConstPtr runtimeSettings);
 
     ~TComputationNodeFactoryContext();
 };

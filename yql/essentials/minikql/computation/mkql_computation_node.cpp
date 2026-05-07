@@ -90,7 +90,8 @@ TComputationNodeFactoryContext::TComputationNodeFactoryContext(
     EGraphPerProcess graphPerProcess,
     TComputationMutables& mutables,
     TComputationNodeOnNodeMap& elementsCache,
-    TNodePushBack&& nodePushBack)
+    TNodePushBack&& nodePushBack,
+    NYql::TRuntimeSettings::TConstPtr runtimeSettings)
     : NodeLocator(std::move(nodeLocator))
     , FunctionRegistry(functionRegistry)
     , Env(env)
@@ -108,6 +109,7 @@ TComputationNodeFactoryContext::TComputationNodeFactoryContext(
     , Mutables(mutables)
     , ElementsCache(elementsCache)
     , NodePushBack(std::move(nodePushBack))
+    , RuntimeSettings(std::move(runtimeSettings))
 {
 }
 
