@@ -107,12 +107,7 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
-        if (priority) {
-            FairShareWorkloadCategoryWeights[category] = *priority;
-        } else {
-            FairShareWorkloadCategoryWeights[category] = DefaultFairShareWorkloadCategoryWeights[category];
-        }
+        UpdateYsonStructField(FairShareWorkloadCategoryWeights[category], dynamicConfig.FairShareWorkloadCategoryWeights[category]);
     }
 
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
@@ -129,7 +124,7 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .DefaultNew();
 
-    registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
+    registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
@@ -179,6 +174,9 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
         .Optional();
+
+    registrar.Parameter("fair_share_workload_category_weights", &TThis::FairShareWorkloadCategoryWeights)
+        .Default();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
