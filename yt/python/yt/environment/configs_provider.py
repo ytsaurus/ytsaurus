@@ -2132,7 +2132,8 @@ def _init_logging(path, name, logging_config, yt_config,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr,
-        use_name_in_writer_name=use_name_in_writer_name)
+        use_name_in_writer_name=use_name_in_writer_name,
+        abort_on_alert=yt_config.default_abort_on_alert)
 
 
 def init_logging(path, name,

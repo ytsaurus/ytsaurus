@@ -203,6 +203,9 @@ class LocalYtConfig(object):
     delta_master_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
 
+    """Logging options"""
+    default_abort_on_alert = attr.ib(None)
+
     # COMPAT
     enable_legacy_logging_scheme = attr.ib(False)
 

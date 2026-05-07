@@ -147,14 +147,18 @@ def yt_env_multicluster_v4(request):
             mode="multicluster_v4",
             delta_controller_agent_config=delta_controller_agent_config,
             cluster_name="first",
-            env_options={"primary_cell_tag": 1}
+            env_options={"primary_cell_tag": 1},
+            # Cf. YT-28168
+            default_abort_on_alert=False,
         ),
         init_environment_for_test_session(
             request,
             mode="multicluster_v4",
             delta_controller_agent_config=delta_controller_agent_config,
             cluster_name="second",
-            env_options={"primary_cell_tag": 2}
+            env_options={"primary_cell_tag": 2},
+            # Cf. YT-28168
+            default_abort_on_alert=False,
         ),
     )
     for env in environments:
