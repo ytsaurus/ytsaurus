@@ -285,10 +285,10 @@ void TComputationContext::UpdateUsageAdjustor(ui64 memLimit) {
 
     if (auto peakAlloc = HolderFactory.GetPagePool().GetPeakAllocated()) {
         if (rss - InitRss_ > memLimit && rss - LastRss_ > (memLimit / 4)) {
-            UsageAdjustor = std::max(1.f, float(rss - InitRss_) / float(peakAlloc));
+            UsageAdjustor = std::max(1.F, float(rss - InitRss_) / float(peakAlloc));
             LastRss_ = rss;
 #ifndef NDEBUG
-            printUsage = UsageAdjustor > 1.f;
+            printUsage = UsageAdjustor > 1.F;
 #endif
         }
     }

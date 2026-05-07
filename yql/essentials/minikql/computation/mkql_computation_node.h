@@ -108,7 +108,7 @@ struct TComputationContextLLVM {
     IStatsRegistry* const Stats;
     const std::unique_ptr<NUdf::TUnboxedValue[]> MutableValues; // NOLINT(modernize-avoid-c-arrays)
     const NUdf::IValueBuilder* const Builder;
-    float UsageAdjustor = 1.f;
+    float UsageAdjustor = 1.F;
     ui32 RssCounter = 0U;
     const NUdf::TSourcePosition* CalleePosition = nullptr;
 };

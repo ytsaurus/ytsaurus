@@ -1746,11 +1746,11 @@ bool BuildGroupingSets(const TExprNode& data, TExprNode::TPtr& groupSets, TExprN
                 } else {
                     // generate 2**N sets
                     YQL_ENSURE(indices.size() <= 5, "Too many CUBE components");
-                    ui32 count = (1u << indices.size());
+                    ui32 count = (1U << indices.size());
                     for (ui32 i = 0; i < count; ++i) {
                         TExprNode::TListType oneSetItems;
                         for (ui32 j = 0; j < indices.size(); ++j) {
-                            if ((1u << j) & i) {
+                            if ((1U << j) & i) {
                                 oneSetItems.push_back(indices[j]);
                             }
                         }
