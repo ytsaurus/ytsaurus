@@ -2269,15 +2269,14 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     // TODO(aleksandra-zh): Move to HydraFinalizeChunkMergeSessions?
     if (chunkOwner->IsForeign()) {
-        const auto& config = GetDynamicConfig();
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             chunkOwner,
             TStatisticsUpdateRequest{
                 .UpdateDataStatistics = true,
                 .UpdateTabletResourceUsage = false,
-                .UpdateModificationTime = config->UpdateModificationTime,
-                .UpdateAccessTime = config->UpdateModificationTime,
+                .UpdateModificationTime = false,
+                .UpdateAccessTime = false,
                 .UseNativeContentRevisionCas = true,
             });
     }
@@ -2404,8 +2403,8 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
                 TStatisticsUpdateRequest{
                     .UpdateDataStatistics = true,
                     .UpdateTabletResourceUsage = false,
-                    .UpdateModificationTime = config->UpdateModificationTime,
-                    .UpdateAccessTime = config->UpdateModificationTime,
+                    .UpdateModificationTime = false,
+                    .UpdateAccessTime = false,
                     .UseNativeContentRevisionCas = true,
                 });
         }

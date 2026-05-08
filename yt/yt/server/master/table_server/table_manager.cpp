@@ -229,6 +229,9 @@ public:
                 chunkOwner->GetId(),
                 request);
 
+            // NB: Mixing statistics update requests with and without CAS might
+            // lead to some unexpected results, because the resulting request
+            // will use CAS.
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
             statistics |= request;
 
