@@ -1056,7 +1056,13 @@ TJobResult TJobProxy::RunJob()
         if (GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
             // NB(coteeq): Do not sync cluster directory if data is local only.
             auto connection = GetClient()->GetNativeConnection();
-            WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+            std::vector<std::string> remoteClusterNames;
+            remoteClusterNames.reserve(GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size());
+            for (const auto& [remoteClusterName, _] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+                remoteClusterNames.push_back(remoteClusterName);
+            }
+
+            WaitFor(InsistentGetMultipleRemoteConnections(std::move(connection), std::move(remoteClusterNames)))
                 .ThrowOnError();
         }
 
