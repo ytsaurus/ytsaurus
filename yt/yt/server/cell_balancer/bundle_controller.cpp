@@ -808,7 +808,7 @@ private:
             sensors->NodeDeallocationRequestAge.Update(nodeDeallocationRequestAge);
             sensors->RemovingCellsAge.Update(removingCellsAge);
             sensors->ProxyAllocationRequestAge.Update(proxyAllocationRequestAge);
-            sensors->ProxyDeallocationRequestAge.Update(proxyAllocationRequestAge);
+            sensors->ProxyDeallocationRequestAge.Update(proxyDeallocationRequestAge);
         }
     }
 
