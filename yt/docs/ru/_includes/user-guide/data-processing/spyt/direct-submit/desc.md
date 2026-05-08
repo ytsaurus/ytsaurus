@@ -36,7 +36,29 @@
 ```
 Полный список параметров можно посмотреть в разделе [опции операции](../../../../../user-guide/data-processing/operations/operations-options.md).
 
-### Преимущества подхода { #advantages }
+### Использование Docker-образов и Porto-слоёв { #images }
+
+При прямом сабмите Spark-приложений в {{product-name}} для задач драйвера и экзекьюторов можно использовать как Docker-образы, так и Porto-слои. Это позволяет подготовить окружение выполнения с нужными системными библиотеками, Python-пакетами и другими зависимостями.
+
+Информацию о сборке собственного Docker-образа можно найти в [разделе про конфигурирование кластера](../../../../../user-guide/data-processing/spyt/cluster/configuration.md#build-image).
+
+Передача Docker-образа или Porto-слоёв выполняется через дополнительные параметры:
+
+```bash
+OP_SPEC='{"docker_image"="[REGISTRY/]IMAGE:TAG";}'
+
+spark-submit --master "ytsaurus://<cluster-host>:<port>" \
+             --deploy-mode cluster \
+             --num-executors 1 \
+             --queue <pool> \
+             --conf spark.ytsaurus.executor.task.parameters="$OP_SPEC" \
+             --conf spark.ytsaurus.driver.task.parameters="$OP_SPEC" \
+             ./spark-job.py
+```
+
+Подробнее можно прочитать в разделе [образы корневой файловой системы](../../../../../user-guide/data-processing/layers/layer-paths.md).
+
+## Преимущества подхода { #advantages }
 
 - **Эффективное использование ресурсов** — выделение по требованию, минимум простоя.
 - **Простое управление** — единый уровень контроля вместо дублирования (YTsaurus + Standalone).
