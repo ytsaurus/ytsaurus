@@ -1036,7 +1036,7 @@ public:
 
         ScheduleChunkRefresh(chunk, refreshDelay);
 
-        YT_LOG_DEBUG("Chunk confirmed (ChunkId: %v, Replicas: %v, ReferencedHunkChunkIds: %v)",
+        YT_LOG_DEBUG("Chunk confirmed (ChunkId: %v, MasterReplicas: %v, ReferencedHunkChunkIds: %v)",
             chunk->GetId(),
             replicas,
             MakeFormattableView(validationResult.ReferencedHunkChunks, TObjectIdFormatter()));
@@ -3851,6 +3851,10 @@ private:
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                     .StronglyOrdered = true,
                 };
+
+                YT_LOG_DEBUG("Confirming Sequoia chunk (ChunkId: %v, SequoiaReplicas: %v)",
+                    chunkId,
+                    MakeFormattableView(sequoiaReplicas, TChunkReplicaWithLocationIndexFormatter()));
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
