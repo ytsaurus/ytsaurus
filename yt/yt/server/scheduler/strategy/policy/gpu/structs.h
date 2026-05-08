@@ -43,15 +43,52 @@ struct TAssignment final
         TOperation* operation,
         TNode* node);
 
-    void AddAllocation(TAllocationId allocationId);
+    void AddAllocation(const TAllocationStatePtr& allocation);
     TJobResources UpdateResourceUsage(const TJobResources& newUsage);
 };
 
 using TAllocationIdToAssignment = THashMap<TAllocationId, TAssignmentPtr>;
 
-void Serialize(const TAssignment& operation, NYson::IYsonConsumer* consumer);
+void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TAssignment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPreemptionInfo
+{
+    const EAllocationPreemptionReason Reason;
+    const std::string Description;
+    const std::optional<TOperationId> PreemptedForOperationId;
+};
+
+void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAllocationState final
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TAllocationId, Id);
+    DEFINE_BYREF_RO_PROPERTY(TWeakPtr<TAssignment>, Assignment);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TPreemptionInfo>, PreemptionInfo);
+
+public:
+    TAllocationState(
+        TAllocationId id,
+        TWeakPtr<TAssignment> assignment,
+        const TJobResources& resourceUsage);
+
+    // Updates ResourceUsage, returns delta.
+    TJobResources UpdateResourceUsage(const TJobResources& newUsage);
+};
+
+void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer);
+
+DEFINE_REFCOUNTED_TYPE(TAllocationState)
+
+using TAllocationIdToAllocationState = THashMap<TAllocationId, TAllocationStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +138,7 @@ public:
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
+    DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAllocationState, AllocationIdToAllocationState);
 
 public:
     TOperation(
@@ -126,6 +164,9 @@ public:
     //! Inserts assignment without modifying groupedNeededResources.
     void AddAssignment(const TAssignmentPtr& assignment);
 
+    void AddAllocation(const TAllocationStatePtr& allocation, const TAssignmentPtr& assignment);
+    void RemoveAllocation(TAllocationId allocationId);
+
     void SetPreemptible(bool preemptible);
 
     //! For a full-host module-bound operation returns the module, where its assignments are currently located.
@@ -138,7 +179,6 @@ public:
 private:
     friend struct TAssignment;
 
-    void AddAllocation(TAllocationId allocationId, const TAssignmentPtr& assignment);
     int DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const;
 };
 
@@ -147,20 +187,6 @@ using TOperationMap = THashMap<TOperationId, TOperationPtr>;
 void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPreemptionInfo
-{
-    const EAllocationPreemptionReason Reason;
-    const std::string Description;
-    const std::optional<TOperationId> PreemptedForOperationId;
-
-    // TODO(YT-27933): Remove this field after saving allocations to operation
-    const TJobResources PreemptedResources;
-};
-
-using TAllocationIdToPreemptionInfo = THashMap<TAllocationId, TPreemptionInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,9 +205,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdToAssignment, AllocationIdToAssignment);
-    DEFINE_BYREF_RO_PROPERTY(TAllocationIdToPreemptionInfo, AllocationIdToPreemptionInfo);
 
     using TAllocationIdSet = TCompactSet<TAllocationId, MaxNodeGpuCount>;
+    DEFINE_BYREF_RO_PROPERTY(TAllocationIdSet, AllocationsToPreempt);
     DEFINE_BYREF_RO_PROPERTY(TAllocationIdSet, PreemptedAllocations);
 
 public:
@@ -209,7 +235,7 @@ public:
 private:
     friend struct TAssignment;
 
-    void AddAllocation(TAllocationId allocationId, const TAssignmentPtr& assignment);
+    void AddAllocation(const TAllocationStatePtr& allocation, const TAssignmentPtr& assignment);
 };
 
 using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
