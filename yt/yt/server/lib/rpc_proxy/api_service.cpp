@@ -63,6 +63,8 @@
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
+#include <yt/yt/client/rpc/request_info.h>
+
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/config.h>
@@ -6572,14 +6574,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    context->SetRequestInfo(
-        "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, OmitInaccessibleRows: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+    SetReadTableRequestInfo(
+        context,
         path,
-        options.Unordered,
-        options.OmitInaccessibleColumns,
-        options.OmitInaccessibleRows,
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+        *request);
 
     PutMethodInfoInTraceContext("read_table");
 
