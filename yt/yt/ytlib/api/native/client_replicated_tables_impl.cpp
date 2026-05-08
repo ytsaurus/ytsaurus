@@ -278,9 +278,10 @@ TTableReplicaInfoPtr PickRandomReplica(
 TClient::TReplicaFallbackInfo TClient::GetReplicaFallbackInfo(
     const TTableReplicaInfoPtrList& replicas)
 {
-    auto replicaInfo = PickRandomReplica(replicas);
+    TTableReplicaInfoPtr replicaInfo = PickRandomReplica(replicas);
     return {
         .Client = GetOrCreateReplicaClient(replicaInfo->ClusterName),
+        .ClusterName = replicaInfo->ClusterName,
         .Path = replicaInfo->ReplicaPath,
         .ReplicaId = replicaInfo->ReplicaId
     };

@@ -1236,6 +1236,7 @@ private:
     struct TReplicaFallbackInfo
     {
         NApi::IClientPtr Client;
+        std::string ClusterName;
         NYPath::TYPath Path;
         NTabletClient::TTableReplicaId ReplicaId;
         NTableClient::TTableSchemaPtr OriginalTableSchema;
