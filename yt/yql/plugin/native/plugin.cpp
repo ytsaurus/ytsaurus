@@ -18,6 +18,7 @@
 #include <yt/yql/providers/yt/lib/skiff/yql_skiff_schema.h>
 #include <yt/yql/providers/yt/lib/tvm_client/full/tvm_client.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
+#include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 
 #include <yql/essentials/parser/pg_wrapper/interface/comp_factory.h>
@@ -46,11 +47,13 @@
 #include <yql/essentials/core/url_preprocessing/url_preprocessing.h>
 #include <yql/essentials/core/yql_library_compiler.h>
 #include <yql/essentials/core/yql_type_helpers.h>
+#include <yql/essentials/core/url_lister/url_lister_manager.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yql/essentials/minikql/mkql_function_registry.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
+#include <yql/essentials/utils/log/context.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/sql/v1/sql.h>
 #include <yql/essentials/sql/v1/lexer/antlr4/lexer.h>
@@ -408,6 +411,22 @@ public:
 
             FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
 
+            NYql::TYtTvmConfig tvmConfig;
+            tvmConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.TvmConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtTvmConfig>(),
+                protobufWriterOptions));
+
+            TvmClient_ = CreateTvmClient(tvmConfig);
+
+            NYql::TYtAccessProviderConfig ytAccessProviderConfig;
+            ytAccessProviderConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.YtAccessProviderConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtAccessProviderConfig>(),
+                protobufWriterOptions));
+
+            YtAccessProvider_ = CreateYtAccessProvider(TvmClient_, ytAccessProviderConfig);
+
             FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
                 NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
             const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
@@ -514,8 +533,9 @@ public:
         std::vector<TQueryFile> files)
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto program = factory->Create("-memory-", queryText);
+        auto fictionalQueryId = TQueryId::Create();
+        auto factory = CreateProgramFactory(fictionalQueryId, *dynamicConfig);
+        auto program = factory->Create("-memory-", queryText, ToString(fictionalQueryId));
 
         program->AddCredentials({
             {"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)},
@@ -598,8 +618,16 @@ public:
     {
 
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settings, credentialsStr, dynamicConfig, factory);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
+        factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
+            queryId,
+            queryText,
+            settings,
+            credentialsStr,
+            dynamicConfig,
+            factory);
+
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
             auto guard = WriterGuard(ProgressSpinLock_);
@@ -643,6 +671,7 @@ public:
 
         program->SetOperationId(ToString(queryId));
         program->SetOperationUrl(sqlSettings.DefaultCluster);
+        program->SetAuthenticatedUser(user);
 
         auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
@@ -720,15 +749,21 @@ public:
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
-        TQueryId /*queryId*/,
+        TQueryId queryId,
         TString user,
         TString queryText,
         TYsonString settingsStr,
         TYsonString credentialsStr) override
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settingsStr, credentialsStr, dynamicConfig, factory);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
+            queryId,
+            queryText,
+            settingsStr,
+            credentialsStr,
+            dynamicConfig,
+            factory);
 
         if (!program->ParseSql(sqlSettings)) {
             ythrow yexception() << IssuesToYtErrorYson(program->Issues());
@@ -912,6 +947,8 @@ private:
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
+    NYql::ITvmClient::TPtr TvmClient_;
+    NYql::IYtAccessProvider::TPtr YtAccessProvider_;
 
     std::atomic<TLangVersion> MaxYqlLangVersion_;
     TLangVersion MaxYqlLangVersionInitial_;
@@ -1039,7 +1076,9 @@ private:
         return std::move(dynamicConfig);
     }
 
-    NYql::TProgramFactoryPtr CreateProgramFactory(TDynamicConfig& dynamicConfig) {
+    NYql::TProgramFactoryPtr CreateProgramFactory(TQueryId queryId, TDynamicConfig& dynamicConfig) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(ToString(queryId));
+
         YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         NYql::TYtNativeServices ytServices;
@@ -1047,8 +1086,8 @@ private:
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
-        ytServices.TvmClient = CreateTvmClient(dynamicConfig.GatewaysConfig.GetYt());
-        ytServices.YtAccessProvider = CreateYtAccessProvider(ytServices.TvmClient, dynamicConfig.GatewaysConfig.GetYt());
+        ytServices.TvmClient = TvmClient_;
+        ytServices.YtAccessProvider = YtAccessProvider_;
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
@@ -1115,13 +1154,14 @@ private:
     }
 
     std::pair<TProgramPtr, NSQLTranslation::TTranslationSettings> CreateProgramAndSqlSettingsFromParameters(
+        TQueryId queryId,
         const TString& queryText,
         const TYsonString& settingsStr,
         const TYsonString& credentialsStr,
         TDynamicConfigPtr dynamicConfig,
         TProgramFactoryPtr factory)
     {
-        auto program = factory->Create("-memory-", queryText);
+        auto program = factory->Create("-memory-", queryText, ToString(queryId));
 
         TVector<std::pair<TString, NYql::TCredential>> credentials;
         const auto credentialsMap = NodeFromYsonString(credentialsStr.ToString()).AsMap();

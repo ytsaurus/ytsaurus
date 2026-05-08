@@ -19,7 +19,7 @@ java {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
-    api(project(":yql:essentials:providers:common:proto"))
+    api(project(":yt:yql:providers:yt:proto"))
 
     protobuf(files(buildProtoDir))
 }
@@ -34,9 +34,7 @@ protobuf {
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
-        include("yt/yql/providers/ytflow/integration/proto/yt.proto")
-        include("yt/yql/providers/ytflow/integration/proto/pq.proto")
-        include("yt/yql/providers/ytflow/integration/proto/solomon.proto")
+        include("yt/yql/providers/yt/lib/blackbox_client/proto/blackbox.proto")
     }
     into(buildProtoDir)
 }

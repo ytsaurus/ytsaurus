@@ -110,22 +110,17 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
-    {"FiniteStreams", "0"},
-    {"GatewayThreads", "16"},
+    {"_FiniteStreams", "0"},
     {"GracefulUpdate", "1"},
     {"UpdateTimeout", "600s"},
     {"ControllerCount", "1"},
     {"ControllerCpuLimit", "1.0"},
     {"ControllerMemoryLimit", "1G"},
-    {"ControllerRpcPort", "10080"},
-    {"ControllerMonitoringPort", "10081"},
-    {"WorkerCount", "10"},
+    {"WorkerCount", "1"},
     {"WorkerCpuLimit", "1.0"},
     {"WorkerMemoryLimit", "1G"},
-    {"WorkerRpcPort", "10082"},
-    {"WorkerMonitoringPort", "10083"},
     {"YtConsumerVital", "false"},
-    {"YtPartitionCount", "10"}
+    {"YtPartitionCount", "1"}
 });
 
 constexpr auto DefaultPQGatewaySettings = std::array<std::pair<TStringBuf, TStringBuf>, 0>{};
@@ -334,6 +329,14 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .ResetOnLoad();
     registrar.Parameter("file_storage", &TThis::FileStorageConfig)
         .Alias("file_storage_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
+    registrar.Parameter("tvm", &TThis::TvmConfig)
+        .Alias("tvm_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
+    registrar.Parameter("yt_access_provider", &TThis::YtAccessProviderConfig)
+        .Alias("yt_access_provider_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)

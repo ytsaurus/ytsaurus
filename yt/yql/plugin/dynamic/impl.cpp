@@ -15,7 +15,7 @@ extern "C" {
 
 ssize_t BridgeGetAbiVersion()
 {
-    return 9; // EYqlPluginAbiVersion::SolomonProvider
+    return 10; // EYqlPluginAbiVersion::TvmAndIdmConfig
 }
 
 TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOptions)
@@ -43,6 +43,8 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .SolomonGatewayConfig = bridgeOptions->SolomonGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->SolomonGatewayConfig, bridgeOptions->SolomonGatewayConfigLength)) : TYsonString(),
         .DqManagerConfig = bridgeOptions->DqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqManagerConfig, bridgeOptions->DqManagerConfigLength)) : TYsonString(),
         .FileStorageConfig = TYsonString(TStringBuf(bridgeOptions->FileStorageConfig, bridgeOptions->FileStorageConfigLength)),
+        .TvmConfig = TYsonString(TStringBuf(bridgeOptions->TvmConfig, bridgeOptions->TvmConfigLength)),
+        .YtAccessProviderConfig = TYsonString(TStringBuf(bridgeOptions->YtAccessProviderConfig, bridgeOptions->YtAccessProviderConfigLength)),
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),
         .Libraries = libraries,
         .YTTokenPath = TString(bridgeOptions->YTTokenPath),

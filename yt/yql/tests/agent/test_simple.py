@@ -341,9 +341,9 @@ class TestTypes(TestQueriesYqlSimpleBase):
             select
                 Just(2) as `SimpleOptional`,
                 Just(Just(2)) as `DoubleOptional`,
-                AsTagged(AsTuple(AsTagged(1, "tag1"), Just(Just(2))), "tag2") as `TaggedTupple`,
+                AsTagged(AsTuple(AsTagged(1, "tag1"), Just(Just(2))), "tag2") as `TaggedTuple`,
                 AsTagged(AsTagged(1, "tag1"), "tag2") as `NestedTagged`\
-            """, [{"SimpleOptional": 2, "DoubleOptional": [2], "TaggedTupple": [1, [2]], "NestedTagged": 1}])
+            """, [{"SimpleOptional": 2, "DoubleOptional": [2], "TaggedTuple": [1, [2]], "NestedTagged": 1}])
 
     @authors("a-romanov")
     def test_double_optional(self, query_tracker, yql_agent):
@@ -904,6 +904,21 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
                 {"name": "short_link", "content": "yt://primary/tmp/test_file", "type": "url"},
             ],
         )
+
+    @authors("a-romanov")
+    @pytest.mark.timeout(180)
+    def test_files_from_folder(self, query_tracker, yql_agent):
+        create("file", "//tmp/first_file")
+        write_file("//tmp/first_file", b"eerste")
+
+        create("map_node", "//tmp/dir")
+        create("file", "//tmp/dir/second_file")
+        write_file("//tmp/dir/second_file", b"twede")
+
+        self._test_simple_query("""
+            pragma folder("tt", "yt://{}/tmp");
+            select FileContent("tt/first_file") as first, FileContent("tt/dir/second_file") as second;
+        """.format(self.Env.get_http_proxy_address()), [{'first': 'eerste', 'second': 'twede'}])
 
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):
@@ -2263,3 +2278,16 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
             select * from primary.`//tmp/t0` as p
             cross join remote_0.`//tmp/t0` as r
         """,  [{'klm': 'dode vis', 'uvw': 456}])
+
+
+@authors("ziganshinmr")
+class TestOperationOptions(TestQueriesYqlBase):
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(180)
+    def test_operation_options(self, query_tracker, yql_agent):
+        query = self.start_query("yql", "select CurrentOperationId() AS op_id, CurrentAuthenticatedUser() AS user")
+        query.track()
+        query_info = query.get()
+
+        expected_result = [{"op_id": query_info["id"], "user": query_info["user"]}]
+        assert query.read_result(0) == expected_result

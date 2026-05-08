@@ -43,10 +43,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((YtflowProvider)      (7)) // ngc224: Added ytflow provider support.
     ((PqProvider)          (8)) // artemmashin: Added pq provider support.
     ((SolomonProvider)     (9)) // artemmashin: Added solomon provider support.
+    ((TvmAndIdmConfig)    (10)) // ziganshinmr: Added TVM and YQL YT access provider config
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::SolomonProvider;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::SolomonProvider;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TvmAndIdmConfig;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TvmAndIdmConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,6 +134,10 @@ public:
             .DqManagerConfigLength = dqManagerConfig.size(),
             .FileStorageConfig = options.FileStorageConfig.AsStringBuf().data(),
             .FileStorageConfigLength = options.FileStorageConfig.AsStringBuf().size(),
+            .TvmConfig = options.TvmConfig.AsStringBuf().data(),
+            .TvmConfigLength = options.TvmConfig.AsStringBuf().size(),
+            .YtAccessProviderConfig = options.YtAccessProviderConfig.AsStringBuf().data(),
+            .YtAccessProviderConfigLength = options.YtAccessProviderConfig.AsStringBuf().size(),
             .OperationAttributes = options.OperationAttributes.AsStringBuf().data(),
             .OperationAttributesLength = options.OperationAttributes.AsStringBuf().size(),
             .YTTokenPath = options.YTTokenPath.data(),
