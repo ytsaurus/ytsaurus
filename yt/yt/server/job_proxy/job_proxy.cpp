@@ -885,6 +885,8 @@ TJobResult TJobProxy::RunJob()
             Config_->GrpcServer->Addresses[0]->Address);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalTcpBusServer(Config_->BusServer));
+        RpcServer_->Configure(Config_->RpcServer);
+        RpcServer_->OnDynamicConfigChanged(Config_->RpcServerDynamic);
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->RegisterService(jobApiService);
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(

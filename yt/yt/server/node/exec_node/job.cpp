@@ -3370,6 +3370,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             tcmallocConfig->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
         }
 
+        proxyInternalConfig->RpcServerDynamic = proxyDynamicConfig->RpcServer;
         proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
 
         proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
