@@ -37,7 +37,29 @@ In addition to the standard Spark parameters for the driver and executors, you c
 ```
 The full list of parameters can be found in the section [operation options](../../../../../user-guide/data-processing/operations/operations-options.md).
 
-### Advantages of the Approach {#advantages}
+### Using Docker Images and Porto Layers {#images}
+
+When directly submitting Spark applications to {{product-name}}, you can use both Docker images and Porto layers for driver and executor tasks. This allows you to prepare the execution environment with the required system libraries, Python packages, and other dependencies.
+
+You can find information on building your own Docker image in the [cluster configuration section](../../../../../user-guide/data-processing/spyt/cluster/configuration.md#build-image).
+
+Docker images or Porto layers are passed via additional parameters:
+
+```bash
+OP_SPEC='{"docker_image"="[REGISTRY/]IMAGE:TAG";}'
+
+spark-submit --master "ytsaurus://<cluster-host>:<port>" \
+             --deploy-mode cluster \
+             --num-executors 1 \
+             --queue <pool> \
+             --conf spark.ytsaurus.executor.task.parameters="$OP_SPEC" \
+             --conf spark.ytsaurus.driver.task.parameters="$OP_SPEC" \
+             ./spark-job.py
+```
+
+For more details, see the [root filesystem images section](../../../../../user-guide/data-processing/layers/layer-paths.md).
+
+## Advantages of the Approach {#advantages}
 
 - **Efficient resource usage** — allocation on demand, minimal downtime.
 - **Simple management** — a single level of control instead of duplication (YTsaurus + Standalone).
