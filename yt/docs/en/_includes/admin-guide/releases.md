@@ -313,9 +313,20 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.9.0 (`ghcr.io/ytsaurus/spyt:2.9.0`)
+**Current release:** 2.9.1 (`ghcr.io/ytsaurus/spyt:2.9.1`)
 
 **All releases:**
+
+{% cut "**2.9.1**" %}
+
+- Boost multiple table locking under transactional reading by using asynchronous lock requests
+- Fixed pushdown filters application for Spark SQL API
+- Support for specifying custom attributes when creating table
+- Added ytPartitioning by YT table compressed size instead of data weight. May improve performance for lookup tables. Disabled by default; enable with `spark.yt.read.ytPartitioning.compressedSize.enable=true`.
+- Fixed writing nested unsigned types to dyn tables
+- Other minor fixes and improvements
+
+{% endcut %}
 
 {% cut "**2.9.0**" %}
 

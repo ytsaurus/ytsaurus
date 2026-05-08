@@ -8,6 +8,21 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.9.1**" %}
+
+**Release date:** 2026-05-08
+
+Maintenance release with minor enhancements
+
+- Boost multiple table locking under transactional reading by using asynchronous lock requests
+- Fixed pushdown filters application for Spark SQL API
+- Support for specifying custom attributes when creating table
+- Added ytPartitioning by YT table compressed size instead of data weight. May improve performance for lookup tables. Disabled by default; enable with `spark.yt.read.ytPartitioning.compressedSize.enable=true`.
+- Fixed writing nested unsigned types to dyn tables
+- Other minor fixes and improvements
+
+{% endcut %}
+
 {% cut "**2.9.0**" %}
 
 **Release date:** 2026-03-30
@@ -265,7 +280,7 @@ Maintenance release with minor enhancements and bug fixes
 **Release page:** [2.5.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.5.0)
 
 
-Major release that enables support for Spark 3.4.x and 3.5.x. 
+Major release that enables support for Spark 3.4.x and 3.5.x.
 
 - Compile-time Spark version is changed from 3.2.2 to 3.5.4;
 - SPYT compile-time Spark version will be the latest available supported version since this release;
@@ -356,7 +371,7 @@ Maintenance release with bug fixes:
 
 * Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
 * Support for submitting compiled python binaries as spark applications via direct submit
-* Dataframe write schema hints 
+* Dataframe write schema hints
 * Bug fixes:
 * * Writing to external S3 from YTsaurus
 * * Reading float values from nested structures
