@@ -248,6 +248,14 @@ private:
             return;
         }
 
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        if (!dynamicConfigManager->IsConfigLoaded()) {
+            YT_LOG_INFO("Loading dynamic config for the first time");
+            WaitFor(dynamicConfigManager->GetConfigLoadedFuture())
+                .ThrowOnError();
+            YT_LOG_INFO("Dynamic config loaded");
+        }
+
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerScanPass"));
 
         ScanTabletCellBundles(dryRun, ignoreGlobalDisabledSwitch);
@@ -1155,6 +1163,7 @@ private:
     {
         TSchedulerInputState inputState{
             .Config = Config_,
+            .DynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig(),
         };
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
