@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/tablet_balancer/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/re2/public.h>
@@ -154,6 +156,7 @@ struct TTableSettings
     TTabletStoreWriterOptionsPtr StoreWriterOptions;
     TTabletHunkWriterConfigPtr HunkWriterConfig;
     TTabletHunkWriterOptionsPtr HunkWriterOptions;
+    NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig;
 
     //! Initializes all fields with corresponding New<...>().
     static TTableSettings CreateNew();
@@ -192,6 +195,8 @@ struct TRawTableSettings
         TTabletStoreWriterOptionsPtr StoreWriterOptions;
         TTabletHunkWriterConfigPtr HunkWriterConfig;
         TTabletHunkWriterOptionsPtr HunkWriterOptions;
+
+        NYTree::IMapNodePtr TabletBalancerConfig;
     } Provided;
 
     TTableConfigPatchPtr GlobalPatch;
