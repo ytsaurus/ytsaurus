@@ -183,8 +183,8 @@ private:
             ModifiedReplicas_[chunkId].RemovedReplicas.push_back(replica);
         }
 
-        YT_LOG_TRACE("%v Sequoia replica (ChunkId: %v, ReplicaIndex: %v, LocationIndex: %v)",
-            chunkAdded ? "Adding" : "Removing",
+        YT_LOG_TRACE("Sequoia replica is being %v (ChunkId: %v, ReplicaIndex: %v, LocationIndex: %v)",
+            chunkAdded ? "added" : "removed",
             chunkId,
             chunkIdWithIndex.ReplicaIndex,
             locationIndex);
