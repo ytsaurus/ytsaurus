@@ -176,6 +176,10 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default(DefaultBundleControllerConfigPath);
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->DynamicConfigManager->IgnoreConfigAbsence = true;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
