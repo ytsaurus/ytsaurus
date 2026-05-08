@@ -166,7 +166,14 @@ private:
             GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
-            options);
+            options)
+        .Apply(BIND([] (const TErrorOr<TUnversionedLookupRowsResult>& result) {
+            static NProfiling::TCounter LookupsSucceeded = SequoiaClientProfiler().Counter("/sequoia_lookups_succeeded");
+            static NProfiling::TCounter LookupsFailed = SequoiaClientProfiler().Counter("/sequoia_lookups_failed");
+
+            (result.IsOK() ? LookupsSucceeded : LookupsFailed).Increment();
+            return result;
+        }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -177,7 +184,14 @@ private:
         TSequoiaTablePathDescriptor descriptor{
             .Table = table,
         };
-        return DoSelectRows(descriptor, query, timestamp);
+        return DoSelectRows(descriptor, query, timestamp)
+        .Apply(BIND([] (const TErrorOr<TSelectRowsResult>& result) {
+            static NProfiling::TCounter SelectsSucceeded = SequoiaClientProfiler().Counter("/sequoia_selects_succeeded");
+            static NProfiling::TCounter SelectsFailed = SequoiaClientProfiler().Counter("/sequoia_selects_failed");
+
+            (result.IsOK() ? SelectsSucceeded : SelectsFailed).Increment();
+            return result;
+        }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
