@@ -33,6 +33,8 @@ The default values, if set, are provided in parentheses:
     - `data_weight_per_sorted_merge_job`
     - `data_weight_per_reduce_job`
 - `secure_vault` — values from this map end up in the environments of all the user jobs of a given operation and can't be viewed by unauthorized users, unlike the `environment` section in the user job specification. In particular, the entire passed-in map in the YSON format is written to the `YT_SECURE_VAULT` environment variable, and, to save time, "value" is written to the `YT_SECURE_VAULT_key` environment variable for each `key=value` pair from the map. This only happens for elementary type values, such as int64, uint64, double, boolean, or string.
+- `issue_temporary_token` (false) — issues a temporary token for the authenticated user to access the host cluster from user jobs. The token value is added to `secure_vault` under the key specified by `temporary_token_environment_variable_name` (defaults to `YT_TOKEN`).
+- `temporary_token_environment_variable_name` (`YT_TOKEN`) — key name used to put the temporary token into `secure_vault` when `issue_temporary_token` is enabled.
 - `stderr_table_path` — for specifying the path to an existing table, which must be created outside of transactions. If this option is enabled, the complete data from the standard error stream (stderr) of all jobs (except for the aborted ones) is written to the specified table. That table will have the following columns:
   - `job_id` — job ID.
   - `part_index` — for large error messages, the stderr message of a single job can be split into several segments that are stored in different rows. This column contains the numbers corresponding to these segments.
