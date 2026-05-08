@@ -1248,6 +1248,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             resultOrError = WaitFor(replicaFallbackHandler(replicaFallbackInfo));
             if (resultOrError.IsOK()) {
                 return resultOrError.Value();
+            } else {
+                resultOrError <<= TErrorAttribute("replica_cluster", replicaFallbackInfo.ClusterName);
+                resultOrError <<= TErrorAttribute("replica_path", replicaFallbackInfo.Path);
             }
 
             YT_LOG_DEBUG(resultOrError, "Fallback to replica failed (ReplicaId: %v)",
