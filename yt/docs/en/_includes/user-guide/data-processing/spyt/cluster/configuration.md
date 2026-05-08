@@ -41,6 +41,7 @@ Static tables partitioning is performed by index ranges, but the option `spark.y
 
 Additional options are passed in via `--params`:
 
+
 ```bash
 spark-launch-yt \
   --proxy <cluster-name> \
@@ -99,7 +100,7 @@ Java example:
 protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
     spark.conf.set("spark.sql.adaptive.enabled", "false");
     spark.read().format("yt").load("/sys/spark/examples/test_data").show();
-}s
+}
 ```
 
 ### Operation options
@@ -123,11 +124,14 @@ There are two ways to update the Python version:
    3. After that, `spark-submit-yt` will be able to use it. The `--python-version` parameter
 2. Build your own image with the required Python version
 
+
 ### Installing additional packages
 
 You need to build an image with the installed packages and use it as a base image to run the task.
 
 ### Building an image with installed packages
+
+#### Building an image { #build-image }
 
 Dockerfile example for building a python3.12 image with installed packages:
 ```docker
@@ -172,7 +176,6 @@ RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
     && python3.12 get-pip.py \
     && python3.12 -m pip install --upgrade pip setuptools wheel \
     && rm get-pip.py
-
 
 RUN python3.12 -m pip install -r requirements.txt
 ```
