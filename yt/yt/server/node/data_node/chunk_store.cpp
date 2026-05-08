@@ -281,7 +281,7 @@ void TChunkStore::RegisterNewChunk(
         OnChunkRegistered(chunk);
     }
 
-    lockedChunkGuard.Release();
+    std::move(lockedChunkGuard).Release();
 }
 
 TChunkStore::TChunkEntry TChunkStore::DoFindExistingChunk(const IChunkPtr& chunk) const
@@ -422,7 +422,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
             chunk->GetLocation()->GetId(),
             chunk->GetId());
 
-        lockedChunkGuard.Release();
+        std::move(lockedChunkGuard).Release();
     }
 
     IChunkPtr oldChunk;

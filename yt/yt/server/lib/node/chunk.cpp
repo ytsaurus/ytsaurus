@@ -44,7 +44,7 @@ void TLockedChunkGuard::Unlock()
     }
 }
 
-void TLockedChunkGuard::Release()
+void TLockedChunkGuard::Release() &&
 {
     Location_.Reset();
     ChunkId_ = {};
