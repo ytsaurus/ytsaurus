@@ -100,9 +100,18 @@ public:
 
     TLowCardinalitySettingsPtr LowCardinality;
 
+    //! When enabled, timestamps in DateTime/DateTime64 columns that have a non-default
+    //! timezone are adjusted by the difference between the column timezone offset and
+    //! the server default timezone offset before being written as YT integer types.
+    //! This ensures that when the user interprets the resulting integer value in the
+    //! default timezone, they get the correct wall-clock time that was stored in the
+    //! column's original timezone.
+    bool AdjustTimezoneForDateTypes;
+
     static TConversionSettingsPtr Create(
         TCompositeSettingsPtr compositeSettings = New<TCompositeSettings>(),
-        TLowCardinalitySettingsPtr lowCardinalitySettings = New<TLowCardinalitySettings>());
+        TLowCardinalitySettingsPtr lowCardinalitySettings = New<TLowCardinalitySettings>(),
+        bool adjustTimezoneForDateTypes = false);
 
     REGISTER_YSON_STRUCT(TConversionSettings);
 
