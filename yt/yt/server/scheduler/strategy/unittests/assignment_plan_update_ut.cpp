@@ -199,7 +199,6 @@ public:
                 .Reason = preemptionReason,
                 .Description = preemptionDescription,
                 .PreemptedForOperationId = preemptedForOperationId,
-                .PreemptedResources = assignment->ResourceUsage,
             });
     }
 

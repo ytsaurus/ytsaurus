@@ -24,14 +24,16 @@ TAssignment::TAssignment(
     , ResourceUsage(std::move(resourceUsage))
 { }
 
-void TAssignment::AddAllocation(TAllocationId allocationId)
+void TAssignment::AddAllocation(const TAllocationStatePtr& allocation)
 {
     YT_VERIFY(!AllocationId);
 
-    AllocationId = allocationId;
+    YT_VERIFY(allocation->Assignment().Lock() == this);
 
-    Operation->AddAllocation(allocationId, this);
-    Node->AddAllocation(allocationId, this);
+    AllocationId = allocation->GetId();
+
+    Operation->AddAllocation(allocation, this);
+    Node->AddAllocation(allocation, this);
 }
 
 TJobResources TAssignment::UpdateResourceUsage(const TJobResources& newUsage)
@@ -40,8 +42,13 @@ TJobResources TAssignment::UpdateResourceUsage(const TJobResources& newUsage)
 
     ResourceUsage.SetJobResources(newUsage);
 
+    YT_VERIFY(Dominates(ResourceUsage.ToJobResources(), TJobResources()));
+
     Operation->AssignedResourceUsage_ += delta;
     Node->AssignedResourceUsage_ += delta;
+
+    YT_VERIFY(Dominates(Operation->AssignedResourceUsage_, TJobResources()));
+    YT_VERIFY(Dominates(Node->AssignedResourceUsage_, TJobResources()));
 
     return delta;
 }
@@ -58,6 +65,51 @@ void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
             .Item("preemptible").Value(assignment.Preemptible)
             .Item("allocation_id").Value(assignment.AllocationId)
             .Item("preemptible_progress_start_time").Value(assignment.PreemptibleProgressStartTime)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAllocationState::TAllocationState(
+    TAllocationId id,
+    TWeakPtr<TAssignment> assignment,
+    const TJobResources& resourceUsage)
+    : Id_(id)
+    , Assignment_(std::move(assignment))
+    , ResourceUsage_(resourceUsage)
+{ }
+
+TJobResources TAllocationState::UpdateResourceUsage(const TJobResources& newUsage)
+{
+    auto delta = newUsage - ResourceUsage_;
+    ResourceUsage_ = newUsage;
+
+    YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
+
+    if (auto assignment = Assignment_.Lock()) {
+        Y_UNUSED(assignment->UpdateResourceUsage(newUsage));
+    }
+
+    return delta;
+}
+
+void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("reason").Value(preemptionInfo.Reason)
+            .Item("description").Value(preemptionInfo.Description)
+            .Item("preempted_for_operation_id").Value(preemptionInfo.PreemptedForOperationId)
+        .EndMap();
+}
+
+void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("allocation_id").Value(allocation.GetId())
+            .Item("resource_usage").Value(allocation.ResourceUsage())
+            .OptionalItem("preemption_info", allocation.PreemptionInfo())
         .EndMap();
 }
 
@@ -186,13 +238,22 @@ bool TOperation::IsZeroAssignedUsage() const
     return Assignments_.empty();
 }
 
-void TOperation::AddAllocation(TAllocationId allocationId, const TAssignmentPtr& assignment)
+void TOperation::AddAllocation(const TAllocationStatePtr& allocation, const TAssignmentPtr& assignment)
 {
     YT_VERIFY(Assignments_.contains(assignment));
     YT_VERIFY(GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName) > 0);
 
+    auto allocationId = allocation->GetId();
+
     --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
     EmplaceOrCrash(AllocationIdToAssignment_, allocationId, assignment);
+
+    EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), std::move(allocation));
+}
+
+void TOperation::RemoveAllocation(TAllocationId allocationId)
+{
+    EraseOrCrash(AllocationIdToAllocationState_, allocationId);
 }
 
 int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const
@@ -222,6 +283,8 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("preemptible").Value(operation.IsPreemptible())
             .Item("starving").Value(operation.IsStarving())
             .Item("scheduling_module").Value(operation.SchedulingModule())
+            // TODO(yaishenka): Think about what else to expose here.
+            .Item("allocations").Value(operation.AllocationIdToAllocationState())
         .EndMap();
 }
 
@@ -295,15 +358,16 @@ void TNode::PreemptAssignment(
     std::optional<TOperationId> preemptedForOperationId)
 {
     if (assignment->AllocationId) {
-        EmplaceOrCrash(
-            AllocationIdToPreemptionInfo_,
-            *assignment->AllocationId,
-            TPreemptionInfo{
-                .Reason = reason,
-                .Description = std::move(description),
-                .PreemptedForOperationId = preemptedForOperationId,
-                .PreemptedResources = assignment->ResourceUsage,
-            });
+        const auto& allocation = GetOrCrash(
+            assignment->Operation->AllocationIdToAllocationState(),
+            *assignment->AllocationId);
+        allocation->PreemptionInfo().emplace(TPreemptionInfo{
+            .Reason = reason,
+            .Description = std::move(description),
+            .PreemptedForOperationId = preemptedForOperationId,
+        });
+
+        InsertOrCrash(AllocationsToPreempt_, *assignment->AllocationId);
     }
 
     RemoveAssignment(assignment);
@@ -311,7 +375,7 @@ void TNode::PreemptAssignment(
 
 void TNode::PreemptAllocation(TAllocationId allocationId)
 {
-    EraseOrCrash(AllocationIdToPreemptionInfo_, allocationId);
+    EraseOrCrash(AllocationsToPreempt_, allocationId);
     InsertOrCrash(PreemptedAllocations_, allocationId);
 }
 
@@ -320,11 +384,11 @@ void TNode::RemovePreemptedAllocation(TAllocationId allocationId)
     EraseOrCrash(PreemptedAllocations_, allocationId);
 }
 
-void TNode::AddAllocation(TAllocationId allocationId, const TAssignmentPtr& assignment)
+void TNode::AddAllocation(const TAllocationStatePtr& allocation, const TAssignmentPtr& assignment)
 {
     YT_VERIFY(Assignments_.contains(assignment));
 
-    EmplaceOrCrash(AllocationIdToAssignment_, allocationId, assignment);
+    EmplaceOrCrash(AllocationIdToAssignment_, allocation->GetId(), assignment);
 }
 
 void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
