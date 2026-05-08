@@ -827,7 +827,7 @@ private:
             std::move(meta),
             /*destroyedHandler*/ BIND_NO_PROPAGATE(&TImpl::OnArtifactDestroyed, MakeStrong(this), location, descriptor));
         OnArtifactCreated(location, descriptor);
-        lockedChunkGuard.Release();
+        std::move(lockedChunkGuard).Release();
         return artifact;
     }
 
@@ -848,7 +848,7 @@ private:
         {
             auto lockedChunkGuard = location->TryLockChunk(chunkId);
             YT_VERIFY(lockedChunkGuard);
-            lockedChunkGuard.Release();
+            std::move(lockedChunkGuard).Release();
         }
 
         bool inserted;
