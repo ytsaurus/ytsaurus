@@ -78,7 +78,7 @@ public:
         , Host_(host)
         , User_(user)
         , InitialQueryId_(queryId)
-        , ConversionSettings_(TConversionSettings::Create(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)))
+        , ConversionSettings_()
     { }
 
     TErrorOr<std::vector<TRowset>> Execute()
@@ -182,6 +182,13 @@ private:
         }
         QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
+
+        auto querySettings = ParseCustomSettings(
+            Host_->GetConfig()->QuerySettings,
+            QueryContext_->getSettingsRef().changes(),
+            Logger);
+        ConversionSettings_ = querySettings->Conversion;
+        ConversionSettings_->Composite->ConvertUnsupportedTypesToString = true;
     }
 
     void BuildPipeline(const TString& query)

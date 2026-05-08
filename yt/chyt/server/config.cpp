@@ -48,11 +48,12 @@ void TLowCardinalitySettings::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConversionSettingsPtr TConversionSettings::Create(TCompositeSettingsPtr compositeSettings, TLowCardinalitySettingsPtr lowCardinalitySettings)
+TConversionSettingsPtr TConversionSettings::Create(TCompositeSettingsPtr compositeSettings, TLowCardinalitySettingsPtr lowCardinalitySettings, bool adjustTimezoneForDateTypes)
 {
     auto settings = New<TConversionSettings>();
     settings->Composite = std::move(compositeSettings);
     settings->LowCardinality = std::move(lowCardinalitySettings);
+    settings->AdjustTimezoneForDateTypes = adjustTimezoneForDateTypes;
     return settings;
 }
 
@@ -63,6 +64,9 @@ void TConversionSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("low_cardinality", &TThis::LowCardinality)
         .DefaultNew();
+
+    registrar.Parameter("adjust_timezone_for_date_types", &TThis::AdjustTimezoneForDateTypes)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
