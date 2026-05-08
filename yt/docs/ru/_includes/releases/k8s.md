@@ -1,7 +1,7 @@
 ## Kubernetes operator
 
 
-Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart).
+Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart).
 
 
 
@@ -11,6 +11,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**v0.31.0**" %}
 
 **Release date:** 2026-03-12
+
+
+**Release page:** [v0.31.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.31.0)
+
+
+**Helm chart:** [0.31.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/732908203?tag=0.31.0)
 
 
 #### What's Changed
@@ -81,6 +87,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2026-02-02
 
 
+**Release page:** [v0.30.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.30.0)
+
+
+**Helm chart:** [0.30.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/667678795?tag=0.30.0)
+
+
 #### What's Changed
 * Remove kube-rbac-proxy by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/637
 * Only create default pool if not present by @Gufran in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/646
@@ -131,9 +143,16 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 {% endcut %}
 
+
 {% cut "**0.29.0**" %}
 
 **Release date:** 2025-12-19
+
+
+**Release page:** [0.29.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.29.0)
+
+
+**Helm chart:** [0.29.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/617929635?tag=0.29.0)
 
 
 #### New Features
@@ -163,6 +182,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**0.28.0**" %}
 
 **Release date:** 2025-12-09
+
+
+**Release page:** [0.28.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.28.0)
+
+
+**Helm chart:** [0.28.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/604937890?tag=0.28.0)
 
 
 #### What's Changed
@@ -219,6 +244,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-09-22
 
 
+**Release page:** [0.27.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.27.0)
+
+
+**Helm chart:** [0.27.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/522515753?tag=0.27.0)
+
+
 #### Major changes
 * Add support for CRI-O by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/525
 * Introduce cypress patches by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/531
@@ -262,6 +293,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-08-20
 
 
+**Release page:** [0.26.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.26.0)
+
+
+**Helm chart:** [0.26.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/491862233?tag=0.26.0)
+
+
 #### Features
 * Introduced a new Timbertruck component to delivery logs to cypress by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/509
 * Added cypress proxies by @koloshmet in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/519
@@ -289,6 +326,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**0.25.0**" %}
 
 **Release date:** 2025-07-23
+
+
+**Release page:** [0.25.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.25.0)
+
+
+**Helm chart:** [0.25.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/471953965?tag=0.25.0)
 
 
 #### Features
@@ -320,6 +363,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-05-20
 
 
+**Release page:** [0.24.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.24.0)
+
+
+**Helm chart:** [0.24.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/419797949?tag=0.24.0)
+
+
 #### Minor
 * Rerun init queue agent script during QA update by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/479
 
@@ -331,6 +380,12 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 {% cut "**0.23.1**" %}
 
 **Release date:** 2025-04-04
+
+
+**Release page:** [0.23.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.23.1)
+
+
+**Helm chart:** [0.23.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/388993495?tag=0.23.1)
 
 
 #### Minor
@@ -345,6 +400,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 {% cut "**0.23.0**" %}
 
 **Release date:** 2025-04-02
+
+
+**Release page:** [0.23.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.23.0)
+
+
+**Helm chart:** [0.23.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/387207486?tag=0.23.0)
 
 
 #### Minor
@@ -374,6 +435,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-03-07
 
 
+**Release page:** [0.22.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.22.0)
+
+
+**Helm chart:** [0.22.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/369818188?tag=0.22.0)
+
+
 #### Features
 * Update to YTsaurus 24.2 is supported
 
@@ -398,6 +465,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-02-10
 
 
+**Release page:** [0.21.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.21.0)
+
+
+**Helm chart:** [0.21.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/361365252?tag=0.21.0)
+
+
 #### Features
 * Support the ability to deploy a Kafka proxy by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/407
 
@@ -418,6 +491,12 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-01-20
 
 
+**Release page:** [0.20.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.20.0)
+
+
+**Helm chart:** [0.20.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/342298010?tag=0.20.0)
+
+
 #### Minor
 * Support not creating non-existing users by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/416
 * Added DNSConfig into Instance and YTsaurusSpec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/420
@@ -425,7 +504,7 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 * Add log_manager_template for job proxy by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/428
 
 #### Release notes
-This release makes yt operator compatible with ytsaurus 24.2.
+This release makes yt operator compatible with ytsaurus 24.2. 
 Update to this version will launch job for setting correct enable_real_chunks_value values in cypress and exec nodes will be updated with a new config.
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.19.0...release/0.20.0
@@ -436,6 +515,12 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 {% cut "**0.19.0**" %}
 
 **Release date:** 2025-01-09
+
+
+**Release page:** [0.19.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.19.0)
+
+
+**Helm chart:** [0.19.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/333778227?tag=0.19.0)
 
 
 #### Minor
@@ -453,6 +538,12 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 **Release date:** 2024-12-13
 
 
+**Release page:** [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.18.1)
+
+
+**Helm chart:** [0.18.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/322387466?tag=0.18.1)
+
+
 #### Minor
 * more validation by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/393
 #### Bugfix
@@ -466,6 +557,12 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 {% cut "**0.18.0**" %}
 
 **Release date:** 2024-11-26
+
+
+**Release page:** [0.18.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.18.0)
+
+
+**Helm chart:** [0.18.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/312306352?tag=0.18.0)
 
 
 #### Warning
@@ -506,6 +603,12 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-10-11
 
 
+**Release page:** [0.17.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.17.0)
+
+
+**Helm chart:** [0.17.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/293977708?tag=0.17.0)
+
+
 #### Minor
 * Separate CHYT init options into makeDefault and createPublicClique by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/347
 #### Bugfix
@@ -520,6 +623,12 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-09-13
 
 
+**Release page:** [0.16.2](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.16.2)
+
+
+**Helm chart:** [0.16.2](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/273430407?tag=0.16.2)
+
+
 #### Bugfix
 * Fix strawberry controller image for 2nd job by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/345
 
@@ -530,6 +639,12 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 {% cut "**0.16.1**" %}
 
 **Release date:** 2024-09-13
+
+
+**Release page:** [0.16.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.16.1)
+
+
+**Helm chart:** [0.16.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/273375484?tag=0.16.1)
 
 
 #### Warning
@@ -546,6 +661,12 @@ Use 0.16.2 instead.
 {% cut "**0.16.0**" %}
 
 **Release date:** 2024-09-12
+
+
+**Release page:** [0.16.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.16.0)
+
+
+**Helm chart:** [0.16.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/272705267?tag=0.16.0)
 
 
 #### Warning
@@ -569,6 +690,12 @@ Use 0.16.2 instead.
 {% cut "**0.15.0**" %}
 
 **Release date:** 2024-09-04
+
+
+**Release page:** [0.15.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.15.0)
+
+
+**Helm chart:** [0.15.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/268358441?tag=0.15.0)
 
 
 #### Backward incompatible changes
@@ -595,14 +722,20 @@ Use 0.16.2 instead.
 **Release date:** 2024-08-22
 
 
+**Release page:** [0.14.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.14.0)
+
+
+**Helm chart:** [0.14.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/261892792?tag=0.14.0)
+
+
 #### Backward incompatible changes
 Before this release `StrawberryController` was unconditionally configured with `{address_resolver={enable_ipv4=%true;enable_ipv6=%true}}` in its static config. From now on it respects common `useIpv6` and `useIpv4` fields, which can be set in the [YtsaurusSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
-If for some reason it is required to have configuration different from
+If for some reason it is required to have configuration different from 
 ```yaml
 useIpv6: true
 useIpv4: true
 ```
-for the main Ytsaurus spec and at the same time `enable_ipv4=%true;enable_ipv6=%true` for the `StrawberryController`, it is possible to achieve that by using `configOverrides` ConfigMap with
+for the main Ytsaurus spec and at the same time `enable_ipv4=%true;enable_ipv6=%true` for the `StrawberryController`, it is possible to achieve that by using `configOverrides` ConfigMap with 
 ```yaml
 data:
     strawberry-controller.yson: |
@@ -616,7 +749,7 @@ data:
         };
       };
     }
-```
+``` 
 
 #### Minor
 * Add no more than one ytsaurus spec per namespace validation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/305
@@ -638,6 +771,12 @@ data:
 **Release date:** 2024-07-30
 
 
+**Release page:** [0.13.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.13.1)
+
+
+**Helm chart:** [0.13.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/250876401?tag=0.13.1)
+
+
 #### Bugfixes
 * Revert deprecation of useInsecureCookies in #310 by @sgburtsev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/317
 
@@ -652,13 +791,19 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-07-23
 
 
+**Release page:** [0.13.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.13.0)
+
+
+**Helm chart:** [0.13.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/247522829?tag=0.13.0)
+
+
 #### Features
 * Add per-component terminationGracePeriodSeconds by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/304
 * Added externalProxy parameter for UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/308
 * Size as Quantity in LogRotationPolicy by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/309
 * Use `secure` instead of `useInsecureCookies`, pass caBundle to UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/310
 
-#### Minor
+#### Minor 
 * Add all YTsaurus CRD into category "ytsaurus-all" "yt-all" by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/311
 
 #### Bugfixes
@@ -672,6 +817,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.12.0**" %}
 
 **Release date:** 2024-06-28
+
+
+**Release page:** [0.12.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.12.0)
+
+
+**Helm chart:** [0.12.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/236432165?tag=0.12.0)
 
 
 #### Features
@@ -694,11 +845,17 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-27
 
 
+**Release page:** [0.11.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.11.0)
+
+
+**Helm chart:** [0.11.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/236035237?tag=0.11.0)
+
+
 #### Features
 * SetHostnameAsFQDN option is added to all components. Default is true by @qurname2 in https://github.com/ytsaurus/yt-k8s-operator/pull/302
 * Add per-component option hostNetwork by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/287
 
-#### Minor
+#### Minor 
 * Add option for per location disk space quota by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/279
 * Add into exec node pods environment variables for CRI tools by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/283
 * Add per-instance-group podLabels and podAnnotations by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/289
@@ -720,10 +877,16 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-07
 
 
+**Release page:** [0.10.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.10.0)
+
+
+**Helm chart:** [0.10.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/229520332?tag=0.10.0)
+
+
 #### Features
-#### Minor
+#### Minor 
  - Add everyone-share QT ACO by @Krisha11 in #272
- - Add channel in qt config by @Krisha11 in #273
+ - Add channel in qt config by @Krisha11 in #273 
  - Add option for per location disk space quota #279
 #### Bugfixes
 - Fix exec node resource calculation on non-isolated CRI-powered job environment #277
@@ -738,12 +901,18 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-05-30
 
 
+**Release page:** [0.9.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.9.1)
+
+
+**Helm chart:** [0.9.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222950367?tag=0.9.1)
+
+
 #### Features
-#### Minor
+#### Minor 
  - Add 'physical_host' to cypress_annotations for CMS and UI сompatibility #252
  - added WATCH_NAMESPACE env and LeaderElectionNamespace #168
  - Add configuration for solomon exporter: specify host and some instance tags #258
- - Add sidecars support to primary masters containers #259
+ - Add sidecars support to primary masters containers #259 
  - Add option for containerd registry config path #264
 #### Bugfixes
  - Fix CRI job environment for remote exec nodes #261
@@ -757,9 +926,15 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-23
 
 
+**Release page:** [0.9.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.9.0)
+
+
+**Helm chart:** [0.9.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222974140?tag=0.9.0)
+
+
 #### Features
 - Add experimental (behaviour may change) UpdateSelector field #211 to be able to update components separately
-#### Minor
+#### Minor 
 - Enable TmpFS when possible #235
 - Disable disk quota for slot locations #236
 - Forward docker image environment variables to user job #248
@@ -775,13 +950,19 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-12
 
 
+**Release page:** [0.8.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.8.0)
+
+
+**Helm chart:** [0.8.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976310?tag=0.8.0)
+
+
 #### Features
-#### Minor
+#### Minor 
 - Increased default value for MaxSnapshotCountToKeep and MaxChangelogCountToKeep
 - Tune default bundle replication factor #210
 - Set EnableServiceLinks=false for all pods #218
 #### Bugfixes
-- Fix authentication configuration for RPC Proxy #207
+- Fix authentication configuration for RPC Proxy #207 
 - Job script updated on restart #224
 - Use secure random and base64 for tokens #202
 - Fix running jobs with custom docker_image when default job image is not set #217
@@ -794,13 +975,19 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-04
 
 
+**Release page:** [0.7.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.7.0)
+
+
+**Helm chart:** [0.7.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976364?tag=0.7.0)
+
+
 #### Features
   * Add Remote exec nodes support #75
   * Add MasterCaches support #122
   * Enable TLS certificate auto-update for http proxies #167
   * CRI containerd job environment #105
 
-#### Minor
+#### Minor 
   * Support RuntimeClassName in InstanceSpec
   * Configurable monitoring port #146
   * Not triggering full update for data nodes update
@@ -826,6 +1013,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.6.0**" %}
 
 **Release date:** 2024-02-26
+
+
+**Release page:** [0.6.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.6.0)
+
+
+**Helm chart:** [0.6.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976440?tag=0.6.0)
 
 
 #### Features
@@ -863,6 +1056,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2023-11-29
 
 
+**Release page:** [0.5.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.5.0)
+
+
+**Helm chart:** [0.5.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976486?tag=0.5.0)
+
+
 **Features**
 - Added `minReadyInstanceCount` into Ytsaurus components which allows not to wait when all pods are ready.
 - Support queue agent.
@@ -898,6 +1097,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2023-10-03
 
 
+**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.4.1)
+
+
+**Helm chart:** [0.4.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976536?tag=0.4.1)
+
+
 **Features**
 - Support per-instance-group config override
 - Support TLS for RPC proxies
@@ -911,6 +1116,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.4.0**" %}
 
 **Release date:** 2023-09-26
+
+
+**Release page:** [0.4.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.4.0)
+
+
+**Helm chart:** [0.4.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976570?tag=0.4.0)
 
 
 **Features**
@@ -946,6 +1157,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 {% cut "**0.3.1**" %}
 
 **Release date:** 2023-08-14
+
+
+**Release page:** [0.3.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release/0.3.1)
+
+
+**Helm chart:** [0.3.1](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/222976640?tag=0.3.1)
 
 
 **Features**
