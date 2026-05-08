@@ -62,4 +62,8 @@ const (
 	MethodPushQueueProducer          Method = "PushQueueProducer"
 	MethodCreateQueueProducerSession Method = "CreateQueueProducerSession"
 	MethodRemoveQueueProducerSession Method = "RemoveQueueProducerSession"
+	MethodPullQueueConsumer          Method = "PullQueueConsumer"
+	MethodAdvanceQueueConsumer       Method = "AdvanceQueueConsumer"
+	MethodRegisterQueueConsumer      Method = "RegisterQueueConsumer"
+	MethodUnregisterQueueConsumer    Method = "UnregisterQueueConsumer"
 )

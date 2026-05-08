@@ -60,6 +60,8 @@ const (
 
 	VerbPushQueueProducer Verb = "push_queue_producer"
 
+	VerbPullQueueConsumer Verb = "pull_queue_consumer"
+
 	VerbMountTable   Verb = "mount_table"
 	VerbUnmountTable Verb = "unmount_table"
 	VerbRemountTable Verb = "remount_table"
@@ -114,6 +116,9 @@ func (v Verb) IsHeavy() bool {
 
 	case VerbReadQueryResult:
 		return true
+
+	case VerbPullQueueConsumer:
+		return true
 	}
 
 	return false
@@ -137,6 +142,9 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbStartQuery, VerbAbortQuery, VerbGetQuery, VerbListQueries, VerbGetQueryResult, VerbReadQueryResult, VerbAlterQuery:
+		return false
+
+	case VerbPullQueueConsumer:
 		return false
 	}
 
