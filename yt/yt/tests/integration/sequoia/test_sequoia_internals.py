@@ -181,10 +181,10 @@ class TestSequoiaInternals(YTEnvSetup):
         id = create("document", "//tmp/d")
         tt = get("//tmp", attributes=["id"])
         assert tt["d"].attributes["id"] == id
-        rsp = get(f"#{id}/@", attributes=["id", "effective_acl", "recursive_attribute_usage"])
+        rsp = get(f"#{id}/@", attributes=["id", "effective_acl", "recursive_resource_usage"])
         assert rsp["id"] == id
         assert rsp["effective_acl"]
-        assert "recursive_attribute_usage" not in rsp
+        assert rsp["recursive_resource_usage"]["node_count"] == 1
 
     @authors("danilalexeev")
     def test_get_recursive_limits(self):
