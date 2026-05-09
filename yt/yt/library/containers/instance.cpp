@@ -6,6 +6,8 @@
 #include "private.h"
 #include "porto_helpers.h"
 
+#include <yt/yt/library/cgroup/statistics.h>
+
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/re2/re2.h>
@@ -153,6 +155,16 @@ static const std::function<i64(const std::string&)> GetStatByKeyExtractor(const 
     };
 }
 
+static const std::function<i64(const std::string&)> GetStatByCGroupVersionedKeyExtractor(const std::string& statKeyV1, const std::string& statKeyV2)
+{
+    return [statKeyV1, statKeyV2] (const std::string& in) {
+        // NB(pavook): IsV2() called for every statistics extraction to guard against a potential SIOF.
+        // It's quite cheap though (a cached ptr load and a virtual call).
+        const auto& key = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->IsV2() ? statKeyV2 : statKeyV1;
+        return Extract(in, key);
+    };
+}
+
 const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::CpuBurstUsage, {"cpu_burst_usage", LongExtractor}},
     {EStatField::CpuUsage, {"cpu_usage", LongExtractor}},
@@ -163,9 +175,9 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::ThreadCount, {"thread_count", LongExtractor}},
     {EStatField::CpuLimit, {"cpu_limit_bound", CoreNsPerSecondExtractor}},
     {EStatField::CpuGuarantee, {"cpu_guarantee_bound", CoreNsPerSecondExtractor}},
-    {EStatField::ResidentAnon, {"memory.stat", GetStatByKeyExtractor("total_rss")}},
-    {EStatField::TmpfsUsage, {"memory.stat", GetStatByKeyExtractor("total_shmem")}},
-    {EStatField::MappedFile, {"memory.stat", GetStatByKeyExtractor("total_mapped_file")}},
+    {EStatField::ResidentAnon, {"memory.stat", GetStatByCGroupVersionedKeyExtractor("total_rss", "anon")}},
+    {EStatField::TmpfsUsage, {"memory.stat", GetStatByCGroupVersionedKeyExtractor("total_shmem", "shmem")}},
+    {EStatField::MappedFile, {"memory.stat", GetStatByCGroupVersionedKeyExtractor("total_mapped_file", "file_mapped")}},
     {EStatField::MinorPageFaults, {"minor_faults", LongExtractor}},
     {EStatField::MajorPageFaults, {"major_faults", LongExtractor}},
     {EStatField::FileCacheUsage, {"cache_usage", LongExtractor}},
