@@ -106,6 +106,12 @@ func WithTLSConfig(c *tls.Config) ClientOption {
 	}
 }
 
+func WithNetwork(network string) ClientOption {
+	return func(conn *ClientConn) {
+		conn.network = network
+	}
+}
+
 var ErrConnClosed = xerrors.NewSentinel("connection closed")
 
 type ClientConn struct {
@@ -127,6 +133,7 @@ type ClientConn struct {
 	featureIDFormatter          featureIDFormatter
 
 	address string
+	network string
 
 	dialed chan struct{}
 	bus    *Bus
@@ -292,6 +299,7 @@ func (c *ClientConn) runSender() {
 func (c *ClientConn) dial(ctx context.Context) {
 	opts := Options{
 		Address:        c.address,
+		Network:        c.network,
 		Logger:         c.log,
 		EncryptionMode: c.encryptionMode,
 		TLSConfig:      c.tlsConfig,

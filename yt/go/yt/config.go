@@ -187,6 +187,17 @@ type Config struct {
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
 
+	// IPVersion restricts the address family used for outbound connections.
+	//
+	// Applies to:
+	//   - bus TCP dials (RPC client only)
+	//   - HTTP dials (proxy discovery for RPC, all requests for HTTP client) —
+	//     only when HTTPClient is unset; a user-provided HTTPClient is responsible
+	//     for configuring its own transport.
+	//
+	// Default (IPVersionAny) uses system dual-stack resolution.
+	IPVersion IPVersion
+
 	// HTTPClient allows to override default http.Client.
 	//
 	// If this option is provided, http client is not configured using other config options,
@@ -458,6 +469,26 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 		//		return "brotli_11", true
 	default:
 		return "", false
+	}
+}
+
+// IPVersion restricts address family used for outbound connections.
+type IPVersion int
+
+const (
+	IPVersionAny IPVersion = iota
+	IPVersionV4
+	IPVersionV6
+)
+
+func (v IPVersion) Network() string {
+	switch v {
+	case IPVersionV4:
+		return "tcp4"
+	case IPVersionV6:
+		return "tcp6"
+	default:
+		return "tcp"
 	}
 }
 
