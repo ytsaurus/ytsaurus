@@ -344,6 +344,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_WorkerWriteLogsToYT', value='true'),
                 dict(name='_WorkerWriteLogsToFile', value='false'),
                 dict(name='_WorkerLogLevel', value='debug'),
+                dict(name='_LogsDirectory', value='logs'),
                 dict(name='YtPartitionCount', value='1'),
             ],
             cluster_mapping=[dict(
