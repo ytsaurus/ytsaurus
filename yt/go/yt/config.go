@@ -423,9 +423,6 @@ func parseEnvBool(name string) bool {
 }
 
 func (c *Config) GetIPVersion() IPVersion {
-	if c.IPVersion == IPVersionV4 || c.IPVersion == IPVersionV6 {
-		return c.IPVersion
-	}
 	force4 := parseEnvBool("YT_FORCE_IPV4")
 	force6 := parseEnvBool("YT_FORCE_IPV6")
 	if force4 && force6 {
@@ -437,7 +434,7 @@ func (c *Config) GetIPVersion() IPVersion {
 	if force6 {
 		return IPVersionV6
 	}
-	return IPVersionAny
+	return c.IPVersion
 }
 
 const (
