@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -195,7 +196,7 @@ type Config struct {
 	//     only when HTTPClient is unset; a user-provided HTTPClient is responsible
 	//     for configuring its own transport.
 	//
-	// Default (IPVersionAny) uses system dual-stack resolution.
+	// Config value can be overridden by YT_FORCE_IPV4 and YT_FORCE_IPV6 environment variables.
 	IPVersion IPVersion
 
 	// HTTPClient allows to override default http.Client.
@@ -407,6 +408,36 @@ func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
 	}
 
 	return c.CompressionCodec
+}
+
+func parseEnvBool(name string) bool {
+	v := os.Getenv(name)
+	if v == "" {
+		return false
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false
+	}
+	return b
+}
+
+func (c *Config) GetIPVersion() IPVersion {
+	if c.IPVersion == IPVersionV4 || c.IPVersion == IPVersionV6 {
+		return c.IPVersion
+	}
+	force4 := parseEnvBool("YT_FORCE_IPV4")
+	force6 := parseEnvBool("YT_FORCE_IPV6")
+	if force4 && force6 {
+		return IPVersionV4
+	}
+	if force4 {
+		return IPVersionV4
+	}
+	if force6 {
+		return IPVersionV6
+	}
+	return IPVersionAny
 }
 
 const (

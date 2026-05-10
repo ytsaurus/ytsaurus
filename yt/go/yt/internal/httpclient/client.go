@@ -754,7 +754,7 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-				return dialContext(ctx, netDialer, c.IPVersion.Network(), addr)
+				return dialContext(ctx, netDialer, c.GetIPVersion().Network(), addr)
 			},
 
 			MaxIdleConns:        0,

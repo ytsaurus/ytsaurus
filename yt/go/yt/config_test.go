@@ -192,3 +192,66 @@ func TestClusterURL(t *testing.T) {
 		})
 	}
 }
+
+func TestGetIPVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		ipVersion IPVersion
+		envIPv4   string
+		envIPv6   string
+		want      IPVersion
+		wantNet   string
+	}{
+		{
+			name:      "config overrides env",
+			ipVersion: IPVersionV4,
+			envIPv4:   "",
+			envIPv6:   "true",
+			want:      IPVersionV4,
+			wantNet:   "tcp4",
+		},
+		{
+			name:      "env force ipv4",
+			ipVersion: IPVersionAny,
+			envIPv4:   "true",
+			envIPv6:   "",
+			want:      IPVersionV4,
+			wantNet:   "tcp4",
+		},
+		{
+			name:      "env force ipv6",
+			ipVersion: IPVersionAny,
+			envIPv4:   "",
+			envIPv6:   "true",
+			want:      IPVersionV6,
+			wantNet:   "tcp6",
+		},
+		{
+			name:      "both env true prefers ipv4",
+			ipVersion: IPVersionAny,
+			envIPv4:   "true",
+			envIPv6:   "true",
+			want:      IPVersionV4,
+			wantNet:   "tcp4",
+		},
+		{
+			name:      "any no env",
+			ipVersion: IPVersionAny,
+			envIPv4:   "",
+			envIPv6:   "",
+			want:      IPVersionAny,
+			wantNet:   "tcp",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("YT_FORCE_IPV4", tc.envIPv4)
+			t.Setenv("YT_FORCE_IPV6", tc.envIPv6)
+
+			conf := Config{IPVersion: tc.ipVersion}
+			got := conf.GetIPVersion()
+			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.wantNet, got.Network())
+		})
+	}
+}
