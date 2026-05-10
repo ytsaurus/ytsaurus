@@ -380,7 +380,7 @@ public:
         validateProto(NProto::TAddStoreDescriptor::GetDescriptor(),         6, 0);
         validateProto(NProto::TAddHunkChunkDescriptor::GetDescriptor(),     2, 0);
         validateProto(NProto::TTableReplicaDescriptor::GetDescriptor(),     8, 0);
-        validateProto(NProto::TTableSettings::GetDescriptor(),             10, 0);
+        validateProto(NProto::TTableSettings::GetDescriptor(),             11, 0);
         validateProto(NProto::TReqWriteRows::GetDescriptor(),              20, 0);
         validateProto(NProto::TReqWriteDelayedRows::GetDescriptor(),       11, 0);
         validateProto(NProto::TReqAlterTableReplica::GetDescriptor(),       6, 0);

@@ -1,4 +1,4 @@
-from yt_dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase, SmoothMovementHelper
 from .test_tablet_actions import TabletActionsBase, TabletBalancerBase
 from .test_dynamic_tables_profiling import TestStatisticsReporterBase
 
@@ -1026,6 +1026,56 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         })
 
         wait(lambda: get(f"{table}/@tablet_count") == 4)
+
+    @authors("navasardianna")
+    def test_tablet_balancer_config_at_node(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 1)
+
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _get_option_from_tablet():
+            return get(
+                f"//sys/tablets/{tablet_id}/orchid/tablet_balancer_config/desired_tablet_metric")
+
+        assert _get_option_from_tablet() == 1.0
+
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 2)
+
+        remount_table("//tmp/t")
+        wait(lambda: _get_option_from_tablet() == 2.0)
+
+    @authors("navasardianna")
+    def test_tablet_balancer_config_at_node_in_smooth_move(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 1)
+
+        def _get_metric_from_tablet():
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            return get(f"//sys/tablets/{tablet_id}/orchid/tablet_balancer_config/desired_tablet_metric")
+
+        sync_mount_table("//tmp/t")
+
+        assert _get_metric_from_tablet() == 1.0
+
+        h = SmoothMovementHelper("//tmp/t")
+        with h.forwarding_context():
+            wait(lambda: get(f"{h.source_orchid}/tablet_balancer_config/desired_tablet_metric") == 1.0)
+            wait(lambda: get(f"{h.target_orchid}/tablet_balancer_config/desired_tablet_metric") == 1.0)
+
+            set("//tmp/t/@tablet_balancer_config/desired_tablet_metric", 2)
+            remount_table("//tmp/t")
+
+            wait(lambda: get(f"{h.source_orchid}/tablet_balancer_config/desired_tablet_metric") == 2.0)
+            wait(lambda: get(f"{h.target_orchid}/tablet_balancer_config/desired_tablet_metric") == 2.0)
+
+        assert _get_metric_from_tablet() == 2.0
 
 
 ##################################################################

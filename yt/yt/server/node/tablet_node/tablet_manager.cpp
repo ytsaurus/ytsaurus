@@ -52,6 +52,8 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -5089,6 +5091,11 @@ private:
             }
         }
 
+        // COMPAT(navasardianna): EMasterReign::SendTableTabletBalancerConfigToTablet.
+        auto tabletBalancerConfig = tableSettings.has_tablet_balancer_config()
+            ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.tablet_balancer_config()))
+            : GetEphemeralNodeFactory()->CreateMap();
+
         TRawTableSettings settings{
             .Provided = {
                 .MountConfigNode = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
@@ -5104,7 +5111,8 @@ private:
                 .HunkWriterConfig = DeserializeTabletHunkWriterConfig(
                     TYsonString(tableSettings.hunk_writer_config()), tabletId),
                 .HunkWriterOptions = DeserializeTabletHunkWriterOptions(
-                    TYsonString(tableSettings.hunk_writer_options()), tabletId)
+                    TYsonString(tableSettings.hunk_writer_options()), tabletId),
+                .TabletBalancerConfig = tabletBalancerConfig,
             },
             // COMPAT(ifsmirnov)
             .GlobalPatch = tableSettings.has_global_patch()
@@ -5135,6 +5143,12 @@ private:
         ToProto(request->mutable_store_writer_options(), ConvertToYsonString(provided.StoreWriterOptions));
         ToProto(request->mutable_hunk_writer_config(), ConvertToYsonString(provided.HunkWriterConfig));
         ToProto(request->mutable_hunk_writer_options(), ConvertToYsonString(provided.HunkWriterOptions));
+
+        // COMPAT(navasardianna)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SendTableTabletBalancerConfigToTablet) {
+            ToProto(request->mutable_tablet_balancer_config(), ConvertToYsonString(provided.TabletBalancerConfig));
+        }
+
         ToProto(request->mutable_global_patch(), ConvertToYsonString(settings.GlobalPatch));
         ToProto(request->mutable_experiments(), ConvertToYsonString(settings.Experiments));
     }

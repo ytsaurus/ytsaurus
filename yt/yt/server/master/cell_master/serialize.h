@@ -190,6 +190,7 @@ DEFINE_ENUM(EMasterReign,
     ((DontValidateTransactionPermissionsOnPartitipants_26_1)        (3236))  // kvk1920
     ((DoNotCreateSplitActionsIfTooManyTablets)                      (3237))  // alexelexa
     ((IntroduceLogicalMountRevision)                                (3238))  // alexelexa
+    ((SendTableTabletBalancerConfigToTablet)                        (3239))  // navasardianna
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
