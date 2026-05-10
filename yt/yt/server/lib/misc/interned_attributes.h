@@ -94,6 +94,7 @@
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerStatus, chunk_merger_status) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
+    XX(ChunkMergerUsage, chunk_merger_usage) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkReplicaCount, chunk_replica_count) \
@@ -364,6 +365,7 @@
     XX(MountRevision, mount_revision) \
     XX(MountTime, mount_time) \
     XX(Movable, movable) \
+    XX(MulticellChunkMergerUsage, multicell_chunk_merger_usage) \
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \

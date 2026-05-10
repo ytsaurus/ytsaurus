@@ -30,6 +30,7 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = SecurityServerLogger;
+constinit const auto Profiler = AccountProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -228,7 +229,10 @@ void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node)
 
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
-    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(0)))
+    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(
+        TThroughputThrottlerConfig::Create(0),
+        Logger(),
+        Profiler().WithPrefix("/merge_job_throttler")))
     , ShardIndex_(GetAccountShardIndex(id))
     , ProfilingBucketIndex_(GetAccountProfilingBucketIndex(id))
     , ChunkMergerNodeTraversals_(id)
