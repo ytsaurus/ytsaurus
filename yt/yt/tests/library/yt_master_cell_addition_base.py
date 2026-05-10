@@ -716,14 +716,14 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
     def check_user_limits(self):
         create_user("bob")
         set("//sys/users/bob/@request_limits/request_queue_size", {
-            "clusterwide": 22,
-            "default": 22,
+            "clusterwide": 234,
+            "default": 234,
             "per_cell": {"11": 123},
         })
 
         assert get("//sys/users/bob/@request_limits/request_queue_size") == {
-            "clusterwide": 22,
-            "default": 22,
+            "clusterwide": 234,
+            "default": 234,
             "per_cell": {"11": 123},
         }
 
@@ -732,8 +732,8 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         assert_true_for_secondary_cells(
             self.Env,
             lambda driver: get("//sys/users/bob/@request_limits/request_queue_size", driver=driver) == {
-                "clusterwide": 22,
-                "default": 22,
+                "clusterwide": 234,
+                "default": 234,
                 "per_cell": {"11": 123},
             },
         )

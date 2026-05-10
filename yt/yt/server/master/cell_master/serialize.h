@@ -192,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((IntroduceLogicalMountRevision)                                (3238))  // alexelexa
     ((SendTableTabletBalancerConfigToTablet)                        (3239))  // navasardianna
     ((ChunkMergerUsageAttributeInAccount)                           (3240))  // cherepashka
+    ((DefaultUserClusterwideLimitToCellLimit_26_1)                  (3241))  // shakurov
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
@@ -202,6 +203,7 @@ DEFINE_ENUM(EMasterReign,
     ((IntroduceLogicalMountRevision_26_2)                           (3305))  // alexelexa
     ((SendTableTabletBalancerConfigToTablet_26_2)                   (3306))  // navasardianna
     ((ChunkMergerUsageAttributeInAccount_26_2)                      (3307))  // cherepashka
+    ((DefaultUserClusterwideLimitToCellLimit)                       (3308))  // shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
