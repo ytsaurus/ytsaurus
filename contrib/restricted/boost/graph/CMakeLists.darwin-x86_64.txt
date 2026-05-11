@@ -56,7 +56,6 @@ target_link_libraries(restricted-boost-graph PUBLIC
   restricted-boost-serialization
   restricted-boost-smart_ptr
   restricted-boost-spirit
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-tti
   restricted-boost-tuple

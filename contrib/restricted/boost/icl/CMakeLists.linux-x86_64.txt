@@ -40,7 +40,6 @@ target_link_libraries(restricted-boost-icl INTERFACE
   restricted-boost-mpl
   restricted-boost-range
   restricted-boost-rational
-  restricted-boost-static_assert
   restricted-boost-type_traits
   restricted-boost-utility
 )

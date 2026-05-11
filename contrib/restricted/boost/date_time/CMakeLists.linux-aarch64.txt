@@ -37,7 +37,6 @@ target_link_libraries(restricted-boost-date_time INTERFACE
   restricted-boost-numeric_conversion
   restricted-boost-range
   restricted-boost-smart_ptr
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-tokenizer
   restricted-boost-type_traits
