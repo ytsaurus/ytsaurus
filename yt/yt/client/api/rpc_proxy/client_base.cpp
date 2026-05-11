@@ -1074,6 +1074,9 @@ TFuture<std::vector<TUnversionedLookupRowsResult>> TClientBase::MultiLookupRows(
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
     ToProto(req->mutable_tablet_read_options(), options);
     req->set_allow_failure(options.AllowFailure);
+    if (options.SubrequestTimeout) {
+        req->set_subrequest_timeout(ToProto(*options.SubrequestTimeout));
+    }
 
     YT_OPTIONAL_TO_PROTO(req, execution_pool, options.ExecutionPool);
 

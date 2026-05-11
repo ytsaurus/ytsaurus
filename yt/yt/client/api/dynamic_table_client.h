@@ -63,6 +63,10 @@ struct TMultiLookupOptions
     //! (e.g., table does not exist or is unmounted). Failed subrequests will have
     //! their error reported in the result's Error field.
     bool AllowFailure = false;
+
+    //! If set, subrequests that do not complete within this duration will have
+    //! their result's Error set to EErrorCode::Timeout.
+    std::optional<TDuration> SubrequestTimeout;
 };
 
 struct TExplainQueryOptions

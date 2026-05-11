@@ -1003,15 +1003,23 @@ std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookupRows(
             .Run());
     }
 
-    if (options.AllowFailure) {
-        auto resultsOrErrors = WaitFor(AllSet(std::move(asyncResults)))
-            .ValueOrThrow();
+    if (options.SubrequestTimeout || options.AllowFailure) {
+        std::vector<TErrorOr<TUnversionedLookupRowsResult>> resultsOrErrors;
+        if (options.SubrequestTimeout) {
+            resultsOrErrors = WaitFor(AllSetWithTimeout(std::move(asyncResults), *options.SubrequestTimeout))
+                .ValueOrThrow();
+        } else {
+            resultsOrErrors = WaitFor(AllSet(std::move(asyncResults)))
+                .ValueOrThrow();
+        }
 
         std::vector<TUnversionedLookupRowsResult> results;
         results.reserve(subrequests.size());
         for (auto& resultOrError : resultsOrErrors) {
             if (resultOrError.IsOK()) {
                 results.push_back(std::move(resultOrError.Value()));
+            } else if (!options.AllowFailure && resultOrError.GetCode() != NYT::EErrorCode::Timeout) {
+                resultOrError.ThrowOnError();
             } else {
                 results.push_back(TUnversionedLookupRowsResult{
                     .Error = std::move(resultOrError),
