@@ -37,7 +37,7 @@
     #include <spawn.h>
 #endif
 
-#if defined(__APPLE__)
+#if defined(_unix_)
     #define YT_USE_POSIX_SPAWN_API
 #endif
 
@@ -91,6 +91,7 @@ public:
                 << TError::FromSystem());
     }
 
+#ifdef __APPLE__
     void AddChdirFileAction(std::string path)
     {
         THROW_ERROR_EXCEPTION_IF(
@@ -98,6 +99,7 @@ public:
             TError("Failed to add chdir file actions (Path: %v)", path)
                 << TError::FromSystem());
     }
+#endif
 
     posix_spawn_file_actions_t* Get()
     {
@@ -123,10 +125,8 @@ public:
 
     ~TPosixSpawnAttrs()
     {
-        auto res = ::posix_spawnattr_destroy(&Actions_);
-
         YT_LOG_FATAL_IF(
-            res != 0,
+            ::posix_spawnattr_destroy(&Actions_) != 0,
             "Failed to destroy spawnattrs object");
     }
 
@@ -137,7 +137,7 @@ public:
 
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setsigdefault(&Actions_, &allBlocked) != 0,
-            TError("Failed to set default signal handlers for spawnattrs")
+            TError("Failed to set spawnattrs default signal handlers")
                 << TError::FromSystem());
 
         UpdateFlags(POSIX_SPAWN_SETSIGDEF);
@@ -147,7 +147,7 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setsigmask(&Actions_, sigset) != 0,
-            TError("Failed to set signal mask for spawnattrs")
+            TError("Failed to set spawnattrs signal mask")
                 << TError::FromSystem());
 
         UpdateFlags(POSIX_SPAWN_SETSIGMASK);
@@ -157,7 +157,7 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setpgroup(&Actions_, 0) != 0,
-            TError("Failed to set pgroup value to 0 of spawnattrs")
+            TError("Failed to set spawnattrs pgroup")
                 << TError::FromSystem());
 
         UpdateFlags(POSIX_SPAWN_SETPGROUP);
@@ -171,22 +171,22 @@ public:
 private:
     posix_spawnattr_t Actions_;
 
-    void UpdateFlags(int mask)
+    void UpdateFlags(short mask)
     {
         auto currentFlags = GetFlags();
-
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setflags(&Actions_, currentFlags | mask) != 0,
-            TError("Failed to set flags to spawnattrs (OldFlags: %v, Mask: %v)", currentFlags, mask)
+            TError("Failed to set spawnattrs flags")
                 << TError::FromSystem());
     }
 
     short GetFlags() const
     {
-        short flags;
+        // Initialize to make MSAN happy.
+        short flags = 0;
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_getflags(&Actions_, &flags) != 0,
-            TError("Failed to flags from spawnattrs")
+            TError("Failed to get spawnattrs flags")
                 << TError::FromSystem());
         return flags;
     }
@@ -347,6 +347,22 @@ bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
     return true;
 }
 
+std::string ShellQuote(TStringBuf str)
+{
+    std::string result;
+    result.reserve(str.size() + 2);
+    result += '\'';
+    for (char c : str) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += '\'';
+    return result;
+}
+
 #if !defined(YT_USE_POSIX_SPAWN_API)
 
 void Cleanup(int pid)
@@ -493,7 +509,11 @@ public:
     void AddChdirSpawnAction(const std::string& workingDirectory)
     {
     #if defined(YT_USE_POSIX_SPAWN_API)
+    #ifdef __APPLE__
         SpawnFileActions_.AddChdirFileAction(workingDirectory);
+    #endif
+        // On Linux, chdir is handled at the PrepareSpawnActions level by wrapping with /bin/sh.
+        Y_UNUSED(workingDirectory);
     #else
         SpawnActions_.push_back(TSpawnAction{
             [workingDirectory = TString(workingDirectory)] {
@@ -854,12 +874,38 @@ void TSimpleProcess::ValidateSpawnResult()
 #endif
 }
 
+void TSimpleProcess::WrapArgsWithShell()
+{
+    // posix_spawn_file_actions_addchdir_np is not available on Linux.
+    // Wrap the command: /bin/sh -c "cd 'DIR' && exec 'BIN' 'arg1' ..."
+    TStringBuilder shellCmdBuilder;
+    shellCmdBuilder.AppendFormat("cd %v && exec %v",
+        ShellQuote(WorkingDirectory_),
+        ShellQuote(ResolvedPath_));
+    // Args_ has a trailing nullptr; iterate up to (but not including) it,
+    // skipping Args_[0] which is conventionally argv[0] (the program name).
+    for (size_t index = 1; index + 1 < Args_.size(); ++index) {
+        shellCmdBuilder.AppendFormat(" %v", ShellQuote(Args_[index]));
+    }
+
+    ResolvedPath_ = "/bin/sh";
+    Args_.clear();
+    Args_.push_back(Capture("/bin/sh"));
+    Args_.push_back(Capture("-c"));
+    Args_.push_back(Capture(shellCmdBuilder.Flush()));
+    Args_.push_back(nullptr);
+}
+
 void TSimpleProcess::PrepareSpawnActions(sigset_t* oldSignals)
 {
     SpawnState_->AddSignalSafetySpawnActions(oldSignals);
 
     if (!WorkingDirectory_.empty()) {
+#if defined(YT_USE_POSIX_SPAWN_API) && !defined(__APPLE__)
+        WrapArgsWithShell();
+#else
         SpawnState_->AddChdirSpawnAction(WorkingDirectory_);
+#endif
     }
 
     if (CreateProcessGroup_) {
