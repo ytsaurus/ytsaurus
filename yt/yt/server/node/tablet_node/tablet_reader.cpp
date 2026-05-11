@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "failing_on_rotation_reader.h"
+#include "hedging_manager_registry.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -501,6 +502,16 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         tabletSnapshot,
         std::move(reader));
 
+    auto modifiedChunkReadOptions = chunkReadOptions;
+    if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
+        modifiedChunkReadOptions.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            THedgingUnit{
+                .UserTag = NServer::GetCurrentProfilingUser(),
+                .HunkChunk = true,
+                .QueryKind = modifiedChunkReadOptions.InitialQueryKind,
+            });
+    }
+
     reader = CreateHunkDecodingSchemafulReader(
         tabletSnapshot->QuerySchema,
         columnFilter,
@@ -508,7 +519,7 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
         tabletSnapshot->DictionaryCompressionFactory,
-        chunkReadOptions,
+        std::move(modifiedChunkReadOptions),
         tabletSnapshot->PerformanceCounters);
 
     return reader;

@@ -28,14 +28,16 @@ bool THedgingUnit::operator==(const THedgingUnit& other) const
 {
     return
         UserTag == other.UserTag &&
-        HunkChunk == other.HunkChunk;
+        HunkChunk == other.HunkChunk &&
+        QueryKind == other.QueryKind;
 }
 
 THedgingUnit::operator size_t() const
 {
     return MultiHash(
         UserTag,
-        HunkChunk);
+        HunkChunk,
+        QueryKind);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +127,7 @@ private:
         if (hedgingUnit.UserTag) {
             customizedProfiler = customizedProfiler.WithTag("user", *hedgingUnit.UserTag);
         }
+        customizedProfiler = customizedProfiler.WithTag("kind", ToString(hedgingUnit.QueryKind));
 
         return THedgingManagerWithSensors{
             .HedgingManager = CreateAdaptiveHedgingManager(std::move(config)),
