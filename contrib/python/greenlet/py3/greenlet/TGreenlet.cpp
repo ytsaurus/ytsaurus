@@ -198,7 +198,7 @@ Greenlet::g_switchstack(void)
 
     // No stack-based variables are valid anymore.
 
-    // But the global is volatile so we can reload it without the
+    // But the global is thread_local volatile so we can reload it without the
     // compiler caching it from earlier.
     Greenlet* greenlet_that_switched_in = switching_thread_state; // aka this
     switching_thread_state = nullptr;
@@ -230,18 +230,18 @@ Greenlet::check_switch_allowed() const
 
     // If the thread this greenlet was running in is dead,
     // we'll still have a reference to a main greenlet, but the
-    // thread state pointer we have is bogus.
+    // thread state pointer we have is bogus (should be nullptr)
     // TODO: Give the objects an API to determine if they belong
     // to a dead thread.
 
-    const BorrowedMainGreenlet main_greenlet = this->find_main_greenlet_in_lineage();
+    const BorrowedMainGreenlet my_main_greenlet = this->find_main_greenlet_in_lineage();
 
-    if (!main_greenlet) {
+    if (!my_main_greenlet) {
         throw PyErrOccurred(mod_globs->PyExc_GreenletError,
                             "cannot switch to a garbage collected greenlet");
     }
 
-    if (!main_greenlet->thread_state()) {
+    if (!my_main_greenlet->thread_state()) {
         throw PyErrOccurred(mod_globs->PyExc_GreenletError,
                             "cannot switch to a different thread (which happens to have exited)");
     }
@@ -255,26 +255,26 @@ Greenlet::check_switch_allowed() const
     // may not be visible yet. So we need to check against the
     // current thread state (once the cheaper checks are out of
     // the way)
-    const BorrowedMainGreenlet current_main_greenlet = GET_THREAD_STATE().state().borrow_main_greenlet();
+    const BorrowedMainGreenlet main_greenlet_cur_thread = GET_THREAD_STATE().state().borrow_main_greenlet();
     if (
         // lineage main greenlet is not this thread's greenlet
-        current_main_greenlet != main_greenlet
+        main_greenlet_cur_thread != my_main_greenlet
         || (
             // atteched to some thread
             this->main_greenlet()
             // XXX: Same condition as above. Was this supposed to be
             // this->main_greenlet()?
-            && current_main_greenlet != main_greenlet)
+            && main_greenlet_cur_thread != my_main_greenlet)
         // switching into a known dead thread (XXX: which, if we get here,
         // is bad, because we just accessed the thread state, which is
         // gone!)
-        || (!current_main_greenlet->thread_state())) {
+        || (!main_greenlet_cur_thread->thread_state())) {
         // CAUTION: This may trigger memory allocations, gc, and
         // arbitrary Python code.
         throw PyErrOccurred(
             mod_globs->PyExc_GreenletError,
             "Cannot switch to a different thread\n\tCurrent:  %R\n\tExpected: %R",
-            current_main_greenlet, main_greenlet);
+            main_greenlet_cur_thread, my_main_greenlet);
     }
 }
 
@@ -392,6 +392,10 @@ g_handle_exit(const OwnedObject& greenlet_result)
     if (!greenlet_result && mod_globs->PyExc_GreenletExit.PyExceptionMatches()) {
         /* catch and ignore GreenletExit */
         PyErrFetchParam val;
+        // TODO: When we run on 3.12+ only (GREENLET_312), switch to the
+        // ``PyErr_GetRaisedException`` family of functions. The
+        // ``PyErr_Fetch`` family is deprecated on 3.12+, but is part
+        // of the stable ABI so it's not going anywhere.
         PyErr_Fetch(PyErrFetchParam(), val, PyErrFetchParam());
         if (!val) {
             return OwnedObject::None();
