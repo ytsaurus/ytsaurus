@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: typer
-Version: 0.24.2
+Version: 0.25.0
 Summary: Typer, build great CLIs. Easy to code. Based on Python type hints.
 Author-Email: =?utf-8?q?Sebasti=C3=A1n_Ram=C3=ADrez?= <tiangolo@gmail.com>
 License-Expression: MIT
@@ -31,7 +31,7 @@ Project-URL: Changelog, https://typer.tiangolo.com/release-notes/
 Requires-Python: >=3.10
 Requires-Dist: click>=8.2.1
 Requires-Dist: shellingham>=1.3.0
-Requires-Dist: rich>=12.3.0
+Requires-Dist: rich>=13.8.0
 Requires-Dist: annotated-doc>=0.0.2
 Description-Content-Type: text/markdown
 
