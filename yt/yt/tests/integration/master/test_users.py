@@ -88,6 +88,56 @@ class TestUsers(YTEnvSetup):
         with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@write_request_rate_limit", -1)
 
+    @authors("shakurov")
+    def test_clusterwide_request_rate_limit_default(self):
+        create_user("u1")
+        assert get("//sys/users/u1/@request_limits/write_request_rate/clusterwide") == 100
+        assert get("//sys/users/u1/@request_limits/read_request_rate/clusterwide") == 100
+        assert get("//sys/users/u1/@request_limits/request_queue_size/clusterwide") == 100
+
+        create_user("u2", attributes={"request_limits": {
+            "write_request_rate": {"clusterwide": 200},
+            "read_request_rate": {"clusterwide": 200},
+            "request_queue_size": {"clusterwide": 200},
+        }})
+        assert get("//sys/users/u2/@request_limits/write_request_rate/clusterwide") == 200
+        assert get("//sys/users/u2/@request_limits/read_request_rate/clusterwide") == 200
+        assert get("//sys/users/u2/@request_limits/request_queue_size/clusterwide") == 200
+
+        create_user("u3", attributes={"request_limits": {
+            "write_request_rate": {"default": 300},
+            "read_request_rate": {"default": 300},
+            "request_queue_size": {"default": 300},
+        }})
+        assert get("//sys/users/u3/@request_limits/write_request_rate/clusterwide") == 300
+        assert get("//sys/users/u3/@request_limits/read_request_rate/clusterwide") == 300
+        assert get("//sys/users/u3/@request_limits/request_queue_size/clusterwide") == 300
+
+        create_user("u4", attributes={"request_limits": {
+            "write_request_rate": {"clusterwide": 400, "default": 500},
+            "read_request_rate": {"clusterwide": 400, "default": 500},
+            "request_queue_size": {"clusterwide": 400, "default": 500},
+        }})
+        assert get("//sys/users/u4/@request_limits/write_request_rate/clusterwide") == 400
+        assert get("//sys/users/u4/@request_limits/read_request_rate/clusterwide") == 400
+        assert get("//sys/users/u4/@request_limits/request_queue_size/clusterwide") == 400
+
+        set("//sys/users/u4/@request_limits/write_request_rate/clusterwide", 600)
+        set("//sys/users/u4/@request_limits/read_request_rate/clusterwide", 600)
+        set("//sys/users/u4/@request_limits/request_queue_size/clusterwide", 600)
+
+        assert get("//sys/users/u4/@request_limits/write_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/read_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/request_queue_size/clusterwide") == 600
+
+        set("//sys/users/u4/@request_limits/write_request_rate/default", 700)
+        set("//sys/users/u4/@request_limits/read_request_rate/default", 700)
+        set("//sys/users/u4/@request_limits/request_queue_size/default", 700)
+
+        assert get("//sys/users/u4/@request_limits/write_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/read_request_rate/clusterwide") == 600
+        assert get("//sys/users/u4/@request_limits/request_queue_size/clusterwide") == 600
+
     @authors("h0pless")
     def test_request_rate_limit_root(self):
         with raises_yt_error("Cannot set"):
