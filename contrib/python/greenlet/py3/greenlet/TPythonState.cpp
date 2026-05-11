@@ -173,10 +173,27 @@ void PythonState::operator<<(const PyThreadState *const tstate) noexcept
     }
   #endif
   #if GREENLET_PY313
+    // By contract of _PyTrash_thread_deposit_object,
+    // the ``delete_later`` object has a refcount of 0.
+    // We take a strong reference to it.
+    //
+    // Now, ``delete_later`` is managed as a
+    // linked list whose objects are unconditionally deallocated
+    // WITHOUT calling DECREF on them, so it's not clear what that is
+    // actually accomplishing. That is, if another object is pushed on
+    // the list and then the list is deallocated, this object will
+    // still be deallocated. This strong reference serves as a form of
+    // resurrection, meaning that when operator>> DECREFs it, we might
+    // enter its ``tp_dealloc`` function again.
+    //
+    // In practice, it's quite difficult to arrange for this to be
+    // a non-null value during a greenlet switch.
+    // ``greenlet.tests.test_greenlet_trash`` tries, but under 3.14,
+    // at least, fails to do so.
     this->delete_later = Py_XNewRef(tstate->delete_later);
   #elif GREENLET_PY312
     this->trash_delete_nesting = tstate->trash.delete_nesting;
-  #else // not 312
+  #else // not 312 or 3.13+
     this->trash_delete_nesting = tstate->trash_delete_nesting;
   #endif // GREENLET_PY312
 #else // Not 311
@@ -257,9 +274,32 @@ void PythonState::operator>>(PyThreadState *const tstate) noexcept
 #endif
     this->_top_frame.relinquish_ownership();
   #if GREENLET_PY313
-    Py_XDECREF(tstate->delete_later);
-    tstate->delete_later = this->delete_later;
-    Py_CLEAR(this->delete_later);
+    // See comments in operator<<. We own a strong reference to
+    // this->delete_later, which may or may not be the same object as
+    // tstate->delete_later (depending if something pushed an object
+    // onto the trashcan). Again, because ``delete_later`` is managed
+    // as a linked list, it's not clear that saving and restoring the
+    // value, especially without ever setting it to NULL, accomplishes
+    // much...but the code was added by a core dev, so assume correct.
+    //
+    // Recall that tstate->delete_later is supposed to have a refcount
+    // of 0, because objects are added there from their ``tp_dealloc``
+    // method. So we should only need to DECREF it if we're the ones
+    // that INCREF'd it in operator<<. (This is different than the
+    // core dev's original code which always did this.)
+    if (this->delete_later == tstate->delete_later) {
+        Py_XDECREF(tstate->delete_later);
+        tstate->delete_later = this->delete_later;
+        this->delete_later = nullptr;
+    }
+    else {
+        // it got switched behind our back. So the reference we own
+        // needs to be explicitly cleared.
+        tstate->delete_later = this->delete_later;
+        Py_CLEAR(this->delete_later);
+    }
+
+
   #elif GREENLET_PY312
     tstate->trash.delete_nesting = this->trash_delete_nesting;
   #else // not 3.12
@@ -289,13 +329,18 @@ void PythonState::set_initial_state(const PyThreadState* const tstate) noexcept
 #if GREENLET_PY314
     this->py_recursion_depth = tstate->py_recursion_limit - tstate->py_recursion_remaining;
     this->current_executor = tstate->current_executor;
+    #ifdef Py_GIL_DISABLED
+    this->c_stack_refs = ((_PyThreadStateImpl*)tstate)->c_stack_refs;
+    #endif
+    // this->stackpointer is left null because this->_top_frame is
+    // null so there is no value to copy.
 #elif GREENLET_PY312
     this->py_recursion_depth = tstate->py_recursion_limit - tstate->py_recursion_remaining;
-    // XXX: TODO: Comment from a reviewer:
-    //     Should this be ``Py_C_RECURSION_LIMIT - tstate->c_recursion_remaining``?
-    // But to me it looks more like that might not be the right
-    // initialization either?
-    this->c_recursion_depth = tstate->py_recursion_limit - tstate->py_recursion_remaining;
+#if GREENLET_314
+    this->c_recursion_depth = 0; // unused on 3.14
+#else
+    this->c_recursion_depth = Py_C_RECURSION_LIMIT - tstate->c_recursion_remaining;
+#endif
 #elif GREENLET_PY311
     this->recursion_depth = tstate->recursion_limit - tstate->recursion_remaining;
 #else
@@ -319,6 +364,12 @@ int PythonState::tp_traverse(visitproc visit, void* arg, bool own_top_frame) noe
     // The naive way of looping over c_stack_refs->ref and visiting
     // those crashes the process (at least with GIL disabled).
 #endif
+    // Note that we DO NOT visit ``delete_later``. Even if it's
+    // non-null and we technically own a reference to it, its
+    // reference count already went to 0 once and it was in the
+    // process of being deallocated. The trash can mechanism linked it
+    // into a list that will be cleaned at some later time, and it has
+    // become untracked by the GC.
     return 0;
 }
 

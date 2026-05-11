@@ -7,6 +7,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <atomic>
+
 #include "greenlet_compiler_compat.hpp"
 #include "greenlet_refs.hpp"
 #include "greenlet_cpython_compat.hpp"
@@ -18,6 +20,7 @@ using greenlet::refs::OwnedMainGreenlet;
 using greenlet::refs::BorrowedGreenlet;
 
 #if PY_VERSION_HEX < 0x30B00A6
+    // prior to 3.11.0a6
 #  define _PyCFrame CFrame
 #  define _PyInterpreterFrame _interpreter_frame
 #endif
@@ -400,6 +403,18 @@ namespace greenlet
         }
 
         virtual OwnedObject throw_GreenletExit_during_dealloc(const ThreadState& current_thread_state);
+
+        /**
+         * Depends on the state of this->args() or the current Python
+         * error indicator. Thus, it is not threadsafe or reentrant.
+         * You (you being ``green_switch``, the Python-level
+         * ``greenlet.switch`` method) should call
+         * ``check_switch_allowed`` in free-threaded builds before
+         * calling this method and catch ``PyErrOccurred`` if it isn't
+         * a valid switch. This method should also call that method
+         * because there are places where we can switch internally
+         * without going through the Python method.
+         */
         virtual OwnedObject g_switch() = 0;
         /**
          * Force the greenlet to appear dead. Used when it's not
@@ -497,6 +512,11 @@ namespace greenlet
         // slp_switch() failed.
         virtual bool force_slp_switch_error() const noexcept;
 
+        // Check the preconditions for switching to this greenlet; if they
+        // aren't met, throws PyErrOccurred. Most callers will want to
+        // catch this and clear the arguments if they've been set.
+        inline void check_switch_allowed() const;
+
     protected:
         inline void release_args();
 
@@ -563,11 +583,6 @@ namespace greenlet
         // Returns the previous greenlet we just switched away from.
         virtual OwnedGreenlet g_switchstack_success() noexcept;
 
-
-        // Check the preconditions for switching to this greenlet; if they
-        // aren't met, throws PyErrOccurred. Most callers will want to
-        // catch this and clear the arguments
-        inline void check_switch_allowed() const;
         class GreenletStartedWhileInPython : public std::runtime_error
         {
         public:
@@ -753,7 +768,7 @@ public:
     private:
         static greenlet::PythonAllocator<MainGreenlet> allocator;
         refs::BorrowedMainGreenlet _self;
-        ThreadState* _thread_state;
+        std::atomic<ThreadState*> _thread_state;
         G_NO_COPIES_OF_CLS(MainGreenlet);
     public:
         static void* operator new(size_t UNUSED(count));
@@ -781,9 +796,7 @@ public:
 
     // Instantiate one on the stack to save the GC state,
     // and then disable GC. When it goes out of scope, GC will be
-    // restored to its original state. Sadly, these APIs are only
-    // available on 3.10+; luckily, we only need them on 3.11+.
-#if GREENLET_PY310
+    // restored to its original state.
     class GCDisabledGuard
     {
     private:
@@ -802,7 +815,6 @@ public:
             }
         }
     };
-#endif
 
     OwnedObject& operator<<=(OwnedObject& lhs, greenlet::SwitchingArgs& rhs) noexcept;
 
