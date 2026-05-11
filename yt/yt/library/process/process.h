@@ -124,6 +124,7 @@ private:
     void PrepareErrorPipe();
     void CloseErrorPipe();
 
+    void WrapArgsWithShell();
     void PrepareSpawnActions(sigset_t* oldSignals);
 
     void DoSpawn() override;
