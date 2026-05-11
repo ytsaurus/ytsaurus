@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
+#include <yt/yt/server/node/tablet_node/hedging_manager_registry.h>
 #include <yt/yt/server/node/tablet_node/helpers.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/store.h>
@@ -1635,6 +1636,15 @@ private:
 
                 auto tabletChunkReadOptions = ChunkReadOptions_;
                 tabletChunkReadOptions.ResetStatistics();
+
+                if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
+                    tabletChunkReadOptions.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+                        THedgingUnit{
+                            .UserTag = GetProfilingUser(Identity_),
+                            .HunkChunk = false,
+                            .QueryKind = EInitialQueryKind::SelectRows,
+                        });
+                }
 
                 if (dataSplit.Ranges) {
                     if (tabletSnapshot->TableSchema->IsSorted()) {
