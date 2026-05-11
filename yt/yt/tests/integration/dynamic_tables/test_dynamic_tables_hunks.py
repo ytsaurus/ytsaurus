@@ -1667,6 +1667,34 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert read_table("//tmp/t") == rows
 
+    @authors("akozhikhov")
+    def test_hedging_manager_select_sensors(self):
+        sync_create_cells(1)
+        self._create_table()
+        set("//tmp/t/@chunk_reader", {"hedging_manager": {"secondary_request_ratio": 0.5}})
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"secondary_request_ratio": 0.5})
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hedging_manager/primary_request_count")
+        hunks_request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        time.sleep(1)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        wait(lambda: request_counter.get_delta() > 0)
+        wait(lambda: hunks_request_counter.get_delta() > 0)
+
 
 ################################################################################
 

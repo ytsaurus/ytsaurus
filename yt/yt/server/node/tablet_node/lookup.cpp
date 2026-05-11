@@ -979,6 +979,7 @@ protected:
                 THedgingUnit{
                     .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
+                    .QueryKind = ChunkReadOptions_.InitialQueryKind,
                 });
         }
     }
@@ -1432,6 +1433,7 @@ void TLookupSession::AddTabletRequest(
                         THedgingUnit{
                             .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
                             .HunkChunk = false,
+                            .QueryKind = ChunkReadOptions_.InitialQueryKind,
                         });
                 }
             }
