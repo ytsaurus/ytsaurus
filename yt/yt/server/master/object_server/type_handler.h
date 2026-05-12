@@ -47,7 +47,7 @@ struct IObjectTypeHandler
      *  Since it is only its native cell that is responsible for replicating an object,
      *  this method shall never be called on a non-native cell.
      */
-    virtual TCellTagList GetReplicationCellTags(const TObject* object) = 0;
+    virtual NObjectClient::TCellTagSet GetReplicationCellTags(const TObject* object) = 0;
 
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;

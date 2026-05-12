@@ -40,7 +40,7 @@ public:
             ETypeFlags::Removable;
     }
 
-    TCellTagList DoGetReplicationCellTags(const TAccessControlObject*) override
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TAccessControlObject*) override
     {
         return AllSecondaryCellTags();
     }

@@ -2621,7 +2621,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        TCellTagList cellTag = {externalCellTag};
+        TCellTagSet cellTag = {externalCellTag};
         auto* transaction = GetTransaction();
         auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
         SetTransactionId(replicationRequest, externalizedTransactionId);
