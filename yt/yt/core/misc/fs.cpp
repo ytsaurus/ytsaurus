@@ -469,14 +469,14 @@ i64 GetDirectoriesSize(const std::vector<std::string>& paths, bool ignoreUnavail
         for (const auto& file : files) {
             wrapNoEntryError([&] {
                 auto fileStatistics = GetPathStatistics(CombinePaths(directory, file));
+                if (deviceId && fileStatistics.DeviceId != *deviceId) {
+                    return;
+                }
                 if (deduplicateByINodes) {
                     auto insertResult = visitedInodes.insert(fileStatistics.INode);
                     if (!insertResult.second) { // File already visited
                         return;
                     }
-                }
-                if (deviceId && fileStatistics.DeviceId != *deviceId) {
-                    return;
                 }
                 if (fileStatistics.Size > 0) {
                     size += fileStatistics.Size;
