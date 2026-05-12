@@ -434,7 +434,7 @@ TEST_F(TAdaptiveHedgingManagerTest, DurationCumulativeError)
         promise.Set();
         auto secondaryRequestGenerator = New<TTestSecondaryRequestGenerator>();
         secondaryRequestGenerators.push_back(secondaryRequestGenerator);
-        HedgingManager_->RegisterRequest(promise.ToFuture(), BIND([=] () {
+        HedgingManager_->RegisterRequest(promise.ToFuture(), 1, BIND([=] () {
             secondaryRequestGenerator->GenerateSecondaryRequest();
         }));
     }
