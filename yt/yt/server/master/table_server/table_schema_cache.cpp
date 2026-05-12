@@ -19,7 +19,7 @@ using namespace NYson;
 void FormatValue(TStringBuilderBase* builder, const TCompactTableSchemaPtr& schema, TStringBuf spec)
 {
     if (schema) {
-        FormatValue(builder, schema->AsWireProto(), spec);
+        FormatValue(builder, EscapeC(TStringBuf(schema->AsWireProto())), spec);
     } else {
         builder->AppendString(TStringBuf("<null>"));
     }
