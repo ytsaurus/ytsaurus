@@ -30,8 +30,10 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
 
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/random.h>
 
@@ -383,15 +385,26 @@ DECLARE_REFCOUNTED_STRUCT(TIOEngineConfig)
 struct TIOEngineConfig
     : public NYTree::TYsonStruct
 {
+    int FairShareThreadCount;
+
     int ReadThreadCount;
     int WriteThreadCount;
     NIO::EDirectIOPolicy UseDirectIOForReads;
     i64 MinRequestSizeToUseHugePages;
 
+    // Request size in bytes.
+    i64 DesiredRequestSize;
+    i64 MinRequestSize;
+    bool EnableSlicing;
+
     REGISTER_YSON_STRUCT(TIOEngineConfig);
 
     static void Register(TRegistrar registrar)
     {
+        registrar.Parameter("fair_share_thread_count", &TThis::FairShareThreadCount)
+            .GreaterThanOrEqual(1)
+            .Default(1);
+
         registrar.Parameter("read_thread_count", &TThis::ReadThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
@@ -404,6 +417,15 @@ struct TIOEngineConfig
 
         registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
             .Default(NIO::EDirectIOPolicy::Never);
+
+        registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
+            .GreaterThanOrEqual(4_KB)
+            .Default(8_MB);
+        registrar.Parameter("min_request_size", &TThis::MinRequestSize)
+            .GreaterThanOrEqual(512)
+            .Default(4_MB);
+        registrar.Parameter("enable_slicing", &TThis::EnableSlicing)
+            .Default(true);
     }
 };
 
@@ -439,6 +461,8 @@ public:
         bool PreallocateDiskSpace = false;
         bool UseDirectIO = false;
         bool WaitPrecedingBlocksReceived = true;
+        TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+        TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(2);
     };
 
     TDataNodeTest() = default;
@@ -465,6 +489,7 @@ public:
         storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
         storeLocationConfig->LegacyWriteMemoryLimit = TestParams_.LegacyWriteMemoryLimit;
         storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
+        storeLocationConfig->FairShareWorkloadCategoryWeights = TestParams_.FairShareWorkloadCategoryWeights;
 
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!storeLocationConfig->Throttlers[kind]) {
@@ -603,10 +628,12 @@ public:
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
-        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TDuration::Seconds(1);
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TestParams_.DelayBeforePerformPutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->FairShareHierarchicalScheduler->WindowSize = TDuration::Seconds(1);
+        DataNodeBootstrap_->GetFairShareHierarchicalScheduler()->Reconfigure(DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->FairShareHierarchicalScheduler);
         ChannelFactory_ = CreateTestChannelFactory(
             THashMap<std::string, IServicePtr>{{DataNodeServiceAddress, DataNodeService_}},
             THashMap<std::string, IServicePtr>());
@@ -616,7 +643,6 @@ public:
     {
         MemoryTracker_->ClearTrackers();
         MemoryTracker_.Reset();
-        WorkloadDescriptor_ = {};
         ChannelFactory_.Reset();
         DataNodeService_->Stop().BlockingWait();
         DataNodeService_.Reset();
@@ -640,7 +666,7 @@ public:
         return ActionQueue_;
     }
 
-    auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks, bool preallocateDiskSpace, bool useDirectIo)
+    auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks, bool preallocateDiskSpace, bool useDirectIo, TWorkloadDescriptor workloadDescriptor = {}, bool disableSendBlocks = false)
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -649,8 +675,9 @@ public:
         req->set_use_probe_put_blocks(useProbePutBlocks);
         req->set_preallocate_disk_space(preallocateDiskSpace);
         req->set_use_direct_io(useDirectIo);
+        req->set_disable_send_blocks(disableSendBlocks);
         ToProto(req->mutable_session_id(), sessionId);
-        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
+        SetRequestWorkloadDescriptor(req, workloadDescriptor);
 
         return req->Invoke();
     }
@@ -731,7 +758,9 @@ public:
         const std::vector<int>& blockIndices,
         bool populateCache,
         bool fetchFromCache,
-        bool fetchFromDisk)
+        bool fetchFromDisk,
+        TWorkloadDescriptor workloadDescriptor = {},
+        std::optional<TDuration> requestTimeout = {})
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -740,14 +769,15 @@ public:
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->SetMultiplexingParallelism(1);
-        SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
+        SetRequestWorkloadDescriptor(req, workloadDescriptor);
         ToProto(req->mutable_chunk_id(), chunkId);
         for (auto blockIndex : blockIndices) {
             req->add_block_indexes(blockIndex);
         }
-        req->Header().set_timeout(ToProto(RequestTimeout_));
+        auto timeout = requestTimeout.value_or(RequestTimeout_);
+        req->Header().set_timeout(ToProto(timeout));
         req->Header().set_start_time(ToProto(TInstant::Now()));
-        req->SetTimeout(RequestTimeout_);
+        req->SetTimeout(timeout);
         req->set_populate_cache(populateCache);
         req->set_fetch_from_cache(fetchFromCache);
         req->set_fetch_from_disk(fetchFromDisk);
@@ -759,7 +789,13 @@ public:
         return req->Invoke();
     }
 
-    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize, bool useProbePutBlocks = false, bool preallocateDiskSpace = false, bool useDirectIo = false)
+    std::vector<TBlock> FillWithRandomBlocks(
+        TSessionId sessionId,
+        int blockCount,
+        int blockSize,
+        bool useProbePutBlocks = false,
+        bool preallocateDiskSpace = false,
+        bool useDirectIo = false)
     {
         auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
         auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
@@ -808,7 +844,6 @@ private:
     NDataNode::IBootstrapPtr DataNodeBootstrap_;
     IServicePtr DataNodeService_;
     IChannelFactoryPtr ChannelFactory_;
-    TWorkloadDescriptor WorkloadDescriptor_;
     NCellMasterClient::ICellDirectoryPtr CellDirectoryMock_;
     TIntrusivePtr<TMasterConnectorMock> MasterConnectorMock_;
     TIntrusivePtr<TTestConnection> TestConnection_;
@@ -984,6 +1019,8 @@ struct TWriteTestCase
     bool UseDirectIo = false;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TWriteTestCase> GenerateWriteTestParams()
 {
     const std::vector<std::vector<bool>> testCases = GeneratePairWiseCases(3);
@@ -1022,6 +1059,269 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TFairShareHierarchicalTestCase
+{
+    std::vector<EWorkloadCategory> WorkloadCategories;
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareHierarchicalTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<TFairShareHierarchicalTestCase>
+{
+public:
+    TFairShareHierarchicalTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .IOEngineType = NIO::EIOEngineType::FairShareHierarchical,
+                .ReadThreadCount = 4,
+                .WriteThreadCount = 4,
+                .FairShareWorkloadCategoryWeights = GetParam().FairShareWorkloadCategoryWeights,
+                .DelayBeforePerformPutBlocks = TDuration::Seconds(0),
+            })
+    { }
+
+    TFuture<void> GenerateWriteWorkload(int blockCount, int blockSize, TWorkloadDescriptor workloadDescriptor)
+    {
+        return BIND([=, this] {
+                TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+                auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
+                auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+                WaitFor(StartChunk(sessionId, false, false, false, workloadDescriptor))
+                    .ThrowOnError();
+                WaitFor(PutBlocks(sessionId, blocks, 0, cummulativeBlockSize).AsVoid())
+                    .ThrowOnError();
+                WaitFor(FlushBlocks(sessionId, blockCount - 1))
+                    .ThrowOnError();
+                WaitFor(FinishChunk(sessionId, blockCount))
+                    .ThrowOnError();
+            })
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
+    // Continuously writes chunks until ShouldStop_ is set. Used to guarantee all categories
+    // remain active at the moment of measurement, regardless of relative bandwidth.
+    TFuture<void> GenerateContinuousWriteWorkload(
+        int blockCount,
+        int blockSize,
+        TWorkloadDescriptor workloadDescriptor,
+        int sessionCount)
+    {
+        auto runSession = BIND([=, this] {
+            TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+            WaitFor(StartChunk(sessionId, false, false, false, workloadDescriptor))
+                .ThrowOnError();
+            auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
+            int blockIndex = 0;
+            auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+            auto allCummulativeBlockSize = cummulativeBlockSize;
+            while (!ShouldStop_.load()) {
+                WaitFor(PutBlocks(sessionId, blocks, blockIndex, allCummulativeBlockSize).AsVoid())
+                    .ThrowOnError();
+                WaitFor(FlushBlocks(sessionId, blockIndex + blockCount - 1))
+                    .ThrowOnError();
+                blockIndex += blockCount;
+                allCummulativeBlockSize += cummulativeBlockSize;
+            }
+            WaitFor(FinishChunk(sessionId, blockIndex))
+                .ThrowOnError();
+        });
+
+        std::vector<TFuture<void>> sessions;
+        sessions.reserve(sessionCount);
+        for (int i = 0; i < sessionCount; ++i) {
+            sessions.push_back(runSession.AsyncVia(ThreadPool_->GetInvoker()).Run());
+        }
+        return AllSucceeded(std::move(sessions));
+    }
+
+    void VerifyBucketTree(TEnumIndexedArray<EWorkloadCategory, std::optional<double>> workloadCategoryToWeight)
+    {
+        auto rootBucket = GetFairShareHierarchicalScheduler()->GetBucket({});
+        double sumWeight = 0;
+        for (const auto& weight : workloadCategoryToWeight) {
+            if (weight) {
+                sumWeight += *weight;
+            }
+        }
+
+        for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+            if (!workloadCategoryToWeight[category]) {
+                continue;
+            }
+
+            auto weight = *workloadCategoryToWeight[category];
+
+            auto currentBucket = GetBucket(category);
+
+            EXPECT_NEAR(
+                1.0 * weight,
+                1.0 * currentBucket->SummaryRequestWeight / currentBucket->RequestWindowLogCount,
+                0.05);
+
+            EXPECT_NEAR(
+                1.0 * weight / sumWeight,
+                1.0 * currentBucket->RequestWindowSize / rootBucket->RequestWindowSize,
+                0.15);
+
+            EXPECT_NEAR(
+                1.0 * weight / sumWeight,
+                1.0 * currentBucket->SlotWindowSize / rootBucket->SlotWindowSize,
+                0.15);
+        }
+    }
+
+    void CheckRequestWindowSize(TWorkloadDescriptor workloadDescriptor = {})
+    {
+        auto bucket = GetBucket(workloadDescriptor);
+        YT_VERIFY(bucket);
+        EXPECT_NE(0, bucket->RequestWindowSize);
+    }
+
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler()
+    {
+        return GetDataNodeBootstrap()->GetFairShareHierarchicalScheduler();
+    }
+
+    void SetShouldStop(bool flag)
+    {
+        ShouldStop_ = flag;
+    }
+
+    TFairShareHierarchicalScheduler<std::string>::TFairShareHierarchicalSlotQueueBucketNodePtr GetBucket(TWorkloadDescriptor workloadDescriptor)
+    {
+        return GetFairShareHierarchicalScheduler()->GetBucket({ToString(workloadDescriptor.Category)});
+    }
+
+private:
+    TRandomGenerator Generator_{RandomNumber<ui64>()};
+    IThreadPoolPtr ThreadPool_ = CreateThreadPool(16, "WriteGenerator");
+    std::atomic<bool> ShouldStop_{false};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TFairShareHierarchicalTest, StressTest)
+{
+    int blockCount = 80;
+    int blkSize = 1_MB;
+    int writesPerCategory = 5;
+    auto workloadCategories = GetParam().WorkloadCategories;
+    auto workloadCategoriesWeights = GetParam().FairShareWorkloadCategoryWeights;
+
+    // Use continuous workloads so that all categories are guaranteed to be active
+    // at the moment of measurement. With finite writes, a higher-priority category
+    // consumes proportionally more bandwidth and finishes sooner, leaving the last
+    // window dominated by lower-priority work.
+    SetShouldStop(false);
+    std::vector<TFuture<void>> workloadWrites;
+    workloadWrites.reserve(workloadCategories.size());
+
+    for (const auto& workloadCategory : workloadCategories) {
+        TWorkloadDescriptor workload(workloadCategory);
+        workloadWrites.emplace_back(GenerateContinuousWriteWorkload(blockCount, blkSize, workload, writesPerCategory));
+    }
+
+    // Wait until all categories have started writing before measuring the window,
+    // since startup may take longer than the window size on slow systems.
+    while (true) {
+        bool allActive = std::all_of(
+            workloadCategories.begin(),
+            workloadCategories.end(),
+            [&, this](EWorkloadCategory category) {
+                TWorkloadDescriptor workload(category);
+                auto bucket = GetBucket(workload);
+                return bucket && bucket->RequestWindowSize > 0;
+            });
+        if (allActive) {
+            break;
+        }
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+    }
+
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+
+    TStringStream output;
+    NYson::TYsonWriter writer(&output, NYson::EYsonFormat::Pretty, NYson::EYsonType::MapFragment);
+    GetFairShareHierarchicalScheduler()->BuildOrchid(&writer);
+    writer.Flush();
+    NLogging::TLogger Logger("TFairShareHierarchicalTest");
+    YT_LOG_DEBUG(
+        "Orchid: %v",
+        NYson::TYsonString(output.Str(), NYson::EYsonType::MapFragment));
+
+    for (const auto& workloadCategory : workloadCategories) {
+        TWorkloadDescriptor workload(workloadCategory);
+        CheckRequestWindowSize(workload);
+    }
+
+    VerifyBucketTree(workloadCategoriesWeights);
+
+    SetShouldStop(true);
+    WaitFor(AllSucceeded(workloadWrites))
+        .ThrowOnError();
+}
+
+TEST_P(TFairShareHierarchicalTest, WriteReadTest)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    TRandomGenerator generator(42);
+    int blockCount = 50;
+    int blkSize = 1_MB;
+    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize);
+
+    CheckRequestWindowSize();
+
+    int getBlockSetCount = 10;
+    std::vector<TFuture<void>> getBlockSetFutures;
+    getBlockSetFutures.reserve(getBlockSetCount);
+    for (int i = 0; i < getBlockSetCount; ++i) {
+        auto blockIndices = GenerateRandomBlockIdsWithOrder(0, blocks.size() - 1, 2, generator);
+        std::vector<TBlock> fetchedBlocks(blockIndices.size());
+        for (int i = 0; i < std::ssize(blockIndices); ++i) {
+            fetchedBlocks[i] = blocks[blockIndices[i]];
+        }
+        auto future = GetBlockSet(sessionId.ChunkId, blockIndices, true, false, true)
+            .Apply(BIND([fetchedBlocks = std::move(fetchedBlocks)] (const TIntrusivePtr<TTypedClientResponse<TRspGetBlockSet>>& response) {
+                if (response->disk_throttling() || response->net_throttling()) {
+                    return;
+                }
+                auto gotBlocks = GetRpcAttachedBlocks(response);
+                EXPECT_EQ(gotBlocks.size(), fetchedBlocks.size());
+                EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(fetchedBlocks));
+        }));
+        getBlockSetFutures.push_back(std::move(future));
+    }
+
+    auto allsucceededGetBlockSetFutures = AllSucceeded(getBlockSetFutures);
+    EXPECT_TRUE(allsucceededGetBlockSetFutures.BlockingWait(TDuration::Seconds(60)));
+    auto getBlockSetFuturesResult = allsucceededGetBlockSetFutures.TryGet();
+    EXPECT_TRUE(getBlockSetFuturesResult.has_value());
+    EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
+
+    CheckRequestWindowSize();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TFairShareHierarchicalTest,
+    TFairShareHierarchicalTest,
+    ::testing::Values(
+        TFairShareHierarchicalTestCase{ },
+        TFairShareHierarchicalTestCase{
+            .WorkloadCategories = {
+                EWorkloadCategory::UserBatch,
+                EWorkloadCategory::UserInteractive},
+            .FairShareWorkloadCategoryWeights = {
+                {EWorkloadCategory::UserBatch, 1},
+                {EWorkloadCategory::UserInteractive, 2},
+            }
+        }
+    )
+);
 
 TEST_P(TSkipWriteThrottlingLocationsTest, SkipThrottlingLocationsOnStartChunk)
 {
@@ -1254,6 +1554,80 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::ValuesIn(GenerateGetBlockSetParams())
 );
 
+class TReadBlocksDeadlineTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<std::tuple</*failSession*/ bool, /*returnBlocks*/ bool>>
+{
+public:
+    TReadBlocksDeadlineTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .CoalescedReadMaxGapSize = 0,
+            })
+    { }
+};
+
+TEST_P(TReadBlocksDeadlineTest, GetBlockSet)
+{
+    const auto [failSessionAtDeadline, returnBlocksIfSessionFails] = GetParam();
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto blocks = FillWithRandomBlocks(sessionId, /*blockCount*/ 16, /*blockSize*/ 4_KB);
+
+    auto dyn = GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode;
+    dyn->FailSessionAtReadBlocksDeadline = failSessionAtDeadline;
+    dyn->ReturnBlocksIfSessionFails = returnBlocksIfSessionFails;
+
+    // Make the server-side read routine hit its internal deadline quickly,
+    // while the RPC itself has enough time to complete.
+    dyn->TestingOptions->BlockReadTimeoutFraction = 0.75;
+    dyn->TestingOptions->DelayBeforeBlobChunkRead = TDuration::Seconds(2);
+
+    auto rspOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ std::vector<int>{0, 2, 4, 6},
+        /*populateCache*/ false,
+        /*fetchFromCache*/ false,
+        /*fetchFromDisk*/ true,
+        /*workloadDescriptor*/ {},
+        /*requestTimeout*/ TDuration::Seconds(4)));
+
+    if (!failSessionAtDeadline) {
+        EXPECT_TRUE(rspOrError.IsOK());
+        auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
+        for (const auto& block : gotBlocks) {
+            EXPECT_TRUE(block.Size() == 0);
+        }
+        return;
+    }
+
+    if (!returnBlocksIfSessionFails) {
+        EXPECT_FALSE(rspOrError.IsOK());
+        return;
+    }
+
+    EXPECT_TRUE(rspOrError.IsOK());
+    auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
+    int notEmptyBlocks = 0;
+    for (const auto& block : gotBlocks) {
+        if (block) {
+            ++notEmptyBlocks;
+        }
+    }
+    EXPECT_GT(notEmptyBlocks, 0);
+    EXPECT_LT(notEmptyBlocks, 4);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TReadBlocksDeadlineTest,
+    TReadBlocksDeadlineTest,
+    ::testing::Values(
+        std::tuple(false, false),
+        std::tuple(false, true),
+        std::tuple(true, false),
+        std::tuple(true, true))
+);
+
 TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
 {
     std::vector<TSessionId> sessionIds;
@@ -1288,10 +1662,11 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     }
 }
 
+
 TEST_F(TDataNodeTest, PutBlocksCancelChunk)
 {
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    WaitFor(StartChunk(sessionId, true, false, false))
+    WaitFor(StartChunk(sessionId, false, false, false))
         .ThrowOnError();
 
     TRandomGenerator generator{RandomNumber<ui64>()};
@@ -1300,14 +1675,14 @@ TEST_F(TDataNodeTest, PutBlocksCancelChunk)
     auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
 
     auto putBlocksEnd = PutBlocks(sessionId, {blocks[0]}, 10, cummulativeBlockSize);
-    auto putBlocksBeging = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
+    auto putBlocksBegin = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
 
     WaitFor(CancelChunk(sessionId))
         .ThrowOnError();
 
     putBlocksEnd.Cancel(TError("Timeout"));
 
-    EXPECT_THROW(WaitFor(putBlocksBeging).ThrowOnError(), NYT::TErrorException);
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(putBlocksBegin).ThrowOnError(), "Session is not active");
 }
 
 TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
@@ -1342,6 +1717,47 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
         WaitFor(FinishChunk(sessionIds[i], 0))
             .ThrowOnError();
     }
+}
+
+TEST_P(TWriteTest, DuplicateWrite)
+{
+    auto testCase = GetParam();
+    TRandomGenerator generator{RandomNumber<ui64>()};
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    int blockCount = testCase.BlockCount;
+    int blockSize = testCase.BlockSize;
+
+    auto blocks = CreateBlocks(blockCount, blockSize, generator);
+    WaitFor(StartChunk(sessionId, /*useProbePutBlocks*/ false, testCase.PreallocateDiskSpace, testCase.UseDirectIo, /*workloadDescriptor*/ {}, /*disableSendBlocks*/ true))
+        .ThrowOnError();
+
+    auto putBlocks = [&] {
+        auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+
+        std::vector<TFuture<void>> putBlocks(blocks.size() * 2);
+        std::vector<int> indices(blocks.size() * 2);
+        std::iota(std::begin(indices), std::end(indices), 0);
+        std::random_shuffle(std::begin(indices), std::end(indices));
+        for (auto i : indices) {
+            auto blockIndex = i % blocks.size();
+            putBlocks[i] = PutBlocks(sessionId, {blocks[blockIndex]}, blockIndex, cummulativeBlockSize).AsVoid();
+        }
+        WaitFor(AllSucceeded(putBlocks))
+            .ThrowOnError();
+    };
+
+    putBlocks();
+
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+
+    putBlocks();
+
+    WaitFor(FlushBlocks(sessionId, blockCount - 1))
+        .ThrowOnError();
+
+    WaitFor(FinishChunk(sessionId, blockCount))
+        .ThrowOnError();
 }
 
 TEST_P(TWriteTest, RandomWrite)

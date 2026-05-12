@@ -106,7 +106,7 @@ private:
         {
             YT_ASSERT(lhs->CurrentRow >= lhs->Rows.begin() && lhs->CurrentRow < lhs->Rows.end());
             YT_ASSERT(rhs->CurrentRow >= rhs->Rows.begin() && rhs->CurrentRow < rhs->Rows.end());
-            return KeyComparer_(lhs->CurrentRow->Keys(), rhs->CurrentRow->Keys()) <= 0;
+            return KeyComparer_(lhs->CurrentRow->Keys(), rhs->CurrentRow->Keys()) < 0;
         }
 
     private:

@@ -38,7 +38,7 @@ NProfiling::TTagSet CreateObjectProfilingTags(
     }
 
     if (leading.has_value()) {
-        tags.AddRequiredTag({"leading", leading ? "true" : "false"});
+        tags.AddRequiredTag({"leading", *leading ? "true" : "false"});
     }
 
     return tags;

@@ -10,6 +10,24 @@ namespace NYdb::NBS::NBlockStore::NStorage::NTransport {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THostConnection
+{
+    enum class EConnectionType
+    {
+        DDisk,
+        PBuffer,
+    };
+
+    EConnectionType ConnectionType;
+    NKikimr::NBsController::TDDiskId DDiskId;
+    NKikimr::NDDisk::TQueryCredentials Credentials;
+
+    [[nodiscard]] NActors::TActorId GetServiceId() const;
+    [[nodiscard]] bool IsConnected() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class IStorageTransport
 {
 public:
@@ -19,6 +37,9 @@ public:
     using TEvReadResult = NKikimrBlobStorage::NDDisk::TEvReadResult;
     using TEvWritePersistentBufferResult =
         NKikimrBlobStorage::NDDisk::TEvWritePersistentBufferResult;
+    using TEvWriteToManyPersistentBuffersResult =
+        NKikimrBlobStorage::NDDisk::TEvWritePersistentBuffersResult;
+    using TEvWriteResult = NKikimrBlobStorage::NDDisk::TEvWriteResult;
     using TEvSyncWithPersistentBufferResult =
         NKikimrBlobStorage::NDDisk::TEvSyncWithPersistentBufferResult;
     using TEvErasePersistentBufferResult =
@@ -31,58 +52,68 @@ public:
     virtual ~IStorageTransport() = default;
 
     virtual NThreading::TFuture<TEvConnectResult> Connect(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials) = 0;
+        const THostConnection& connection) = 0;
 
     virtual NThreading::TFuture<TEvReadPersistentBufferResult> ReadFromPBuffer(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials,
-        const NKikimr::NDDisk::TBlockSelector selector,
+        const THostConnection& connection,
+        const NKikimr::NDDisk::TBlockSelector& selector,
         const ui64 lsn,
         const NKikimr::NDDisk::TReadInstruction instruction,
-        TGuardedSgList data,
-        NWilson::TSpan& span) = 0;
+        const TGuardedSgList& data,
+        NWilson::TSpan* span) = 0;
 
     virtual NThreading::TFuture<TEvReadResult> ReadFromDDisk(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials,
-        const NKikimr::NDDisk::TBlockSelector selector,
+        const THostConnection& connection,
+        const NKikimr::NDDisk::TBlockSelector& selector,
         const NKikimr::NDDisk::TReadInstruction instruction,
-        TGuardedSgList data,
-        NWilson::TSpan& span) = 0;
+        const TGuardedSgList& data,
+        NWilson::TSpan* span) = 0;
 
-    virtual NThreading::TFuture<TEvWritePersistentBufferResult>
-    WritePersistentBuffer(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials,
-        const NKikimr::NDDisk::TBlockSelector selector,
+    virtual NThreading::TFuture<TEvWritePersistentBufferResult> WriteToPBuffer(
+        const THostConnection& connection,
+        const NKikimr::NDDisk::TBlockSelector& selector,
         const ui64 lsn,
         const NKikimr::NDDisk::TWriteInstruction instruction,
-        TGuardedSgList data,
-        NWilson::TSpan& span) = 0;
+        const TGuardedSgList& data,
+        NWilson::TSpan* span) = 0;
+
+    virtual NThreading::TFuture<TEvWriteToManyPersistentBuffersResult>
+    WriteToManyPBuffers(
+        const THostConnection& connection,
+        const NKikimr::NDDisk::TBlockSelector& selector,
+        const ui64 lsn,
+        const NKikimr::NDDisk::TWriteInstruction instruction,
+        TVector<NKikimrBlobStorage::NDDisk::TDDiskId> persistentBufferIds,
+        TDuration replyTimeout,
+        const TGuardedSgList& data,
+        NWilson::TSpan* span) = 0;
+
+    virtual NThreading::TFuture<TEvWriteResult> WriteToDDisk(
+        const THostConnection& connection,
+        const NKikimr::NDDisk::TBlockSelector& selector,
+        const NKikimr::NDDisk::TWriteInstruction instruction,
+        const TGuardedSgList& data,
+        NWilson::TSpan* span) = 0;
 
     virtual NThreading::TFuture<TEvSyncWithPersistentBufferResult>
-    FlushFromPBuffer(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials,
+    SyncWithPBuffer(
+        const THostConnection& pbufferConnection,
+        const THostConnection& ddiskConnection,
         TVector<NKikimr::NDDisk::TBlockSelector> selectors,
         TVector<ui64> lsns,
-        const std::tuple<ui32, ui32, ui32> ddiskId,
-        const ui64 ddiskInstanceGuid,
-        NWilson::TSpan& span) = 0;
+        NWilson::TSpan* span) = 0;
 
     virtual NThreading::TFuture<TEvErasePersistentBufferResult>
-    ErasePersistentBuffer(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials,
+    EraseFromPBuffer(
+        const THostConnection& connection,
         TVector<NKikimr::NDDisk::TBlockSelector> selectors,
         TVector<ui64> lsns,
-        NWilson::TSpan& span) = 0;
+        NWilson::TSpan* span) = 0;
 
     virtual NThreading::TFuture<TEvListPersistentBufferResult>
-    ListPersistentBuffer(
-        const NActors::TActorId serviceId,
-        const NKikimr::NDDisk::TQueryCredentials credentials) = 0;
+    ListPBufferEntries(const THostConnection& connection) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 }   // namespace NYdb::NBS::NBlockStore::NStorage::NTransport

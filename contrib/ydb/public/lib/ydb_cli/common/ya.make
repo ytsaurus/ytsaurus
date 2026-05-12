@@ -2,12 +2,15 @@ LIBRARY(common)
 
 SRCS(
     aws.cpp
+    build_info.cpp
     cert_format_converter.cpp
     client_command_options.cpp
     colors.cpp
     command.cpp
     command_utils.cpp
     common.cpp
+    completion_generator.cpp
+    completion.cpp
     config.cpp
     log.cpp
     csv_parser.cpp
@@ -35,6 +38,7 @@ SRCS(
     recursive_remove.cpp
     retry_func.cpp
     root.cpp
+    scheme_path_completer.cpp
     scheme_printers.cpp
     sys.cpp
     tabbed_table.cpp
@@ -66,6 +70,7 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/query
     contrib/ydb/public/sdk/cpp/src/client/result
     contrib/ydb/public/sdk/cpp/src/client/scheme
+    contrib/ydb/public/sdk/cpp/src/client/secret
     contrib/ydb/public/sdk/cpp/src/client/table
     contrib/ydb/public/sdk/cpp/src/client/topic
     contrib/ydb/public/sdk/cpp/src/client/types

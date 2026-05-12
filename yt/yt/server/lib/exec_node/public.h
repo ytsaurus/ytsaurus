@@ -53,6 +53,11 @@ DEFINE_ENUM(EThrottlerTrafficType,
     (Rps)
 );
 
+DEFINE_ENUM(EGpuFlavor,
+    (Nvidia)
+    (Other)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;
@@ -93,6 +98,7 @@ DECLARE_REFCOUNTED_STRUCT(TJobProxyConfig)
 DECLARE_REFCOUNTED_STRUCT(TLogDumpConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobProxyLogManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobProxyLogManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobProxyLogManagerLocationConfig)
 DECLARE_REFCOUNTED_STRUCT(TExecNodeConfig)
 DECLARE_REFCOUNTED_STRUCT(TExecNodeDynamicConfig)
 

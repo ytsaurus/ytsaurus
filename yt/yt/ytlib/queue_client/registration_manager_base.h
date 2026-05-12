@@ -46,12 +46,12 @@ protected:
     // Virtual methods.
 
     virtual std::optional<TConsumerRegistrationTableRow> DoFindRegistration(
-        NYPath::TRichYPath resolvedQueue,
-        NYPath::TRichYPath resolvedConsumer) = 0;
+        TTablePath resolvedQueue,
+        TConsumerReference resolvedConsumer) = 0;
 
     virtual std::vector<TConsumerRegistrationTableRow> DoListRegistrations(
-        std::optional<NYPath::TRichYPath> resolvedQueue,
-        std::optional<NYPath::TRichYPath> resolvedConsumer) = 0;
+        std::optional<TTablePath> resolvedQueue,
+        std::optional<TConsumerReference> resolvedConsumer) = 0;
 
     //! Resolves the corresponding chaos_replicated_table/replicated_table path for chaos/replicated table replicas
     //! via the replicated table mapping cache.

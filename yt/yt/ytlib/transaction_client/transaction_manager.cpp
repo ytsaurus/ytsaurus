@@ -276,7 +276,6 @@ private:
         return BIND_NO_PROPAGATE([id] (const TError& error) {
             return
                 IsRetriableError(error) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
                 ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
@@ -287,7 +286,6 @@ private:
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError) ||
                 ContainsTransactionSuccessorHasLeasesError(error, id);
         });
     }
@@ -1343,11 +1341,10 @@ private:
         TError error)
     {
         UpdateDownedParticipants();
-        auto wrappedError = TError(
-            NTransactionClient::EErrorCode::AtomicTransactionCommitFailure,
-            "Error committing transaction %v at cell %v",
+        auto wrappedError = TError("Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
+            << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
             << std::move(error);
         OnFailure(wrappedError);
         return MakeFuture<TTransactionCommitResult>(std::move(wrappedError));

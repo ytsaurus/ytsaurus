@@ -56,10 +56,12 @@ public:
         TJournalWriterPerformanceCounters counters,
         IInvokerPtr invoker,
         std::optional<TChunkReplicaWithMediumList> targets,
+        EChunkFormat chunkFormat,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
         , SessionId_(sessionId)
         , ChunkId_(SessionId_.ChunkId)
+        , ChunkFormat_(chunkFormat)
         , Options_(std::move(options))
         , Config_(std::move(config))
         , Counters_(std::move(counters))
@@ -68,6 +70,7 @@ public:
         , WriteTargets_(std::move(targets))
         , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
     {
+        YT_VERIFY(IsJournalFormat(chunkFormat));
         if (WriteTargets_) {
             YT_VERIFY(std::ssize(*WriteTargets_) == ReplicaCount_);
         }
@@ -131,6 +134,7 @@ private:
 
     const TSessionId SessionId_;
     const TChunkId ChunkId_;
+    const EChunkFormat ChunkFormat_;
 
     const TJournalChunkWriterOptionsPtr Options_;
     const TJournalChunkWriterConfigPtr Config_;
@@ -397,7 +401,7 @@ private:
 
         auto* meta = req->mutable_chunk_meta();
         meta->set_type(ToProto(EChunkType::Journal));
-        meta->set_format(ToProto(EChunkFormat::JournalDefault));
+        meta->set_format(ToProto(ChunkFormat_));
         NChunkClient::NProto::TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 
@@ -850,6 +854,7 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
     TJournalWriterPerformanceCounters counters,
     IInvokerPtr invoker,
     std::optional<TChunkReplicaWithMediumList> targets,
+    EChunkFormat chunkFormat,
     const NLogging::TLogger& logger)
 {
     return New<TJournalChunkWriter>(
@@ -860,6 +865,7 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
         std::move(counters),
         std::move(invoker),
         std::move(targets),
+        chunkFormat,
         logger);
 }
 

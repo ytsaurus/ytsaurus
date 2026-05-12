@@ -389,7 +389,7 @@ struct TEphemeralObjectPtrContext
         if (IsCurrent()) {
             func();
         } else {
-            EphemeralPtrUnrefInvoker->Invoke(BIND(std::move(func)));
+            EphemeralPtrUnrefInvoker->Invoke(BIND(std::forward<F>(func)));
         }
     }
 };

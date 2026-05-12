@@ -87,6 +87,7 @@
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/misc/codicil.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -1181,6 +1182,8 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TObjectManager::OnAfterSnapshotLoaded()
 {
+    GarbageCollector_->OnAfterSnapshotLoaded();
+
     auto dropSchema = [&] (EObjectType schemaType) {
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
@@ -2073,7 +2076,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
         object->GetId());
 
     auto replicationCellTags = handler->GetReplicationCellTags(object);
-    auto shouldReplicate = std::ranges::find(replicationCellTags, cellTag) != replicationCellTags.end();
+    auto shouldReplicate = replicationCellTags.contains(cellTag);
     if (object->IsBuiltin()) {
         if (!shouldReplicate) {
             YT_LOG_DEBUG("Skipped replicating builtin object mandatory attributes since destination cell is absent from replication cells "
@@ -2122,7 +2125,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
         object->GetId());
 
     auto replicationCellTags = handler->GetReplicationCellTags(object);
-    if (std::ranges::find(replicationCellTags, cellTag) == replicationCellTags.end()) {
+    if (!replicationCellTags.contains(cellTag)) {
         YT_LOG_DEBUG("Skipped replicating object attributes since destination cell is absent from replication cells "
             "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
             object->GetId(),
@@ -2732,6 +2735,8 @@ void TObjectManager::OnProfiling()
 
     TSensorBuffer buffer;
     buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());
+    buffer.AddGauge("/zombie_cypress_node_count", GarbageCollector_->GetZombieCypressNodeCount());
+    buffer.AddGauge("/zombie_chunk_count", GarbageCollector_->GetZombieChunkCount());
     buffer.AddGauge("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount());
     buffer.AddGauge("/ephemeral_unref_queue_size", GarbageCollector_->GetEphemeralGhostUnrefQueueSize());
     buffer.AddGauge("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount());

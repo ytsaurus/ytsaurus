@@ -22,8 +22,9 @@
 #include <util/string/split.h>
 
 #ifdef _linux_
-#include <yt/yt/library/containers/cgroup.h>
-#include <yt/yt/library/containers/cgroups_new.h>
+#include <yt/yt/library/cgroup/process.h>
+#include <yt/yt/library/cgroup/statistics.h>
+
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
@@ -366,9 +367,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -385,12 +386,13 @@ public:
             launcher->SetRoot(*Options_.RootFS);
         }
 
+        // TODO(severovv): List not only nvidia devices by calling to GpuManager
         std::vector<TDevice> devices;
-        for (const auto& descriptor : ListGpuDevices()) {
+        for (const auto& descriptor : ListNvidiaGpuDevices()) {
             int deviceIndex = descriptor.DeviceIndex;
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
-                    .DeviceName = GetGpuDeviceName(deviceIndex),
+                    .DeviceName = GetNvidiaGpuDeviceName(deviceIndex),
                     .Access = "-",
                 });
             }
@@ -474,7 +476,7 @@ public:
             launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
 
-        launcher->SetNetworkInterface(TString(JobNetworkInterface));
+        launcher->SetNetworkInterface(std::string(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != NContainers::EEnablePorto::Full);
@@ -906,9 +908,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -1194,9 +1196,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const TString& path,
-        const std::vector<TString>& arguments,
-        const TString& workingDirectory) override
+        const std::string& path,
+        const std::vector<std::string>& arguments,
+        const std::string& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
@@ -1333,7 +1335,7 @@ public:
 
     std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetMemoryStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
             .ResidentAnon = statistics.ResidentAnon,
             .TmpfsUsage = statistics.TmpfsUsage,
@@ -1344,7 +1346,7 @@ public:
 
     std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetBlockIOStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetBlockIOStatistics();
         return TJobEnvironmentBlockIOStatistics{
             .IOReadByte = statistics.IOReadByte,
             .IOWriteByte = statistics.IOWriteByte,
@@ -1355,7 +1357,7 @@ public:
 
     std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept override
     {
-        auto statistics = StatisticsFetcher_.GetCpuStatistics();
+        auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetCpuStatistics();
         return TJobEnvironmentCpuStatistics{
             .UserUsageTime = statistics.UserTime,
             .SystemUsageTime = statistics.SystemTime,
@@ -1365,7 +1367,7 @@ public:
     std::optional<i64> GetJobOomKillCount() const noexcept override
     {
         try {
-            return StatisticsFetcher_.GetOomKillCount();
+            return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get OOM kill count");
             return std::nullopt;
@@ -1520,7 +1522,7 @@ public:
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
+        process->AddArguments(std::vector<std::string>{"-c", std::string(sidecar.Config.Command)});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecar.Process = process;
 
@@ -1624,8 +1626,6 @@ private:
     };
 
     THashMap<TString, TRunningSidecar> RunningSidecars_;
-
-    NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriJobProxyEnvironment)

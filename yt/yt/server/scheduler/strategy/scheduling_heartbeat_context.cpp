@@ -74,12 +74,13 @@ TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatis
 TString FormatOperationCountByPreemptionPriorityCompact(
     const TEnumIndexedArray<EOperationPreemptionPriority, int>& operationCountByPriority)
 {
-    return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v}",
+    return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v, GFH: %v}",
         operationCountByPriority[EOperationPreemptionPriority::None],
         operationCountByPriority[EOperationPreemptionPriority::Normal],
         operationCountByPriority[EOperationPreemptionPriority::Aggressive],
         operationCountByPriority[EOperationPreemptionPriority::SsdNormal],
-        operationCountByPriority[EOperationPreemptionPriority::SsdAggressive]);
+        operationCountByPriority[EOperationPreemptionPriority::SsdAggressive],
+        operationCountByPriority[EOperationPreemptionPriority::DefaultGpuFullHost]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

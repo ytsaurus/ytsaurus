@@ -7,7 +7,7 @@ SRCS(
 PEERDIR(
     library/cpp/threading/future
     yql/essentials/public/issue
-    contrib/ydb/public/sdk/cpp/src/client/types/credentials
+    contrib/ydb/public/sdk/cpp/src/client/types
 )
 
 GENERATE_ENUM_SERIALIZATION(client.h)

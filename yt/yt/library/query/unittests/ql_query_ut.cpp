@@ -862,6 +862,89 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     EXPECT_TRUE(query->OrderClause);
 }
 
+TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("l", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("m", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v", EValueType::Int64),
+        }))));
+
+    const TPreparePlanFragmentOptions optionsOn{
+        .BuilderVersion = DefaultExpressionBuilderVersion,
+        .AllowReverseScanForOrderBy = true,
+    };
+    const TPreparePlanFragmentOptions optionsOff{
+        .BuilderVersion = DefaultExpressionBuilderVersion,
+        .AllowReverseScanForOrderBy = false,
+    };
+
+    // Full primary key prefix DESC: reverse scan applies.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc, l desc, m desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    // Partial primary key prefix DESC: reverse scan applies.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    // Two-key prefix DESC: reverse scan applies.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc, l desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_TRUE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+    }
+
+    // Mixed ASC/DESC: reverse scan does not apply.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc, l asc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+
+    // Non-prefix-start DESC (skips k): reverse scan does not apply.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by l desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+
+    // Feature flag off: reverse scan does not apply.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "* from [//t] order by k desc limit 10", {}, optionsOff)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+
+    // GROUP BY present: reverse scan is forbidden.
+    {
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_,
+            "sum(v) from [//t] group by k order by k desc limit 10", {}, optionsOn)->Query;
+        EXPECT_TRUE(query->OrderClause);
+        EXPECT_FALSE(query->IsReverseScan);
+        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+    }
+}
+
 TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 {
     TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
@@ -3348,7 +3431,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
+        EXPECT_EQ(std::ssize(cardinality), statistics.Statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -3358,7 +3441,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
+        EXPECT_EQ(std::ssize(cardinality), statistics.Statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -3368,7 +3451,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
+        EXPECT_EQ(std::ssize(cardinality), statistics.Statistics.GroupedRowCount.GetTotal());
     }
 }
 
@@ -11638,6 +11721,190 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(
             "avg(a % 2) from `//t` group by 1",
             "Misuse of aggregate function \"avg\"")));
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Tests for reverse scan semantics: ORDER BY primary key DESC with LIMIT
+// should activate IsReverseScan and, once the scan reversal is implemented,
+// read only the tail tablets instead of all tablets.
+//
+// NOTE: These tests are currently expected to FAIL on the tablet-count
+// assertions because the actual reverse-scan execution is not yet implemented.
+// They serve as a TDD specification and will pass once the scan direction is
+// reversed in the executor.
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescTablets)
+{
+    // 5 tablets, each containing 4 rows.
+    // Tablet i holds rows with k in [i*4, i*4+3].
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            int k = t * RowsPerTablet + i;
+            tablet.push_back(Format("k=%v;v=%v", k, k));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by k desc limit 3",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .AllowReverseScanForOrderBy = true,
+        });
+
+    EXPECT_TRUE(query->IsReverseScan);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    // The last 3 rows in key order are k=17, k=18, k=19 (tablet 4).
+    // With reverse scan only the last tablet should be read.
+    auto expectedRows = YsonToRows(
+        {"k=19;v=19", "k=18;v=18", "k=17;v=17"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    // With reverse scan only the last tablet should be read to satisfy LIMIT 3.
+    EXPECT_EQ(result.TabletsScanned, 1);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescTwoKeyTablets)
+{
+    // 5 tablets with a two-column primary key (a, b).
+    auto split = MakeSplit({
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            tablet.push_back(Format("a=%v;b=%v;v=%v", t, i, t * RowsPerTablet + i));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by a desc, b desc limit 3",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .AllowReverseScanForOrderBy = true,
+        });
+
+    EXPECT_TRUE(query->IsReverseScan);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    // Top 3 rows by (a DESC, b DESC): a=4,b=3 / a=4,b=2 / a=4,b=1.
+    auto expectedRows = YsonToRows(
+        {"a=4;b=3;v=19", "a=4;b=2;v=18", "a=4;b=1;v=17"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    // With reverse scan only the last tablet should be read to satisfy LIMIT 3.
+    EXPECT_EQ(result.TabletsScanned, 1);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescSpansTwoTablets)
+{
+    // 5 tablets with 4 rows each. LIMIT 5 requires rows from the last 2 tablets.
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            int k = t * RowsPerTablet + i;
+            tablet.push_back(Format("k=%v;v=%v", k, k));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by k desc limit 5",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .AllowReverseScanForOrderBy = true,
+        });
+
+    EXPECT_TRUE(query->IsReverseScan);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    // Top 5 rows: k=19..15 (tablets 4 and 3).
+    auto expectedRows = YsonToRows(
+        {"k=19;v=19", "k=18;v=18", "k=17;v=17", "k=16;v=16", "k=15;v=15"},
+        split);
+    ResultMatcher(expectedRows)(result.Rows, *query->GetTableSchema());
+
+    // Two tablets are needed to satisfy LIMIT 5 (4 rows/tablet).
+    EXPECT_EQ(result.TabletsScanned, 2);
+}
+
+TEST_F(TQueryEvaluateTest, ReverseScanDisabledWhenFlagOff)
+{
+    // Same setup, but AllowReverseScanForOrderBy = false.
+    // IsReverseScan must stay false and all tablets must be scanned.
+    auto split = MakeSplit({
+        TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64),
+    });
+
+    constexpr int TabletCount = 5;
+    constexpr int RowsPerTablet = 4;
+
+    std::vector<std::vector<TSource>> tabletsData;
+    for (int t = 0; t < TabletCount; ++t) {
+        TSource tablet;
+        for (int i = 0; i < RowsPerTablet; ++i) {
+            int k = t * RowsPerTablet + i;
+            tablet.push_back(Format("k=%v;v=%v", k, k));
+        }
+        tabletsData.push_back({std::move(tablet)});
+    }
+
+    auto query = Prepare(
+        "* from [//t] order by k desc limit 3",
+        TSplitMap{{"//t", split}},
+        {},
+        TPreparePlanFragmentOptions{.BuilderVersion = DefaultExpressionBuilderVersion});
+
+    EXPECT_FALSE(query->IsReverseScan);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
+
+    auto result = RunOnCoordinator(query, tabletsData, EExecutionBackend::Native);
+
+    // All tablets must be scanned when reverse scan is not enabled.
+    EXPECT_EQ(result.TabletsScanned, TabletCount);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

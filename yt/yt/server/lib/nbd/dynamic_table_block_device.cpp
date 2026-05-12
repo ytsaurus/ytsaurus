@@ -88,7 +88,7 @@ public:
             for (auto row : rows) {
                 auto deviceId = FromUnversionedValue<i64>(row[DeviceIdColumn_]);
                 auto blockId = FromUnversionedValue<i64>(row[BlockIdColumn_]);
-                auto blockPayload = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(FromUnversionedValue<TString>(row[BlockPayloadColumn_])));
+                auto blockPayload = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(FromUnversionedValue<std::string>(row[BlockPayloadColumn_])));
 
                 YT_VERIFY(deviceId == DeviceId_);
                 YT_VERIFY(blocksToRead.contains(blockId));
@@ -285,7 +285,7 @@ class TDynamicTableBlockDevice
 {
 public:
     TDynamicTableBlockDevice(
-        TString deviceId,
+        std::string deviceId,
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
         NApi::NNative::IClientPtr client,
         NLogging::TLogger logger)
@@ -306,14 +306,14 @@ public:
         return false;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
-        return TString();
+        return std::string();
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
-        return TString();
+        return std::string();
     }
 
     TFuture<TReadResponse> Read(
@@ -635,7 +635,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateDynamicTableBlockDevice(
-    TString deviceId,
+    std::string deviceId,
     TDynamicTableBlockDeviceConfigPtr deviceConfig,
     NApi::NNative::IClientPtr client,
     NLogging::TLogger logger)

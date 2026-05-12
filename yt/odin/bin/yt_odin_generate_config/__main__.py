@@ -128,18 +128,6 @@ ODIN_WEBSERVICE_CONFIG_TEMPLATE = {
             "display_name": "Sort Result",
             "name": "sort_result"
         },
-        {
-            "display_name": "Cypress Commands",
-            "name": "cypress_commands"
-        },
-        {
-            "display_name": "Read Static Table Commands",
-            "name": "read_static_table_commands"
-        },
-        {
-            "display_name": "Write Static Table Commands",
-            "name": "write_static_table_commands"
-        },
     ],
     "thread_count": 4,
 }
@@ -184,6 +172,7 @@ CHECKS_LIST = [
     "scheduler",
     "scheduler_alerts",
     "scheduler_alerts_jobs_archivation",
+    "scheduler_alerts_nodes_with_insufficient_resource_limits",
     "scheduler_alerts_update_fair_share",
     "scheduler_uptime",
     "sort_result",

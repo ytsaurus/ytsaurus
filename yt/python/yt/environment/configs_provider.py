@@ -1208,21 +1208,34 @@ def _build_node_configs(multidaemon_config_output,
 
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
-            # COMPAT
-            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
-            if yt_config.enable_legacy_logging_scheme
-            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
-        )
-        set_at(
-            config,
             "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
             # COMPAT
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
             if yt_config.enable_legacy_logging_scheme
             else os.path.join(logs_dir, "ytserver_exec-{0}-stderr".format(index))
         )
-
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/sharding_key_length",
+            yt_config.job_proxy_log_manager["sharding_key_length"]
+        )
+        if yt_config.job_proxy_logging["mode"] == "per_job_directory":
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/job_proxy_log_symlinks_path",
+                os.path.join(logs_dir, "job-proxy-logs"),
+            )
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/locations",
+                [
+                    {
+                        "path": os.path.join(logs_dir, "disk{0}/job_proxy-{1}/cluster-data/job-proxy-logs".format(num, index)),
+                    }
+                    for num in range(3)
+                ]
+            )
+        # COMPAT(epsilond1): remove after 26.1
         set_at(
             config,
             "exec_node/job_proxy_log_manager/directory",
@@ -1230,9 +1243,13 @@ def _build_node_configs(multidaemon_config_output,
         )
         set_at(
             config,
-            "exec_node/job_proxy_log_manager/sharding_key_length",
-            yt_config.job_proxy_log_manager["sharding_key_length"]
+            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
+            # COMPAT(epsilond1): remove after 26.1
+            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
+            if yt_config.enable_legacy_logging_scheme
+            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
         )
+
         set_at(
             config,
             "exec_node/job_proxy_log_manager/logs_storage_period",
@@ -2174,7 +2191,8 @@ def _init_logging(path, name, logging_config, yt_config,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr,
-        use_name_in_writer_name=use_name_in_writer_name)
+        use_name_in_writer_name=use_name_in_writer_name,
+        abort_on_alert=yt_config.default_abort_on_alert)
 
 
 def init_logging(path, name,

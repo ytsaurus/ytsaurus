@@ -141,7 +141,7 @@ void TPathVisitor<TSelf>::VisitVector(
     EVisitReason reason)
 {
     if (Self()->PathComplete()) {
-        if (Self()->GetVisitEverythingAfterPath()) {
+        if (Self()->IsVisitEverythingAfterPath()) {
             Self()->VisitWholeVector(
                 std::forward<TVisitParam>(target),
                 EVisitReason::AfterPath);

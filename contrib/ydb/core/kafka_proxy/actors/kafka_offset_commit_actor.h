@@ -10,6 +10,7 @@
 #include <contrib/ydb/core/tx/replication/ydb_proxy/ydb_proxy.h>
 #include <contrib/ydb/core/tx/replication/ydb_proxy/local_proxy/local_proxy.h>
 #include <contrib/ydb/core/tx/replication/ydb_proxy/local_proxy/local_proxy_request.h>
+#include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/library/aclib/aclib.h>
 #include <contrib/ydb/library/actors/core/actor.h>

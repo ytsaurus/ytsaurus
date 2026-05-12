@@ -51,23 +51,9 @@ public:
 
     bool EnableComplexNullConverison;
 
-    //! Defines how CHYT works with LC types:
-    //! * None - doesn't convert any column to LC;
-    //! * StringOnly - converts columns with string-like types (string, utf, json);
-    //! * All - converts all columns to LC if possible;
-    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
-    ELowCardinalityMode LowCardinalityMode;
-
-    //! Special setting for FromStatistics LowCardinalityMode.
-    ui64 LowCardinalityThreshold;
-
-    //! Columns that match this regexp are converted to LC.
-    NRe2::TRe2Ptr LowCardinalityRegExp;
-
     static TCompositeSettingsPtr Create(
         bool convertUnsupportedTypesToString,
-        bool enableComplexNullConverison = true,
-        ELowCardinalityMode lowCardinalityMode = ELowCardinalityMode::None);
+        bool enableComplexNullConverison = true);
 
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
@@ -75,6 +61,64 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Settings affecting low cardinality type conversion.
+class TLowCardinalitySettings
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Defines how CHYT works with LC types:
+    //! * None - doesn't convert any column to LC;
+    //! * StringOnly - converts columns with string-like types (string, utf, json);
+    //! * All - converts all columns to LC if possible;
+    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
+    ELowCardinalityMode Mode;
+
+    //! Special setting for FromStatistics LowCardinalityMode.
+    ui64 Threshold;
+
+    //! Columns that match this regexp are converted to LC.
+    NRe2::TRe2Ptr RegExp;
+
+    REGISTER_YSON_STRUCT(TLowCardinalitySettings);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLowCardinalitySettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Settings affecting type conversion.
+class TConversionSettings
+    : public NYTree::TYsonStruct
+{
+public:
+    TCompositeSettingsPtr Composite;
+
+    TLowCardinalitySettingsPtr LowCardinality;
+
+    //! When enabled, timestamps in DateTime/DateTime64 columns that have a non-default
+    //! timezone are adjusted by the difference between the column timezone offset and
+    //! the server default timezone offset before being written as YT integer types.
+    //! This ensures that when the user interprets the resulting integer value in the
+    //! default timezone, they get the correct wall-clock time that was stored in the
+    //! column's original timezone.
+    bool AdjustTimezoneForDateTypes;
+
+    static TConversionSettingsPtr Create(
+        TCompositeSettingsPtr compositeSettings = New<TCompositeSettings>(),
+        TLowCardinalitySettingsPtr lowCardinalitySettings = New<TLowCardinalitySettings>(),
+        bool adjustTimezoneForDateTypes = false);
+
+    REGISTER_YSON_STRUCT(TConversionSettings);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TConversionSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -390,7 +434,7 @@ public:
 
     bool InferDynamicTableRangesFromPivotKeys;
 
-    TCompositeSettingsPtr Composite;
+    TConversionSettingsPtr Conversion;
 
     TDynamicTableSettingsPtr DynamicTable;
 

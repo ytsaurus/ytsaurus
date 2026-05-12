@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/config.h>
+
 #include <yt/yt/ytlib/event_log/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -105,6 +107,9 @@ void TStrategyOperationControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_allocation_fail_backoff_time", &TThis::ScheduleAllocationFailBackoffTime)
         .Alias("schedule_job_fail_backoff_time")
         .Default(TDuration::MilliSeconds(100));
+
+    registrar.Parameter("enable_per_node_shard_schedule_allocation_backoff", &TThis::EnablePerNodeShardScheduleAllocationBackoff)
+        .Default(false);
 
     registrar.Parameter("controller_throttling", &TThis::ControllerThrottling)
         .DefaultNew();
@@ -643,7 +648,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default({0.01, 0.05, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99});
 
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
         .Default(false);
@@ -788,7 +793,8 @@ void TStrategyConfig::Register(TRegistrar registrar)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
         .Default(TDuration::MilliSeconds(1000));
 
-    registrar.Parameter("accumulated_usage_log_period", &TThis::AccumulatedUsageLogPeriod)
+    registrar.Parameter("accumulated_resource_distribution_log_period", &TThis::AccumulatedResourceDistributionLogPeriod)
+        .Alias("accumulated_usage_log_period")
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("min_needed_resources_update_period", &TThis::MinNeededResourcesUpdatePeriod)
@@ -1357,6 +1363,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(66);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
 
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)

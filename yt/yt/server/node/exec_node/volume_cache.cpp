@@ -52,9 +52,11 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
@@ -64,6 +66,8 @@ static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
     }
     return result;
 }
+
+} // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -410,6 +414,26 @@ void TNbdVolumeFactory::ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVol
 void TNbdVolumeFactory::ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions&)
 { }
 
+template <typename TNbdVolume>
+static TNbdVolumeFactory::TVolumeFactory MakeVolumeFactory()
+{
+    return BIND(
+        [] (
+            NProfiling::TTagSet tagSet,
+            TVolumeMeta volumeMeta,
+            TLayerLocationPtr layerLocation,
+            TString nbdDeviceId,
+            INbdServerPtr nbdServer) -> IVolumePtr {
+
+        return New<TNbdVolume>(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation),
+            std::move(nbdDeviceId),
+            std::move(nbdServer));
+    });
+}
+
 TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const TString& deviceId, const INbdServerPtr& nbdServer)
 {
     auto guard = TGuard(InsertLock_);
@@ -492,6 +516,7 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
                 device
             ] (const TError& error) {
                 if (!error.IsOK()) {
+                    // Failed to initialize device, finalize it in background.
                     YT_UNUSED_FUTURE(device->Finalize());
                     THROW_ERROR_EXCEPTION("Failed to initialize NBD device")
                         << error;
@@ -609,7 +634,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
             ] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
                     if (auto device = nbdServer->TryUnregisterDevice(options.DeviceId)) {
-                        YT_LOG_DEBUG("Finalizing NBD device");
+                        YT_LOG_DEBUG("Finalizing RO NBD device");
                         YT_UNUSED_FUTURE(device->Finalize());
                     } else {
                         YT_LOG_WARNING("Failed to unregister NBD device");
@@ -742,6 +767,17 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
             options.Size,
             options.MediumIndex,
             options.Filesystem);
+
+    auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
+    if (!nbdConfig || !nbdConfig->Enabled || !nbdConfig->ReadWriteEnabled) {
+        auto error = TError("RW Nbd disks are disabled")
+            << TErrorAttribute("device_id", options.DeviceId)
+            << TErrorAttribute("job_id", options.JobId)
+            << TErrorAttribute("size", options.Size);
+
+        YT_LOG_ERROR(error, "Failed to create RW NBD volume");
+        return MakeFuture<IBlockDevicePtr>(std::move(error));
+    }
 
     auto config = New<TChunkBlockDeviceConfig>();
     config->Size = options.Size;
@@ -924,34 +960,34 @@ TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionI
         options.Filesystem,
         options.DeviceId);
 
-        return FindDataNodesWithMedium(sessionId, options)
-            .Apply(BIND(
-                [
-                    this,
-                    this_ = MakeStrong(this),
+    return FindDataNodesWithMedium(sessionId, options)
+        .Apply(BIND(
+            [
+                this,
+                this_ = MakeStrong(this),
+                sessionId,
+                options
+            ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+                auto dataNodeAddresses = rspOrError.Value();
+                if (dataNodeAddresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
+                        << TErrorAttribute("medium_index", options.MediumIndex)
+                        << TErrorAttribute("size", options.Size)
+                        << TErrorAttribute("fs_type", options.Filesystem);
+                }
+
+                return BIND(
+                    &TNbdVolumeFactory::TryOpenNbdSession,
+                    MakeStrong(this),
                     sessionId,
-                    options
-                ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-
-                    auto dataNodeAddresses = rspOrError.Value();
-                    if (dataNodeAddresses.empty()) {
-                        THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
-                            << TErrorAttribute("medium_index", options.MediumIndex)
-                            << TErrorAttribute("size", options.Size)
-                            << TErrorAttribute("fs_type", options.Filesystem);
-                    }
-
-                    return BIND(
-                        &TNbdVolumeFactory::TryOpenNbdSession,
-                        MakeStrong(this),
-                        sessionId,
-                        Passed(std::move(dataNodeAddresses)),
-                        options)
-                    .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker())
-                    .Run();
-                })
-                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()));
+                    Passed(std::move(dataNodeAddresses)),
+                    options)
+                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker())
+                .Run();
+            })
+            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()));
 }
 
 DEFINE_REFCOUNTED_TYPE(TNbdVolumeFactory)
@@ -1416,8 +1452,6 @@ void TLayerCache::OnProfiling()
         ProfileLocation(location);
     }
 }
-
-DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

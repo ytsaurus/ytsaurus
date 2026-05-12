@@ -7,6 +7,7 @@
 #include <contrib/ydb/core/persqueue/writer/source_id_encoding.h>
 #include <contrib/ydb/core/persqueue/public/write_meta/write_meta.h>
 #include <contrib/ydb/core/protos/grpc_pq_old.pb.h>
+#include <contrib/ydb/public/api/protos/draft/persqueue_common.pb.h>
 #include <contrib/ydb/services/persqueue_v1/actors/events.h>
 #include <contrib/ydb/services/persqueue_v1/actors/persqueue_utils.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>

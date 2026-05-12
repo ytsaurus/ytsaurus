@@ -48,6 +48,7 @@ PEERDIR(
 
     yt/yt/core/rpc/http
 
+    yt/yt/library/cgroup
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/orchid

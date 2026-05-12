@@ -3,8 +3,9 @@
 #include "private.h"
 
 #include "bootstrap.h"
-#include "config.h"
 #include "helpers.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/sequoia/cypress_proxy_tracker_service_proxy.h>
 
@@ -99,6 +100,11 @@ public:
         return SupportedInheritableDuringCopyAttributeKeys_.Load();
     }
 
+    TSequoiaTransactionFeatures GetSequoiaTransactionFeatures() const override
+    {
+        return SequoiaTransactionFeatures_.Load();
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const std::string SelfAddress_;
@@ -109,6 +115,7 @@ private:
     TAtomicObject<int> MaxCopiableSubtreeSize_;
     TAtomicObject<std::shared_ptr<const std::vector<std::string>>> SupportedInheritableAttributeKeys_;
     TAtomicObject<std::shared_ptr<const std::vector<std::string>>> SupportedInheritableDuringCopyAttributeKeys_;
+    TAtomicObject<TSequoiaTransactionFeatures> SequoiaTransactionFeatures_;
 
     void Heartbeat()
     {
@@ -143,6 +150,7 @@ private:
             MaxCopiableSubtreeSize_.Store(0);
             SupportedInheritableAttributeKeys_.Store(std::make_shared<std::vector<std::string>>());
             SupportedInheritableDuringCopyAttributeKeys_.Store(std::make_shared<std::vector<std::string>>());
+            SequoiaTransactionFeatures_.Store(TSequoiaTransactionFeatures{});
 
             return;
         }
@@ -158,6 +166,12 @@ private:
             SupportedInheritableDuringCopyAttributeKeys_.Store(std::make_shared<const std::vector<std::string>>(
                 NYT::FromProto<std::vector<std::string>>(supportedInheritableAttributes.inheritable_during_copy_attribute_keys())));
         }
+
+        TSequoiaTransactionFeatures features;
+        if (rsp->has_sequoia_transaction_features()) {
+            features = NYT::FromProto<TSequoiaTransactionFeatures>(rsp->sequoia_transaction_features());
+        }
+        SequoiaTransactionFeatures_.Store(std::move(features));
 
         if (!RegistrationError_.Exchange(TError{}).IsOK()) {
             YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);

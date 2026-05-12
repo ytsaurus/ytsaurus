@@ -769,7 +769,7 @@ public:
 
                     CloseWriter(currentWriter);
                     partitionWriters.push_back({std::move(currentWriter), partitionIndex});
-                    currentWriter.Reset();
+                    currentWriter = {};
                 }
 
                 currentPartitionRowCount = 0;

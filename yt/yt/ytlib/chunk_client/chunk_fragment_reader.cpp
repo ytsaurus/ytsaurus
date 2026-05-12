@@ -1350,16 +1350,18 @@ private:
             // TODO(akozhikhov): Support cancellation of primary requests?
             PrimaryRequestStartTime_ = TInstant::Now();
             if (Options_.AdaptiveHedgingManager) {
+                auto hedgingPrice = ComputeHedgingPrice();
                 Options_.AdaptiveHedgingManager->RegisterRequest(
                     Promise_.ToFuture().AsVoid(),
-                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this))
+                    hedgingPrice,
+                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this), hedgingPrice)
                         .Via(SessionInvoker_));
             } else if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
                 if (hedgingDelay == TDuration::Zero()) {
-                    StartSecondaryRequest();
+                    StartSecondaryRequest(/*hedgingPrice*/ 0);
                 } else {
                     TDelayedExecutor::Submit(
-                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this)),
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this), /*hedgingPrice*/ 0),
                         *hedgingDelay,
                         SessionInvoker_);
                 }
@@ -1367,7 +1369,7 @@ private:
         }
     }
 
-    void StartSecondaryRequest()
+    void StartSecondaryRequest(int hedgingPrice)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -1376,8 +1378,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
-            TInstant::Now() - PrimaryRequestStartTime_);
+        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v, HedgingPrice: %v)",
+            TInstant::Now() - PrimaryRequestStartTime_,
+            hedgingPrice);
 
         NextRound(/*isHedged*/ true);
     }
@@ -1413,6 +1416,33 @@ private:
         }
 
         return peerInfoToPlan;
+    }
+
+    int ComputeHedgingPrice() const
+    {
+        int chunkCount = 0;
+        int price = 0;
+        for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
+            if (chunkState.ReplicasWithRevision.IsEmpty()) {
+                continue;
+            }
+
+            if (chunkState.Controller->IsDone()) {
+                continue;
+            }
+
+            ++chunkCount;
+            auto codecId = chunkState.Controller->GetCodecId();
+            if (codecId == NErasure::ECodec::None) {
+                ++price;
+            } else {
+                auto* codec = NErasure::GetCodec(codecId);
+                price += codec->GetDataPartCount();
+            }
+        }
+
+        // NB: This is an upper bound, but it shall be good enough for out purposes.
+        return price / chunkCount;
     }
 
     void AcquireThrottler(i64 amount)

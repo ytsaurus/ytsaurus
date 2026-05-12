@@ -62,7 +62,6 @@ void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& d
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
-    std::vector<TBaseVolumeParamsPtr> NonRootVolumes;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;

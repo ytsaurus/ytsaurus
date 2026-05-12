@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -88,11 +89,13 @@ public:
     TRequestHandler(
         TProxyBootstrapConfigPtr config,
         NNative::IConnectionPtr connection,
-        IAuthenticationManagerPtr authenticationManager)
+        IAuthenticationManagerPtr authenticationManager,
+        IGroupCoordinatorManagerPtr groupCoordinatorManager)
         : Config_(std::move(config))
         , NativeConnection_(std::move(connection))
         , AuthenticationManager_(std::move(authenticationManager))
         , DynamicConfig_(New<TProxyDynamicConfig>())
+        , GroupCoordinatorManager_(std::move(groupCoordinatorManager))
     {
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TRequestHandler::DoApiVersions, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TRequestHandler::DoMetadata, Unretained(this)));
@@ -114,13 +117,7 @@ public:
     void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& config) override
     {
         DynamicConfig_.Store(config);
-
-        {
-            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
-            for (const auto& [_, groupCoordinator] : GroupCoordinators_) {
-                groupCoordinator->Reconfigure(config->GroupCoordinator);
-            }
-        }
+        GroupCoordinatorManager_->OnDynamicConfigChanged(config->GroupCoordinator);
     }
 
     TMessage Handle(
@@ -233,9 +230,7 @@ private:
     TEnumIndexedArray<ERequestType, THandler> Handlers_;
     TAtomicIntrusivePtr<TProxyDynamicConfig> DynamicConfig_;
 
-    using TGroupId = TString;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, GroupCoordinatorMapLock_);
-    THashMap<TGroupId, IGroupCoordinatorPtr> GroupCoordinators_;
+    IGroupCoordinatorManagerPtr GroupCoordinatorManager_;
 
     TProxyDynamicConfigPtr GetDynamicConfig() const
     {
@@ -667,26 +662,9 @@ private:
             request.MemberId,
             request.ProtocolType);
 
-        auto userName = GetUserName(connectionState);
-        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
-
         // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
 
-        auto dynamicConfig = GetDynamicConfig();
-
-        IGroupCoordinatorPtr groupCoordinator;
-        {
-            auto guard = WriterGuard(GroupCoordinatorMapLock_);
-            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
-            if (groupCoordinatorIt != GroupCoordinators_.end()) {
-                groupCoordinator = groupCoordinatorIt->second;
-            } else {
-                groupCoordinator = CreateGroupCoordinator(request.GroupId, dynamicConfig->GroupCoordinator);
-                GroupCoordinators_[request.GroupId] = groupCoordinator;
-            }
-        }
-
-        return groupCoordinator->JoinGroup(request, Logger);
+        return GroupCoordinatorManager_->GetOrCreateGroupCoordinator(request.GroupId)->JoinGroup(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(SyncGroup)
@@ -695,24 +673,14 @@ private:
             request.GroupId,
             request.MemberId);
 
-        auto userName = GetUserName(connectionState);
-        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
-
         // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
 
-        IGroupCoordinatorPtr groupCoordinator;
-        {
-            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
-            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
-            if (groupCoordinatorIt != GroupCoordinators_.end()) {
-                groupCoordinator = groupCoordinatorIt->second;
-            } else {
-                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
-                return TRspSyncGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
-            }
+        auto groupCoordinator = GroupCoordinatorManager_->GetGroupCoordinator(request.GroupId);
+        if (!groupCoordinator) {
+            YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+            return TRspSyncGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
         }
-
-        return groupCoordinator->SyncGroup(request, Logger);
+        return (*groupCoordinator)->SyncGroup(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(Heartbeat)
@@ -721,19 +689,12 @@ private:
             request.GroupId,
             request.MemberId);
 
-        IGroupCoordinatorPtr groupCoordinator;
-        {
-            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
-            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
-            if (groupCoordinatorIt != GroupCoordinators_.end()) {
-                groupCoordinator = groupCoordinatorIt->second;
-            } else {
-                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
-                return TRspHeartbeat{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
-            }
+        auto groupCoordinator = GroupCoordinatorManager_->GetGroupCoordinator(request.GroupId);
+        if (!groupCoordinator) {
+            YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+            return TRspHeartbeat{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
         }
-
-        return groupCoordinator->Heartbeat(request, Logger);
+        return (*groupCoordinator)->Heartbeat(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(LeaveGroup)
@@ -742,19 +703,12 @@ private:
             request.GroupId,
             request.MemberId);
 
-        IGroupCoordinatorPtr groupCoordinator;
-        {
-            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
-            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
-            if (groupCoordinatorIt != GroupCoordinators_.end()) {
-                groupCoordinator = groupCoordinatorIt->second;
-            } else {
-                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
-                return TRspLeaveGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
-            }
+        auto groupCoordinator = GroupCoordinatorManager_->GetGroupCoordinator(request.GroupId);
+        if (!groupCoordinator) {
+            YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+            return TRspLeaveGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
         }
-
-        return groupCoordinator->LeaveGroup(request, Logger);
+        return (*groupCoordinator)->LeaveGroup(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(OffsetCommit)
@@ -1163,9 +1117,10 @@ private:
 IRequestHandlerPtr CreateRequestHandler(
     TProxyBootstrapConfigPtr config,
     NNative::IConnectionPtr connection,
-    IAuthenticationManagerPtr authenticationManager)
+    IAuthenticationManagerPtr authenticationManager,
+    IGroupCoordinatorManagerPtr groupCoordinatorManager)
 {
-    return New<TRequestHandler>(std::move(config), std::move(connection), std::move(authenticationManager));
+    return New<TRequestHandler>(std::move(config), std::move(connection), std::move(authenticationManager), std::move(groupCoordinatorManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

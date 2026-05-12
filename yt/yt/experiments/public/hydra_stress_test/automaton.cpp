@@ -34,6 +34,7 @@ TAutomatonPart::TAutomatonPart(
         ESyncSerializationPriority::Values,
         "Part",
         BIND_NO_PROPAGATE(&TAutomatonPart::Save, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TAutomatonPart::HydraThrowException, Unretained(this)));
 }
 
 TValue TAutomatonPart::GetCasValue() const
@@ -56,6 +57,15 @@ std::unique_ptr<NHydra::TMutation> TAutomatonPart::CreateSequenceMutation(TCtxSe
         HydraManager_,
         std::move(context),
         &TAutomatonPart::HydraSequence,
+        this);
+}
+
+std::unique_ptr<NHydra::TMutation> TAutomatonPart::CreateThrowExceptionMutation(TCtxThrowExceptionPtr context)
+{
+    return CreateMutation(
+        HydraManager_,
+        std::move(context),
+        &TAutomatonPart::HydraThrowException,
         this);
 }
 
@@ -185,6 +195,33 @@ void TAutomatonPart::HydraSequence(
         "Finished sequence (SequenceId: %v, Count: %v)",
         id,
         count);
+
+    if (context) {
+        context->SetResponseInfo();
+    }
+}
+
+void TAutomatonPart::HydraThrowException(
+    const TCtxThrowExceptionPtr& context ,
+    TReqThrowException* request,
+    TRspThrowException* /*response*/)
+{
+    auto expected = request->expected();
+
+    if (context) {
+        context->SetRequestInfo("Expected: %v",
+            expected);
+    }
+
+    if (expected) {
+        YT_LOG_DEBUG("Throwing expected exception");
+        THROW_ERROR_EXCEPTION(NHydra::EErrorCode::ExpectedMutationHandlerException, "Expected mutation exception thrown")
+            << NYT::TError(std::length_error("Good exception"));
+
+    } else {
+        YT_LOG_DEBUG("Throwing unexpected exception");
+        throw std::length_error("Bad exception");
+    }
 
     if (context) {
         context->SetResponseInfo();

@@ -93,7 +93,7 @@ private:
     const ITvmServicePtr TvmService_;
 
 private:
-    TError CheckScope(const TString& ticket, const TString& ticketHash)
+    TError CheckScope(const std::string& ticket, const std::string& ticketHash)
     {
         YT_LOG_DEBUG("Validating ticket scopes (TicketHash: %v)",
             ticketHash);
@@ -122,8 +122,8 @@ private:
     }
 
     TAuthenticationResult OnBlackboxCallResult(
-        const TString& ticket,
-        const TString& ticketHash,
+        const std::string& ticket,
+        const std::string& ticketHash,
         const INodePtr& data)
     {
         auto errorOrResult = OnCallResultImpl(data);
@@ -146,13 +146,13 @@ private:
 
     TErrorOr<TAuthenticationResult> OnCallResultImpl(const INodePtr& data)
     {
-        static const TString ErrorPath("/error");
-        auto errorNode = FindNodeByYPath(data, ErrorPath);
-        if (errorNode) {
-            return TError(errorNode->GetValue<TString>(), TError::DisableFormat);
+        static const TYPath ErrorPath("/error");
+        if (auto errorNode = FindNodeByYPath(data, ErrorPath)) {
+            return TError(errorNode->GetValue<std::string>(), TError::DisableFormat);
         }
 
-        static const TString UserPath("/users/0");
+        static const TYPath UserPath("/users/0");
+        // TODO(babenko): migrat to std::string
         auto userNode = GetNodeByYPath(data, UserPath);
 
         auto login = BlackboxService_->GetLogin(userNode);

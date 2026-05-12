@@ -46,8 +46,10 @@ struct IVolume
     //! Link volume mount point to target.
     virtual TFuture<void> Link(
         TGuid tag,
-        const TString& target,
-        bool sholdCheckTargetDirExists = true) = 0;
+        const TString& target) = 0;
+    //! Unlink volume from all targets without removing the volume.
+    //! Used for reusable volumes that need to be re-linked in the next job.
+    virtual TFuture<void> Unlink() = 0;
     //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
     //! Check if volume is cached.
@@ -167,8 +169,9 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target,
-        bool canTargetDirectoryBeCreated) override final;
+        const TString& target) override final;
+
+    TFuture<void> Unlink() override final;
 
     TFuture<void> Remove() override final;
 

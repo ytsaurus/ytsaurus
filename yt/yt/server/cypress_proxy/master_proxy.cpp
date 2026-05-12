@@ -107,7 +107,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeCopyPrerequisites)
         for (auto nodeId : nodeIds) {
             auto cellTag = SequoiaSession_->SequoiaTransaction()->GetRandomSequoiaNodeHostCellTag();
             addNodeIdMapping(nodeId, cellTag);
-            cellTagToSchemaIds[cellTag].emplace(std::move(schemaId));
+            cellTagToSchemaIds[cellTag].emplace(schemaId);
         }
 
         auto [_, emplaced] = schemaDescriptors.emplace(schemaId, entry.mutable_schema());

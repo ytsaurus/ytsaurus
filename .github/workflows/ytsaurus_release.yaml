@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag like 25.2.dev"
+        description: "Image tag like 25.4.1.dev"
         required: true
         type: string
       build_types:
@@ -14,8 +14,8 @@ on:
         type: string
   push:
     tags:
-      - 'docker/ytsaurus/[0-9]+\.[0-9]+\.[0-9]+'
-      - 'docker-test/ytsaurus/[0-9]+\.[0-9]+\.[0-9]+'
+      - 'docker/ytsaurus/[0-9]+\.[0-9]+\.[0-9]+*'
+      - 'docker-test/ytsaurus/[0-9]+\.[0-9]+\.[0-9]+*'
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -85,10 +85,19 @@ jobs:
           echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          VERSION_PATCH=$(echo "$PROD_IMAGE_TAG" | awk -F. '{print $3}')
-          echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
+          if [[ "$PROD_IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.([0-9]+)[.-](.+)$ ]]; then
+            VERSION_PATCH="${BASH_REMATCH[1]}"
+            VERSION_BRANCH="${BASH_REMATCH[2]}"
+          elif [[ "$PROD_IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.([0-9]+)$ ]]; then
+            VERSION_PATCH="${BASH_REMATCH[1]}"
+            VERSION_BRANCH="stable"
+          else
+            VERSION_PATCH=$(echo "$PROD_IMAGE_TAG" | awk -F. '{print $3}')
+            VERSION_BRANCH="stable"
+          fi
 
-          echo "VERSION_BRANCH=stable" >> "$GITHUB_OUTPUT"
+          echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
+          echo "VERSION_BRANCH=$VERSION_BRANCH" >> "$GITHUB_OUTPUT"
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"

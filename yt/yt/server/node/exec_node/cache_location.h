@@ -86,7 +86,7 @@ private:
 
     TFuture<void> RemoveChunks();
 
-    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const TString& metaSuffix);
+    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const std::string& metaSuffix);
     std::optional<NNode::TChunkDescriptor> RepairChunk(NDataNode::TChunkId chunkId) override;
 
     std::vector<TString> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;

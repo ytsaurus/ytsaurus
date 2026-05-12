@@ -17,8 +17,6 @@ SRCS(
     program.cpp
     ql_engine.cpp
     search_index.cpp
-    spyt_connect_engine.cpp
-    spyt_discovery.cpp
     spyt_engine.cpp
     yql_engine.cpp
     tokenizer.cpp
@@ -44,11 +42,11 @@ PEERDIR(
 
     yt/yt/server/lib/admin
     yt/yt/server/lib/alert_manager
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
     yt/yt/server/lib/component_state_checker
 
+    yt/yt/library/cypress_election
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
 

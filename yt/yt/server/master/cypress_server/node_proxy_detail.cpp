@@ -3738,34 +3738,12 @@ bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
 }
 
 void TSequoiaMapNodeProxy::GetSelf(
-    TReqGet* request,
-    TRspGet* response,
+    TReqGet* /*request*/,
+    TRspGet* /*response*/,
     const TCtxGetPtr& context)
 {
-    auto attributeFilter = request->has_attributes()
-        ? FromProto<TAttributeFilter>(request->attributes())
-        : TAttributeFilter();
-
-    // NB: Since Sequoia tree cannot be traversed on master side (due to the fact that nodes live on different cells),
-    // limit field in request does nothing.
-    context->SetRequestInfo("AttributeFilter: %v",
-        MakeShrunkFormattableView(
-            attributeFilter,
-            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
-
-    TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
-    WriteAttributes(&writer, attributeFilter, false);
-    writer.OnBeginMap();
-    writer.OnEndMap();
-
-    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
-        if (resultOrError.IsOK()) {
-            response->set_value(ToProto(resultOrError.Value()));
-            context->Reply();
-        } else {
-            context->Reply(resultOrError);
-        }
-    }));
+    context->SetRequestInfo();
+    context->Reply();
 }
 
 void TSequoiaMapNodeProxy::ListSelf(
@@ -3773,7 +3751,6 @@ void TSequoiaMapNodeProxy::ListSelf(
     TRspList* /*response*/,
     const TCtxListPtr& context)
 {
-    // TODO(danilalexeev): Support list with attributes.
     context->SetRequestInfo();
     context->Reply();
 }

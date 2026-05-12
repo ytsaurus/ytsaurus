@@ -8,7 +8,7 @@ Apache Flink YSON Formatter — это форматер, позволяющий 
 
 Текущая версия форматера требует:
 - Java 11
-- Apache Flink 1.20
+- Apache Flink {{flink-version}}
 
 {% endnote %}
 

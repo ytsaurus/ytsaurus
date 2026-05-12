@@ -823,9 +823,8 @@ void AppendNativeUdfDescriptors(
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
-        }
-
-        if (aggregateDescriptor) {
+        } else {
+            YT_VERIFY(aggregateDescriptor);
             YT_LOG_DEBUG("Appending aggregate UDF descriptor (Name: %v)", name);
 
             functionBody.IsAggregate = true;

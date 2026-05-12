@@ -14,7 +14,7 @@ namespace {
 void DoReadFromSectorMap(
     const TIntrusivePtr<NPDisk::TSectorMap>& sectorMap,
     ui32 blockSize,
-    TGuardedSgList& sgList,
+    const TGuardedSgList& sgList,
     TBlockRange64 range,
     NThreading::TPromise<TDBGReadBlocksResponse> promise)
 {
@@ -98,15 +98,8 @@ TInMemoryDirectBlockGroup::TInMemoryDirectBlockGroup(
         NPDisk::NSectorMap::DM_NONE);
 }
 
-ui64 TInMemoryDirectBlockGroup::GenerateLsn()
-{
-    return ++LsnGenerator;
-}
-
-NThreading::TFuture<void> TInMemoryDirectBlockGroup::EstablishConnections()
-{
-    return NThreading::MakeFuture();
-}
+void TInMemoryDirectBlockGroup::EstablishConnections()
+{}
 
 NThreading::TFuture<TDBGWriteBlocksResponse>
 TInMemoryDirectBlockGroup::WriteBlocksToPBuffer(
@@ -114,8 +107,8 @@ TInMemoryDirectBlockGroup::WriteBlocksToPBuffer(
     ui8 hostIndex,
     ui64 lsn,
     TBlockRange64 range,
-    TGuardedSgList guardedSglist,
-    NWilson::TTraceId traceId)
+    const TGuardedSgList& guardedSglist,
+    const NWilson::TTraceId& traceId)
 {
     Y_UNUSED(vChunkIndex);
     Y_UNUSED(hostIndex);
@@ -178,14 +171,16 @@ TInMemoryDirectBlockGroup::WriteBlocksToPBuffer(
 }
 
 NThreading::TFuture<TDBGFlushResponse>
-TInMemoryDirectBlockGroup::FlushFromPBuffer(
+TInMemoryDirectBlockGroup::SyncWithPBuffer(
     ui32 vChunkIndex,
-    ui8 hostIndex,
+    ui8 pbufferHostIndex,
+    ui8 ddiskHostIndex,
     const TVector<TPBufferSegment>& segments,
-    NWilson::TTraceId traceId)
+    const NWilson::TTraceId& traceId)
 {
     Y_UNUSED(vChunkIndex);
-    Y_UNUSED(hostIndex);
+    Y_UNUSED(pbufferHostIndex);
+    Y_UNUSED(ddiskHostIndex);
     Y_UNUSED(segments);
     Y_UNUSED(traceId);
 
@@ -203,8 +198,8 @@ TInMemoryDirectBlockGroup::ReadBlocksFromPBuffer(
     ui8 hostIndex,
     ui64 lsn,
     TBlockRange64 range,
-    TGuardedSgList sglist,
-    NWilson::TTraceId traceId)
+    const TGuardedSgList& sglist,
+    const NWilson::TTraceId& traceId)
 {
     Y_UNUSED(vChunkIndex);
     Y_UNUSED(hostIndex);
@@ -228,8 +223,8 @@ TInMemoryDirectBlockGroup::ReadBlocksFromDDisk(
     ui32 vChunkIndex,
     ui8 hostIndex,
     TBlockRange64 range,
-    TGuardedSgList sglist,
-    NWilson::TTraceId traceId)
+    const TGuardedSgList& sglist,
+    const NWilson::TTraceId& traceId)
 {
     Y_UNUSED(vChunkIndex);
     Y_UNUSED(hostIndex), Y_UNUSED(traceId);

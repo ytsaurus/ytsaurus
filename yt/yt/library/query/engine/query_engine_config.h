@@ -42,6 +42,8 @@ struct TQueryEngineDynamicConfig
     std::optional<bool> RewriteCardinalityIntoHyperLogLogWithPrecision; // COMPAT(dtorilov): Remove after 25.4.
     std::optional<bool> AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse;
     std::optional<int> TruncatedQueryLengthForTracing;
+    std::optional<bool> AllowHeavyRangeInferenceInJoins;
+    std::optional<bool> AllowReverseScanForOrderBy; // COMPAT(dtorilov): Remove after 26.1.
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

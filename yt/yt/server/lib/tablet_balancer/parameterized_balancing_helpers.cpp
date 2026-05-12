@@ -126,6 +126,16 @@ TParameterizedResharderConfig TParameterizedResharderConfig::MergeWith(
     };
 }
 
+void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
+        config->Cell,
+        config->Node,
+        config->TableCell,
+        config->TableNode);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf /*format*/)
 {
     builder->AppendFormat(
@@ -137,16 +147,6 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolver
         config.MinRelativeMetricImprovement,
         config.Metric,
         config.Factors);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TComponentFactorConfigPtr& config, TStringBuf /*format*/)
-{
-    builder->AppendFormat(
-        "CellFactor: %v, NodeFactor: %v, TableCellFactor: %v, TableNodeFactor: %v",
-        config->Cell,
-        config->Node,
-        config->TableCell,
-        config->TableNode);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*format*/)
@@ -679,10 +679,10 @@ void TParameterizedReassignSolver::Initialize()
     TableNodeFactors_.resize(tableCount);
 
     for (const auto& tablet : Tablets_) {
-        const auto& nodeAdress = Cells_[tablet.CellIndex].Cell->NodeAddress.value();
+        const auto& nodeAddress = Cells_[tablet.CellIndex].Cell->NodeAddress.value();
 
         Cells_[tablet.CellIndex].Metric += tablet.Metric * CellFactor_;
-        Nodes_[nodeAdress].Metric += tablet.Metric * NodeFactor_;
+        Nodes_[nodeAddress].Metric += tablet.Metric * NodeFactor_;
         TableByCellMetric_[tablet.TableIndex][tablet.CellIndex] += tablet.Metric;
         TableByNodeMetric_[tablet.TableIndex][tablet.NodeIndex] += tablet.Metric;
     }

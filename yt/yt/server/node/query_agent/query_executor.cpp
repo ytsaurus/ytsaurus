@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
+#include <yt/yt/server/node/tablet_node/hedging_manager_registry.h>
 #include <yt/yt/server/node/tablet_node/helpers.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/store.h>
@@ -72,6 +73,10 @@
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+
+#include <yt/yt/library/query/engine/query_engine_config.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/library/query/misc/rowset_subrange_reader.h>
 
@@ -199,7 +204,7 @@ std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancingRatios final
-    : public std::vector<THashMap<TTabletId, double>>
+    : public std::vector<THashMap<TTabletId, std::atomic<double>>>
 { };
 
 using TTabletBalancingRatiosPtr = TIntrusivePtr<TTabletBalancingRatios>;
@@ -279,7 +284,7 @@ public:
             SelectRowsCounters_.SelectDuration.Record(Timer_->GetElapsedTime());
         }
 
-        (*TabletRatios_)[SubqueryIndex_][TabletId_] += statistics.data_weight();
+        (*TabletRatios_)[SubqueryIndex_][TabletId_].fetch_add(statistics.data_weight(), std::memory_order::relaxed);
 
         PerformanceCounters_->Increment(TabletChunkReadOptions_, /*isSystemWorkload*/ false);
         SessionChunkReadOptions_.AddStatisticsFrom(TabletChunkReadOptions_);
@@ -714,6 +719,14 @@ private:
                         executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
                     }
 
+                    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+                    auto queryEngineConfig = singletonsConfig
+                        ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+                        : nullptr;
+                    auto allowHeavyRangeInferenceInJoins = queryEngineConfig
+                        ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+                        : false;
+
                     joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
                         joinClause,
                         executePlanCallback,
@@ -726,6 +739,7 @@ private:
                         },
                         MemoryChunkProvider_,
                         QueryOptions_.UseOrderByInJoinSubqueries,
+                        allowHeavyRangeInferenceInJoins,
                         Logger));
                 }
 
@@ -1510,6 +1524,8 @@ private:
                         YT_LOG_DEBUG("Making group (GroupIndex: %v, Weight: %v)", groupIndex++, currentGroupWeight);
 
                         groupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                        // NB: we plan to reuse this buffer for the next group, but C++ moved-from containers are formally in "valid but unspecified state".
+                        tabletBoundsGroup = {};
 
                         // Initialize new group.
                         lastRowRange = nullptr;
@@ -1543,9 +1559,12 @@ private:
                         tabletBoundsGroup.push_back(tabletReadItems);
                     } else {
                         regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                        // NB: we plan to reuse this buffer, but C++ moved-from containers are formally in "valid but unspecified state".
+                        tabletBoundsGroup = {};
                     }
                 }
                 regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
+                tabletBoundsGroup = {};
             }
 
             return MakeSharedRange(regroupedReadRanges, RowBuffer_);
@@ -1617,6 +1636,15 @@ private:
 
                 auto tabletChunkReadOptions = ChunkReadOptions_;
                 tabletChunkReadOptions.ResetStatistics();
+
+                if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
+                    tabletChunkReadOptions.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+                        THedgingUnit{
+                            .UserTag = GetProfilingUser(Identity_),
+                            .HunkChunk = false,
+                            .QueryKind = EInitialQueryKind::SelectRows,
+                        });
+                }
 
                 if (dataSplit.Ranges) {
                     if (tabletSnapshot->TableSchema->IsSorted()) {
@@ -1752,7 +1780,7 @@ private:
 
         for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
             for (const auto& [_, ratio] : (*TabletRatios_)[subqueryIndex]) {
-                ratioSums[subqueryIndex] += ratio;
+                ratioSums[subqueryIndex] += ratio.load(std::memory_order::relaxed);
             }
             const auto& innerStatistics = statistics.InnerStatistics[subqueryIndex];
             totalRowsWrittenBySubqueries += innerStatistics.RowsWritten.GetTotal();
@@ -1773,7 +1801,7 @@ private:
                 TabletSnapshots_.GetCachedTabletSnapshot(tabletId)
                     ->PerformanceCounters
                     ->SelectCpuTime.Counter.fetch_add(
-                        safeDiv(ratio, ratioSums[subqueryIndex]) * subqueryCpuTime,
+                        safeDiv(ratio.load(std::memory_order::relaxed), ratioSums[subqueryIndex]) * subqueryCpuTime,
                         std::memory_order::relaxed);
             }
         }
@@ -1820,6 +1848,9 @@ TQueryStatistics ExecuteSubquery(
 {
     ValidateReadTimestamp(queryOptions.TimestampRange.Timestamp);
 
+    // NB: to avoid use after move down the line.
+    auto statisticsAggregation = queryOptions.StatisticsAggregation;
+
     auto execution = New<TQueryExecution>(
         config,
         functionImplCache,
@@ -1836,7 +1867,7 @@ TQueryStatistics ExecuteSubquery(
 
     auto statistics = execution->Execute(profilerGuard);
 
-    if (TQueryStatistics::IsDepthAggregate(queryOptions.StatisticsAggregation)) {
+    if (TQueryStatistics::IsDepthAggregate(statisticsAggregation)) {
         TQueryStatistics aggregated;
         aggregated.Merge(statistics);
         return aggregated;

@@ -24,7 +24,7 @@ public:
 protected:
     void DoZombifyObject(TImpl* cell) noexcept override;
 
-    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* medium) override;
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TImpl* medium) override;
 
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* medium) override;
 

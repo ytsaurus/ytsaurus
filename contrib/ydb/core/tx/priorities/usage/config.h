@@ -1,6 +1,9 @@
 #pragma once
 #include <contrib/ydb/library/accessor/accessor.h>
-#include <contrib/ydb/core/protos/config.pb.h>
+
+namespace NKikimrConfig {
+    class TPrioritiesQueueConfig;
+}
 
 namespace NKikimr::NPrioritiesQueue {
 

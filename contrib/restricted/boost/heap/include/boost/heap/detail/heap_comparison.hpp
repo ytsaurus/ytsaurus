@@ -154,6 +154,9 @@ struct heap_compare_iteration
         if ( left_size > right_size )
             return false;
 
+        if ( lhs.empty() )
+            return false;
+
         typename Heap1::ordered_iterator it1     = lhs.ordered_begin();
         typename Heap1::ordered_iterator it1_end = lhs.ordered_end();
         typename Heap1::ordered_iterator it2     = rhs.ordered_begin();
@@ -169,7 +172,7 @@ struct heap_compare_iteration
             ++it2;
 
             if ( it1 == it1_end && it2 == it2_end )
-                return true;
+                return false; // all elements compared equal — heaps are equivalent, so lhs < rhs is false
 
             if ( it1 == it1_end || it2 == it2_end )
                 return false;
@@ -188,6 +191,9 @@ struct heap_compare_copy
             return true;
 
         if ( left_size > right_size )
+            return false;
+
+        if ( lhs.empty() )
             return false;
 
         Heap1 lhs_copy( lhs );

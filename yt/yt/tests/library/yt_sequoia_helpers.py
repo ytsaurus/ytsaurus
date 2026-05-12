@@ -298,35 +298,28 @@ def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
 
         @override
         def get_component_config(self, scope: yt_sequoia.Scope) -> yt_sequoia.SequoiaComponentConfig:
-            # Helper to convert dicts to `TableGroupDescriptor` instances.
-            def create_table_group(name, attrs):
-                return yt_sequoia.TableGroupDescriptor(name=name, attributes=attrs)
-
             if scope == yt_sequoia.Scope.REPLICAS:
-                table_groups = [
-                    create_table_group("chunk_tables", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("location_replicas_table", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("refresh_chunk_tables", {"in_memory_mode": "uncompressed", "tablet_count": 60}),
-                    create_table_group("unapproved_replicas_table", {
-                        "in_memory_mode": "uncompressed",
+                default_attrs = {"in_memory_mode": "uncompressed"}
+                patches = {
+                    "chunk_refresh_queue": {"tablet_count": 60},
+                    "unapproved_chunk_replicas": {
                         "mount_config": {"max_data_ttl": 5000, "min_data_ttl": 0, "max_data_versions": 1, "min_data_versions": 0},
-                    }),
-                ]
+                    },
+                }
             else:
-                table_groups = [
-                    create_table_group("resolve_tables", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("transaction_tables", {"in_memory_mode": "uncompressed"}),
-                    create_table_group("response_keeper_table", {
-                        "in_memory_mode": "uncompressed",
-                        "mount_config": {"max_data_ttl": 1000, "min_data_ttl": 1000, "max_data_versions": 1, "min_data_versions": 0}
-                    }),
-                ]
+                default_attrs = {"in_memory_mode": "uncompressed"}
+                patches = {
+                    "response_keeper": {
+                        "mount_config": {"max_data_ttl": 1000, "min_data_ttl": 1000, "max_data_versions": 1, "min_data_versions": 0},
+                    },
+                }
 
             return yt_sequoia.SequoiaComponentConfig(
                 tablet_cell_bundle="sequoia-chunks" if scope == yt_sequoia.Scope.REPLICAS else "sequoia-cypress",
                 tablet_cell_bundle_config=self.CELL_BUNDLE_CONFIG,
                 tablet_cell_count=1,
-                table_groups=table_groups)
+                default_table_attributes=default_attrs,
+                table_attribute_patches=patches)
 
     class AutoInteraction(yt_sequoia.UserInteraction):
         @override

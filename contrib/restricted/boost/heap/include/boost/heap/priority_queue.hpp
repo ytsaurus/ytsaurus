@@ -14,8 +14,10 @@
 #include <vector>
 
 #include <boost/assert.hpp>
+#include <boost/config.hpp>
 
 #include <boost/heap/detail/heap_comparison.hpp>
+#include <boost/heap/detail/heap_utils.hpp>
 #include <boost/heap/detail/stable_heap.hpp>
 
 #ifdef BOOST_HAS_PRAGMA_ONCE
@@ -132,10 +134,7 @@ public:
      * \b Complexity: Linear.
      *
      * */
-    priority_queue( priority_queue const& rhs ) :
-        super_t( rhs ),
-        q_( rhs.q_ )
-    {}
+    priority_queue( priority_queue const& rhs ) = default;
 
     /**
      * \b Effects: C++11-style move constructor.
@@ -143,10 +142,7 @@ public:
      * \b Complexity: Constant.
      *
      * */
-    priority_queue( priority_queue&& rhs ) noexcept( std::is_nothrow_move_constructible< super_t >::value ) :
-        super_t( std::move( rhs ) ),
-        q_( std::move( rhs.q_ ) )
-    {}
+    priority_queue( priority_queue&& rhs ) noexcept( std::is_nothrow_move_constructible< super_t >::value ) = default;
 
     /**
      * \b Effects: C++11-style move assignment.
@@ -155,11 +151,7 @@ public:
      *
      * */
     priority_queue& operator=( priority_queue&& rhs ) noexcept( std::is_nothrow_move_assignable< super_t >::value )
-    {
-        super_t::operator=( std::move( rhs ) );
-        q_ = std::move( rhs.q_ );
-        return *this;
-    }
+        = default;
 
     /**
      * \b Effects: Assigns priority queue from rhs.
@@ -169,8 +161,8 @@ public:
      * */
     priority_queue& operator=( priority_queue const& rhs )
     {
-        static_cast< super_t& >( *this ) = static_cast< super_t const& >( rhs );
-        q_                               = rhs.q_;
+        priority_queue tmp( rhs );
+        do_swap( tmp );
         return *this;
     }
 
@@ -284,12 +276,13 @@ public:
      *
      * \b Complexity: Constant.
      *
+     * \deprecated Use \c std::swap instead.
      * */
+    BOOST_DEPRECATED( "Use std::swap instead" )
     void swap( priority_queue& rhs ) noexcept( std::is_nothrow_move_constructible< super_t >::value
                                                && std::is_nothrow_move_assignable< super_t >::value )
     {
-        super_t::swap( rhs );
-        q_.swap( rhs.q_ );
+        do_swap( rhs );
     }
 
     /**
@@ -407,8 +400,16 @@ public:
     {
         return !( *this == rhs );
     }
+
+private:
+    void do_swap( priority_queue& rhs ) noexcept( std::is_nothrow_move_constructible< super_t >::value
+                                                  && std::is_nothrow_move_assignable< super_t >::value )
+    {
+        super_t::do_swap( rhs );
+        detail::swap_via_move( q_, rhs.q_ );
+    }
 };
 
-}}     // namespace boost::heap
+}} // namespace boost::heap
 
 #endif /* BOOST_HEAP_PRIORITY_QUEUE_HPP */

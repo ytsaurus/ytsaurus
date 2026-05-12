@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizerConnectionConfig)
 DEFINE_ENUM(EStdoutUnusedAction,
     (Leave)
     (Close)
-    (RedirrectToDevNull)
+    (RedirectToDevNull)
 );
 
 struct TUserJobExecutorConfig

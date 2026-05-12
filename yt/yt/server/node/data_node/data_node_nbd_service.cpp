@@ -182,10 +182,19 @@ private:
         context->SetRequestInfo("SessionId: %v",
             sessionId);
 
-        auto session = GetSessionOrThrow(sessionId);
-        session->Ping();
+        bool shouldCloseSession = false;
+        try {
+            auto session = GetSessionOrThrow(sessionId);
+            session->Ping();
+            shouldCloseSession = ShouldCloseSession(session);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(
+                ex,
+                "Failed to get session (SessionId: %v)",
+                sessionId);
+            shouldCloseSession = true;
+        }
 
-        auto shouldCloseSession = ShouldCloseSession(session);
         response->set_should_close_session(shouldCloseSession);
 
         context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",

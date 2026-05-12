@@ -151,7 +151,7 @@ public:
             TotalMediaWrittenBytes_ += mediaWrittenBytes;
         }
 
-        MediaWrittenBytesCounter_.Increment(averageMediaBytes);
+        MediaWrittenBytesCounter_.Increment(mediaWrittenBytes);
         MediaWrittenBytesMovingAverage_.Update(averageMediaBytes);
 
         if (ChangelogOutThrottler_ && EnableChangelogNetworkUsageAccounting_.load(std::memory_order::relaxed)) {

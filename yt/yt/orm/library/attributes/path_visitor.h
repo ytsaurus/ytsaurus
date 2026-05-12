@@ -29,14 +29,14 @@ class TPathVisitorMixin
 public:
     /// Policy flags.
     // Allows a "fragment" path missing the leading slash. COMPAT.
-    DEFINE_BYVAL_RW_PROPERTY(bool, LeadingSlashOptional, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LeadingSlashOptional);
     // Having reached the end of the tokenizer path, visit everything in the field/map/repeated.
     // Does not throw when visiting absent fields.
-    DEFINE_BYVAL_RW_PROPERTY(bool, VisitEverythingAfterPath, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(VisitEverythingAfterPath);
     // Do not throw if the path leads into a missing field/key/index.
     DEFINE_BYVAL_RW_PROPERTY(EMissingFieldPolicy, MissingFieldPolicy, EMissingFieldPolicy::Throw);
     // Visit all fields/entries when the path has a "*".
-    DEFINE_BYVAL_RW_PROPERTY(bool, AllowAsterisk, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(AllowAsterisk);
     // How to handle relative indexes.
     DEFINE_BYVAL_RW_PROPERTY(ERelativeIndexPolicy, RelativeIndexPolicy, ERelativeIndexPolicy::Allow);
 

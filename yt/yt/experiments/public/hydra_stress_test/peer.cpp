@@ -44,6 +44,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Cas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Sequence));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrowException));
     }
 
 private:
@@ -83,6 +84,14 @@ private:
             request->count(),
             request->id());
         auto future = Peer_->AutomatonPart_->CreateSequenceMutation(context)->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYT::NProto, ThrowException)
+    {
+        Y_UNUSED(response);
+        ValidatePeer(EPeerKind::Leader);
+
+        auto future = Peer_->AutomatonPart_->CreateThrowExceptionMutation(context)->CommitAndReply(context);
     }
 };
 

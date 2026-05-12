@@ -47,6 +47,8 @@ struct TJobTestingOptions
 
     TEventsOnFsConfigPtr EventsOnFs;
 
+    std::optional<i64> DummyAllocationBytes;
+
     REGISTER_YSON_STRUCT(TJobTestingOptions);
 
     static void Register(TRegistrar registrar);

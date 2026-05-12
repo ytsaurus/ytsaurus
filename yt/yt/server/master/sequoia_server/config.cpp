@@ -72,6 +72,16 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew()
         .DontSerializeDefault();
+
+    registrar.Parameter("use_shared_write_locks_for_cypress_transactions", &TThis::UseSharedWriteLocksForCypressTransactions)
+        .Default(true)
+        .DontSerializeDefault();
+
+    registrar.Parameter(
+        "coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator",
+        &TThis::CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

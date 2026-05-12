@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.h"
+#include "ddisk_config.h"
 
 #include <contrib/ydb/core/base/events.h>
 
@@ -35,6 +36,9 @@ namespace NKikimr::NDDisk {
             EvListPersistentBufferResult,
             EvWritePersistentBuffers,
             EvWritePersistentBuffersResult,
+            EvReadThenWritePersistentBuffers,
+            EvGetPersistentBufferInfo,
+            EvPersistentBufferInfo,
         };
     };
 
@@ -95,6 +99,10 @@ namespace NKikimr::NDDisk {
             pb->SetVChunkIndex(VChunkIndex);
             pb->SetOffsetInBytes(OffsetInBytes);
             pb->SetSize(Size);
+        }
+
+        void Print(IOutputStream& os) const {
+            os << "{VChunkIndex:" << VChunkIndex << " OffsetInBytes:" << OffsetInBytes << " Size:" << Size << "}";
         }
     };
 
@@ -161,9 +169,10 @@ namespace NKikimr::NDDisk {
 struct TPersistentBufferFormat {
     ui32 MaxChunks = 256;
     ui32 InitChunks = 4;
-    ui32 MaxInMemoryCache = 128_MB;
+    ui64 MaxInMemoryCache = 128_MB;
     ui32 MaxChunkRestoreInflight = 8;
     ui32 UpdateFreeSpaceInfoMilliseconds = 5000;
+    ui64 PerTabletStorageLimit = 4096_MB;
 };
 
 #define DECLARE_DDISK_EVENT(NAME) \
@@ -192,6 +201,9 @@ struct TPersistentBufferFormat {
     struct TEvErasePersistentBufferResult;
     struct TEvListPersistentBuffer;
     struct TEvListPersistentBufferResult;
+    struct TEvReadThenWritePersistentBuffers;
+    struct TEvGetPersistentBufferInfo;
+    struct TEvPersistentBufferInfo;
 
     DECLARE_DDISK_EVENT(Connect) {
         using TResult = TEvConnectResult;
@@ -320,6 +332,27 @@ struct TPersistentBufferFormat {
         }
     };
 
+    DECLARE_DDISK_EVENT(ReadThenWritePersistentBuffers) {
+        using TResult = TEvWritePersistentBuffersResult;
+
+        TEvReadThenWritePersistentBuffers() = default;
+
+        TEvReadThenWritePersistentBuffers(const TQueryCredentials& creds, ui64 lsn, ui32 generation,
+                const std::vector<std::tuple<ui32, ui32, ui32>>& persistentBufferIds,
+                ui32 replyTimeoutMicroseconds) {
+            creds.Serialize(Record.MutableCredentials());
+            Record.SetLsn(lsn);
+            Record.SetGeneration(generation);
+            Record.SetReplyTimeoutMicroseconds(replyTimeoutMicroseconds);
+            for (auto id : persistentBufferIds) {
+                auto* pbId = Record.AddPersistentBufferIds();
+                pbId->SetNodeId(std::get<0>(id));
+                pbId->SetPDiskId(std::get<1>(id));
+                pbId->SetDDiskSlotId(std::get<2>(id));
+            }
+        }
+    };
+
     DECLARE_DDISK_EVENT(WritePersistentBuffers) {
         using TResult = TEvWritePersistentBuffersResult;
 
@@ -338,6 +371,20 @@ struct TPersistentBufferFormat {
                 pbId->SetNodeId(std::get<0>(id));
                 pbId->SetPDiskId(std::get<1>(id));
                 pbId->SetDDiskSlotId(std::get<2>(id));
+            }
+        }
+
+        TEvWritePersistentBuffers(const TQueryCredentials& creds, const TBlockSelector& selector, ui64 lsn,
+                const TWriteInstruction& instruction, const std::vector<NKikimrBlobStorage::NDDisk::TDDiskId>& persistentBufferIds,
+                ui32 replyTimeoutMicroseconds) {
+            creds.Serialize(Record.MutableCredentials());
+            selector.Serialize(Record.MutableSelector());
+            Record.SetLsn(lsn);
+            Record.SetReplyTimeoutMicroseconds(replyTimeoutMicroseconds);
+            instruction.Serialize(Record.MutableInstruction());
+            for (auto id : persistentBufferIds) {
+                auto* pbId = Record.AddPersistentBufferIds();
+                *pbId = id;
             }
         }
     };
@@ -362,12 +409,16 @@ struct TPersistentBufferFormat {
 
         TEvReadPersistentBufferResult(NKikimrBlobStorage::NDDisk::TReplyStatus::E status,
                 const std::optional<TString>& errorReason = std::nullopt,
+                ui64 vChunkIndex = 0, ui32 offsetInBytes = 0, ui32 sizeInBytes = 0,
                 TRope data = {}) {
             Record.SetStatus(status);
             if (errorReason) {
                 Record.SetErrorReason(*errorReason);
             }
             if (data) {
+                Record.SetVChunkIndex(vChunkIndex);
+                Record.SetOffsetInBytes(offsetInBytes);
+                Record.SetSizeInBytes(sizeInBytes);
                 TReadResult(AddPayload(std::move(data))).Serialize(Record.MutableReadResult());
             }
         }
@@ -378,9 +429,8 @@ struct TPersistentBufferFormat {
 
         TEvErasePersistentBuffer() = default;
 
-        TEvErasePersistentBuffer(const TQueryCredentials& creds, const TBlockSelector& selector, ui64 lsn, ui32 generation) {
+        TEvErasePersistentBuffer(const TQueryCredentials& creds, ui64 lsn, ui32 generation) {
             creds.Serialize(Record.MutableCredentials());
-            selector.Serialize(Record.MutableSelector());
             Record.SetLsn(lsn);
             Record.SetGeneration(generation);
         }
@@ -395,19 +445,17 @@ struct TPersistentBufferFormat {
             creds.Serialize(Record.MutableCredentials());
         }
 
-        TEvBatchErasePersistentBuffer(const TQueryCredentials& creds, const std::vector<std::tuple<TBlockSelector, ui64, ui32>>& erases) {
+        TEvBatchErasePersistentBuffer(const TQueryCredentials& creds, const std::vector<std::tuple<ui64, ui32>>& erases) {
             creds.Serialize(Record.MutableCredentials());
-            for (auto& [selector, lsn, generation] : erases) {
+            for (auto& [lsn, generation] : erases) {
                 auto* erase = Record.AddErases();
-                selector.Serialize(erase->MutableSelector());
                 erase->SetLsn(lsn);
                 erase->SetGeneration(generation);
             }
         }
 
-        void AddErase(const TBlockSelector& selector, ui64 lsn, ui32 generation) {
+        void AddErase(ui64 lsn, ui32 generation) {
             auto *erase = Record.AddErases();
-            selector.Serialize(erase->MutableSelector());
             erase->SetLsn(lsn);
             erase->SetGeneration(generation);
         }
@@ -426,6 +474,38 @@ struct TPersistentBufferFormat {
             Record.SetFreeSpace(freeSpace);
             Record.SetPDiskNormalizedOccupancy(normalizedOccupancy);
         }
+    };
+
+
+    struct TEvPersistentBufferInfo : public TEventLocal<TEvPersistentBufferInfo, TEv::EvPersistentBufferInfo> {
+        struct TTabletInfo {
+            ui64 TabletId;
+            ui32 Generation;
+            ui64 FirstLsn;
+            ui64 LastLsn;
+            TInstant FirstLsnTimestamp;
+            TInstant LastLsnTimestamp;
+            ui32 LsnsCount;
+            ui64 Size;
+        };
+
+        TInstant StartedAt;
+        ui32 AllocatedChunks;
+        ui32 MaxChunks;
+        ui32 SectorSize;
+        ui32 ChunkSize;
+        ui32 FreeSectors;
+        ui64 InMemoryCacheSize;
+        ui64 InMemoryCacheLimit;
+        ui32 DiskOperationsInflight;
+        ui32 PendingEvents;
+        std::vector<TTabletInfo> TabletInfos;
+        std::vector<std::vector<std::tuple<ui32, ui32>>> FreeSpace;
+    };
+
+    struct TEvGetPersistentBufferInfo : public TEventLocal<TEvGetPersistentBufferInfo, TEv::EvGetPersistentBufferInfo> {
+        bool DescribeFreeSpace = false;
+        bool DescribeTablets = false;
     };
 
     DECLARE_DDISK_EVENT(ListPersistentBuffer) {
@@ -545,6 +625,11 @@ struct TPersistentBufferFormat {
     };
 
     IActor *CreateDDiskActor(TVDiskConfig::TBaseInfo&& baseInfo, TIntrusivePtr<TBlobStorageGroupInfo> info,
-        TPersistentBufferFormat&& pbFormat, TIntrusivePtr<NMonitoring::TDynamicCounters> counters);
+        TPersistentBufferFormat&& pbFormat, TDDiskConfig&& ddiskConfig,
+        TIntrusivePtr<NMonitoring::TDynamicCounters> counters);
+
+    IActor *CreatePersistentBufferActor(TVDiskConfig::TBaseInfo&& baseInfo, TIntrusivePtr<TBlobStorageGroupInfo> info,
+        TPersistentBufferFormat&& pbFormat, TDDiskConfig&& ddiskConfig,
+        TIntrusivePtr<NMonitoring::TDynamicCounters> counters);
 
 } // NKikimr::NDDisk

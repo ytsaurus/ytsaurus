@@ -178,6 +178,34 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveNativeTxExternalizationEnabledFlag)                     (3224))  // h0pless
     ((RemoveAllowCrossShardDynamicTableCopying)                     (3225))  // ponasenko-rs
     ((FixSignalingToRttAboutTableCreation)                          (3226))  // akozhikhov
+    ((IntroduceHunkJournalChunkFormat)                              (3227))  // akozhikhov
+    ((IntroduceDistributedJournalChunkFormat)                       (3228))  // apollo1321
+    ((InternCypressProxyConfig)                                     (3229))  // h0pless
+    ((RemoveEnableSequoiaReplicasInMedium)                          (3230))  // grphil
+    ((ValidateReshardComplexity)                                    (3231))  // sabdenovch
+    ((FixTabletCellBundleInheritance)                               (3232))  // kvk120
+    ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
+    ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
+    ((AbortStuckTransactions)                                       (3235))  // h0pless
+    ((DontValidateTransactionPermissionsOnPartitipants_26_1)        (3236))  // kvk1920
+    ((DoNotCreateSplitActionsIfTooManyTablets)                      (3237))  // alexelexa
+    ((IntroduceLogicalMountRevision)                                (3238))  // alexelexa
+    ((SendTableTabletBalancerConfigToTablet)                        (3239))  // navasardianna
+    ((ChunkMergerUsageAttributeInAccount)                           (3240))  // cherepashka
+    ((DefaultUserClusterwideLimitToCellLimit_26_1)                  (3241))  // shakurov
+    ((DropMulticellIndex)                                           (3242))  // cherepashka
+
+    // 26.2 starts here.
+    ((Start_26_2)                                                   (3300))  // ermolovd
+    ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
+    ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
+    ((DisableModificationTimeUpdateInChunkMerger)                   (3303))  // h0pless
+    ((DontValidateTransactionPermissionsOnPartitipants)             (3304))  // kvk1920
+    ((IntroduceLogicalMountRevision_26_2)                           (3305))  // alexelexa
+    ((SendTableTabletBalancerConfigToTablet_26_2)                   (3306))  // navasardianna
+    ((ChunkMergerUsageAttributeInAccount_26_2)                      (3307))  // cherepashka
+    ((DefaultUserClusterwideLimitToCellLimit)                       (3308))  // shakurov
+    ((DropMulticellIndex_26_2)                                      (3309))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

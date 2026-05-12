@@ -1789,7 +1789,7 @@ void TBundleState::FillTabletWithStatistics(
 
     Visit(std::move(tabletResponse.PerformanceCounters),
         [&] (auto&& performanceCounters) {
-            tablet->PerformanceCounters = std::move(performanceCounters);
+            tablet->PerformanceCounters = std::forward<decltype(performanceCounters)>(performanceCounters);
         });
 }
 

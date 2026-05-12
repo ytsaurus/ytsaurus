@@ -54,7 +54,8 @@ public:
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
         const TYPath& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -331,9 +332,9 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
         operation->GetSchedulingOperationController(),
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -375,7 +376,8 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling
                 /*timeLimit*/ TDuration::Days(1),
                 /*treeId*/ "tree",
                 /*poolPath*/ "/pool",
-                /*waitingForResourcesOnNodeTimeout*/ {});
+                /*waitingForResourcesOnNodeTimeout*/ {},
+            /*allocationGroupName*/ {});
         })
             .AsyncVia(actionQueue->GetInvoker())
             .Run();
@@ -413,15 +415,15 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
         operation->GetSchedulingOperationController(),
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount + 1)
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             auto result = New<TControllerScheduleAllocationResult>();
             result->NextDurationEstimate = TDuration::MilliSeconds(100);
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(result));
         }))
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             auto result = New<TControllerScheduleAllocationResult>();
@@ -452,7 +454,8 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
             /*timeLimit*/ TDuration::Days(1),
             /*treeId*/ "tree",
             /*poolPath*/ "/pool",
-            /*waitingForResourcesOnNodeTimeout*/ {});
+            /*waitingForResourcesOnNodeTimeout*/ {},
+            /*allocationGroupName*/ {});
 
         controller->OnScheduleAllocationFinished(context);
     }
@@ -486,7 +489,8 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
                 /*timeLimit*/ TDuration::Days(1),
                 /*treeId*/ "tree",
                 /*poolPath*/ "/pool",
-                /*waitingForResourcesOnNodeTimeout*/ {});
+                /*waitingForResourcesOnNodeTimeout*/ {},
+            /*allocationGroupName*/ {});
         })
             .AsyncVia(actionQueue->GetInvoker())
             .Run();
@@ -524,9 +528,9 @@ TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCalls
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
         operation->GetSchedulingOperationController(),
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2 * JobCount)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -569,7 +573,8 @@ TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCalls
                 /*timeLimit*/ TDuration::Days(1),
                 /*treeId*/ "tree",
                 /*poolPath*/ "/pool",
-                /*waitingForResourcesOnNodeTimeout*/ {});
+                /*waitingForResourcesOnNodeTimeout*/ {},
+            /*allocationGroupName*/ {});
         })
             .AsyncVia(actionQueue->GetInvoker())
             .Run();
@@ -604,8 +609,8 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
     auto secondAllocationId = TAllocationId(TGuid::Create());
     EXPECT_CALL(
         operation->GetSchedulingOperationController(),
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
@@ -614,7 +619,7 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
         }))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
@@ -625,7 +630,7 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
         }))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
+        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             return BIND([&] {
                 Sleep(TDuration::MilliSeconds(10));
 
@@ -656,7 +661,8 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
             /*timeLimit*/ TDuration::Seconds(1),
             /*treeId*/ "tree",
             /*poolPath*/ "/pool",
-            /*waitingForResourcesOnNodeTimeout*/ {});
+            /*waitingForResourcesOnNodeTimeout*/ {},
+            /*allocationGroupName*/ {});
 
         EXPECT_FALSE(result->StartDescriptor);
         EXPECT_EQ(1, result->Failed[EScheduleFailReason::Timeout]);
@@ -671,7 +677,8 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
             /*timeLimit*/ TDuration::Seconds(10),
             /*treeId*/ "tree",
             /*poolPath*/ "/pool",
-            /*waitingForResourcesOnNodeTimeout*/ {});
+            /*waitingForResourcesOnNodeTimeout*/ {},
+            /*allocationGroupName*/ {});
 
         ASSERT_TRUE(result->StartDescriptor);
         EXPECT_EQ(secondAllocationId, result->StartDescriptor->Id);

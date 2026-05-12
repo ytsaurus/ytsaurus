@@ -1,6 +1,5 @@
 #pragma once
 
-#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/protos/table_service_config.pb.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_scan_data.h>
 

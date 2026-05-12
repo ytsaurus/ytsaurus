@@ -86,9 +86,9 @@ struct IMulticellManager
     virtual NObjectClient::TCellId GetPrimaryCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryCellTag() const = 0;
 
-    virtual const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const = 0;
+    virtual const NObjectClient::TCellTagSet& GetSecondaryCellTags() const = 0;
     virtual const NApi::NNative::TConnectionStaticConfigPtr& GetMasterCellConnectionConfigs() const = 0;
-    virtual const THashSet<NObjectClient::TCellTag>& GetDynamicallyPropagatedMasterCellTags() const = 0;
+    virtual const NObjectClient::TCellTagSet& GetDynamicallyPropagatedMasterCellTags() const = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateResetDynamicallyPropagatedMasterCellsMutation(
         const NProto::TReqResetDynamicallyPropagatedMasterCells& request) = 0;
@@ -102,7 +102,7 @@ struct IMulticellManager
         bool reliable = true) = 0;
     virtual void PostToMasters(
         const TCrossCellMessage& message,
-        TRange<NObjectClient::TCellTag> cellTags,
+        const NObjectClient::TCellTagSet& cellTags,
         bool reliable = true) = 0;
     virtual void PostToPrimaryMaster(
         const TCrossCellMessage& message,
@@ -136,7 +136,7 @@ struct IMulticellManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const = 0;
+    virtual NObjectClient::TCellTagSet GetRoleMasterCells(EMasterCellRole cellRole) const = 0;
 
     //! Returns the number of cells configured for a given role.
     /*!
@@ -162,7 +162,7 @@ struct IMulticellManager
     /*!`
      *  For secondary masters, the primary master is always the first element.
      */
-    virtual const NObjectClient::TCellTagList& GetRegisteredMasterCellTags() const = 0;
+    virtual const NObjectClient::TCellTagSet& GetRegisteredMasterCellTags() const = 0;
 
     //! Picks a random (but deterministically chosen) secondary master cell to
     //! host an external chunk-owning node.

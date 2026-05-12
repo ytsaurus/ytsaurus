@@ -13,7 +13,7 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReshardDescriptor
+struct TReshardDescriptor final
 {
     std::vector<TTabletId> Tablets;
     int TabletCount;
@@ -21,6 +21,10 @@ struct TReshardDescriptor
     TGuid CorrelationId;
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
     bool Inplace = false;
+    TTabletCellId TargetCellId;
+    // Tablets that should be moved to target cell before reshard can be executed.
+    THashSet<TTabletId> PendingTabletIds;
+    bool UseSmoothMovementToUniteTablets = false;
 
     // IsSplit, TabletCountDiff, Deviation.
     std::tuple<bool, int, double> Priority;

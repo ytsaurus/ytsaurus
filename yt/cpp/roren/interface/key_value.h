@@ -111,13 +111,15 @@ private:
             Get()->~T();
         }
 
-        TPodifiedValue& operator=(const TPodifiedValue& other)
+        TPodifiedValue& operator=(const TPodifiedValue& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
         {
             *Get() = *other.Get();
             return *this;
         }
 
-        TPodifiedValue& operator=(TPodifiedValue&& other)
+        TPodifiedValue& operator=(TPodifiedValue&& other) noexcept(
+            std::is_nothrow_move_assignable_v<T> &&
+            std::is_nothrow_destructible_v<T>)
         {
             *Get() = std::move(*other.Get());
             return *this;

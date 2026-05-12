@@ -64,3 +64,11 @@ message TRspSyncWithGroundUpdateQueue
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TSequoiaTransactionFeatures
+{
+    optional bool use_shared_write_locks_for_cypress_transactions = 1 [default = true];
+    optional bool coordinate_cypress_transaction_replication_on_cypress_transaction_coordinator = 2 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////

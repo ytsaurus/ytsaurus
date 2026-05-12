@@ -31,6 +31,7 @@ PEERDIR(
     yt/yt/library/tcmalloc
     yt/yt/library/ytprof
     yt/yt/library/ytprof/allocation_tag_profiler
+    yt/yt/server/lib/job_agent
 )
 
 IF(OS_LINUX)

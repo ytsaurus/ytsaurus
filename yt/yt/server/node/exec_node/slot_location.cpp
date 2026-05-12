@@ -448,12 +448,13 @@ void TSlotLocation::DoPrepareSandboxDirectories(
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
+    const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
     bool ignoreQuota)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
     return BIND([=, this_ = MakeStrong(this)] {
-            for (const auto& volumeParams : options.NonRootVolumes) {
+            for (const auto& volumeParams : nonRootVolumeParams) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
                 auto mountPath = GetVolumeMountPathByVolumeId(volumeParams->VolumeId, options.JobVolumeMounts);
@@ -1228,8 +1229,14 @@ void TSlotLocation::UpdateDiskResources()
                     })
                     .AsyncVia(ToolInvoker_)
                     .Run();
-                slotDiskUsage = WaitFor(future)
-                    .ValueOrThrow();
+                try {
+                    slotDiskUsage = WaitFor(future)
+                        .ValueOrThrow();
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Failed to get directories size for slot %v", slotIndex);
+                    // Skip this attempt, do not disable slot location.
+                    return;
+                }
             }
 
             diskStatisticsPerSlot.insert(std::pair(

@@ -31,7 +31,7 @@ h3 {
 }
 </style>
 
-**{{product-name}}** ({% if lang == "en" %}ЛФШ: [вайт^j^изáwрʊс], {% endif %}читается {{ipa}}) — платформа распределенного хранения и обработки больших объемов данных с поддержкой [MapReduce](http://ru.wikipedia.org/wiki/MapReduce), распределенной файловой системой и NoSQL key-value базой данных.
+{{product-name}} ({% if lang == "en" %}ЛФШ: [вайт^j^изáwрʊс], {% endif %}читается {{ipa}}) — платформа распределенного хранения и обработки больших объемов данных с поддержкой [MapReduce](http://ru.wikipedia.org/wiki/MapReduce), распределенной файловой системой и NoSQL key-value базой данных.
 
 <div class="grid-container">
     <div class="grid-item">

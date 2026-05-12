@@ -94,6 +94,8 @@ SRCS(
     scheduler_cookie.cpp
     scheduler_cookie.h
     scheduler_queue.h
+    subsystem.cpp
+    subsystem.h
     servicemap.h
 )
 
@@ -103,6 +105,7 @@ GENERATE_ENUM_SERIALIZATION(log_iface.h)
 
 PEERDIR(
     contrib/ydb/library/actors/actor_type
+    contrib/ydb/library/actors/core/subsystems
     contrib/ydb/library/actors/interconnect/rdma
     contrib/ydb/library/actors/core/harmonizer
     contrib/ydb/library/actors/memory_log

@@ -105,6 +105,8 @@ def hide_fields(
 
 
 def hide_secure_vault(params: typing.Dict[str, str]) -> typing.Dict[str, str]:
+    """Returns safe copy of params
+    """
     params = deepcopy(params)
 
     hide_fields(params, fields=("secure_vault",), prefixes=SECRET_PREFIXES)

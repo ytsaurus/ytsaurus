@@ -20,19 +20,23 @@ bool HasSpecialAttributes(const NYTree::TAttributeFilter& attributeFilter);
 TFuture<TNodeIdToAttributes> FetchAttributesForGetRequest(
     const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    NCypressClient::TNodeId rootId,
     const TNodeIdToChildDescriptors* nodeIdToChildren,
-    TNodeAncestry rootAncestry,
-    const std::vector<NCypressClient::TNodeId>* scalarNodeIds);
+    const std::vector<NCypressClient::TNodeId>* scalarNodeIds,
+    TNodeAncestry rootAncestry);
 
 TFuture<TNodeIdToAttributes> FetchAttributesForListRequest(
     const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    NCypressClient::TNodeId rootId,
     const std::vector<TCypressChildDescriptor>* children,
     TNodeAncestry rootAncestry);
 
 TFuture<NYTree::IAttributeDictionaryPtr> FetchAttributesForNode(
+    const TSequoiaSessionPtr& sequoiaSession,
+    const NYTree::TAttributeFilter& attributeFilter,
+    NCypressClient::TNodeId rootId,
+    TNodeAncestry rootAncestry);
+
+TFuture<NYTree::INodePtr> FetchValueForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
     NCypressClient::TNodeId rootId,

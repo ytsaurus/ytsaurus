@@ -66,7 +66,7 @@ class PortoSubprocess(object):
                 # taken by base infractructure. About 40 more symbols are used by YT node. We are left with
                 # 40 symbols to start YT cluster with porto containers inside, so we can't afford to use full
                 # GUID here.
-                name = generate_uuid()[:4]
+                name = generate_uuid()[:8]
                 container = conn.Create("self/" + str(name), weak=True)
                 break
             except exceptions.ContainerAlreadyExists:

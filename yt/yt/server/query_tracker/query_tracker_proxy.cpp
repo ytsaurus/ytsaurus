@@ -4,7 +4,7 @@
 #include "helpers.h"
 #include "profiler.h"
 #include "search_index.h"
-#include "spyt_connect_engine.h"
+#include "spyt_engine.h"
 #include "yql_engine.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -1051,10 +1051,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     auto enginesInfoMap = ConvertToNode(EmptyMap)->AsMap();
     if (attributes.AdmitsKeySlow("engines_info")) {
         for (const auto& provider : EngineProviders_) {
-            // COMPAT(atokarew): remove this workaround when old spyt_engine will be removed.
-            std::string engineName = provider.first == EQueryEngine::SpytConnect
-                ? FormatEnum(EQueryEngine::Spyt)
-                : FormatEnum(provider.first);
+            std::string engineName = FormatEnum(provider.first);
             try {
                 auto engineInfo = provider.second->GetEngineInfo(settingsMap);
                 if (engineInfo) {

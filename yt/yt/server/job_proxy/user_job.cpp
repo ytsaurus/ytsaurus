@@ -1734,7 +1734,7 @@ private:
             // is redirected to reserved buffer (container stderr) by default.
             executorConfig->StdoutUnusedAction = EStdoutUnusedAction::Leave;
         } else {
-            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::RedirrectToDevNull;
+            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::RedirectToDevNull;
         }
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {

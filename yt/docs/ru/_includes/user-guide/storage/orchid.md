@@ -20,7 +20,7 @@
 
 Также большинство сервисов выставляет узел, одноименный названию сервиса, который содержит специфичную для данного сервиса информацию. Например, в Орхидее планировщика есть узел `scheduler`.
 
-Примеры работы с Орхидеей:
+{% cut "Примеры работы с Орхидеей" %}
 
 ```bash
 $ yt list //sys/scheduler/orchid
@@ -55,6 +55,7 @@ $ yt get //sys/scheduler/orchid/service
  - `retry_attempts`, `retry_backoff_time`, `retry_timeout` – настройки ретраев
 
 Например каждый контроллер-агент имеет свою Орхидею:
+
 ```
 $ yt get //sys/controller_agents/instances --proxy hume
 {

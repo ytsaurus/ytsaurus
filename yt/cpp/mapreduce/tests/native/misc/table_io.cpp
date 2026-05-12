@@ -24,6 +24,7 @@
 
 #include <util/system/env.h>
 
+#include <thread>
 #include <type_traits>
 
 using namespace NYT;
@@ -848,28 +849,35 @@ TEST(TableIo, ReaderTakesLockOnTableIdNotPath)
     TConfig::Get()->UseAbortableResponse = true;
 
     auto firstPath = TRichYPath(workingDir + "/table1");
-    auto secondPath = TRichYPath(workingDir + "/table2");
-    int numRows = 4e6;
+    // Keep the response body large enough (~100 MB) so it is still streaming
+    // when AbortAll() fires below.
+    constexpr int numRows = 1000;
+    const TString payload(100000, 'x');
     {
         auto writer = client->CreateTableWriter<TNode>(firstPath);
         for (int i = 0; i < numRows; ++i) {
-            writer->AddRow(TNode()("first_key", i));
-        }
-        writer->Finish();
-    }
-    {
-        auto writer = client->CreateTableWriter<TNode>(secondPath);
-        for (int i = 0; i < numRows; ++i) {
-            writer->AddRow(TNode()("second_key", i));
+            writer->AddRow(TNode()("first_key", payload));
         }
         writer->Finish();
     }
     auto reader = client->CreateTableReader<TNode>(firstPath);
-    client->Move(secondPath.Path_, firstPath.Path_, TMoveOptions().Force(true));
+    // Append a few rows after the snapshot lock was taken: the reader must
+    // not see them because its lock pins the original table id/state.
+    {
+        auto writer = client->CreateTableWriter<TNode>(
+            TRichYPath(firstPath).Append(true));
+        for (int i = 0; i < 3; ++i) {
+            writer->AddRow(TNode()("second_key", i));
+        }
+        writer->Finish();
+    }
     EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_table") > 0);
+    int rowsRead = 0;
     for (; reader->IsValid(); reader->Next()) {
         EXPECT_TRUE(reader->GetRow().AsMap().contains("first_key"));
+        ++rowsRead;
     }
+    EXPECT_EQ(rowsRead, numRows);
 }
 
 TEST(TableIo, UnsuccessfulRetries)
@@ -1332,6 +1340,168 @@ TEST(TableIO, NoFinishWithDisabledAutoFinish)
 
     // Wait for writer thread to complete IO and block on internal queue.
     Sleep(TDuration::Seconds(5));
+}
+
+TEST(TableIo, AbortHaltingRead)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100'000;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    TConfig::Get()->UseHaltingResponse = true;
+    TConfig::Get()->HaltingResponseBytesLimit = 64 * 1024;
+
+    TTableReaderPtr<TNode> reader;
+
+    int rowsRead = 0;
+    auto readTable = [&] () {
+        reader = client->CreateTableReader<TNode>(path);
+        while (reader->IsValid()) {
+            reader->MoveRow();
+            ++rowsRead;
+            reader->Next();
+        }
+    };
+
+    std::thread readerThread([&readTable] () {
+        EXPECT_THROW(readTable(), TInputStreamAbortedError);
+    });
+
+    Sleep(TDuration::Seconds(5));
+    reader->Abort();
+    readerThread.join();
+
+    EXPECT_LT(rowsRead, nRows);
+}
+
+TEST(TableIo, ReadAfterAbort)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TNode>(path);
+
+    reader->Abort();
+    EXPECT_THROW(reader->MoveRow(), TInputStreamAbortedError);
+}
+
+TEST(TableIo, DoubleAbort)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TNode>(path);
+
+    reader->Abort();
+    reader->Abort(); // Works just fine
+}
+
+TEST(TableIo, NoRetriesOnAbort)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100'000;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    TConfig::Get()->UseHaltingResponse = true;
+    TConfig::Get()->HaltingResponseBytesLimit = 64 * 1024;
+
+    TConfig::Get()->RetryCount = 10;
+    TConfig::Get()->ReadRetryCount = 10;
+    TConfig::Get()->RetryInterval = TDuration::Seconds(10);
+
+    TTableReaderPtr<TNode> reader;
+
+    auto readTable = [&] () {
+        reader = client->CreateTableReader<TNode>(path);
+        while (reader->IsValid()) {
+            reader->MoveRow();
+            reader->Next();
+        }
+    };
+
+    auto start = TInstant::Now();
+
+    std::thread readerThread([&readTable] () {
+        EXPECT_THROW(readTable(), TInputStreamAbortedError);
+    });
+
+    Sleep(TDuration::Seconds(5));
+    reader->Abort();
+    readerThread.join();
+
+    auto elapsed = TInstant::Now() - start;
+
+    EXPECT_LT(elapsed, TDuration::Seconds(15));
+}
+
+TEST(TableIo, Aborted)
+{
+    SKIP_IF_DEFAULT_HTTP();
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = TRichYPath(workingDir + "/table");
+    int nRows = 100;
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        for (int i = 0; i < nRows; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TNode>(path);
+
+    EXPECT_FALSE(reader->IsAborted());
+    reader->Abort();
+    EXPECT_TRUE(reader->IsAborted());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1874,17 +2044,13 @@ TEST(StreamReaders, Yson)
 
 class TTablePartitionNodeReaderTest
     : public ::testing::TestWithParam<TNodeReaderParam>
-{ };
-
-void SimplePartition(bool strictSchema)
 {
-    static auto partitionCount = 1;
-    static auto options = TGetTablePartitionsOptions()
-        .PartitionMode(ETablePartitionMode::Ordered)
-        .DataWeightPerPartition(1)
-        .MaxPartitionCount(partitionCount)
-        .EnableCookies(true);
+public:
+    static constexpr int PartitionCount = 1;
+};
 
+void SimplePartition(bool strictSchema, const TGetTablePartitionsOptions& options)
+{
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -1896,7 +2062,7 @@ void SimplePartition(bool strictSchema)
     }
 
     auto cookies = client->GetTablePartitions({path}, options);
-    EXPECT_EQ(std::ssize(cookies.Partitions), partitionCount);
+    EXPECT_EQ(std::ssize(cookies.Partitions), TTablePartitionNodeReaderTest::PartitionCount);
 
     auto cookie = cookies.Partitions[0].Cookie;
     EXPECT_TRUE(cookie);
@@ -1912,11 +2078,16 @@ void SimplePartition(bool strictSchema)
 TEST_P(TTablePartitionNodeReaderTest, SimplePartition)
 {
     const auto& param = GetParam();
+    const static auto options = TGetTablePartitionsOptions()
+        .PartitionMode(ETablePartitionMode::Ordered)
+        .DataWeightPerPartition(1)
+        .MaxPartitionCount(TTablePartitionNodeReaderTest::PartitionCount)
+        .EnableCookies(true);
 
     TConfigSaverGuard configGuard;
     TConfig::Get()->NodeReaderFormat = param.Format;
 
-    SimplePartition(param.StrictSchema);
+    SimplePartition(param.StrictSchema, options);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1926,3 +2097,38 @@ INSTANTIATE_TEST_SUITE_P(
         TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ false),
         TNodeReaderParam(ENodeReaderFormat::Yson, /*StrictSchema*/ true),
         TNodeReaderParam(ENodeReaderFormat::Skiff, /*StrictSchema*/ true)));
+
+TEST(TTablePartitionFetchDescriptors, ReadPartition)
+{
+    static const auto partitionCount = 1;
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = CreatePath(workingDir, /*strictSchema*/ true);
+    {
+        auto writer = client->CreateTableWriter<TNode>(path);
+        writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+        writer->Finish();
+    }
+
+    static const auto options = TGetTablePartitionsOptions()
+        .PartitionMode(ETablePartitionMode::Ordered)
+        .DataWeightPerPartition(1)
+        .MaxPartitionCount(partitionCount)
+        .EnableCookies(true)
+        .FetchCookieNodeDescriptors(true);
+
+    auto cookies = client->GetTablePartitions({path}, options);
+    EXPECT_EQ(std::ssize(cookies.Partitions), partitionCount);
+
+    auto cookie = cookies.Partitions[0].Cookie;
+    EXPECT_TRUE(cookie);
+
+    auto reader = client->CreateTablePartitionReader<TNode>(*cookie);
+
+    EXPECT_TRUE(reader->IsValid());
+    EXPECT_EQ(reader->GetRow(), TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
+    reader->Next();
+    EXPECT_TRUE(!reader->IsValid());
+}

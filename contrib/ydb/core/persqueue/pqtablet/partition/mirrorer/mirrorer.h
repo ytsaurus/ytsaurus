@@ -2,6 +2,7 @@
 
 #include <contrib/ydb/core/persqueue/common/actor.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
+#include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/core/persqueue/public/counters/percentile_counter.h>
 #include <contrib/ydb/core/protos/counters_pq.pb.h>
 #include <contrib/ydb/library/persqueue/counter_time_keeper/counter_time_keeper.h>

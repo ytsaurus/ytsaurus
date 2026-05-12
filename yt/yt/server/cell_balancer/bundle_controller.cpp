@@ -13,7 +13,7 @@
 #include "node_tracker.h"
 #include "orchid_bindings.h"
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
@@ -248,6 +248,14 @@ private:
 
             YT_LOG_DEBUG("Bundle controller is not leading");
             return;
+        }
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        if (!dynamicConfigManager->IsConfigLoaded()) {
+            YT_LOG_INFO("Loading dynamic config for the first time");
+            WaitFor(dynamicConfigManager->GetConfigLoadedFuture())
+                .ThrowOnError();
+            YT_LOG_INFO("Dynamic config loaded");
         }
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerScanPass"));
@@ -800,7 +808,7 @@ private:
             sensors->NodeDeallocationRequestAge.Update(nodeDeallocationRequestAge);
             sensors->RemovingCellsAge.Update(removingCellsAge);
             sensors->ProxyAllocationRequestAge.Update(proxyAllocationRequestAge);
-            sensors->ProxyDeallocationRequestAge.Update(proxyAllocationRequestAge);
+            sensors->ProxyDeallocationRequestAge.Update(proxyDeallocationRequestAge);
         }
     }
 

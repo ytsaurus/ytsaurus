@@ -124,6 +124,7 @@ void TCellBundle::InitializeProfilingCounters()
     ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
     ProfilingCounters_.TabletCellMoves = profiler.Counter("/tablet_tracker/tablet_cell_moves");
     ProfilingCounters_.PeerAssignment = profiler.Counter("/tablet_tracker/peer_assignment");
+    ProfilingCounters_.LeaderSmoothings = profiler.Counter("/tablet_tracker/leader_smoothings");
 }
 
 std::string TCellBundleProfilingCounters::FormatErrorCode(TErrorCode errorCode)

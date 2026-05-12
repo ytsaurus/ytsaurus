@@ -327,6 +327,7 @@ private:
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
     std::vector<NJobAgent::TJobProfile> Profiles_;
+    std::optional<NJobAgent::TJobProfile> JobProxyPeakMemoryProfile_;
     NControllerAgent::TCoreInfos CoreInfos_;
 
     bool InterruptionRequested_ = false;
@@ -452,6 +453,7 @@ private:
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
+    NYTree::IYPathServicePtr CreateTestingOrchidService();
 
     // Helpers.
 
@@ -510,7 +512,7 @@ private:
 
     TFuture<void> RunGpuCheckCommand(
         const TString& gpuCheckBinaryPath,
-        std::vector<TString> gpuCheckBinaryArgs,
+        std::vector<std::string> gpuCheckBinaryArgs,
         EGpuCheckType gpuCheckType);
 
     void OnGpuCheckCommandFinished(const TError& error);
@@ -587,6 +589,8 @@ private:
     TNodeJobReport MakeDefaultJobReport();
 
     void InitializeJobProbe();
+
+    void InitializeJobProxyLogging();
 
     void ResetJobProbe();
 

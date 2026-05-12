@@ -69,11 +69,13 @@ TAllocationSchedulingContext::TAllocationSchedulingContext(
     NScheduler::TDiskResources diskResources,
     TJobNodeDescriptor nodeDescriptor,
     std::optional<TString> poolPath,
-    const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
+    const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec,
+    std::optional<std::string> requestedTaskName)
     : TSchedulingContext(allocationId, std::move(nodeDescriptor), std::move(poolPath))
     , ResourceLimits_(resourceLimits)
     , DiskResources_(std::move(diskResources))
     , ScheduleAllocationSpec_(scheduleAllocationSpec)
+    , RequestedTaskName_(std::move(requestedTaskName))
 { }
 
 bool TAllocationSchedulingContext::CanSatisfyDemand(const NScheduler::TJobResourcesWithQuota& demand) const
@@ -87,6 +89,11 @@ const NScheduler::NProto::TScheduleAllocationSpec* TAllocationSchedulingContext:
     return &ScheduleAllocationSpec_;
 }
 
+const std::optional<std::string>& TAllocationSchedulingContext::GetRequestedTaskName() const
+{
+    return RequestedTaskName_;
+}
+
 TString TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const
 {
     TStringBuilder builder;
@@ -97,9 +104,10 @@ TString TAllocationSchedulingContext::ToString(const NChunkClient::TMediumDirect
     FormatCommonPart(builder);
 
     builder.AppendFormat(
-        ", ResourceLimits: %v, DiskResources: %v",
+        ", ResourceLimits: %v, DiskResources: %v, RequestedTaskName: %v",
         ResourceLimits_,
-        NScheduler::ToString(DiskResources_, mediumDirectory));
+        NScheduler::ToString(DiskResources_, mediumDirectory),
+        RequestedTaskName_);
 
     builder.AppendChar('}');
 

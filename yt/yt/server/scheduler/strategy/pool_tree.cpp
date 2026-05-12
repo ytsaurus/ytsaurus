@@ -978,7 +978,10 @@ public:
 
         for (const auto& poolName : uniquePoolNames) {
             if (!FindPool(poolName)) {
-                return TError("User default parent pool is missing in pool tree")
+                return TError(
+                    "User default parent pool %Qv is missing in pool tree %Qv",
+                    poolName,
+                    TreeId_)
                     << TErrorAttribute("pool", poolName)
                     << TErrorAttribute("pool_tree", TreeId_);
             }
@@ -2263,7 +2266,10 @@ private:
         YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
             state->GetHost()->GetId(),
             EOperationAlertType::OperationPending,
-            TError("Max running operation count violated")
+            TError(
+                "Max running operation count in pool %Qv of tree %Qv is violated ",
+                violatedPool->GetId(),
+                TreeId_)
                 << TErrorAttribute("pool", violatedPool->GetId())
                 << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
                 << TErrorAttribute("pool_tree", TreeId_)));
@@ -2396,7 +2402,7 @@ private:
             return pool;
         }
 
-        YT_LOG_INFO("Using %v as default parent pool", RootPoolName);
+        YT_LOG_INFO("Using root pool as default parent pool (PoolName: %v)", RootPoolName);
 
         return RootElement_;
     }
@@ -2463,11 +2469,17 @@ private:
         bool lightweightInNewPool = operationElement->IsLightweightEligible() && newPoolElement->GetEffectiveLightweightOperationsEnabled();
         for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationElement, newPoolElement)) {
             if (currentPool->OperationCount() >= currentPool->GetMaxOperationCount()) {
-                THROW_ERROR_EXCEPTION("Max operation count of pool %Qv violated", currentPool->GetId());
+                THROW_ERROR_EXCEPTION(
+                    "Max operation count in pool %Qv of tree %Qv is violated",
+                    currentPool->GetId(),
+                    currentPool->GetTreeId());
             }
 
             if (!lightweightInNewPool && currentPool->RunningOperationCount() >= currentPool->GetMaxRunningOperationCount()) {
-                THROW_ERROR_EXCEPTION("Max running operation count of pool %Qv violated", currentPool->GetId());
+                THROW_ERROR_EXCEPTION(
+                    "Max running operation count in pool %Qv of tree %Qv is violated",
+                    currentPool->GetId(),
+                    currentPool->GetTreeId());
             }
         }
     }
@@ -3030,7 +3042,7 @@ private:
         }
     }
 
-    void LogAccumulatedUsage() const override
+    void LogAccumulatedResourceDistribution() const override
     {
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
@@ -3042,7 +3054,7 @@ private:
                 .Do(BIND(&TPoolTree::DoBuildPoolsStructureInfo, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap()
             .Item("operations").BeginMap()
-                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedUsageInfo, Unretained(this), ConstRef(treeSnapshot)))
+                .Do(BIND(&TPoolTree::DoBuildOperationsAccumulatedResourceDistribution, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap();
     }
 
@@ -3386,7 +3398,7 @@ private:
             .EndMap();
     }
 
-    void DoBuildOperationsAccumulatedUsageInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
+    void DoBuildOperationsAccumulatedResourceDistribution(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
     {
         auto operationIdToAccumulatedResourceDistribution = AccumulatedOperationsResourceDistributionForLogging_.ExtractOperationResourceDistributionVolumes();
 

@@ -312,8 +312,8 @@ public:
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.
     void InitializeStates(
         NObjectClient::TCellTag selfCellTag,
-        const std::set<NObjectClient::TCellTag>& secondaryCellTags,
-        const THashSet<NObjectClient::TCellTag>& dynamicallyPropagatedMastersCellTags,
+        const NObjectClient::TCellTagSet& secondaryCellTags,
+        const NObjectClient::TCellTagSet& dynamicallyPropagatedMastersCellTags,
         bool allowMasterCellRemoval);
 
     //! Recomputes node IO weights and write session count limits from statistics.

@@ -36,6 +36,7 @@ class ComputationCellGenerator:
                 **Init** - loading timers and output messages after start of job (do you understand why previous jobs were finished?).
                 **Input.Empty/Input.Fetch** - just waiting for input messages.
                 **Input.InjectionDelay** - has input messages but waits for watermark to be advanced because of injection delay logic.
+                **Input.Throttle** - fetched the batch but waiting for distributed throttler quota (rows / bytes) before handing it off to user code.
                 **Input.WatermarkAlignment** - reading is stopped due to watermark misalignment (partition's watermark exceeds the group watermark + drift bound).
                 **CheckDelayedMessages** - checking delayed messages (little CPU-bound work).
                 **Distribute.Start** - scheduling distributing (little CPU-bound work).
@@ -57,6 +58,7 @@ class ComputationCellGenerator:
                 "Input.Empty": "#00e500",
                 "Input.Fetch": "#00ff00",
                 "Input.InjectionDelay": "#b7e500",
+                "Input.Throttle": "#4c9900",
                 "CheckDelayedMessages": "#8eb200",
 
                 # Backpressure.
@@ -357,6 +359,51 @@ class ComputationCellGenerator:
                         .unit("UNIT_BYTES_SI_PER_SECOND"))
         )
 
+    def build_event_lag_rowset(self):
+        # event_lag = now() - EventTimestamp. See event_time.py for the full
+        # multi-stream view; this rowset shows the same metrics scoped to
+        # one computation so you can spot bottlenecks during a deep dive.
+        stream_alias = "{{computation_id}} / {{stream_id}}" if not self._has_computation_id_tag else "{{stream_id}}"
+        sink_alias = (
+            "{{computation_id}} / {{stream_id}} → {{sink_id}}"
+            if not self._has_computation_id_tag
+            else "{{stream_id}} → {{sink_id}}"
+        )
+
+        def lag_p90(metric, alias, *extra):
+            sensor = (MonitoringExpr(FlowWorker(metric))
+                .aggr("host")
+                .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+                .all("stream_id")
+                .all("bin"))
+            for label in extra:
+                sensor = sensor.all(label)
+            group_labels = ["stream_id"] + list(extra)
+            if not self._has_computation_id_tag:
+                group_labels.insert(0, "computation_id")
+            labels_vector = "as_vector(" + ", ".join(f'"{l}"' for l in group_labels) + ")"
+            return (MonitoringExpr.func("group_by_labels", sensor, labels_vector, "v -> histogram_percentile(90, v)")
+                .alias(alias)
+                .unit("UNIT_SECONDS")
+                .stack(False))
+
+        return (Rowset()
+            .row()
+                .cell(
+                    "Input event lag (p90 per stream)",
+                    lag_p90("yt.flow.worker.computation.event_lag.input.lag", stream_alias),
+                    description="Lag = now() - EventTimestamp, measured at input (per processed message/timer).")
+                .cell(
+                    "Output event lag (p90 per stream)",
+                    lag_p90("yt.flow.worker.computation.event_lag.output.lag", stream_alias),
+                    description="Lag = now() - EventTimestamp, measured at output (per emitted message).")
+                .cell(
+                    "Sink event lag (p90 per sink)",
+                    lag_p90("yt.flow.worker.computation.event_lag.sink.lag", sink_alias, "sink_id"),
+                    description="Lag = now() - EventTimestamp, measured at sink (per-destination ack callback). For async sinks (e.g. logbroker) the ack arrives after the epoch commit.")
+                .cell("", EmptyCell())
+        )
+
     def build_processed_message_rate_rowset(self):
         return (Rowset()
             .stack(False)
@@ -395,6 +442,7 @@ def build_flow_computation():
 
         d.add(build_epoch_timings())
         d.add(GENERATOR.build_message_rate_rowset())
+        d.add(GENERATOR.build_event_lag_rowset())
         d.add(GENERATOR.build_resources_rowset())
         d.add(GENERATOR.build_partition_aggregates_rowset())
         d.add(GENERATOR.build_partition_store_operations_rowset())

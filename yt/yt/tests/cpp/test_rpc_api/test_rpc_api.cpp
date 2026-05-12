@@ -1237,10 +1237,17 @@ class TPartitionTableTest
     : public TClearTmpTestBase
 { };
 
+class TPartitionTableTestParam
+    : public TPartitionTableTest
+    , public ::testing::WithParamInterface<bool>
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitionTableTest, PartitionTableTest)
+TEST_P(TPartitionTableTestParam, PartitionTableTest)
 {
+    const bool fetchCookieNodeDescriptors = GetParam();
+
     auto path = MakeRandomTmpPath();
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
@@ -1274,6 +1281,7 @@ TEST_F(TPartitionTableTest, PartitionTableTest)
 
     TPartitionTablesOptions partitionTablesOptions;
     partitionTablesOptions.EnableCookies = true;
+    partitionTablesOptions.FetchCookieNodeDescriptors = fetchCookieNodeDescriptors;
     partitionTablesOptions.DataWeightPerPartition = 1_MB;
     auto partitions = WaitFor(Client_->PartitionTables({path}, partitionTablesOptions))
         .ValueOrThrow();
@@ -1299,6 +1307,11 @@ TEST_F(TPartitionTableTest, PartitionTableTest)
 
     EXPECT_EQ(expectedData, readRows);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TPartitionTableTestWithFetchNodeDescriptors,
+    TPartitionTableTestParam,
+    ::testing::Bool());
 
 TEST_F(TPartitionTableTest, PartitionTableColumnFilterTest)
 {

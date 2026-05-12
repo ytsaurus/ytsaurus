@@ -33,6 +33,7 @@ PEERDIR(
     yt/yt/server/lib/chunk_pools
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/logging
+    yt/yt/server/lib/security_server
     yt/yt/server/lib/signature
 
     yt/yt/ytlib

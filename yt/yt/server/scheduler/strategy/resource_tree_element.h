@@ -59,7 +59,7 @@ private:
     const TString Id_;
     const EResourceTreeElementKind Kind_;
 
-    NThreading::TPaddedReaderWriterSpinLock ResourceUsageLock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TPaddedReaderWriterSpinLock, ResourceUsageLock_);
     std::optional<TJobResources> SpecifiedResourceLimits_;
     TJobResources SpecifiedResourceLimitsOvercommitTolerance_;
     TJobResources ResourceUsage_;
@@ -106,7 +106,9 @@ private:
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
-    bool CommitLocalPreemptedResourceUsageUnsafe(const TJobResources& resourceUsageDelta);
+    bool CommitLocalPreemptedResourceUsageUnsafe(
+        const TJobResources& resourceUsageDelta,
+        const TJobResources& precommittedResources);
 
     bool IncreaseLocalResourceUsage(const TJobResources& delta);
 

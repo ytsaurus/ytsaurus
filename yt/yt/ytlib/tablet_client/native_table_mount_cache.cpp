@@ -83,7 +83,7 @@ public:
         : TTableMountCacheBase(std::move(config), logger, profiler.WithPrefix("/table_mount_cache"))
         , Connection_(std::move(connection))
         , CellDirectory_(std::move(cellDirectory))
-        , Invoker_(connection->GetInvoker())
+        , Invoker_(Connection_.Lock()->GetInvoker())
         , TableMountInfoUpdateInvoker_(CreateSerializedInvoker(Invoker_))
     { }
 
@@ -378,6 +378,11 @@ private:
                 tabletInfo->State = FromProto<ETabletState>(protoTabletInfo.state());
                 tabletInfo->UpdateTime = Now();
                 tabletInfo->InMemoryMode = FromProto<EInMemoryMode>(protoTabletInfo.in_memory_mode());
+
+                // COMPAT(alexelexa): remove when 26.1 is deployed (IntroduceLogicalMountRevision reign).
+                tabletInfo->LogicalMountRevision = protoTabletInfo.has_logical_mount_revision()
+                    ? FromProto<NHydra::TRevision>(protoTabletInfo.logical_mount_revision())
+                    : tabletInfo->MountRevision;
 
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.

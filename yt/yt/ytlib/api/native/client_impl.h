@@ -1031,9 +1031,14 @@ public: \
         (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
-        NHydra::TCellId cordiantorCellId,
+        NHydra::TCellId cordinatorCellId,
         const TForsakeChaosCoordinatorOptions& options),
-        (chaosCellId, cordiantorCellId, options))
+        (chaosCellId, cordinatorCellId, options))
+    IMPLEMENT_METHOD(void, ForsakeChaosShortcut, (
+        NHydra::TCellId cordinatorCellId,
+        NChaosClient::TChaosObjectId chaosObjectId,
+        const TForsakeChaosShortcutOptions& options),
+        (cordinatorCellId, chaosObjectId, options))
     IMPLEMENT_METHOD(void, RemoveChaosCellMailbox, (
         NHydra::TCellId chaosCellId,
         NHydra::TCellId destinationCellId,
@@ -1231,6 +1236,7 @@ private:
     struct TReplicaFallbackInfo
     {
         NApi::IClientPtr Client;
+        std::string ClusterName;
         NYPath::TYPath Path;
         NTabletClient::TTableReplicaId ReplicaId;
         NTableClient::TTableSchemaPtr OriginalTableSchema;
@@ -1254,7 +1260,6 @@ private:
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
 
-    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const std::string& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const std::string& clusterName);
 
     TDuration CheckPermissionsForQuery(

@@ -135,8 +135,10 @@ func (c *Config) getDefaultMemory() uint64 {
 }
 
 type chytOpletInfo struct {
-	CHYTRunningVersion     string `yson:"chyt_running_version"`
-	CHYTRunningVersionPath string `yson:"chyt_running_version_path"`
+	CHYTRunningVersion     string       `yson:"chyt_running_version"`
+	CHYTRunningVersionPath string       `yson:"chyt_running_version_path"`
+	BinaryNodeId           *string      `yson:"binary_node_id"`
+	BinaryRevision         *yt.Revision `yson:"binary_revision"`
 }
 
 type Controller struct {
@@ -400,11 +402,10 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 		return false, nil
 	}
 
-	cypressVersionPath, err := c.resolveSymlink(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
+	info, err := c.getChytBinaryInfo(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
 	if err != nil {
 		return false, err
 	}
-	specifiedVersionPath := filepath.Base(cypressVersionPath.String())
 
 	briefInfo := oplet.GetBriefInfo()
 	var controllerInfo chytOpletInfo
@@ -413,9 +414,13 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 		return false, err
 	}
 
-	if controllerInfo.CHYTRunningVersionPath != specifiedVersionPath {
+	if controllerInfo.BinaryNodeId != nil && *controllerInfo.BinaryNodeId != info.NodeId {
 		return true, nil
 	}
+	if controllerInfo.BinaryRevision != nil && *controllerInfo.BinaryRevision != info.ContentRevision {
+		return true, nil
+	}
+
 	return false, nil
 }
 

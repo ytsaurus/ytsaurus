@@ -57,8 +57,8 @@ struct TPrepareRWNbdVolumeOptions
 
     //! Params to get suitable data nodes from master.
     TDuration MasterRpcTimeout;
-    int MinDataNodeCount;
-    int MaxDataNodeCount;
+    int MinDataNodeCount = 0;
+    int MaxDataNodeCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

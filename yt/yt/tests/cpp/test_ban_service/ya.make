@@ -5,7 +5,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     test_ban_service.cpp
 )
-INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/common_tests.make.inc)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 

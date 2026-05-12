@@ -40,8 +40,8 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{
         .RunInSeparateProcess = true,
         .FmrJobBinaryPath = FmrJobBin_,
-        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_,
-        .GatewayType = "file"
+        .GatewayType = "file",
+        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_
     });
     fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
     fmrServices->YtJobService = NFmr::MakeFileYtJobService();

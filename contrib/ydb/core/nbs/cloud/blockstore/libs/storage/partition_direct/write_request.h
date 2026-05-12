@@ -1,19 +1,19 @@
 #pragma once
 
-#include "direct_block_group.h"
-#include "vchunk_config.h"
-
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/config.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/protos/storage.pb.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/context.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/request.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/dirty_map/dirty_map.h>
-
-#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/direct_block_group.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/dirty_map/location.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/vchunk_config.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWriteRequestExecutor
-    : public std::enable_shared_from_this<TWriteRequestExecutor>
+class TBaseWriteRequestExecutor
+    : public std::enable_shared_from_this<TBaseWriteRequestExecutor>
 {
 public:
     struct TResponse
@@ -26,34 +26,42 @@ public:
         TLocationMask CompletedWrites;
     };
 
-    TWriteRequestExecutor(
+    TBaseWriteRequestExecutor(
         NActors::TActorSystem* actorSystem,
         const TVChunkConfig& vChunkConfig,
         IDirectBlockGroupPtr directBlockGroup,
+        TBlockRange64 vChunkRange,
         TCallContextPtr callContext,
         std::shared_ptr<TWriteBlocksLocalRequest> request,
-        NWilson::TTraceId traceId);
+        ui64 lsn,
+        NWilson::TTraceId traceId,
+        TDuration hedgingDelay);
 
-    ~TWriteRequestExecutor();
+    virtual ~TBaseWriteRequestExecutor();
 
-    void Run();
+    [[nodiscard]] NThreading::TFuture<TResponse> GetFuture() const;
 
-    NThreading::TFuture<TResponse> GetFuture() const;
+    virtual void Run() = 0;
 
-private:
-    void SendWriteRequest(ELocation location);
-    void OnWriteResponse(
-        ELocation location,
-        const TDBGWriteBlocksResponse& response);
+protected:
     void Reply(NProto::TError error);
 
-    NActors::TActorSystem const* ActorSystem;
+    void SendWriteRequest(ELocation location);
+
+    void OnWriteResponse(
+        ELocation location,
+        const TDBGWriteBlocksResponse& response,
+        std::shared_ptr<NWilson::TSpan> span);
+
+    NActors::TActorSystem* ActorSystem;
     const TVChunkConfig VChunkConfig;
     const IDirectBlockGroupPtr DirectBlockGroup;
+    const TBlockRange64 VChunkRange;
     const TCallContextPtr CallContext;
     const std::shared_ptr<TWriteBlocksLocalRequest> Request;
     const NWilson::TTraceId TraceId;
     const ui64 Lsn;
+    const TDuration HedgingDelay;
 
     NThreading::TPromise<TResponse> Promise =
         NThreading::NewPromise<TResponse>();

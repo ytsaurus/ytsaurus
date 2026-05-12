@@ -4,7 +4,7 @@
 
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <yql/essentials/core/file_storage/file_storage.h>
-#include <contrib/ydb/library/yql/providers/dq/global_worker_manager/coordination_helper.h>
+#include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
 #include <contrib/ydb/library/yql/providers/dq/service/service_node.h>
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
 

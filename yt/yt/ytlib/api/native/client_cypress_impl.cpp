@@ -1695,7 +1695,7 @@ public:
         TConcatenateNodesOptions options)
     {
         Options_ = std::move(options);
-        TransactionId_ = Client_->GetTransactionId(options, /*allowNullTransaction*/ true);
+        TransactionId_ = Client_->GetTransactionId(Options_, /*allowNullTransaction*/ true);
         Append_ = dstPath.GetAppend();
 
         try {

@@ -17,7 +17,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString ArtifactMetaSuffix(".artifact");
+inline const std::string ArtifactMetaSuffix(".artifact");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,9 +92,9 @@ struct TNetworkAttributes
 struct TGpuCheckOptions
 {
     TString BinaryPath;
-    std::vector<TString> BinaryArgs;
+    std::vector<std::string> BinaryArgs;
     std::optional<TNetworkAttributes> NetworkAttributes;
-    THashMap<TString, TString> Environment;
+    THashMap<std::string, std::string> Environment;
     std::vector<NContainers::TDevice> Devices;
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> InfinibandCluster;

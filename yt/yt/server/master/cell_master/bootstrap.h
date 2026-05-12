@@ -103,7 +103,7 @@ public:
     NObjectClient::TCellId GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
-    const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
+    const NObjectClient::TCellTagSet& GetSecondaryCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;
@@ -204,7 +204,7 @@ protected:
     NObjectClient::TCellTag PrimaryCellTag_;
 
     // Strong deterministic order is important here.
-    std::set<NObjectClient::TCellTag> SecondaryCellTags_;
+    NObjectClient::TCellTagSet SecondaryCellTags_;
 
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;

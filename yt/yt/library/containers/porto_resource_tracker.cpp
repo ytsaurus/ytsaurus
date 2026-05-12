@@ -14,7 +14,6 @@
 
 #include <yt/yt/library/process/process.h>
 
-#include <yt/yt/library/containers/cgroup.h>
 #include <yt/yt/library/containers/config.h>
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
@@ -237,7 +236,7 @@ TVolumeStatistics TPortoResourceTracker::ExtractVolumeStatistics(const TResource
 {
     auto volumeCounts = GetFieldOrError(resourceUsage.ContainerTaggedStats, EStatField::VolumeCounts).ValueOrDefault({});
 
-    std::vector<std::pair<TString, i64>> convertedVolumeCounts;
+    std::vector<std::pair<std::string, i64>> convertedVolumeCounts;
     convertedVolumeCounts.reserve(volumeCounts.size());
 
     for (const auto& [deviceName, value] : volumeCounts) {
@@ -321,7 +320,7 @@ TTotalStatistics TPortoResourceTracker::GetTotalStatistics() const
 template <class T, class F>
 T TPortoResourceTracker::GetStatistics(
     std::optional<T>& cachedStatistics,
-    const TString& statisticsKind,
+    const std::string& statisticsKind,
     F extractor) const
 {
     UpdateResourceUsageStatisticsIfExpired();
@@ -530,7 +529,7 @@ TPortoResourceProfiler::~TPortoResourceProfiler()
 
 static void WriteGaugeIfOk(
     ISensorWriter* writer,
-    const TString& path,
+    const std::string& path,
     TErrorOr<i64> valueOrError)
 {
     if (valueOrError.IsOK()) {
@@ -544,7 +543,7 @@ static void WriteGaugeIfOk(
 
 static void WriteCumulativeGaugeIfOk(
     ISensorWriter* writer,
-    const TString& path,
+    const std::string& path,
     TErrorOr<i64> valueOrError,
     i64 timeDeltaUsec)
 {
@@ -867,7 +866,7 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
 
 TPortoResourceProfilerPtr CreatePortoProfilerWithTags(
     const IInstancePtr& instance,
-    const TString containerCategory,
+    const std::string containerCategory,
     const TPodSpecConfigPtr& podSpec)
 {
     auto portoResourceTracker = New<TPortoResourceTracker>(

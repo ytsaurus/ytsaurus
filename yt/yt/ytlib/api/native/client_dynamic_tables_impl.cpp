@@ -85,6 +85,7 @@
 #include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
@@ -105,6 +106,7 @@
 
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/query_helpers.h>
 
 #include <yt/yt/library/query/engine/query_engine_config.h>
 
@@ -1246,6 +1248,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             resultOrError = WaitFor(replicaFallbackHandler(replicaFallbackInfo));
             if (resultOrError.IsOK()) {
                 return resultOrError.Value();
+            } else {
+                resultOrError <<= TErrorAttribute("replica_cluster", replicaFallbackInfo.ClusterName);
+                resultOrError <<= TErrorAttribute("replica_path", replicaFallbackInfo.Path);
             }
 
             YT_LOG_DEBUG(resultOrError, "Fallback to replica failed (ReplicaId: %v)",
@@ -1258,7 +1263,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 {
                     bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 } else {
-                    // Don't ban but exclude from current invocation.
+                    // Do not ban but exclude from current invocation.
                     EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 }
             }
@@ -1762,6 +1767,68 @@ void PreheatCache(NAst::TQuery* query, const ITableMountCachePtr& mountCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HeavyRangeInferenceImprovesJoinSubquery(
+    const TConstJoinClausePtr& joinClause,
+    const TQueryOptions& queryOptions,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
+    const NLogging::TLogger& Logger)
+{
+    if (!joinClause->Predicate) {
+        return false;
+    }
+
+    struct TAllowHeavyRangeInferenceInJoinsBufferTag { };
+    auto buffer = New<TRowBuffer>(TAllowHeavyRangeInferenceInJoinsBufferTag(), memoryChunkProvider);
+
+    TUnversionedRowBuilder rowBuilder;
+    for (i64 index = 0; index < std::ssize(joinClause->ForeignEquations); ++index) {
+        rowBuilder.AddValue(MakeUnversionedNullValue(index));
+    }
+    auto dummyRows = std::vector<TRow>{buffer->CaptureRow(rowBuilder.GetRow())};
+
+    auto inExpression = New<TInExpression>(
+        joinClause->ForeignEquations,
+        MakeSharedRange(std::move(dummyRows), buffer));
+
+    auto subquery = joinClause->GetJoinSubquery();
+
+    subquery->WhereClause = subquery->WhereClause
+        ? MakeAndExpression(inExpression, subquery->WhereClause)
+        : inExpression;
+
+    YT_LOG_DEBUG("Created subquery for range optimization (Subquery: %v)", InferName(subquery));
+
+    auto inferredResult = InferRanges(
+        columnEvaluatorCache,
+        subquery,
+        NQueryClient::TDataSource{
+            .ObjectId = joinClause->ForeignObjectId,
+            .Ranges = MakeSharedRange(
+                TRowRanges{{
+                    buffer->CaptureRow(NTableClient::MinKey().Get()),
+                    buffer->CaptureRow(NTableClient::MaxKey().Get())
+                }},
+                buffer),
+        },
+        queryOptions,
+        buffer,
+        memoryChunkProvider,
+        Logger);
+
+    for (const auto& range : inferredResult.first.Ranges) {
+        bool isFullScan =
+            CompareRows(range.first, NTableClient::MinKey().Get()) <= 0 &&
+            CompareRows(range.second, NTableClient::MaxKey().Get()) == 0;
+
+        if (isFullScan) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 } // namespace
 
 TSelectRowsResult TClient::DoSelectRowsOnce(
@@ -1858,6 +1925,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
                 ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
                 : false,
+            .AllowReverseScanForOrderBy = queryEngineConfig
+                ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -1867,16 +1937,40 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         query->GetTableSchema()->HasComputedColumns() && options.UseCanonicalNullRelations,
         "Currently queries with canonical null relations aren't allowed on tables with computed columns");
 
+    bool allowHeavyRangeInferenceInJoins = queryEngineConfig
+        ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+        : false;
+
     for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
         if (!query->JoinClauses[index]->ArrayExpressions.empty()) {
             continue;
         }
-        if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
-            const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
-            THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
-                "the query is inefficient, consider rewriting it")
-                << TErrorAttribute("source", NAst::FormatJoin(std::get<NAst::TJoin>(ast.Joins[index])));
+
+        if (query->JoinClauses[index]->ForeignKeyPrefix != 0) {
+            continue;
         }
+
+        if (options.AllowJoinWithoutIndex) {
+            continue;
+        }
+
+        if (allowHeavyRangeInferenceInJoins) {
+            bool heavyRangeInferenceImprovesJoinSubquery = HeavyRangeInferenceImprovesJoinSubquery(
+                query->JoinClauses[index],
+                queryOptions,
+                memoryChunkProvider,
+                GetNativeConnection()->GetColumnEvaluatorCache(),
+                Logger);
+
+            if (heavyRangeInferenceImprovesJoinSubquery) {
+                continue;
+            }
+        }
+
+        const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
+        THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
+            "the query is inefficient, consider rewriting it")
+            << TErrorAttribute("source", NAst::FormatJoin(std::get<NAst::TJoin>(ast.Joins[index])));
     }
 
     auto permissionCacheWaitTime = CheckPermissionsForQuery(*fragment, options);
@@ -2027,6 +2121,9 @@ NYson::TYsonString TClient::DoExplainQuery(
             .AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = queryEngineConfig
                 ? queryEngineConfig->AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse.value_or(false)
                 : false,
+            .AllowReverseScanForOrderBy = queryEngineConfig
+                ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2059,35 +2156,16 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
             error = ex.Error();
         }
 
-        const auto& config = Connection_->GetStaticConfig();
-        const auto& tableMountCache = Connection_->GetTableMountCache();
-
-        auto invalidationResult = tableMountCache->InvalidateOnError(
+        auto delay = InvalidateMountCacheAndGetRetryDelay(
+            MakeStrong(this),
+            profilingInfo,
+            Logger,
             error,
-            /*forceRetry*/ false);
+            &retryCount);
 
-        if (invalidationResult.Retryable && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
-            YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
-                retryCount,
-                config->TableMountCache->OnErrorRetryCount);
-
-            if (!invalidationResult.TableInfoUpdatedFromError) {
-                auto now = Now();
-                const auto& tabletInfo = invalidationResult.TabletInfo;
-                auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
-                    config->TableMountCache->OnErrorSlackPeriod;
-                if (retryTime > now) {
-                    TDelayedExecutor::WaitForDuration(retryTime - now);
-                }
-            }
-
-            if (profilingInfo) {
-                profilingInfo->RetryReasons.push_back(invalidationResult.ErrorCode);
-            }
-            continue;
+        if (delay) {
+            TDelayedExecutor::WaitForDuration(delay);
         }
-
-        THROW_ERROR error;
     }
 }
 
@@ -2904,7 +2982,7 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
                 {
                     bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 } else {
-                    // Don't ban but exclude from current invocation.
+                    // Do not ban but exclude from current invocation.
                     EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 }
             }
@@ -4099,10 +4177,6 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     const TChaosLeaseAttachOptions& options)
 {
     auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
-    auto proxy = TChaosNodeServiceProxy(channel);
-    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
-
-    auto req = proxy.GetChaosLease();
     auto timeoutPath = Format("%v/@timeout", FromObjectId(chaosLeaseId));
     auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
         .ValueOrThrow();

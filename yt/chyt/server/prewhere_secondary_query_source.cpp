@@ -117,7 +117,7 @@ public:
         IGranuleFilterPtr granuleFilter,
         TCallback<void(const TStatistics&)> statisticsCallback)
     : DB::ISource(
-        DeriveHeaderBlockFromReadPlan(readPlan, storageContext->Settings->Composite),
+        DeriveHeaderBlockFromReadPlan(readPlan, storageContext->Settings->Conversion),
         /*enable_auto_progress*/ false)
     , StorageContext_(storageContext)
     , QueryContext_(storageContext->QueryContext)

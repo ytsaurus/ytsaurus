@@ -183,9 +183,8 @@ TObjectServiceCache::TCookie::TCookie(TUnderlyingCookie&& underlyingCookie, TObj
     , ExpiredEntry_(std::move(expiredEntry))
 { }
 
-
 TObjectServiceCache::TCookie::TCookie(TCookie&& other) noexcept
-    : TUnderlyingCookie(std::move(other))
+    : TUnderlyingCookie(std::move(static_cast<TUnderlyingCookie&>(other)))
     , ExpiredEntry_(std::move(other.ExpiredEntry_))
 { }
 
@@ -195,8 +194,8 @@ TObjectServiceCache::TCookie& TObjectServiceCache::TCookie::operator=(TCookie&& 
         return *this;
     }
 
-    TUnderlyingCookie::operator=(std::move(other));
     ExpiredEntry_ = std::move(other.ExpiredEntry_);
+    TUnderlyingCookie::operator=(std::move(other));
 
     return *this;
 }

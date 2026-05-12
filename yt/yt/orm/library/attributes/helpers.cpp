@@ -107,6 +107,99 @@ NYTree::INodePtr ConvertProtobufToNode(
     return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
 }
 
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const TProtobufParserOptions& options)
+{
+    auto parseMessage = [&] (const TProtobufMessageType* type) -> NYTree::INodePtr {
+        THROW_ERROR_EXCEPTION_IF(wireStringPayload.size() > 1,
+            EErrorCode::Unimplemented,
+            "Cannot convert message of type %Qv represented by non-continuous wire string",
+            UnreflectProtobufMessageType(type)->full_name());
+        auto wireStringPart = wireStringPayload.LastOrEmptyPart();
+        google::protobuf::io::ArrayInputStream protobufInputStream(
+            wireStringPart.AsStringView().data(),
+            wireStringPart.AsStringView().size());
+        auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
+        builder->BeginTree();
+        ParseProtobuf(&*builder, &protobufInputStream, type, options);
+        return builder->EndTree();
+    };
+
+    return VisitProtobufElement(element,
+        [&] (const TProtobufMessageElement& messageElement) -> NYTree::INodePtr {
+            return parseMessage(messageElement.Type);
+        },
+        [&] (const TProtobufAttributeDictionaryElement& attrElement) -> NYTree::INodePtr {
+            return parseMessage(attrElement.Type);
+        },
+        [&] (const TProtobufScalarElement& scalarElement) -> NYTree::INodePtr {
+            auto wireStringPart = wireStringPayload.LastOrEmptyPart();
+
+            if (wireStringPart.AsSpan().empty()) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            }
+
+            switch (GetNodeTypeByProtobufScalarElement(scalarElement)) {
+                case NYTree::ENodeType::Int64: {
+                    i64 value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseInt64(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse int64 from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::Uint64: {
+                    ui64 value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseUint64(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse uint64 from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::Double: {
+                    double value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseDouble(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse double from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::Boolean: {
+                    bool value;
+                    THROW_ERROR_EXCEPTION_IF(!ParseBoolean(&value, scalarElement.Type, wireStringPart),
+                        EErrorCode::InvalidData, "Cannot parse boolean from wire string");
+                    return ConvertToNode(value);
+                }
+                case NYTree::ENodeType::String: {
+                    if (scalarElement.Type.Underlying() == NProtoBuf::FieldDescriptor::TYPE_ENUM) {
+                        i64 intValue;
+                        THROW_ERROR_EXCEPTION_IF(!ParseInt64(&intValue, scalarElement.Type, wireStringPart),
+                            EErrorCode::InvalidData, "Cannot parse enum value from wire string");
+                        TStringBuf literal = FindProtobufEnumLiteralByValue(scalarElement.EnumType, intValue);
+                        THROW_ERROR_EXCEPTION_IF(literal.empty(),
+                            EErrorCode::InvalidData,
+                            "No string literal for enum value %v",
+                            intValue);
+                        return ConvertToNode(TString{literal});
+                    }
+                    return ConvertToNode(TString{wireStringPart.AsStringView()});
+                }
+                default:
+                    THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                        "Unsupported scalar element node type %Qlv",
+                        GetNodeTypeByProtobufScalarElement(scalarElement));
+            }
+        },
+        [](const TProtobufRepeatedElement&) -> NYTree::INodePtr {
+            THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                "Conversion of repeated protobuf element to node is not supported");
+        },
+        [](const TProtobufMapElement&) -> NYTree::INodePtr {
+            THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                "Conversion of map protobuf element to node is not supported");
+        },
+        [](const TProtobufAnyElement&) -> NYTree::INodePtr {
+            THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                "Conversion of any protobuf element to node is not supported");
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Returns [index of the item, its content].
@@ -938,12 +1031,13 @@ const EnumValueDescriptor* LookupEnumValue(
     const T& value)
 {
     const auto* enumDescriptor = fieldDescriptor->enum_type();
+    YT_VERIFY(enumDescriptor);
     if constexpr (std::is_integral_v<T>) {
         return enumDescriptor->FindValueByNumber(value);
     } else { // TString
         auto decoded = TryDecodeEnumValue(value);
-        for (int i = 0; i < enumDescriptor->value_count(); ++i) {
-            const auto* enumValueDescriptor = enumDescriptor->value(i);
+        for (int index = 0; index < enumDescriptor->value_count(); ++index) {
+            const auto* enumValueDescriptor = enumDescriptor->value(index);
             if (enumValueDescriptor->options().HasExtension(NYT::NYson::NProto::enum_value_name) &&
                 enumValueDescriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name) == value)
             {

@@ -1160,9 +1160,7 @@ class YTEnvSetup(object):
             ground_index = cluster_index + cls.get_ground_index_offset()
             cls._restore_sequoia_bundles_options(ground_index)
             yt_commands.wait_for_cells(driver=ground_driver)
-            # TODO(danilalexeev): YT-25434. Make it a single call.
-            yt_sequoia.initialization.mount_tables(app, ground_reign, sync=False)
-            yt_sequoia.initialization.mount_tables(app, ground_reign, sync=True)
+            yt_sequoia.initialization.mount_tables(app, ground_reign)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
@@ -1406,7 +1404,7 @@ class YTEnvSetup(object):
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,
-                "enable_ground_reign_validation": False,
+                "enable_ground_reign_validation": True,
             },
         })
 

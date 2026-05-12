@@ -6,6 +6,7 @@ SRCS(
 
 PEERDIR(
     yt/yql/providers/yt/lib/blackbox_client/dummy
+    yt/yql/providers/yt/lib/blackbox_client/proto
 )
 
 IF (NOT OPENSOURCE)

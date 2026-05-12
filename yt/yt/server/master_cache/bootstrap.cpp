@@ -270,6 +270,8 @@ private:
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
         TSingletonManager::Reconfigure(newConfig);
+
+        Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
     }
 };
 

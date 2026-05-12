@@ -1,0 +1,26 @@
+<tmp_path>/program.sql:<main>: Warning: Type annotation
+
+    <tmp_path>/program.sql:<main>:12:13: Warning: At function: RemovePrefixMembers, At function: Unordered
+    	insert into Output2
+	            ^
+        <tmp_path>/program.sql:<main>:13:1: Warning: At function: PersistableRepr, At function: OrderedSqlProject, At tuple
+        	select 
+	^
+            <tmp_path>/program.sql:<main>:13:1: Warning: At function: SqlProjectItem, At lambda
+            	select 
+	^
+                <tmp_path>/program.sql:<main>:16:25: Warning: At function: SqlIn
+                	  ListTopSort($list, 1)[0] in key as key_filtered_1,
+	                        ^
+                    <tmp_path>/program.sql:<main>:16:25: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                    	  ListTopSort($list, 1)[0] in key as key_filtered_1,
+	                        ^
+            <tmp_path>/program.sql:<main>:13:1: Warning: At function: SqlProjectItem, At lambda
+            	select 
+	^
+                <tmp_path>/program.sql:<main>:18:7: Warning: At function: SqlIn
+                	  key[1] in ("20") as key_filtered_3
+	      ^
+                    <tmp_path>/program.sql:<main>:18:7: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                    	  key[1] in ("20") as key_filtered_3
+	      ^

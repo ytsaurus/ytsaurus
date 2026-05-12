@@ -177,7 +177,7 @@ std::vector<TBlock> DeserializeBlocks(
 TChunkFileReader::TChunkFileReader(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
-    TString fileName,
+    std::string fileName,
     bool validateBlocksChecksums,
     IBlocksExtCache* blocksExtCache)
     : IOEngine_(std::move(ioEngine))
@@ -535,7 +535,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
 }
 
 TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
-    const TString& metaFileName,
+    const std::string& metaFileName,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
     const TReadResponse& readResponse)
 {

@@ -244,7 +244,7 @@ struct TCompletedJob
 
     TJobNodeDescriptor NodeDescriptor;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TCompletedJob, 0xfe37a192);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompletedJob)

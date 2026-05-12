@@ -320,6 +320,16 @@ public:
         return OKFuture;
     }
 
+    ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override
+    {
+        auto config = Config_->Get();
+
+        return GetOrDefault(
+            config->MutationHandlerFailureLogLevelOverrides,
+            mutationType,
+            config->MutationHandlerFailureLogLevel);
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
     DEFINE_SIGNAL_OVERRIDE(void(), AutomatonLeaderRecoveryComplete);
     DEFINE_SIGNAL_OVERRIDE(void(), ControlLeaderRecoveryComplete);

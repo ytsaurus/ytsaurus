@@ -4,13 +4,13 @@
 
 #include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
 

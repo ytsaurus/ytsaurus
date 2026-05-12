@@ -57,28 +57,28 @@ TError TLivePreview::TryEraseChunk(const TInputChunkPtr& chunk)
     return {};
 }
 
-void TLivePreview::Persist(const TPersistenceContext& context)
+void TLivePreview::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, Chunks_);
-    Persist(context, NodeDirectory_);
-    Persist(context, *Schema_);
-    Persist(context, OperationId_);
-    Persist(context, Name_);
-    Persist(context, Path_);
-
-    if (context.GetVersion() >= ESnapshotVersion::ValidateLivePreviewChunks) {
-        Persist(context, Logger);
-    } else {
-        Logger = ControllerLogger().WithTag("OperationId: %v", OperationId_);
-    }
-
-    if (context.IsLoad()) {
-        ValidateChunks();
-        Initialize();
-    }
+    PHOENIX_REGISTER_FIELD(1, Chunks_,
+        .template Serializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(2, NodeDirectory_);
+    PHOENIX_REGISTER_FIELD(3, Schema_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(4, OperationId_);
+    PHOENIX_REGISTER_FIELD(5, Name_);
+    PHOENIX_REGISTER_FIELD(6, Path_);
+    PHOENIX_REGISTER_FIELD(7, Logger,
+        .SinceVersion(ESnapshotVersion::ValidateLivePreviewChunks)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->Logger = ControllerLogger().WithTag("OperationId: %v", this_->OperationId_);
+        }));
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ValidateChunks();
+        this_->Initialize();
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TLivePreview);
 
 void TLivePreview::Initialize()
 {

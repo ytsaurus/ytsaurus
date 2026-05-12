@@ -1339,6 +1339,29 @@ public:
             }
         }
 
+        if (IsTableType(table->GetType())) {
+            i64 maxReshardComplexity = GetDynamicConfig()->MaxReshardComplexity;
+
+            i64 chunkCount = 0;
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = table->Tablets()[index]->As<TTablet>();
+
+                chunkCount += tablet->GetChunkList()->Statistics().ChunkCount;
+            }
+
+            i64 keyColumnCount = table->As<TTableNode>()->GetSchema()->AsCompactTableSchema()->GetKeyColumnCount();
+
+            i64 complexity = keyColumnCount * chunkCount;
+
+            if (complexity >= maxReshardComplexity) {
+                THROW_ERROR_EXCEPTION("Reshard complexity exceeds maximum allowed complexity, reshard table gradually")
+                    << TErrorAttribute("chunk_count", chunkCount)
+                    << TErrorAttribute("key_column_count", keyColumnCount)
+                    << TErrorAttribute("reshard_complexity", complexity)
+                    << TErrorAttribute("max_reshard_complexity", maxReshardComplexity);
+            }
+        }
+
         // Do after all validations.
         if (IsTableType(table->GetType())) {
             TabletActionManager_->TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
@@ -2771,8 +2794,13 @@ public:
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
-            /*updateDataStatistics*/ true,
-            /*updateTabletStatistics*/ false);
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = false,
+                .UpdateModificationTime = true,
+                .UpdateAccessTime = true,
+                .UseNativeContentRevisionCas = false,
+            });
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = 1;
@@ -3186,8 +3214,10 @@ private:
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
 
             const auto* context = GetCurrentMutationContext();
-            tablet->Servant().SetMountRevision(context->GetVersion().ToRevision());
-            tablet->SetSettingsRevision(context->GetVersion().ToRevision());
+            auto revision = context->GetVersion().ToRevision();
+            tablet->Servant().SetMountRevision(revision);
+            tablet->Servant().SetLogicalMountRevision(revision);
+            tablet->SetSettingsRevision(revision);
             tablet->SetWasForcefullyUnmounted(false);
             tablet->Servant().SetMountTime(context->GetTimestamp());
 
@@ -3555,6 +3585,7 @@ private:
         auxiliaryServant.SetCell(cell);
         auxiliaryServant.SetState(ETabletState::Mounting);
         auxiliaryServant.SetMountRevision(revision);
+        auxiliaryServant.SetLogicalMountRevision(tablet->Servant().GetLogicalMountRevision());
         auxiliaryServant.SetMountTime(GetCurrentMutationContext()->GetTimestamp());
 
         auxiliaryServant.SetMovementRole(NTabletNode::ESmoothMovementRole::Target);
@@ -4643,9 +4674,13 @@ private:
                     tablet->NodeStatistics().last_commit_timestamp()));
 
                 if (tablet->NodeStatistics().has_modification_time()) {
-                    table->SetModificationTime(std::max(
-                        table->GetModificationTime(),
-                        FromProto<TInstant>(tablet->NodeStatistics().modification_time())));
+                    auto modificationTime = FromProto<TInstant>(tablet->NodeStatistics().modification_time());
+                    if (modificationTime > table->GetModificationTime()) {
+                        table->SetModificationTime(modificationTime);
+                        if (GetDynamicConfig()->UpdateTableContentRevisionOnHeartbeat) {
+                            Bootstrap_->GetCypressManager()->SetModified(table, EModificationType::Content);
+                        }
+                    }
                 }
 
                 if (tablet->NodeStatistics().has_access_time()) {
@@ -4655,7 +4690,15 @@ private:
                 }
 
                 if (EnableUpdateStatisticsOnHeartbeat_) {
-                    tableManager->ScheduleStatisticsUpdate(table, true, false);
+                    tableManager->ScheduleStatisticsUpdate(
+                        table,
+                        TStatisticsUpdateRequest{
+                            .UpdateDataStatistics = true,
+                            .UpdateTabletResourceUsage = false,
+                            .UpdateModificationTime = true,
+                            .UpdateAccessTime = true,
+                            .UseNativeContentRevisionCas = false,
+                        });
                 }
             }
 
@@ -4776,6 +4819,7 @@ private:
             ToProto(request.add_new_tablet_ids(), tablet->GetId());
             ToProto(request.add_new_tablet_pivot_keys(), tablet->As<TTablet>()->GetPivotKey());
         }
+
         request.set_new_tablets_mount_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -5658,8 +5702,13 @@ private:
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
-            /*updateDataStatistics*/ true,
-            /*updateTabletStatistics*/ false);
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = true,
+                .UpdateTabletResourceUsage = false,
+                .UpdateModificationTime = true,
+                .UpdateAccessTime = true,
+                .UseNativeContentRevisionCas = false,
+            });
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = -ssize(dynamicStores);
@@ -6421,7 +6470,15 @@ private:
         bundle->UpdateResourceUsage(delta);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ScheduleStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
+        tableManager->ScheduleStatisticsUpdate(
+            table,
+            TStatisticsUpdateRequest{
+                .UpdateDataStatistics = scheduleTableDataStatisticsUpdate,
+                .UpdateTabletResourceUsage = true,
+                .UpdateModificationTime = true,
+                .UpdateAccessTime = true,
+                .UseNativeContentRevisionCas = false,
+            });
     }
 
     void OnProfiling()

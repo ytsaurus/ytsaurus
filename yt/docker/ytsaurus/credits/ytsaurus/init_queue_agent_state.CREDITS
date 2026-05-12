@@ -404,6 +404,10 @@ The BSD License
  * Copyright 2021 David Chisnall. All rights reserved.
 
 
+====================COPYRIGHT====================
+ * Copyright 2021 Microsoft. All rights reserved.
+
+
 ====================File: AUTHORS====================
 David Chisnall
 PathScale engineers
@@ -672,50 +676,8 @@ The LLVM Project is under the Apache License v2.0 with LLVM Exceptions:
 
 
 ====================COPYRIGHT====================
-Copyright (c) 2009-2015 by the contributors listed in CREDITS.TXT
-
-
-====================COPYRIGHT====================
-Copyright (c) 2009-2019 by the contributors listed in CREDITS.TXT
-
-
-====================File: CREDITS.TXT====================
-This file is a partial list of people who have contributed to the LLVM/CompilerRT
-project.  If you have contributed a patch or made some other contribution to
-LLVM/CompilerRT, please submit a patch to this file to add yourself, and it will be
-done!
-
-The list is sorted by surname and formatted to allow easy grepping and
-beautification by scripts.  The fields are: name (N), email (E), web-address
-(W), PGP key ID and fingerprint (P), description (D), and snail-mail address
-(S).
-
-N: Craig van Vliet
-E: cvanvliet@auroraux.org
-W: http://www.auroraux.org
-D: Code style and Readability fixes.
-
-N: Edward O'Callaghan
-E: eocallaghan@auroraux.org
-W: http://www.auroraux.org
-D: CMake'ify Compiler-RT build system
-D: Maintain Solaris & AuroraUX ports of Compiler-RT
-
-N: Howard Hinnant
-E: hhinnant@apple.com
-D: Architect and primary author of compiler-rt
-
-N: Guan-Hong Liu
-E: koviankevin@hotmail.com
-D: IEEE Quad-precision functions
-
-N: Joerg Sonnenberger
-E: joerg@NetBSD.org
-D: Maintains NetBSD port.
-
-N: Matt Thomas
-E: matt@NetBSD.org
-D: ARM improvements.
+Copyright (c) 2003-2019 University of Illinois at Urbana-Champaign.
+All rights reserved.
 
 
 ====================File: LICENSE.TXT====================
@@ -957,21 +919,10 @@ mechanisms:
 ==============================================================================
 Legacy LLVM License (https://llvm.org/docs/DeveloperPolicy.html#legacy):
 ==============================================================================
-
-The compiler_rt library is dual licensed under both the University of Illinois
-"BSD-Like" license and the MIT license.  As a user of this code you may choose
-to use it under either license.  As a contributor, you agree to allow your code
-to be used under both.
-
-Full text of the relevant licenses is included below.
-
-==============================================================================
-
 University of Illinois/NCSA
 Open Source License
 
-Copyright (c) 2009-2019 by the contributors listed in CREDITS.TXT
-
+Copyright (c) 2003-2019 University of Illinois at Urbana-Champaign.
 All rights reserved.
 
 Developed by:
@@ -1009,47 +960,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
 SOFTWARE.
 
-==============================================================================
 
-Copyright (c) 2009-2015 by the contributors listed in CREDITS.TXT
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-====================MIT====================
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
 
 ====================NCSA====================
 Compiler-RT is open source software. You may freely distribute it under the
@@ -1058,6 +969,9 @@ terms of the license agreement found in LICENSE.txt.
 
 ====================NCSA====================
 Legacy LLVM License (https://llvm.org/docs/DeveloperPolicy.html#legacy):
+==============================================================================
+University of Illinois/NCSA
+Open Source License
 
 
 ====================NCSA====================
@@ -1089,23 +1003,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
 SOFTWARE.
 
 
-====================NCSA====================
-University of Illinois/NCSA
-Open Source License
-
-
 ====================NCSA AND MIT====================
 // This file is dual licensed under the MIT and the University of Illinois Open
 // Source Licenses. See LICENSE.TXT for details.
-
-
-====================NCSA AND MIT====================
-The compiler_rt library is dual licensed under both the University of Illinois
-"BSD-Like" license and the MIT license.  As a user of this code you may choose
-to use it under either license.  As a contributor, you agree to allow your code
-to be used under both.
-
-Full text of the relevant licenses is included below.
 
 
 --------------------contrib/libs/cxxsupp/libcxx--------------------
@@ -1604,624 +1504,6 @@ E: lichray@gmail.com
 D: Standard compatibility fixes.
 
 
-====================File: include/any====================
-// -*- C++ -*-
-//===----------------------------------------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
-#ifndef _LIBCPP_ANY
-#define _LIBCPP_ANY
-
-/*
-   any synopsis
-
-namespace std {
-
-  class bad_any_cast : public bad_cast
-  {
-  public:
-    virtual const char* what() const noexcept;
-  };
-
-  class any
-  {
-  public:
-
-    // 6.3.1 any construct/destruct
-    any() noexcept;
-
-    any(const any& other);
-    any(any&& other) noexcept;
-
-    template <class ValueType>
-      any(ValueType&& value);
-
-    ~any();
-
-    // 6.3.2 any assignments
-    any& operator=(const any& rhs);
-    any& operator=(any&& rhs) noexcept;
-
-    template <class ValueType>
-      any& operator=(ValueType&& rhs);
-
-    // 6.3.3 any modifiers
-    template <class ValueType, class... Args>
-      decay_t<ValueType>& emplace(Args&&... args);
-    template <class ValueType, class U, class... Args>
-      decay_t<ValueType>& emplace(initializer_list<U>, Args&&...);
-    void reset() noexcept;
-    void swap(any& rhs) noexcept;
-
-    // 6.3.4 any observers
-    bool has_value() const noexcept;
-    const type_info& type() const noexcept;
-  };
-
-   // 6.4 Non-member functions
-  void swap(any& x, any& y) noexcept;
-
-  template <class T, class ...Args>
-    any make_any(Args&& ...args);
-  template <class T, class U, class ...Args>
-    any make_any(initializer_list<U>, Args&& ...args);
-
-  template<class ValueType>
-    ValueType any_cast(const any& operand);
-  template<class ValueType>
-    ValueType any_cast(any& operand);
-  template<class ValueType>
-    ValueType any_cast(any&& operand);
-
-  template<class ValueType>
-    const ValueType* any_cast(const any* operand) noexcept;
-  template<class ValueType>
-    ValueType* any_cast(any* operand) noexcept;
-
-} // namespace std
-
-*/
-
-#include <__config>
-#include <__memory/allocator.h>
-#include <__memory/allocator_destructor.h>
-#include <__memory/allocator_traits.h>
-#include <__memory/unique_ptr.h>
-#include <__type_traits/add_const.h>
-#include <__type_traits/add_pointer.h>
-#include <__type_traits/aligned_storage.h>
-#include <__type_traits/conditional.h>
-#include <__type_traits/decay.h>
-#include <__type_traits/enable_if.h>
-#include <__type_traits/is_constructible.h>
-#include <__type_traits/is_function.h>
-#include <__type_traits/is_nothrow_constructible.h>
-#include <__type_traits/is_reference.h>
-#include <__type_traits/is_same.h>
-#include <__type_traits/is_void.h>
-#include <__type_traits/remove_cv.h>
-#include <__type_traits/remove_cvref.h>
-#include <__type_traits/remove_reference.h>
-#include <__utility/forward.h>
-#include <__utility/in_place.h>
-#include <__utility/move.h>
-#include <__utility/unreachable.h>
-#include <__verbose_abort>
-#include <initializer_list>
-#include <typeinfo>
-#include <version>
-
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#  pragma GCC system_header
-#endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
-namespace std {
-class _LIBCPP_EXPORTED_FROM_ABI _LIBCPP_AVAILABILITY_BAD_ANY_CAST bad_any_cast : public bad_cast {
-public:
-  const char* what() const _NOEXCEPT override;
-};
-} // namespace std
-
-_LIBCPP_BEGIN_NAMESPACE_STD
-
-#if _LIBCPP_STD_VER >= 17
-
-[[noreturn]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST void __throw_bad_any_cast() {
-#  ifndef _LIBCPP_HAS_NO_EXCEPTIONS
-  throw bad_any_cast();
-#  else
-  _LIBCPP_VERBOSE_ABORT("bad_any_cast was thrown in -fno-exceptions mode");
-#  endif
-}
-
-// Forward declarations
-class _LIBCPP_TEMPLATE_VIS any;
-
-template <class _ValueType>
-_LIBCPP_HIDE_FROM_ABI add_pointer_t<add_const_t<_ValueType>> any_cast(any const*) _NOEXCEPT;
-
-template <class _ValueType>
-_LIBCPP_HIDE_FROM_ABI add_pointer_t<_ValueType> any_cast(any*) _NOEXCEPT;
-
-namespace __any_imp {
-_LIBCPP_SUPPRESS_DEPRECATED_PUSH
-using _Buffer = aligned_storage_t<3 * sizeof(void*), alignof(void*)>;
-_LIBCPP_SUPPRESS_DEPRECATED_POP
-
-template <class _Tp>
-using _IsSmallObject =
-    integral_constant<bool,
-                      sizeof(_Tp) <= sizeof(_Buffer) && alignof(_Buffer) % alignof(_Tp) == 0 &&
-                          is_nothrow_move_constructible<_Tp>::value >;
-
-enum class _Action { _Destroy, _Copy, _Move, _Get, _TypeInfo };
-
-template <class _Tp>
-struct _SmallHandler;
-template <class _Tp>
-struct _LargeHandler;
-
-template <class _Tp>
-struct _LIBCPP_TEMPLATE_VIS __unique_typeinfo {
-  static constexpr int __id = 0;
-};
-template <class _Tp>
-constexpr int __unique_typeinfo<_Tp>::__id;
-
-template <class _Tp>
-inline _LIBCPP_HIDE_FROM_ABI constexpr const void* __get_fallback_typeid() {
-  return &__unique_typeinfo<remove_cv_t<remove_reference_t<_Tp>>>::__id;
-}
-
-template <class _Tp>
-inline _LIBCPP_HIDE_FROM_ABI bool __compare_typeid(type_info const* __id, const void* __fallback_id) {
-#  if !defined(_LIBCPP_HAS_NO_RTTI)
-  if (__id && *__id == typeid(_Tp))
-    return true;
-#  endif
-  return !__id && __fallback_id == __any_imp::__get_fallback_typeid<_Tp>();
-}
-
-template <class _Tp>
-using _Handler = conditional_t< _IsSmallObject<_Tp>::value, _SmallHandler<_Tp>, _LargeHandler<_Tp>>;
-
-} // namespace __any_imp
-
-class _LIBCPP_TEMPLATE_VIS any {
-public:
-  // construct/destruct
-  _LIBCPP_HIDE_FROM_ABI constexpr any() _NOEXCEPT : __h_(nullptr) {}
-
-  _LIBCPP_HIDE_FROM_ABI any(any const& __other) : __h_(nullptr) {
-    if (__other.__h_)
-      __other.__call(_Action::_Copy, this);
-  }
-
-  _LIBCPP_HIDE_FROM_ABI any(any&& __other) _NOEXCEPT : __h_(nullptr) {
-    if (__other.__h_)
-      __other.__call(_Action::_Move, this);
-  }
-
-  template < class _ValueType,
-             class _Tp = decay_t<_ValueType>,
-             class     = enable_if_t< !is_same<_Tp, any>::value && !__is_inplace_type<_ValueType>::value &&
-                                      is_copy_constructible<_Tp>::value> >
-  _LIBCPP_HIDE_FROM_ABI any(_ValueType&& __value);
-
-  template <class _ValueType,
-            class... _Args,
-            class _Tp = decay_t<_ValueType>,
-            class     = enable_if_t< is_constructible<_Tp, _Args...>::value && is_copy_constructible<_Tp>::value > >
-  _LIBCPP_HIDE_FROM_ABI explicit any(in_place_type_t<_ValueType>, _Args&&... __args);
-
-  template <class _ValueType,
-            class _Up,
-            class... _Args,
-            class _Tp = decay_t<_ValueType>,
-            class     = enable_if_t< is_constructible<_Tp, initializer_list<_Up>&, _Args...>::value &&
-                                     is_copy_constructible<_Tp>::value> >
-  _LIBCPP_HIDE_FROM_ABI explicit any(in_place_type_t<_ValueType>, initializer_list<_Up>, _Args&&... __args);
-
-  _LIBCPP_HIDE_FROM_ABI ~any() { this->reset(); }
-
-  // assignments
-  _LIBCPP_HIDE_FROM_ABI any& operator=(any const& __rhs) {
-    any(__rhs).swap(*this);
-    return *this;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI any& operator=(any&& __rhs) _NOEXCEPT {
-    any(std::move(__rhs)).swap(*this);
-    return *this;
-  }
-
-  template < class _ValueType,
-             class _Tp = decay_t<_ValueType>,
-             class     = enable_if_t< !is_same<_Tp, any>::value && is_copy_constructible<_Tp>::value> >
-  _LIBCPP_HIDE_FROM_ABI any& operator=(_ValueType&& __rhs);
-
-  template <class _ValueType,
-            class... _Args,
-            class _Tp = decay_t<_ValueType>,
-            class     = enable_if_t< is_constructible<_Tp, _Args...>::value && is_copy_constructible<_Tp>::value> >
-  _LIBCPP_HIDE_FROM_ABI _Tp& emplace(_Args&&...);
-
-  template <class _ValueType,
-            class _Up,
-            class... _Args,
-            class _Tp = decay_t<_ValueType>,
-            class     = enable_if_t< is_constructible<_Tp, initializer_list<_Up>&, _Args...>::value &&
-                                     is_copy_constructible<_Tp>::value> >
-  _LIBCPP_HIDE_FROM_ABI _Tp& emplace(initializer_list<_Up>, _Args&&...);
-
-  // 6.3.3 any modifiers
-  _LIBCPP_HIDE_FROM_ABI void reset() _NOEXCEPT {
-    if (__h_)
-      this->__call(_Action::_Destroy);
-  }
-
-  _LIBCPP_HIDE_FROM_ABI void swap(any& __rhs) _NOEXCEPT;
-
-  // 6.3.4 any observers
-  _LIBCPP_HIDE_FROM_ABI bool has_value() const _NOEXCEPT { return __h_ != nullptr; }
-
-#  if !defined(_LIBCPP_HAS_NO_RTTI)
-  _LIBCPP_HIDE_FROM_ABI const type_info& type() const _NOEXCEPT {
-    if (__h_) {
-      return *static_cast<type_info const*>(this->__call(_Action::_TypeInfo));
-    } else {
-      return typeid(void);
-    }
-  }
-#  endif
-
-private:
-  typedef __any_imp::_Action _Action;
-  using _HandleFuncPtr = void* (*)(_Action, any const*, any*, const type_info*, const void* __fallback_info);
-
-  union _Storage {
-    _LIBCPP_HIDE_FROM_ABI constexpr _Storage() : __ptr(nullptr) {}
-    void* __ptr;
-    __any_imp::_Buffer __buf;
-  };
-
-  _LIBCPP_HIDE_FROM_ABI void*
-  __call(_Action __a, any* __other = nullptr, type_info const* __info = nullptr, const void* __fallback_info = nullptr)
-      const {
-    return __h_(__a, this, __other, __info, __fallback_info);
-  }
-
-  _LIBCPP_HIDE_FROM_ABI void* __call(
-      _Action __a, any* __other = nullptr, type_info const* __info = nullptr, const void* __fallback_info = nullptr) {
-    return __h_(__a, this, __other, __info, __fallback_info);
-  }
-
-  template <class>
-  friend struct __any_imp::_SmallHandler;
-  template <class>
-  friend struct __any_imp::_LargeHandler;
-
-  template <class _ValueType>
-  friend add_pointer_t<add_const_t<_ValueType>> any_cast(any const*) _NOEXCEPT;
-
-  template <class _ValueType>
-  friend add_pointer_t<_ValueType> any_cast(any*) _NOEXCEPT;
-
-  _HandleFuncPtr __h_ = nullptr;
-  _Storage __s_;
-};
-
-namespace __any_imp {
-template <class _Tp>
-struct _LIBCPP_TEMPLATE_VIS _SmallHandler {
-  _LIBCPP_HIDE_FROM_ABI static void*
-  __handle(_Action __act, any const* __this, any* __other, type_info const* __info, const void* __fallback_info) {
-    switch (__act) {
-    case _Action::_Destroy:
-      __destroy(const_cast<any&>(*__this));
-      return nullptr;
-    case _Action::_Copy:
-      __copy(*__this, *__other);
-      return nullptr;
-    case _Action::_Move:
-      __move(const_cast<any&>(*__this), *__other);
-      return nullptr;
-    case _Action::_Get:
-      return __get(const_cast<any&>(*__this), __info, __fallback_info);
-    case _Action::_TypeInfo:
-      return __type_info();
-    }
-    __libcpp_unreachable();
-  }
-
-  template <class... _Args>
-  _LIBCPP_HIDE_FROM_ABI static _Tp& __create(any& __dest, _Args&&... __args) {
-    typedef allocator<_Tp> _Alloc;
-    typedef allocator_traits<_Alloc> _ATraits;
-    _Alloc __a;
-    _Tp* __ret = static_cast<_Tp*>(static_cast<void*>(&__dest.__s_.__buf));
-    _ATraits::construct(__a, __ret, std::forward<_Args>(__args)...);
-    __dest.__h_ = &_SmallHandler::__handle;
-    return *__ret;
-  }
-
-private:
-  _LIBCPP_HIDE_FROM_ABI static void __destroy(any& __this) {
-    typedef allocator<_Tp> _Alloc;
-    typedef allocator_traits<_Alloc> _ATraits;
-    _Alloc __a;
-    _Tp* __p = static_cast<_Tp*>(static_cast<void*>(&__this.__s_.__buf));
-    _ATraits::destroy(__a, __p);
-    __this.__h_ = nullptr;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void __copy(any const& __this, any& __dest) {
-    _SmallHandler::__create(__dest, *static_cast<_Tp const*>(static_cast<void const*>(&__this.__s_.__buf)));
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void __move(any& __this, any& __dest) {
-    _SmallHandler::__create(__dest, std::move(*static_cast<_Tp*>(static_cast<void*>(&__this.__s_.__buf))));
-    __destroy(__this);
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void* __get(any& __this, type_info const* __info, const void* __fallback_id) {
-    if (__any_imp::__compare_typeid<_Tp>(__info, __fallback_id))
-      return static_cast<void*>(&__this.__s_.__buf);
-    return nullptr;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void* __type_info() {
-#  if !defined(_LIBCPP_HAS_NO_RTTI)
-    return const_cast<void*>(static_cast<void const*>(&typeid(_Tp)));
-#  else
-    return nullptr;
-#  endif
-  }
-};
-
-template <class _Tp>
-struct _LIBCPP_TEMPLATE_VIS _LargeHandler {
-  _LIBCPP_HIDE_FROM_ABI static void*
-  __handle(_Action __act, any const* __this, any* __other, type_info const* __info, void const* __fallback_info) {
-    switch (__act) {
-    case _Action::_Destroy:
-      __destroy(const_cast<any&>(*__this));
-      return nullptr;
-    case _Action::_Copy:
-      __copy(*__this, *__other);
-      return nullptr;
-    case _Action::_Move:
-      __move(const_cast<any&>(*__this), *__other);
-      return nullptr;
-    case _Action::_Get:
-      return __get(const_cast<any&>(*__this), __info, __fallback_info);
-    case _Action::_TypeInfo:
-      return __type_info();
-    }
-    __libcpp_unreachable();
-  }
-
-  template <class... _Args>
-  _LIBCPP_HIDE_FROM_ABI static _Tp& __create(any& __dest, _Args&&... __args) {
-    typedef allocator<_Tp> _Alloc;
-    typedef allocator_traits<_Alloc> _ATraits;
-    typedef __allocator_destructor<_Alloc> _Dp;
-    _Alloc __a;
-    unique_ptr<_Tp, _Dp> __hold(_ATraits::allocate(__a, 1), _Dp(__a, 1));
-    _Tp* __ret = __hold.get();
-    _ATraits::construct(__a, __ret, std::forward<_Args>(__args)...);
-    __dest.__s_.__ptr = __hold.release();
-    __dest.__h_       = &_LargeHandler::__handle;
-    return *__ret;
-  }
-
-private:
-  _LIBCPP_HIDE_FROM_ABI static void __destroy(any& __this) {
-    typedef allocator<_Tp> _Alloc;
-    typedef allocator_traits<_Alloc> _ATraits;
-    _Alloc __a;
-    _Tp* __p = static_cast<_Tp*>(__this.__s_.__ptr);
-    _ATraits::destroy(__a, __p);
-    _ATraits::deallocate(__a, __p, 1);
-    __this.__h_ = nullptr;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void __copy(any const& __this, any& __dest) {
-    _LargeHandler::__create(__dest, *static_cast<_Tp const*>(__this.__s_.__ptr));
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void __move(any& __this, any& __dest) {
-    __dest.__s_.__ptr = __this.__s_.__ptr;
-    __dest.__h_       = &_LargeHandler::__handle;
-    __this.__h_       = nullptr;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void* __get(any& __this, type_info const* __info, void const* __fallback_info) {
-    if (__any_imp::__compare_typeid<_Tp>(__info, __fallback_info))
-      return static_cast<void*>(__this.__s_.__ptr);
-    return nullptr;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static void* __type_info() {
-#  if !defined(_LIBCPP_HAS_NO_RTTI)
-    return const_cast<void*>(static_cast<void const*>(&typeid(_Tp)));
-#  else
-    return nullptr;
-#  endif
-  }
-};
-
-} // namespace __any_imp
-
-template <class _ValueType, class _Tp, class>
-any::any(_ValueType&& __v) : __h_(nullptr) {
-  __any_imp::_Handler<_Tp>::__create(*this, std::forward<_ValueType>(__v));
-}
-
-template <class _ValueType, class... _Args, class _Tp, class>
-any::any(in_place_type_t<_ValueType>, _Args&&... __args) {
-  __any_imp::_Handler<_Tp>::__create(*this, std::forward<_Args>(__args)...);
-}
-
-template <class _ValueType, class _Up, class... _Args, class _Tp, class>
-any::any(in_place_type_t<_ValueType>, initializer_list<_Up> __il, _Args&&... __args) {
-  __any_imp::_Handler<_Tp>::__create(*this, __il, std::forward<_Args>(__args)...);
-}
-
-template <class _ValueType, class, class>
-inline _LIBCPP_HIDE_FROM_ABI any& any::operator=(_ValueType&& __v) {
-  any(std::forward<_ValueType>(__v)).swap(*this);
-  return *this;
-}
-
-template <class _ValueType, class... _Args, class _Tp, class>
-inline _LIBCPP_HIDE_FROM_ABI _Tp& any::emplace(_Args&&... __args) {
-  reset();
-  return __any_imp::_Handler<_Tp>::__create(*this, std::forward<_Args>(__args)...);
-}
-
-template <class _ValueType, class _Up, class... _Args, class _Tp, class>
-inline _LIBCPP_HIDE_FROM_ABI _Tp& any::emplace(initializer_list<_Up> __il, _Args&&... __args) {
-  reset();
-  return __any_imp::_Handler<_Tp>::__create(*this, __il, std::forward<_Args>(__args)...);
-}
-
-inline _LIBCPP_HIDE_FROM_ABI void any::swap(any& __rhs) _NOEXCEPT {
-  if (this == &__rhs)
-    return;
-  if (__h_ && __rhs.__h_) {
-    any __tmp;
-    __rhs.__call(_Action::_Move, &__tmp);
-    this->__call(_Action::_Move, &__rhs);
-    __tmp.__call(_Action::_Move, this);
-  } else if (__h_) {
-    this->__call(_Action::_Move, &__rhs);
-  } else if (__rhs.__h_) {
-    __rhs.__call(_Action::_Move, this);
-  }
-}
-
-// 6.4 Non-member functions
-
-inline _LIBCPP_HIDE_FROM_ABI void swap(any& __lhs, any& __rhs) _NOEXCEPT { __lhs.swap(__rhs); }
-
-template <class _Tp, class... _Args>
-inline _LIBCPP_HIDE_FROM_ABI any make_any(_Args&&... __args) {
-  return any(in_place_type<_Tp>, std::forward<_Args>(__args)...);
-}
-
-template <class _Tp, class _Up, class... _Args>
-inline _LIBCPP_HIDE_FROM_ABI any make_any(initializer_list<_Up> __il, _Args&&... __args) {
-  return any(in_place_type<_Tp>, __il, std::forward<_Args>(__args)...);
-}
-
-template <class _ValueType>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST _ValueType any_cast(any const& __v) {
-  using _RawValueType = __remove_cvref_t<_ValueType>;
-  static_assert(is_constructible<_ValueType, _RawValueType const&>::value,
-                "ValueType is required to be a const lvalue reference "
-                "or a CopyConstructible type");
-  auto __tmp = std::any_cast<add_const_t<_RawValueType>>(&__v);
-  if (__tmp == nullptr)
-    __throw_bad_any_cast();
-  return static_cast<_ValueType>(*__tmp);
-}
-
-template <class _ValueType>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST _ValueType any_cast(any& __v) {
-  using _RawValueType = __remove_cvref_t<_ValueType>;
-  static_assert(is_constructible<_ValueType, _RawValueType&>::value,
-                "ValueType is required to be an lvalue reference "
-                "or a CopyConstructible type");
-  auto __tmp = std::any_cast<_RawValueType>(&__v);
-  if (__tmp == nullptr)
-    __throw_bad_any_cast();
-  return static_cast<_ValueType>(*__tmp);
-}
-
-template <class _ValueType>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_THROW_BAD_ANY_CAST _ValueType any_cast(any&& __v) {
-  using _RawValueType = __remove_cvref_t<_ValueType>;
-  static_assert(is_constructible<_ValueType, _RawValueType>::value,
-                "ValueType is required to be an rvalue reference "
-                "or a CopyConstructible type");
-  auto __tmp = std::any_cast<_RawValueType>(&__v);
-  if (__tmp == nullptr)
-    __throw_bad_any_cast();
-  return static_cast<_ValueType>(std::move(*__tmp));
-}
-
-template <class _ValueType>
-inline _LIBCPP_HIDE_FROM_ABI add_pointer_t<add_const_t<_ValueType>> any_cast(any const* __any) _NOEXCEPT {
-  static_assert(!is_void_v<_ValueType>, "_ValueType may not be void.");
-  static_assert(!is_reference<_ValueType>::value, "_ValueType may not be a reference.");
-  return std::any_cast<_ValueType>(const_cast<any*>(__any));
-}
-
-template <class _RetType>
-inline _LIBCPP_HIDE_FROM_ABI _RetType __pointer_or_func_cast(void* __p, /*IsFunction*/ false_type) noexcept {
-  return static_cast<_RetType>(__p);
-}
-
-template <class _RetType>
-inline _LIBCPP_HIDE_FROM_ABI _RetType __pointer_or_func_cast(void*, /*IsFunction*/ true_type) noexcept {
-  return nullptr;
-}
-
-template <class _ValueType>
-_LIBCPP_HIDE_FROM_ABI add_pointer_t<_ValueType> any_cast(any* __any) _NOEXCEPT {
-  using __any_imp::_Action;
-  static_assert(!is_void_v<_ValueType>, "_ValueType may not be void.");
-  static_assert(!is_reference<_ValueType>::value, "_ValueType may not be a reference.");
-  typedef add_pointer_t<_ValueType> _ReturnType;
-  if (__any && __any->__h_) {
-    void* __p = __any->__call(
-        _Action::_Get,
-        nullptr,
-#  if !defined(_LIBCPP_HAS_NO_RTTI)
-        &typeid(_ValueType),
-#  else
-        nullptr,
-#  endif
-        __any_imp::__get_fallback_typeid<_ValueType>());
-    return std::__pointer_or_func_cast<_ReturnType>(__p, is_function<_ValueType>{});
-  }
-  return nullptr;
-}
-
-#endif // _LIBCPP_STD_VER >= 17
-
-_LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
-
-#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 17
-#  include <chrono>
-#endif
-
-#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
-#  include <atomic>
-#  include <concepts>
-#  include <cstdlib>
-#  include <iosfwd>
-#  include <iterator>
-#  include <memory>
-#  include <stdexcept>
-#  include <type_traits>
-#  include <variant>
-#endif
-
-#endif // _LIBCPP_ANY
-
-
 ====================MIT====================
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -2342,32 +1624,14 @@ Full text of the relevant licenses is included below.
 // COPYRIGHT AND PERMISSION NOTICE
 
 
+
 --------------------contrib/libs/zlib--------------------
 ====================COPYRIGHT====================
- (C) 1995-2022 Jean-loup Gailly and Mark Adler
-
-
-====================COPYRIGHT====================
- (C) 1995-2024 Jean-loup Gailly and Mark Adler
+ (C) 1995-2026 Jean-loup Gailly and Mark Adler
 
 
 ====================COPYRIGHT====================
  * Copyright (C) 1995-2003, 2010 Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 1995-2003, 2010, 2014, 2016 Jean-loup Gailly, Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 1995-2005, 2010 Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 1995-2005, 2014, 2016 Jean-loup Gailly, Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
@@ -2377,42 +1641,27 @@ Full text of the relevant licenses is included below.
 
 
 ====================COPYRIGHT====================
- * Copyright (C) 1995-2017 Jean-loup Gailly
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 1995-2017 Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
  * Copyright (C) 1995-2019 Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
 ====================COPYRIGHT====================
- * Copyright (C) 1995-2022 Mark Adler
+ * Copyright (C) 1995-2026 Jean-loup Gailly
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
 ====================COPYRIGHT====================
- * Copyright (C) 1995-2024 Jean-loup Gailly
+ * Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
 ====================COPYRIGHT====================
- * Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
+ * Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
 ====================COPYRIGHT====================
- * Copyright (C) 1995-2024 Jean-loup Gailly, Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 1995-2024 Mark Adler
+ * Copyright (C) 1995-2026 Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
@@ -2422,28 +1671,18 @@ Full text of the relevant licenses is included below.
 
 
 ====================COPYRIGHT====================
- * Copyright (C) 2004-2017 Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 2004-2019 Mark Adler
- * For conditions of distribution and use, see copyright notice in zlib.h
-
-
-====================COPYRIGHT====================
- * Copyright (C) 2004-2024 Mark Adler
+ * Copyright (C) 2004-2026 Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
 
 
 ====================COPYRIGHT====================
 const char deflate_copyright[] =
-   " deflate 1.3.1 Copyright 1995-2024 Jean-loup Gailly and Mark Adler ";
+   " deflate 1.3.2 Copyright 1995-2026 Jean-loup Gailly and Mark Adler ";
 
 
 ====================COPYRIGHT====================
 const char inflate_copyright[] =
-   " inflate 1.3.1 Copyright 1995-2024 Mark Adler ";
+   " inflate 1.3.2 Copyright 1995-2026 Mark Adler ";
 
 
 ====================File: include/zlib.h====================
@@ -2452,9 +1691,9 @@ const char inflate_copyright[] =
 
 ====================File: zlib.h====================
 /* zlib.h -- interface of the 'zlib' general purpose compression library
-  version 1.3.1, January 22nd, 2024
+  version 1.3.2, February 17th, 2026
 
-  Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
+  Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -2477,24 +1716,28 @@ const char inflate_copyright[] =
 
 
   The data format used by the zlib library is described by RFCs (Request for
-  Comments) 1950 to 1952 in the files http://tools.ietf.org/html/rfc1950
+  Comments) 1950 to 1952 at https://datatracker.ietf.org/doc/html/rfc1950
   (zlib format), rfc1951 (deflate format) and rfc1952 (gzip format).
 */
 
 #ifndef ZLIB_H
 #define ZLIB_H
 
-#include "zconf.h"
+#ifdef ZLIB_BUILD
+#  include <zconf.h>
+#else
+# include "zconf.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define ZLIB_VERSION "1.3.1"
-#define ZLIB_VERNUM 0x1310
+#define ZLIB_VERSION "1.3.2"
+#define ZLIB_VERNUM 0x1320
 #define ZLIB_VER_MAJOR 1
 #define ZLIB_VER_MINOR 3
-#define ZLIB_VER_REVISION 1
+#define ZLIB_VER_REVISION 2
 #define ZLIB_VER_SUBREVISION 0
 
 /*
@@ -2894,7 +2137,7 @@ ZEXTERN int ZEXPORT inflate(z_streamp strm, int flush);
 
     The Z_BLOCK option assists in appending to or combining deflate streams.
   To assist in this, on return inflate() always sets strm->data_type to the
-  number of unused bits in the last byte taken from strm->next_in, plus 64 if
+  number of unused bits in the input taken from strm->next_in, plus 64 if
   inflate() is currently decoding the last block in the deflate stream, plus
   128 if inflate() returned immediately after decoding an end-of-block code or
   decoding the complete header up to just before the first byte of the deflate
@@ -3040,18 +2283,21 @@ ZEXTERN int ZEXPORT deflateInit2(z_streamp strm,
 
      The strategy parameter is used to tune the compression algorithm.  Use the
    value Z_DEFAULT_STRATEGY for normal data, Z_FILTERED for data produced by a
-   filter (or predictor), Z_HUFFMAN_ONLY to force Huffman encoding only (no
-   string match), or Z_RLE to limit match distances to one (run-length
-   encoding).  Filtered data consists mostly of small values with a somewhat
-   random distribution.  In this case, the compression algorithm is tuned to
-   compress them better.  The effect of Z_FILTERED is to force more Huffman
-   coding and less string matching; it is somewhat intermediate between
-   Z_DEFAULT_STRATEGY and Z_HUFFMAN_ONLY.  Z_RLE is designed to be almost as
-   fast as Z_HUFFMAN_ONLY, but give better compression for PNG image data.  The
-   strategy parameter only affects the compression ratio but not the
-   correctness of the compressed output even if it is not set appropriately.
-   Z_FIXED prevents the use of dynamic Huffman codes, allowing for a simpler
-   decoder for special applications.
+   filter (or predictor), Z_RLE to limit match distances to one (run-length
+   encoding), or Z_HUFFMAN_ONLY to force Huffman encoding only (no string
+   matching).  Filtered data consists mostly of small values with a somewhat
+   random distribution, as produced by the PNG filters.  In this case, the
+   compression algorithm is tuned to compress them better.  The effect of
+   Z_FILTERED is to force more Huffman coding and less string matching than the
+   default; it is intermediate between Z_DEFAULT_STRATEGY and Z_HUFFMAN_ONLY.
+   Z_RLE is almost as fast as Z_HUFFMAN_ONLY, but should give better
+   compression for PNG image data than Huffman only.  The degree of string
+   matching from most to none is: Z_DEFAULT_STRATEGY, Z_FILTERED, Z_RLE, then
+   Z_HUFFMAN_ONLY. The strategy parameter affects the compression ratio but
+   never the correctness of the compressed output, even if it is not set
+   optimally for the given data.  Z_FIXED uses the default string matching, but
+   prevents the use of dynamic Huffman codes, allowing for a simpler decoder
+   for special applications.
 
      deflateInit2 returns Z_OK if success, Z_MEM_ERROR if there was not enough
    memory, Z_STREAM_ERROR if any parameter is invalid (such as an invalid
@@ -3211,8 +2457,8 @@ ZEXTERN int ZEXPORT deflateTune(z_streamp strm,
    returns Z_OK on success, or Z_STREAM_ERROR for an invalid deflate stream.
  */
 
-ZEXTERN uLong ZEXPORT deflateBound(z_streamp strm,
-                                   uLong sourceLen);
+ZEXTERN uLong ZEXPORT deflateBound(z_streamp strm, uLong sourceLen);
+ZEXTERN z_size_t ZEXPORT deflateBound_z(z_streamp strm, z_size_t sourceLen);
 /*
      deflateBound() returns an upper bound on the compressed size after
    deflation of sourceLen bytes.  It must be called after deflateInit() or
@@ -3224,6 +2470,9 @@ ZEXTERN uLong ZEXPORT deflateBound(z_streamp strm,
    to return Z_STREAM_END.  Note that it is possible for the compressed size to
    be larger than the value returned by deflateBound() if flush options other
    than Z_FINISH or Z_NO_FLUSH are used.
+
+     delfateBound_z() is the same, but takes and returns a size_t length.  Note
+   that a long is 32 bits on Windows.
 */
 
 ZEXTERN int ZEXPORT deflatePending(z_streamp strm,
@@ -3238,6 +2487,21 @@ ZEXTERN int ZEXPORT deflatePending(z_streamp strm,
    or bits are Z_NULL, then those values are not set.
 
      deflatePending returns Z_OK if success, or Z_STREAM_ERROR if the source
+   stream state was inconsistent.  If an int is 16 bits and memLevel is 9, then
+   it is possible for the number of pending bytes to not fit in an unsigned. In
+   that case Z_BUF_ERROR is returned and *pending is set to the maximum value
+   of an unsigned.
+ */
+
+ZEXTERN int ZEXPORT deflateUsed(z_streamp strm,
+                                int *bits);
+/*
+     deflateUsed() returns in *bits the most recent number of deflate bits used
+   in the last byte when flushing to a byte boundary. The result is in 1..8, or
+   0 if there has not yet been a flush. This helps determine the location of
+   the last bit of a deflate stream.
+
+     deflateUsed returns Z_OK if success, or Z_STREAM_ERROR if the source
    stream state was inconsistent.
  */
 
@@ -3440,13 +2704,15 @@ ZEXTERN int ZEXPORT inflatePrime(z_streamp strm,
                                  int bits,
                                  int value);
 /*
-     This function inserts bits in the inflate input stream.  The intent is
-   that this function is used to start inflating at a bit position in the
-   middle of a byte.  The provided bits will be used before any bytes are used
-   from next_in.  This function should only be used with raw inflate, and
-   should be used before the first inflate() call after inflateInit2() or
-   inflateReset().  bits must be less than or equal to 16, and that many of the
-   least significant bits of value will be inserted in the input.
+     This function inserts bits in the inflate input stream.  The intent is to
+   use inflatePrime() to start inflating at a bit position in the middle of a
+   byte.  The provided bits will be used before any bytes are used from
+   next_in.  This function should be used with raw inflate, before the first
+   inflate() call, after inflateInit2() or inflateReset().  It can also be used
+   after an inflate() return indicates the end of a deflate block or header
+   when using Z_BLOCK.  bits must be less than or equal to 16, and that many of
+   the least significant bits of value will be inserted in the input.  The
+   other bits in value can be non-zero, and will be ignored.
 
      If bits is negative, then the input stream bit buffer is emptied.  Then
    inflatePrime() can be called again to put bits in the buffer.  This is used
@@ -3454,7 +2720,15 @@ ZEXTERN int ZEXPORT inflatePrime(z_streamp strm,
    to feeding inflate codes.
 
      inflatePrime returns Z_OK if success, or Z_STREAM_ERROR if the source
-   stream state was inconsistent.
+   stream state was inconsistent, or if bits is out of range.  If inflate was
+   in the middle of processing a header, trailer, or stored block lengths, then
+   it is possible for there to be only eight bits available in the bit buffer.
+   In that case, bits > 8 is considered out of range.  However, when used as
+   outlined above, there will always be 16 bits available in the buffer for
+   insertion.  As noted in its documentation above, inflate records the number
+   of bits in the bit buffer on return in data_type. 32 minus that is the
+   number of bits available for insertion.  inflatePrime does not update
+   data_type with the new number of bits in buffer.
 */
 
 ZEXTERN long ZEXPORT inflateMark(z_streamp strm);
@@ -3500,20 +2774,22 @@ ZEXTERN int ZEXPORT inflateGetHeader(z_streamp strm,
 
      The text, time, xflags, and os fields are filled in with the gzip header
    contents.  hcrc is set to true if there is a header CRC.  (The header CRC
-   was valid if done is set to one.) If extra is not Z_NULL, then extra_max
-   contains the maximum number of bytes to write to extra.  Once done is true,
-   extra_len contains the actual extra field length, and extra contains the
-   extra field, or that field truncated if extra_max is less than extra_len.
-   If name is not Z_NULL, then up to name_max characters are written there,
-   terminated with a zero unless the length is greater than name_max.  If
-   comment is not Z_NULL, then up to comm_max characters are written there,
-   terminated with a zero unless the length is greater than comm_max.  When any
-   of extra, name, or comment are not Z_NULL and the respective field is not
-   present in the header, then that field is set to Z_NULL to signal its
-   absence.  This allows the use of deflateSetHeader() with the returned
-   structure to duplicate the header.  However if those fields are set to
-   allocated memory, then the application will need to save those pointers
-   elsewhere so that they can be eventually freed.
+   was valid if done is set to one.)  The extra, name, and comment pointers
+   much each be either Z_NULL or point to space to store that information from
+   the header.  If extra is not Z_NULL, then extra_max contains the maximum
+   number of bytes that can be written to extra.  Once done is true, extra_len
+   contains the actual extra field length, and extra contains the extra field,
+   or that field truncated if extra_max is less than extra_len.  If name is not
+   Z_NULL, then up to name_max characters, including the terminating zero, are
+   written there.  If comment is not Z_NULL, then up to comm_max characters,
+   including the terminating zero, are written there.  The application can tell
+   that the name or comment did not fit in the provided space by the absence of
+   a terminating zero.  If any of extra, name, or comment are not present in
+   the header, then that field's pointer is set to Z_NULL.  This allows the use
+   of deflateSetHeader() with the returned structure to duplicate the header.
+   Note that if those fields initially pointed to allocated memory, then the
+   application will need to save them elsewhere so that they can be eventually
+   freed.
 
      If inflateGetHeader is not used, then the header information is simply
    discarded.  The header is always checked for validity, including the header
@@ -3661,13 +2937,14 @@ ZEXTERN uLong ZEXPORT zlibCompileFlags(void);
      21: FASTEST -- deflate algorithm with only one, lowest compression level
      22,23: 0 (reserved)
 
-    The sprintf variant used by gzprintf (zero is best):
+    The sprintf variant used by gzprintf (all zeros is best):
      24: 0 = vs*, 1 = s* -- 1 means limited to 20 arguments after the format
-     25: 0 = *nprintf, 1 = *printf -- 1 means gzprintf() not secure!
+     25: 0 = *nprintf, 1 = *printf -- 1 means gzprintf() is not secure!
      26: 0 = returns value, 1 = void -- 1 means inferred string length returned
+     27: 0 = gzprintf() present, 1 = not -- 1 means gzprintf() returns an error
 
     Remainder:
-     27-31: 0 (reserved)
+     28-31: 0 (reserved)
  */
 
 #ifndef Z_SOLO
@@ -3679,11 +2956,14 @@ ZEXTERN uLong ZEXPORT zlibCompileFlags(void);
    stream-oriented functions.  To simplify the interface, some default options
    are assumed (compression level and memory usage, standard memory allocation
    functions).  The source code of these utility functions can be modified if
-   you need special options.
+   you need special options.  The _z versions of the functions use the size_t
+   type for lengths.  Note that a long is 32 bits on Windows.
 */
 
-ZEXTERN int ZEXPORT compress(Bytef *dest,   uLongf *destLen,
+ZEXTERN int ZEXPORT compress(Bytef *dest, uLongf *destLen,
                              const Bytef *source, uLong sourceLen);
+ZEXTERN int ZEXPORT compress_z(Bytef *dest, z_size_t *destLen,
+                               const Bytef *source, z_size_t sourceLen);
 /*
      Compresses the source buffer into the destination buffer.  sourceLen is
    the byte length of the source buffer.  Upon entry, destLen is the total size
@@ -3697,9 +2977,12 @@ ZEXTERN int ZEXPORT compress(Bytef *dest,   uLongf *destLen,
    buffer.
 */
 
-ZEXTERN int ZEXPORT compress2(Bytef *dest,   uLongf *destLen,
+ZEXTERN int ZEXPORT compress2(Bytef *dest, uLongf *destLen,
                               const Bytef *source, uLong sourceLen,
                               int level);
+ZEXTERN int ZEXPORT compress2_z(Bytef *dest, z_size_t *destLen,
+                                const Bytef *source, z_size_t sourceLen,
+                                int level);
 /*
      Compresses the source buffer into the destination buffer.  The level
    parameter has the same meaning as in deflateInit.  sourceLen is the byte
@@ -3714,21 +2997,24 @@ ZEXTERN int ZEXPORT compress2(Bytef *dest,   uLongf *destLen,
 */
 
 ZEXTERN uLong ZEXPORT compressBound(uLong sourceLen);
+ZEXTERN z_size_t ZEXPORT compressBound_z(z_size_t sourceLen);
 /*
      compressBound() returns an upper bound on the compressed size after
    compress() or compress2() on sourceLen bytes.  It would be used before a
    compress() or compress2() call to allocate the destination buffer.
 */
 
-ZEXTERN int ZEXPORT uncompress(Bytef *dest,   uLongf *destLen,
+ZEXTERN int ZEXPORT uncompress(Bytef *dest, uLongf *destLen,
                                const Bytef *source, uLong sourceLen);
+ZEXTERN int ZEXPORT uncompress_z(Bytef *dest, z_size_t *destLen,
+                                 const Bytef *source, z_size_t sourceLen);
 /*
      Decompresses the source buffer into the destination buffer.  sourceLen is
-   the byte length of the source buffer.  Upon entry, destLen is the total size
+   the byte length of the source buffer.  On entry, *destLen is the total size
    of the destination buffer, which must be large enough to hold the entire
    uncompressed data.  (The size of the uncompressed data must have been saved
    previously by the compressor and transmitted to the decompressor by some
-   mechanism outside the scope of this compression library.) Upon exit, destLen
+   mechanism outside the scope of this compression library.)  On exit, *destLen
    is the actual size of the uncompressed data.
 
      uncompress returns Z_OK if success, Z_MEM_ERROR if there was not
@@ -3738,8 +3024,10 @@ ZEXTERN int ZEXPORT uncompress(Bytef *dest,   uLongf *destLen,
    buffer with the uncompressed data up to that point.
 */
 
-ZEXTERN int ZEXPORT uncompress2(Bytef *dest,   uLongf *destLen,
+ZEXTERN int ZEXPORT uncompress2(Bytef *dest, uLongf *destLen,
                                 const Bytef *source, uLong *sourceLen);
+ZEXTERN int ZEXPORT uncompress2_z(Bytef *dest, z_size_t *destLen,
+                                  const Bytef *source, z_size_t *sourceLen);
 /*
      Same as uncompress, except that sourceLen is a pointer, where the
    length of the source is *sourceLen.  On return, *sourceLen is the number of
@@ -3767,13 +3055,17 @@ ZEXTERN gzFile ZEXPORT gzopen(const char *path, const char *mode);
    'R' for run-length encoding as in "wb1R", or 'F' for fixed code compression
    as in "wb9F".  (See the description of deflateInit2 for more information
    about the strategy parameter.)  'T' will request transparent writing or
-   appending with no compression and not using the gzip format.
+   appending with no compression and not using the gzip format. 'T' cannot be
+   used to force transparent reading. Transparent reading is automatically
+   performed if there is no gzip header at the start. Transparent reading can
+   be disabled with the 'G' option, which will instead return an error if there
+   is no gzip header. 'N' will open the file in non-blocking mode.
 
-     "a" can be used instead of "w" to request that the gzip stream that will
-   be written be appended to the file.  "+" will result in an error, since
+     'a' can be used instead of 'w' to request that the gzip stream that will
+   be written be appended to the file.  '+' will result in an error, since
    reading and writing to the same gzip file is not supported.  The addition of
-   "x" when writing will create the file exclusively, which fails if the file
-   already exists.  On systems that support it, the addition of "e" when
+   'x' when writing will create the file exclusively, which fails if the file
+   already exists.  On systems that support it, the addition of 'e' when
    reading or writing will set the flag to close the file on an execve() call.
 
      These functions, as well as gzip, will read and decode a sequence of gzip
@@ -3792,14 +3084,22 @@ ZEXTERN gzFile ZEXPORT gzopen(const char *path, const char *mode);
    insufficient memory to allocate the gzFile state, or if an invalid mode was
    specified (an 'r', 'w', or 'a' was not provided, or '+' was provided).
    errno can be checked to determine if the reason gzopen failed was that the
-   file could not be opened.
+   file could not be opened. Note that if 'N' is in mode for non-blocking, the
+   open() itself can fail in order to not block. In that case gzopen() will
+   return NULL and errno will be EAGAIN or ENONBLOCK. The call to gzopen() can
+   then be re-tried. If the application would like to block on opening the
+   file, then it can use open() without O_NONBLOCK, and then gzdopen() with the
+   resulting file descriptor and 'N' in the mode, which will set it to non-
+   blocking.
 */
 
 ZEXTERN gzFile ZEXPORT gzdopen(int fd, const char *mode);
 /*
      Associate a gzFile with the file descriptor fd.  File descriptors are
    obtained from calls like open, dup, creat, pipe or fileno (if the file has
-   been previously opened with fopen).  The mode parameter is as in gzopen.
+   been previously opened with fopen).  The mode parameter is as in gzopen. An
+   'e' in mode will set fd's flag to close the file on an execve() call. An 'N'
+   in mode will set fd's non-blocking flag.
 
      The next call of gzclose on the returned gzFile will also close the file
    descriptor fd, just like fclose(fdopen(fd, mode)) closes the file descriptor
@@ -3869,10 +3169,16 @@ ZEXTERN int ZEXPORT gzread(gzFile file, voidp buf, unsigned len);
    stream.  Alternatively, gzerror can be used before gzclose to detect this
    case.
 
+     gzread can be used to read a gzip file on a non-blocking device. If the
+   input stalls and there is no uncompressed data to return, then gzread() will
+   return -1, and errno will be EAGAIN or EWOULDBLOCK. gzread() can then be
+   called again.
+
      gzread returns the number of uncompressed bytes actually read, less than
    len for end of file, or -1 for error.  If len is too large to fit in an int,
    then nothing is read, -1 is returned, and the error state is set to
-   Z_STREAM_ERROR.
+   Z_STREAM_ERROR. If some data was read before an error, then that data is
+   returned until exhausted, after which the next call will signal the error.
 */
 
 ZEXTERN z_size_t ZEXPORT gzfread(voidp buf, z_size_t size, z_size_t nitems,
@@ -3896,15 +3202,20 @@ ZEXTERN z_size_t ZEXPORT gzfread(voidp buf, z_size_t size, z_size_t nitems,
    multiple of size, then the final partial item is nevertheless read into buf
    and the end-of-file flag is set.  The length of the partial item read is not
    provided, but could be inferred from the result of gztell().  This behavior
-   is the same as the behavior of fread() implementations in common libraries,
-   but it prevents the direct use of gzfread() to read a concurrently written
-   file, resetting and retrying on end-of-file, when size is not 1.
+   is the same as that of fread() implementations in common libraries. This
+   could result in data loss if used with size != 1 when reading a concurrently
+   written file or a non-blocking file. In that case, use size == 1 or gzread()
+   instead.
 */
 
 ZEXTERN int ZEXPORT gzwrite(gzFile file, voidpc buf, unsigned len);
 /*
      Compress and write the len uncompressed bytes at buf to file. gzwrite
-   returns the number of uncompressed bytes written or 0 in case of error.
+   returns the number of uncompressed bytes written, or 0 in case of error or
+   if len is 0.  If the write destination is non-blocking, then gzwrite() may
+   return a number of bytes written that is not 0 and less than len.
+
+     If len does not fit in an int, then 0 is returned and nothing is written.
 */
 
 ZEXTERN z_size_t ZEXPORT gzfwrite(voidpc buf, z_size_t size,
@@ -3919,9 +3230,18 @@ ZEXTERN z_size_t ZEXPORT gzfwrite(voidpc buf, z_size_t size,
    if there was an error.  If the multiplication of size and nitems overflows,
    i.e. the product does not fit in a z_size_t, then nothing is written, zero
    is returned, and the error state is set to Z_STREAM_ERROR.
+
+     If writing a concurrently read file or a non-blocking file with size != 1,
+   a partial item could be written, with no way of knowing how much of it was
+   not written, resulting in data loss.  In that case, use size == 1 or
+   gzwrite() instead.
 */
 
+#if defined(STDC) || defined(Z_HAVE_STDARG_H)
 ZEXTERN int ZEXPORTVA gzprintf(gzFile file, const char *format, ...);
+#else
+ZEXTERN int ZEXPORTVA gzprintf();
+#endif
 /*
      Convert, format, compress, and write the arguments (...) to file under
    control of the string format, as in fprintf.  gzprintf returns the number of
@@ -3929,11 +3249,19 @@ ZEXTERN int ZEXPORTVA gzprintf(gzFile file, const char *format, ...);
    of error.  The number of uncompressed bytes written is limited to 8191, or
    one less than the buffer size given to gzbuffer().  The caller should assure
    that this limit is not exceeded.  If it is exceeded, then gzprintf() will
-   return an error (0) with nothing written.  In this case, there may also be a
-   buffer overflow with unpredictable consequences, which is possible only if
-   zlib was compiled with the insecure functions sprintf() or vsprintf(),
-   because the secure snprintf() or vsnprintf() functions were not available.
-   This can be determined using zlibCompileFlags().
+   return an error (0) with nothing written.
+
+     In that last case, there may also be a buffer overflow with unpredictable
+   consequences, which is possible only if zlib was compiled with the insecure
+   functions sprintf() or vsprintf(), because the secure snprintf() and
+   vsnprintf() functions were not available. That would only be the case for
+   a non-ANSI C compiler. zlib may have been built without gzprintf() because
+   secure functions were not available and having gzprintf() be insecure was
+   not an option, in which case, gzprintf() returns Z_STREAM_ERROR. All of
+   these possibilities can be determined using zlibCompileFlags().
+
+     If a Z_BUF_ERROR is returned, then nothing was written due to a stall on
+   the non-blocking write destination.
 */
 
 ZEXTERN int ZEXPORT gzputs(gzFile file, const char *s);
@@ -3942,6 +3270,11 @@ ZEXTERN int ZEXPORT gzputs(gzFile file, const char *s);
    the terminating null character.
 
      gzputs returns the number of characters written, or -1 in case of error.
+   The number of characters written may be less than the length of the string
+   if the write destination is non-blocking.
+
+     If the length of the string does not fit in an int, then -1 is returned
+   and nothing is written.
 */
 
 ZEXTERN char * ZEXPORT gzgets(gzFile file, char *buf, int len);
@@ -3954,8 +3287,13 @@ ZEXTERN char * ZEXPORT gzgets(gzFile file, char *buf, int len);
    left untouched.
 
      gzgets returns buf which is a null-terminated string, or it returns NULL
-   for end-of-file or in case of error.  If there was an error, the contents at
-   buf are indeterminate.
+   for end-of-file or in case of error. If some data was read before an error,
+   then that data is returned until exhausted, after which the next call will
+   return NULL to signal the error.
+
+     gzgets can be used on a file being concurrently written, and on a non-
+   blocking device, both as for gzread(). However lines may be broken in the
+   middle, leaving it up to the application to reassemble them as needed.
 */
 
 ZEXTERN int ZEXPORT gzputc(gzFile file, int c);
@@ -3966,11 +3304,19 @@ ZEXTERN int ZEXPORT gzputc(gzFile file, int c);
 
 ZEXTERN int ZEXPORT gzgetc(gzFile file);
 /*
-     Read and decompress one byte from file.  gzgetc returns this byte or -1
-   in case of end of file or error.  This is implemented as a macro for speed.
-   As such, it does not do all of the checking the other functions do.  I.e.
-   it does not check to see if file is NULL, nor whether the structure file
-   points to has been clobbered or not.
+     Read and decompress one byte from file. gzgetc returns this byte or -1 in
+   case of end of file or error. If some data was read before an error, then
+   that data is returned until exhausted, after which the next call will return
+   -1 to signal the error.
+
+     This is implemented as a macro for speed. As such, it does not do all of
+   the checking the other functions do. I.e. it does not check to see if file
+   is NULL, nor whether the structure file points to has been clobbered or not.
+
+     gzgetc can be used to read a gzip file on a non-blocking device. If the
+   input stalls and there is no uncompressed data to return, then gzgetc() will
+   return -1, and errno will be EAGAIN or EWOULDBLOCK. gzread() can then be
+   called again.
 */
 
 ZEXTERN int ZEXPORT gzungetc(int c, gzFile file);
@@ -3983,6 +3329,11 @@ ZEXTERN int ZEXPORT gzungetc(int c, gzFile file);
    output buffer size of pushed characters is allowed.  (See gzbuffer above.)
    The pushed character will be discarded if the stream is repositioned with
    gzseek() or gzrewind().
+
+     gzungetc(-1, file) will force any pending seek to execute. Then gztell()
+   will report the position, even if the requested seek reached end of file.
+   This can be used to determine the number of uncompressed bytes in a gzip
+   file without having to read it into a buffer.
 */
 
 ZEXTERN int ZEXPORT gzflush(gzFile file, int flush);
@@ -4012,7 +3363,8 @@ ZEXTERN z_off_t ZEXPORT gzseek(gzFile file,
      If the file is opened for reading, this function is emulated but can be
    extremely slow.  If the file is opened for writing, only forward seeks are
    supported; gzseek then compresses a sequence of zeroes up to the new
-   starting position.
+   starting position. For reading or writing, any actual seeking is deferred
+   until the next read or write operation, or close operation when writing.
 
      gzseek returns the resulting offset location as measured in bytes from
    the beginning of the uncompressed stream, or -1 in case of error, in
@@ -4020,7 +3372,7 @@ ZEXTERN z_off_t ZEXPORT gzseek(gzFile file,
    would be before the current position.
 */
 
-ZEXTERN int ZEXPORT    gzrewind(gzFile file);
+ZEXTERN int ZEXPORT gzrewind(gzFile file);
 /*
      Rewind file. This function is supported only for reading.
 
@@ -4028,7 +3380,7 @@ ZEXTERN int ZEXPORT    gzrewind(gzFile file);
 */
 
 /*
-ZEXTERN z_off_t ZEXPORT    gztell(gzFile file);
+ZEXTERN z_off_t ZEXPORT gztell(gzFile file);
 
      Return the starting position for the next gzread or gzwrite on file.
    This position represents a number of bytes in the uncompressed data stream,
@@ -4073,8 +3425,11 @@ ZEXTERN int ZEXPORT gzdirect(gzFile file);
 
      If gzdirect() is used immediately after gzopen() or gzdopen() it will
    cause buffers to be allocated to allow reading the file to determine if it
-   is a gzip file.  Therefore if gzbuffer() is used, it should be called before
-   gzdirect().
+   is a gzip file. Therefore if gzbuffer() is used, it should be called before
+   gzdirect(). If the input is being written concurrently or the device is non-
+   blocking, then gzdirect() may give a different answer once four bytes of
+   input have been accumulated, which is what is needed to confirm or deny a
+   gzip header. Before this, gzdirect() will return true (1).
 
      When writing, gzdirect() returns true (1) if transparent writing was
    requested ("wT" for the gzopen() mode), or false (0) otherwise.  (Note:
@@ -4084,7 +3439,7 @@ ZEXTERN int ZEXPORT gzdirect(gzFile file);
    gzip file reading and decompression, which may not be desired.)
 */
 
-ZEXTERN int ZEXPORT    gzclose(gzFile file);
+ZEXTERN int ZEXPORT gzclose(gzFile file);
 /*
      Flush all pending output for file, if necessary, close file and
    deallocate the (de)compression state.  Note that once file is closed, you
@@ -4112,9 +3467,10 @@ ZEXTERN int ZEXPORT gzclose_w(gzFile file);
 ZEXTERN const char * ZEXPORT gzerror(gzFile file, int *errnum);
 /*
      Return the error message for the last error which occurred on file.
-   errnum is set to zlib error number.  If an error occurred in the file system
-   and not in the compression library, errnum is set to Z_ERRNO and the
-   application may consult errno to get the exact error code.
+   If errnum is not NULL, *errnum is set to zlib error number.  If an error
+   occurred in the file system and not in the compression library, *errnum is
+   set to Z_ERRNO and the application may consult errno to get the exact error
+   code.
 
      The application must not modify the returned string.  Future calls to
    this function may invalidate the previously returned string.  If file is
@@ -4165,7 +3521,8 @@ ZEXTERN uLong ZEXPORT adler32(uLong adler, const Bytef *buf, uInt len);
 ZEXTERN uLong ZEXPORT adler32_z(uLong adler, const Bytef *buf,
                                 z_size_t len);
 /*
-     Same as adler32(), but with a size_t length.
+     Same as adler32(), but with a size_t length.  Note that a long is 32 bits
+   on Windows.
 */
 
 /*
@@ -4201,7 +3558,8 @@ ZEXTERN uLong ZEXPORT crc32(uLong crc, const Bytef *buf, uInt len);
 ZEXTERN uLong ZEXPORT crc32_z(uLong crc, const Bytef *buf,
                               z_size_t len);
 /*
-     Same as crc32(), but with a size_t length.
+     Same as crc32(), but with a size_t length.  Note that a long is 32 bits on
+   Windows.
 */
 
 /*
@@ -4211,14 +3569,14 @@ ZEXTERN uLong ZEXPORT crc32_combine(uLong crc1, uLong crc2, z_off_t len2);
    seq1 and seq2 with lengths len1 and len2, CRC-32 check values were
    calculated for each, crc1 and crc2.  crc32_combine() returns the CRC-32
    check value of seq1 and seq2 concatenated, requiring only crc1, crc2, and
-   len2. len2 must be non-negative.
+   len2. len2 must be non-negative, otherwise zero is returned.
 */
 
 /*
 ZEXTERN uLong ZEXPORT crc32_combine_gen(z_off_t len2);
 
      Return the operator corresponding to length len2, to be used with
-   crc32_combine_op(). len2 must be non-negative.
+   crc32_combine_op(). len2 must be non-negative, otherwise zero is returned.
 */
 
 ZEXTERN uLong ZEXPORT crc32_combine_op(uLong crc1, uLong crc2, uLong op);
@@ -4341,9 +3699,9 @@ ZEXTERN int ZEXPORT gzgetc_(gzFile file);       /* backward compatibility */
      ZEXTERN z_off_t ZEXPORT gzseek64(gzFile, z_off_t, int);
      ZEXTERN z_off_t ZEXPORT gztell64(gzFile);
      ZEXTERN z_off_t ZEXPORT gzoffset64(gzFile);
-     ZEXTERN uLong ZEXPORT adler32_combine64(uLong, uLong, z_off_t);
-     ZEXTERN uLong ZEXPORT crc32_combine64(uLong, uLong, z_off_t);
-     ZEXTERN uLong ZEXPORT crc32_combine_gen64(z_off_t);
+     ZEXTERN uLong ZEXPORT adler32_combine64(uLong, uLong, z_off64_t);
+     ZEXTERN uLong ZEXPORT crc32_combine64(uLong, uLong, z_off64_t);
+     ZEXTERN uLong ZEXPORT crc32_combine_gen64(z_off64_t);
 #  endif
 #else
    ZEXTERN gzFile ZEXPORT gzopen(const char *, const char *);
@@ -4960,6 +4318,10 @@ license. See [LICENSE](LICENSE) for more information.
 
 ====================COPYRIGHT====================
 // Copyright 2024 The Abseil Authors
+
+
+====================COPYRIGHT====================
+// Copyright 2025 Google Inc. All Rights Reserved.
 
 
 ====================COPYRIGHT====================
@@ -5946,6 +5308,135 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * OTHER DEALINGS IN THE SOFTWARE.
 
 
+--------------------contrib/libs/blake2--------------------
+====================CC0-1.0====================
+   To the extent possible under law, the author(s) have dedicated all copyright
+   and related and neighboring rights to this software to the public domain
+   worldwide. This software is distributed without any warranty.
+
+   You should have received a copy of the CC0 Public Domain Dedication along with
+   this software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+
+
+====================CC0-1.0====================
+CC0 1.0 Universal
+
+Statement of Purpose
+
+The laws of most jurisdictions throughout the world automatically confer
+exclusive Copyright and Related Rights (defined below) upon the creator and
+subsequent owner(s) (each and all, an "owner") of an original work of
+authorship and/or a database (each, a "Work").
+
+Certain owners wish to permanently relinquish those rights to a Work for the
+purpose of contributing to a commons of creative, cultural and scientific
+works ("Commons") that the public can reliably and without fear of later
+claims of infringement build upon, modify, incorporate in other works, reuse
+and redistribute as freely as possible in any form whatsoever and for any
+purposes, including without limitation commercial purposes. These owners may
+contribute to the Commons to promote the ideal of a free culture and the
+further production of creative, cultural and scientific works, or to gain
+reputation or greater distribution for their Work in part through the use and
+efforts of others.
+
+For these and/or other purposes and motivations, and without any expectation
+of additional consideration or compensation, the person associating CC0 with a
+Work (the "Affirmer"), to the extent that he or she is an owner of Copyright
+and Related Rights in the Work, voluntarily elects to apply CC0 to the Work
+and publicly distribute the Work under its terms, with knowledge of his or her
+Copyright and Related Rights in the Work and the meaning and intended legal
+effect of CC0 on those rights.
+
+1. Copyright and Related Rights. A Work made available under CC0 may be
+protected by copyright and related or neighboring rights ("Copyright and
+Related Rights"). Copyright and Related Rights include, but are not limited
+to, the following:
+
+  i. the right to reproduce, adapt, distribute, perform, display, communicate,
+  and translate a Work;
+
+  ii. moral rights retained by the original author(s) and/or performer(s);
+
+  iii. publicity and privacy rights pertaining to a person's image or likeness
+  depicted in a Work;
+
+  iv. rights protecting against unfair competition in regards to a Work,
+  subject to the limitations in paragraph 4(a), below;
+
+  v. rights protecting the extraction, dissemination, use and reuse of data in
+  a Work;
+
+  vi. database rights (such as those arising under Directive 96/9/EC of the
+  European Parliament and of the Council of 11 March 1996 on the legal
+  protection of databases, and under any national implementation thereof,
+  including any amended or successor version of such directive); and
+
+  vii. other similar, equivalent or corresponding rights throughout the world
+  based on applicable law or treaty, and any national implementations thereof.
+
+2. Waiver. To the greatest extent permitted by, but not in contravention of,
+applicable law, Affirmer hereby overtly, fully, permanently, irrevocably and
+unconditionally waives, abandons, and surrenders all of Affirmer's Copyright
+and Related Rights and associated claims and causes of action, whether now
+known or unknown (including existing as well as future claims and causes of
+action), in the Work (i) in all territories worldwide, (ii) for the maximum
+duration provided by applicable law or treaty (including future time
+extensions), (iii) in any current or future medium and for any number of
+copies, and (iv) for any purpose whatsoever, including without limitation
+commercial, advertising or promotional purposes (the "Waiver"). Affirmer makes
+the Waiver for the benefit of each member of the public at large and to the
+detriment of Affirmer's heirs and successors, fully intending that such Waiver
+shall not be subject to revocation, rescission, cancellation, termination, or
+any other legal or equitable action to disrupt the quiet enjoyment of the Work
+by the public as contemplated by Affirmer's express Statement of Purpose.
+
+3. Public License Fallback. Should any part of the Waiver for any reason be
+judged legally invalid or ineffective under applicable law, then the Waiver
+shall be preserved to the maximum extent permitted taking into account
+Affirmer's express Statement of Purpose. In addition, to the extent the Waiver
+is so judged Affirmer hereby grants to each affected person a royalty-free,
+non transferable, non sublicensable, non exclusive, irrevocable and
+unconditional license to exercise Affirmer's Copyright and Related Rights in
+the Work (i) in all territories worldwide, (ii) for the maximum duration
+provided by applicable law or treaty (including future time extensions), (iii)
+in any current or future medium and for any number of copies, and (iv) for any
+purpose whatsoever, including without limitation commercial, advertising or
+promotional purposes (the "License"). The License shall be deemed effective as
+of the date CC0 was applied by Affirmer to the Work. Should any part of the
+License for any reason be judged legally invalid or ineffective under
+applicable law, such partial invalidity or ineffectiveness shall not
+invalidate the remainder of the License, and in such case Affirmer hereby
+affirms that he or she will not (i) exercise any of his or her remaining
+Copyright and Related Rights in the Work or (ii) assert any associated claims
+and causes of action with respect to the Work, in either case contrary to
+Affirmer's express Statement of Purpose.
+
+4. Limitations and Disclaimers.
+
+  a. No trademark or patent rights held by Affirmer are waived, abandoned,
+  surrendered, licensed or otherwise affected by this document.
+
+  b. Affirmer offers the Work as-is and makes no representations or warranties
+  of any kind concerning the Work, express, implied, statutory or otherwise,
+  including without limitation warranties of title, merchantability, fitness
+  for a particular purpose, non infringement, or the absence of latent or
+  other defects, accuracy, or the present or absence of errors, whether or not
+  discoverable, all to the greatest extent permissible under applicable law.
+
+  c. Affirmer disclaims responsibility for clearing rights of other persons
+  that may apply to the Work or any use thereof, including without limitation
+  any person's Copyright and Related Rights in the Work. Further, Affirmer
+  disclaims responsibility for obtaining any necessary consents, permissions
+  or other rights required for any use of the Work.
+
+  d. Affirmer understands and acknowledges that Creative Commons is not a
+  party to this document and has no duty or obligation with respect to this
+  CC0 or use of the Work.
+
+For more information, please see
+<http://creativecommons.org/publicdomain/zero/1.0/>
+
+
 --------------------contrib/libs/expat--------------------
 ====================CC0-1.0====================
  * Licensed under the CC0 Public Domain Dedication license.
@@ -5958,7 +5449,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2001-2002 Greg Stein <gstein@users.sourceforge.net>
    Copyright (c) 2002-2006 Karl Waclawek <karl@waclawek.net>
    Copyright (c) 2016      Cristian Rodríguez <crrodriguez@opensuse.org>
-   Copyright (c) 2016-2019 Sebastian Pipping <sebastian@pipping.org>
+   Copyright (c) 2016-2026 Sebastian Pipping <sebastian@pipping.org>
    Copyright (c) 2017      Rhodri James <rhodri@wildebeest.org.uk>
    Copyright (c) 2018      Yury Gribov <tetra2005@gmail.com>
    Licensed under the MIT license:
@@ -5970,7 +5461,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2000-2005 Fred L. Drake, Jr. <fdrake@users.sourceforge.net>
    Copyright (c) 2001-2002 Greg Stein <gstein@users.sourceforge.net>
    Copyright (c) 2002-2016 Karl Waclawek <karl@waclawek.net>
-   Copyright (c) 2016-2025 Sebastian Pipping <sebastian@pipping.org>
+   Copyright (c) 2016-2026 Sebastian Pipping <sebastian@pipping.org>
    Copyright (c) 2016      Cristian Rodríguez <crrodriguez@opensuse.org>
    Copyright (c) 2016      Thomas Beutlich <tc@tbeu.de>
    Copyright (c) 2017      Rhodri James <rhodri@wildebeest.org.uk>
@@ -5978,6 +5469,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2023      Hanno Böck <hanno@gentoo.org>
    Copyright (c) 2023      Sony Corporation / Snild Dolkow <snild@sony.com>
    Copyright (c) 2024      Taichi Haradaguchi <20001722@ymail.ne.jp>
+   Copyright (c) 2025      Matthew Fernandez <matthew.fernandez@gmail.com>
    Licensed under the MIT license:
 
 
@@ -5989,7 +5481,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2002-2016 Karl Waclawek <karl@waclawek.net>
    Copyright (c) 2005-2009 Steven Solie <steven@solie.ca>
    Copyright (c) 2016      Eric Rahm <erahm@mozilla.com>
-   Copyright (c) 2016-2025 Sebastian Pipping <sebastian@pipping.org>
+   Copyright (c) 2016-2026 Sebastian Pipping <sebastian@pipping.org>
    Copyright (c) 2016      Gaurav <g.gupta@samsung.com>
    Copyright (c) 2016      Thomas Beutlich <tc@tbeu.de>
    Copyright (c) 2016      Gustavo Grieco <gustavo.grieco@imag.fr>
@@ -6017,6 +5509,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2023-2024 Sony Corporation / Snild Dolkow <snild@sony.com>
    Copyright (c) 2024-2025 Berkay Eren Ürün <berkay.ueruen@siemens.com>
    Copyright (c) 2024      Hanno Böck <hanno@gentoo.org>
+   Copyright (c) 2025      Matthew Fernandez <matthew.fernandez@gmail.com>
+   Copyright (c) 2025      Atrem Borovik <polzovatellllk@gmail.com>
+   Copyright (c) 2025      Alfonso Gregory <gfunni234@gmail.com>
+   Copyright (c) 2026      Rosen Penev <rosenp@gmail.com>
    Licensed under the MIT license:
 
 
@@ -6027,7 +5523,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2002      Greg Stein <gstein@users.sourceforge.net>
    Copyright (c) 2002-2016 Karl Waclawek <karl@waclawek.net>
    Copyright (c) 2005-2009 Steven Solie <steven@solie.ca>
-   Copyright (c) 2016-2024 Sebastian Pipping <sebastian@pipping.org>
+   Copyright (c) 2016-2026 Sebastian Pipping <sebastian@pipping.org>
    Copyright (c) 2016      Pascal Cuoq <cuoq@trust-in-soft.com>
    Copyright (c) 2016      Don Lewis <truckman@apache.org>
    Copyright (c) 2017      Rhodri James <rhodri@wildebeest.org.uk>
@@ -6039,6 +5535,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2022      Martin Ettl <ettl.martin78@googlemail.com>
    Copyright (c) 2022      Sean McBride <sean@rogue-research.com>
    Copyright (c) 2023      Hanno Böck <hanno@gentoo.org>
+   Copyright (c) 2025      Alfonso Gregory <gfunni234@gmail.com>
    Licensed under the MIT license:
 
 
@@ -6073,21 +5570,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2002      Greg Stein <gstein@users.sourceforge.net>
    Copyright (c) 2002      Fred L. Drake, Jr. <fdrake@users.sourceforge.net>
    Copyright (c) 2002-2006 Karl Waclawek <karl@waclawek.net>
-   Copyright (c) 2017-2021 Sebastian Pipping <sebastian@pipping.org>
-   Licensed under the MIT license:
-
-
-====================COPYRIGHT====================
-   Copyright (c) 1997-2000 Thai Open Source Software Center Ltd
-   Copyright (c) 2000      Clark Cooper <coopercc@users.sourceforge.net>
-   Copyright (c) 2002      Greg Stein <gstein@users.sourceforge.net>
-   Copyright (c) 2002-2006 Karl Waclawek <karl@waclawek.net>
-   Copyright (c) 2002-2003 Fred L. Drake, Jr. <fdrake@users.sourceforge.net>
-   Copyright (c) 2005-2009 Steven Solie <steven@solie.ca>
-   Copyright (c) 2016-2023 Sebastian Pipping <sebastian@pipping.org>
-   Copyright (c) 2017      Rhodri James <rhodri@wildebeest.org.uk>
-   Copyright (c) 2019      David Loffredo <loffredo@steptools.com>
-   Copyright (c) 2021      Donghee Na <donghee.na@python.org>
+   Copyright (c) 2017-2026 Sebastian Pipping <sebastian@pipping.org>
+   Copyright (c) 2025      Alfonso Gregory <gfunni234@gmail.com>
    Licensed under the MIT license:
 
 
@@ -6096,7 +5580,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    Copyright (c) 2000      Clark Cooper <coopercc@users.sourceforge.net>
    Copyright (c) 2002      Karl Waclawek <karl@waclawek.net>
    Copyright (c) 2002      Fred L. Drake, Jr. <fdrake@users.sourceforge.net>
-   Copyright (c) 2017-2024 Sebastian Pipping <sebastian@pipping.org>
+   Copyright (c) 2017-2025 Sebastian Pipping <sebastian@pipping.org>
    Licensed under the MIT license:
 
 
@@ -6453,13 +5937,13 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ====================COPYRIGHT====================
  Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ <https://fsf.org/>
  Everyone is permitted to copy and distribute verbatim copies
 
 
 ====================COPYRIGHT====================
  Copyright (C) 1991, 1999 Free Software Foundation, Inc.
- 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ <https://fsf.org/>
  Everyone is permitted to copy and distribute verbatim copies
 
 
@@ -14854,11 +14338,9 @@ typedef enum ffi_abi {
 #endif
 
 
-#ifndef __clang__
 	/* We require interworking on LDM, which implies ARMv5T,
 	   which implies the existance of BLX.  */
  	.arch	armv5t
-#endif
 
 	/* Note that we use STC and LDC to encode VFP instructions,
 	   so that we do not need ".fpu vfp", nor get that added to
@@ -14876,13 +14358,8 @@ ARM_FUNC_START(ffi_call_VFP)
 
 	cmp	r3, #3			@ load only d0 if possible
 	ite	le
-#ifdef __clang__
-	vldrle d0, [r0]
-	vldmgt r0, {d0-d7}
-#else
 	ldcle	p11, cr0, [r0]		@ vldrle d0, [r0]
 	ldcgt	p11, cr0, [r0], {16}	@ vldmgt r0, {d0-d7}
-#endif
 	add	r0, r0, #64		@ discard the vfp register args
 	/* FALLTHRU */
 ARM_FUNC_END(ffi_call_VFP)
@@ -14927,25 +14404,13 @@ ARM_FUNC_START(ffi_call_SYSV)
 #endif
 0:
 E(ARM_TYPE_VFP_S)
-#ifdef __clang__
-	vstr s0, [r2]
-#else
 	stc	p10, cr0, [r2]		@ vstr s0, [r2]
-#endif
 	pop	{fp,pc}
 E(ARM_TYPE_VFP_D)
-#ifdef __clang__
-	vstr d0, [r2]
-#else
 	stc	p11, cr0, [r2]		@ vstr d0, [r2]
-#endif
 	pop	{fp,pc}
 E(ARM_TYPE_VFP_N)
-#ifdef __clang__
-	vstm r2, {d0-d3}
-#else
 	stc	p11, cr0, [r2], {8}	@ vstm r2, {d0-d3}
-#endif
 	pop	{fp,pc}
 E(ARM_TYPE_INT64)
 	str	r1, [r2, #4]
@@ -15054,11 +14519,7 @@ ARM_FUNC_START(ffi_closure_VFP)
 	add	ip, sp, #16
 	sub	sp, sp, #64+32			@ allocate frame
 	cfi_adjust_cfa_offset(64+32)
-#ifdef __clang__
-	vstm sp, {d0-d7}
-#else
 	stc	p11, cr0, [sp], {16}		@ vstm sp, {d0-d7}
-#endif
 	stmdb	sp!, {ip,lr}
 
 	/* See above.  */
@@ -15092,25 +14553,13 @@ ARM_FUNC_START_LOCAL(ffi_closure_ret)
 	cfi_rel_offset(lr, 4)
 0:
 E(ARM_TYPE_VFP_S)
-#ifdef __clang__
-	vldr s0, [r2]
-#else
 	ldc	p10, cr0, [r2]			@ vldr s0, [r2]
-#endif
 	b	call_epilogue
 E(ARM_TYPE_VFP_D)
-#ifdef __clang__
-	vldr d0, [r2]
-#else
 	ldc	p11, cr0, [r2]			@ vldr d0, [r2]
-#endif
 	b	call_epilogue
 E(ARM_TYPE_VFP_N)
-#ifdef __clang__
-	vldm r2, {d0-d3}
-#else
 	ldc	p11, cr0, [r2], {8}		@ vldm r2, {d0-d3}
-#endif
 	b	call_epilogue
 E(ARM_TYPE_INT64)
 	ldr	r1, [r2, #4]

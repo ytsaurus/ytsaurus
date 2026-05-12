@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/event_log/public.h>
@@ -1267,6 +1269,9 @@ struct TControllerAgentConfig
     //! List of media that are deprecated to be used in disk requests.
     THashSet<std::string> DeprecatedMedia;
 
+    //! List of media allowed for NBD disks.
+    THashSet<std::string> NbdMedia;
+
     //! The name of the fast medium (SSD) in the communal intermediate account.
     std::string FastIntermediateMedium;
 
@@ -1310,6 +1315,8 @@ struct TControllerAgentConfig
     bool EnableNetworkInOperationDemand;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
+
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;

@@ -290,12 +290,6 @@ public:
         return Engine_->getFunctionAddress(name.c_str());
     }
 
-    void AddObjectFile(
-        std::unique_ptr<llvm::object::ObjectFile> sharedObject)
-    {
-        Engine_->addObjectFile(std::move(sharedObject));
-    }
-
     bool IsSymbolLoaded(const std::string& symbol)
     {
         YT_VERIFY(!Compiled_);
@@ -664,12 +658,6 @@ llvm::LLVMContext& TCGModule::GetContext()
 uint64_t TCGModule::GetFunctionAddress(const std::string& name)
 {
     return Impl_->GetFunctionAddress(name);
-}
-
-void TCGModule::AddObjectFile(
-    std::unique_ptr<llvm::object::ObjectFile> sharedObject)
-{
-    Impl_->AddObjectFile(std::move(sharedObject));
 }
 
 bool TCGModule::IsSymbolLoaded(const std::string& symbol) const

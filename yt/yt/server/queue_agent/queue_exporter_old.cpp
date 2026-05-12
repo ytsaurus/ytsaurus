@@ -774,7 +774,7 @@ TQueueExportProfilingCountersOld::TQueueExportProfilingCountersOld(const TProfil
 
 TQueueExporterOld::TQueueExporterOld(
     TString exportName,
-    TQueuePath queue,
+    TTablePath queue,
     const TQueueStaticExportConfigPtr& exportConfig,
     const TQueueExporterDynamicConfig& dynamicConfig,
     TClientDirectoryPtr clientDirectory,

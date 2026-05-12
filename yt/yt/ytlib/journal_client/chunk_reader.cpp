@@ -138,7 +138,7 @@ public:
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
             ChunkId_,
             Codec_->GetId(),
-            MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+            MakeFormattableView(InitialReplicas_.Load(), TChunkReplicaAddressFormatter(nodeDirectory)));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(

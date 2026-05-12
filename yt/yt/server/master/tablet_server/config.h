@@ -118,6 +118,11 @@ struct TDynamicTabletCellBalancerMasterConfig
     bool EnableVerboseLogging;
     TDuration RebalanceWaitTime;
 
+    //! If set, leaders of multipeer cells will be redistributed across nodes
+    //! to ensure even distribution. This helps avoid situations where some nodes
+    //! host significantly more leaders than others.
+    bool EnableLeaderSmoothing;
+
     REGISTER_YSON_STRUCT(TDynamicTabletCellBalancerMasterConfig);
 
     static void Register(TRegistrar registrar);
@@ -351,6 +356,10 @@ struct TDynamicTabletManagerConfig
 
     // COMPAT(akozhikhov)
     bool EnableAlterToStaticWithHunks;
+
+    i64 MaxReshardComplexity;
+
+    bool UpdateTableContentRevisionOnHeartbeat;
 
     TDynamicTabletManagerTestingConfigPtr Testing;
 

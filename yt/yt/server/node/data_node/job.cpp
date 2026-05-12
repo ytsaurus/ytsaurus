@@ -1222,15 +1222,20 @@ private:
         YT_LOG_DEBUG("Started sealing journal chunk (RowCount: %v)",
             sealRowCount);
 
-        WaitFor(journalChunk->Seal())
+        WaitFor(journalChunk->ExecuteSeal())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Finished sealing journal chunk");
-        journalChunk->UpdateFlushedRowCount(changelog->GetRecordCount());
-        journalChunk->UpdateDataSize(changelog->GetDataSize());
+        {
+            const auto& chunkStore = Bootstrap_->GetChunkStore();
+            auto guard = chunkStore->AcquireChunkMapWriterLock();
 
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
-        chunkStore->UpdateExistingChunk(chunk);
+            journalChunk->SetSealed();
+            YT_LOG_DEBUG("Finished sealing journal chunk");
+            journalChunk->UpdateFlushedRowCount(changelog->GetRecordCount());
+            journalChunk->UpdateDataSize(changelog->GetDataSize());
+
+            chunkStore->UpdateExistingChunk(chunk, guard);
+        }
     }
 };
 

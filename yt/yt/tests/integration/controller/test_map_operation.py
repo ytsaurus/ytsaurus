@@ -2703,9 +2703,9 @@ print(json.dumps(input))
     def test_writer_timing_statistics(self):
         skip_if_component_old(self.Env, (26, 1), "node")
         create("table", "//tmp/t1")
-        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
-        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
-        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"testing_delay_before_chunk_close": 100}})
 
         write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
         op = map(
@@ -2754,7 +2754,7 @@ print(json.dumps(input))
 
             assert wait_time == 0
             assert write_time == 0
-            assert 100 <= close_time < 100 + eps_ms  # tesing_delay_before_chunk_close + eps.
+            assert 100 <= close_time < 100 + eps_ms  # testing_delay_before_chunk_close + eps.
             assert_total_time(idle_time + wait_time + write_time + close_time)
 
     @authors("apollo1321")

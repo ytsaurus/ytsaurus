@@ -2251,6 +2251,43 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
         originalRootFairShare);
 }
 
+TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolWithGuaranteeOvercommitment)
+{
+    // This test reproduces a crash scenario where guarantee overcommitment
+    // causes negative availableShare in UpdateRelaxedPoolIntegralShares.
+    // Before the fix, this would violate the precondition of FloatingPointInverseLowerBound.
+
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    // Create pools with strong guarantees that sum to more than 100% when combined with demand
+    auto poolA = CreateSimplePool("poolA", /*strongGuaranteeCpu*/ 60.0);
+    poolA->AttachParent(rootElement.Get());
+    auto opA = CreateOperation(poolA.Get(), totalResourceLimits * 0.6, totalResourceLimits * 0.6);
+
+    auto poolB = CreateSimplePool("poolB", /*strongGuaranteeCpu*/ 50.0);
+    poolB->AttachParent(rootElement.Get());
+    auto opB = CreateOperation(poolB.Get(), totalResourceLimits * 0.5, totalResourceLimits * 0.5);
+
+    // Create a relaxed pool that should get nothing due to overcommitment
+    auto relaxedPool = CreateRelaxedPool("relaxed", /*flowCpu*/ 10.0);
+    relaxedPool->AttachParent(rootElement.Get());
+    auto opRelaxed = CreateOperation(relaxedPool.Get(), totalResourceLimits * 0.1);
+
+    {
+        auto now = TInstant::Now();
+        // Initialize accumulated volume for the relaxed pool
+        relaxedPool->InitAccumulatedResourceVolume(GetHugeVolume());
+
+        // This should not crash even though availableShare would be negative
+        DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
+
+        // The relaxed pool should get minimal or zero integral share due to overcommitment
+        // The exact values depend on guarantee adjustment, but the test should not crash
+        EXPECT_TRUE(true); // If we reach here, the crash is fixed
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NVectorHdrf

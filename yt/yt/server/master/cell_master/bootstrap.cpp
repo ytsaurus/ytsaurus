@@ -327,7 +327,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const std::set<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+const TCellTagSet& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }
@@ -1029,6 +1029,7 @@ void TBootstrap::DoInitialize()
     TabletManager_->Initialize();
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
+    SequoiaManager_->Initialize();
     SchedulerPoolManager_->Initialize();
     CypressProxyTracker_->Initialize();
     GroundUpdateQueueManager_->Initialize();

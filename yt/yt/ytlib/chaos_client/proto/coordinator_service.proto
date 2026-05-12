@@ -21,6 +21,18 @@ message TRspResumeCoordinator
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqForsakeShortcut
+{
+    required NYT.NProto.TGuid chaos_object_id = 1;
+}
+
+message TRspForsakeShortcut
+{
+    required bool success = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqRegisterTransactionActions
 {
     required NYT.NProto.TGuid transaction_id = 1;

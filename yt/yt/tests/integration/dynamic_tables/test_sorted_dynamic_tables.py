@@ -28,8 +28,10 @@ import yt.yson as yson
 
 import pytest
 
+from collections import defaultdict
 from random import randint, choice, sample
 from string import ascii_lowercase
+
 import random
 import time
 import builtins
@@ -835,16 +837,23 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             expected)
 
     @authors("savrus", "sandello")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_lookup_hash_table(self, optimize_for):
+    @pytest.mark.parametrize("chunk_format", [
+        "table_versioned_simple",
+        "table_versioned_columnar",
+        "table_versioned_slim",
+        "table_versioned_indexed",
+    ])
+    def test_lookup_hash_table(self, chunk_format):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
-            optimize_for=optimize_for)
+            chunk_format=chunk_format)
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
         set("//tmp/t/@max_dynamic_store_row_count", 10)
+        if chunk_format == "table_versioned_indexed":
+            set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
         def _rows(i, j):
@@ -2212,6 +2221,134 @@ class TestSortedDynamicTablesSequoia(TestSortedDynamicTablesMulticell):
     }
 
 
+@pytest.mark.enable_multidaemon
+class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    NUM_NODES = 4
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 5000,
+                "refresh_time": 5000,
+                "expiration_period": 5000,
+                "expire_after_failed_update_time": 1000,
+                "expire_after_access_time": 300000,
+            },
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "resource_limits": {
+                "slots": 2,
+            },
+        },
+    }
+
+    def _prepare_test(self, path, failure_probability=0.2):
+        set("//sys/rpc_proxies/@config", {
+            "cluster_connection": {
+                "local_tablet_write_retry_count": 3,
+            },
+        })
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "tablet_cell_write_manager": {
+                    "failure_probability_before_write": failure_probability,
+                },
+            },
+        })
+
+        proxy_name = ls("//sys/rpc_proxies")[0]
+
+        def config_updated():
+            config = get(f"//sys/rpc_proxies/{proxy_name}/orchid/dynamic_config_manager/effective_config")
+            return config["cluster_connection"]["local_tablet_write_retry_count"] == 3
+        wait(config_updated)
+
+        cell_ids = sync_create_cells(cell_count=4)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+        self._create_sorted_table(
+            path,
+            schema=schema,
+            pivot_keys=[[]] + [[i * 10] for i in range(1, len(cell_ids))])
+
+        sync_mount_table(path, target_cell_ids=cell_ids)
+
+        return cell_ids
+
+    @authors("alexelexa")
+    def test_first_batch_write_retries_after_tablet_moving(self):
+        path = "//tmp/tablet_move"
+        cell_ids = self._prepare_test(path, failure_probability=0.)
+        tx1 = start_transaction(type="tablet")
+
+        insert_rows(path, [{"key": 1, "value": 1}], update=True, tx=tx1)
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "smooth_move",
+                "skip_freezing": True,
+                "keep_finished": True,
+                "tablet_ids": [get(f"{path}/@tablets/0/tablet_id")],
+                "cell_ids": [cell_ids[1]],
+            },
+        )
+
+        assert action == ls("//sys/tablet_actions")[0]
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        with raises_yt_error("mount_revision_changed"):
+            commit_transaction(tx1)
+
+    @authors("alexelexa")
+    def test_first_batch_write_retries(self):
+        path = "//tmp/simple"
+        cell_ids = self._prepare_test(path, failure_probability=0.2)
+        peers = defaultdict(list)
+        for cell_id in cell_ids:
+            peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
+            peers[peer].append(cell_id)
+
+        peer = max(peers, key=lambda k: len(peers[k]))
+        set_node_banned(peer, True)
+
+        wait_for_cells(peers[peer], decommissioned_addresses=[peer])
+
+        # Writes rows to multiple tablets, some of which are on recently moved cells.
+        # Sending the first batch for some tablets may fail with "Test error before write call execution".
+        # Retry mechanism causes mount cache to be refreshed and retries sending those batches.
+
+        rows = [{"key": 10 * i + 1, "value": 3} for i in range(4)]
+
+        # Retry inserting rows because the request may fail with ParticipantFailedToPrepare
+        # if prepare is sent to an old node and connections to banned nodes are unavailable.
+        for retry_index in range(5):
+            try:
+                insert_rows(path, rows, update=True)
+                break
+            except YtError as err:
+                if not err.is_rpc_unavailable() or not err.contains_code(yt_error_codes.ParticipantFailedToPrepare):
+                    raise
+                if retry_index == 5:
+                    raise
+            time.sleep(2)
+
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
+
+        set_node_banned(peer, False)
+
+
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     ENABLE_MULTIDAEMON = True
@@ -2234,7 +2371,8 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "tablet_cell_write_manager": {
-                    "write_failure_probability": 0.2,
+                    "failure_probability_before_write": 0.1,
+                    "failure_probability_after_write": 0.1,
                 },
             },
         })

@@ -2,13 +2,13 @@ DEPENDS(
     yt/recipe/basic
 )
 
-DEFAULT(YT_PACKAGE_DIR "yt/packages/latest")
+DEFAULT(PREBUILT_YT_PACKAGE_DIR yt/packages/latest)
 
 IF (NOT YT_RECIPE_BUILD_FROM_SOURCE)
     DEPENDS(
-        yt/packages/latest
+        ${PREBUILT_YT_PACKAGE_DIR}
     )
-    SET(YT_PACKAGE_DIR "yt/packages/latest")
+    SET(YT_PACKAGE_DIR "${PREBUILT_YT_PACKAGE_DIR}")
 ELSE()
     DEPENDS(
         yt/yt/packages/tests_package
@@ -43,5 +43,3 @@ ELSE()
         --package-dir ${YT_PACKAGE_DIR}
     )
 ENDIF()
-
-

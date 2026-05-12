@@ -310,6 +310,8 @@ public:
 
     const TChunkStorePtr& GetChunkStore() const;
 
+    std::optional<TDuration> GetDelayBeforeBlobChunkRead() const;
+
     std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
@@ -494,7 +496,8 @@ private:
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
 
-    TAtomicPtr<TStoreLocationConfig> RuntimeConfig_;
+    // NB: Shadows TChunkLocation::RuntimeConfig_ which has a narrower type.
+    TAtomicPtr<TStoreLocationConfig, /*AcquireHazard*/ true> RuntimeConfig_;
 
     static TJournalManagerConfigPtr BuildJournalManagerConfig(
         const TDataNodeConfigPtr& dataNodeConfig,

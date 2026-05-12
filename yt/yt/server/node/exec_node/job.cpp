@@ -875,11 +875,11 @@ bool TJob::Finalize(
     TForbidContextSwitchGuard guard;
 
     if (IsFinished()) {
-        YT_LOG_DEBUG("Job already finalized");
+        YT_LOG_DEBUG("Job already finalized (JobPhase: %v)", JobPhase_.load());
         return false;
     }
 
-    YT_LOG_INFO("Finalizing job (FinalState: %v)", finalJobState);
+    YT_LOG_INFO("Finalizing job (FinalState: %v, JobPhase: %v)", finalJobState, JobPhase_.load());
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
@@ -1379,11 +1379,18 @@ void TJob::SetHasGpuCheckStderr(bool hasGpuCheckStderr)
         .ArchiveFeatures(BuildArchiveFeatures()));
 }
 
-void TJob::AddProfile(TJobProfile value)
+void TJob::AddProfile(TJobProfile profile)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    Profiles_.push_back(std::move(value));
+    if (profile.ProfilingBinary == EProfilingBinary::JobProxy && profile.ProfilerType == EProfilerType::PeakMemory) {
+        // NB(coteeq): JobProxy's peak memory profile is a special case.
+        // We want the most recent profile and since it's peak profile,
+        // it's okay to overwrite previous one.
+        JobProxyPeakMemoryProfile_ = std::move(profile);
+    } else {
+        Profiles_.push_back(std::move(profile));
+    }
 }
 
 void TJob::SetCoreInfos(TCoreInfos value)
@@ -1558,7 +1565,8 @@ IYPathServicePtr TJob::CreateStaticOrchidService()
                     ex,
                     "Failed to get brief job info for static orchid");
             }
-        }))->Via(Invoker_);
+        }))
+        ->Via(Invoker_);
 }
 
 IYPathServicePtr TJob::CreateJobProxyOrchidService()
@@ -1588,7 +1596,22 @@ IYPathServicePtr TJob::CreateDynamicOrchidService()
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return New<TCompositeMapService>()
-        ->AddChild("job_proxy", CreateJobProxyOrchidService());
+        ->AddChild("job_proxy", CreateJobProxyOrchidService())
+        ->AddChild("testing", CreateTestingOrchidService());
+}
+
+IYPathServicePtr TJob::CreateTestingOrchidService()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return IYPathService::FromProducer(
+        BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("profile_count").Value(std::ssize(Profiles_) + JobProxyPeakMemoryProfile_.has_value())
+                .EndMap();
+        }))
+        ->Via(Invoker_);
 }
 
 IYPathServicePtr TJob::GetOrchidService()
@@ -1749,9 +1772,17 @@ void TJob::ReportProfile()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    for (const auto& profile : Profiles_) {
+    for (auto& profile : Profiles_) {
         HandleJobReport(TNodeJobReport()
             .Profile(std::move(profile)));
+    }
+
+    Profiles_.clear();
+
+    if (JobProxyPeakMemoryProfile_) {
+        HandleJobReport(TNodeJobReport()
+            .Profile(std::move(*JobProxyPeakMemoryProfile_)));
+        JobProxyPeakMemoryProfile_.reset();
     }
 }
 
@@ -2414,10 +2445,10 @@ std::vector<TDevice> TJob::GetGpuDevices() const
     auto gpuSlots = GetGpuSlots();
 
     std::vector<TDevice> devices;
-    for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
+    for (const auto& device : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
         bool deviceFound = false;
         for (const auto& gpuSlot : gpuSlots) {
-            if (gpuSlot->GetDeviceName() == deviceName) {
+            if (gpuSlot->GetDeviceIndex() == device.DeviceIndex) {
                 deviceFound = true;
                 break;
             }
@@ -2427,7 +2458,7 @@ std::vector<TDevice> TJob::GetGpuDevices() const
         if (!deviceFound && !Bootstrap_->GetGpuManager()->ShouldTestResource()) {
             // Exclude device explicitly.
             devices.emplace_back(TDevice{
-                .DeviceName = deviceName,
+                .DeviceName = device.DeviceName,
                 .Access = "-"
             });
         }
@@ -2439,7 +2470,7 @@ std::vector<TDevice> TJob::GetGpuDevices() const
 bool TJob::IsFullHostGpuJob() const
 {
     const auto& gpuSlots = GetGpuSlots();
-    return !gpuSlots.empty() && gpuSlots.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
+    return !gpuSlots.empty() && std::ssize(gpuSlots) == Bootstrap_->GetGpuManager()->GetGpuDeviceCount();
 }
 
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& errorOrArtifacts)
@@ -2475,6 +2506,16 @@ void TJob::PrepareWorkspace()
         BuildVirtualSandbox();
     }
 
+    // Collect already prepared reusable volumes for linking.
+    std::vector<TVolumeResultPtr> reusedNonRootVolumes;
+    {
+        const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
+        reusedNonRootVolumes.reserve(size(nonRootVolumes));
+        for (const auto& [_, volumeResult] : nonRootVolumes) {
+            reusedNonRootVolumes.push_back(volumeResult);
+        }
+    }
+
     TJobWorkspaceBuildingContext context{
         .Logger = Logger,
         .UserSandboxOptions = BuildUserSandboxOptions(),
@@ -2488,6 +2529,7 @@ void TJob::PrepareWorkspace()
         .Binds = binds,
         .SetupCommands = GetSetupCommands(),
         .DockerAuth = BuildDockerAuthConfig(),
+        .ReusedNonRootVolumes = std::move(reusedNonRootVolumes),
 
         .NeedGpu = NeedGpu(),
         .GpuCheckOptions = NeedsGpuCheck()
@@ -2556,7 +2598,7 @@ void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuild
 
     auto result = workspaceBuilder->ExtractResult();
     FSSecretary_->SetRootVolume(std::move(result.RootVolume));
-    FSSecretary_->SetNonRootVolumes(std::move(result.NonRootVolumes));
+    FSSecretary_->SetNonRootVolumes(std::move(result.PreparedNonRootVolumes));
     FSSecretary_->SetGpuCheckVolume(std::move(result.GpuCheckVolume));
     // Workspace builder may add or replace docker image.
     FSSecretary_->SetDockerImage(std::move(result.DockerImage));
@@ -2632,6 +2674,7 @@ void TJob::RunJobProxy()
 
     SetJobPhase(EJobPhase::SpawningJobProxy);
     InitializeJobProbe();
+    InitializeJobProxyLogging();
 
     auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
     auto hotChunks = JobInputCache_->FilterHotChunkIds(eligibleChunks);
@@ -2762,7 +2805,7 @@ void TJob::OnJobProxyFinished(const TError& error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO(error, "Job proxy finished");
+    YT_LOG_INFO(error, "Job proxy finished (JobPhase: %v)", JobPhase_.load());
 
     ResetJobProbe();
 
@@ -2812,6 +2855,12 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
+            // Synthetic phase transition: if job_proxy exits before reporting a result,
+            // we still need a finishing phase for job removal/cleanup invariants.
+            if (JobPhase_.load() == EJobPhase::Running) {
+                SetJobPhase(EJobPhase::FinalizingJobProxy);
+            }
+
             Finalize(BuildJobProxyError(error));
         } else {
             YT_VERIFY(IsFinished());
@@ -2912,6 +2961,9 @@ void TJob::Cleanup()
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
+    // Unsubscribe job prior to volume removal.
+    UnsubscribeJobFromNbdDevices();
+
     auto removeVolume = [this] (IVolumePtr volume) {
         if (volume) {
             auto removeResult = WaitFor(volume->Remove());
@@ -2923,15 +2975,50 @@ void TJob::Cleanup()
         }
     };
 
-    // Remove tmpfs volumes prior to root volume.
-    for (auto& tmpfsVolume : FSSecretary_->ReleaseNonRootVolumes()) {
-        removeVolume(std::move(tmpfsVolume->Volume));
+    {
+        // Unlink reusable non-root volumes so they can be re-linked in the next job.
+        // Iterate mounts in reverse order to unlink nested mount points from leaf to root
+        // (e.g. "outer/inner" before "outer"), otherwise parent unlink may fail.
+        const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
+        // TODO(pogorelov): If a volume is mounted at multiple mount paths,
+        // deduplication by volume id may violate topological unlink order.
+        THashSet<std::string> unlinkedVolumeIds;
+        const auto& jobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
+        for (auto it = jobVolumeMounts.rbegin(); it != jobVolumeMounts.rend(); ++it) {
+            const auto& volumeMount = *it;
+            if (volumeMount->MountPath == "/") {
+                continue;
+            }
+
+            if (!unlinkedVolumeIds.insert(volumeMount->VolumeId).second) {
+                continue;
+            }
+
+            auto volumeIt = nonRootVolumes.find(volumeMount->VolumeId);
+            if (volumeIt == nonRootVolumes.end()) {
+                continue;
+            }
+
+            const auto& volumeResult = volumeIt->second;
+            auto unlinkResult = WaitFor(volumeResult->Volume->Unlink());
+            YT_LOG_ERROR_IF(
+                !unlinkResult.IsOK(),
+                unlinkResult,
+                "Volume unlink failed (VolumeId: %v, MountPath: %v, VolumePath: %v)",
+                volumeMount->VolumeId,
+                volumeMount->MountPath,
+                volumeResult->Volume->GetPath());
+        }
     }
 
-    removeVolume(FSSecretary_->ReleaseRootVolume());
-    removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
+    // Remove non-reusable non-root volumes prior to root volume.
+    // Reusable volumes are preserved for the next job in the allocation.
+    for (auto& [_, volumeResult] : FSSecretary_->ReleaseNonReusableNonRootVolumes()) {
+        removeVolume(std::move(volumeResult->Volume));
+    }
 
-    UnsubscribeJobFromNbdDevices();
+    removeVolume(FSSecretary_->ReleaseRootVolumeIfNeeded());
+    removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
@@ -2973,16 +3060,24 @@ void TJob::UnsubscribeJobFromNbdDevices()
 {
     if (auto nbdServer = Bootstrap_->GetNbdServer()) {
         for (const auto& deviceId : FSSecretary_->ReleaseNbdDeviceIds()) {
+            YT_LOG_DEBUG(
+                "Unsubscribing job from NBD device errors (DeviceId: %v)",
+                deviceId);
+
             if (auto device = nbdServer->FindDevice(deviceId)) {
                 auto res = device->UnsubscribeFromErrors(Id_.Underlying());
                 if (!res) {
                     YT_LOG_WARNING(
                         "Failed to unsubscribe job from NBD device errors (DeviceId: %v)",
                         deviceId);
+                } else {
+                    YT_LOG_DEBUG(
+                        "Unsubscribed job from NBD device errors (DeviceId: %v)",
+                        deviceId);
                 }
             } else {
                 YT_LOG_DEBUG(
-                    "Failed to unsubscribe from NBD device error; device not found (DeviceId: %v)",
+                    "Failed to unsubscribe job from NBD device errors; device not found (DeviceId: %v)",
                     deviceId);
             }
         }
@@ -3019,6 +3114,17 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
     YT_LOG_INFO("Start preparing node directory");
 
+    auto maybeDataSourceDirectory = std::invoke([&] {
+        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(jobSpecExt.extensions());
+        if (dataSourceDirectoryExt) {
+            return FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
+        }
+        if (jobSpecExt.input_table_specs_size() + jobSpecExt.foreign_input_table_specs_size() > 0) {
+            YT_LOG_WARNING("Expected to have DataSource directory in job spec but found none");
+        }
+        return TDataSourceDirectoryPtr();
+    });
+
     const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
 
     for (int attempt = 1;; ++attempt) {
@@ -3033,6 +3139,19 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             const TNodeDirectoryPtr& nodeDirectory)
         {
             for (const auto& chunkSpec : chunkSpecs) {
+                auto tableIndex = chunkSpec.table_index();
+                bool isTableRemote = maybeDataSourceDirectory && !IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName());
+                if (isTableRemote) {
+                    // NB(coteeq): We cannot come to this branch if data source was missing,
+                    // so there is a chance that we will try to resolve remote node ids.
+                    // In this case, there is nothing we can do other than keep retrying.
+                    // Retries will eventually be drained and we will skip such nodes.
+
+                    // Node cannot resolve remote node id.
+                    // JP will either receive descriptors in remote_input_clusters
+                    // or the reader will fetch them from master.
+                    continue;
+                }
                 auto replicas = GetReplicasFromChunkSpec(chunkSpec);
                 for (auto replica : replicas) {
                     auto nodeId = replica.GetNodeId();
@@ -3173,7 +3292,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     const auto& nonRootVolumes = FSSecretary_->GetNonRootVolumes();
 
     proxyInternalConfig->TmpfsManager->TmpfsPaths.resize(FSSecretary_->GetTmpfsVolumeCount());
-    for (const auto& volume : nonRootVolumes) {
+    for (const auto& [_, volume] : nonRootVolumes) {
         if (volume->VolumeType == EVolumeType::Tmpfs) {
             auto tmpfsVolume = StaticPointerCast<TTmpfsVolumeResult>(volume);
             YT_VERIFY(tmpfsVolume->Index < std::ssize(proxyInternalConfig->TmpfsManager->TmpfsPaths));
@@ -3380,10 +3499,12 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             tcmallocConfig->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
         }
 
+        proxyInternalConfig->RpcServerDynamic = proxyDynamicConfig->RpcServer;
         proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
 
         proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
         proxyInternalConfig->EnableHttpServer = proxyDynamicConfig->EnableHttpServer;
+        proxyInternalConfig->JobProxyPeakMemoryProfiler = CloneYsonStruct(proxyDynamicConfig->JobProxyPeakMemoryProfiler);
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
@@ -3479,7 +3600,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.SlotPath = GetUserSlot()->GetSlotPath();
     options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
-    options.NonRootVolumes = FSSecretary_->GetNonRootVolumeParams();
     options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
     options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
 
@@ -4109,6 +4229,19 @@ void TJob::InitializeJobProbe()
     }
 }
 
+void TJob::InitializeJobProxyLogging()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    const auto proxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
+
+    if (proxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
+        const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+        YT_VERIFY(jobProxyLogManager);
+        jobProxyLogManager->BindJobLogDirectoryWithSymlink(Id_);
+    }
+}
+
 void TJob::ResetJobProbe()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -4317,11 +4450,11 @@ TGpuCheckOptions TJob::GetGpuCheckOptions() const
 
     return TGpuCheckOptions{
         .BinaryPath = UserJobSpec_->gpu_check_binary_path(),
-        .BinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+        .BinaryArgs = FromProto<std::vector<std::string>>(UserJobSpec_->gpu_check_binary_args()),
         .NetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
             ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
             : std::nullopt,
-        .Environment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
+        .Environment = FromProto<THashMap<std::string, std::string>>(UserJobSpec_->gpu_check_environment()),
         .Devices = GetGpuDevices(),
         .SetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands(),
         .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),

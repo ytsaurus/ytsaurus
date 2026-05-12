@@ -433,7 +433,7 @@ private:
         std::vector<TConsumerPartitionProfilingCounters> Counters{};
     };
 
-    THashMap<TQueuePath, TPartitionProfiler> ConsumerPartitionProfilingCounters_;
+    THashMap<TTablePath, TPartitionProfiler> ConsumerPartitionProfilingCounters_;
 
     void EnsureCounters(const TConsumerSnapshotPtr& currentConsumerSnapshot)
     {
@@ -451,7 +451,7 @@ private:
         ConsumerPartitionProfilingCounters_ = std::move(newConsumerPartitionProfilingCounters);
     }
 
-    void EnsureConsumerPartitionCounters(const TQueuePath& queuePath, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
+    void EnsureConsumerPartitionCounters(const TTablePath& queuePath, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
     {
         auto profiler = GetProfiler(EProfilerScope::ObjectPartition);
         TTagSet tagSet;
@@ -490,7 +490,7 @@ private:
     TError CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const
     {
         auto getQueuePathsAndPartitionCounts = [] (const TConsumerSnapshotPtr& snapshot) {
-            std::vector<std::pair<TQueuePath, int>> result;
+            std::vector<std::pair<TTablePath, int>> result;
             for (const auto& [queuePath, subSnapshot] : snapshot->SubSnapshots) {
                 result.emplace_back(queuePath, subSnapshot->PartitionCount);
             }

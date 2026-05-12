@@ -14,7 +14,9 @@ struct TJobStatisticsTags
     TString JobType;
     TString PoolTree;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NYT::TStreamSaveContext;
+    using TLoadContext = NYT::TStreamLoadContext;
+    PHOENIX_DECLARE_TYPE(TJobStatisticsTags, 0xc6d7e8f9);
 };
 
 void Serialize(const TJobStatisticsTags& statistics, NYson::IYsonConsumer* consumer);

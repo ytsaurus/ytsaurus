@@ -1,4 +1,6 @@
 #include "cg_fragment_compiler.h"
+
+#include "folding_profiler.h"
 #include "cg_ir_builder.h"
 #include "cg_routines.h"
 #include "cg_helpers.h"
@@ -4283,12 +4285,14 @@ std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotCount,
-    EExecutionBackend executionBackend,
-    NCodegen::EOptimizationLevel optimizationLevel,
+    const TQueryFoldingProfilerOptions& options,
     const TModuleBytecode& sdk,
     const TModuleBytecodeHashSet& usedWebAssemblyFiles)
 {
-    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend, optimizationLevel);
+    auto cgModule = TCGModule::Create(
+        GetQueryRoutineRegistry(options.ExecutionBackend),
+        options.ExecutionBackend,
+        options.OptimizationLevel);
     const auto entryFunctionName = std::string("EvaluateQuery");
 
     auto* queryFunction = MakeFunction<TCGPIQuerySignature>(cgModule, entryFunctionName.c_str(), [&] (
@@ -4310,13 +4314,13 @@ TCGQueryImage CodegenQuery(
 
     cgModule->ExportSymbol(entryFunctionName);
 
-    if (executionBackend == EExecutionBackend::WebAssembly) {
+    if (options.ExecutionBackend == EExecutionBackend::WebAssembly) {
         queryFunction->addFnAttr("wasm-export-name", entryFunctionName.c_str());
     }
 
     return {
-        BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend, sdk, usedWebAssemblyFiles),
+        BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, options.ExecutionBackend),
+        BuildImage(cgModule, options.ExecutionBackend, sdk, usedWebAssemblyFiles),
     };
 }
 

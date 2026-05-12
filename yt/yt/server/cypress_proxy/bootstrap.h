@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/cypress_proxy/public.h>
+
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
 #include <yt/yt/ytlib/api/native/public.h>

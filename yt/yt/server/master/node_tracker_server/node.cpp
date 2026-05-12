@@ -438,8 +438,8 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 
 void TNode::InitializeStates(
     TCellTag selfCellTag,
-    const std::set<TCellTag>& secondaryCellTags,
-    const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags,
+    const TCellTagSet& secondaryCellTags,
+    const TCellTagSet& dynamicallyPropagatedMastersCellTags,
     bool allowMasterCellRemoval)
 {
     // MulticellDescriptors_ are only needed for primary, do something with it.

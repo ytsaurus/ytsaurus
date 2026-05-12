@@ -7,7 +7,7 @@
 #include <yt/yt/server/master/cell_master/public.h>
 #include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

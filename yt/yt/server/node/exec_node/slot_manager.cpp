@@ -4,6 +4,7 @@
 #include "job.h"
 #include "job_controller.h"
 #include "job_environment.h"
+#include "job_proxy_log_manager.h"
 #include "private.h"
 #include "slot.h"
 #include "slot_location.h"
@@ -582,13 +583,16 @@ bool TSlotManager::IsEnabled() const
         JobEnvironmentType_ && JobEnvironmentType_ != NJobProxy::EJobEnvironmentType::Porto ||
         volumeManager && volumeManager->IsEnabled();
 
+    const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+
     return
         JobProxyReady_.load() &&
         IsInitialized() &&
         SlotCount_ > 0 &&
         hasAliveLocations &&
         jobEnvironment->IsEnabled() &&
-        isVolumeManagerEnabled;
+        isVolumeManagerEnabled &&
+        (!jobProxyLogManager || jobProxyLogManager->IsEnabled());
 }
 
 bool TSlotManager::GuardedHasArmedAlerts() const
@@ -1108,6 +1112,9 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     auto rootVolumeManager = VolumeManager_.Acquire();
 
+    // NB: to avoid potential use-after-move in DoIf.
+    bool rootVolumeManagerPresent = static_cast<bool>(rootVolumeManager);
+
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("slot_count").Value(slotManagerInfo.SlotCount)
@@ -1133,7 +1140,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
                     }
                 })
             .DoIf(
-                static_cast<bool>(rootVolumeManager),
+                rootVolumeManagerPresent,
                 [rootVolumeManager = std::move(rootVolumeManager)] (TFluentMap fluent){
                     fluent
                         .Item("root_volume_manager").Do(std::bind(

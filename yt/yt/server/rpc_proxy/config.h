@@ -201,7 +201,7 @@ struct TProxyDynamicConfig
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
-    std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     THashMap<std::string, double> WorkerPoolWeightOverrides;
 

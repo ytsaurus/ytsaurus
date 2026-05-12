@@ -242,9 +242,9 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-        TCertProfiler{
-            RpcProxyProfiler().WithPrefix("/bus_server"),
-            GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+        NCrypto::TCertProfiler{
+            .Profiler = RpcProxyProfiler().WithPrefix("/bus_server"),
+            .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
         });
 
     if (Config_->PublicRpcPort) {
@@ -252,9 +252,9 @@ void TBootstrap::DoInitialize()
             Config_->PublicBusServer,
             GetYTPacketTranscoderFactory(),
             MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/public_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/public_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -265,9 +265,9 @@ void TBootstrap::DoInitialize()
             busConfigCopy,
             GetYTPacketTranscoderFactory(),
             GetNullMemoryUsageTracker(),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -572,8 +572,7 @@ void TBootstrap::OnDynamicConfigChanged(
         YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
     }
 
-    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
-        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
 
     WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
 

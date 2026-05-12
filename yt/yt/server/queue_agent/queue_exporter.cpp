@@ -1138,7 +1138,7 @@ class TQueueExporter
 public:
     TQueueExporter(
         TString exportName,
-        TQueuePath queue,
+        TTablePath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
         TClientDirectoryPtr clientDirectory,
@@ -1263,7 +1263,7 @@ private:
     std::atomic<ui64> LastSuccessfulExportUnixTs_ = 0;
 
     const TString ExportName_;
-    const TQueuePath Queue_;
+    const TTablePath Queue_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
     const IQueueExportManagerPtr QueueExportManager_;
@@ -1447,7 +1447,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
     TString exportName,
-    TQueuePath queue,
+    TTablePath queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     TClientDirectoryPtr clientDirectory,

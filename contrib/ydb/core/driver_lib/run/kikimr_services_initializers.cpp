@@ -28,6 +28,7 @@
 #include <contrib/ydb/core/blobstorage/backpressure/unisched.h>
 #include <contrib/ydb/core/blobstorage/nodewarden/node_warden.h>
 #include <contrib/ydb/core/blobstorage/other/mon_get_blob_page.h>
+#include <contrib/ydb/core/blobstorage/ddisk/persistent_buffer_mon.h>
 #include <contrib/ydb/core/blobstorage/vdisk/common/blobstorage_event_filter.h>
 
 #include <contrib/ydb/core/client/minikql_compile/mkql_compile_service.h>
@@ -568,6 +569,10 @@ static TInterconnectSettings GetInterconnectSettings(const NKikimrConfig::TInter
         result.RdmaChecksum = config.GetRdmaChecksum();
     }
 
+    if (config.HasCollectSubscriptionStackTrace()) {
+        result.CollectSubscriptionStackTrace = config.GetCollectSubscriptionStackTrace();
+    }
+
     return result;
 }
 
@@ -661,6 +666,7 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
 
             TChannelsConfig channels;
             auto settings = GetInterconnectSettings(icConfig, numNodes, dataCenters.size());
+            setup->InterconnectCollectSubscriptionStackTrace = settings.CollectSubscriptionStackTrace;
             ui32 interconnectPoolId = GetInterconnectThreadPoolId(appData);
 
             for (const auto& channel : icConfig.GetChannel()) {
@@ -1156,6 +1162,16 @@ void TBSNodeWardenInitializer::InitializeServices(NActors::TActorSystemSetup* se
 
     if (Config.HasStoredConfigYaml()) {
         nodeWardenConfig->YamlConfig.emplace(Config.GetStoredConfigYaml());
+    }
+
+    if (Config.HasNbsConfig() && Config.GetNbsConfig().HasNbsStorageConfig() && Config.GetNbsConfig().GetEnabled()) {
+        const auto& storageConfig = Config.GetNbsConfig().GetNbsStorageConfig();
+        if (storageConfig.HasGlobalDDiskConfig()) {
+            nodeWardenConfig->DDiskConfig = storageConfig.GetGlobalDDiskConfig();
+        }
+        if (storageConfig.HasGlobalPBufferConfig()) {
+            nodeWardenConfig->PBufferConfig = storageConfig.GetGlobalPBufferConfig();
+        }
     }
 
     nodeWardenConfig->StartupConfigYaml = Config.GetStartupConfigYaml();
@@ -2140,6 +2156,18 @@ void TFailureInjectionInitializer::InitializeServices(NActors::TActorSystemSetup
     setup->LocalServices.emplace_back(MakeBlobStorageFailureInjectionID(NodeId),
         TActorSetupCmd(actor, TMailboxType::HTSwap, appData->UserPoolId));
     // FIXME: correct service id
+}
+
+// TMonPersistentBufferInitializer
+
+TMonPersistentBufferInitializer::TMonPersistentBufferInitializer(const TKikimrRunConfig& runConfig)
+    : IKikimrServicesInitializer(runConfig)
+{}
+
+void TMonPersistentBufferInitializer::InitializeServices(NActors::TActorSystemSetup *setup, const NKikimr::TAppData *appData) {
+    IActor *actor = CreateMonPersistentBufferActor(Config, *appData);
+    setup->LocalServices.emplace_back(MakeMonPersistentBufferID(NodeId),
+        TActorSetupCmd(actor, TMailboxType::HTSwap, appData->UserPoolId));
 }
 
 // TPersQueueL2CacheInitializer
@@ -3180,6 +3208,7 @@ void TKafkaProxyServiceInitializer::InitializeServices(NActors::TActorSystemSetu
         TString serverCert = readFile(settings.CertificateFile);
         TString serverPrivateKey = readFile(settings.PrivateKeyFile);
         TString caCert = readFile(Config.GetKafkaProxyConfig().GetCA());
+        serverCreds->AllowSelfSignedCerts = Config.GetKafkaProxyConfig().GetEnableSelfSignedCerts();
 
         {
             TSslHolder<BIO> bio(BIO_new_mem_buf(serverCert.data(), serverCert.size()));

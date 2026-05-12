@@ -18,7 +18,6 @@ private:
     ui64 TabletId;
     TIntrusivePtr<NKikimr::NPDisk::TSectorMap> SectorMap;
     ui32 BlockSize;
-    std::atomic<ui64> LsnGenerator;   // TODO
 
     std::atomic<NActors::TMonotonic> LastTraceTs{NActors::TMonotonic::Zero()};
     // Throttle trace ID creation to avoid overwhelming the tracing system
@@ -37,44 +36,43 @@ public:
 
     TExecutorPtr GetExecutor() override;
 
-    ui64 GenerateLsn() override;
-
-    NThreading::TFuture<void> EstablishConnections() override;
+    void EstablishConnections() override;
 
     NThreading::TFuture<TDBGReadBlocksResponse> ReadBlocksFromPBuffer(
         ui32 vChunkIndex,
         ui8 hostIndex,
         ui64 lsn,
         TBlockRange64 range,
-        TGuardedSgList guardedSglist,
-        NWilson::TTraceId traceId) override;
+        const TGuardedSgList& guardedSglist,
+        const NWilson::TTraceId& traceId) override;
 
     NThreading::TFuture<TDBGReadBlocksResponse> ReadBlocksFromDDisk(
         ui32 vChunkIndex,
         ui8 hostIndex,
         TBlockRange64 range,
-        TGuardedSgList guardedSglist,
-        NWilson::TTraceId traceId) override;
+        const TGuardedSgList& guardedSglist,
+        const NWilson::TTraceId& traceId) override;
 
     NThreading::TFuture<TDBGWriteBlocksResponse> WriteBlocksToPBuffer(
         ui32 vChunkIndex,
         ui8 hostIndex,
         ui64 lsn,
         TBlockRange64 range,
-        TGuardedSgList guardedSglist,
-        NWilson::TTraceId traceId) override;
+        const TGuardedSgList& guardedSglist,
+        const NWilson::TTraceId& traceId) override;
 
-    NThreading::TFuture<TDBGFlushResponse> FlushFromPBuffer(
+    NThreading::TFuture<TDBGFlushResponse> SyncWithPBuffer(
         ui32 vChunkIndex,
-        ui8 hostIndex,
+        ui8 pbufferHostIndex,
+        ui8 ddiskHostIndex,
         const TVector<TPBufferSegment>& segments,
-        NWilson::TTraceId traceId) override;
+        const NWilson::TTraceId& traceId) override;
 
     NThreading::TFuture<TDBGEraseResponse> EraseFromPBuffer(
         ui32 vChunkIndex,
         ui8 hostIndex,
         const TVector<TPBufferSegment>& segments,
-        NWilson::TTraceId traceId) override;
+        const NWilson::TTraceId& traceId) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

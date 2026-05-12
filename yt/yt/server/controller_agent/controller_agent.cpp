@@ -2002,7 +2002,8 @@ private:
                             FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
                             descriptorIt->second,
                             YT_OPTIONAL_FROM_PROTO(*protoRequest, pool_path),
-                            protoRequest->spec());
+                            protoRequest->spec(),
+                            YT_OPTIONAL_FROM_PROTO(*protoRequest, allocation_group_name));
 
                         response.OperationId = operationId;
                         response.AllocationId = allocationId;
@@ -2092,20 +2093,17 @@ private:
                 };
                 THashMap<TOperationId, TOperationAllocationEvents> allocationEventsPerOperationId;
 
-                auto handleAllocationEvent = [&] (auto&& allocationEvent) {
-                    auto& operationAllocationEvents = allocationEventsPerOperationId[allocationEvent.OperationId];
-
-                    auto& storage = TOverloaded{
-                        [&] (const TFinishedAllocationSummary&) -> auto& {
-                            return operationAllocationEvents.FinishedAllocations;
-                        },
-                        [&] (const TAbortedAllocationSummary&) -> auto& {
-                            return operationAllocationEvents.AbortedAllocations;
-                        },
-                    }(allocationEvent);
-
-                    storage.push_back(std::move(allocationEvent));
+                auto getOperationAllocationEvents = [&] (const auto& event) -> auto& {
+                    return allocationEventsPerOperationId[event.OperationId];
                 };
+
+                auto handleAllocationEvent = TOverloaded(
+                    [&] (TFinishedAllocationSummary&& event) {
+                        getOperationAllocationEvents(event).FinishedAllocations.push_back(std::move(event));
+                    },
+                    [&] (TAbortedAllocationSummary&& event) {
+                        getOperationAllocationEvents(event).AbortedAllocations.push_back(std::move(event));
+                    });
 
                 AllocationEventsInbox_->HandleIncoming<TSchedulerToAgentAllocationEvent>(
                     rsp->mutable_scheduler_to_agent_allocation_events(),
@@ -2114,7 +2112,6 @@ private:
                             handleAllocationEvent,
                             std::move(allocationEvent.EventSummary));
                     });
-
                 return allocationEventsPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)

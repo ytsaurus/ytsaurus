@@ -144,11 +144,6 @@ struct TDynamicNodeTrackerConfig
 
     bool NoRestartingNodesDisposal;
 
-    // COMPAT(cherepashka)
-    bool ReturnMasterCellsConnectionConfigsOnNodeRegistration;
-    // COMPAT(cherepashka)
-    bool ReturnMasterCellsConnectionConfigsOnNodeHeartbeat;
-
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

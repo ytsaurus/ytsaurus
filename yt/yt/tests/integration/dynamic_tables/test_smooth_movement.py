@@ -9,7 +9,7 @@ from yt_commands import (
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
     get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
-    create_table_replica, alter_table_replica, unmount_table,
+    create_table_replica, alter_table_replica, mount_table, unmount_table,
     set_node_banned, trim_rows, generate_timestamp, exit_read_only,
 )
 
@@ -93,20 +93,6 @@ class SmoothMovementBase(DynamicTablesBase):
         except YtError:
             return None
 
-    def _restart_cell(self, cell_id, sync=True, with_snapshot=False):
-        def _get_peer_address():
-            for peer in get(f"#{cell_id}/@peers"):
-                if address := peer.get("address"):
-                    return address
-
-        node_address = _get_peer_address()
-        if with_snapshot:
-            build_snapshot(cell_id)
-        disable_tablet_cells_on_node(node_address)
-        wait(lambda: _get_peer_address() != node_address)
-        enable_tablet_cells_on_node(node_address)
-        if sync:
-            wait(lambda: get(f"#{cell_id}/@health") == "good")
 
 ##################################################################
 
@@ -908,6 +894,51 @@ class TestSmoothMovement(SmoothMovementBase):
             assert get(f"//sys/tablet_nodes/{node}/orchid/tablet_cells/{src_cell_id}/reign") == next_reign
 
         assert _check_smooth_movement_in_progress(False)
+
+    @authors("ifsmirnov")
+    def test_movement_aborted_and_restarted(self):
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        h = SmoothMovementHelper(tablet_id)
+        h.start("waiting_for_locks_before_activation")
+        # Abort action.
+        mount_table("//tmp/t")
+
+        assert h.get_action_state() == "failed"
+        with raises_yt_error():
+            h.finish()
+
+        wait(lambda: len(get(f"#{tablet_id}/@servants")) == 1)
+
+        h = SmoothMovementHelper("//tmp/t")
+        h.start()
+        h.finish()
+
+    @authors("alexelexa")
+    def test_logical_mount_revision(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        tablet_id = tablet["tablet_id"]
+        old_mount_revision = tablet["mount_revision"]
+        old_logical_mount_revision = tablet["logical_mount_revision"]
+
+        self._sync_move_tablet(tablet_id)
+
+        tablet = get("//tmp/t/@tablets/0")
+        new_mount_revision = tablet["mount_revision"]
+        new_logical_mount_revision = tablet["logical_mount_revision"]
+
+        assert old_mount_revision < new_mount_revision
+        assert old_mount_revision == old_logical_mount_revision
+        assert old_logical_mount_revision == new_logical_mount_revision
+
 
 ##################################################################
 

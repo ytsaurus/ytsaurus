@@ -66,7 +66,7 @@ public:
 
             it = DistributedSessionMap_.find(sessionId);
             if (it == DistributedSessionMap_.end()) {
-                EmplaceOrCrash(DistributedSessionMap_, sessionId, std::move(session));
+                EmplaceOrCrash(DistributedSessionMap_, sessionId, session);
                 return session;
             } else {
                 return it->second;

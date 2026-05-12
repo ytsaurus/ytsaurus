@@ -29,7 +29,8 @@ DEFINE_REFCOUNTED_TYPE(IRequestHandler);
 IRequestHandlerPtr CreateRequestHandler(
     TProxyBootstrapConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
-    NAuth::IAuthenticationManagerPtr authenticationManager);
+    NAuth::IAuthenticationManagerPtr authenticationManager,
+    IGroupCoordinatorManagerPtr groupCoordinatorManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

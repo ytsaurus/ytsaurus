@@ -91,8 +91,8 @@ void TProbePutBlocksRequestSupplier::PushRequest(TRequest request)
         return;
     }
 
-    Requests_.insert(std::move(request));
     MaxRequestedMemory_ = std::max(MaxRequestedMemory_, request.CumulativeBlockSize);
+    Requests_.insert(std::move(request));
 }
 
 void TProbePutBlocksRequestSupplier::ReleaseResourcesForPutBlocks(i64 memory)

@@ -2,9 +2,6 @@
 """
 The root of the greenlet package.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 __all__ = [
     '__version__',
@@ -25,7 +22,7 @@ __all__ = [
 ###
 # Metadata
 ###
-__version__ = '3.3.2'
+__version__ = '3.5.0'
 from ._greenlet import _C_API # pylint:disable=no-name-in-module
 
 ###
@@ -43,14 +40,8 @@ from ._greenlet import greenlet
 ###
 # tracing
 ###
-try:
-    from ._greenlet import gettrace
-    from ._greenlet import settrace
-except ImportError:
-    # Tracing wasn't supported.
-    # XXX: The option to disable it was removed in 1.0,
-    # so this branch should be dead code.
-    pass
+from ._greenlet import gettrace
+from ._greenlet import settrace
 
 ###
 # Constants

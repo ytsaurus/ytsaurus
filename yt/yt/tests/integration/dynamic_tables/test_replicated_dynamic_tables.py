@@ -2591,6 +2591,29 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", rows, authenticated_user="u")
 
+    @authors("suboch")
+    def test_not_allowed_lookup_from_sync_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "test", "value2": 42}]
+        keys = [{"key": 0}]
+
+        create_user("u")
+        create_user("u", driver=self.replica_driver)
+        insert_rows("//tmp/t", rows, authenticated_user="u")
+        set("//tmp/r/@inherit_acl", False, driver=self.replica_driver)
+
+        with pytest.raises(YtError) as ex:
+            lookup_rows("//tmp/t", keys, authenticated_user="u")
+
+        error = ex.value.find_matching_error(predicate=lambda e: '"read" permission is not allowed by any matching ACE' in e.message)
+        assert error.attributes.get("replica_cluster") == self.REPLICA_CLUSTER_NAME
+        assert error.attributes.get("replica_path") == "//tmp/r"
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_required_columns(self, mode):

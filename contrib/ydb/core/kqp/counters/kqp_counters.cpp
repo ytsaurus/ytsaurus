@@ -10,7 +10,7 @@
 #include <contrib/ydb/library/actors/core/log.h>
 #include <util/generic/size_literals.h>
 
-#include <yql/essentials/core/issue/protos/issue_id.pb.h>
+#include <yql/essentials/public/issue/protos/issue_id.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_issue_message.pb.h>
 
 namespace NKikimr {
@@ -796,6 +796,7 @@ TKqpCounters::TKqpCounters(const ::NMonitoring::TDynamicCounterPtr& counters, co
     WarmupQueriesFetched = KqpGroup->GetCounter("Warmup/QueriesFetched", false);
     WarmupQueriesCompiled = KqpGroup->GetCounter("Warmup/QueriesCompiled", false);
     WarmupQueriesTruncated = KqpGroup->GetCounter("Warmup/QueriesTruncated", false);
+    WarmupQueriesEmptyQueryType = KqpGroup->GetCounter("Warmup/QueriesEmptyQueryType", false);
 
     /* Resource Manager */
     RmComputeActors = KqpGroup->GetCounter("RM/ComputeActors", false);
@@ -928,6 +929,10 @@ TKqpCounters::TKqpCounters(const ::NMonitoring::TDynamicCounterPtr& counters, co
     BatchOperationUpdateRows = KqpGroup->GetCounter("BatchOperation/Update/Rows", true);
     BatchOperationDeleteRows = KqpGroup->GetCounter("BatchOperation/Delete/Rows", true);
     BatchOperationRetries = KqpGroup->GetCounter("BatchOperation/Retries", true);
+}
+
+::NMonitoring::TDynamicCounterPtr TKqpCounters::GetRootCounters() const {
+    return Counters;
 }
 
 ::NMonitoring::TDynamicCounterPtr TKqpCounters::GetKqpCounters() const {

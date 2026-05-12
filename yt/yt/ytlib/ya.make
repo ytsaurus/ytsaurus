@@ -8,9 +8,6 @@ INCLUDE(../ya_check_dependencies.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    admin/proto/admin_service.proto
-    admin/proto/restart_service.proto
-
     api/connection.cpp
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
@@ -260,8 +257,10 @@ SRCS(
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
     distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/distributed_chunk_session_pool.cpp
     distributed_chunk_session_client/distributed_chunk_writer.cpp
     distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+    distributed_chunk_session_client/distributed_chunk_session_reader.cpp
 
     distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
 
@@ -431,6 +430,7 @@ SRCS(
     sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
+    sequoia_client/transaction_options.cpp
     sequoia_client/write_set.cpp
     sequoia_client/ypath_detail.cpp
 
@@ -840,6 +840,7 @@ PEERDIR(
     yt/yt/library/query/secondary_index
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api
+    yt/yt/ytlib/admin
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client

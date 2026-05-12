@@ -45,6 +45,7 @@ public:
     TEpochId GetAutomatonEpochId() const override;
     int GetAutomatonTerm() const override;
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) override;
+    NLogging::ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override;
     bool IsEnteringReadOnlyMode() const override;
 
     // NB: Semantics for these signals is not properly reproduced. Only the

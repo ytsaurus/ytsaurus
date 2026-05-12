@@ -403,6 +403,8 @@ struct TConnectionDynamicConfig
 
     int ReplicaFallbackRetryCount;
 
+    int LocalTabletWriteRetryCount;
+
     bool DisableNewRangeInference;
 
     bool DisableAdaptiveOrderedSchemafulReader;

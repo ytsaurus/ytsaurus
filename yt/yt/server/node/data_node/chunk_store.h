@@ -94,7 +94,9 @@ public:
      *  with the session finishes. Finally, when such a chunk is sealed it gets re-registered again
      *  (with "sealed" replica type).
      */
-    void UpdateExistingChunk(const IChunkPtr& chunk);
+    void UpdateExistingChunk(
+        const IChunkPtr& chunk,
+        const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>&);
 
     //! Unregisters the chunk but does not remove any of its files.
     void UnregisterChunk(const IChunkPtr& chunk);
@@ -168,7 +170,7 @@ public:
 
     // Same as above, but the caller must hold lock.
     TPerLocationChunkMap GetPerLocationChunksUnsafe(
-        NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> guard);
+        const NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>& guard);
 
     //! Iterates over all registered chunks and checks that their cell tags are from existing master cell tags.
     /*!
@@ -219,6 +221,7 @@ public:
     bool ShouldPublishDisabledLocations();
 
     NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> AcquireChunkMapReaderLock();
+    NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> AcquireChunkMapWriterLock();
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);

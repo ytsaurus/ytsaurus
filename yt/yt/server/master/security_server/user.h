@@ -173,7 +173,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    int Clusterwide_;
+    std::optional<int> Clusterwide_;
     int Default_;
     THashMap<std::string, int> PerCell_;
 };

@@ -44,7 +44,6 @@ target_link_libraries(restricted-boost-xpressive INTERFACE
   restricted-boost-proto
   restricted-boost-range
   restricted-boost-smart_ptr
-  restricted-boost-static_assert
   restricted-boost-throw_exception
   restricted-boost-type_traits
   restricted-boost-typeof

@@ -134,12 +134,23 @@ TError CheckNonRootVolumeParams(
             << TErrorAttribute("baseline_count", baseline.size())
             << TErrorAttribute("current_count", current.size());
     }
-    for (int i = 0; i < ssize(current); ++i) {
-        if (!(*baseline[i] == *current[i])) {
+
+    // Sort volumes by VolumeId for comparison since protobuf map iteration order is not guaranteed.
+    auto sortByVolumeId = [] (const TBaseVolumeParamsPtr& a, const TBaseVolumeParamsPtr& b) {
+        return a->VolumeId < b->VolumeId;
+    };
+
+    auto sortedBaseline = baseline;
+    auto sortedCurrent = current;
+    std::sort(sortedBaseline.begin(), sortedBaseline.end(), sortByVolumeId);
+    std::sort(sortedCurrent.begin(), sortedCurrent.end(), sortByVolumeId);
+
+    for (int i = 0; i < ssize(sortedCurrent); ++i) {
+        if (!(*sortedBaseline[i] == *sortedCurrent[i])) {
             return TError("Job spec non-root volume params differ from the first job in this allocation")
                 << TErrorAttribute("volume_index", i)
-                << TErrorAttribute("baseline", Format("%v", baseline[i]))
-                << TErrorAttribute("current", Format("%v", current[i]));
+                << TErrorAttribute("baseline", Format("%v", sortedBaseline[i]))
+                << TErrorAttribute("current", Format("%v", sortedCurrent[i]));
         }
     }
     return {};
@@ -285,6 +296,7 @@ void TJobFSSecretary::ApplyDescription(TNonNullPtr<TJobFSDescription> descriptio
     DockerImage_ = std::move(description->DockerImage);
     RootVolumeDiskSpace_ = description->RootVolumeDiskSpace;
     RootVolumeInodeLimit_ = description->RootVolumeInodeLimit;
+    RootVolumeReusingAllowed_ = description->RootVolumeAllowReusing;
     NonRootVolumeParams_ = std::move(description->NonRootVolumeParams);
     JobVolumeMounts_ = std::move(description->JobVolumeMounts);
     SandboxNbdRootVolumeData_ = std::move(description->SandboxNbdRootVolumeData);
@@ -475,6 +487,9 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 for (const auto& layerKey : protoVolume.layers()) {
                     description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
                 }
+                // Root volume reuse is only supported in Porto environment.
+                description->RootVolumeAllowReusing = protoVolume.allow_reusing() &&
+                    Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
 
                 break;
             case TProtoMessage::kLocalDiskRequest: {
@@ -488,12 +503,18 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                     for (const auto& layerKey : protoVolume.layers()) {
                         description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
                     }
+                    // Root volume reuse is only supported in Porto environment.
+                    description->RootVolumeAllowReusing = protoVolume.allow_reusing() &&
+                        Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
                 } else {
                     auto localVolume = New<TLocalDiskVolumeParams>(volumeId, userId);
                     localVolume->Size = localDiskRequest.disk_request().storage_request_common_parameters().disk_space();
                     if (localDiskRequest.disk_request().has_inode_count()) {
                         localVolume->InodeLimit = localDiskRequest.disk_request().inode_count();
                     }
+                    // Volume reuse is only supported in Porto environment.
+                    localVolume->AllowReusing = protoVolume.allow_reusing() &&
+                        Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
 
                     for (const auto& layerKey : protoVolume.layers()) {
                         localVolume->LayerArtifactKeys.emplace_back(layerKey);
@@ -515,6 +536,9 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
             case TProtoMessage::kTmpfsStorageRequest: {
                 auto tmpfsVolume = New<TTmpfsVolumeParams>(volumeId, userId);
                 NExecNode::FromProto(tmpfsVolume.Get(), protoVolume.tmpfs_storage_request());
+                // Volume reuse is only supported in Porto environment.
+                tmpfsVolume->AllowReusing = protoVolume.allow_reusing() &&
+                    Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto;
 
                 for (const auto& layerKey : protoVolume.layers()) {
                     tmpfsVolume->LayerArtifactKeys.emplace_back(layerKey);
@@ -617,7 +641,13 @@ const IVolumePtr& TJobFSSecretary::GetRootVolume() const
 
 void TJobFSSecretary::SetRootVolume(IVolumePtr volume)
 {
-    YT_VERIFY(!std::exchange(RootVolume_, std::move(volume)));
+    // Allow setting the same volume (reuse case) or setting a new volume when none exists.
+    if (RootVolume_) {
+        // Root volume is being reused - verify it's the same volume.
+        YT_VERIFY(RootVolume_ == volume);
+    } else {
+        RootVolume_ = std::move(volume);
+    }
 }
 
 IVolumePtr TJobFSSecretary::ReleaseRootVolume()
@@ -663,26 +693,65 @@ const std::optional<TSandboxNbdRootVolumeData>& TJobFSSecretary::GetSandboxNbdRo
     return SandboxNbdRootVolumeData_;
 }
 
-const std::vector<TVolumeResultPtr>& TJobFSSecretary::GetNonRootVolumes() const
+const THashMap<std::string, TVolumeResultPtr>& TJobFSSecretary::GetNonRootVolumes() const
 {
     return NonRootVolumes_;
 }
 
-std::vector<TVolumeResultPtr> TJobFSSecretary::ReleaseNonRootVolumes()
+THashMap<std::string, TVolumeResultPtr> TJobFSSecretary::ReleaseNonReusableNonRootVolumes()
 {
-    YT_LOG_DEBUG("Releasing non-root volumes");
-    return std::move(NonRootVolumes_);
+    YT_LOG_DEBUG("Releasing non-reusable non-root volumes");
+
+    THashMap<std::string, TVolumeResultPtr> result;
+
+    for (auto& [volumeId, volume] : NonRootVolumes_) {
+        // Find the corresponding params to check if it's reusable.
+        auto paramsIt = std::find_if(
+            begin(NonRootVolumeParams_),
+            end(NonRootVolumeParams_),
+            [&volumeId = volumeId] (const TBaseVolumeParamsPtr& params) {
+                return params->VolumeId == volumeId;
+            });
+        YT_VERIFY(paramsIt != NonRootVolumeParams_.end());
+        bool isReusable = (*paramsIt)->AllowReusing;
+        if (!isReusable) {
+            result[volumeId] = std::move(volume);
+        }
+    }
+
+    for (const auto& [volumeId, _] : result) {
+        NonRootVolumes_.erase(volumeId);
+    }
+
+    return result;
 }
 
 void TJobFSSecretary::SetNonRootVolumes(std::vector<TVolumeResultPtr> volumes)
 {
-    NonRootVolumes_ = std::move(volumes);
+    // Add newly prepared volumes to the existing ones (which may contain reusable volumes).
+    for (auto& volume : volumes) {
+        InsertOrCrash(NonRootVolumes_, std::pair(volume->VolumeId, std::move(volume)));
+    }
+}
+
+std::vector<TBaseVolumeParamsPtr> TJobFSSecretary::GetNonRootVolumesToPrepare() const
+{
+    std::vector<TBaseVolumeParamsPtr> result;
+    result.reserve(size(NonRootVolumeParams_));
+    for (const auto& params : NonRootVolumeParams_) {
+        // Check if this volume is already prepared (reused from previous job).
+        if (!NonRootVolumes_.contains(params->VolumeId)) {
+            // Volume not yet prepared, needs preparation.
+            result.push_back(params);
+        }
+    }
+    return result;
 }
 
 size_t TJobFSSecretary::GetTmpfsVolumeCount() const
 {
     i64 tmpfsVolumeCount = 0;
-    for (const auto& volume : NonRootVolumes_) {
+    for (const auto& [volumeId, volume] : NonRootVolumes_) {
         if (volume->VolumeType == EVolumeType::Tmpfs) {
             ++tmpfsVolumeCount;
         }
@@ -709,6 +778,19 @@ const std::optional<int>& TJobFSSecretary::GetRootVolumeDiskSpace() const
 const std::optional<int64_t>& TJobFSSecretary::GetRootVolumeInodeLimit() const
 {
     return RootVolumeInodeLimit_;
+}
+
+bool TJobFSSecretary::IsRootVolumeReusable() const
+{
+    return RootVolumeReusingAllowed_;
+}
+
+IVolumePtr TJobFSSecretary::ReleaseRootVolumeIfNeeded()
+{
+    if (RootVolumeReusingAllowed_) {
+        return nullptr;
+    }
+    return std::move(RootVolume_);
 }
 
 const std::vector<TBaseVolumeParamsPtr>& TJobFSSecretary::GetNonRootVolumeParams() const
@@ -776,10 +858,24 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
 
     RootVolumeDiskQuotaEnabled_ = false;
     DockerImageId_.reset();
-    RootVolume_.Reset();
+    // Verify that root volume is reusable if it's still present.
+    // Non-reusable root volume should have been released via ReleaseRootVolumeIfNeeded().
+    YT_VERIFY(!RootVolume_ || RootVolumeReusingAllowed_);
     GpuCheckVolume_.Reset();
     NbdDeviceIds_.clear();
-    NonRootVolumes_.clear();
+
+    // Verify that all remaining non-root volumes are reusable.
+    // Non-reusable volumes should have been released via ReleaseNonReusableNonRootVolumes().
+    for (const auto& [volumeId, volume] : NonRootVolumes_) {
+        auto paramsIt = std::find_if(
+            NonRootVolumeParams_.begin(),
+            NonRootVolumeParams_.end(),
+            [&volumeId = volumeId] (const TBaseVolumeParamsPtr& params) {
+                return params->VolumeId == volumeId;
+            });
+        YT_VERIFY(paramsIt != NonRootVolumeParams_.end() && (*paramsIt)->AllowReusing);
+    }
+
     VirtualSandboxData_.reset();
     HasVirtualSandboxArtifacts_ = false;
 }

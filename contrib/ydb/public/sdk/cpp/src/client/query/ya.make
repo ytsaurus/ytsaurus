@@ -13,6 +13,7 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/impl/internal/retry
     contrib/ydb/public/sdk/cpp/src/client/common_client
     contrib/ydb/public/sdk/cpp/src/client/driver
+    contrib/ydb/public/sdk/cpp/src/client/metrics
     contrib/ydb/public/sdk/cpp/src/client/query/impl
     contrib/ydb/public/sdk/cpp/src/client/result
     contrib/ydb/public/sdk/cpp/src/client/types/operation

@@ -15,14 +15,16 @@ namespace NYT::NTabletNode {
 template <class TRequest>
 void TTabletAutomatonPart::RegisterMethod(
     TCallback<void(TRequest*)> callback,
-    const std::vector<TString>& aliases)
+    const std::vector<TString>& aliases,
+    bool exceptionsAreNormal)
 {
     NHydra::TCompositeAutomatonPart::RegisterMethod(
         BIND_NO_PROPAGATE(
             &TTabletAutomatonPart::MethodHandlerWithCodicilsImpl<TRequest>,
             Unretained(this),
             callback),
-        aliases);
+        aliases,
+        exceptionsAreNormal);
 }
 
 template <class TRequest>

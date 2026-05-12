@@ -397,12 +397,16 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
             }),
         mirroredTransactionsToReplicate.end());
 
+    YT_ASSERT(MirroringToSequoiaEnabled_ || mirroredTransactionsToReplicate.empty());
+
     return {
         .NonMirrored = asyncResults,
-        .Mirrored = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
-            Bootstrap_,
-            std::move(mirroredTransactionsToReplicate),
-            std::move(MirroredBoomerang_)),
+        .Mirrored = MirroringToSequoiaEnabled_
+            ? ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
+                Bootstrap_,
+                std::move(mirroredTransactionsToReplicate),
+                std::move(MirroredBoomerang_))
+            : OKFuture,
     };
 }
 

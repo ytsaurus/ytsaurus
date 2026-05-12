@@ -262,7 +262,7 @@ public:
             GetDataWeightCounter()->GetPending() / GetJobCounter()->GetPending());
         stat.RowCount = std::max(
             static_cast<i64>(1),
-            GetDataWeightCounter()->GetTotal() / GetJobCounter()->GetTotal());
+            GetRowCounter()->GetTotal() / GetJobCounter()->GetTotal());
         stat.MaxBlockSize = MaxBlockSize_;
 
         TChunkStripeStatisticsVector result;

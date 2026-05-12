@@ -43,6 +43,12 @@ class TestJobProber(YTEnvSetup):
 
     USE_PORTO = True
 
+    # TODO(krasovav): Remove once chroot is called for jobs in tests.
+    @pytest.fixture(autouse=True)
+    def wait_after_each_test(self):
+        yield
+        time.sleep(3)
+
     @authors("ignat")
     def test_abandon_job(self):
         create("table", "//tmp/t1")

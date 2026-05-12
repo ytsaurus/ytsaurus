@@ -181,53 +181,62 @@ class TestSequoiaInternals(YTEnvSetup):
         id = create("document", "//tmp/d")
         tt = get("//tmp", attributes=["id"])
         assert tt["d"].attributes["id"] == id
+        rsp = get(f"#{id}/@", attributes=["id", "effective_acl", "recursive_resource_usage"])
+        assert rsp["id"] == id
+        assert rsp["effective_acl"]
+        assert rsp["recursive_resource_usage"]["node_count"] == 1
 
-    @authors("h0pless")
+    @authors("danilalexeev")
     def test_get_recursive_limits(self):
-        # Test directory structure:
-        # root
-        # |-- level_1_string
-        # |-- level_1_map_0
-        # |   |-- level_2_map
-        # |   |   |-- level_3_map
-        # |   |   `-- level_3_string
-        # |   `-- level_2_string
-        # `-- level_1_map_1
-
         root = "//tmp/root"
-        create("map_node", f"{root}/level_1_map_0/level_2_map/level_3_map", recursive=True)
-        create("string_node", f"{root}/level_1_string")
-        create("string_node", f"{root}/level_1_map_0/level_2_string")
-        create("string_node", f"{root}/level_1_map_0/level_2_map/level_3_string")
-        create("map_node", f"{root}/level_1_map_1",)
-        set(f"{root}/level_1_string", "level_1_value")
-        set(f"{root}/level_1_map_0/level_2_string", "level_2_value")
-        set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
+        tree = {
+            "level_1_string": "level_1_value",
+            "level_1_map_0": {
+                "level_2_string": "level_2_value",
+                "level_2_map": {
+                    "level_3_string": "level_3_value",
+                    "level_3_map": {},
+                },
+            },
+            "level_1_map_1": {},
+        }
+        set(root, tree, recursive=True, force=True)
 
-        # First off, check that root node cannot appear opaque.
-        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": yson.YsonEntity(), "level_1_string": "level_1_value"}
+        # limit=1: root children always shown.
+        expected_result = {
+            "level_1_map_0": yson.YsonEntity(),
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
         sleep(0.5)
         assert get(root) == expected_result
 
-        # Now ensure that until the full layer of children can fit the limit we do not add anything to the response.
+        # For limits 2-5: level_1_map_0 is still opaque.
         for limit in range(2, 6):
             set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
             sleep(0.5)
             assert get(root) == expected_result
 
-        # A new layer should be added.
+        # limit=6: level_1_map_0's children now fit.
         expected_result = {
             "level_1_map_0": {"level_2_map": yson.YsonEntity(), "level_2_string": "level_2_value"},
-            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 6)
         sleep(0.5)
         assert get(root) == expected_result
 
-        # The whole tree should be fetched.
+        # Full tree.
         expected_result = {
-            "level_1_map_0": {"level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"}, "level_2_string": "level_2_value"},
-            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+            "level_1_map_0": {
+                "level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"},
+                "level_2_string": "level_2_value"
+            },
+            "level_1_map_1": {},
+            "level_1_string": "level_1_value"
+        }
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
         sleep(0.5)
         assert get(root) == expected_result
@@ -249,7 +258,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", f"{root}/child_1/grandchild_1")
         set(f"{root}/child_1/grandchild_1/@opaque", True)
 
-        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%true;>#;}'
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
         assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
 
         root_id = get(f"{root}/@id")
@@ -258,7 +267,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         expected_string = \
             f'<"id"="{root_id}";"opaque"=%false;>' \
-            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%true;>#;}}'
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
         assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
 
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
@@ -667,7 +676,8 @@ class TestSequoiaInternals(YTEnvSetup):
         write_table("//tmp/a/b/c", [{"x": "hello"}])
         create("table", "//tmp/a/b/d")
         write_table("//tmp/a/b/d", [{"x": "hello2"}])
-        set("//tmp/a/@annotation", "test")
+        annotation = "test"
+        set("//tmp/a/@annotation", annotation)
         for i in range(5):
             set(f"//tmp/a/{i}", i)
 
@@ -738,11 +748,13 @@ class TestSequoiaInternals(YTEnvSetup):
                 assert child.attributes["recursive_resource_usage"]["node_count"] == 3
                 assert child.attributes["resource_usage"]["node_count"] == 1
 
-        # TODO(grphil): Implement ls in attributes
-        # assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert exists("//tmp/a/@recursive_resource_usage/node_count")
+        assert not exists("//tmp/a/@recursive_resource_usage/non_existing")
 
-        # TODO(grphil): Implement attributes in get for non map node
-        # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
+        c_attr = get("//tmp/a/b/c", attributes=["recursive_resource_usage", "annotation"]).attributes
+        assert c_attr["recursive_resource_usage"]["node_count"] == 1
+        assert c_attr["annotation"] == annotation
 
     @authors("danilalexeev")
     def test_recursive_attributes_heavy(self):

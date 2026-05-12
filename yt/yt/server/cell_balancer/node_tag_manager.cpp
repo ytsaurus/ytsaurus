@@ -120,7 +120,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             std::ssize(nodeInfo->TabletSlots));
 
         if (NodeTracker_) {
-            NodeTracker_->RequestConfigUpdate(nodeAddress);
+            NodeTracker_->RequestConfigUpdate(nodeAddress, nodeTagFilter);
         }
 
         return false;
@@ -135,7 +135,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
             nodeInfo->Statistics->Memory->TabletStatic->Limit);
 
         if (NodeTracker_) {
-            NodeTracker_->RequestConfigUpdate(nodeAddress);
+            NodeTracker_->RequestConfigUpdate(nodeAddress, nodeTagFilter);
         }
 
         return false;

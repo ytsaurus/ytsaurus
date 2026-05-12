@@ -102,4 +102,15 @@ TSelectRowsOptions GetDefaultSelectRowsOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Invalidates the mount cache based on the provided error and returns the delay before the next retry.
+//! Rethrows the provided error if it is not retryable or if the retry limit is exceeded.
+TDuration InvalidateMountCacheAndGetRetryDelay(
+    const IClientPtr& client,
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    const NLogging::TLogger& logger,
+    const TError& error,
+    int* retryCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

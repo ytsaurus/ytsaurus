@@ -52,6 +52,7 @@ struct TScheduleAllocationRequest
     TJobResources NodeResourceLimits;
     TDiskResources NodeDiskResources;
     TScheduleAllocationSpec Spec;
+    std::optional<std::string> AllocationGroupName;
 };
 
 using TScheduleAllocationRequestPtr = std::unique_ptr<TScheduleAllocationRequest>;

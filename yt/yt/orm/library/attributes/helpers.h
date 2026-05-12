@@ -6,8 +6,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/core/yson/public.h>
-#include <yt/yt/core/yson/protobuf_interop_options.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
 namespace NYT::NOrm::NAttributes {
 
@@ -32,6 +31,13 @@ NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
     const TString& payload,
+    const NYson::TProtobufParserOptions& options = {});
+
+// Like ConvertProtobufToNode but works with any TProtobufElement, not just message/attribute dictionary elements.
+// Repeated, map, and any elements are not supported.
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const NYson::TProtobufElement& element,
+    const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////

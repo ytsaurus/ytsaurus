@@ -9,6 +9,8 @@ GENERATE_YT_RECORD(
 )
 
 SRCS(
+    proto/group_coordinator_api.proto
+
     bootstrap.cpp
     config.cpp
     connection.cpp
@@ -30,6 +32,8 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/program
     yt/yt/library/server_program
+
+    yt/yt_proto/yt/core
 
     library/cpp/getopt
     library/cpp/iterator

@@ -8,7 +8,8 @@ import yatest.common
 from yql_utils import execute, get_tables, get_files, get_http_files, get_table_clusters, \
     KSV_ATTR, yql_binary_path, is_xfail, is_canonize_peephole, is_peephole_use_blocks, is_canonize_lineage, \
     is_skip_forceblocks, get_param, normalize_source_code_path, replace_vals, get_gateway_cfg_suffix, \
-    do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues, get_langver
+    do_custom_query_check, stable_result_file, stable_table_file, is_with_final_result_issues, get_langver, \
+    get_gateway_cfg_patch
 from yqlrun import YQLRun
 
 from test_utils import get_config, get_parameters_json, get_case_file
@@ -91,6 +92,9 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     if langver is None:
         langver = DEFAULT_LANG_VER
 
+    patch_name = get_gateway_cfg_patch(config)
+    patch_cfg_file = os.path.join(DATA_PATH, suite, patch_name) if patch_name else None
+
     program_sql = get_case_file(DATA_PATH, suite, case)
     with codecs.open(program_sql, encoding='utf-8') as program_file_descr:
         sql_query = program_file_descr.read()
@@ -104,7 +108,8 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
 
         force_blocks = is_peephole_use_blocks(config)
         (res, tables_res) = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary, force_blocks=force_blocks,
-                                              extra_args=['--peephole'], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema)
+                                              extra_args=['--peephole'], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
+                                              patch_cfg_file=patch_cfg_file)
         return [yatest.common.canonical_file(res.opt_file, diff_tool=ASTDIFF_PATH)]
 
     if what == 'Lineage':
@@ -113,7 +118,8 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
             pytest.skip('no lineage canonization requested')
 
         (res, tables_res) = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
-                                              extra_args=['--lineage'], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema)
+                                              extra_args=['--lineage'], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
+                                              patch_cfg_file=patch_cfg_file)
         return [yatest.common.canonical_file(res.results_file)]
 
     if what == 'PartialTypeCheck':
@@ -121,14 +127,16 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
             pytest.skip('no partial typecheck test requested')
 
         (res, tables_res) = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
-                                              extra_args=["--compile-only","--test-partial-typecheck"], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema)
+                                              extra_args=["--compile-only","--test-partial-typecheck"], data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
+                                              patch_cfg_file=patch_cfg_file)
         return None
 
     extra_final_args = []
     if is_with_final_result_issues(config):
         extra_final_args += ['--with-final-issues']
     (res, tables_res) = run_file('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
-                                 extra_args=extra_final_args, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema)
+                                 extra_args=extra_final_args, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver, attr_postprocess=infer_yt_schema,
+                                 patch_cfg_file=patch_cfg_file)
 
     to_canonize = []
 
@@ -169,7 +177,8 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
             gateway_config=get_gateways_config(http_files, yql_http_file_server, postprocess_func=cfg_postprocess),
             binary=ytfilerun_binary,
             udfs_dir=yql_binary_path('yql/essentials/tests/common/test_framework/udfs_deps'),
-            langver=langver
+            langver=langver,
+            patch_cfg_file=patch_cfg_file,
         )
 
         opt_res, opt_tables_res = execute(
@@ -210,7 +219,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
 
         blocks_res, blocks_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
                                                           force_blocks=True, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver,
-                                                          attr_postprocess=infer_yt_schema)
+                                                          attr_postprocess=infer_yt_schema, patch_cfg_file=patch_cfg_file)
 
         check_result(sql_query, expected=(res, tables_res), actual=(blocks_res, blocks_tables_res))
         return None
@@ -218,8 +227,8 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     if what == 'AutoYqlSelect':
         yql_select_res, yql_select_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=ytfilerun_binary,
                                                                   force_blocks=True, data_path=DATA_PATH, cfg_postprocess=cfg_postprocess, langver=langver,
-                                                                  attr_postprocess=infer_yt_schema,
-                                                                  is_yql_select=True)
+                                                                  attr_postprocess=infer_yt_schema, is_yql_select=True,
+                                                                  patch_cfg_file=patch_cfg_file)
 
         check_result(sql_query, expected=(res, tables_res), actual=(yql_select_res, yql_select_tables_res))
         return None

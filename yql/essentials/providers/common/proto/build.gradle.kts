@@ -21,6 +21,8 @@ dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yql:essentials:protos"))
     api(project(":yql:essentials:utils:fetch:proto"))
+    api(project(":yql:essentials:minikql:runtime_settings:proto"))
+    api(project(":yql:essentials:providers:common:proto:activation"))
 
     protobuf(files(buildProtoDir))
 }

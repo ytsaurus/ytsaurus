@@ -3126,11 +3126,8 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs_);
     PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings_);
 
-    registrar.template VirtualField<36>("IntermediateChunkSchema_", [] (TThis* this_, auto& context) {
-        NYT::Load(context, *this_->IntermediateChunkSchema_);
-    }, [] (const TThis* this_, auto& context) {
-        NYT::Save(context, *this_->IntermediateChunkSchema_);
-    })();
+    PHOENIX_REGISTER_FIELD(36, IntermediateChunkSchema_,
+        .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(37, IntermediateStreamSchemas_,
         .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>());
 

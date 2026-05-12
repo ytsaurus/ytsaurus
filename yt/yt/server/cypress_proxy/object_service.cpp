@@ -5,7 +5,6 @@
 #include "actions.h"
 #include "bootstrap.h"
 #include "ban_service.h"
-#include "config.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -17,6 +16,8 @@
 #include "sequoia_session.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -120,7 +121,7 @@ public:
         return Bootstrap_->GetMasterConnector()->IsUp();
     }
 
-    const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
+    TObjectServiceDynamicConfigPtr GetDynamicConfig() const
     {
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
@@ -301,6 +302,7 @@ public:
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
+        , DynamicConfig_(Owner_->GetDynamicConfig())
         , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
@@ -361,6 +363,8 @@ private:
     };
     std::vector<TSubrequest> Subrequests_;
 
+    const TObjectServiceDynamicConfigPtr DynamicConfig_;
+
     const NLogging::TLogger Logger;
 
     void GuardedRun()
@@ -368,7 +372,7 @@ private:
         ValidateUserNotBanned();
         ParseSubrequests();
 
-        if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
+        if (!DynamicConfig_->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
         } else {
@@ -612,7 +616,7 @@ private:
                 NObjectServer::ComputeForwardingTimeout(
                     *RpcContext_->GetTimeout(),
                     RpcContext_->GetStartTime(),
-                    Owner_->GetDynamicConfig()->ForwardedRequestTimeoutReserve));
+                    DynamicConfig_->ForwardedRequestTimeoutReserve));
         }
 
         // Copy some header extensions.

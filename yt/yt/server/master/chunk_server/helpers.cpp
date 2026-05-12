@@ -137,13 +137,16 @@ std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk)
     };
 
     auto parentCount = GetParentCount(chunk);
-    if (parentCount == 0) {
-        THROW_ERROR_EXCEPTION("Journal chunk %v has zero parents",
-            chunk->GetId());
-    }
 
     TChunkList* chunkList;
-    if (parentCount == 1) {
+    if (parentCount == 0) {
+        // Distributed chunk sessions do not have parents.
+        THROW_ERROR_EXCEPTION_IF(
+            chunk->GetChunkFormat() != EChunkFormat::JournalDistributed,
+            "Journal chunk %v has zero parents",
+            chunk->GetId());
+        chunkList = nullptr;
+    } else if (parentCount == 1) {
         chunkList = GetUniqueParent(chunk)->AsChunkList();
 
         if (isHunkChunkList(chunkList)) {
@@ -1225,20 +1228,34 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
     return mergedChunkViews;
 }
 
-std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
+std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
+    const TChunk* chunk,
+    TRange<TAugmentedStoredChunkReplicaPtr> chunkReplicas)
 {
     if (!chunk->IsJournal()) {
         YT_LOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
-    for (auto replica : chunk->GetStoredReplicaList(/*includeOffline*/ false)) {
+    for (auto replica : chunkReplicas) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
         }
+        auto* location = locationReplica->AsChunkLocationPtr();
+        if (!IsObjectAlive(location)) {
+            YT_LOG_ALERT("Replica from non alive location is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
+                chunk->GetId());
+            continue;
+        }
+        auto node = location->GetNode();
+        if (!IsObjectAlive(node)) {
+            YT_LOG_ALERT("Replica from non alive node is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
+                chunk->GetId());
+            continue;
+        }
         replicas.push_back({
-            locationReplica->AsChunkLocationPtr()->GetNode()->GetDescriptor(),
+            node->GetDescriptor(),
             replica.GetReplicaIndex(),
             replica.GetEffectiveMediumIndex(),
         });
@@ -1295,9 +1312,18 @@ void SerializeLocationIndexes(
     }
 }
 
-int GetChunkShardIndex(TChunkId chunkId)
+i8 GetChunkShardIndex(TChunkId chunkId)
 {
     return GetShardIndex<ChunkShardCount>(chunkId);
+}
+
+NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId)
+{
+    return NRecords::TChunkReplicasKey{
+        .CellTag = CellTagFromId(chunkId),
+        .ShardIndex = GetChunkShardIndex(chunkId),
+        .ChunkId = chunkId,
+    };
 }
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now)
@@ -1394,6 +1420,23 @@ void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chu
     }
 
     ValidateFromProto(chunkMeta);
+}
+
+EChunkReplicaState GetAddedChunkReplicaState(
+    TChunkId chunkId,
+    const NChunkClient::NProto::TChunkAddInfo& chunkAddInfo)
+{
+    if (IsJournalChunkId(chunkId)) {
+        if (chunkAddInfo.active()) {
+            return EChunkReplicaState::Active;
+        } else if (chunkAddInfo.sealed()) {
+            return EChunkReplicaState::Sealed;
+        } else {
+            return EChunkReplicaState::Unsealed;
+        }
+    } else {
+        return EChunkReplicaState::Generic;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

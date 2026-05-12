@@ -1046,6 +1046,47 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get(f"#{action_id}/@state") == "completed")
         assert get("//tmp/t/@unflushed_timestamp") == min(unflushed_timestamps)
 
+    @authors("alexelexa")
+    def test_logical_mount_revision(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        tablet_id = tablet["tablet_id"]
+        old_mount_revision = tablet["mount_revision"]
+        old_logical_mount_revision = tablet["logical_mount_revision"]
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "tablet_ids": [tablet_id],
+                "cell_ids": [cell_ids[1]],
+            },
+        )
+
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        tablet = get("//tmp/t/@tablets/0")
+        new_mount_revision = tablet["mount_revision"]
+        new_logical_mount_revision = tablet["logical_mount_revision"]
+
+        assert old_mount_revision < new_mount_revision
+        assert old_mount_revision == old_logical_mount_revision
+        assert old_logical_mount_revision != new_logical_mount_revision
+        assert new_mount_revision == new_logical_mount_revision
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        tablet = get("//tmp/t/@tablets/0")
+        assert new_logical_mount_revision < tablet["logical_mount_revision"]
+        assert tablet["logical_mount_revision"] == tablet["mount_revision"]
+
+
 ##################################################################
 
 

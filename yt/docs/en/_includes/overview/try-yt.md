@@ -117,7 +117,7 @@ Regardless of the installation method, the required system components will be de
   1. [Start the {{product-name}} cluster](#yt-start)
   1. [Check network access](#set-url)
 
-  {% note "info" %}
+  {% note info %}
 
   For a more detailed description of the installation process, watch [this webinar](https://www.youtube.com/watch?v=LTKtY5okG4c).
 

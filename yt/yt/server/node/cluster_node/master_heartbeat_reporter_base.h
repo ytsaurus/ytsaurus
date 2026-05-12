@@ -28,6 +28,7 @@ public:
     void Initialize();
     void StartNodeHeartbeats();
     void ScheduleOutOfBandMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags);
+    TFuture<std::vector<TError>> GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags);
     void Reconfigure(const NConcurrency::TRetryingPeriodicExecutorOptions& options);
 
 protected:

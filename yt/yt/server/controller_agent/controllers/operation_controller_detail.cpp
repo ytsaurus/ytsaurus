@@ -834,7 +834,7 @@ void TOperationControllerBase::ValidateOutputTablePaths() const
 {
     for (const auto& path : GetOutputTablePaths()) {
         if (auto clusterName = ClusterResolver_->GetClusterName(path); !IsLocal(clusterName)) {
-            auto localClusterName = ClusterResolver_->GetLocalClusterName().value_or("unknown");
+            auto localClusterName = ClusterResolver_->GetLocalClusterName();
             THROW_ERROR_EXCEPTION("Output table must be on the same cluster as operation")
                 << TErrorAttribute("table_cluster_name", path.GetCluster())
                 << TErrorAttribute("operation_cluster_name", localClusterName);
@@ -4964,6 +4964,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
                 YT_ABORT();
             }
         });
+
+    jobSpecExt->set_estimated_job_proxy_memory(
+        joblet->EstimatedResourceUsage.GetFootprintMemory() + joblet->EstimatedResourceUsage.GetJobProxyMemory());
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -5093,6 +5096,10 @@ void TOperationControllerBase::TryScheduleFirstJob(
             break;
         }
 
+        if (context.GetRequestedTaskName() && task->GetVertexDescriptor() != *context.GetRequestedTaskName()) {
+            continue;
+        }
+
         if (auto failReason = TryScheduleJob(allocation, *task, context, scheduleLocalJob, std::nullopt)) {
             if (*failReason == EScheduleFailReason::NoPendingJobs) {
                 continue;
@@ -5110,8 +5117,7 @@ void TOperationControllerBase::TryScheduleFirstJob(
                 allocation.TreeId,
                 task->GetJobType(),
                 /*isJobFirst*/ true,
-                /*isLocal*/ scheduleLocalJob
-            );
+                /*isLocal*/ scheduleLocalJob);
 
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
@@ -5185,8 +5191,7 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
         allocation.TreeId,
         allocation.Task->GetJobType(),
         /*isJobFirst*/ false,
-        /*isLocal*/ scheduleLocalJob
-    );
+        /*isLocal*/ scheduleLocalJob);
 
     return std::nullopt;
 }
@@ -8189,6 +8194,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 if (diskRequest->Account) {
                     accounts.insert(*diskRequest->Account);
                 }
+
+                if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Nbd) {
+                    // Allow only NBD media.
+                    if (!Config_->NbdMedia.contains(mediumName)) {
+                        THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
+                            << TErrorAttribute("medium_name", mediumName);
+                    }
+                }
             }
         }
     }
@@ -9309,12 +9322,12 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.Progress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildProgress, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildProgress, this))
         .Finish();
 
     result.BriefProgress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildBriefProgress, this))
         .Finish();
 
     result.Alerts =
@@ -9330,7 +9343,7 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildJobsYson, this))
         .Finish();
 
     result.MemoryUsage = GetMemoryUsage();
@@ -11306,11 +11319,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .template Serializer<TUniquePtrSerializer<>>());
     PHOENIX_REGISTER_FIELD(45, DataFlowGraph_);
     // COMPAT(galtsev)
-    registrar.template VirtualField<46>("LivePreviews_", [] (TThis* this_, auto& context) {
-        NYT::Load(context, *this_->LivePreviews_);
-    }, [] (const TThis* this_, auto& context) {
-        NYT::Save(context, *this_->LivePreviews_);
-    })();
+    PHOENIX_REGISTER_FIELD(46, LivePreviews_,
+        .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_);
     PHOENIX_REGISTER_FIELD(48, BannedNodeIds_);
     PHOENIX_REGISTER_FIELD(49, PathToOutputTable_);

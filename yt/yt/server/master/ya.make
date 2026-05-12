@@ -129,7 +129,6 @@ SRCS(
     chunk_server/dynamic_store_proxy.cpp
     chunk_server/dynamic_store_type_handler.cpp
     chunk_server/dynamic_store.cpp
-    chunk_server/global_sequoia_chunk_refresher.cpp
     chunk_server/helpers.cpp
     chunk_server/job_controller.cpp
     chunk_server/job_registry.cpp
@@ -152,6 +151,7 @@ SRCS(
     chunk_server/s3_medium_proxy.cpp
     chunk_server/s3_medium_type_handler.cpp
     chunk_server/s3_medium.cpp
+    chunk_server/sequoia_chunk_refresher.cpp
     chunk_server/sequoia_replicas_modifier.cpp
     chunk_server/stored_chunk_replica.cpp
 
@@ -452,6 +452,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/server_program
     yt/yt/library/monitoring
+    yt/yt/library/tracing/jaeger
 
     yt/yt/ytlib/distributed_throttler
 
@@ -459,20 +460,21 @@ PEERDIR(
     yt/yt/server/lib/cell_server
     yt/yt/server/lib/cellar_agent
     yt/yt/server/lib/chunk_server
+    yt/yt/server/lib/cypress_proxy
     yt/yt/server/lib/discovery_server
     yt/yt/server/lib/hive
-    yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/hydra
+    yt/yt/server/lib/hydra/dry_run
     yt/yt/server/lib/incumbent_client
     yt/yt/server/lib/node_tracker_server
     yt/yt/server/lib/object_server
     yt/yt/server/lib/security_server
+    yt/yt/server/lib/sequoia
     yt/yt/server/lib/table_server
     yt/yt/server/lib/tablet_balancer
     yt/yt/server/lib/tablet_server
     yt/yt/server/lib/timestamp_server
     yt/yt/server/lib/transaction_supervisor
-    yt/yt/server/lib/sequoia
 
     # TODO(max42): eliminate.
     yt/yt/server/lib/scheduler

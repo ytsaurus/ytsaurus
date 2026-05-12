@@ -2,7 +2,6 @@
 
 #include "private.h"
 
-#include "config.h"
 #include "cypress_transaction_service.h"
 #include "dynamic_config_manager.h"
 #include "master_connector.h"
@@ -14,6 +13,8 @@
 #include "user_directory_synchronizer.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
@@ -200,15 +201,16 @@ public:
         NProfiling::TProfiler profiler) const override
     {
         auto selfAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
+        auto selfAddressCopy = selfAddress;
         return NDistributedThrottler::CreateDistributedThrottlerFactory(
             std::move(config),
             NativeConnection_->GetChannelFactory(),
             NativeConnection_,
             std::move(invoker),
             NYPath::TYPath(groupId),
-            selfAddress,
-            RpcServer_,
             std::move(selfAddress),
+            RpcServer_,
+            std::move(selfAddressCopy),
             std::move(logger),
             NativeAuthenticator_,
             profiler);

@@ -43,6 +43,7 @@
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/helpers.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
@@ -50,6 +51,8 @@
 #include <yt/yt/server/lib/lease_server/helpers.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
+
+#include <yt/yt/server/lib/tablet_balancer/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -3535,7 +3538,7 @@ private:
             ? std::make_optional(ETableReplicaMode(request->mode()))
             : std::nullopt;
         if (mode && !IsStableReplicaMode(*mode)) {
-            THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
+            THROW_ERROR WrapHydraError(TError("Invalid replica mode %Qlv", *mode));
         }
 
         auto atomicity = request->has_atomicity()
@@ -3977,7 +3980,13 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto newReplicationEra = FromProto<TReplicationEra>(request->new_replication_era());
 
-        auto* tablet = GetTabletOrThrow(tabletId);
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            YT_LOG_DEBUG("Tablet is missing during advancement of replication era (TabletId: %v, NewReplicationEra: %v)",
+                tabletId,
+                newReplicationEra);
+            return;
+        }
         if (auto era = tablet->RuntimeData()->ReplicationEra.load();
             era == InvalidReplicationEra || era < newReplicationEra)
         {
@@ -5082,6 +5091,11 @@ private:
             }
         }
 
+        // COMPAT(navasardianna): EMasterReign::SendTableTabletBalancerConfigToTablet.
+        auto tabletBalancerConfig = tableSettings.has_tablet_balancer_config()
+            ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.tablet_balancer_config()))
+            : GetEphemeralNodeFactory()->CreateMap();
+
         TRawTableSettings settings{
             .Provided = {
                 .MountConfigNode = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
@@ -5097,7 +5111,8 @@ private:
                 .HunkWriterConfig = DeserializeTabletHunkWriterConfig(
                     TYsonString(tableSettings.hunk_writer_config()), tabletId),
                 .HunkWriterOptions = DeserializeTabletHunkWriterOptions(
-                    TYsonString(tableSettings.hunk_writer_options()), tabletId)
+                    TYsonString(tableSettings.hunk_writer_options()), tabletId),
+                .TabletBalancerConfig = tabletBalancerConfig,
             },
             // COMPAT(ifsmirnov)
             .GlobalPatch = tableSettings.has_global_patch()
@@ -5128,6 +5143,12 @@ private:
         ToProto(request->mutable_store_writer_options(), ConvertToYsonString(provided.StoreWriterOptions));
         ToProto(request->mutable_hunk_writer_config(), ConvertToYsonString(provided.HunkWriterConfig));
         ToProto(request->mutable_hunk_writer_options(), ConvertToYsonString(provided.HunkWriterOptions));
+
+        // COMPAT(navasardianna)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >= ETabletReign::SendTableTabletBalancerConfigToTablet) {
+            ToProto(request->mutable_tablet_balancer_config(), ConvertToYsonString(provided.TabletBalancerConfig));
+        }
+
         ToProto(request->mutable_global_patch(), ConvertToYsonString(settings.GlobalPatch));
         ToProto(request->mutable_experiments(), ConvertToYsonString(settings.Experiments));
     }

@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "dynamic_config_manager.h"
+#include "group_coordinator.h"
 #include "private.h"
 #include "request_handler.h"
 #include "server.h"
@@ -256,10 +257,13 @@ private:
             Poller_,
             NativeRootClient_);
 
+        auto groupCoordinatorManager = CreateGroupCoordinatorManager();
+
         RequestHandler_ = CreateRequestHandler(
             Config_,
             NativeConnection_,
-            AuthenticationManager_);
+            AuthenticationManager_,
+            groupCoordinatorManager);
 
         Server_ = CreateServer(
             Config_,

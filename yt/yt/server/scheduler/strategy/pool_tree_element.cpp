@@ -1205,7 +1205,7 @@ TYPath TPoolTreeCompositeElement::GetFullPath(bool explicitOnly, bool withTreeId
     }
     for (const auto& token : tokens) {
         path.append('/');
-        path.append(NYPath::ToYPathLiteral(token));
+        path.append(TStringBuf(NYPath::ToYPathLiteral(token)));
     }
     return path;
 }
@@ -2173,7 +2173,8 @@ void TPoolTreeOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const {
+std::optional<TInstant> TPoolTreeOperationElement::GetStarvingSince() const
+{
     return PersistentAttributes_.StarvingSince;
 }
 
@@ -2292,9 +2293,9 @@ bool TPoolTreeOperationElement::IsMaxConcurrentScheduleAllocationExecDurationPer
     return Controller_->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(schedulingHeartbeatContext);
 }
 
-bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const
+bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
-    return Controller_->HasRecentScheduleAllocationFailure(now);
+    return Controller_->HasRecentScheduleAllocationFailure(schedulingHeartbeatContext, ScheduleAllocationBackoffCheckEnabled_);
 }
 
 bool TPoolTreeOperationElement::IsSaturatedInTentativeTree(
@@ -2310,7 +2311,8 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const std::string& treeId)
+    const std::string& treeId,
+    std::optional<std::string> allocationGroupName)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2319,15 +2321,16 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
         timeLimit,
         treeId,
         GetParent()->GetFullPath(/*explicitOnly*/ false),
-        EffectiveWaitingForResourcesOnNodeTimeout_);
+        EffectiveWaitingForResourcesOnNodeTimeout_,
+        std::move(allocationGroupName));
 }
 
 void TPoolTreeOperationElement::OnScheduleAllocationFailed(
-    TCpuInstant now,
+    const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
-    Controller_->OnScheduleAllocationFailed(now, treeId, scheduleAllocationResult);
+    Controller_->OnScheduleAllocationFailed(schedulingHeartbeatContext, treeId, scheduleAllocationResult);
 }
 
 void TPoolTreeOperationElement::AbortAllocation(
@@ -2372,9 +2375,14 @@ void TPoolTreeOperationElement::DecreaseHierarchicalResourceUsagePrecommit(const
     TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
 }
 
-void TPoolTreeOperationElement::CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources)
+void TPoolTreeOperationElement::CommitHierarchicalResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
-    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
+    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(
+        ResourceTreeElement_,
+        resourceUsageDelta,
+        precommittedResources);
 }
 
 void TPoolTreeOperationElement::ReleaseResources(bool markAsNonAlive)
@@ -2390,9 +2398,14 @@ EResourceTreeIncreasePreemptedResult TPoolTreeOperationElement::TryIncreaseHiera
         violatedIdOutput);
 }
 
-bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta)
+bool TPoolTreeOperationElement::CommitHierarchicalPreemptedResourceUsage(
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
-    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(ResourceTreeElement_, delta);
+    return TreeElementHost_->GetResourceTree()->CommitHierarchicalPreemptedResourceUsage(
+        ResourceTreeElement_,
+        resourceUsageDelta,
+        precommittedResources);
 }
 
 void TPoolTreeOperationElement::InitializeResourceUsageAndDemand()

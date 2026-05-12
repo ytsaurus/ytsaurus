@@ -278,26 +278,13 @@ TTableReplicaInfoPtr PickRandomReplica(
 TClient::TReplicaFallbackInfo TClient::GetReplicaFallbackInfo(
     const TTableReplicaInfoPtrList& replicas)
 {
-    auto replicaInfo = PickRandomReplica(replicas);
+    TTableReplicaInfoPtr replicaInfo = PickRandomReplica(replicas);
     return {
         .Client = GetOrCreateReplicaClient(replicaInfo->ClusterName),
+        .ClusterName = replicaInfo->ClusterName,
         .Path = replicaInfo->ReplicaPath,
         .ReplicaId = replicaInfo->ReplicaId
     };
-}
-
-NApi::NNative::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const std::string& clusterName)
-{
-    const auto& clusterDirectory = Connection_->GetClusterDirectory();
-    auto replicaConnection = clusterDirectory->FindConnection(clusterName);
-    if (replicaConnection) {
-        return replicaConnection;
-    }
-
-    WaitFor(Connection_->GetClusterDirectorySynchronizer()->Sync())
-        .ThrowOnError();
-
-    return clusterDirectory->GetConnectionOrThrow(clusterName);
 }
 
 bool TClient::TReplicaClient::IsTerminated() const
@@ -352,7 +339,11 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const std::string& clusterNam
     }
 
     auto asyncClient = BIND([this, replicaClient, clusterName, this_ = MakeStrong(this)] {
-        auto connection = GetReplicaConnectionOrThrow(clusterName);
+        auto connection = WaitFor(InsistentGetRemoteConnection(
+            Connection_,
+            clusterName,
+            EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync))
+            .ValueOrThrow();
 
         auto guard = WriterGuard(replicaClient->Lock);
         replicaClient->Client = connection->CreateNativeClient(Options_);

@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import require, generate_uuid, update, get_value
+from .common import require, generate_uuid, update, get_value, hide_secure_vault
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
 from .default_config import DefaultConfigRetriesType
 from .errors import create_response_error, YtError
@@ -460,7 +460,7 @@ def make_request(
 
     request_id = generate_uuid(get_option("_random_generator", client))
 
-    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), request_id)
+    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(hide_secure_vault(params)), request_id)
 
     driver_user_name = get_config(client)["driver_user_name"]
     if driver_user_name is not None:

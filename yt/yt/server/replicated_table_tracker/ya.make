@@ -12,12 +12,12 @@ SRCS(
 
 PEERDIR(
     yt/yt/server/lib/admin
-    yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/hydra
     yt/yt/server/lib/misc
     yt/yt/server/lib/tablet_server
 
+    yt/yt/library/cypress_election
     yt/yt/library/dynamic_config
     yt/yt/library/monitoring
     yt/yt/library/orchid

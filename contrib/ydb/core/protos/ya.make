@@ -106,6 +106,7 @@ SRCS(
     labeled_counters.proto
     load_test.proto
     local.proto
+    long_tx_service_config.proto
     long_tx_service.proto
     maintenance.proto
     memory_controller_config.proto
@@ -124,6 +125,9 @@ SRCS(
     node_whiteboard.proto
     pdiskfit.proto
     pqconfig.proto
+    pqdata_mlp.proto
+    pqdata_transaction.proto
+    pqevents_global.proto
     profiler.proto
     query_stats.proto
     recoveryshard_config.proto
@@ -199,7 +203,6 @@ PEERDIR(
     contrib/ydb/public/api/protos
     contrib/ydb/public/api/protos/annotations
     yql/essentials/core/file_storage/proto
-    yql/essentials/core/issue/protos
     yql/essentials/providers/common/proto
     yql/essentials/public/issue/protos
     yql/essentials/public/types

@@ -314,6 +314,9 @@ struct TDynamicDataNodeTrackerConfig
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
     bool ValidateSequoiaReplicas;
+    bool ValidateMasterReplicas;
+    // COMPAT(grphil)
+    bool IgnoreReplicasWithChangedStateDuringValidation;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
@@ -529,6 +532,7 @@ struct TDynamicSequoiaChunkReplicasConfig
     bool EnableSequoiaChunkRefresh;
     TDuration SequoiaChunkRefreshPeriod;
     int SequoiaChunkCountToFetchFromRefreshQueue;
+    int MaxUnsuccessfulSequoiaChunkRefreshIterations;
 
     bool UseLocationReplacementForLocationFullHeartbeat;
 
@@ -551,6 +555,12 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
 
     bool FixSequoiaReplicasIfReplicaValidationFailed;
+
+    bool EnableLocationRefresh;
+    TDuration LocationRefreshPeriod;
+    int MaxConcurrentLocationsToRefresh;
+    int MaxLocationsAwaitingRefresh;
+    int MaxUnsuccessfulLocationRefreshAttempts;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -654,6 +664,9 @@ struct TDynamicChunkManagerConfig
     //! (where the chunk will be put).
     int MaxRunningReplicationJobsPerTargetNode;
 
+    // Alerts if number of unsuccessful schedule seal job per chunk replica exceeds this value.
+    int MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica;
+
     //! If set to false, fully disables background chunk refresh.
     //! Only use during bulk node restarts to save leaders' CPU.
     //! Don't forget to turn it on afterwards.
@@ -714,6 +727,8 @@ struct TDynamicChunkManagerConfig
     int MaxChunksPerSeal;
     //! Maximum number of chunks that can be sealed concurrently.
     int MaxConcurrentChunkSeals;
+    // Alert if the number of chunk seal attempts reaches that number.
+    int MaxUnsuccessfulSealAttempts;
 
     //! Maximum number of chunks to report per single fetch request.
     int MaxChunksPerFetch;
@@ -833,8 +848,11 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
-    // COMPAT(grphil)
     bool AlwaysFetchNonOnlineReplicas;
+
+    // COMPAT(grphil)
+    bool RefreshNodeOnRegistered;
+    bool RefreshNodeOnOnline;
 
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;

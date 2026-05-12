@@ -22,6 +22,8 @@ SRCS(
 
 PEERDIR(
     contrib/ydb/core/kqp/common
+    contrib/ydb/core/kqp/opt/cbo
+    contrib/ydb/core/kqp/opt/cbo/solver
     contrib/ydb/core/kqp/opt/logical
     contrib/ydb/core/kqp/opt/peephole
     contrib/ydb/core/kqp/opt/physical
@@ -41,3 +43,7 @@ YQL_LAST_ABI_VERSION()
 GENERATE_ENUM_SERIALIZATION(kqp_query_plan.h)
 
 END()
+
+RECURSE(
+    cbo
+)

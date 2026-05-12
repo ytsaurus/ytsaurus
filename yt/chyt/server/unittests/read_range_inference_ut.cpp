@@ -212,8 +212,8 @@ TEST_P(TQueryTreeConverterTest, Simple)
 
     auto context = CreateQueryContext();
 
-    auto compositeSettings = TCompositeSettings::Create(true);
-    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, compositeSettings));
+    auto conversionSettings = TConversionSettings::Create(TCompositeSettings::Create(true));
+    auto columns = DB::ColumnsDescription(ToNamesAndTypesList(*schema, conversionSettings));
     auto storage = std::make_shared<DB::StorageDummy>(DB::StorageID{"YT", "test"}, columns);
 
     auto tableNode = std::make_shared<DB::TableNode>(storage, context);
@@ -229,7 +229,7 @@ TEST_P(TQueryTreeConverterTest, Simple)
     DB::QueryAnalysisPass queryAnalysisPass(tableNode);
     queryAnalysisPass.run(queryTree, context);
 
-    auto expr = ConvertToConstExpression(std::move(queryTree), schema, compositeSettings);
+    auto expr = ConvertToConstExpression(std::move(queryTree), schema, conversionSettings);
     ASSERT_TRUE(expr != nullptr);
 
     EXPECT_TRUE(Equal(expr, expected))

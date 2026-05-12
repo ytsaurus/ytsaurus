@@ -692,7 +692,7 @@ protected:
             }
 
             case EMasterConnectorState::Online: {
-                auto future = InvokeIncrementalHeartbeatRequest(cellTag);
+                auto future = InvokeIncrementalHeartbeatRequest(cellTag, /*chunkMapGuard*/ std::nullopt);
                 variantResult = future;
                 EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
                 return future.AsVoid();
@@ -1419,7 +1419,7 @@ private:
 
         auto locationChunks = Bootstrap_
             ->GetChunkStore()
-            ->GetPerLocationChunksUnsafe(std::move(guard));
+            ->GetPerLocationChunksUnsafe(guard);
 
         // Context switch is not allowed, as it may break synchronization.
         auto heartbeatRequests = BuildLocationFullHeartbeatRequests(
@@ -1429,7 +1429,7 @@ private:
             /*validation*/ true,
            locationChunks);
 
-        return InvokeIncrementalHeartbeatRequest(cellTag)
+        return InvokeIncrementalHeartbeatRequest(cellTag, std::move(guard))
             .AsUnique()
             .Apply(BIND([=, heartbeatRequests = std::move(heartbeatRequests), this, this_ = MakeStrong(this)] (
                 TErrorOr<TDataNodeRspIncrementalHeartbeat>&& result)
@@ -1461,7 +1461,8 @@ private:
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
-        TCellTag cellTag)
+        TCellTag cellTag,
+        std::optional<NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>> chunkMapGuard)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -1472,6 +1473,11 @@ private:
         auto nodeId = Bootstrap_->GetNodeId();
 
         auto req = BuildIncrementalHeartbeatRequest(std::move(proxy), nodeId, cellTag);
+
+        // For validation heartbeats chunk modifications can be enabled after request is built.
+        if (chunkMapGuard) {
+            chunkMapGuard.reset();
+        }
 
         YT_LOG_INFO("Sending incremental data node heartbeat to master (CellTag: %v, %v)",
             cellTag,

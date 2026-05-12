@@ -36,11 +36,14 @@ target_link_libraries(cpp-mapreduce-common PUBLIC
   cpp-yson-node
   cpp-mapreduce-interface
   mapreduce-interface-logging
+  yt-yt-core
 )
 
 target_sources(cpp-mapreduce-common PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/expected_error_guard.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/abortable_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/debug_metrics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/expected_error_guard.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/halting_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/retry_lib.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/wait_proxy.cpp

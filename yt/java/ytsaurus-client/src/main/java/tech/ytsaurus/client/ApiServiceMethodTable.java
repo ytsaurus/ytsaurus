@@ -16,6 +16,7 @@ import tech.ytsaurus.rpcproxy.TReqAdvanceQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqAlterQuery;
 import tech.ytsaurus.rpcproxy.TReqAlterTable;
 import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
+import tech.ytsaurus.rpcproxy.TReqAttachTransaction;
 import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
 import tech.ytsaurus.rpcproxy.TReqCheckClusterLiveness;
 import tech.ytsaurus.rpcproxy.TReqCheckPermission;
@@ -104,6 +105,7 @@ import tech.ytsaurus.rpcproxy.TRspAdvanceQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspAlterQuery;
 import tech.ytsaurus.rpcproxy.TRspAlterTable;
 import tech.ytsaurus.rpcproxy.TRspAlterTableReplica;
+import tech.ytsaurus.rpcproxy.TRspAttachTransaction;
 import tech.ytsaurus.rpcproxy.TRspBuildSnapshot;
 import tech.ytsaurus.rpcproxy.TRspCheckClusterLiveness;
 import tech.ytsaurus.rpcproxy.TRspCheckPermission;
@@ -189,6 +191,9 @@ import tech.ytsaurus.rpcproxy.TRspWriteTableFragment;
 public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqStartTransaction.Builder, TRspStartTransaction> START_TRANSACTION =
             apiServiceMethod("StartTransaction", TReqStartTransaction::newBuilder, TRspStartTransaction.parser());
+
+    public static final RpcMethodDescriptor<TReqAttachTransaction.Builder, TRspAttachTransaction> ATTACH_TRANSACTION =
+            apiServiceMethod("AttachTransaction", TReqAttachTransaction::newBuilder, TRspAttachTransaction.parser());
 
     public static final RpcMethodDescriptor<TReqPingTransaction.Builder, TRspPingTransaction> PING_TRANSACTION =
             apiServiceMethod("PingTransaction", TReqPingTransaction::newBuilder, TRspPingTransaction.parser());

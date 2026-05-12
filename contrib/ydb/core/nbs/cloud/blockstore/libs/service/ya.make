@@ -18,6 +18,8 @@ PEERDIR(
     contrib/ydb/core/nbs/cloud/blockstore/libs/common
     contrib/ydb/core/nbs/cloud/blockstore/public/api/protos
     contrib/ydb/core/nbs/cloud/storage/core/libs/common
+    contrib/ydb/core/nbs/cloud/storage/core/libs/coroutine
+    contrib/ydb/library/actors/wilson
 )
 
 END()

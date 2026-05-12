@@ -154,6 +154,7 @@ private:
             }
 
             OnJobShellDescriptorFetchingFailed(std::move(rspOrError), key);
+            Y_UNREACHABLE();
         }
 
         const auto& rsp = rspOrError.Value();

@@ -22,6 +22,8 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -67,6 +69,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
@@ -205,7 +208,8 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
             << TErrorAttribute("trimmed_row_count", trimmedRowCount)
             << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
             << TErrorAttribute("timestamp", timestamp)
-            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp());
+            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp())
+            << TErrorAttribute("store_min_timestamp", store->GetMinTimestamp());
     }
 }
 
@@ -1346,7 +1350,6 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             using NYT::Save;
 
             // Save effective settings.
-            Save(context, *snapshot->Settings.MountConfig);
             Save(context, *snapshot->Settings.StoreReaderConfig);
             Save(context, *snapshot->Settings.HunkReaderConfig);
             Save(context, *snapshot->Settings.StoreWriterConfig);
@@ -1371,6 +1374,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
                 Save(context, *providedSettings.StoreWriterOptions);
                 Save(context, *providedSettings.HunkWriterConfig);
                 Save(context, *providedSettings.HunkWriterOptions);
+                Save(context, ConvertToYsonString(providedSettings.TabletBalancerConfig));
 
                 Save(context, *snapshot->RawSettings.GlobalPatch);
                 Save(context, ConvertToYsonString(snapshot->RawSettings.Experiments));
@@ -1399,7 +1403,11 @@ void TTablet::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, *Settings_.MountConfig);
+    // COMPAT(dave11ar)
+    if (context.GetVersion() < ETabletReign::DropMaterializedMountConfigPersistence) {
+        auto oldMountConfig = New<TTableMountConfig>();
+        Load(context, *oldMountConfig);
+    }
     Load(context, *Settings_.StoreReaderConfig);
     Load(context, *Settings_.HunkReaderConfig);
     Load(context, *Settings_.StoreWriterConfig);
@@ -1422,10 +1430,24 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *providedSettings.HunkWriterConfig);
     Load(context, *providedSettings.HunkWriterOptions);
 
+    // COMPAT(navasardianna)
+    if (context.GetVersion() >= ETabletReign::SendTableTabletBalancerConfigToTablet) {
+        providedSettings.TabletBalancerConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    } else {
+        providedSettings.TabletBalancerConfig = GetEphemeralNodeFactory()->CreateMap();
+    }
+
     RawSettings_.GlobalPatch = New<TTableConfigPatch>();
     Load(context, *RawSettings_.GlobalPatch);
     RawSettings_.Experiments = ConvertTo<decltype(RawSettings_.Experiments)>(
         Load<TYsonString>(context));
+
+    {
+        std::vector<TError> errors;
+        auto effectiveSettings = RawSettings_.BuildEffectiveSettings(&errors, nullptr);
+        Settings_.MountConfig = effectiveSettings.MountConfig;
+        Settings_.TabletBalancerConfig = effectiveSettings.TabletBalancerConfig;
+    }
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
@@ -2775,6 +2797,10 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
         replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
+    for (auto reason : TEnumTraits<EDynamicStoreIdReservationReason>::GetDomainValues()) {
+        request->add_reserved_dynamic_store_id_count(
+            ReservedDynamicStoreIdCount_[reason]);
+    }
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2875,6 +2901,23 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
 
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
+    for (auto [index, count] : Enumerate(request->reserved_dynamic_store_id_count())) {
+        if (count == 0) {
+            continue;
+        }
+
+        auto reason = static_cast<EDynamicStoreIdReservationReason>(index);
+        if (TEnumTraits<EDynamicStoreIdReservationReason>::IsKnownValue(reason)) {
+            ReservedDynamicStoreIdCount_[reason] = count;
+        } else {
+            YT_LOG_ALERT("Replicated content concains nonzero reserved "
+                "dynamic store count with unknown reason "
+                "(%v, Reason: %v, Count: %v)",
+                GetLoggingTag(),
+                reason,
+                count);
+        }
+    }
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
@@ -3594,7 +3637,9 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
         .Item("store_reader_config")
             .Do(BIND(addMaybeOpaqueItem, options.StoreReaderConfig))
         .Item("hunk_reader_config")
-            .Do(BIND(addMaybeOpaqueItem, options.HunkReaderConfig));
+            .Do(BIND(addMaybeOpaqueItem, options.HunkReaderConfig))
+        .Item("tablet_balancer_config")
+            .Do(BIND(addMaybeOpaqueItem, options.TabletBalancerConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

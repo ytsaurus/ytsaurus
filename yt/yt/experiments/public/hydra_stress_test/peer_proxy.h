@@ -21,6 +21,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NYT::NProto, Read);
     DEFINE_RPC_PROXY_METHOD(NYT::NProto, Cas);
     DEFINE_RPC_PROXY_METHOD(NYT::NProto, Sequence);
+    DEFINE_RPC_PROXY_METHOD(NYT::NProto, ThrowException);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

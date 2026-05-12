@@ -377,6 +377,9 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("settle_job_delay", &TThis::SettleJobDelay)
         .Default();
+    registrar.Parameter("schedule_allocation_cpu_multiplier", &TThis::ScheduleAllocationCpuMultiplier)
+        .GreaterThan(0.0)
+        .Default();
     registrar.Parameter("fail_settle_job_requests", &TThis::FailSettleJobRequests)
         .Default(false);
     registrar.Parameter("testing_speculative_launch_mode", &TThis::TestingSpeculativeLaunchMode)
@@ -1258,6 +1261,8 @@ void TVolume::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("layers", &TThis::Layers)
         .Default();
+    registrar.Parameter("allow_reusing", &TThis::AllowReusing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1582,8 +1587,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             } else {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             }
         }
@@ -1669,8 +1674,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         }
 
         if (spec->DiskSpaceLimit) {
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
 
             diskRequest->DiskSpace = *spec->DiskSpaceLimit;
             diskRequest->InodeCount = spec->InodeLimit;

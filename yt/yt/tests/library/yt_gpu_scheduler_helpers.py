@@ -6,6 +6,8 @@ from yt_commands import (
     get, wait
 )
 
+import builtins
+
 
 def get_operation_from_gpu_policy_orchid(operation, tree="gpu"):
     return get(scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}")
@@ -50,3 +52,19 @@ def check_operation_from_gpu_policy_orchid(operation, is_gang, group_name, alloc
         assert operation["enabled"] == enabled
     if scheduling_module is not None:
         assert operation["scheduling_module"] == scheduling_module
+
+
+def get_operation_gpu_allocations_from_gpu_policy_orchid(operation, tree="gpu"):
+    return get_operation_from_gpu_policy_orchid(operation, tree=tree)["allocations"]
+
+
+def check_gpu_allocations_from_gpu_policy_orchid(allocations, expected_allocation_ids, expected_gpu_usage):
+    assert builtins.set(allocations.keys()) == builtins.set(expected_allocation_ids)
+    for allocation_id in expected_allocation_ids:
+        assert allocations[allocation_id]["allocation_id"] == allocation_id
+        assert allocations[allocation_id]["resource_usage"]["gpu"] == expected_gpu_usage
+
+
+def wait_for_gpu_allocations_empty_in_gpu_policy_orchid(operation, tree="gpu"):
+    path = scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}/allocations"
+    wait(lambda: get(path, default=None) in (None, {}))

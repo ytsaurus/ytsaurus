@@ -1417,7 +1417,7 @@ void TNodeShard::RemoveOutdatedScheduleAllocationEntries()
     for (auto allocationId : allocationIdsToRemove) {
         auto it = AllocationIdToScheduleEntry_.find(allocationId);
         if (it == std::end(AllocationIdToScheduleEntry_)) {
-            return;
+            continue;
         }
 
         auto& entry = it->second;

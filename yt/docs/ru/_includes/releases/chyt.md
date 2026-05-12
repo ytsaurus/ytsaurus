@@ -8,9 +8,35 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.3**" %}
+
+**Release date:** 2026-04-02
+
+
+**Release page:** [2.18.3](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.3)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.3](https://github.com/orgs/ytsaurus/packages/container/chyt/785932269?tag=stable-2.18.3)
+
+
+**Fixes:**
+
+* Fix conversion of constant sets in read range inferrence (7bdb3cf)
+* Fix handling of arrays in key condition (8a34c91)
+
+
+{% endcut %}
+
+
 {% cut "**2.18.2**" %}
 
 **Release date:** 2026-03-23
+
+
+**Release page:** [2.18.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
 
 
 No description
@@ -21,6 +47,12 @@ No description
 {% cut "**2.18.1**" %}
 
 **Release date:** 2026-03-04
+
+
+**Release page:** [2.18.1](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.1](https://github.com/orgs/ytsaurus/packages/container/chyt/721252481?tag=stable-2.18.1)
 
 
 **Fixes:**
@@ -34,6 +66,9 @@ No description
 {% cut "**2.18.0**" %}
 
 **Release date:** 2026-01-20
+
+
+**Release page:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
 
 
 #### Features:
@@ -62,6 +97,12 @@ No description
 **Release date:** 2025-09-23
 
 
+**Release page:** [2.17.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.4)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.4](https://github.com/orgs/ytsaurus/packages/container/chyt/524445395?tag=2.17.4)
+
+
 - Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
 - Backport YT TLS support (Commit: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
 - Fix usage of CTE in distributed queries (Commit: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
@@ -76,6 +117,12 @@ No description
 **Release date:** 2025-07-04
 
 
+**Release page:** [2.17.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.2](https://github.com/orgs/ytsaurus/packages/container/chyt/454419671?tag=2.17.2)
+
+
 No description
 
 {% endcut %}
@@ -84,6 +131,12 @@ No description
 {% cut "**2.16.0**" %}
 
 **Release date:** 2024-11-06
+
+
+**Release page:** [2.16.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.16.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.16.0](https://github.com/orgs/ytsaurus/packages/container/chyt/301743715?tag=2.16.0)
 
 
 - Support ClickHouse query cache (may be configured via `clickhouse_config`)
@@ -108,6 +161,9 @@ No description
 **Release date:** 2024-02-15
 
 
+**Release page:** [2.14.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.14.0)
+
+
 - Support SQL UDFs
 - Support reading dynamic and static tables via concat-functions
 
@@ -117,6 +173,9 @@ No description
 {% cut "**2.13.0**" %}
 
 **Release date:** 2024-01-19
+
+
+**Release page:** [2.13.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.13.0)
 
 
 - Update ClickHouse code version to the latest LTS release (22.8 -> 23.8)

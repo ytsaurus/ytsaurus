@@ -369,6 +369,18 @@ public:
         return OKFuture;
     }
 
+    ELogLevel GetMutationHandlerFailureLogLevel(TStringBuf mutationType) const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto config = Config_->Get();
+
+        return GetOrDefault(
+            config->MutationHandlerFailureLogLevelOverrides,
+            mutationType,
+            config->MutationHandlerFailureLogLevel);
+    }
+
     bool IsEnteringReadOnlyMode() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1782,7 +1794,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CancelableControlInvoker_->Invoke(
-            BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
     void ProfileRestart(const std::string& reason)
@@ -1830,7 +1842,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // NB: Leader lease remains active after restart and is transfered to
+        // NB: Leader lease remains active after restart and is transferred to
         // a newly selected leader without delay.
 
         ScheduleRestart(epochContext, error);

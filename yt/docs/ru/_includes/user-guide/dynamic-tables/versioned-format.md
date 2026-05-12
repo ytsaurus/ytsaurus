@@ -23,6 +23,9 @@ yt.select_rows("* from [//path/to/table]", with_timestamps=True)
 
 # Прочитать отдельные колонки и timestamp-ы.
 yt.select_rows("col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b from [//path/to/table]", with_timestamps=True)
+
+# Из CLI.
+yt select-rows 'col_a, [$timestamp:col_a] as ts_a, [$timestamp:col_b] as ts_b from [//path/to/table]' --params '{versioned_read_options = {read_mode = latest_timestamp}}' --format='<format=text>yson'
 ```
 
 ## Версионированный map-reduce

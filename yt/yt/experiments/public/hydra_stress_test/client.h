@@ -37,6 +37,7 @@ private:
     void RunRead();
     void RunCas();
     void RunSequence();
+    void RunThrowException();
 
     void DoRun();
 };

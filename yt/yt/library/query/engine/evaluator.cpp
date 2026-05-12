@@ -67,19 +67,11 @@ public:
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
-
-            constexpr auto ellipsis = "... <truncated>"sv;
-            if (options.TruncatedQueryLengthForTracing &&
-                std::ssize(queryFingerprint) > *options.TruncatedQueryLengthForTracing + std::ssize(ellipsis))
-            {
-                traceContext->AddTag(
-                    "query_fingerprint",
-                    queryFingerprint
-                        .substr(0, *options.TruncatedQueryLengthForTracing)
-                        .append(ellipsis));
-            } else {
-                traceContext->AddTag("query_fingerprint", queryFingerprint);
-            }
+            traceContext->AddTag(
+                "query_fingerprint",
+                TTruncatedStringView(
+                    queryFingerprint,
+                    options.TruncatedQueryLengthForTracing.value_or(std::numeric_limits<int>::max())));
         });
 
         auto Logger = MakeQueryLogger(query);
@@ -189,24 +181,28 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
+        TQueryFoldingProfilerOptions options{
+            .UseCanonicalNullRelations = useCanonicalNullRelations,
+            .ExecutionBackend = executionBackend,
+            .OptimizationLevel = optimizationLevel,
+            .AllowUnorderedGroupByWithLimit = allowUnorderedGroupByWithLimit,
+            .MaxJoinBatchSize = maxJoinBatchSize,
+        };
+
         auto makeCodegenQuery = Profile(
             query,
             &id,
             &variables,
             joinProfilerRegistry,
-            useCanonicalNullRelations,
-            executionBackend,
-            optimizationLevel,
+            options,
             functionProfilers,
             aggregateProfilers,
-            sdk,
-            allowUnorderedGroupByWithLimit,
-            maxJoinBatchSize);
+            sdk);
 
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered) && !query->GroupClause;
+        bool considerLimit = (query->GetScanOrder(allowUnorderedGroupByWithLimit) != EScanOrder::Unordered) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,

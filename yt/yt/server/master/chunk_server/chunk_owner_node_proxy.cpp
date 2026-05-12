@@ -60,14 +60,16 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/library/erasure/impl/codec.h>
-
-#include <yt/yt/library/numeric/util.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/system_attribute_provider.h>
+
+#include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/library/numeric/util.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
@@ -112,31 +114,6 @@ bool IsAccessLoggedMethod(const std::string& method)
         "EndUpload"
     };
     return methodsForAccessLog.contains(method);
-}
-
-//! Adds #cellTag into #cellTags if the former is not a sentinel.
-void InsertCellTag(TCellTagList* cellTags, TCellTag cellTag)
-{
-    if (cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag) {
-        cellTags->push_back(cellTag);
-    }
-}
-
-//! Removes #cellTag from #cellTags if the former is present there.
-void RemoveCellTag(TCellTagList* cellTags, TCellTag cellTag)
-{
-    cellTags->erase(
-        std::remove(cellTags->begin(), cellTags->end(), cellTag),
-        cellTags->end());
-}
-
-//! Sorts and removes duplicates from #cellTags.
-void CanonizeCellTags(TCellTagList* cellTags)
-{
-    std::sort(cellTags->begin(), cellTags->end());
-    cellTags->erase(
-        std::unique(cellTags->begin(), cellTags->end()),
-        cellTags->end());
 }
 
 static void PopulateChunkSpecWithReplicas(
@@ -1846,23 +1823,24 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
-    auto replicatedToCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
+    auto replicatedToCellTags = FromProto<TCellTagSet>(request->upload_transaction_secondary_cell_tags());
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     auto nativeCellTag = node->GetNativeCellTag();
     auto externalCellTag = node->GetExternalCellTag();
 
-    // Make sure |replicatedToCellTags| contains the external cell tag,
-    // does not contain the native cell tag, is sorted, and contains no duplicates.
-    InsertCellTag(&replicatedToCellTags, externalCellTag);
-    CanonizeCellTags(&replicatedToCellTags);
-    RemoveCellTag(&replicatedToCellTags, nativeCellTag);
+    // Make sure |replicatedToCellTags| contains the external cell tag and
+    // does not contain the native cell tag.
+    if (externalCellTag >= MinValidCellTag && externalCellTag <= MaxValidCellTag) {
+        replicatedToCellTags.insert(externalCellTag);
+    }
+    replicatedToCellTags.erase(nativeCellTag);
 
     // Construct |replicateStartToCellTags| containing the tags of cells
     // the upload transaction will be ultimately replicated to. This list never contains
     // the external cell tag.
     auto replicateStartToCellTags = replicatedToCellTags;
-    RemoveCellTag(&replicateStartToCellTags, externalCellTag);
+    replicateStartToCellTags.erase(externalCellTag);
 
     context->SetRequestInfo(
         "SchemaMode: %v, UpdateMode: %v, LockMode: %v, Title: %v, "

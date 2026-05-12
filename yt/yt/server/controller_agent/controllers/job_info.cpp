@@ -241,21 +241,22 @@ PHOENIX_DEFINE_TYPE(TJoblet);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompletedJob::Persist(const TPersistenceContext& context)
+void TCompletedJob::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Suspended);
-    Persist(context, UnavailableChunks);
-    Persist(context, JobId);
-    Persist(context, SourceTask);
-    Persist(context, OutputCookie);
-    Persist(context, DataWeight);
-    Persist(context, DestinationPool);
-    Persist(context, InputCookie);
-    Persist(context, InputStripe);
-    Persist(context, NodeDescriptor);
-    Persist(context, Restartable);
+    PHOENIX_REGISTER_FIELD(1, Suspended);
+    PHOENIX_REGISTER_FIELD(2, UnavailableChunks);
+    PHOENIX_REGISTER_FIELD(3, JobId);
+    PHOENIX_REGISTER_FIELD(4, SourceTask);
+    PHOENIX_REGISTER_FIELD(5, OutputCookie);
+    PHOENIX_REGISTER_FIELD(6, DataWeight);
+    PHOENIX_REGISTER_FIELD(7, DestinationPool);
+    PHOENIX_REGISTER_FIELD(8, InputCookie);
+    PHOENIX_REGISTER_FIELD(9, InputStripe);
+    PHOENIX_REGISTER_FIELD(10, NodeDescriptor);
+    PHOENIX_REGISTER_FIELD(11, Restartable);
 }
+
+PHOENIX_DEFINE_TYPE(TCompletedJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -140,7 +140,7 @@ TEST_F(TSpinlockProfilerTest, YTLocks)
     RunUnderProfiler<TBlockingProfiler>("ytlock.pb.gz", [] {
         std::atomic<bool> Stop = false;
 
-        NThreading::TSpinLock lock;
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
         std::thread slow([&] {
             while (!Stop) {
                 lock.Acquire();

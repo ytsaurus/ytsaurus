@@ -354,6 +354,7 @@ private:
                     }
                 }
                 FlushSegment(options, std::move(segment));
+                segment.clear();
                 segmentSize = 0;
             }
         }

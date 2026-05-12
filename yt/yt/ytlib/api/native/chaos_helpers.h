@@ -20,7 +20,7 @@ DEFINE_ENUM(EBanMode,
 struct TReplicaBanDirective
 {
     EBanMode Mode = EBanMode::None;
-    NChaosClient::TReplicaId ReplicaId = NObjectClient::NullObjectId;
+    NChaosClient::TReplicaId ReplicaId;
 
     static TReplicaBanDirective FromError(const TError& error);
 };

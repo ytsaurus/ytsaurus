@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -115,6 +117,10 @@ struct TStrategyOperationControllerConfig
 
     //! Backoff time after controller schedule allocation failure.
     TDuration ScheduleAllocationFailBackoffTime;
+
+    //! If |true|, tracks schedule allocation backoff deadline per node shard instead of globally.
+    // TODO(bystrovserg): Remove once the global version is dropped.
+    bool EnablePerNodeShardScheduleAllocationBackoff;
 
     //! Configuration of schedule allocation backoffs in case of throttling from controller.
     TStrategyControllerThrottlingPtr ControllerThrottling;
@@ -597,7 +603,7 @@ struct TStrategyConfig
     TDuration FairShareUpdatePeriod;
     TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
-    TDuration AccumulatedUsageLogPeriod;
+    TDuration AccumulatedResourceDistributionLogPeriod;
 
     //! How often min needed resources for allocations are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
@@ -1087,6 +1093,8 @@ struct TSchedulerConfig
     int MinRequiredArchiveVersion;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
+
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     int OperationSpecTreeSizeLimit;
     i64 OperationSpecTooLargeAlertThreshold;

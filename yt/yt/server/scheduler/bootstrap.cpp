@@ -2,7 +2,6 @@
 
 #include "allocation_tracker_service.h"
 #include "private.h"
-#include "private.h"
 #include "scheduler.h"
 #include "scheduler_service.h"
 #include "controller_agent_tracker_service.h"
@@ -13,8 +12,6 @@
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
-
-#include <yt/yt/server/lib/scheduler/config.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
 
@@ -217,17 +214,10 @@ const NNative::IClientPtr& TBootstrap::GetClient() const
     return Client_;
 }
 
-const NNative::IClientPtr& TBootstrap::GetRemoteClient(TCellTag tag) const
+NNative::IClientPtr TBootstrap::GetRemoteClient(TCellTag tag) const
 {
-    auto it = RemoteClients_.find(tag);
-    if (it == RemoteClients_.end()) {
-        auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
-        auto client = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
-        auto result = RemoteClients_.emplace(tag, client);
-        YT_VERIFY(result.second);
-        it = result.first;
-    }
-    return it->second;
+    auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
+    return connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const
@@ -267,6 +257,8 @@ void TBootstrap::Reconfigure(const TSchedulerConfigPtr& config)
     TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(config->MasterCellDirectorySynchronizer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

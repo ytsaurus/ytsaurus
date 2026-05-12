@@ -137,7 +137,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(bool, Suspended);
 
-    DEFINE_BYVAL_RW_PROPERTY(TError, OrhanedOperationAbortionError);
+    DEFINE_BYVAL_RW_PROPERTY(TError, OrphanedOperationAbortionError);
 
 public:
     // By default, all new operations are not activated.

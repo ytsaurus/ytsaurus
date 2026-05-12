@@ -27,6 +27,7 @@ DEFINE_ENUM(ESequoiaTransactionType,
     (GroundUpdateQueueFlush)
     (ObjectDestruction)
     (GlobalRefresh)
+    (LocationRefresh)
 );
 
 DEFINE_ENUM(ESequoiaTable,
@@ -115,6 +116,7 @@ struct TResolvedPrerequisiteRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSequoiaTransactionFeatures;
 struct TSequoiaTransactionOptions;
 
 ////////////////////////////////////////////////////////////////////////////////

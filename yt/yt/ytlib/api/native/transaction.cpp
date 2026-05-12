@@ -974,7 +974,7 @@ private:
             auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
             req->Attachments().reserve(payloadCount);
             for (const auto& payload : HunkPayloads_) {
-                req->Attachments().push_back(TSharedRef(payload, std::move(payloadHolder)));
+                req->Attachments().push_back(TSharedRef(payload, payloadHolder));
             }
 
             return req->Invoke().Apply(BIND([this, payloadCount]
@@ -2405,11 +2405,9 @@ private:
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
 
-                            auto error = TError(
-                                NTransactionClient::EErrorCode::NativeTransactionCommitFailure,
-                                "Error committing transaction %v",
-                                GetId())
+                            auto error = TError("Error committing transaction %v", GetId())
                                 << MakeClusterIdErrorAttribute()
+                                << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
                                 << resultOrError;
 
                             Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);

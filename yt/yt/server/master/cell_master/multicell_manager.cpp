@@ -188,7 +188,7 @@ public:
         return Bootstrap_->GetPrimaryCellTag();
     }
 
-    const std::set<TCellTag>& GetSecondaryCellTags() const override
+    const TCellTagSet& GetSecondaryCellTags() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -209,7 +209,7 @@ public:
         return DynamicallyPropagatedMasterCellTags_.contains(cellTag);
     }
 
-    const THashSet<TCellTag>& GetDynamicallyPropagatedMasterCellTags() const override
+    const TCellTagSet& GetDynamicallyPropagatedMasterCellTags() const override
     {
         VerifyPersistentStateRead();
 
@@ -255,12 +255,12 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto encapsulatedMessage = BuildHiveMessage(message);
-        DoPostMessage(std::move(encapsulatedMessage), TCellTagList{cellTag}, reliable);
+        DoPostMessage(std::move(encapsulatedMessage), {cellTag}, reliable);
     }
 
     void PostToMasters(
         const TCrossCellMessage& message,
-        TRange<TCellTag> cellTags,
+        const TCellTagSet& cellTags,
         bool reliable) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -299,22 +299,14 @@ public:
     {
         VerifyPersistentStateRead();
 
-        if (IsPrimaryMaster()) {
-            return true;
-        }
-
-        if (RegisterState_ == EPrimaryRegisterState::Registered) {
-            return true;
-        }
-
-        return false;
+        return IsPrimaryMaster() || RegisterState_ == EPrimaryRegisterState::Registered;
     }
 
     bool IsRegisteredMasterCell(TCellTag cellTag) const override
     {
         VerifyPersistentStateRead();
 
-        return MasterEntryExists(cellTag);
+        return RegisteredMasterCellTags_.contains(cellTag);
     }
 
     void ValidateRegisteredMasterCell() const override
@@ -358,7 +350,7 @@ public:
         return &it->second;
     }
 
-    TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const override
+    TCellTagSet GetRoleMasterCells(EMasterCellRole cellRole) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -404,7 +396,7 @@ public:
         return it == NameMasterCellMap_.end() ? std::nullopt : std::make_optional(it->second);
     }
 
-    const TCellTagList& GetRegisteredMasterCellTags() const override
+    const TCellTagSet& GetRegisteredMasterCellTags() const override
     {
         VerifyPersistentStateRead();
 
@@ -434,7 +426,7 @@ public:
         const auto& multicellStatisticsCollector = Bootstrap_->GetMulticellStatisticsCollector();
         const auto& statistics = multicellStatisticsCollector->GetMulticellNodeStatistics();;
 
-        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+        for (auto cellTag : RegisteredMasterCellTags_) {
             auto cellStatistics = statistics.GetCellStatistics(cellTag);
             maybeAddCandidate(cellTag, cellStatistics.chunk_count());
         }
@@ -563,33 +555,27 @@ private:
 
     THashMap<TCellTag, TError> ConflictingCellRolesAlerts_;
 
+    // TODO(cherepashka): drop after 26.1.
     struct TMasterEntry
     {
-        int Index = -1;
-        NProto::TCellStatistics Statistics;
-
-        void Save(NCellMaster::TSaveContext& context) const
-        {
-            using NYT::Save;
-            Save(context, Index);
-        }
+        void Save(NCellMaster::TSaveContext& /*context*/) const
+        { }
 
         void Load(NCellMaster::TLoadContext& context)
         {
             using NYT::Load;
-            Load(context, Index);
+            // COMPAT(cherepashka)
+            if (context.GetVersion() < EMasterReign::DropMulticellIndex || context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::DropMulticellIndex_26_2) {
+                Y_UNUSED(Load<int>(context));
+            }
         }
     };
 
-    // NB: Must ensure stable order.
-    std::map<TCellTag, TMasterEntry> RegisteredMasterMap_;
-    TCellTagList RegisteredMasterCellTags_;
+    // NB: Sorted.
+    TCellTagSet RegisteredMasterCellTags_;
     EPrimaryRegisterState RegisterState_ = EPrimaryRegisterState::None;
 
     THashMap<TCellTag, THashSet<TTransactionId>> LocalMasterIssuedLeaseIds_;
-
-    NProto::TCellStatistics LocalCellStatistics_;
-    NProto::TCellStatistics ClusterCellStatisics_;
 
     TMailboxHandle PrimaryMasterMailbox_;
     THashMap<TCellTag, TMailboxHandle> CellTagToMasterMailbox_;
@@ -604,19 +590,17 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellRolesLock_);
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
-    TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleMasterCells_;
+    TEnumIndexedArray<EMasterCellRole, TCellTagSet> RoleMasterCells_;
     TEnumIndexedArray<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellNamesLock_);
     THashMap<TCellTag, std::string> MasterCellNameMap_;
     THashMap<std::string, TCellTag> NameMasterCellMap_;
 
-    static const TCellTagList EmptyCellTagList;
-
     const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
     NProfiling::TEventTimer UpstreamSyncTimer_ = CellMasterProfiler().Timer("/upstream_sync_time");
 
-    THashSet<TCellTag> DynamicallyPropagatedMasterCellTags_;
+    TCellTagSet DynamicallyPropagatedMasterCellTags_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -632,10 +616,10 @@ private:
         const auto& portalManager = Bootstrap_->GetPortalManager();
         const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
 
-        std::vector<std::map<TCellTag, TMasterEntry>::iterator> removedMasterCellTagsIterators;
-        THashSet<TCellTag> removedMasterCellTags;
-        for (auto it = RegisteredMasterMap_.begin(); it != RegisteredMasterMap_.end(); ++it) {
-            auto cellTag = it->first;
+        TCellTagSet removedMasterCellTags;
+        bool lastMasterCellSuffixRemoved = true;
+        for (auto it = RegisteredMasterCellTags_.rbegin(); it != RegisteredMasterCellTags_.rend(); ++it) {
+            auto cellTag = *it;
             if (!IsKnownCellTag(cellTag)) {
                 auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
                 YT_LOG_FATAL_UNLESS(
@@ -646,6 +630,12 @@ private:
                 YT_LOG_FATAL_UNLESS(
                     GetCurrentSnapshotLoadContext()->ReadOnly,
                     "Master cell was removed without readonly mode (CellTag: %v)",
+                    cellTag);
+
+                // It is allowed to remove suffix of master cells.
+                YT_LOG_FATAL_IF(
+                    !lastMasterCellSuffixRemoved,
+                    "Master cell from the middle of master entry map was removed (CellTag: %v)",
                     cellTag);
 
                 YT_LOG_FATAL_IF(
@@ -661,8 +651,9 @@ private:
                     cellTag,
                     cellRoles);
 
-                removedMasterCellTagsIterators.emplace_back(it);
                 InsertOrCrash(removedMasterCellTags, cellTag);
+            } else {
+                lastMasterCellSuffixRemoved = false;
             }
         }
         if (!removedMasterCellTags.empty()) {
@@ -670,25 +661,15 @@ private:
             portalManager->ValidateNoNodesBehindRemovedMastersPortal(removedMasterCellTags);
         }
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto iterator : removedMasterCellTagsIterators) {
-            auto cellTag = iterator->first;
-            RegisteredMasterMap_.erase(iterator);
+        for (auto cellTag : removedMasterCellTags) {
+            RegisteredMasterCellTags_.erase(cellTag);
             DynamicallyPropagatedMasterCellTags_.erase(cellTag);
 
             YT_LOG_INFO("Master cell removed (CellTag: %v)",
                 cellTag);
         }
 
-        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
-        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
-            YT_LOG_FATAL_IF(
-                entry.Index >= std::ssize(RegisteredMasterCellTags_),
-                "Master cell from the middle of master entry map was removed (CurrentEntryIndex: %v, RegisteredMasterCellTagsSize: %v)",
-                entry.Index,
-                RegisteredMasterCellTags_.size());
-
-            RegisteredMasterCellTags_[entry.Index] = cellTag;
-
+        for (auto cellTag : RegisteredMasterCellTags_) {
             auto cellId = GetCellId(cellTag);
             auto mailbox = hiveManager->GetMailbox(cellId);
             EmplaceOrCrash(CellTagToMasterMailbox_, cellTag, mailbox);
@@ -696,36 +677,8 @@ private:
                 PrimaryMasterMailbox_ = mailbox;
             }
 
-            YT_LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
-                cellTag,
-                entry.Index);
-        }
-
-        const auto& multicellStatisticsCollector = Bootstrap_->GetMulticellStatisticsCollector();
-        auto& statistics = multicellStatisticsCollector->GetMutableMulticellNodeStatistics();
-
-        if (LocalCellStatistics_.IsInitialized()) {
-            statistics.PopulateLocalStatisticsAfterSnapshotLoaded(LocalCellStatistics_);
-        }
-        if (ClusterCellStatisics_.IsInitialized()) {
-            statistics.PopulateClusterStatisticsAfterSnapshotLoaded(ClusterCellStatisics_);
-        }
-
-        statistics.PopulateMasterCellStatisticsAfterSnapshotLoaded(
-                RegisteredMasterMap_
-                | std::views::filter([] (const std::pair<const TCellTag, TMasterEntry>& mapping) {
-                    return mapping.second.Statistics.IsInitialized();
-                })
-                | std::views::transform([] (const std::pair<const TCellTag, TMasterEntry>& mapping) {
-                    return std::pair(mapping.first, mapping.second.Statistics);
-                }));
-
-        if (!RegisteredMasterMap_.empty() && RegisteredMasterMap_.begin()->second.Statistics.IsInitialized()) {
-            statistics.PopulateMasterCellStatisticsAfterSnapshotLoaded(
-                RegisteredMasterMap_
-                | std::views::transform([] (const std::pair<const TCellTag, TMasterEntry>& mapping) {
-                    return std::pair(mapping.first, mapping.second.Statistics);
-                }));
+            YT_LOG_INFO("Master cell registered (CellTag: %v)",
+                cellTag);
         }
 
         auto selfCellTag = GetCellTag();
@@ -746,7 +699,7 @@ private:
                 continue;
             }
 
-            if (!RegisteredMasterMap_.contains(cellTag) && DynamicallyPropagatedMasterCellTags_.insert(cellTag).second) {
+            if (!IsRegisteredMasterCell(cellTag) && DynamicallyPropagatedMasterCellTags_.insert(cellTag).second) {
                 YT_LOG_ALERT_UNLESS(
                     GetCurrentSnapshotLoadContext()->ReadOnly,
                     "New master cell is found in static config without readonly mode (CellTag: %v)",
@@ -770,14 +723,11 @@ private:
 
         TMasterAutomatonPart::Clear();
 
-        RegisteredMasterMap_.clear();
         RegisteredMasterCellTags_.clear();
         RegisterState_ = EPrimaryRegisterState::None;
         CellTagToMasterMailbox_.clear();
         DynamicallyPropagatedMasterCellTags_.clear();
         PrimaryMasterMailbox_ = {};
-        LocalCellStatistics_ = {};
-        ClusterCellStatisics_ = {};
         for (auto& [_, leaseIds] : LocalMasterIssuedLeaseIds_) {
             leaseIds.clear();
         }
@@ -787,7 +737,14 @@ private:
     {
         using NYT::Load;
 
-        Load(context, RegisteredMasterMap_);
+        if (context.GetVersion() < EMasterReign::DropMulticellIndex) {
+            auto registeredMasterMap = Load<std::map<TCellTag, TMasterEntry>>(context);
+            for (const auto& [cellTag, _] : registeredMasterMap) {
+                InsertOrCrash(RegisteredMasterCellTags_, cellTag);
+            }
+        } else {
+            Load(context, RegisteredMasterCellTags_);
+        }
         Load(context, RegisterState_);
         if (context.GetVersion() < EMasterReign::FixDynamicallyPropagatedMastersCellTags) {
             Load<bool>(context);
@@ -802,7 +759,7 @@ private:
     {
         using NYT::Save;
 
-        Save(context, RegisteredMasterMap_);
+        Save(context, RegisteredMasterCellTags_);
         Save(context, RegisterState_);
         Save(context, LocalMasterIssuedLeaseIds_);
         Save(context, DynamicallyPropagatedMasterCellTags_);
@@ -918,7 +875,7 @@ private:
 
         RegisterMasterMailbox(cellTag);
 
-        if (MasterEntryExists(cellTag))  {
+        if (IsRegisteredMasterCell(cellTag))  {
             TError registrationError("Attempted to re-register secondary master %v", cellTag);
             YT_LOG_WARNING(registrationError, "Error registering secondary master (CellTag: %v)",
                 cellTag);
@@ -941,7 +898,7 @@ private:
             PostToMaster(request, cellTag, true);
         }
 
-        for (const auto& [registeredCellTag, entry] : RegisteredMasterMap_) {
+        for (auto registeredCellTag : RegisteredMasterCellTags_) {
             if (registeredCellTag == cellTag) {
                 continue;
             }
@@ -1037,7 +994,7 @@ private:
             return;
         }
 
-        if (MasterEntryExists(cellTag))  {
+        if (IsRegisteredMasterCell(cellTag))  {
             YT_LOG_ALERT("Attempted to re-register secondary master, ignored (CellTag: %v)",
                 cellTag);
             return;
@@ -1156,44 +1113,16 @@ private:
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(FindMasterMailbox(cellTag));
 
-        if (RegisteredMasterMap_.find(cellTag) != RegisteredMasterMap_.end()) {
+        if (IsRegisteredMasterCell(cellTag)) {
             return;
         }
 
-        YT_VERIFY(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
-        int index = std::ssize(RegisteredMasterMap_);
-        RegisteredMasterCellTags_.push_back(cellTag);
-
-        auto [it, inserted] = RegisteredMasterMap_.emplace(cellTag, TMasterEntry());
-        YT_VERIFY(inserted);
-
-        auto& entry = it->second;
-        entry.Index = index;
+        InsertOrCrash(RegisteredMasterCellTags_, cellTag);
 
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();
 
-        YT_LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
-            cellTag,
-            index);
-    }
-
-    TMasterEntry* FindMasterEntry(TCellTag cellTag)
-    {
-        auto it = RegisteredMasterMap_.find(cellTag);
-        return it == RegisteredMasterMap_.end() ? nullptr : &it->second;
-    }
-
-    const TMasterEntry* GetMasterEntry(TCellTag cellTag) const
-    {
-        return &GetOrCrash(RegisteredMasterMap_, cellTag);
-    }
-
-    bool MasterEntryExists(TCellTag cellTag) const
-    {
-        VerifyPersistentStateRead();
-
-        return RegisteredMasterMap_.contains(cellTag);
+        YT_LOG_INFO("Master cell registered (CellTag: %v)", cellTag);
     }
 
     TMailboxHandle FindMasterMailbox(TCellTag cellTag)
@@ -1326,7 +1255,7 @@ private:
 
     void DoPostMessage(
         const TSerializedMessagePtr& message,
-        TRange<TCellTag> cellTags,
+        const TCellTagSet& cellTags,
         bool reliable)
     {
         TCompactVector<TMailboxHandle, 16> mailboxes;
@@ -1509,13 +1438,15 @@ private:
                 }
 
                 if (Any(roles & EMasterCellRoles(role))) {
-                    RoleMasterCells_[role].push_back(cellTag);
+                    auto [_, inserted] = RoleMasterCells_[role].insert(cellTag);
+                    YT_LOG_ALERT_UNLESS(inserted,
+                        "Duplicate master cell role has been set (CellTag: %v, Role: %v)", cellTag, role);
                 }
             }
         };
 
         populateCellRoles(GetCellTag());
-        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+        for (auto cellTag : RegisteredMasterCellTags_) {
             populateCellRoles(cellTag);
         }
 
@@ -1526,7 +1457,7 @@ private:
                 return;
             }
 
-            roleCellTags.push_back(GetPrimaryCellTag());
+            InsertOrCrash(roleCellTags, GetPrimaryCellTag());
 
             auto& primaryCellRoles = MasterCellRolesMap_[GetPrimaryCellTag()];
             YT_VERIFY(None(primaryCellRoles & EMasterCellRoles(role)));
@@ -1535,10 +1466,6 @@ private:
 
         ensureCellRoleConfigured(EMasterCellRole::CypressNodeHost);
         ensureCellRoleConfigured(EMasterCellRole::TransactionCoordinator);
-
-        for (auto& roleCellTags : RoleMasterCells_) {
-            SortUnique(roleCellTags);
-        }
 
         for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
             // TODO(shakurov): introduce GetKnownDomainValues().
@@ -1564,7 +1491,7 @@ private:
         };
 
         populateCellName(GetCellTag());
-        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+        for (auto cellTag: RegisteredMasterCellTags_) {
             populateCellName(cellTag);
         }
     }
@@ -1619,8 +1546,6 @@ private:
         return ToString(cellTag);
     }
 };
-
-/*static*/ const TCellTagList TMulticellManager::EmptyCellTagList = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 

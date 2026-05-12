@@ -8,9 +8,34 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**v0.0.17**" %}
+
+**Release date:** 2026-04-03
+
+
+**Release page:** [v0.0.17](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.17)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.17](https://github.com/orgs/ytsaurus/packages/container/strawberry/775184666?tag=0.0.17)
+
+
+#### General Updates
+
+* Make discovery health check opt-in (Commit: 19a9ccd688af14ddf3cc7ab8cd3afdd195a02776)
+
+
+{% endcut %}
+
+
 {% cut "**v0.0.16**" %}
 
 **Release date:** 2026-03-06
+
+
+**Release page:** [v0.0.16](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.16)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.16](https://github.com/orgs/ytsaurus/packages/container/strawberry/721097681?tag=0.0.16)
 
 
 #### General Updates
@@ -36,6 +61,12 @@ Is released as a docker image.
 **Release date:** 2025-09-18
 
 
+**Release page:** [v0.0.15](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.15)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.15](https://github.com/orgs/ytsaurus/packages/container/strawberry/524145257?tag=0.0.15)
+
+
 #### General Updates
 
 **Features:**
@@ -49,6 +80,12 @@ Is released as a docker image.
 {% cut "**v0.0.14**" %}
 
 **Release date:** 2025-08-20
+
+
+**Release page:** [v0.0.14](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.14)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.14](https://github.com/orgs/ytsaurus/packages/container/strawberry/491844408?tag=0.0.14)
 
 
 #### General Updates
@@ -78,6 +115,12 @@ Is released as a docker image.
 {% cut "**v0.0.13**" %}
 
 **Release date:** 2025-04-08
+
+
+**Release page:** [v0.0.13](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.13)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.13](https://github.com/orgs/ytsaurus/packages/container/strawberry/391211630?tag=0.0.13)
 
 
 #### General Updates
@@ -116,6 +159,12 @@ Is released as a docker image.
 {% cut "**v0.0.12**" %}
 
 **Release date:** 2024-06-21
+
+
+**Release page:** [v0.0.12](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.12)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.12](https://github.com/orgs/ytsaurus/packages/container/strawberry/233452797?tag=0.0.12)
 
 
 **CHYT:**

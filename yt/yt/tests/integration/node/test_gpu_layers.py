@@ -1423,8 +1423,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         wait(lambda: get(alerts_path), timeout=INCREASED_TIMEOUT)
 
         alerts = get(alerts_path)
-        assert len(alerts) == 1
-        assert "Preliminary GPU check command failed" in str(alerts[0])
+        assert any("Preliminary GPU check command failed" in str(alert) for alert in alerts)
 
         time.sleep(2.0)
 

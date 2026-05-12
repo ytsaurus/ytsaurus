@@ -57,6 +57,12 @@ config:
         options:
           temp_tables_path: "//sys/admin/odin/dynamic_table_commands"
           tablet_cell_bundle: sys
+    cypress_commands:
+      displayName: Cypress Commands
+      enable: true
+      config:
+        options:
+          temp_path: "//sys/admin/odin/cypress_commands"
     suspicious_jobs:
       displayName: Suspicious Jobs
       enable: true
@@ -66,6 +72,10 @@ config:
     lost_vital_chunks:
       displayName: Lost Vital Chunks
       enable: true
+      alert:
+        failureFor: 1m
+        # partialFor: 1m
+        # absentFor: 5m
       config:
         options:
           max_size: 10
@@ -80,6 +90,8 @@ config:
     quorum_health:
       displayName: Quorum Health
       enable: true
+      alert:
+        failureFor: 1m
       config:
         options:
           monitoring_port: 10010
@@ -210,6 +222,18 @@ config:
         check_timeout: 60
         options:
           soft_query_timeout: 30
+    read_static_table_commands:
+      displayName: Read Static Table Commands
+      enable: true
+      config:
+        options:
+          table_path: "//sys/admin/odin/read_static_table_commands/table"
+    write_static_table_commands:
+      displayName: Write Static Table Commands
+      enable: true
+      config:
+        options:
+          temp_tables_path: "//sys/admin/odin/write_static_table_commands"
     bundle_hotfix:
       displayName: Bundle Hotfix
       enable: true
@@ -230,6 +254,8 @@ config:
     master:
       displayName: Master
       enable: true
+      alert:
+        failureFor: 1m
       config: {}
     master_alerts:
       displayName: Master Alerts
@@ -290,6 +316,9 @@ config:
     scheduler:
       displayName: Scheduler
       enable: true
+      alert:
+        failureFor: 1m
+        partialFor: 1m
       config: {}
     scheduler_alerts:
       displayName: Scheduler Alerts
@@ -297,6 +326,10 @@ config:
       config: {}
     scheduler_alerts_jobs_archivation:
       displayName: Scheduler Alerts Jobs Archivation
+      enable: true
+      config: {}
+    scheduler_alerts_nodes_with_insufficient_resource_limits:
+      displayName: Scheduler Alerts Nodes With Insufficient Resource Limits
       enable: true
       config: {}
     scheduler_alerts_update_fair_share:
@@ -364,3 +397,28 @@ metrics:
     enable: true
     labels:
       release: kube-prom
+
+rule:
+  enable: false
+  labels:
+    release: kube-prom
+    yt_alerts: "true"
+  groupName: odin.checks
+
+  defaults:
+    failureFor: 5m
+    partialFor: 5m
+    absentFor: 3m
+    severityFail: critical
+    severityPartial: warning
+    severityAbsent: warning
+    extraLabels: {}
+    summaryFail: 'Odin check "{{ .displayName }}" failed on cluster {{`{{ $labels.cluster }}`}}'
+    summaryPartial: 'Odin check "{{ .displayName }}" is partially available on cluster {{`{{ $labels.cluster }}`}}'
+    summaryAbsent: 'Odin is not reporting check "{{ .displayName }}" on cluster {{ .cluster }}'
+    descriptionFail: |
+      yt_odin_{{ .name }} state is {{`{{ $value }}`}} on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionPartial: |
+      yt_odin_{{ .name }} state is 0.5 on cluster {{`{{ $labels.cluster }}`}}.
+    descriptionAbsent: |
+      No samples for yt_odin_{{ .name }}{cluster="{{ .cluster }}"}.

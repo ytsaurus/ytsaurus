@@ -124,6 +124,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SealChunk)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ScheduleChunkSeal)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTree)
@@ -437,6 +439,11 @@ private:
 
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true)
                         .ValueOrThrow();
+
+                    if (!IsObjectAlive(chunk)) {
+                        subresponse->set_missing(true);
+                        continue;
+                    }
 
                     BuildChunkSpec(
                         Bootstrap_,
@@ -909,6 +916,22 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateSealChunkMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ScheduleChunkSeal)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        context->SetRequestInfo(
+            "ChunkId: %v",
+            chunkId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateScheduleChunkSealMutation(context);
         mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }

@@ -3,7 +3,7 @@
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/cgroup/process.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/ytree/public.h>
@@ -21,16 +21,16 @@ static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCpuStatistics = TCpuAccounting::TStatistics;
-using TBlockIOStatistics = TBlockIO::TStatistics;
-using TMemoryStatistics = TMemory::TStatistics;
-using TNetworkStatistics = TNetwork::TStatistics;
+using TCpuStatistics = NCGroups::TCpuAccounting::TStatistics;
+using TBlockIOStatistics = NCGroups::TBlockIO::TStatistics;
+using TMemoryStatistics = NCGroups::TMemory::TStatistics;
+using TNetworkStatistics = NCGroups::TNetwork::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVolumeStatistics
 {
-    std::vector<std::pair<TString, i64>> VolumeCounts;
+    std::vector<std::pair<std::string, i64>> VolumeCounts;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ private:
     template <class T, class F>
     T GetStatistics(
         std::optional<T>& cachedStatistics,
-        const TString& statisticsKind,
+        const std::string& statisticsKind,
         F extractor) const;
 
     TCpuStatistics ExtractCpuStatistics(const TResourceUsage& resourceUsage) const;

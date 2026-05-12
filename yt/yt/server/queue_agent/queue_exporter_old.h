@@ -86,7 +86,7 @@ public:
 
     TQueueExporterOld(
         TString exportName,
-        NQueueClient::TQueuePath queue,
+        NQueueClient::TTablePath queue,
         const NQueueClient::TQueueStaticExportConfigPtr& exportConfig,
         const TQueueExporterDynamicConfig& dynamicConfig,
         NHiveClient::TClientDirectoryPtr clientDirectory,
@@ -108,9 +108,9 @@ public:
 
 private:
     const TString ExportName_;
-    const NQueueClient::TQueuePath Queue_;
+    const NQueueClient::TTablePath Queue_;
 
-    NThreading::TSpinLock Lock_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     NQueueClient::TQueueStaticExportConfigPtr ExportConfig_;
     TQueueExporterDynamicConfig DynamicConfig_;
     TQueueExportProgressOldPtr ExportProgress_;

@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
-    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id,
+    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
 )
 
 from yt_scheduler_helpers import (
@@ -18,11 +18,14 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path
 )
 
+from yt_helpers import profiler_factory
+
 from yt.test_helpers import are_almost_equal
 
 from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
     wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
+    check_gpu_allocations_from_gpu_policy_orchid, wait_for_gpu_allocations_empty_in_gpu_policy_orchid,
 )
 
 
@@ -171,6 +174,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=1,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 1)
 
         node_address = assignment["node_address"]
         assert node_address in ls("//sys/cluster_nodes")
@@ -188,6 +192,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_full_host(self):
@@ -227,6 +232,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=8,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -237,6 +243,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_two_jobs(self):
@@ -276,6 +283,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=1,
                 preemptible=False)
             assert assignment["allocation_id"] in allocation_ids
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 1)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -293,6 +301,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_two_jobs_full_host(self):
@@ -338,10 +347,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assert len(node["assignments"]) == 1
             for node_assignment in node["assignments"]:
                 compare_assignment_without_preemptible_start_time(node_assignment, assignment)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_two_ops(self):
@@ -394,6 +405,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=1,
                 preemptible=False,
                 allocation_id=allocation_id)
+            check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 1)
 
         release_breakpoint()
 
@@ -451,6 +463,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=8,
                 preemptible=False,
                 allocation_id=allocation_id)
+            check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         release_breakpoint()
 
@@ -505,10 +518,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assert len(node["assignments"]) == 1
             for node_assignment in node["assignments"]:
                 compare_assignment_without_preemptible_start_time(node_assignment, assignment)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_operation_cant_schedule(self):
@@ -575,6 +590,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=1,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 1)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -590,6 +606,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_fullhost_map(self):
@@ -643,10 +660,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=8,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_fullhost_map_two_jobs(self):
@@ -700,10 +719,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=8,
                 preemptible=False)
             assert assignment["allocation_id"] in allocation_ids
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_tag_filters(self):
@@ -974,6 +995,73 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: len(op2.get_running_jobs()) == 0)
 
+    # See YT-27935: the GPU planner decides per-assignment which allocation group to schedule,
+    # and tells the CA via the schedule request. The CA must only schedule jobs from the requested
+    # group, even if a different group would also fit into the node's resource envelope.
+    @authors("eshcherbin")
+    def test_heterogeneous_operation(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_small": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gpu_limit": 1,
+                        "enable_gpu_layers": False,
+                    },
+                    "task_big": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gpu_limit": 4,
+                        "enable_gpu_layers": False,
+                    },
+                },
+            },
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 6)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/grouped_needed_resources", default=None) == {})
+
+        wait_for_operations_in_gpu_policy_orchid(operation_count=1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=3, exactly=True)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        assignments_by_group = {}
+        for assignment in operation["assignments"]:
+            assignments_by_group.setdefault(assignment["allocation_group_name"], []).append(assignment)
+
+        assert len(assignments_by_group["task_small"]) == 2
+        assert len(assignments_by_group["task_big"]) == 1
+        for assignment in assignments_by_group["task_small"]:
+            assert assignment["resource_usage"]["gpu"] == 1
+        for assignment in assignments_by_group["task_big"]:
+            assert assignment["resource_usage"]["gpu"] == 4
+
+        # Every assignment must be realized (have an allocation_id) and the job the CA actually
+        # started under that allocation must be from the task the planner asked for. If the CA
+        # had picked a different task, the job's task_name (from the CA running_jobs orchid)
+        # would not match the assignment's allocation_group_name.
+        allocation_id_to_group_name = {}
+        for assignment in operation["assignments"]:
+            assert assignment["allocation_id"] != yson.YsonEntity()
+            allocation_id_to_group_name[assignment["allocation_id"]] = assignment["allocation_group_name"]
+
+        running_by_task = {"task_small": 0, "task_big": 0}
+        for job_id, job_info in op.get_running_jobs().items():
+            allocation_id = get_allocation_id_from_job_id(job_id)
+            assert allocation_id in allocation_id_to_group_name
+            assert job_info["task_name"] == allocation_id_to_group_name[allocation_id]
+            running_by_task[job_info["task_name"]] += 1
+
+        assert running_by_task["task_small"] == 2
+        assert running_by_task["task_big"] == 1
+
+        release_breakpoint()
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+
 
 ##################################################################
 
@@ -1120,6 +1208,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
             preemptible=False,
             allocation_id=allocation_id,
         )
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -1165,6 +1254,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
             preemptible=False,
             allocation_id=allocation_id,
         )
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -1340,3 +1430,125 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
 
 
 ##################################################################
+
+class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
+    @authors("severovv")
+    def test_pool_limits_change(self):
+        create_pool("limited", pool_tree="gpu", attributes={"resource_limits": {"gpu": 10}}, wait_for_orchid=True)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+        )
+        wait(lambda: len(op.get_running_jobs()) == 2)
+
+        set("//sys/pool_trees/gpu/limited/@resource_limits", {"gpu": 5})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        set("//sys/pool_trees/gpu/limited/@resource_limits", {"gpu": 13})
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+    @authors("severovv")
+    def test_operation_limits_change(self):
+
+        def set_operation_limit(op, limit):
+            update_op_parameters(
+                op.id,
+                parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": limit}}}},
+            )
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+        )
+        set_operation_limit(op, 10)
+        wait(lambda: len(op.get_running_jobs()) == 2)
+
+        set_operation_limit(op, 5)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        set_operation_limit(op, 13)
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+    @authors("severovv")
+    def test_over_fs_planning_limits(self):
+        create_pool("limited", pool_tree="gpu", attributes={"resource_limits": {"gpu": 12}}, wait_for_orchid=True)
+
+        _ = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+            spec={"scheduling_tag_filter": "unschedulable"}
+        )
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+        )
+
+        # one job over fair share but still within the limits
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+    @authors("severovv")
+    def test_preemptive_planning_limits(self):
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu"})
+        prefix = "scheduler/gpu_policy"
+        preempted_assignments_counter = profiler.counter(prefix + "/preempted_assignments_count")
+
+        create_pool("limited", pool_tree="gpu", attributes={"strong_guarantee_resources": {"gpu": 8}, "resource_limits": {"gpu": 8}})
+        create_pool("guaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 8}})
+        create_pool("unguaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 0}}, wait_for_orchid=True)
+
+        bg_runner = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="guaranteed",
+        )
+
+        preemptive_runner = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="unguaranteed",
+        )
+
+        wait(lambda: len(bg_runner.get_running_jobs()) == 1)
+        wait(lambda: len(preemptive_runner.get_running_jobs()) == 1)
+
+        will_replace = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="guaranteed",
+        )
+
+        wait(lambda: len(bg_runner.get_running_jobs()) == 1)
+        wait(lambda: len(will_replace.get_running_jobs()) == 1)
+        wait(lambda: len(preemptive_runner.get_running_jobs()) == 0)
+
+        wait(lambda: preempted_assignments_counter.get() == 1)
+
+    @authors("severovv")
+    def test_controller_returns_more_than_pool_limit(self):
+        create_pool("strict_pool", pool_tree="gpu", attributes={"resource_limits": {"cpu": 3.0}}, wait_for_orchid=True)
+
+        # Two full-host jobs are assigned to different nodes
+        # Both of them are scheduled, first gets 3.0 cpu limit, second 2.0
+        # After returning from CA one of them will be aborted because of limit violation
+        op = run_sleeping_vanilla(
+            task_patch={"cpu_limit": 1.0, "gpu_limit": 8, "enable_gpu_layers": False},
+            pool="strict_pool",
+            job_count=2,
+            spec={
+                "testing": {
+                    "schedule_allocation_cpu_multiplier": 2.0,
+                    "inside_schedule_job_delay": {
+                        "duration": 1000,
+                    },
+                },
+            },
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: get(op.get_path() + "/controller_orchid/progress/jobs/aborted/non_scheduled/scheduling_resource_overcommit", 0) == 1)

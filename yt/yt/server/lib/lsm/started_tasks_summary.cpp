@@ -40,7 +40,7 @@ double TBackgroundTaskHistory::GetWeight(const TKey& key) const
 
 double TBackgroundTaskHistory::GetNormalizationFactor(TInstant now) const
 {
-    return std::exp2((LastUpdateTimestamp_ - now) / Window_);
+    return std::exp2(-1.0 * ((now - LastUpdateTimestamp_) / Window_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

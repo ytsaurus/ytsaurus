@@ -265,7 +265,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"job/cpu/user", "User mode CPU time by the job", "ms"},
         {"job/cpu/system", "Kernel mode CPU time by the job", "ms"},
 
-        // Job Proxy Disk I/O.
+        // Job Block I/O.
         {"job/block_io/bytes_written", "Bytes written to local disks by the job", "bytes"},
         {"job/block_io/bytes_read", "Bytes read from local disks by the job", "bytes"},
         {"job/block_io/io_read", "Number of reads from local disks by the job", "pieces"},

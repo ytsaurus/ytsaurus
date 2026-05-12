@@ -222,13 +222,6 @@ void TCompositeAutomatonPart::StopEpoch()
     EpochAutomatonInvoker_.Reset();
 }
 
-void TCompositeAutomatonPart::LogHandlerError(const TError& error)
-{
-    if (!IsRecovery()) {
-        Automaton_->LogHandlerError(error);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomaton::TCompositeAutomaton(
@@ -279,17 +272,19 @@ void TCompositeAutomaton::SetupLoadContext(TLoadContext* context)
 
 void TCompositeAutomaton::RegisterMethod(
     const TString& type,
-    TCallback<void(TMutationContext*)> callback)
+    TCallback<void(TMutationContext*)> callback,
+    bool exceptionsAreNormal)
 {
     auto profiler = Profiler_.WithTag("type", type).WithSparse();
     TCompositeAutomaton::TMethodDescriptor descriptor{
-        callback,
+        std::move(callback),
         profiler.TimeCounter("/cumulative_mutation_time"),
         profiler.TimeCounter("/cumulative_mutation_execute_time"),
         profiler.TimeCounter("/cumulative_mutation_deserialize_time"),
         profiler.Counter("/mutation_count"),
         profiler.Gauge("/mutation_request_size"),
         New<TProfilerTag>("mutation_type", type),
+        exceptionsAreNormal,
     };
     EmplaceOrCrash(MethodNameToDescriptor_, type, descriptor);
 }
@@ -512,10 +507,46 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
             cpuProfilerTagGuard = TCpuProfilerTagGuard(descriptor->CpuProfilerTag);
         }
 
-        if (handler) {
-            handler(context);
-        } else {
-            descriptor->Callback(context);
+        try {
+            if (handler) {
+                handler(context);
+            } else {
+                descriptor->Callback(context);
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+
+            if (error.GetCode() == EErrorCode::ExpectedMutationHandlerException) {
+                int innerErrorCount = error.InnerErrors().size();
+                if (innerErrorCount > 1) {
+                    YT_LOG_ALERT(
+                        error,
+                        "Too many inner errors within expected mutation handler exception (InnerErrorCount: %v)",
+                        innerErrorCount);
+                }
+                error = error.InnerErrors().empty()
+                    ? TError()
+                    : error.InnerErrors()[0];
+
+                // Exceptions should only be wrapped once.
+                if (error.FindMatching(EErrorCode::ExpectedMutationHandlerException)) {
+                    YT_LOG_ALERT(error, "Malformed mutation handler exception");
+                } else {
+                    YT_LOG_DEBUG(error, "Expected mutation handler exception");
+                }
+            } else if (!descriptor->ExceptionsAreAllowed) {
+                auto logLevel = HydraManager_->GetMutationHandlerFailureLogLevel(mutationType);
+                YT_LOG_EVENT(
+                    Logger,
+                    logLevel,
+                    error,
+                    "Error applying mutation (MutationType: %Qv)",
+                    mutationType);
+            } else {
+                YT_LOG_DEBUG(error, "Expected mutation handler exception");
+            }
+
+            context->SetResponseData(error);
         }
 
         if (!isRecovery) {
@@ -605,11 +636,6 @@ std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
         }
     }
     return parts;
-}
-
-void TCompositeAutomaton::LogHandlerError(const TError& error)
-{
-    YT_LOG_DEBUG(error, "Error executing mutation handler");
 }
 
 void TCompositeAutomaton::DeserializeRequestAndProfile(

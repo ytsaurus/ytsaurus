@@ -525,6 +525,71 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         self._check_cell_stable(cell_id)
 
+    @authors("ifsmirnov")
+    def test_leader_smoothing(self):
+        set("//sys/@config/tablet_manager/peer_revocation_timeout", 3000)
+        set("//sys/@config/tablet_manager/leader_reassignment_timeout", 2000)
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) >= 6
+
+        # Pick 4 nodes for the bundle and 1 extra node for later.
+        tagged_nodes = nodes[:4]
+        extra_node = nodes[4]
+
+        for node in tagged_nodes:
+            set(f"//sys/cluster_nodes/{node}/@user_tags", ["smoothing"])
+
+        # Create bundle with peer_count=2 and node_tag_filter.
+        create_tablet_cell_bundle("b", attributes={
+            "options": {"peer_count": 2},
+            "node_tag_filter": "smoothing",
+        })
+
+        # Set slot count to 6 on each node via dynamic config.
+        # 4 nodes * 6 slots = 24 slots, peer_count=2 => 12 cells to fill all slots.
+        update_nodes_dynamic_config({"slots": 6}, path="tablet_node", replace=True)
+
+        cell_count = 12
+        cell_ids = sync_create_cells(cell_count, tablet_cell_bundle="b")
+
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_leader_smoothing", True)
+
+        def _get_leader_counts():
+            """Returns a dict: node_address -> number of leaders on that node."""
+            nodes = ls("//sys/tablet_nodes", attributes=["tablet_slots"], verbose=False)
+            return {
+                str(node): sum(1 for slot in node.attributes.get("tablet_slots", []) if slot.get("state") == "leading")
+                for node in nodes
+            }
+
+        def _is_balanced(expected_nodes):
+            counts = _get_leader_counts()
+            # Only count leaders on expected nodes.
+            counts = {n: c for n, c in counts.items() if n in expected_nodes}
+            if not counts:
+                return False
+            max_count = max(counts.values())
+            min_count = min(counts.values())
+            return min_count >= cell_count // len(expected_nodes) and \
+                max_count <= (cell_count + len(expected_nodes) - 1) // len(expected_nodes)
+
+        # Wait until leaders are balanced across the 4 tagged nodes.
+        wait(lambda: _is_balanced(builtins.set(tagged_nodes)))
+
+        # Now ban one of the nodes and add the tag to a new node.
+        banned_node = tagged_nodes[0]
+        set_node_banned(banned_node, True)
+
+        set(f"//sys/cluster_nodes/{extra_node}/@user_tags", ["smoothing"])
+        new_tagged_nodes = tagged_nodes[1:] + [extra_node]
+
+        # Wait for cells to recover after ban.
+        wait_for_cells(cell_ids)
+
+        # Wait until leaders are balanced across the new set of 4 nodes.
+        wait(lambda: _is_balanced(builtins.set(new_tagged_nodes)))
+
     @authors("savrus")
     def test_tablet_cell_health_status(self):
         cell_id = sync_create_cells(1)[0]
@@ -688,6 +753,32 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set("//tmp/t2/@profiling_mode", "tag")
         assert get("//tmp/t2/@profiling_mode") == "tag"
 
+    @authors("navasardianna")
+    def test_update_content_revision(self):
+        set("//sys/@config/tablet_manager/update_table_content_revision_on_heartbeat", True)
+
+        sync_create_cells(1)
+
+        attributes = {"external_cell_tag": 11} if self.NUM_SECONDARY_MASTER_CELLS > 1 else {}
+        attributes.update({"dynamic_store_auto_flush_period": yson.YsonEntity()})
+        self._create_sorted_table("//tmp/t", **attributes)
+        sync_mount_table("//tmp/t")
+
+        driver = get_driver(1 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
+        table_id = get("//tmp/t/@id")
+
+        # Waiting for all content revision updates to reach the master.
+        time.sleep(2)
+
+        for i in range(0, 3):
+            old_content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+            insert_rows("//tmp/t", [{"key": i, "value": "0"}])
+            wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
+
+        content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+        time.sleep(3)
+        assert get(f"#{table_id}/@content_revision", driver=driver) == content_revision
+
     @authors("akozhikhov")
     def test_inherited_profiling_mode_without_tag(self):
         sync_create_cells(1)
@@ -835,6 +926,29 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         # Evaluation of non materializied computed columns is not implemented yet.
         assert lookup_rows("//tmp/t", [{"a": r["a"], "b": r["b"]} for r in rows]) == [{"a": i, "b": -i, "c": i, "mul": yson.YsonEntity()} for i in range(1, 4)]
         assert select_rows("mul from [//tmp/t]") == [{"mul": yson.YsonEntity()} for i in range(1, 4)]
+
+    @authors("sabdenovch")
+    def test_validate_reshard_complexity(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(100)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [50]])
+
+        set("//sys/@config/tablet_manager/max_reshard_complexity", 10)
+
+        alter_table("//tmp/t", schema=(
+            [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            + [{"name": f"k_{i}", "type": "int64", "sort_order": "ascending"} for i in range(11)]
+            + [{"name": "value", "type": "string"}]
+        ))
+
+        with raises_yt_error("Reshard complexity exceeds maximum allowed complexity"):
+            sync_reshard_table("//tmp/t", [[], [30], [70]])
+
+        set("//sys/@config/tablet_manager/max_reshard_complexity", 30)
+        sync_reshard_table("//tmp/t", [[], [30], [70]])
 
 
 ##################################################################

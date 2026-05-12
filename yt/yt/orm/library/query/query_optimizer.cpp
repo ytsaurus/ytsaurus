@@ -269,7 +269,6 @@ public:
         , ColumnsMapping_(columnsMapping)
     { }
 
-
     bool OnReference(TReferenceExpressionPtr expression) override
     {
         return NYT::Visit(Query_->FromClause,

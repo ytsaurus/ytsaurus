@@ -613,6 +613,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", chunk_reader={
             "hedging_manager": {
                 "secondary_request_ratio": 0.5,
+                "max_hedging_delay": 0,
             },
             "prefer_local_replicas": False,
             "use_block_cache": False,

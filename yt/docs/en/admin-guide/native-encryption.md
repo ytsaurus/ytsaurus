@@ -1,9 +1,9 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'Encryption in the {{product-name}} native protocol'
+      content: 'Native Protocol encryption in {{product-name}}'
     - property: 'og:description'
-      content: 'This document describes the encryption architecture and configuration instructions for various deployment scenarios in {{product-name}}.'
+      content: 'This document describes the encryption architecture and provides configuration instructions for various deployment scenarios in {{product-name}}.'
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
@@ -15,6 +15,4 @@ metadata:
     - property: 'article:author'
       content: 'Zakhar Telukh'
 ---
-
-
 {% include [Configuring TLS encryption](../_includes/admin-guide/native-encryption.md) %}

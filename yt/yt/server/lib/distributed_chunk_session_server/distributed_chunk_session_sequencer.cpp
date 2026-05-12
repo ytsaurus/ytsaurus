@@ -45,6 +45,7 @@ public:
             /*counters*/ {},
             std::move(invoker),
             std::move(targets),
+            EChunkFormat::JournalDistributed,
             DistributedChunkSessionServiceLogger()))
         , Logger(DistributedChunkSessionServiceLogger().WithTag("(SessionId: %v)", sessionId))
     { }

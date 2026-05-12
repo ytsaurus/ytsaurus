@@ -269,13 +269,13 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(21, PrimaryCompressedDataSizePerJob_,
         .SinceVersion(ESnapshotVersion::PrimaryCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+            this_->PrimaryCompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
         }));
 
     PHOENIX_REGISTER_FIELD(22, MaxPrimaryCompressedDataSizePerJob_,
         .SinceVersion(ESnapshotVersion::PrimaryCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+            this_->MaxPrimaryCompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
         }));
 
     // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty

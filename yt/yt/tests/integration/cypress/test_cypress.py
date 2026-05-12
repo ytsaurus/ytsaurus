@@ -404,10 +404,10 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         d = create("map_node", "//tmp/d", tx=tx)
         if self.ENABLE_TMP_ROOTSTOCK:
-            assert get(f"#{d}/@ref_counter") == 2
+            assert get(f"#{d}/@ref_counter") == 1
         else:
-            # parent + branch + transaction
-            assert get(f"#{d}/@ref_counter") == 3
+            # parent + branch
+            assert get(f"#{d}/@ref_counter") == 2
         commit_transaction(tx)
         assert get(f"#{d}/@ref_counter") == 1
 
@@ -2827,20 +2827,20 @@ class TestCypress(YTEnvSetup):
 
         create("map_node", "//tmp/m1", attributes={"expiration_time": "2044-01-01"})
         create("table", "//tmp/m1/t1")
-        assert get("//tmp/m1/t1/@effective_expiration")["time"] == {"value": "2044-01-01T00:00:00.000000Z", "path": "//tmp/m1"}
+        assert get("//tmp/m1/t1/@effective_expiration/time") == {"value": "2044-01-01T00:00:00.000000Z", "path": "//tmp/m1"}
 
         create("map_node", "//tmp/m2", attributes={"expiration_time": "2030-01-01"})
         create("map_node", "//tmp/m2/m2")
         create("table", "//tmp/m2/m2/t2", attributes={"expiration_time": "2044-01-01"})
-        assert get("//tmp/m2/m2/t2/@effective_expiration")["time"] == {"value": "2030-01-01T00:00:00.000000Z", "path": "//tmp/m2"}
+        assert get("//tmp/m2/m2/t2/@effective_expiration/time") == {"value": "2030-01-01T00:00:00.000000Z", "path": "//tmp/m2"}
 
         create("map_node", "//tmp/m3", attributes={"expiration_timeout": 10000})
         create("table", "//tmp/m3/t3", attributes={"expiration_timeout": 20000})
-        assert get("//tmp/m3/t3/@effective_expiration")["timeout"] == {"value": 10000, "path": "//tmp/m3"}
+        assert get("//tmp/m3/t3/@effective_expiration/timeout") == {"value": 10000, "path": "//tmp/m3"}
 
         create("map_node", "//tmp/m4")
         create("table", "//tmp/m4/t4", attributes={"expiration_timeout": 20000})
-        assert get("//tmp/m4/t4/@effective_expiration")["timeout"] == {"value": 20000, "path": "//tmp/m4/t4"}
+        assert get("//tmp/m4/t4/@effective_expiration/timeout") == {"value": 20000, "path": "//tmp/m4/t4"}
 
     @authors("h0pless")
     def test_effective_expiration_time_transaction(self):
@@ -3408,6 +3408,20 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t4")
         copy("//tmp/t4", "//tmp/dir1/t1", force=True)
         assert get("//tmp/dir1/t1/@chunk_merger_mode") == "deep"
+
+    @authors("kvk1920")
+    def test_effective_inheritable_attributes_bundle(self):
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+
+        create("table", "//tmp/a/b/t1", recursive=True, attributes={"tablet_cell_bundle": "b1"})
+
+        set("//tmp/a/@tablet_cell_bundle", "b2")
+
+        create("table", "//tmp/a/b/t2", attributes={"tablet_cell_bundle": "b1"})
+
+        assert get("//tmp/a/b/t1/@tablet_cell_bundle") == "b1"
+        assert get("//tmp/a/b/t2/@tablet_cell_bundle") == "b1"
 
     @authors("kvk1920", "h0pless")
     def test_effective_inheritable_attributes_attribute(self):

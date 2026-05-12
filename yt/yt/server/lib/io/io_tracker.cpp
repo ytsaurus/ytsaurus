@@ -26,7 +26,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString PathTagName = "object_path";
+static const std::string PathTagName = "object_path";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,13 +149,13 @@ void ParseBaggage(const TYsonString& baggage, TFunc addTag)
     TYsonPullParserCursor cursor(&parser);
     cursor.ParseMap([&] (auto* cursor) {
         EnsureYsonToken("tag key", *cursor, EYsonItemType::StringValue);
-        TString key{(*cursor)->UncheckedAsString()};
+        std::string key{(*cursor)->UncheckedAsString()};
         cursor->Next();
         if ((*cursor)->GetType() != EYsonItemType::StringValue) {
             cursor->SkipComplexValue();
             return;
         }
-        addTag(std::move(key), TString{(*cursor)->UncheckedAsString()});
+        addTag(std::move(key), std::string{(*cursor)->UncheckedAsString()});
         cursor->Next();
     });
 }
@@ -457,7 +457,7 @@ private:
     TMpscStack<TIOEvent> EventStack_;
     std::atomic<int> EventStackSize_ = 0;
     TDuration PeriodQuant_;
-    THashSet<TString> PathAggregateTags_;
+    THashSet<std::string> PathAggregateTags_;
     TRawEventSink RawSink_;
     TAggregateEventSink AggregateSink_;
     TAggregateEventSink PathAggregateSink_;

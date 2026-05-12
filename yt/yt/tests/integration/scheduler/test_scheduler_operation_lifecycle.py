@@ -257,7 +257,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op.abort()
 
-        assert not exists("#" + input_tx)
+        # NB(eshcherbin): Aborting an orphaned operation triggers a fire-and-forget
+        # transaction abort (see TScheduler::AbortOperationWithoutRevival), so the
+        # transaction may still be alive when op.abort() returns.
+        wait(lambda: not exists("#" + input_tx))
 
     @authors("ignat")
     def test_suspend_during_revive(self):

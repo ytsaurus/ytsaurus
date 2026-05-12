@@ -205,8 +205,8 @@ go.ytsaurus.tech/library/go/blockcodecs v0.0.3 h1:JXCfuzDx4yoJgV0eWA+3zLAT0Mex3Y
 go.ytsaurus.tech/library/go/blockcodecs v0.0.3/go.mod h1:CtkA8XKuqwax4aPBEorIpz84gW3ijEHsnzlkODYERfU=
 go.ytsaurus.tech/library/go/core/buildinfo v0.0.0-20250809130132-fa050e73ac17 h1:URFcNi38TYQpvUA/cUY2j+w+qX0djmh1fJ/iDYFVbys=
 go.ytsaurus.tech/library/go/core/buildinfo v0.0.0-20250809130132-fa050e73ac17/go.mod h1:BfQ81zAp18zqVhndHyoigZS+pMW+x7WJdcZIBSwTs5k=
-go.ytsaurus.tech/library/go/core/log v0.0.4 h1:HQqRd2cw6TdbD0iMCmHxE+hLEES5LUFaj2Mc6rePAuc=
-go.ytsaurus.tech/library/go/core/log v0.0.4/go.mod h1:CmXfXw+wMmxr2NYdHWRLYww7WiVYdcJx0RRkt14Dmc8=
+go.ytsaurus.tech/library/go/core/log v0.0.5 h1:slQiGR8yPQz/P0KcG6kLgx6yePBnPAXaDU9j/t/gi8Y=
+go.ytsaurus.tech/library/go/core/log v0.0.5/go.mod h1:jfPQ2GUGJq6fyMOKVXziBKEbzxddEIWTWd2tjnCLdnc=
 go.ytsaurus.tech/library/go/core/metrics v0.0.2 h1:CwWOFbCNrx41Fpaiv3qs5bEzRupzGjlYtplNE6WZ+j0=
 go.ytsaurus.tech/library/go/core/metrics v0.0.2/go.mod h1:Iih2TbDByuHgXX/0l9neCsdSBMZ23ffBDRC4ngS+odY=
 go.ytsaurus.tech/library/go/core/xerrors v0.0.4 h1:KDZdCGiS/Lg641TIA3s8JCg7ZgxAvtFITTeG3Kb+SoE=

@@ -65,8 +65,8 @@ YT_TEST_DEPENDENCIES = [
 ]
 
 
-def cp_r_755(src, dst):
-    cp_r(src, dst, permissions=0o755, ignore=ignore_patterns("*.pyc"))
+def cp_r_755(src, dst, dirs_exist_ok=False):
+    cp_r(src, dst, permissions=0o755, ignore=ignore_patterns("*.pyc"), dirs_exist_ok=dirs_exist_ok)
 
 
 def fix_type_info_package(type_info_path):
@@ -143,7 +143,7 @@ def prepare_python_modules(
             lib_path,
             os.path.join(output_path, "{path}/{name}.so".format(path=os.path.basename(module_path), name=name)))
 
-    cp_r_755(os.path.join(python_root, "yt"), output_path)
+    cp_r_755(os.path.join(python_root, "yt"), output_path, dirs_exist_ok=True)
     yt_data_path = os.path.join(python_root, "yt", "data")
     if os.path.exists(yt_data_path):
         rm_rf(yt_data_path)

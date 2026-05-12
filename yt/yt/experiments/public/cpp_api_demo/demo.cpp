@@ -156,13 +156,6 @@ public:
 
 const NYPath::TYPath Api::Table_ = "//tmp/t";
 
-__attribute__((destructor))
-void foo()
-{
-    puts("__dtor");
-}
-
-
 int main()
 {
     const auto* configPath = std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH");

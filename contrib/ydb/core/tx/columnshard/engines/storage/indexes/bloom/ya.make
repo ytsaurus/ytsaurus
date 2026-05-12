@@ -9,6 +9,7 @@ PEERDIR(
     contrib/ydb/core/protos
     contrib/ydb/core/formats/arrow
     contrib/ydb/core/tx/columnshard/engines/storage/indexes/portions
+    contrib/ydb/core/tx/columnshard/engines/storage/indexes/helper
 )
 
 END()

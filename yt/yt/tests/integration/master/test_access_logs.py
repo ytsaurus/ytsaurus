@@ -3,7 +3,7 @@ import collections
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, move,
+    authors, get_driver, insert_rows, wait, create, ls, get, set, copy, move,
     remove, link, commit_transaction,
     exists, start_transaction, abort_transaction, alter_table, write_table, sort, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
@@ -11,6 +11,8 @@ from yt_commands import (
 
 from yt_helpers import get_current_time
 from yt_type_helpers import make_schema
+
+import yt.yson as yson
 
 from copy import deepcopy
 import json
@@ -665,6 +667,49 @@ class TestAccessLog(YTEnvSetup):
                 "method": "Copy",
             }
         ]
+        self._validate_entries_against_log(log_list)
+
+    @authors("navasardianna")
+    def test_revise_insert_rows(self):
+        set("//sys/@config/tablet_manager/update_table_content_revision_on_heartbeat", True)
+
+        sync_create_cells(1)
+
+        create("map_node", "//tmp/access_log")
+
+        attributes = {"external_cell_tag": 11} if self.NUM_SECONDARY_MASTER_CELLS > 1 else {}
+        attributes["dynamic_store_auto_flush_period"] = yson.YsonEntity()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create_dynamic_table("//tmp/access_log/table", schema=schema, **attributes)
+        sync_mount_table("//tmp/access_log/table")
+
+        driver = get_driver(1 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
+        table_id = get("//tmp/access_log/table/@id")
+
+        # Reads new logs and adds them to LOADED_LOGS.
+        self._validate_entries_against_log([])
+
+        # Cleaning LOADED_LOGS is used as a barrier to previous logs
+        # to check that Revise is logged after the insert.
+        self.LOADED_LOGS = {}
+
+        old_content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+        insert_rows("//tmp/access_log/table", [{"key": 0, "value": "0"}])
+        wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
+
+        log_list = [{
+            "path": "//tmp/access_log/table",
+            "type": "table",
+            "id": table_id,
+            "method": "Revise",
+            "revision_type": "content"
+        }]
+
         self._validate_entries_against_log(log_list)
 
 

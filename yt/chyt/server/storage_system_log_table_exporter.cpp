@@ -352,7 +352,7 @@ public:
         const DB::Block& header,
         TCircularChunkBufferPtr storageBuffer,
         std::shared_ptr<const std::vector<int>> columnIndexToId,
-        TCompositeSettingsPtr compositeSettings,
+        TConversionSettingsPtr conversionSettings,
         IArchiveReporterPtr archiveReporter,
         ITableExtenderPtr tableExtender,
         TNameTablePtr nameTable,
@@ -360,7 +360,7 @@ public:
         : DB::SinkToStorage(header)
         , StorageBuffer_(std::move(storageBuffer))
         , ColumnIndexToId_(std::move(columnIndexToId))
-        , CompositeSettings_(std::move(compositeSettings))
+        , ConversionSettings_(std::move(conversionSettings))
         , ArchiveReporter_(std::move(archiveReporter))
         , TableExtender_(std::move(tableExtender))
         , NameTable_(std::move(nameTable))
@@ -389,7 +389,7 @@ public:
                         block,
                         block.getDataTypes(),
                         *ColumnIndexToId_,
-                        CompositeSettings_,
+                        ConversionSettings_,
                         TableExtender_->GetColumns().size());
 
                     TableExtender_->ExtendRows(rowRange, extraRowBuffer, NameTable_);
@@ -411,7 +411,7 @@ private:
     TCircularChunkBufferPtr StorageBuffer_;
     const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
 
-    const TCompositeSettingsPtr CompositeSettings_;
+    const TConversionSettingsPtr ConversionSettings_;
     IArchiveReporterPtr ArchiveReporter_;
     const ITableExtenderPtr TableExtender_;
     const TNameTablePtr NameTable_;
@@ -440,8 +440,8 @@ public:
         , CypressTableDirectory_(std::move(cypressTableDirectory))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
-        , CompositeSettings_(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true))
-        , Schema_(ToTableSchema(columnsDescription, /*keyColumns*/ {}, CompositeSettings_))
+        , ConversionSettings_(TConversionSettings::Create(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)))
+        , Schema_(ToTableSchema(columnsDescription, /*keyColumns*/ {}, ConversionSettings_))
         , NameTable_(TNameTable::FromSchema(Schema_))
         , ColumnIndexToId_(std::make_shared<const std::vector<int>>(
             GetColumnIndexToId(NameTable_, Schema_.GetColumnNames())))
@@ -533,7 +533,7 @@ public:
             metadataSnapshot->getSampleBlock(),
             Data_,
             ColumnIndexToId_,
-            CompositeSettings_,
+            ConversionSettings_,
             ArchiveReporter_,
             Extender_,
             NameTable_,
@@ -545,7 +545,7 @@ private:
     const TYPath CypressTableDirectory_;
     const NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
-    const TCompositeSettingsPtr CompositeSettings_;
+    const TConversionSettingsPtr ConversionSettings_;
     TTableSchema Schema_;
     TNameTablePtr NameTable_;
     const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;

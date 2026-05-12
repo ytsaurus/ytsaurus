@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import curlify
 import requests
+import json
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -15,6 +16,7 @@ class YCFunctionAuth:
 class CloudFunctionClient:
     SUBMIT_TASK_ID = "d4ee6v3cr3udu6bpnova"
     RUN_TASK_ID = "d4ei35u5bejcoiccbkcf"
+    GET_TASK_ID = "d4ev9b826qs0dsnt006q"
 
     def __init__(self, auth: YCFunctionAuth, max_retries: int = 3, backoff_factor: int = 1.0):
         self._base_url = auth.cloud_function_url
@@ -56,3 +58,11 @@ class CloudFunctionClient:
         response.raise_for_status()
 
         return response.json()
+
+    def get_task_info(self, job_id):
+        payload = {"job_id": job_id}
+        req = self._prepare(payload, self.GET_TASK_ID, "get")
+        response = self._session.send(req)
+        response.raise_for_status()
+
+        return json.loads(response.json()["body"])

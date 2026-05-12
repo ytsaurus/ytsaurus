@@ -18,7 +18,8 @@ struct TFeatureFlagConfig
     : public virtual NYTree::TYsonStruct
 {
     std::optional<bool> EnableSmoothMovement;
-    std::optional<bool> EnableInplaceReshard;
+    std::optional<bool> EnableInplaceSplit;
+    std::optional<bool> EnableInplaceMerge;
 
     REGISTER_YSON_STRUCT(TFeatureFlagConfig);
 
@@ -207,9 +208,9 @@ DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
 
 struct TEffectiveTableConfig
 {
-    i64 MinTabletSize;
-    i64 MaxTabletSize;
-    i64 DesiredTabletSize;
+    i64 MinTabletSize = 0;
+    i64 MaxTabletSize = 0;
+    i64 DesiredTabletSize = 0;
 
     TTimeFormula Schedule;
 

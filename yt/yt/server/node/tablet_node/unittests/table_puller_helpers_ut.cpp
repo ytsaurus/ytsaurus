@@ -126,11 +126,10 @@ TReplicationCardPtr CreateReplicationCard(std::span<TChaosReplicaDescriptor> rep
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TQueueReplicaSelectorTest, TestPreferLocal)
+TEST(TQueueReplicaSelectorTest, PreferLocal)
 {
     TLogger logger;
-    TBannedReplicaTracker bannedReplicaTracker(logger, std::nullopt);
-    TQueueReplicaSelector queueReplicaSelector(logger, bannedReplicaTracker, false);
+    TQueueReplicaSelector queueReplicaSelector(logger, std::nullopt, false);
 
     auto replicationCardId = GenerateReplicationCardId();
     auto replicas = GenerateDefaultReplicas();
@@ -165,11 +164,11 @@ TEST(TQueueReplicaSelectorTest, TestPreferLocal)
     EXPECT_EQ(NullTimestamp, std::get<2>(value));
 }
 
-TEST(TQueueReplicaSelectorTest, TestStronglyPreferLocal)
+TEST(TQueueReplicaSelectorTest, StronglyPreferLocal)
 {
     TLogger logger;
-    TBannedReplicaTracker bannedReplicaTracker(logger, 1);
-    TQueueReplicaSelector queueReplicaSelector(logger, bannedReplicaTracker, true);
+    TQueueReplicaSelector queueReplicaSelector(logger, 1, true);
+    auto& bannedReplicaTracker = queueReplicaSelector.GetBannedReplicaTracker();
 
     auto replicationCardId = GenerateReplicationCardId();
     auto replicas = GenerateDefaultReplicas();
@@ -237,11 +236,11 @@ TEST(TQueueReplicaSelectorTest, TestStronglyPreferLocal)
     }
 }
 
-TEST(TQueueReplicaSelectorTest, TestBanReplicas)
+TEST(TQueueReplicaSelectorTest, BanReplicas)
 {
     TLogger logger;
-    TBannedReplicaTracker bannedReplicaTracker(logger, 1);
-    TQueueReplicaSelector queueReplicaSelector(logger, bannedReplicaTracker, false);
+    TQueueReplicaSelector queueReplicaSelector(logger, 1, false);
+    auto& bannedReplicaTracker = queueReplicaSelector.GetBannedReplicaTracker();
 
     auto replicationCardId = GenerateReplicationCardId();
     auto replicas = GenerateDefaultReplicas();
@@ -316,7 +315,7 @@ TEST(TQueueReplicaSelectorTest, TestBanReplicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TBannedReplicaTrackerTest, TestSyncReplicas)
+TEST(TBannedReplicaTrackerTest, SyncReplicas)
 {
     TLogger logger;
     TBannedReplicaTracker bannedReplicaTracker(logger, 1);

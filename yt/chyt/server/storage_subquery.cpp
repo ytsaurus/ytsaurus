@@ -86,7 +86,7 @@ public:
         }
 
         DB::StorageInMemoryMetadata storage_metadata;
-        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Composite)));
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Conversion)));
         setInMemoryMetadata(storage_metadata);
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
@@ -196,7 +196,7 @@ public:
         if (StorageContext_->Settings->Execution->EnableMinMaxFiltering) {
             granuleMinMaxFilter = CreateGranuleMinMaxFilter(
                 queryInfo,
-                StorageContext_->Settings->Composite,
+                StorageContext_->Settings->Conversion,
                 SubquerySpec_.ReadSchema,
                 context,
                 realColumnNames);
@@ -219,7 +219,7 @@ public:
         } else {
             readPlan = BuildSimpleReadPlan(std::move(columnSchemas));
         }
-        SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Composite);
+        SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Conversion);
         QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.SubqueryOptions.UseDistinctReadOptimization);
 
         if (SubquerySpec_.InputSpecsTruncated) {

@@ -66,4 +66,9 @@ const TTransactionGeneration NativeGenerationMask = 0xffU;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const std::string ShouldBeStrippedErrorAttributeKey = "should_be_stripped";
+const std::string StrippedErrorMessages = "stripped_error_messages";
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTransactionClient

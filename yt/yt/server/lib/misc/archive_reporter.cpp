@@ -163,7 +163,7 @@ public:
         }
         if (Limiter_.TryIncrease(rowlet->EstimateSize())) {
             Batcher_->Enqueue(std::move(rowlet));
-            PendingCounter_.Update(PendingCount_++);
+            PendingCounter_.Update(++PendingCount_);
             EnqueuedCounter_.Increment();
             UpdateQueueIsTooLargeCounter();
         } else {

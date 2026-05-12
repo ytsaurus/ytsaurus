@@ -1840,6 +1840,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_yson_extract(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "any"}]})
+        write_table("//tmp/t", [{"a": {"a": {"b": "val", "c": 12}}}])
+
         with Clique(1) as clique:
             assert clique.make_query("select YSONHas('{a=5;b=6}', 'a') as a") == [{"a": 1}]
             assert clique.make_query("select YSONHas('{a=5;b=6}', 'c') as a") == [{"a": 0}]
@@ -1865,6 +1868,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select YSONExtractString('[true; false]', 1) as a") == [{"a": "true"}]
             assert clique.make_query("select YSONExtractString('{a=true; b=false}', 'b') as a") == [{"a": "false"}]
+            assert clique.make_query("select YSONExtractString('{a=#}', 'a') as a") == [{"a": ""}]
 
             assert clique.make_query("select YSONExtract('{a=5;b=[5; 4; 3]}', 'b', 'Array(Int64)') as a") == [
                 {"a": [5, 4, 3]}
@@ -1880,6 +1884,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "b": 6,
                 "c": 10,
             }
+
+            assert clique.make_query("select YSONExtractString(a, 'a', 'c') as v from '//tmp/t'") == [{"v": "12"}]
+            assert clique.make_query("select YSONExtractString(YSONExtractRaw(a, 'a'), 'b') as v from '//tmp/t'") == [{"v": "val"}]
 
     @authors("dakovalkov")
     def test_yson_extract_invalid(self):
@@ -2739,7 +2746,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
         if lc_mode is not None:
             update_inplace(config, {
                 "yt": {
-                    "query_settings": {"composite": {"low_cardinality_mode": lc_mode}}
+                    "query_settings": {"conversion": {"low_cardinality": {"mode": lc_mode}}}
                 }
             })
 
@@ -2803,7 +2810,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
 
         with Clique(1, config_patch=self.low_cardinality_config()) as clique:
             settings = {
-                "chyt.composite.low_cardinality_mode": "all",
+                "chyt.conversion.low_cardinality.mode": "all",
             }
 
             self.make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', data, settings=settings)
@@ -2882,8 +2889,8 @@ class TestDataTypeConversion(ClickHouseTestBase):
             result = clique.make_query('describe table "//tmp/dict_encoded"', settings=settings)
             assert all(t["type"].startswith("LowCardinality") for t in result)
 
-            settings["chyt.composite.low_cardinality_mode"] = "from_statistics"
-            settings["chyt.composite.low_cardinality_threshold"] = 10
+            settings["chyt.conversion.low_cardinality.mode"] = "from_statistics"
+            settings["chyt.conversion.low_cardinality.threshold"] = 10
             arr = []
             for i in range(20):
                 arr.append({"a": "a", "b": str(i)})
@@ -2903,7 +2910,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
             result = clique.make_query('describe table "//tmp/nested_optional"', settings=settings)
             assert all(not t["type"].startswith("LowCardinality") for t in result)
 
-            settings["chyt.composite.low_cardinality_mode"] = "string_only"
+            settings["chyt.conversion.low_cardinality.mode"] = "string_only"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
             for t in result:
                 if t["name"] == "string_column" or t["name"] == "utf8_column":
@@ -2911,11 +2918,11 @@ class TestDataTypeConversion(ClickHouseTestBase):
                 else:
                     assert not t["type"].startswith("LowCardinality")
 
-            settings["chyt.composite.low_cardinality_mode"] = "none"
+            settings["chyt.conversion.low_cardinality.mode"] = "none"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
             assert all(not t["type"].startswith("LowCardinality") for t in result)
 
-            settings["chyt.composite.low_cardinality_regexp"] = "uint8_column"
+            settings["chyt.conversion.low_cardinality.regexp"] = "uint8_column"
             result = clique.make_query('describe table "//tmp/t"', settings=settings)
             for t in result:
                 if t["name"] == "uint8_column":

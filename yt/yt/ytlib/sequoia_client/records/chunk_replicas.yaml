@@ -5,6 +5,20 @@ types:
     table_group: chunk_tables
     type_name: TChunkReplicas
     fields:
+      {% if version >= 3 %}
+      - cpp_name: CellTag
+        cpp_type: NObjectClient::TCellTag
+        column_name: cell_tag
+        column_type: Uint16
+        sort_order: Ascending
+
+      - cpp_name: ShardIndex
+        cpp_type: i8
+        column_name: shard_index
+        column_type: Int8
+        sort_order: Ascending
+
+      {% endif %}
       - cpp_name: ChunkIdHash
         cpp_type: ui64
         column_name: chunk_id_hash

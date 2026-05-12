@@ -75,22 +75,6 @@ SELECT $x;
 ```
 
 If the URL is specified, the library is downloaded from the URL rather than from the previously attached file as in the following example:
-{% if audience == "internal"%}
-```yql
-PRAGMA library("a.sql","{{ corporate-paste }}/5618566/text");
-IMPORT a SYMBOLS $x;
-SELECT $x;
-```
-
-In this case, you can use text parameter value substitution in the URL:
-
-```yql
-DECLARE $_ver AS STRING; -- "5618566"
-PRAGMA library("a.sql","{{ corporate-paste }}/{$_ver}/text");
-IMPORT a SYMBOLS $x;
-SELECT $x;
-```
-{% else %}
 
 ```yql
 PRAGMA library("a.sql","https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/yql/pragma-library-example");
@@ -106,7 +90,6 @@ PRAGMA library("a.sql","https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs
 IMPORT a SYMBOLS $x;
 SELECT $x;
 ```
-{% endif %}
 
 ## Package
 

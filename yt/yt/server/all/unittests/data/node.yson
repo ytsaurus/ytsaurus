@@ -328,7 +328,12 @@
             ];
         };
         "job_proxy_log_manager" = {
-            "directory" = "~/logs";
+            "locations" = [
+                {
+                    "disk_path" = "~/logs";
+                };
+            ];
+            "location_check_period" = "1m";
             "sharding_key_length" = 1;
             "logs_storage_period" = "7d";
             "log_dump" = {

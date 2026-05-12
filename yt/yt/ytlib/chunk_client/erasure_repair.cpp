@@ -162,7 +162,7 @@ public:
         , ReadBlocksOptions_(std::move(readOptions))
         , WriteBlocksOptions_(std::move(writeOptions))
     {
-        YT_VERIFY(erasedIndices.size() == writers.size());
+        YT_VERIFY(ErasedIndices_.size() == Writers_.size());
     }
 
     TFuture<void> Run()
