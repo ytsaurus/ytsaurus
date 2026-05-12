@@ -11,7 +11,7 @@ $ss_items =
  where ss_item_sk = i_item_sk
    and d_date in (select d_date
                   from date_dim
-                  where d_week_seq = $week_seq)
+                  where d_week_seq in $week_seq)
    and ss_sold_date_sk   = d_date_sk
  group by item.i_item_id);
 $cs_items =
@@ -23,7 +23,7 @@ $cs_items =
  where cs_item_sk = i_item_sk
   and  d_date in (select d_date
                   from date_dim
-                  where d_week_seq = $week_seq)
+                  where d_week_seq in $week_seq)
   and  cs_sold_date_sk = d_date_sk
  group by item.i_item_id);
 $ws_items =
@@ -35,7 +35,7 @@ $ws_items =
  where ws_item_sk = i_item_sk
   and  d_date in (select d_date
                   from date_dim
-                  where d_week_seq =$week_seq)
+                  where d_week_seq in $week_seq)
   and ws_sold_date_sk   = d_date_sk
  group by item.i_item_id);
 -- start query 1 in stream 0 using template query58.tpl and seed 1819994127
