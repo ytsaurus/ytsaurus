@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/config.h>
+
 #include <yt/yt/ytlib/event_log/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -1360,6 +1362,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(66);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
 
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)

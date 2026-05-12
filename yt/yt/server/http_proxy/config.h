@@ -411,7 +411,7 @@ struct TProxyDynamicConfig
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
-    std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     TNodeMemoryTrackerConfigPtr MemoryTracker;
 

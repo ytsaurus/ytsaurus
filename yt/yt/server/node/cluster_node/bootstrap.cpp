@@ -1555,7 +1555,7 @@ private:
             Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
         }
 
-        Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
+        Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

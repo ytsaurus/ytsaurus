@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -1091,6 +1093,8 @@ struct TSchedulerConfig
     int MinRequiredArchiveVersion;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
+
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     int OperationSpecTreeSizeLimit;
     i64 OperationSpecTooLargeAlertThreshold;

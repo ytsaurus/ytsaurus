@@ -48,6 +48,9 @@ void TMasterCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

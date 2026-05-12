@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
@@ -61,6 +63,8 @@ struct TMasterCacheDynamicConfig
     : public TSingletonsDynamicConfig
 {
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
+
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     REGISTER_YSON_STRUCT(TMasterCacheDynamicConfig);
 
