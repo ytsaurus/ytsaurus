@@ -673,11 +673,9 @@ TEST_F(TReplicatedTableTrackerTest, PreloadCheck)
 
     auto mockPreloadState = [&] (EStorePreloadState preloadState) {
         EXPECT_CALL(*client, GetNode(TablePath1, _))
-            .WillRepeatedly(Invoke(std::bind(
+            .WillRepeatedly(Invoke(std::bind_front(
                 ReturnSerializedPreloadStateFuture,
-                preloadState,
-                std::placeholders::_1,
-                std::placeholders::_2)));
+                preloadState)));
 
         Sleep(CheckPeriod);
     };
