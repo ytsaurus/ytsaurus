@@ -282,6 +282,8 @@ void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
     TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(config->MasterCellDirectorySynchronizer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

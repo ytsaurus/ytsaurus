@@ -210,7 +210,7 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("worker_pool_weight_overrides", &TThis::WorkerPoolWeightOverrides)
         .Optional();
