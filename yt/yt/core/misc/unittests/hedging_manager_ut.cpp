@@ -421,6 +421,36 @@ TEST_F(TAdaptiveHedgingManagerTest, Stress)
     EXPECT_GE(statistics.MaxQueueSize, 49);
 }
 
+TEST_F(TAdaptiveHedgingManagerTest, DurationCumulativeError)
+{
+    Config_->MaxTokenCount = 1;
+    Config_->HedgingDelayTuneFactor = 1.0001;
+    Config_->MaxHedgingDelay = TDuration::Seconds(1);
+    CreateHedgingManager();
+    int iterationCount = 50000;
+    std::vector<TTestSecondaryRequestGeneratorPtr> secondaryRequestGenerators;
+    for (int iteration = 0; iteration < iterationCount; ++iteration) {
+        auto promise = NewPromise<void>();
+        promise.Set();
+        auto secondaryRequestGenerator = New<TTestSecondaryRequestGenerator>();
+        secondaryRequestGenerators.push_back(secondaryRequestGenerator);
+        HedgingManager_->RegisterRequest(promise.ToFuture(), BIND([=] () {
+            secondaryRequestGenerator->GenerateSecondaryRequest();
+        }));
+    }
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
+    for (const auto& generator : secondaryRequestGenerators) {
+        EXPECT_FALSE(generator->GetHedgingWaitTimeFuture().IsSet());
+    }
+    auto statistics = HedgingManager_->CollectStatistics();
+    EXPECT_GT(statistics.HedgingDelay, TDuration::MilliSeconds(5));
+    EXPECT_LT(statistics.HedgingDelay, TDuration::MilliSeconds(10));
+    EXPECT_TRUE(statistics.MaxQueueSize == 0);
+    EXPECT_TRUE(statistics.PrimaryRequestCount == iterationCount);
+    EXPECT_TRUE(statistics.SecondaryRequestCount == 0);
+    EXPECT_TRUE(statistics.QueuedRequestCount == 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
