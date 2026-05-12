@@ -2183,6 +2183,7 @@ private:
             if (!future.IsSet()) {
                 Session_->SessionOptions_.AdaptiveHedgingManager->RegisterRequest(
                     future.As<void>(),
+                    /*hedgingPrice*/ 1,
                     BIND(&THedgedRequest::StartSecondaryRequest, MakeWeak(this))
                         .Via(Session_->SessionInvoker_));
             }

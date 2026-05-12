@@ -1424,6 +1424,38 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         wait(lambda: request_counter.get_delta() > 0)
 
+    @authors("akozhikhov")
+    def test_hedging_manager_erasure(self):
+        sync_create_cells(1)
+        self._create_table(hunk_erasure_codec="isa_reed_solomon_6_3")
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {
+            "max_token_count": 6,
+            "max_hedging_delay": 0,
+            "secondary_request_ratio": 0.5})
+
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(2)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(2)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
+        secondary_request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/secondary_request_count")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        time.sleep(1)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        time.sleep(1)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        wait(lambda: request_counter.get_delta() == 3)
+        assert secondary_request_counter.get_delta() == 1
+
     BLOB_HUNK_PAYLOAD = [
         {"payload": b"abcdefghijklmnopqrstuvwxyz"}
     ]
