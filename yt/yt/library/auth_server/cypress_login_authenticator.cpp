@@ -51,10 +51,11 @@ public:
         return Client_->GetNode(path, options)
             .Apply(BIND([user, password] (const TYsonString& rsp) {
                 auto node = ConvertToNode(rsp);
-                auto hashedPassword = node->Attributes().Get<TString>(HashedPasswordAttribute);
-                auto passwordSalt = node->Attributes().Get<TString>(PasswordSaltAttribute);
+                auto hashedPassword = node->Attributes().Get<std::string>(HashedPasswordAttribute);
+                auto passwordSalt = node->Attributes().Get<std::string>(PasswordSaltAttribute);
 
-                if (HashPassword(password, passwordSalt) != hashedPassword) {
+                // TODO(babenko): migrate to std::string
+                if (HashPassword(TString(password), TString(passwordSalt)) != hashedPassword) {
                     THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                         "Invalid password for user %Qlv",
                         user);

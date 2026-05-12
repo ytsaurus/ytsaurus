@@ -25,15 +25,15 @@ class TCompositeAuthSession;
 template <class T>
 TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path);
 
-TString GetCryptoHash(TStringBuf secret);
+std::string GetCryptoHash(TStringBuf secret);
 
-TString FormatUserIP(const NNet::TNetworkAddress& address);
+std::string FormatUserIP(const NNet::TNetworkAddress& address);
 
-TString GetBlackboxCacheKeyFactorFromUserIP(
+std::string GetBlackboxCacheKeyFactorFromUserIP(
     EBlackboxCacheKeyMode mode,
     const NNet::TNetworkAddress& address);
 
-TString GetLoginForTvmId(TTvmId tvmId);
+std::string GetLoginForTvmId(TTvmId tvmId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,8 +44,8 @@ public:
     void AppendChar(char ch);
     void AppendParam(TStringBuf key, TStringBuf value);
 
-    TString FlushRealUrl();
-    TString FlushSafeUrl();
+    std::string FlushRealUrl();
+    std::string FlushSafeUrl();
 
 private:
     TStringBuilder RealUrl_;
@@ -56,7 +56,7 @@ private:
 
 struct THashedCredentials
 {
-    std::optional<TString> TokenHash;
+    std::optional<std::string> TokenHash;
     // TODO(max42): add remaining fields from TCredentialsExt when needed.
 };
 
@@ -68,12 +68,12 @@ void Serialize(const THashedCredentials& hashedCredentials, NYson::IYsonConsumer
 
 std::string SignCsrfToken(
     const std::string& userId,
-    const TString& key,
+    const std::string& key,
     TInstant now);
 TError CheckCsrfToken(
     const std::string& csrfToken,
     const std::string& userId,
-    const TString& key,
+    const std::string& key,
     TInstant expirationTime);
 
 ////////////////////////////////////////////////////////////////////////////////

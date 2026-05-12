@@ -14,7 +14,7 @@ struct TCypressCookie
     : public NYTree::TYsonStruct
 {
     //! Value of the cookie.
-    TString Value;
+    std::string Value;
 
     //! User for which cookie is issued.
     std::string User;
@@ -29,7 +29,7 @@ struct TCypressCookie
     TInstant ExpiresAt;
 
     //! Returns text representation of a cookie for SetCookie header.
-    TString ToHeader(const TCypressCookieGeneratorConfigPtr& config) const;
+    std::string ToHeader(const TCypressCookieGeneratorConfigPtr& config) const;
 
     REGISTER_YSON_STRUCT(TCypressCookie);
 
@@ -42,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressCookie)
 
 //! Generates new cookie value using cryptographically strong generator.
 // NB: May throw on RNG failure.
-TString GenerateCookieValue();
+std::string GenerateCookieValue();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -285,10 +285,10 @@ private:
                 for (const auto& fieldNode : valueNode->GetChildren()) {
                     auto fieldMapNode = fieldNode->AsMap();
                     auto encodingNode = fieldMapNode->FindChild("encoding");
-                    TString encoding = encodingNode ? encodingNode->GetValue<TString>() : "";
+                    auto encoding = encodingNode ? encodingNode->GetValue<std::string>() : "";
                     subresponse.Values.emplace_back(TSecretValue{
-                        fieldMapNode->GetChildValueOrThrow<TString>("key"),
-                        fieldMapNode->GetChildValueOrThrow<TString>("value"),
+                        fieldMapNode->GetChildValueOrThrow<std::string>("key"),
+                        fieldMapNode->GetChildValueOrThrow<std::string>("value"),
                         encoding});
                 }
 
@@ -360,7 +360,7 @@ private:
             }
 
             return TDelegationTokenResponse{
-                .Token = response->GetChildValueOrThrow<TString>("token"),
+                .Token = response->GetChildValueOrThrow<std::string>("token"),
                 .TvmId = tvmService->GetSelfTvmId(),
             };
         } catch (const std::exception& ex) {
@@ -373,7 +373,7 @@ private:
         }
     }
 
-    TString MakeRequestUrl(TStringBuf path, bool addConsumer) const
+    std::string MakeRequestUrl(TStringBuf path, bool addConsumer) const
     {
         auto url = Format("%v://%v:%v%v",
             Config_->Secure ? "https" : "http",
@@ -499,12 +499,12 @@ private:
         }
     }
 
-    static TString GetStatusStringFromResponse(const IMapNodePtr& node)
+    static std::string GetStatusStringFromResponse(const IMapNodePtr& node)
     {
-        return node->GetChildValueOrThrow<TString>("status");
+        return node->GetChildValueOrThrow<std::string>("status");
     }
 
-    static ESecretVaultResponseStatus ParseStatus(const TString& statusString)
+    static ESecretVaultResponseStatus ParseStatus(const std::string& statusString)
     {
         if (statusString == "ok") {
             return ESecretVaultResponseStatus::OK;
@@ -517,16 +517,16 @@ private:
         }
     }
 
-    static TError GetErrorFromResponse(const IMapNodePtr& node, const TString& statusString)
+    static TError GetErrorFromResponse(const IMapNodePtr& node, const std::string& statusString)
     {
-        auto codeString = node->GetChildValueOrThrow<TString>("code");
+        auto codeString = node->GetChildValueOrThrow<std::string>("code");
         auto code = ParseErrorCode(codeString);
 
         auto messageNode = node->FindChild("message");
         return TError(
             code,
             messageNode
-                ? messageNode->GetValue<TString>()
+                ? messageNode->GetValue<std::string>()
                 : "Vault error",
             TError::DisableFormat)
             << TErrorAttribute("status", statusString)
@@ -547,7 +547,7 @@ private:
         }
     }
 
-    static TError MakeUnexpectedStatusError(const TString& statusString)
+    static TError MakeUnexpectedStatusError(const std::string& statusString)
     {
         return TError(
             ESecretVaultErrorCode::UnexpectedStatus,
@@ -555,10 +555,10 @@ private:
             << TErrorAttribute("status", statusString);
     }
 
-    static TString GetWarningMessageFromResponse(const IMapNodePtr& node)
+    static std::string GetWarningMessageFromResponse(const IMapNodePtr& node)
     {
         auto warningMessageNode = node->FindChild("warning_message");
-        return warningMessageNode ? warningMessageNode->GetValue<TString>() : "Vault warning";
+        return warningMessageNode ? warningMessageNode->GetValue<std::string>() : "Vault warning";
     }
 
     static TTvmServiceMap BuildTvmServiceMap(std::vector<ITvmServicePtr> tvmServices)

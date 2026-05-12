@@ -183,7 +183,7 @@ private:
             }
         }
 
-        std::optional<TString> setCookieMD5;
+        std::optional<std::string> setCookieMD5;
         if (auto setCookie = result.SetCookie) {
             setCookieMD5 = GetMD5HexDigestUpperCase(*setCookie);
         }

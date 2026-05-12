@@ -75,8 +75,8 @@ public:
 private:
     const TLdapServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
-    const TString Url_;
-    const TString AdminPassword_;
+    const std::string Url_;
+    const std::string AdminPassword_;
 
     //! RAII wrapper that unbinds the connection on destruction.
     class TLdapConnection
@@ -165,7 +165,7 @@ private:
     }
 
     //! Resolves user DN via admin-bound search.
-    TString ResolveUserDn(LDAP* ld, const TString& user) const
+    std::string ResolveUserDn(LDAP* ld, const std::string& user) const
     {
         auto filter = BuildSearchFilter(Config_->SearchFilter, user);
 
@@ -224,7 +224,7 @@ private:
                 ldap_err2string(err));
         }
         auto dnGuard = Finally([rawDn] { ldap_memfree(rawDn); });
-        return TString(rawDn);
+        return std::string(rawDn);
     }
 
     TLoginResult DoAuthenticate(const TLoginCredentials& credentials)

@@ -19,7 +19,7 @@ struct TCookieCredentials
 {
     // NB: Since requests are caching, pass only required
     // subset of cookies here.
-    THashMap<TString, TString> Cookies;
+    THashMap<std::string, std::string> Cookies;
     NNet::TNetworkAddress UserIP;
 
     bool operator==(const TCookieCredentials&) const = default;
@@ -27,25 +27,25 @@ struct TCookieCredentials
 
 struct TTicketCredentials
 {
-    TString Ticket;
+    std::string Ticket;
 };
 
 struct TServiceTicketCredentials
 {
-    TString Ticket;
+    std::string Ticket;
 };
 
 struct TAuthenticationResult
 {
     //! Effective login. If impersonation was performed, this is the impersonated user.
     std::string Login;
-    TString Realm;
-    TString UserTicket;
+    std::string Realm;
+    std::string UserTicket;
     //! Set to the original user name if impersonation headers were provided.
     std::optional<std::string> RealLogin;
 
     //! If set, client is advised to set this cookie.
-    std::optional<TString> SetCookie;
+    std::optional<std::string> SetCookie;
 };
 
 std::string GetRealLogin(const TAuthenticationResult& result);

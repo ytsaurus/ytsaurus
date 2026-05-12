@@ -8,9 +8,9 @@ namespace NYT::NAuth::NDetail {
 
 constexpr TStringBuf LoginPlaceholder = "{login}";
 
-TString LdapEscapeFilterValue(TStringBuf value)
+std::string LdapEscapeFilterValue(TStringBuf value)
 {
-    TString result;
+    std::string result;
     result.reserve(value.size());
     for (char c : value) {
         switch (c) {
@@ -25,9 +25,9 @@ TString LdapEscapeFilterValue(TStringBuf value)
     return result;
 }
 
-TString BuildSearchFilter(TStringBuf filterTemplate, TStringBuf login)
+std::string BuildSearchFilter(TStringBuf filterTemplate, TStringBuf login)
 {
-    auto result = TString(filterTemplate);
+    auto result = std::string(filterTemplate);
     SubstGlobal(result, LoginPlaceholder, LdapEscapeFilterValue(login));
     return result;
 }

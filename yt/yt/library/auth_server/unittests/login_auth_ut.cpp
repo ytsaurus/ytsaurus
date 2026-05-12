@@ -24,8 +24,8 @@ class TFixedLoginAuthenticator
 public:
     struct TCall
     {
-        TString User;
-        TString Password;
+        std::string User;
+        std::string Password;
     };
 
     explicit TFixedLoginAuthenticator(TErrorOr<TLoginResult> result)
@@ -55,7 +55,7 @@ TFixedLoginAuthenticatorPtr MakeFixed(TErrorOr<TLoginResult> result)
     return New<TFixedLoginAuthenticator>(std::move(result));
 }
 
-TFixedLoginAuthenticatorPtr MakeFixedOk(TString login, EAuthSource source = EAuthSource::Cypress)
+TFixedLoginAuthenticatorPtr MakeFixedOk(std::string login, EAuthSource source = EAuthSource::Cypress)
 {
     return MakeFixed(TLoginResult{.Login = std::move(login), .Source = source});
 }
@@ -252,7 +252,7 @@ TEST(TLdapFilterTest, EscapesSpecialChars)
     EXPECT_EQ(LdapEscapeFilterValue("("), "\\28");
     EXPECT_EQ(LdapEscapeFilterValue(")"), "\\29");
     EXPECT_EQ(LdapEscapeFilterValue("\\"), "\\5c");
-    EXPECT_EQ(LdapEscapeFilterValue(TStringBuf("\0", 1)), "\\00");
+    EXPECT_EQ(LdapEscapeFilterValue(std::string("\0", 1)), "\\00");
 }
 
 TEST(TLdapFilterTest, EscapesMixed)

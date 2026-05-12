@@ -337,13 +337,14 @@ void TCypressPasswordAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TLdapServiceConfig::GetAdminPassword() const
+std::string TLdapServiceConfig::GetAdminPassword() const
 {
     if (AdminPasswordPath) {
         TFileInput input(*AdminPasswordPath);
         return input.ReadAll();
     }
     if (AdminPasswordEnvVar) {
+        // TODO(babenko): migrate to std::string
         if (auto value = TryGetEnv(TString(*AdminPasswordEnvVar))) {
             return *value;
         }
@@ -481,7 +482,7 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TAuthenticationManagerConfig::GetCsrfSecret() const
+std::string TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
         BlackboxCookieAuthenticator->CsrfSecret)
@@ -489,7 +490,7 @@ TString TAuthenticationManagerConfig::GetCsrfSecret() const
         return *BlackboxCookieAuthenticator->CsrfSecret;
     }
 
-    return TString();
+    return std::string();
 }
 
 TInstant TAuthenticationManagerConfig::GetCsrfTokenExpirationTime() const
