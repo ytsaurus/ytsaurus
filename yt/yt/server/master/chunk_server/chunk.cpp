@@ -922,7 +922,7 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
 TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetLastSeenReplicas() const
 {
-    return TRange(LastSeenReplicas);
+    return TRange(LastSeenReplicas.data(), LastSeenReplicaCount);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
