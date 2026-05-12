@@ -24,6 +24,7 @@ DEFINE_ENUM(EAllocationFinishReason,
     (AgentDisconnected)
     (JobFinishedUnsuccessfully)
     (UserSlotDisabled)
+    (JobsDisabledOnNode)
 );
 
 class TAllocation

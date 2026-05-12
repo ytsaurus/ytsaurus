@@ -793,6 +793,14 @@ void TAllocation::OnJobFinished(TJobPtr job)
             return false;
         }
 
+        if (Bootstrap_->GetJobController()->AreJobsDisabled()) {
+            YT_LOG_INFO(
+                "Jobs disabled on node, completing allocation without settling new job (JobId: %v)",
+                job->GetId());
+            finishReason = EAllocationFinishReason::JobsDisabledOnNode;
+            return false;
+        }
+
         bool enableMultipleJobs = GetConfig()->EnableMultipleJobs && Attributes_.EnableMultipleJobs;
 
         if (enableMultipleJobs && job->GetState() == EJobState::Completed) {
@@ -876,6 +884,16 @@ void TAllocation::OnJobFinished(TJobPtr job)
                         Complete(EAllocationFinishReason::UserSlotDisabled);
                         return;
                     }
+                }
+
+                if (Bootstrap_->GetJobController()->AreJobsDisabled()) {
+                    YT_LOG_INFO(
+                        "Jobs disabled on node, skip new job settlement (JobId: %v)",
+                        jobId);
+
+                    Complete(EAllocationFinishReason::JobsDisabledOnNode);
+
+                    return;
                 }
 
                 YT_LOG_INFO(
