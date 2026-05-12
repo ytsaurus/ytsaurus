@@ -120,31 +120,6 @@ private:
             chunkId);
     }
 
-    template <typename TRequestsType>
-    THashMap<TChunkId, IChunkReaderPtr> CreateS3Readers(
-        const TRequestsType& requests,
-        TS3ReaderConfigPtr s3ReaderConfig)
-    {
-        THashMap<TChunkId, IChunkReaderPtr> readers;
-        for (const auto& request: requests) {
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            if (readers.contains(chunkId)) {
-                continue;
-            }
-
-            InsertOrCrash(readers, std::pair(
-                chunkId,
-                CreateS3Reader(
-                    request,
-                    std::move(s3ReaderConfig),
-                    chunkId
-                ))
-            );
-        }
-
-        return readers;
-    }
-
     template <class TRequestType>
     TFuture<std::vector<TErrorOr<TRefCountedChunkMetaPtr>>> GetChunkMetasForRequests(
         const RepeatedPtrField<TRequestType>& requests,
@@ -172,12 +147,12 @@ private:
         auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->ReadBlocks({}, blockIndexes)
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& resultsError) {
-                if (!resultsError.IsOK()) {
-                    context->Reply(resultsError);
+                if (context->IsCanceled()) {
                     return;
                 }
 
-                if (context->IsCanceled()) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
                     return;
                 }
 
@@ -208,12 +183,12 @@ private:
         auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->GetMeta({})
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>& resultsError) {
-                if (!resultsError.IsOK()) {
-                    context->Reply(resultsError);
+                if (context->IsCanceled()) {
                     return;
                 }
 
-                if (context->IsCanceled()) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
                     return;
                 }
 

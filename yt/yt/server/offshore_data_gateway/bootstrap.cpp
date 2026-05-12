@@ -131,6 +131,8 @@ private:
 
     NAlertManager::IAlertManagerPtr AlertManager_;
 
+    ICypressRegistrarPtr CypressRegistrar_;
+
     void DoRun()
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
@@ -235,6 +237,22 @@ private:
             NativeAuthenticator_,
             NativeConnection_->GetMediumDirectory(),
             NativeConnection_->GetMediumDirectorySynchronizer()));
+
+        {
+            TCypressRegistrarOptions options{
+                .RootPath = Format("%v/instances/%v", "//sys/offshore_data_gateways", ToYPathLiteral(InstanceId_)),
+                .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, InstanceId_}},
+                .AttributesOnStart = BuildAttributeDictionaryFluently()
+                    .Item("annotations").Value(Config_->CypressAnnotations)
+                    .Finish(),
+            };
+
+            CypressRegistrar_ = CreateCypressRegistrar(
+                std::move(options),
+                New<TCypressRegistrarConfig>(),
+                NativeClient_,
+                GetCurrentInvoker());
+        }
     }
 
     void DoStart()
@@ -254,36 +272,7 @@ private:
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
-        UpdateCypressNode();
-    }
-
-    void UpdateCypressNode()
-    {
-        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
-
-        TCypressRegistrarOptions options{
-            .RootPath = Format("%v/instances/%v", "//sys/offshore_data_gateways", ToYPathLiteral(InstanceId_)),
-            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, InstanceId_}},
-            .AttributesOnStart = BuildAttributeDictionaryFluently()
-                .Item("annotations").Value(Config_->CypressAnnotations)
-                .Finish(),
-        };
-
-        auto registrar = CreateCypressRegistrar(
-            std::move(options),
-            New<TCypressRegistrarConfig>(),
-            NativeClient_,
-            GetCurrentInvoker());
-
-        while (true) {
-            auto error = WaitFor(registrar->CreateNodes());
-
-            if (error.IsOK()) {
-                break;
-            } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
-            }
-        }
+        CypressRegistrar_->Start();
     }
 
     void OnDynamicConfigChanged(

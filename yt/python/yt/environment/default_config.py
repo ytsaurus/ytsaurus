@@ -953,10 +953,8 @@ def get_replicated_table_tracker_config():
     }
 
 def get_offshore_data_gateway_config():
-    return yson.loads(b"""
-{
-    dynamic_config_manager = {
-        update_period = 100;
-    };
-}
-""")
+    return {
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
+    }

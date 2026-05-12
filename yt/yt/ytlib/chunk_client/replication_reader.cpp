@@ -94,9 +94,8 @@ static const double MaxBackoffMultiplier = 1000.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerId
+struct TPeerId
 {
-public:
     TPeerId() = default;
 
     TPeerId(TNodeId nodeId, int mediumIndex, std::optional<std::string> address = std::nullopt)
@@ -113,16 +112,13 @@ public:
 
     std::string GetPrintableAddress() const
     {
-        // TODO(discuss in PR): I think this approach is cleaner than making Address non-optional
-        // and assigning this value - like that we keep the invariant that address is null if the
-        // peer is offshore. What do you
         if (Address) {
             return *Address;
         }
         return "generic-peer-address";
     }
 
-    bool operator == (const TPeerId& other) const noexcept = default;
+    bool operator==(const TPeerId& other) const noexcept = default;
 
     bool IsOffshore;
     int MediumIndex;
@@ -1005,14 +1001,10 @@ protected:
         RegisterError(error);
     }
 
-    //! Picks the #count peers from the peer queue; returns a pair of the selected
-    //! peers and a boolean showing if more calls to this function may happen during
-    //! the current pass.
-    //!
-    //! NB: The function may return fewer than #count peers even when PeerQueue_ is not empty,
-    //! and return false to signal that it must not be called again in this round. This
-    //! prevents mixing domestic and offshore peers in the same selection.
-    std::pair<TPeerList, bool> PickPeerCandidates(
+    //! Either pick and return the #count peers (or less) from the peer queue or
+    //! pick and return the single offshore peer. This prevents mixing domestic and
+    //! offshore peers in the same selection.
+    TPeerList PickPeerCandidates(
         const TReplicationReaderPtr& reader,
         int count,
         bool enableEarlyExit,
@@ -1052,14 +1044,14 @@ protected:
                     // If the peer is offshore and it's the first peer we encounter, just return it.
                     candidates.push_back(top.Peer);
                     PeerQueue_.pop();
-                    return {candidates, false};
+                    return candidates;
                 }
             }
 
             PeerQueue_.pop();
         }
 
-        return {candidates, true};
+        return candidates;
     }
 
     IChannelPtr MakePeersChannel(
@@ -2709,7 +2701,7 @@ private:
                 return false;
             };
 
-            auto [moreCandidates, mayCallAgain] = PickPeerCandidates(
+            auto moreCandidates = PickPeerCandidates(
                 reader,
                 ReaderConfig_->ProbePeerCount,
                 /*enableEarlyExit*/ !SessionOptions_.AdaptiveHedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
@@ -2718,10 +2710,15 @@ private:
             if (moreCandidates.empty()) {
                 break;
             }
-            candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
 
-            if (!mayCallAgain) {
-                break;
+            // We cannot mix domestic and offshore peers, so we either populate the result with
+            // domestic peers only, or we just return the single offshore peer right away.
+            if (!moreCandidates.front().Id.IsOffshore) {
+                candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
+                continue;
+            }
+            if (candidates.empty()) {
+                return moreCandidates;
             }
         }
 
@@ -3351,8 +3348,7 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             /*count*/ 1,
-            /*enableEarlyExit*/ true)
-            .first;
+            /*enableEarlyExit*/ true);
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -3651,8 +3647,7 @@ private:
         auto peers = PickPeerCandidates(
             reader,
             ReaderConfig_->MetaRpcHedgingDelay ? 2 : 1,
-            /*enableEarlyExit*/ false)
-            .first;
+            /*enableEarlyExit*/ false);
         if (peers.empty()) {
             OnPassCompleted();
             return;
@@ -3985,8 +3980,7 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             ReaderConfig_->ProbePeerCount,
-            /*enableEarlyExit*/ !SessionOptions_.AdaptiveHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay)
-            .first;
+            /*enableEarlyExit*/ !SessionOptions_.AdaptiveHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -4791,7 +4785,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         replicaList.push_back(TChunkReplicaWithMedium(std::move(seedReplica)));
     }
 
-    return New<TReplicationReader>(
+    return CreateReplicationReader(
         std::move(config),
         std::move(options),
         std::move(chunkReaderHost),
