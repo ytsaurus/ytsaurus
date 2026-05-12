@@ -135,12 +135,12 @@ private:
         return CreateSecondaryIndexProxy(Bootstrap_, &Metadata_, secondaryIndex);
     }
 
-    TCellTagList DoGetReplicationCellTags(const TSecondaryIndex* secondaryIndex) override
+    TCellTagSet DoGetReplicationCellTags(const TSecondaryIndex* secondaryIndex) override
     {
         auto cellTag = secondaryIndex->GetExternalCellTag();
         return cellTag == NObjectClient::NotReplicatedCellTagSentinel
-            ? TCellTagList{}
-            : TCellTagList{cellTag};
+            ? EmptyCellTags()
+            : TCellTagSet{cellTag};
     }
 
     TAccessControlDescriptor* DoFindAcd(TSecondaryIndex* secondaryIndex) override

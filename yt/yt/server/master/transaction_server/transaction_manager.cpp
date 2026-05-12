@@ -96,6 +96,7 @@
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -407,7 +408,7 @@ public:
     }
 
     TTransaction* StartSystemTransaction(
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::string& title,
         const IAttributeDictionary& attributes,
@@ -444,7 +445,7 @@ public:
     }
 
     TTransaction* StartNonMirroredCypressTransaction(
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         const std::string& title) override
     {
         return StartTransaction(
@@ -463,7 +464,7 @@ public:
         ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
@@ -489,7 +490,7 @@ public:
     TTransaction* StartUploadTransaction(
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        const TCellTagList& replicatedToCellTags,
+        const TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<std::string>& title,
         TTransactionId hintId) override
@@ -561,7 +562,7 @@ public:
         ETransactionType transactionType,
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        TCellTagList replicatedToCellTags,
+        TCellTagSet replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<std::string>& title,
@@ -699,12 +700,7 @@ public:
 
         if (!replicatedToCellTags.empty()) {
             // Never include native cell tag into ReplicatedToCellTags.
-            replicatedToCellTags.erase(
-                std::remove(
-                    replicatedToCellTags.begin(),
-                    replicatedToCellTags.end(),
-                    CellTagFromId(transactionId)),
-                replicatedToCellTags.end());
+            replicatedToCellTags.erase(CellTagFromId(transactionId));
 
             if (transactionType == ETransactionType::Upload) {
                 transaction->ReplicatedToCellTags() = replicatedToCellTags;
@@ -744,15 +740,14 @@ public:
         return transaction;
     }
 
-    void MarkTransactionReplicated(TTransaction* transaction, TCellTagList replicateToCellTags)
+    void MarkTransactionReplicated(TTransaction* transaction, TCellTagSet replicateToCellTags)
     {
         for (; transaction; transaction = transaction->GetParent()) {
             bool alreadyReplicated = true;
             for (auto cellTag : replicateToCellTags) {
                 if (!transaction->IsReplicatedToCell(cellTag)) {
                     alreadyReplicated = false;
-                    transaction->ReplicatedToCellTags().push_back(cellTag);
-                    SortUnique(transaction->ReplicatedToCellTags());
+                    InsertOrCrash(transaction->ReplicatedToCellTags(), cellTag);
                 }
             }
             if (alreadyReplicated) {
@@ -1095,7 +1090,7 @@ public:
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
-    void ReplicateTransaction(TTransaction* transaction, TCellTagList dstCellTags)
+    void ReplicateTransaction(TTransaction* transaction, TCellTagSet dstCellTags)
     {
         YT_VERIFY(IsObjectAlive(transaction));
         YT_VERIFY(transaction->IsNative());
@@ -1109,7 +1104,7 @@ public:
 
     TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
-        TCellTagList dstCellTags) override
+        TCellTagSet dstCellTags) override
     {
         if (!transaction) {
             return {};
@@ -1120,7 +1115,7 @@ public:
 
     TTransactionId ExternalizeOrReplicateTransaction(
         TTransaction* transaction,
-        TCellTagList dstCellTags,
+        TCellTagSet dstCellTags,
         bool shouldExternalize)
     {
         if (transaction->IsUpload()) {
@@ -1145,28 +1140,27 @@ public:
             }
         };
 
-        TCompactVector<std::pair<TTransaction*, TCellTagList>, 16> transactionsToDstCells;
+        TCompactVector<std::pair<TTransaction*, TCellTagSet>, 16> transactionsToDstCells;
         for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
             YT_VERIFY(IsObjectAlive(currentTransaction));
             checkTransactionState(currentTransaction);
 
-            transactionsToDstCells.emplace_back(currentTransaction, TCellTagList());
+            transactionsToDstCells.emplace_back(currentTransaction, TCellTagSet());
 
             for (auto dstCellTag : dstCellTags) {
                 if (shouldExternalize) {
                     if (currentTransaction->IsExternalizedToCell(dstCellTag)) {
                         continue;
                     }
-                    currentTransaction->ExternalizedToCellTags().push_back(dstCellTag);
+                    currentTransaction->ExternalizedToCellTags().insert(dstCellTag);
                 } else {
                     if (currentTransaction->IsReplicatedToCell(dstCellTag)) {
                         continue;
                     }
-                    currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
-                    SortUnique(currentTransaction->ReplicatedToCellTags());
+                    currentTransaction->ReplicatedToCellTags().insert(dstCellTag);
                 }
 
-                transactionsToDstCells.back().second.push_back(dstCellTag);
+                transactionsToDstCells.back().second.insert(dstCellTag);
             }
 
             if (transactionsToDstCells.back().second.empty()) {
@@ -1252,7 +1246,7 @@ public:
         TTransaction* transaction,
         TTransactionId transactionId,
         TTransactionId parentTransactionId,
-        TCellTagList dstCellTags,
+        TCellTagSet dstCellTags,
         TTransaction* transactionAttributeHolderOverride) override
     {
         NProto::TReqStartForeignTransaction startRequest;
@@ -2414,7 +2408,7 @@ private:
             deadline = FromProto<TInstant>(request->deadline());
         }
 
-        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+        auto replicateToCellTags = FromProto<TCellTagSet>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
             isCypressTransaction ? ETransactionType::Cypress : ETransactionType::System,
             parent,
@@ -2483,7 +2477,7 @@ private:
         auto timeout = FromProto<TDuration>(request->timeout());
         auto deadline = YT_OPTIONAL_FROM_PROTO(*request, deadline, TInstant);
 
-        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+        auto replicateToCellTags = FromProto<TCellTagSet>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
             ETransactionType::Cypress,
             parent,
@@ -2824,7 +2818,7 @@ private:
         NProto::TReqMarkCypressTransactionsReplicatedToCells* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        auto destinationCellTags = FromProto<TCellTagList>(request->destination_cell_tags());
+        auto destinationCellTags = FromProto<TCellTagSet>(request->destination_cell_tags());
 
         for (const auto& protoId : request->transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoId);

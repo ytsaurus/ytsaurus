@@ -291,7 +291,7 @@ struct ICypressManager
 
     virtual NYPath::TYPath ComputeEffectiveLinkNodeTargetPath(const TLinkNode* linkNode) const = 0;
 
-    virtual void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<NObjectClient::TCellTag>& removedMasterCellTags) const = 0;
+    virtual void ValidateNoExternalizedNodesOnRemovedMasters(const NObjectClient::TCellTagSet& removedMasterCellTags) const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TCypressNode*), NodeCreated);
 };

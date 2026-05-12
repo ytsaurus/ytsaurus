@@ -33,7 +33,7 @@ struct IPortalManager
 
     virtual int CountPortalsLeadingToCell(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<NObjectClient::TCellTag>& removedMasterCellTags) const = 0;
+    virtual void ValidateNoNodesBehindRemovedMastersPortal(const NObjectClient::TCellTagSet& removedMasterCellTags) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPortalManager)

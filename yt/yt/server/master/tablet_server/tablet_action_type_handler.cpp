@@ -115,7 +115,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    TCellTagList DoGetReplicationCellTags(const TTabletAction* /*action*/) override
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TTabletAction* /*action*/) override
     {
         return AllSecondaryCellTags();
     }

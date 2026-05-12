@@ -49,7 +49,7 @@ struct ITransactionManager
     virtual void Initialize() = 0;
 
     virtual TTransaction* StartSystemTransaction(
-        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::string& title,
         const NYTree::IAttributeDictionary& attributes,
@@ -67,7 +67,7 @@ struct ITransactionManager
      *  CommitMasterTransaction() or AbortMasterTransaction().
      */
     virtual TTransaction* StartNonMirroredCypressTransaction(
-        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagSet& replicatedToCellTags,
         const std::string& title) = 0;
 
     virtual void CommitMasterTransaction(
@@ -80,13 +80,13 @@ struct ITransactionManager
     virtual TTransaction* StartUploadTransaction(
         TTransaction* parent,
         std::vector<TTransactionRawPtr> prerequisiteTransactions,
-        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagSet& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<std::string>& title,
         TTransactionId hintId) = 0;
     virtual TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
-        NObjectClient::TCellTagList dstCellTags) = 0;
+        NObjectClient::TCellTagSet dstCellTags) = 0;
     virtual TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag) = 0;
@@ -97,7 +97,7 @@ struct ITransactionManager
         TTransaction* transaction,
         TTransactionId transactionId,
         TTransactionId parentTransactionId,
-        NObjectClient::TCellTagList dstCellTags,
+        NObjectClient::TCellTagSet dstCellTags,
         TTransaction* transactionAttributeHolderOverride = nullptr) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);

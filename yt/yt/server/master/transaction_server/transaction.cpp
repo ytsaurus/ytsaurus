@@ -372,12 +372,12 @@ TTransaction* TTransaction::GetTopmostTransaction()
 
 bool TTransaction::IsReplicatedToCell(TCellTag cellTag) const
 {
-    return std::find(ReplicatedToCellTags_.begin(), ReplicatedToCellTags_.end(), cellTag) != ReplicatedToCellTags_.end();
+    return ReplicatedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalizedToCell(TCellTag cellTag) const
 {
-    return std::find(ExternalizedToCellTags_.begin(), ExternalizedToCellTags_.end(), cellTag) != ExternalizedToCellTags_.end();
+    return ExternalizedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalized() const

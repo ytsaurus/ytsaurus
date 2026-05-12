@@ -855,10 +855,10 @@ private:
     TCypressManager* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
 
-    TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
+    TCellTagSet DoGetReplicationCellTags(const TCypressNode* node) override
     {
         auto externalCellTag = node->GetExternalCellTag();
-        return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
+        return externalCellTag == NotReplicatedCellTagSentinel ? EmptyCellTags() : TCellTagSet{externalCellTag};
     }
 
     std::string DoGetName(const TCypressNode* node) override;
@@ -2717,7 +2717,7 @@ public:
         return FromObjectId(portalExit->GetId()) + *optionalSuffix;
     }
 
-    void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<TCellTag>& removedMasterCellTags) const override
+    void ValidateNoExternalizedNodesOnRemovedMasters(const TCellTagSet& removedMasterCellTags) const override
     {
         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
 
