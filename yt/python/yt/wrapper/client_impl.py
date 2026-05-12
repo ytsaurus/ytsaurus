@@ -9,7 +9,7 @@ from . import client_api
 
 from typing import ForwardRef
 
-from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, BinaryIO, Callable, Dict, Generator, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedReadTablePartitionType, DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
@@ -18,7 +18,7 @@ from .operation_commands import CheckOperationPermissionResultType, GetOperation
 from .query_commands import Query
 from .schema.table_schema import TableSchema
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
-from .ypath import TablePath as TablePath_, YPath
+from .ypath import TablePath as TablePath_, FilePath, YPath
 
 
 class YtClient(ClientState):
@@ -2363,8 +2363,11 @@ class YtClient(ClientState):
 
     def read_file(
         self,
-        path,
-        file_reader=None, offset=None, length=None, enable_read_parallel=None
+        path: Union[str, FilePath],
+        file_reader: Optional[Dict[str, Any]] = None,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+        enable_read_parallel: Optional[bool] = None
     ):
         """
         Downloads file from path in Cypress to local machine.
@@ -3876,9 +3879,15 @@ class YtClient(ClientState):
 
     def write_file(
         self,
-        destination, stream,
-        file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, size_hint=None,
-        filename_hint=None, progress_monitor=None
+        destination: Union[str, FilePath],
+        stream: Union[bytes, BinaryIO, Generator[bytes, None, None]],
+        file_writer: Optional[Dict[str, Any]] = None,
+        is_stream_compressed: bool = False,
+        force_create: Optional[bool] = None,
+        compute_md5: bool = False,
+        size_hint: Optional[int] = None,
+        filename_hint: Optional[str] = None,
+        progress_monitor=None
     ):
         """
         Uploads file to destination path from stream on local machine.
