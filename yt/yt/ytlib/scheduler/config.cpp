@@ -1714,10 +1714,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
         }
 
-        std::sort(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
-            return lhs->MountPath < rhs->MountPath;
-        });
-
         {
             THashSet<std::string_view> allUniqueVolumeMountPaths;
             for (const auto& volumeMount : spec->JobVolumeMounts) {
