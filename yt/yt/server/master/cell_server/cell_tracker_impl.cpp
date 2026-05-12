@@ -250,6 +250,10 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
         ScheduleLeaderReassignment(cell, peerId);
     }
 
+    if (GetDynamicConfig()->TabletCellBalancer->EnableLeaderSmoothing) {
+        ScheduleLeaderSmoothing(cellarType);
+    }
+
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
     Profile(moveDescriptors);
 
@@ -403,6 +407,210 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger()));
+}
+
+void TCellTrackerImpl::ScheduleLeaderSmoothing(ECellarType cellarType)
+{
+    YT_LOG_DEBUG("Leader smoothing started (CellarType: %v)", cellarType);
+
+    const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+    // Group cells by area for per-area leader distribution analysis.
+    THashMap<const TArea*, std::vector<TCellBase*>> areaToCells;
+    for (auto* cell : cellManager->Cells(cellarType)) {
+        if (!IsObjectAlive(cell)) {
+            continue;
+        }
+
+        // Leader smoothing only applies to dependent (non-independent) multipeer cells.
+        // Use bundle peer count to determine if the cell is multipeer.
+        if (cell->CellBundle()->GetOptions()->IndependentPeers) {
+            continue;
+        }
+
+        if (cell->CellBundle()->GetOptions()->PeerCount <= 1) {
+            continue;
+        }
+
+        areaToCells[cell->GetArea()].push_back(cell);
+    }
+
+    YT_LOG_DEBUG("Leader smoothing: grouped cells by area (AreaCount: %v)", areaToCells.size());
+
+    for (auto& [area, cells] : areaToCells) {
+        YT_LOG_DEBUG("Leader smoothing: processing area (AreaName: %v, CellCount: %v)",
+            area->GetName(),
+            cells.size());
+
+        THashMap<const TNode*, int> nodeLeaderCount;
+        THashMap<const TNode*, std::vector<TCellBase*>> nodeLeaderCells;
+
+        bool allCellsHealthy = true;
+
+        for (auto* cell : cells) {
+            // Use GetHealth() to check if the cell is fully healthy.
+            if (cell->GetHealth() != ECellHealth::Good) {
+                allCellsHealthy = false;
+                continue;
+            }
+
+            int leadingPeerId = cell->GetLeadingPeerId();
+            if (leadingPeerId == InvalidPeerId) {
+                allCellsHealthy = false;
+                continue;
+            }
+
+            const auto& leadingPeer = cell->Peers()[leadingPeerId];
+            const auto* node = leadingPeer.Node.Get();
+            if (!node || !CheckIfNodeCanHostCells(node)) {
+                allCellsHealthy = false;
+                continue;
+            }
+
+            nodeLeaderCount[node]++;
+            nodeLeaderCells[node].push_back(cell);
+        }
+
+        if (!allCellsHealthy) {
+            continue;
+        }
+
+        if (nodeLeaderCount.empty()) {
+            continue;
+        }
+
+        int totalLeaders = std::ssize(cells);
+
+        // We consider all nodes that can host cells in this area, not just those
+        // currently hosting leaders, to get a proper average.
+        const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
+        const auto& areaNodes = bundleNodeTracker->GetAreaNodes(area);
+
+        int eligibleNodeCount = 0;
+        for (const auto* node : areaNodes) {
+            if (CheckIfNodeCanHostCells(node)) {
+                eligibleNodeCount++;
+                // Initialize count for nodes that have no leaders yet.
+                if (!nodeLeaderCount.contains(node)) {
+                    nodeLeaderCount[node] = 0;
+                }
+            }
+        }
+
+        if (eligibleNodeCount == 0) {
+            continue;
+        }
+
+        int maxAllowed = (totalLeaders + eligibleNodeCount - 1) / eligibleNodeCount;
+        int minAllowed = totalLeaders / eligibleNodeCount;
+
+        // Check if the actual distribution is already balanced:
+        // all nodes have count in [minAllowed, maxAllowed].
+        bool alreadyBalanced = true;
+        for (const auto& [node, count] : nodeLeaderCount) {
+            if (count < minAllowed || count > maxAllowed) {
+                alreadyBalanced = false;
+                break;
+            }
+        }
+
+        if (alreadyBalanced) {
+            continue;
+        }
+
+        // Collect underloaded nodes (those that can accept more leaders).
+        THashMap<const TNode*, int> nodeDeficit;
+        for (const auto& [node, count] : nodeLeaderCount) {
+            if (count < minAllowed) {
+                nodeDeficit[node] = minAllowed - count;
+            }
+        }
+
+        // For each overloaded node, try to move all excess leaders to underloaded nodes.
+        for (auto& [node, count] : nodeLeaderCount) {
+            if (count <= maxAllowed) {
+                continue;
+            }
+
+            int excess = count - maxAllowed;
+
+            auto it = nodeLeaderCells.find(node);
+            if (it == nodeLeaderCells.end()) {
+                continue;
+            }
+
+            for (auto* cell : it->second) {
+                if (excess <= 0) {
+                    break;
+                }
+
+                // Look for a good follower on an underloaded node.
+                int bestPeerId = InvalidPeerId;
+                const TNode* bestNode = nullptr;
+                int bestDeficit = 0;
+
+                for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                    if (cell->IsAlienPeer(peerId)) {
+                        continue;
+                    }
+
+                    if (peerId == cell->GetLeadingPeerId()) {
+                        continue;
+                    }
+
+                    const auto& peer = cell->Peers()[peerId];
+                    if (!CheckIfNodeCanHostCells(peer.Node)) {
+                        continue;
+                    }
+
+                    if (cell->GetPeerState(peerId) != EPeerState::Following) {
+                        continue;
+                    }
+
+                    auto deficitIt = nodeDeficit.find(peer.Node);
+                    if (deficitIt == nodeDeficit.end() || deficitIt->second <= 0) {
+                        continue;
+                    }
+
+                    // Prefer the node with the largest deficit.
+                    if (deficitIt->second > bestDeficit) {
+                        bestDeficit = deficitIt->second;
+                        bestNode = peer.Node;
+                        bestPeerId = peerId;
+                    }
+                }
+
+                if (bestPeerId != InvalidPeerId) {
+                    YT_LOG_DEBUG(
+                        "Scheduling leader reassignment for smoothing "
+                        "(CellId: %v, LeaderPeerId: %v, NewLeadingPeerId: %v, "
+                        "SourceNode: %v, TargetNode: %v, SourceLeaderCount: %v, "
+                        "TargetLeaderCount: %v, MaxAllowed: %v)",
+                        cell->GetId(),
+                        cell->GetLeadingPeerId(),
+                        bestPeerId,
+                        node->GetDefaultAddress(),
+                        bestNode->GetDefaultAddress(),
+                        count,
+                        nodeLeaderCount[bestNode],
+                        maxAllowed);
+
+                    ScheduleLeaderReassignment(cell, bestPeerId);
+
+                    cell->CellBundle()
+                        ->ProfilingCounters()
+                        .LeaderSmoothings.Increment();
+
+                    --excess;
+                    --count;
+                    nodeLeaderCount[bestNode]++;
+                    nodeDeficit[bestNode]--;
+                }
+            }
+        }
+    }
+
+    YT_LOG_DEBUG("Leader smoothing finished");
 }
 
 void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer)

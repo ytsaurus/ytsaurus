@@ -91,6 +91,9 @@ void TDynamicTabletCellBalancerMasterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("rebalance_wait_time", &TThis::RebalanceWaitTime)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("enable_leader_smoothing", &TThis::EnableLeaderSmoothing)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
