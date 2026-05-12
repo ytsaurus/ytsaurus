@@ -1263,7 +1263,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 {
                     bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 } else {
-                    // Don't ban but exclude from current invocation.
+                    // Do not ban but exclude from current invocation.
                     EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 }
             }
@@ -2982,7 +2982,7 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
                 {
                     bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 } else {
-                    // Don't ban but exclude from current invocation.
+                    // Do not ban but exclude from current invocation.
                     EmplaceOrCrash(triedReplicaIds, replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
                 }
             }
