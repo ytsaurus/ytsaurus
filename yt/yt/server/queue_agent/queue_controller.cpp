@@ -395,9 +395,9 @@ public:
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError, _1))
-            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
-            .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
+            .Item("status").Do(std::bind_front(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError))
+            .Item("partitions").Do(std::bind_front(BuildQueuePartitionListYson, queueSnapshot))
+            .Item("exporters").Do(std::bind_front(&TOrderedDynamicTableController::BuildExporterMappingYson, this))
         .EndMap();
     }
 
@@ -1568,7 +1568,7 @@ private:
         }
 
         fluent.DoMapFor(QueueExports_.Value(), [] (TFluentMap fluent, const auto& pair) {
-            fluent.Item(pair.first).Do(std::bind(&IQueueExporter::BuildOrchidYson, pair.second.Get(), _1));
+            fluent.Item(pair.first).Do(std::bind_front(&IQueueExporter::BuildOrchidYson, pair.second.Get()));
         });
     }
 };

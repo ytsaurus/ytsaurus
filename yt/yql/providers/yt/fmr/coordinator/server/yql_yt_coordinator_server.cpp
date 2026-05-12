@@ -131,18 +131,18 @@ public:
         opts.AddBindAddress(Host_, Port_);
         HttpServer_ = MakeHolder<THttpServer>(this, opts.EnableKeepAlive(true).EnableCompression(true));
 
-        THandler startOperationHandler = std::bind(&TFmrCoordinatorServer::StartOperationHandler, this, std::placeholders::_1);
-        THandler getOperationHandler = std::bind(&TFmrCoordinatorServer::GetOperationHandler, this, std::placeholders::_1);
-        THandler deleteOperationHandler = std::bind(&TFmrCoordinatorServer::DeleteOperationHandler, this, std::placeholders::_1);
-        THandler sendHeartbeatResponseHandler = std::bind(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this, std::placeholders::_1);
-        THandler getFmrTableInfoHandler = std::bind(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this, std::placeholders::_1);
-        THandler clearSessionHandler = std::bind(&TFmrCoordinatorServer::ClearSessionHandler, this, std::placeholders::_1);
-        THandler dropTablesHandler = std::bind(&TFmrCoordinatorServer::DropTablesHandler, this, std::placeholders::_1);
-        THandler pingHandler = std::bind(&TFmrCoordinatorServer::PingHandler, this, std::placeholders::_1);
-        THandler openSessionHandler = std::bind(&TFmrCoordinatorServer::OpenSessionHandler, this, std::placeholders::_1);
-        THandler pingSessionHandler = std::bind(&TFmrCoordinatorServer::PingSessionHandler, this, std::placeholders::_1);
-        THandler listSessionsHandler = std::bind(&TFmrCoordinatorServer::ListSessionsHandler, this, std::placeholders::_1);
-        THandler PrepareOperationHandler = std::bind(&TFmrCoordinatorServer::PrepareOperationHandler, this, std::placeholders::_1);
+        THandler startOperationHandler = std::bind_front(&TFmrCoordinatorServer::StartOperationHandler, this);
+        THandler getOperationHandler = std::bind_front(&TFmrCoordinatorServer::GetOperationHandler, this);
+        THandler deleteOperationHandler = std::bind_front(&TFmrCoordinatorServer::DeleteOperationHandler, this);
+        THandler sendHeartbeatResponseHandler = std::bind_front(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this);
+        THandler getFmrTableInfoHandler = std::bind_front(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this);
+        THandler clearSessionHandler = std::bind_front(&TFmrCoordinatorServer::ClearSessionHandler, this);
+        THandler dropTablesHandler = std::bind_front(&TFmrCoordinatorServer::DropTablesHandler, this);
+        THandler pingHandler = std::bind_front(&TFmrCoordinatorServer::PingHandler, this);
+        THandler openSessionHandler = std::bind_front(&TFmrCoordinatorServer::OpenSessionHandler, this);
+        THandler pingSessionHandler = std::bind_front(&TFmrCoordinatorServer::PingSessionHandler, this);
+        THandler listSessionsHandler = std::bind_front(&TFmrCoordinatorServer::ListSessionsHandler, this);
+        THandler PrepareOperationHandler = std::bind_front(&TFmrCoordinatorServer::PrepareOperationHandler, this);
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
             {EOperationHandler::StartOperation, startOperationHandler},

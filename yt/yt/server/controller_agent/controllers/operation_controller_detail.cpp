@@ -9322,12 +9322,12 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.Progress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildProgress, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildProgress, this))
         .Finish();
 
     result.BriefProgress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildBriefProgress, this))
         .Finish();
 
     result.Alerts =
@@ -9343,7 +9343,7 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildJobsYson, this))
         .Finish();
 
     result.MemoryUsage = GetMemoryUsage();

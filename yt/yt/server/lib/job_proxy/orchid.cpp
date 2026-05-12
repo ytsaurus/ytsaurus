@@ -23,10 +23,9 @@ void TJobIOOrchidInfo::BuildOrchid(NYTree::TFluentAny fluent) const
 void TJobProxyOrchidInfo::BuildOrchid(TFluentAny fluent) const
 {
     fluent.BeginMap()
-        .Item("job_io").Do(std::bind(
+        .Item("job_io").Do(std::bind_front(
             &TJobIOOrchidInfo::BuildOrchid,
-            JobIOInfo,
-            std::placeholders::_1))
+            JobIOInfo))
         .OptionalItem("last_progress_save_time", LastProgressSaveTime)
     .EndMap();
 }
