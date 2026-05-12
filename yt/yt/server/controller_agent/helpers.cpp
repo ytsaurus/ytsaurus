@@ -196,8 +196,11 @@ void BuildFileSpecs(
             }
 
             if (!layerInserted) {
-                YT_VERIFY(!config->JobVolumeMounts.empty() && config->JobVolumeMounts[0]->MountPath == "/");
-                createVolumeDescriptor(config->JobVolumeMounts[0]->VolumeId);
+                auto rootVolumeIt = std::find_if(config->JobVolumeMounts.begin(), config->JobVolumeMounts.end(), [] (const auto& volume) {
+                    return volume->MountPath == "/";
+                });
+                YT_VERIFY(rootVolumeIt != config->JobVolumeMounts.end());
+                createVolumeDescriptor(rootVolumeIt->Get()->VolumeId);
             }
         } else {
             descriptor = jobSpec->add_files();
