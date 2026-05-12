@@ -336,6 +336,8 @@ class TestYtflowBase(TestQueueAgentBase):
             gateway_threads=1,
             default_settings=[
                 dict(name='_RpcTimeout', value='10s'),
+                dict(name='_MasterLockTimeout', value='2m'),
+                dict(name='_MasterLockPingPeriod', value='30s'),
                 dict(name='_FiniteStreams', value='1'),
                 dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_ControllerWriteFullLogsToYT', value='true'),
