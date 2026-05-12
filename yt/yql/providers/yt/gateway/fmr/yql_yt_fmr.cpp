@@ -40,6 +40,13 @@ namespace NYql::NFmr {
 
 namespace {
 
+static void UpdateStage(TOperationProgress::TStage& stage, const TString& stageName) {
+    if (stage.first != stageName) {
+        stage.first = stageName;
+        stage.second = Now();
+    }
+}
+
 TIssue ToIssue(const TFmrError& error, const TPosition& pos){
     auto issue = TIssue(pos, error.ErrorMessage);
     if (error.Reason == EFmrErrorReason::RestartQuery) {
@@ -159,6 +166,7 @@ public:
                     TFmrOperationResult Result;
                     bool IsSortedUpload = false;
                     std::vector<TString> FragmentResultsYson;
+                    TJobCounters JobCounters;
                 };
 
                 struct TOperationToAbort {
@@ -215,6 +223,9 @@ public:
                     auto status = getOperationResult.Status;
                     bool operationCompleted = status != EOperationStatus::Accepted && status != EOperationStatus::InProgress;
                     if (!operationCompleted) {
+                        with_lock(Mutex_) {
+                            InProgressCounters_[op.OperationId] = getOperationResult.JobCounters;
+                        }
                         continue;
                     }
 
@@ -223,6 +234,7 @@ public:
                     completed.SessionId = op.SessionId;
                     completed.Result.TablesStats = getOperationResult.OutputTablesStats;
                     completed.Result.Errors = getOperationResult.ErrorMessages;
+                    completed.JobCounters = getOperationResult.JobCounters;
                     bool hasCompletedSuccessfully = (status == EOperationStatus::Completed);
                     if (hasCompletedSuccessfully) {
                         completed.Result.SetSuccess();
@@ -264,14 +276,51 @@ public:
 
                 // Phase 3: update state and resolve promises under lock, then set values outside
                 struct TProgressUpdate {
-                    TOperationProgressWriter Writer;
-                    ui32 PublicId;
-                    TOperationProgress::EState State;
-                    TString Stage;
+                    const TOperationProgressWriter Writer;
+                    const TOperationProgress Progress;
+
+                    TProgressUpdate(TOperationProgressWriter writer, TOperationProgress progress)
+                        : Writer(std::move(writer))
+                        , Progress(std::move(progress))
+                    {}
                 };
                 std::vector<std::pair<TPromise<TFmrOperationResult>, TFmrOperationResult>> promisesToResolve;
                 std::vector<TProgressUpdate> progressUpdates;
                 with_lock(Mutex_) {
+                    for (const auto& op : operationsToCheck) {
+                        if (completedOperations.end() != std::find_if(completedOperations.begin(), completedOperations.end(), [&op](const auto& c) { return c.OperationId == op.OperationId; })) {
+                            continue;
+                        }
+                        if (!Sessions_.contains(op.SessionId)) {
+                            continue;
+                        }
+                        auto& session = Sessions_[op.SessionId];
+                        auto& operationStates = session->OperationStates;
+                        auto publicIdIt = operationStates.OperationPublicIds.find(op.OperationId);
+                        if (publicIdIt == operationStates.OperationPublicIds.end() || !publicIdIt->second.Defined()) {
+                            continue;
+                        }
+                        auto countersIt = InProgressCounters_.find(op.OperationId);
+                        if (countersIt == InProgressCounters_.end()) {
+                            continue;
+                        }
+                        auto progressIt = operationStates.LastProgress.find(*publicIdIt->second);
+                        YQL_ENSURE(progressIt != operationStates.LastProgress.end());
+                        auto& progress = progressIt->second;
+                        progress.State = TOperationProgress::EState::InProgress;
+                        UpdateStage(progress.Stage, "FMR Running");
+                        TOperationProgress::TCounters progressCounters;
+                        const auto& jobCounters = countersIt->second;
+                        progressCounters.Total = jobCounters.Total;
+                        progressCounters.Pending = jobCounters.Pending;
+                        progressCounters.Running = jobCounters.Running;
+                        progressCounters.Completed = jobCounters.Completed;
+                        progressCounters.Failed = jobCounters.Failed;
+                        progressCounters.Lost = jobCounters.Lost;
+                        progress.Counters = progressCounters;
+                        progressUpdates.emplace_back(session->ProgressWriter_, progress);
+                    }
+
                     for (auto& completed : completedOperations) {
                         if (!Sessions_.contains(completed.SessionId)) {
                             continue;
@@ -288,9 +337,23 @@ public:
                         auto publicIdIt = operationStates.OperationPublicIds.find(completed.OperationId);
                         if (publicIdIt != operationStates.OperationPublicIds.end() && publicIdIt->second.Defined()) {
                             auto state = completed.Result.Success() ? TOperationProgress::EState::Finished : TOperationProgress::EState::Failed;
-                            auto stage = completed.Result.Success() ? TString("FMR Complete") : TString("FMR Failed");
-                            progressUpdates.push_back({session->ProgressWriter_, *publicIdIt->second, state, stage});
+                            auto stageName = completed.Result.Success() ? TString("FMR Complete") : TString("FMR Failed");
+                            auto progressIt = operationStates.LastProgress.find(*publicIdIt->second);
+                            YQL_ENSURE(progressIt != operationStates.LastProgress.end());
+                            auto& progress = progressIt->second;
+                            progress.State = state;
+                            UpdateStage(progress.Stage, stageName);
+                            TOperationProgress::TCounters progressCounters;
+                            progressCounters.Total = completed.JobCounters.Total;
+                            progressCounters.Pending = completed.JobCounters.Pending;
+                            progressCounters.Running = completed.JobCounters.Running;
+                            progressCounters.Completed = completed.JobCounters.Completed;
+                            progressCounters.Failed = completed.JobCounters.Failed;
+                            progressCounters.Lost = completed.JobCounters.Lost;
+                            progress.Counters = progressCounters;
+                            progressUpdates.emplace_back(session->ProgressWriter_, progress);
                         }
+                        InProgressCounters_.erase(completed.OperationId);
                         promisesToResolve.emplace_back(operationStatuses[completed.OperationId], std::move(completed.Result));
                     }
 
@@ -310,8 +373,14 @@ public:
                             });
                             auto publicIdIt = operationStates.OperationPublicIds.find(abortOp.OperationId);
                             if (publicIdIt != operationStates.OperationPublicIds.end() && publicIdIt->second.Defined()) {
-                                progressUpdates.push_back({session->ProgressWriter_, *publicIdIt->second, TOperationProgress::EState::Failed, "FMR Failed"});
+                                auto progressIt = operationStates.LastProgress.find(*publicIdIt->second);
+                                YQL_ENSURE(progressIt != operationStates.LastProgress.end());
+                                auto& progress = progressIt->second;
+                                progress.State = TOperationProgress::EState::Aborted;
+                                UpdateStage(progress.Stage, "FMR Aborted");
+                                progressUpdates.emplace_back(session->ProgressWriter_, progress);
                             }
+                            InProgressCounters_.erase(abortOp.OperationId);
                             promisesToResolve.emplace_back(operationStatuses[abortOp.OperationId], std::move(fmrOperationResult));
                             DistributedUploadSessions_.erase(abortOp.WriteSessionId);
                         }
@@ -330,11 +399,7 @@ public:
                 }
 
                 for (auto& update : progressUpdates) {
-                    auto progress = TOperationProgress(TString(YtProviderName), update.PublicId, update.State, update.Stage);
-                    if (FmrServices_->VanillaRemoteId.Defined()) {
-                        progress.RemoteId = *FmrServices_->VanillaRemoteId;
-                    }
-                    update.Writer(progress);
+                    update.Writer(update.Progress);
                 }
                 for (auto& [promise, result] : promisesToResolve) {
                     promise.SetValue(std::move(result));
@@ -1589,15 +1654,19 @@ private:
 
         if (publicId.Defined()) {
             TOperationProgressWriter progressWriter;
+            TMaybe<TOperationProgress> progress;
             with_lock(Mutex_) {
-                progressWriter = Sessions_[sessionId]->ProgressWriter_;
+                auto& session = Sessions_[sessionId];
+                progressWriter = session->ProgressWriter_;
+                progress = TOperationProgress(TString(YtProviderName), *publicId, TOperationProgress::EState::InProgress,
+                    TStringBuilder() << "FMR Starting (" << startOperationRequest.OperationType << ")");
+                if (FmrServices_->VanillaRemoteId.Defined()) {
+                    progress->RemoteId = *FmrServices_->VanillaRemoteId;
+                }
+                // first state, create a progress here
+                session->OperationStates.LastProgress.emplace(*publicId, *progress);
             }
-            auto progress = TOperationProgress(TString(YtProviderName), *publicId, TOperationProgress::EState::InProgress,
-                TStringBuilder() << "FMR Starting (" << startOperationRequest.OperationType << ")");
-            if (FmrServices_->VanillaRemoteId.Defined()) {
-                progress.RemoteId = *FmrServices_->VanillaRemoteId;
-            }
-            progressWriter(progress);
+            progressWriter(*progress);
         }
 
         auto startOperationResponseFuture = Coordinator_->StartOperation(startOperationRequest);
@@ -1614,6 +1683,7 @@ private:
             TString operationId = startOperationResponse.OperationId;
 
             TOperationProgressWriter progressWriter;
+            TMaybe<TOperationProgress> progress;
             with_lock(Mutex_) {
                 auto& session = Sessions_[sessionId];
                 auto& operationStates = session->OperationStates;
@@ -1628,14 +1698,18 @@ private:
                 }
                 if (publicId.Defined()) {
                     progressWriter = session->ProgressWriter_;
+                    progress = TOperationProgress(TString(YtProviderName), *publicId, TOperationProgress::EState::InProgress, "FMR Running");
+                    if (FmrServices_->VanillaRemoteId.Defined()) {
+                        progress->RemoteId = *FmrServices_->VanillaRemoteId;
+                    }
+
+                    auto progressIt = operationStates.LastProgress.find(*publicId);
+                    YQL_ENSURE(progressIt != operationStates.LastProgress.end());
+                    progressIt->second = *progress;
                 }
             }
             if (publicId.Defined()) {
-                auto progress = TOperationProgress(TString(YtProviderName), *publicId, TOperationProgress::EState::InProgress, "FMR Running");
-                if (FmrServices_->VanillaRemoteId.Defined()) {
-                    progress.RemoteId = *FmrServices_->VanillaRemoteId;
-                }
-                progressWriter(progress);
+                progressWriter(*progress);
             }
         });
         return future;
@@ -2708,6 +2782,7 @@ private:
         std::unordered_map<TString, TPromise<TFmrOperationResult>> OperationStatuses = {}; // operationId -> promise which we set when operation completes
         std::unordered_map<TString, TString> SortedUploadOperations = {}; // operationId -> distributed write session
         std::unordered_map<TString, TMaybe<ui32>> OperationPublicIds = {}; // operationId -> publicId for progress reporting
+        std::unordered_map<ui32, TOperationProgress> LastProgress; // publicId -> progress
     };
 
     struct TFmrTableInfo {
@@ -2737,6 +2812,7 @@ private:
     THashMap<TString, TFuture<void>> InFlightFileUploads_;
     TMutex Mutex_;
     std::unordered_map<TString, TFmrSession::TPtr> Sessions_;
+    std::unordered_map<TString, TJobCounters> InProgressCounters_; // operationId -> latest job counters
     const TIntrusivePtr<IRandomProvider> RandomProvider_;
     const TIntrusivePtr<ITimeProvider> TimeProvider_;
     TDuration TimeToSleepBetweenGetOperationRequests_;
