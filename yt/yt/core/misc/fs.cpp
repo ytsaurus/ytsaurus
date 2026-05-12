@@ -1014,24 +1014,24 @@ TFuture<TSpliceResult> SpliceAsync(
     YT_VERIFY(src.GetHandle() >= 0 && dst.GetHandle() >= 0);
     YT_VERIFY(chunkSize > 0);
 
-    static constexpr auto isPipe = [] (int fd) -> bool {
+    constexpr auto isPipe = [] (int fd) -> bool {
         struct stat statBuf;
         YT_VERIFY(::fstat(fd, &statBuf) != -1);
         return (statBuf.st_mode & S_IFMT) == S_IFIFO;
     };
 
-    static constexpr auto isNonblocking = [] (int fd) -> bool {
+    constexpr auto isNonblocking = [] (int fd) -> bool {
         int flags = ::fcntl(fd, F_GETFL);
         YT_VERIFY(flags != -1);
         return flags & O_NONBLOCK;
     };
 
     auto fdPipe = (pipeIsSrc ? src : dst).GetHandle();
-    YT_ASSERT(isPipe(fdPipe));
+    YT_VERIFY(isPipe(fdPipe));
 
     auto fdOther = (pipeIsSrc ? dst : src).GetHandle();
-    YT_ASSERT(!isNonblocking(fdOther));
-    YT_ASSERT(!isPipe(fdOther));
+    YT_VERIFY(!isNonblocking(fdOther));
+    YT_VERIFY(!isPipe(fdOther));
 
     auto control = NConcurrency::EPollControl::EdgeTriggered | (
         pipeIsSrc
