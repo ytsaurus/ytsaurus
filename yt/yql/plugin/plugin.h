@@ -134,6 +134,9 @@ struct IYqlPlugin
 
     virtual NYTree::IMapNodePtr GetOrchidNode() const;
 
+    virtual void RegisterQuery(TQueryId queryId) = 0;
+    virtual void UnregisterQuery(TQueryId queryId) = 0;
+
     virtual ~IYqlPlugin() = default;
 };
 
