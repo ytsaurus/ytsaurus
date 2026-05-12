@@ -20,6 +20,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetQueryProgress);
     DEFINE_RPC_PROXY_METHOD(NProto, GetUsedClusters);
     DEFINE_RPC_PROXY_METHOD(NProto, GetDeclaredParametersInfo);
+    DEFINE_RPC_PROXY_METHOD(NProto, RegisterQuery);
+    DEFINE_RPC_PROXY_METHOD(NProto, UnregisterQuery);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

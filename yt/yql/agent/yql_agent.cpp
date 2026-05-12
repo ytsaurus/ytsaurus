@@ -63,23 +63,34 @@ class TActiveQueriesGuard
 public:
     TActiveQueriesGuard() = delete;
 
-    TActiveQueriesGuard(int maxSimultaneousQueries, std::atomic<int>* activeQueries)
+    TActiveQueriesGuard(
+        int maxSimultaneousQueries,
+        std::atomic<int>* activeQueries,
+        IYqlPlugin* yqlPlugin,
+        TQueryId queryId)
         : ActiveQueries_(activeQueries)
+        , YqlPlugin_(yqlPlugin)
+        , QueryId_(std::move(queryId))
     {
         IsTaken_ = true;
         auto queries = ActiveQueries_->load();
         do {
             if (queries >= maxSimultaneousQueries) {
                 IsTaken_ = false;
-                return;
+                break;
             }
         } while (!ActiveQueries_->compare_exchange_weak(queries, queries + 1));
+
+        if (IsTaken_) {
+            YqlPlugin_->RegisterQuery(QueryId_);
+        }
     }
 
     ~TActiveQueriesGuard()
     {
         if (IsTaken_) {
             ActiveQueries_->fetch_add(-1);
+            YqlPlugin_->UnregisterQuery(QueryId_);
         }
     }
 
@@ -90,24 +101,34 @@ public:
 
 private:
     std::atomic<int>* const ActiveQueries_;
+    IYqlPlugin* YqlPlugin_;
+    TQueryId QueryId_;
+
     bool IsTaken_;
 };
 
 class TActiveQueriesGuardFactory
 {
 public:
-    explicit TActiveQueriesGuardFactory(int maxSimultaneousQueries)
+    explicit TActiveQueriesGuardFactory(int maxSimultaneousQueries, IYqlPlugin* yqlPlugin)
         : MaxSimultaneousQueries_(maxSimultaneousQueries)
-    { }
+        , YqlPlugin_(yqlPlugin)
+    {
+        YT_VERIFY(YqlPlugin_);
+    }
 
     void Update(int maxSimultaneousQueries)
     {
         MaxSimultaneousQueries_ = maxSimultaneousQueries;
     }
 
-    TActiveQueriesGuard CreateGuard()
+    TActiveQueriesGuard CreateGuard(TQueryId queryId)
     {
-        return TActiveQueriesGuard(MaxSimultaneousQueries_, &ActiveQueries_);
+        return TActiveQueriesGuard(
+            MaxSimultaneousQueries_,
+            &ActiveQueries_,
+            YqlPlugin_,
+            std::move(queryId));
     }
 
     int GetGuardedValue() const
@@ -117,6 +138,8 @@ public:
 
 private:
     int MaxSimultaneousQueries_;
+    IYqlPlugin* YqlPlugin_;
+
     std::atomic<int> ActiveQueries_;
 };
 
@@ -245,12 +268,7 @@ public:
         , AgentId_(std::move(agentId))
         , DynamicConfig_(std::move(dynamicConfig))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
-        , ActiveQueriesGuardFactory_(TActiveQueriesGuardFactory(DynamicConfig_->MaxSimultaneousQueries))
     {
-        YqlAgentProfiler().AddFuncGauge("/active_queries", MakeStrong(this), [this] {
-            return ActiveQueriesGuardFactory_.GetGuardedValue();
-        });
-
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
@@ -340,6 +358,14 @@ public:
 
         coroutine.Run(std::move(options));
         YT_VERIFY(coroutine.IsCompleted());
+
+        ActiveQueriesGuardFactory_ = std::make_unique<TActiveQueriesGuardFactory>(
+            DynamicConfig_->MaxSimultaneousQueries,
+            YqlPlugin_.get());
+
+        YqlAgentProfiler().AddFuncGauge("/active_queries", MakeStrong(this), [this] {
+            return ActiveQueriesGuardFactory_->GetGuardedValue();
+        });
     }
 
     void Start() override
@@ -368,7 +394,7 @@ public:
 
             DynamicConfig_->MaxSimultaneousQueries = Config_->YqlThreadCount - 1;
         }
-        ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
+        ActiveQueriesGuardFactory_->Update(DynamicConfig_->MaxSimultaneousQueries);
 
         InitYqlVersions();
 
@@ -495,11 +521,11 @@ private:
     std::unique_ptr<IYqlPlugin> YqlPlugin_;
 
     IThreadPoolPtr ThreadPool_;
-    TActiveQueriesGuardFactory ActiveQueriesGuardFactory_;
+    std::unique_ptr<TActiveQueriesGuardFactory> ActiveQueriesGuardFactory_;
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request)
     {
-        auto guard = ActiveQueriesGuardFactory_.CreateGuard();
+        auto guard = ActiveQueriesGuardFactory_->CreateGuard(queryId);
 
         if (!guard.IsTaken()) {
             YT_LOG_INFO(

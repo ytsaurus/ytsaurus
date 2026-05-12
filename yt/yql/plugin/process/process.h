@@ -54,12 +54,14 @@ public:
         NYson::TYsonString settings,
         NYson::TYsonString credentials) override;
 
-
     TQueryResult GetProgress(TQueryId queryId) override;
 
     TAbortResult Abort(TQueryId queryId) override;
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override;
+
+    void RegisterQuery(TQueryId queryId) override;
+    void UnregisterQuery(TQueryId queryId) override;
 
     void Stop();
     void SubscribeOnFinish(TCallback<void (const TErrorOr<void>&)> callback);

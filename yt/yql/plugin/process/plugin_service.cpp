@@ -37,6 +37,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUsedClusters));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQuery));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, RunQuery)
@@ -138,6 +140,28 @@ public:
         }
 
         context->SetResponseInfo("QueryId: %v, Parameters: %v", queryId, result.YsonParameters);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, RegisterQuery)
+    {
+        auto queryId = FromProto<TQueryId>(request->query_id());
+        context->SetRequestInfo("QueryId: %v", queryId);
+
+        YqlPlugin_->RegisterQuery(queryId);
+
+        context->SetResponseInfo("QueryId: %v", queryId);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, UnregisterQuery)
+    {
+        auto queryId = FromProto<TQueryId>(request->query_id());
+        context->SetRequestInfo("QueryId: %v", queryId);
+
+        YqlPlugin_->UnregisterQuery(queryId);
+
+        context->SetResponseInfo("QueryId: %v", queryId);
         context->Reply();
     }
 
