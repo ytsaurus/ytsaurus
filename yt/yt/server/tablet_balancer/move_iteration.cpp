@@ -154,6 +154,11 @@ protected:
                 continue;
             }
 
+            // Support smooth movement for frozen tablets: YT-17388.
+            if (tablet->State != ETabletState::Mounted) {
+                continue;
+            }
+
             descriptor.Smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
         }
 

@@ -306,7 +306,7 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
                     moveDescriptor.TabletId,
                     moveDescriptor.CorrelationId);
 
-                GetOrCreateProfilingCounters(bundleName).FailedAtRuntimeSmoothMovementActions.Increment();
+                GetOrCreateProfilingCounters(bundleName).FailedAtStartSmoothMovementActions.Increment();
 
                 moveDescriptor.Smooth = false;
                 descriptors.push_back(moveDescriptor);
