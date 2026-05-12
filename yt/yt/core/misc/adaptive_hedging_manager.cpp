@@ -58,7 +58,7 @@ public:
     {
         YT_VERIFY(Config_->SecondaryRequestRatio);
 
-        HedgingDelay_.store(Config_->MaxHedgingDelay, std::memory_order::release);
+        HedgingDelay_.store(Config_->MaxHedgingDelay.MicroSeconds(), std::memory_order::release);
         TokenCount_.store(Config_->MaxTokenCount, std::memory_order::release);
     }
 
@@ -76,7 +76,7 @@ public:
             hedgingPrice,
             std::move(startSecondaryRequest));
 
-        auto hedgingDelay = HedgingDelay_.load(std::memory_order::relaxed);
+        auto hedgingDelay = TDuration::MicroSeconds(HedgingDelay_.load(std::memory_order::relaxed));
 
         TDelayedExecutor::Submit(
             BIND([request = std::move(hedgingRequest), this, this_ = MakeStrong(this)] () mutable {
@@ -124,14 +124,14 @@ public:
             .SecondaryRequestCount = SecondaryRequestCount_.exchange(0, std::memory_order::relaxed),
             .QueuedRequestCount = QueuedRequestCount_.exchange(0, std::memory_order::relaxed),
             .MaxQueueSize = MaxQueueSize_.exchange(0, std::memory_order::relaxed),
-            .HedgingDelay = HedgingDelay_.load(std::memory_order::relaxed),
+            .HedgingDelay = TDuration::MicroSeconds(HedgingDelay_.load(std::memory_order::relaxed)),
         };
     }
 
 private:
     const TAdaptiveHedgingManagerConfigPtr Config_;
 
-    std::atomic<TDuration> HedgingDelay_;
+    std::atomic<double> HedgingDelay_;
     std::atomic<double> TokenCount_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DequeLock_);
@@ -160,7 +160,7 @@ private:
         auto hedgingDelay = HedgingDelay_.load(std::memory_order::relaxed);
         if (Config_->HedgingDelayTuneFactor != 1) {
             if (*Config_->SecondaryRequestRatio == 1) {
-                hedgingDelay = TDuration::Zero();
+                hedgingDelay = 0.0;
             } else if (isRequestHedged) {
                 hedgingDelay *= std::pow(Config_->HedgingDelayTuneFactor, hedgingPrice / *Config_->SecondaryRequestRatio - 1.);
             } else {
@@ -168,7 +168,9 @@ private:
             }
         }
 
-        hedgingDelay = std::max(Config_->MinHedgingDelay, std::min(Config_->MaxHedgingDelay, hedgingDelay));
+        double minHedgingDelay = Config_->MinHedgingDelay.MicroSeconds();
+        double maxHedgingDelay = Config_->MaxHedgingDelay.MicroSeconds();
+        hedgingDelay = std::max(minHedgingDelay, std::min(maxHedgingDelay, hedgingDelay));
 
         HedgingDelay_.store(hedgingDelay, std::memory_order::relaxed);
     }
