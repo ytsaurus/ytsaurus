@@ -190,9 +190,8 @@ private:
         const auto* attributes = std::get_if<IAttributeDictionaryPtr>(&node);
         YT_VERIFY(attributes);
 
-        if (auto value = (*attributes)->Find<TResourceUsage>(EInternedAttributeKey::ResourceUsage.Unintern())) {
-            *resourceUsage += *value;
-        }
+        auto value = (*attributes)->Get<TResourceUsage>(EInternedAttributeKey::ResourceUsage.Unintern());
+        *resourceUsage += value;
     }
 
     void OnNodeExited(const TCypressNodeDescriptor& descriptor) override
@@ -279,9 +278,8 @@ private:
         auto resourceUsage = std::move(NodeStack_.back());
         NodeStack_.pop_back();
 
-        if (auto value = attributes->Find<TResourceUsage>(EInternedAttributeKey::ResourceUsage.Unintern())) {
-            resourceUsage += *value;
-        }
+        auto value = attributes->Get<TResourceUsage>(EInternedAttributeKey::ResourceUsage.Unintern());
+        resourceUsage += value;
 
         if (auto it = FrontierNodesResourceUsage_->find(nodeId);
             it != FrontierNodesResourceUsage_->end())
