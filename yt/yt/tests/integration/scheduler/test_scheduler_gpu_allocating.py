@@ -23,6 +23,7 @@ from yt.test_helpers import are_almost_equal
 from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
     wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
+    check_gpu_allocations_from_gpu_policy_orchid, wait_for_gpu_allocations_empty_in_gpu_policy_orchid,
 )
 
 
@@ -171,6 +172,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=1,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 1)
 
         node_address = assignment["node_address"]
         assert node_address in ls("//sys/cluster_nodes")
@@ -188,6 +190,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_full_host(self):
@@ -227,6 +230,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=8,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -237,6 +241,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_two_jobs(self):
@@ -276,6 +281,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=1,
                 preemptible=False)
             assert assignment["allocation_id"] in allocation_ids
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 1)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -293,6 +299,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}/assignments")) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_two_jobs_full_host(self):
@@ -338,10 +345,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assert len(node["assignments"]) == 1
             for node_assignment in node["assignments"]:
                 compare_assignment_without_preemptible_start_time(node_assignment, assignment)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_two_ops(self):
@@ -394,6 +403,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=1,
                 preemptible=False,
                 allocation_id=allocation_id)
+            check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 1)
 
         release_breakpoint()
 
@@ -451,6 +461,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=8,
                 preemptible=False,
                 allocation_id=allocation_id)
+            check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         release_breakpoint()
 
@@ -505,10 +516,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assert len(node["assignments"]) == 1
             for node_assignment in node["assignments"]:
                 compare_assignment_without_preemptible_start_time(node_assignment, assignment)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_operation_cant_schedule(self):
@@ -575,6 +588,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=1,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 1)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -590,6 +604,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_simple_fullhost_map(self):
@@ -643,10 +658,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             gpu_usage=8,
             preemptible=False,
             allocation_id=allocation_id)
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_fullhost_map_two_jobs(self):
@@ -700,10 +717,12 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
                 gpu_usage=8,
                 preemptible=False)
             assert assignment["allocation_id"] in allocation_ids
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], allocation_ids, 8)
 
         release_breakpoint()
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/resource_usage/gpu", default=None) == 0)
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(op)
 
     @authors("yaishenka")
     def test_tag_filters(self):
@@ -1187,6 +1206,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
             preemptible=False,
             allocation_id=allocation_id,
         )
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")
@@ -1232,6 +1252,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
             preemptible=False,
             allocation_id=allocation_id,
         )
+        check_gpu_allocations_from_gpu_policy_orchid(operation["allocations"], [allocation_id], 8)
 
         node_address = assignment["node_address"]
         node = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{node_address}")

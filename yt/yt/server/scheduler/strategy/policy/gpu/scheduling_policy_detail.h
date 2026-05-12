@@ -237,12 +237,10 @@ private:
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot);
 
-    void PreemptAllocation(
+    bool PreemptAllocation(
         const TAllocationPtr& allocation,
         TPoolTreeOperationElement* element,
-        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        EAllocationPreemptionReason preemptionReason,
-        TJobResources preemptedUsage) const;
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
 
     TControllerScheduleAllocationResultPtr DoScheduleAllocation(
         const TNodePtr& node,
@@ -257,6 +255,14 @@ private:
         const TPoolTreeSnapshotPtr& treeSnapshot,
         TPoolTreeOperationElementPtr element,
         const TAllocationUpdate& allocationUpdate);
+
+    TProcessAllocationUpdateResult DoProcessFinishedAllocation(
+        const TPoolTreeOperationElementPtr& element,
+        const TAllocationUpdate& allocationUpdate,
+        const TNodePtr& node,
+        const TOperationPtr& operation,
+        const TAssignmentPtr& assignment,
+        const TAllocationStatePtr& allocation);
 
     void DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const;
     void DoBuildSchedulingAttributesStringForNode(TNodeId nodeId, TStringBuilderBase* builder) const;
