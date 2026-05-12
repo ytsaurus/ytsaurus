@@ -2383,7 +2383,7 @@ private:
                 : 0;
 
             auto future = OKFuture;
-            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Address, bytesToThrottle > 0)) {
+            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Id, bytesToThrottle > 0)) {
                 if (isPrimaryRequest) {
                     Session_->DataBytesThrottled_ += bytesToThrottle;
                 } else {
@@ -2461,7 +2461,7 @@ private:
 
                 auto throttledBytesDelta = GetByteSize(result.Response.Value()->Attachments()) - bytesThrottled;
                 if (Session_->ShouldThrottle(
-                    GetPeer(isPrimaryRequest).Address,
+                    GetPeer(isPrimaryRequest).Id,
                     !isPrimaryRequest && throttledBytesDelta > 0))
                 {
                     Session_->ExtraBytesThrottled_ += throttledBytesDelta;
