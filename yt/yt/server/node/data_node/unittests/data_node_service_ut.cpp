@@ -30,6 +30,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
 
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
@@ -461,7 +462,7 @@ public:
         bool UseDirectIO = false;
         bool WaitPrecedingBlocksReceived = true;
         TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
-        TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(0);
+        TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(2);
     };
 
     TDataNodeTest() = default;
@@ -627,7 +628,7 @@ public:
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
-        // DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TDuration::Seconds(2);
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TestParams_.DelayBeforePerformPutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;
@@ -1664,7 +1665,7 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
 TEST_F(TDataNodeTest, PutBlocksCancelChunk)
 {
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    WaitFor(StartChunk(sessionId, true, false, false))
+    WaitFor(StartChunk(sessionId, false, false, false))
         .ThrowOnError();
 
     TRandomGenerator generator{RandomNumber<ui64>()};
@@ -1673,14 +1674,14 @@ TEST_F(TDataNodeTest, PutBlocksCancelChunk)
     auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
 
     auto putBlocksEnd = PutBlocks(sessionId, {blocks[0]}, 10, cummulativeBlockSize);
-    auto putBlocksBeging = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
+    auto putBlocksBegin = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
 
     WaitFor(CancelChunk(sessionId))
         .ThrowOnError();
 
     putBlocksEnd.Cancel(TError("Timeout"));
 
-    EXPECT_THROW(WaitFor(putBlocksBeging).ThrowOnError(), NYT::TErrorException);
+    EXPECT_THROW_WITH_SUBSTRING(WaitFor(putBlocksBegin).ThrowOnError(), "Session is not active");
 }
 
 TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
