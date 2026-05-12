@@ -1379,7 +1379,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-                ToNamesAndTypesList(*schema, settings->Composite)));
+                ToNamesAndTypesList(*schema, settings->Conversion)));
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
 
