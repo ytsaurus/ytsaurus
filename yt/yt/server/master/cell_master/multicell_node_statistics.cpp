@@ -21,7 +21,7 @@ constexpr auto& Logger = CellMasterLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
-using NObjectClient::TCellTag;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,12 +36,12 @@ const NProto::TCellStatistics& TMulticellNodeStatistics::GetClusterStatistics() 
     return ClusterCellStatisics_;
 }
 
-NProto::TCellStatistics TMulticellNodeStatistics::GetCellStatistics(NObjectClient::TCellTag cellTag) const
+NProto::TCellStatistics TMulticellNodeStatistics::GetCellStatistics(TCellTag cellTag) const
 {
     return GetOrDefault(MasterCellStatistics_, cellTag);
 }
 
-i64 TMulticellNodeStatistics::GetChunkCount(NObjectClient::TCellTag cellTag) const
+i64 TMulticellNodeStatistics::GetChunkCount(TCellTag cellTag) const
 {
     if (Bootstrap_->GetCellTag() == cellTag) {
         return Bootstrap_->GetChunkManager()->Chunks().GetSize();
@@ -158,13 +158,10 @@ void TMulticellNodeStatistics::FinishUpdate()
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
     auto allCellTags = multicellManager->GetRegisteredMasterCellTags();
-    std::ranges::sort(allCellTags);
-
     auto portalCellTags = multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost);
-    YT_VERIFY(std::ranges::is_sorted(portalCellTags));
 
-    NObjectClient::TCellTagList nonPortalCellTags;
-    std::ranges::set_difference(allCellTags, portalCellTags, std::back_inserter(nonPortalCellTags));
+    TCellTagSet nonPortalCellTags;
+    std::set_difference(allCellTags.begin(), allCellTags.end(), portalCellTags.begin(), portalCellTags.end(), nonPortalCellTags.begin());
 
     if (!portalCellTags.empty()) {
         auto multicellRequest = GetMulticellStatistics();

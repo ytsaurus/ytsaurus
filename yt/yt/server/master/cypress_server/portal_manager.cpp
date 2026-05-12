@@ -284,7 +284,7 @@ public:
         return count;
     }
 
-    void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<TCellTag>& removedMasterCellTags) const override
+    void ValidateNoNodesBehindRemovedMastersPortal(const TCellTagSet& removedMasterCellTags) const override
     {
         for (const auto& [_, node] : EntranceNodes_) {
             YT_LOG_FATAL_IF(

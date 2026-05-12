@@ -54,7 +54,7 @@ public:
 private:
     const IDataNodeTrackerInternalPtr NodeTrackerInternal_;
 
-    TCellTagList DoGetReplicationCellTags(const TChunkLocation* /*location*/) override
+    TCellTagSet DoGetReplicationCellTags(const TChunkLocation* /*location*/) override
     {
         return AllSecondaryCellTags();
     }

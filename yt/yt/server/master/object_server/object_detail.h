@@ -209,7 +209,7 @@ protected:
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
     //! Posts the request to given masters externalizing the transaction if needed.
-    void ExternalizeToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
+    void ExternalizeToMasters(NRpc::IServiceContextPtr context, const NObjectClient::TCellTagSet& cellTags);
 
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 

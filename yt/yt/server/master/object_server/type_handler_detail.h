@@ -45,7 +45,7 @@ public:
         return ETypeFlags::None;
     }
 
-    TCellTagList GetReplicationCellTags(const TObject* object) override
+    NObjectClient::TCellTagSet GetReplicationCellTags(const TObject* object) override
     {
         const auto& Logger = ObjectServerLogger;
 
@@ -55,10 +55,10 @@ public:
 
         auto result = DoGetReplicationCellTags(object->As<TImpl>());
 
-        if (auto it = std::ranges::find(result, object->GetNativeCellTag()); it != result.end()) [[unlikely]] {
+        if (result.contains(object->GetNativeCellTag())) [[unlikely]] {
             YT_LOG_ALERT("Replication cell tags of an object contain its native cell tag, omitting (ObjectId: %v)",
                 GetObjectId(object));
-            result.erase(it);
+            result.erase(object->GetNativeCellTag());
         }
 
         return result;
@@ -163,7 +163,7 @@ protected:
 
     TObjectTypeMetadata Metadata_;
 
-    virtual TCellTagList DoGetReplicationCellTags(const TImpl* /*object*/)
+    virtual NObjectClient::TCellTagSet DoGetReplicationCellTags(const TImpl* /*object*/)
     {
         return EmptyCellTags();
     }
@@ -242,12 +242,13 @@ protected:
     }
 
 
-    TCellTagList EmptyCellTags()
+    const NObjectClient::TCellTagSet& EmptyCellTags()
     {
-        return TCellTagList();
+        static auto EmptyCellTags = NObjectClient::TCellTagSet();
+        return EmptyCellTags;
     }
 
-    TCellTagList AllSecondaryCellTags()
+    const NObjectClient::TCellTagSet& AllSecondaryCellTags()
     {
         return Bootstrap_->GetMulticellManager()->GetRegisteredMasterCellTags();
     }

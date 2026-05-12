@@ -92,7 +92,7 @@ private:
         YT_ABORT();
     }
 
-    TCellTagList DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
+    TCellTagSet DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
     {
         return AllSecondaryCellTags();
     }

@@ -54,7 +54,7 @@ public:
     }
 
 private:
-    TCellTagList DoGetReplicationCellTags(const THost* /*host*/) override
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const THost* /*host*/) override
     {
         return AllSecondaryCellTags();
     }
