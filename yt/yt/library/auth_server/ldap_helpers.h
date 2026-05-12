@@ -8,10 +8,10 @@ namespace NYT::NAuth::NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Escapes a string for safe use in LDAP filter values (RFC 4515).
-TString LdapEscapeFilterValue(TStringBuf value);
+std::string LdapEscapeFilterValue(TStringBuf value);
 
 //! Substitutes {login} placeholder in filterTemplate with the escaped login.
-TString BuildSearchFilter(TStringBuf filterTemplate, TStringBuf login);
+std::string BuildSearchFilter(TStringBuf filterTemplate, TStringBuf login);
 
 ////////////////////////////////////////////////////////////////////////////////
 

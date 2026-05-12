@@ -22,7 +22,7 @@ struct ICypressCookieStore
 
     //! Finds cookie description by value. If cookie with given value is known,
     //! returns its description. Otherwise, tries to fetch cookie from Cypress.
-    virtual TFuture<TCypressCookiePtr> GetCookie(const TString& value) = 0;
+    virtual TFuture<TCypressCookiePtr> GetCookie(const std::string& value) = 0;
 
     //! Returns known cookie for given user with maximum |ExpiresAt|.
     //! If no cookies for user are known, returns |nullptr|.

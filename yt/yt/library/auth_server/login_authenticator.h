@@ -11,15 +11,15 @@ namespace NYT::NAuth {
 struct TLoginResult
 {
     //! Authenticated (possibly normalized) login.
-    TString Login;
+    std::string Login;
     //! Which backend performed the authentication.
     EAuthSource Source;
 };
 
 struct TLoginCredentials
 {
-    TString User;
-    TString Password;
+    std::string User;
+    std::string Password;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

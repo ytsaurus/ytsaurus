@@ -132,7 +132,7 @@ private:
 
         TLoginResult loginResult;
         try {
-            loginResult = WaitFor(Authenticator_->Authenticate(TLoginCredentials{TString{user}, TString{password}}))
+            loginResult = WaitFor(Authenticator_->Authenticate(TLoginCredentials{std::string(user), std::string(password)}))
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             auto error = TError(ex);
@@ -218,7 +218,7 @@ private:
             rsp->SetStatus(EStatusCode::OK);
         }
 
-        rsp->GetHeaders()->Add(TString{SetCookieHeader}, cookie->ToHeader(Config_));
+        rsp->GetHeaders()->Add(std::string{SetCookieHeader}, cookie->ToHeader(Config_));
     }
 
     void HandleRegularRequest(const IResponseWriterPtr& rsp)
@@ -227,7 +227,7 @@ private:
         rsp->GetHeaders()->Add("WWW-Authenticate", "Basic");
     }
 
-    TFuture<ui64> FetchPasswordRevision(const TString& user, TStringBuf attribute)
+    TFuture<ui64> FetchPasswordRevision(const std::string& user, TStringBuf attribute)
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 

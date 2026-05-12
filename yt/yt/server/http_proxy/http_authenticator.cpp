@@ -192,7 +192,8 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             }
 
             auto tokenHash = GetCryptoHash(*credentials.Token);
-            return TAuthenticationResultAndToken{authenticationResult, tokenHash};
+            // TOOD(babenko): migrate to std::string
+            return TAuthenticationResultAndToken{authenticationResult, TString(tokenHash)};
         }
     }
 

@@ -203,7 +203,7 @@ protected:
 
         return TAuthenticationResult{
             .Login = login,
-            .Realm = TString(GetRealm()),
+            .Realm = std::string(GetRealm()),
         };
     }
 

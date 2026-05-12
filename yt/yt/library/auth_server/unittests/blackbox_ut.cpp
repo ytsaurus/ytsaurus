@@ -62,7 +62,7 @@ protected:
         if (mockTvmService) {
             MockTvmService_ = New<NiceMock<TMockTvmService>>();
             ON_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
-                .WillByDefault(Return(TString("blackbox_ticket")));
+                .WillByDefault(Return(std::string("blackbox_ticket")));
         }
 
         return NAuth::CreateBlackboxService(
@@ -241,15 +241,15 @@ public:
     { }
 
     MOCK_METHOD(TFuture<INodePtr>, Call, (
-        const TString&,
-        (const THashMap<TString, TString>&)), (override));
+        const std::string&,
+        (const THashMap<std::string, std::string>&)), (override));
 
-    TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    TErrorOr<std::string> GetLogin(const NYTree::INodePtr& reply) const override
     {
         if (UseLowercaseLogin_) {
-            return GetByYPath<TString>(reply, "/attributes/1008");
+            return GetByYPath<std::string>(reply, "/attributes/1008");
         } else {
-            return GetByYPath<TString>(reply, "/login");
+            return GetByYPath<std::string>(reply, "/login");
         }
     }
 
@@ -527,9 +527,9 @@ protected:
     }
 
     TFuture<TAuthenticationResult> Authenticate(
-        const TString& sessionId,
-        const TString& sslSessionId,
-        const TString& userIP)
+        const std::string& sessionId,
+        const std::string& sslSessionId,
+        const std::string& userIP)
     {
         TCookieCredentials credentials;
         credentials.Cookies[BlackboxSessionIdCookieName] = sessionId;
@@ -635,9 +635,9 @@ protected:
             .WillByDefault(Return(Response("{users=[{login=ScopelessUser;attributes={\"1008\"=scopeless_user}}]}")));
     }
 
-    THashMap<TString, TString> TicketParam(const TString& ticket)
+    THashMap<std::string, std::string> TicketParam(const std::string& ticket)
     {
-        return THashMap<TString, TString>{{"user_ticket", ticket}};
+        return THashMap<std::string, std::string>{{"user_ticket", ticket}};
     }
 
     TFuture<INodePtr> Response(const TString& yson)
@@ -645,7 +645,7 @@ protected:
         return MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)));
     }
 
-    TFuture<TAuthenticationResult> Invoke(const TString& ticket)
+    TFuture<TAuthenticationResult> Invoke(const std::string& ticket)
     {
         return Authenticator_->Authenticate(TTicketCredentials{ticket});
     }
