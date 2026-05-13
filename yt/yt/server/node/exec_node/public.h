@@ -69,6 +69,10 @@ DECLARE_REFCOUNTED_STRUCT(IJobProxyLogManager)
 
 DECLARE_REFCOUNTED_CLASS(IThrottlerManager)
 
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
+
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifactCache)
+
 DEFINE_ENUM(ESlotType,
     //! With cpu_policy=normal
     ((Common)    (0))

@@ -7,19 +7,13 @@
 
 namespace NYT::NExecNode {
 
-using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVolumeArtifactAdapter
     : public IVolumeArtifact
 {
 public:
-    TVolumeArtifactAdapter(TArtifactPtr artifact)
+    explicit TVolumeArtifactAdapter(TArtifactPtr artifact)
         : Artifact_(std::move(artifact))
     { }
 
@@ -29,12 +23,8 @@ public:
     }
 
 private:
-    TArtifactPtr Artifact_;
+    const TArtifactPtr Artifact_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +32,7 @@ class TVolumeArtifactCacheAdapter
     : public IVolumeArtifactCache
 {
 public:
-    TVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
+    explicit TVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
         : ArtifactCache_(artifactCache)
     { }
 
@@ -57,7 +47,7 @@ public:
     }
 
 private:
-    TArtifactCachePtr ArtifactCache_;
+    const TArtifactCachePtr ArtifactCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
