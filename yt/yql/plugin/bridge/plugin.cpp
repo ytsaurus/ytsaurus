@@ -32,22 +32,23 @@ std::optional<TString> ToString(const char* str, size_t strLength)
 // Each YQL plugin ABI change should be listed here. Either a compat should be added
 // or MinSupportedYqlPluginAbiVersion should be promoted.
 DEFINE_ENUM(EYqlPluginAbiVersion,
-    ((Invalid)            (-1))
-    ((TheBigBang)          (0))
-    ((AbortQuery)          (1)) // gritukan: Added BridgeAbort; no breaking changes.
-    ((ValidateExplain)     (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
-    ((DqManager)           (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
-    ((TemporaryTokens)     (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
-    ((Credentials)         (5)) // a-romanov: 'credentials' parameter instead of 'token'.
-    ((DynamicConfig)       (6)) // lucius: Added OnDynamicConfigChanged.
-    ((YtflowProvider)      (7)) // ngc224: Added ytflow provider support.
-    ((PqProvider)          (8)) // artemmashin: Added pq provider support.
-    ((SolomonProvider)     (9)) // artemmashin: Added solomon provider support.
-    ((TvmAndIdmConfig)    (10)) // ziganshinmr: Added TVM and YQL YT access provider config
+    ((Invalid)                    (-1))
+    ((TheBigBang)                  (0))
+    ((AbortQuery)                  (1)) // gritukan: Added BridgeAbort; no breaking changes.
+    ((ValidateExplain)             (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
+    ((DqManager)                   (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
+    ((TemporaryTokens)             (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
+    ((Credentials)                 (5)) // a-romanov: 'credentials' parameter instead of 'token'.
+    ((DynamicConfig)               (6)) // lucius: Added OnDynamicConfigChanged.
+    ((YtflowProvider)              (7)) // ngc224: Added ytflow provider support.
+    ((PqProvider)                  (8)) // artemmashin: Added pq provider support.
+    ((SolomonProvider)             (9)) // artemmashin: Added solomon provider support.
+    ((TvmAndIdmConfig)            (10)) // ziganshinmr: Added TVM and YQL YT access provider config
+    ((RegisterUnregisterQuery)    (11)) // ngc224: Added register and unregister query brigde functions
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TvmAndIdmConfig;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TvmAndIdmConfig;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::RegisterUnregisterQuery;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::RegisterUnregisterQuery;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,9 +222,10 @@ public:
             });
         }
 
+        auto queryIdStr = ToString(queryId);
         auto* bridgeClustersResult = BridgeGetUsedClusters(
             BridgePlugin_,
-            ToString(queryId).data(),
+            queryIdStr.data(),
             queryText.data(),
             settingsString.data(),
             settingsString.length(),
@@ -290,9 +292,10 @@ public:
         const auto credentialsString = credentials ? credentials.ToString() : "{}";
         const auto settingsString = settings ? settings.ToString() : "{}";
 
+        auto queryIdStr = ToString(queryId);
         auto* bridgeQueryResult = BridgeGetDeclaredParametersInfo(
             BridgePlugin_,
-            ToString(queryId).data(),
+            queryIdStr.data(),
             user.data(),
             queryText.data(),
             settingsString.data(),
@@ -309,6 +312,22 @@ public:
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
         BridgeOnDynamicConfigChanged(BridgePlugin_, &config);
+    }
+
+    void RegisterQuery(TQueryId queryId) noexcept override
+    {
+        auto queryIdStr = ToString(queryId);
+        return BridgeRegisterQuery(
+            BridgePlugin_,
+            queryIdStr.data());
+    }
+
+    void UnregisterQuery(TQueryId queryId) noexcept override
+    {
+        auto queryIdStr = ToString(queryId);
+        return BridgeUnregisterQuery(
+            BridgePlugin_,
+            queryIdStr.data());
     }
 
     ~TYqlPlugin() override

@@ -191,6 +191,9 @@ using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoRes
     const char* credentials,
     int credentialsLength);
 
+using TFuncBridgeRegisterQuery = void(TBridgeYqlPlugin* plugin, const char* queryId);
+using TFuncBridgeUnregisterQuery = void(TBridgeYqlPlugin* plugin, const char* queryId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX) \
@@ -207,6 +210,8 @@ using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoRes
     XX(BridgeFreeAbortResult) \
     XX(BridgeOnDynamicConfigChanged) \
     XX(BridgeGetDeclaredParametersInfo) \
-    XX(BridgeFreeGetDeclaredParametersInfoResult)
+    XX(BridgeFreeGetDeclaredParametersInfoResult) \
+    XX(BridgeRegisterQuery) \
+    XX(BridgeUnregisterQuery)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -525,4 +525,6 @@ TGatewaySQLFlags SQLFlagsFromQContext(const TQContext& context);
 
 bool HasFullCapture(const IQReaderPtr& reader);
 
+TProgram::TStatus WaitExecution(TProgramPtr program, TProgram::TFutureStatus futureStatus);
+
 } // namespace NYql

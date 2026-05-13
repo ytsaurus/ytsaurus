@@ -15,7 +15,7 @@ extern "C" {
 
 ssize_t BridgeGetAbiVersion()
 {
-    return 10; // EYqlPluginAbiVersion::TvmAndIdmConfig
+    return 11; // EYqlPluginAbiVersion::RegisterUnregisterQuery
 }
 
 TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOptions)
@@ -248,6 +248,17 @@ void BridgeFreeGetDeclaredParametersInfoResult(TBridgeGetDeclaredParametersInfoR
     delete result;
 }
 
+void BridgeRegisterQuery(TBridgeYqlPlugin* plugin, const char* queryId)
+{
+    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
+    return nativePlugin->RegisterQuery(NYT::TGuid::FromString(queryId));
+}
+
+void BridgeUnregisterQuery(TBridgeYqlPlugin* plugin, const char* queryId)
+{
+    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
+    return nativePlugin->UnregisterQuery(NYT::TGuid::FromString(queryId));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
