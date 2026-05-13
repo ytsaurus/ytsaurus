@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/scheduler/public.h>
 
+#include <library/cpp/yt/threading/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,7 @@ namespace NYT::NJobProxy {
 using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::TJobTraceId;
+using NThreading::TThreadId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +88,7 @@ private:
 struct TTraceEvent
 {
     const std::string RawEvent;
-    const i64 ThreadId;
+    const TThreadId ThreadId;
     const double Timestamp;
     const std::optional<TProcessId> ProcessId;
 };
