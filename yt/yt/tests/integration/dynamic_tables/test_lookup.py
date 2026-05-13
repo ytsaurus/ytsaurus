@@ -1778,10 +1778,10 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
             self._enable_data_node_lookup("//tmp/t")
         if enable_hash_chunk_index:
             self._enable_hash_chunk_index("//tmp/t")
-        if exists("//tmp/t/@chunk_reader"):
-            set("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay", 0)
-        else:
-            set("//tmp/t/@chunk_reader", {"lookup_rpc_hedging_delay": 0})
+        if not exists("//tmp/t/@chunk_reader"):
+            set("//tmp/t/@chunk_reader", {})
+        set("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay", 0)
+        set("//tmp/t/@chunk_reader/enable_local_throttling", True)
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(1)]
