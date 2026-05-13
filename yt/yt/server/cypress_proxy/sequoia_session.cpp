@@ -844,7 +844,7 @@ TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster
         }));
 }
 
-const NApi::NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
+const NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
 {
     return NativeAuthenticatedClient_;
 }
@@ -950,7 +950,7 @@ void TSequoiaSession::MultisetNodeAttributes(
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
     const TYsonString& effectiveAcl,
-    const NApi::TSuppressableAccessTrackingOptions& options)
+    const TSuppressableAccessTrackingOptions& options)
 {
     AcquireCypressLockInSequoia(nodeId, ELockMode::Shared);
 
@@ -1568,7 +1568,7 @@ TSequoiaSession::TSequoiaSession(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr sequoiaTransaction,
     std::vector<TTransactionId> cypressTransactionIds,
-    NApi::NNative::IClientPtr nativeAuthenticatedClient,
+    NNative::IClientPtr nativeAuthenticatedClient,
     TUserDescriptorPtr authenticatedUser)
     : SequoiaTransaction_(sequoiaTransaction)
     , Bootstrap_(bootstrap)

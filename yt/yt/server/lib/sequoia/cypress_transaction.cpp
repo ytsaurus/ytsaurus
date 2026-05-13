@@ -1002,7 +1002,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        NApi::TTransactionStartOptions options;
+        TTransactionStartOptions options;
         options.Attributes = CreateEphemeralAttributes();
         options.Attributes->Set("title", Title_);
 

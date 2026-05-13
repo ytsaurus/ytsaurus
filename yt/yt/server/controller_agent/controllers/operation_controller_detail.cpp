@@ -1178,7 +1178,7 @@ void TOperationControllerBase::SleepInPrepare()
 }
 
 void TOperationControllerBase::CreateOutputTables(
-    const NApi::NNative::IClientPtr& client,
+    const NNative::IClientPtr& client,
     const std::vector<TUserObject*>& tables,
     TTransactionId defaultTransactionId,
     EOutputTableType outputTableType,
@@ -4394,7 +4394,7 @@ void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransact
 
 TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
 {
-    auto getId = [] (const NApi::ITransactionPtr& transaction) {
+    auto getId = [] (const ITransactionPtr& transaction) {
         return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
     };
 
