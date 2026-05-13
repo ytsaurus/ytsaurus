@@ -173,7 +173,8 @@ public:
                 process->AddEnvVar(variable);
             }
 
-            YT_LOG_INFO("Spawn job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
+            YT_LOG_INFO(
+                "Spawn job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
                 slotType,
                 slotIndex,
                 jobId,
@@ -234,7 +235,8 @@ public:
         std::string /*tag*/,
         bool /*throwOnFailedCommand*/) override
     {
-        THROW_ERROR_EXCEPTION("Running custom commands is not yet supported by %Qlv environment",
+        THROW_ERROR_EXCEPTION(
+            "Running custom commands is not yet supported by %Qlv environment",
             Config_.GetCurrentType());
     }
 
@@ -672,7 +674,9 @@ public:
                 };
 
                 if (!error.IsOK()) {
-                    YT_LOG_WARNING(error, "Command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
+                    YT_LOG_WARNING(
+                        error,
+                        "Command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
                         jobId,
                         instanceResult.Stderr,
                         instanceResult.Stdout);
@@ -764,12 +768,16 @@ private:
                         !error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
                     {
                         destroyed = false;
-                        YT_LOG_WARNING(error, "Failed to destroy subcontainers (Container: %v)",
+                        YT_LOG_WARNING(
+                            error,
+                            "Failed to destroy subcontainers (Container: %v)",
                             rootContainer);
                     }
                 }
             } else {
-                YT_LOG_WARNING(result, "Failed to destroy subcontainers (Container: %v)",
+                YT_LOG_WARNING(
+                    result,
+                    "Failed to destroy subcontainers (Container: %v)",
                     rootContainer);
             }
 
@@ -1503,7 +1511,8 @@ private:
         // Let's live with it during testing and then refactor.
         SlotCpusetCpus_[slotIndex] = cpuSet;
 
-        YT_LOG_DEBUG("Updated slot cpuset (SlotIndex: %v, CpuSet: %v)",
+        YT_LOG_DEBUG(
+            "Updated slot cpuset (SlotIndex: %v, CpuSet: %v)",
             slotIndex,
             cpuSet);
     }

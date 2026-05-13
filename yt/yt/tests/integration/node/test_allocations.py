@@ -1,10 +1,11 @@
 from yt_env_setup import (YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, SCHEDULERS_SERVICE)
 
 from yt_commands import (
-    authors, print_debug, vanilla, with_breakpoint, wait_breakpoint, release_breakpoint,
-    get_allocation_id_from_job_id, run_test_vanilla, abort_job, create, write_file,
-    update_nodes_dynamic_config, update_controller_agent_config, wait,
+    authors, print_debug, vanilla, map, with_breakpoint, wait_breakpoint, release_breakpoint,
+    get_allocation_id_from_job_id, run_test_vanilla, abort_job, create, write_file, write_table,
+    update_nodes_dynamic_config, update_controller_agent_config, update_scheduler_config, wait,
     sync_create_cells, get, ls, exists,
+    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
 )
 
 import yt.environment.init_operations_archive as init_operations_archive
@@ -145,6 +146,118 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
             else:
                 assert get_allocation_id_from_job_id(job_id) == allocation_id
 
+        op.track()
+
+
+##################################################################
+
+
+class TestAllocationReuseWhenJobsDisabled(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("disable_jobs_before_job_finishes", [True, False])
+    def test_map_second_job_new_allocation_if_jobs_disabled_before_settlement(self, disable_jobs_before_job_finishes):
+        """
+        Map with allocation reuse and one user slot so jobs run sequentially.
+        After the first job starts, scheduler jobs are disabled on the node so that
+        settlement of the next job in the same allocation is skipped. The second map job
+        must then run in a new allocation (allocation_id differs from the first job's).
+        """
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        spec = {
+            "data_size_per_job": 1,
+            "enable_multiple_jobs_in_allocation": True,
+            "force_allow_job_interruption": True,
+            "resource_limits": {
+                "user_slots": 1,
+            },
+        }
+        if not disable_jobs_before_job_finishes:
+            spec["job_testing_options"] = {
+                "delay_in_cleanup": 5000,
+            }
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec=spec,
+        )
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+        node_user_slots_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_resource_manager/resource_limits/user_slots"
+
+        job_id1, = wait_breakpoint(job_count=1)
+        allocation_id1 = get_allocation_id_from_job_id(job_id1)
+
+        try:
+            # Keep scheduler from aborting the allocation merely because disabling jobs makes
+            # node user slots equal to zero. This test targets node-local job settlement.
+            update_scheduler_config("enable_allocation_abort_on_zero_user_slots", False)
+
+            if disable_jobs_before_job_finishes:
+                # Jobs already disabled when the first job finishes: synchronous branch in settleNewJob.
+                disable_scheduler_jobs_on_node(node, "test allocation settlement with jobs disabled")
+                wait(lambda: get(node_user_slots_path) == 0)
+
+            release_breakpoint(job_id=job_id1)
+
+            if not disable_jobs_before_job_finishes:
+                # Jobs disabled after initial settleNewJob decision but before the cleanup/store callback.
+                disable_scheduler_jobs_on_node(node, "test allocation settlement with jobs disabled")
+                wait(lambda: get(node_user_slots_path) == 0)
+
+            allocation_orchid_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/allocations/{allocation_id1}"
+
+            def allocation_finished_without_settling_new_job():
+                last_job_id = get(f"{allocation_orchid_path}/last_job_id", default=None)
+                assert last_job_id in (None, job_id1,)
+                return last_job_id is None
+
+            wait(allocation_finished_without_settling_new_job)
+
+        finally:
+            enable_scheduler_jobs_on_node(node)
+            wait(lambda: get(node_user_slots_path) > 0)
+
+        job_id2, = wait_breakpoint(job_count=1)
+        allocation_id2 = get_allocation_id_from_job_id(job_id2)
+
+        assert job_id1 != job_id2
+        assert allocation_id1 != allocation_id2
+
+        # Release every job still waiting on this breakpoint name (covers rare extra waiters).
+        release_breakpoint()
         op.track()
 
 
