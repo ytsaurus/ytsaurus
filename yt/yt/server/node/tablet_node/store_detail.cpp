@@ -367,8 +367,8 @@ private:
     {
         auto baseConfig = readerConfig ? readerConfig : ReaderConfig_;
         auto newConfig = CloneYsonStruct(baseConfig);
-        newConfig->EnableLocalThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
-            ->EnableCollocatedDatNodeThrottling;
+        newConfig->EnableLocalThrottling = newConfig->EnableLocalThrottling ||
+            Bootstrap_->GetTabletNodeDynamicConfig()->EnableCollocatedDatNodeThrottling;
         newConfig->Postprocess();
         ReaderConfig_ = std::move(newConfig);
     }
