@@ -96,8 +96,8 @@ struct TLookupRowsResult
     //! Indexes are guaranteed to be unique and increasing.
     std::vector<int> UnavailableKeyIndexes;
 
-    //! If TMultiLookupOptions::AllowFailure is set, this field contains the error
-    //! for failed subrequests (e.g., table does not exist or is unmounted).
+    //! If TMultiLookupOptions::AllowFailure or TMultiLookupOptions::SubrequestTimeout is set,
+    //! this field contains the error for failed subrequests.
     std::optional<TError> Error;
 };
 
