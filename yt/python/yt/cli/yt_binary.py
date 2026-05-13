@@ -2739,13 +2739,11 @@ def add_flow_parser(root_subparsers):
 
 def wait_pipeline_change(operation, state):
     @copy_docstring_from(operation)
-    def wrapper(**kwargs):
-        sync = kwargs.pop("sync")
-
-        operation(**kwargs)
+    def wrapper(pipeline_path, sync, wait_timeout):
+        operation(pipeline_path=pipeline_path)
 
         if sync:
-            wait_pipeline_state(target_state=state, **kwargs)
+            wait_pipeline_state(target_state=state, pipeline_path=pipeline_path, wait_timeout=wait_timeout)
 
     return wrapper
 
@@ -2756,6 +2754,8 @@ def add_flow_start_pipeline_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--sync", action="store_true",
                         help="Wait for the pipeline to start")
+    parser.add_argument("--wait-timeout", type=int, default=600,
+                        help="Timeout in seconds to wait for the pipeline to start")
 
 
 def add_flow_stop_pipeline_parser(add_parser):
@@ -2764,6 +2764,8 @@ def add_flow_stop_pipeline_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--sync", action="store_true",
                         help="Wait for the pipeline to stop")
+    parser.add_argument("--wait-timeout", type=int, default=600,
+                        help="Timeout in seconds to wait for the pipeline to stop")
 
 
 def add_flow_pause_pipeline_parser(add_parser):
@@ -2772,6 +2774,8 @@ def add_flow_pause_pipeline_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--sync", action="store_true",
                         help="Wait for the pipeline to pause")
+    parser.add_argument("--wait-timeout", type=int, default=600,
+                        help="Timeout in seconds to wait for the pipeline to pause")
 
 
 def add_flow_get_pipeline_spec_parser(add_parser):

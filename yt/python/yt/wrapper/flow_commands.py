@@ -214,7 +214,7 @@ class PipelineState(str, enum.Enum):
     Completed = "completed"
 
 
-def wait_pipeline_state(target_state, pipeline_path, timeout=600, client=None):
+def wait_pipeline_state(target_state, pipeline_path, wait_timeout, request_timeout=600, client=None):
     if target_state == PipelineState.Completed:
         target_states = {PipelineState.Completed, }
     elif target_state == PipelineState.Working:
@@ -235,15 +235,15 @@ def wait_pipeline_state(target_state, pipeline_path, timeout=600, client=None):
         PipelineState.Stopped: {PipelineState.Paused, },
     }
 
-    deadline = datetime.now() + timedelta(seconds=timeout)
+    deadline = datetime.now() + timedelta(seconds=wait_timeout)
 
     while True:
         if datetime.now() > deadline:
-            raise YtError("Wait time out", attributes={"timeout": timeout})
+            raise YtError("Wait time out", attributes={"wait_timeout": wait_timeout})
 
         current_state = get_pipeline_state(
             pipeline_path=pipeline_path,
-            timeout=timeout,
+            timeout=request_timeout,
             client=client)
 
         if current_state in target_states:
