@@ -1124,11 +1124,6 @@ void TQueryAnalyzer::ParseQuery()
         CrossJoin_);
 }
 
-DB::QueryTreeNodePtr TQueryAnalyzer::GetParsedQueryTree() const
-{
-    return QueryInfo_.query_tree->clone();
-}
-
 DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
 {
     if (!Prepared_) {
@@ -1465,6 +1460,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
+    result.QueryTree = QueryInfo_.query_tree->clone();
 
     return result;
 }
