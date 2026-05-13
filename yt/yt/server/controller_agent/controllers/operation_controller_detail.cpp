@@ -3064,7 +3064,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     *req->mutable_statistics() = table->DataStatistics;
 
                     if (!table->IsFile()) {
+                        // COMPAT(h0pless): HandleOptimizeForInBeginUpload. Remove in 26.3.
                         req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
+
                         if (table->TableUploadOptions.ChunkFormat) {
                             req->set_chunk_format(ToProto(*table->TableUploadOptions.ChunkFormat));
                         }
@@ -7196,6 +7198,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 req->Tag() = table;
 
                 if (!table->IsFile()) {
+                    req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
+
                     // Schema revision should be equal to 1 iff schema does not change
                     // between being fetched from master while preparing output tables
                     // and sent to master during begin upload.
