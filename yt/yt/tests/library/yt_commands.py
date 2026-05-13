@@ -578,18 +578,22 @@ def multicell_sleep():
         time.sleep(0.5)
 
 
+def master_memory_sleep():
+    multicell_sleep()
+    time.sleep(0.2)
+    multicell_sleep()
+
+
+def upstream_sync_sleep():
+    time.sleep(0.5)
+
+
 def wait_for_sys_config_sync():
     config = get("//sys/@config")
     drivers = get_cluster_drivers()
     wait(
         lambda: all(get("//sys/@config", driver=driver) == config for driver in drivers)
     )
-
-
-def master_memory_sleep():
-    multicell_sleep()
-    time.sleep(0.2)
-    multicell_sleep()
 
 
 def dump_job_context(job_id, path, **kwargs):
@@ -2269,7 +2273,11 @@ def create_user(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    return execute_command("create", kwargs)
+    result = execute_command("create", kwargs)
+    # Ensure that the user is created everywhere (at each cell and at each master peer).
+    # User state caches will be requesting user info with various sync suppressions.
+    upstream_sync_sleep()
+    return result
 
 
 def remove_user(name, **kwargs):
