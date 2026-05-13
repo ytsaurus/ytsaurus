@@ -4,11 +4,24 @@
 #include "query_analyzer.h"
 #include "query_context.h"
 #include "secondary_query_header.h"
+#include "format.h"
 
 #include <Core/Settings.h>
+
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
+
+#include <Planner/PlannerContext.h>
+
+#include <Processors/Transforms/ExpressionTransform.h>
+#include <Processors/ResizeProcessor.h>
+#include <Processors/ISink.h>
+#include <Processors/ConcatProcessor.h>
 #include <Processors/Sources/RemoteSource.h>
+
+#include <Interpreters/ExpressionActions.h>
+#include <Interpreters/InterpreterSelectQueryAnalyzer.h>
+
 #include <QueryPipeline/RemoteQueryExecutor.h>
 
 namespace DB::Setting {
@@ -16,6 +29,22 @@ namespace DB::Setting {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const SettingsBool extremes;
+
+extern const SettingsMaxThreads max_threads;
+
+extern const SettingsUInt64 max_network_bandwidth;
+extern const SettingsUInt64 max_network_bytes;
+
+extern const SettingsUInt64 max_concurrent_queries_for_user;
+extern const SettingsUInt64 max_memory_usage_for_user;
+extern const SettingsUInt64 max_result_bytes;
+extern const SettingsUInt64 max_result_rows;
+extern const SettingsUInt64 max_query_size;
+
+extern const SettingsBool use_query_cache;
+
+extern const SettingsSeconds max_execution_time;
+extern const SettingsMilliseconds queue_max_wait_ms;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +55,53 @@ namespace NYT::NClickHouseServer {
 using namespace NTracing;
 using namespace NLogging;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
+{
+    DB::ThrottlerPtr throttler;
+    if (settings[DB::Setting::max_network_bandwidth] || settings[DB::Setting::max_network_bytes]) {
+        throttler = std::make_shared<DB::Throttler>(
+            settings[DB::Setting::max_network_bandwidth],
+            settings[DB::Setting::max_network_bytes],
+            "Limit for bytes to send or receive over network exceeded.");
+    }
+    return throttler;
+}
+
+DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
+{
+    auto newSettings = settings;
+
+    newSettings[DB::Setting::queue_max_wait_ms] = DB::Cluster::saturate(
+        newSettings[DB::Setting::queue_max_wait_ms],
+        settings[DB::Setting::max_execution_time]);
+
+    // Does not matter on remote servers, because queries are sent under different user.
+    newSettings[DB::Setting::max_concurrent_queries_for_user] = 0;
+    // Same as above.
+    newSettings[DB::Setting::max_memory_usage_for_user] = 0;
+
+    // Result limits should not be processed in secondary queries
+    // because its results are not final.
+    // Otherwise, queries like 'insert into ...' will loose rows (CHYT-621).
+    newSettings[DB::Setting::max_result_bytes] = 0;
+    // Same as above.
+    newSettings[DB::Setting::max_result_rows] = 0;
+
+    // TODO(dakovalkov): Remove it after CHYT-670.
+    // Disable query size limit for secondary queries manually
+    // because serialized 'ytSubquery(...)' can be large.
+    newSettings[DB::Setting::max_query_size] = 0;
+
+    // All secondary queries are the same and have the same query hash, but they
+    // process different data slices. Therefore, the query cache might only be used
+    // for initial queries.
+    newSettings[DB::Setting::use_query_cache] = false;
+
+    return newSettings;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,6 +339,194 @@ DB::Pipe CreateRemoteSource(
     });
 
     return pipe;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDistributedQueryExecutor::TDistributedQueryExecutor(
+    DB::ContextPtr context,
+    TQueryContext* queryContext,
+    TDistributedQueryInfo distributeInfo,
+    DB::SelectQueryInfo queryInfo,
+    TLogger logger,
+    i64 threadSubqueryCount,
+    std::optional<TQueryAnalysisResult> queryAnalysisResult,
+    std::vector<std::shared_ptr<IChytIndexStat>> indexStats)
+    : Context_(context)
+    , QueryContext_(queryContext)
+    , QueryInfo_(std::move(queryInfo))
+    , Logger(logger)
+    , ThreadSubqueryCount_(threadSubqueryCount)
+    , QueryAnalysisResult_(queryAnalysisResult)
+    , DistributeInfo_(std::move(distributeInfo))
+    , IndexStats_(std::move(indexStats))
+{ }
+
+void TDistributedQueryExecutor::ModifySecondaryQueries(std::function<void(DB::ASTPtr& secondaryQueryAst)> callback)
+{
+    for (size_t index = 0; index < DistributeInfo_.SecondaryQueries.size(); ++index) {
+        auto& secondaryQuery = DistributeInfo_.SecondaryQueries[index];
+        callback(secondaryQuery.Query);
+        YT_LOG_TRACE(
+            "Modified subquery AST (SecondaryQueryIndex: %v, AST: %v)",
+            index,
+            secondaryQuery.Query);
+    }
+}
+
+void TDistributedQueryExecutor::Fire()
+{
+    QueryContext_->MoveToPhase(EQueryPhase::Execution);
+
+    const auto& settings = Context_->getSettingsRef();
+
+    YT_LOG_INFO("Starting distribution (NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
+        DistributeInfo_.CliqueNodes.size(),
+        static_cast<ui64>(settings[DB::Setting::max_threads]),
+        ThreadSubqueryCount_);
+
+    // Wait for creation of query read transaction (if it's initialized asynchronously)
+    // and save its id/timestamp before distribution to be able to read
+    // locked tables on worker instances under the transaction.
+    // TODO(dakovalkov): When we make the whole execution plan on a coordinator,
+    // it doesn't make sense.
+    QueryContext_->SaveQueryReadTransaction();
+
+    auto newContext = DB::Context::createCopy(Context_);
+    newContext->setSettings(PrepareLeafJobSettings(settings));
+
+    // TODO(max42): do we need them?
+    auto throttler = CreateNetThrottler(settings);
+
+
+    YT_VERIFY(!DistributeInfo_.SecondaryQueries.empty());
+    bool isInsert = DistributeInfo_.SecondaryQueries[0].Query->as<DB::ASTInsertQuery>();
+    DB::Block blockHeader;
+    if (!isInsert) {
+        auto queryTree = QueryAnalysisResult_->QueryTree;
+        blockHeader = DB::InterpreterSelectQueryAnalyzer::getSampleBlock(
+            queryTree,
+            Context_,
+            DB::SelectQueryOptions(DistributeInfo_.ProcessingStage).analyze());
+    }
+
+    Pipes_.reserve(DistributeInfo_.SecondaryQueries.size());
+    for (size_t index = 0; index < DistributeInfo_.SecondaryQueries.size(); ++index) {
+        // Multiple secondary queries can be executed on the same node.
+        const auto& cliqueNode = DistributeInfo_.CliqueNodes[index % DistributeInfo_.CliqueNodes.size()];
+        const auto& secondaryQuery = DistributeInfo_.SecondaryQueries[index];
+
+        YT_LOG_DEBUG(
+            "Firing subquery (SubqueryIndex: %v, Node: %v)",
+            index,
+            cliqueNode->GetName().ToString());
+
+        auto remoteQueryId = TQueryId::Create();
+
+        auto pipe = CreateRemoteSource(
+            cliqueNode,
+            secondaryQuery,
+            remoteQueryId,
+            newContext,
+            throttler,
+            Context_->getExternalTables(),
+            DistributeInfo_.ProcessingStage,
+            blockHeader,
+            Logger,
+            DistributeInfo_.TaskIterator);
+
+        if (!isInsert && !DB::blocksHaveEqualStructure(blockHeader, DistributeInfo_.OutputHeader)) {
+            auto renameActionsDAG = DB::ActionsDAG::makeConvertingActions(
+                blockHeader.getColumnsWithTypeAndName(),
+                DistributeInfo_.OutputHeader.getColumnsWithTypeAndName(),
+                DB::ActionsDAG::MatchColumnsMode::Position,
+                true /*ignore_constant_values*/);
+            auto renameExpression = std::make_shared<DB::ExpressionActions>(std::move(renameActionsDAG), DB::ExpressionActionsSettings(Context_));
+            pipe.addSimpleTransform([&] (const DB::Block& header) {
+                return std::make_shared<DB::ExpressionTransform>(header, renameExpression);
+            });
+        }
+
+        QueryContext_->AddSecondaryQueryId(remoteQueryId);
+
+        Pipes_.emplace_back(std::move(pipe));
+    }
+
+    if (QueryAnalysisResult_->ReadInOrderMode == EReadInOrderMode::Backward) {
+        std::reverse(Pipes_.begin(), Pipes_.end());
+    }
+}
+
+DB::Pipes TDistributedQueryExecutor::ExtractPipes()
+{
+    return std::move(Pipes_);
+}
+
+DB::Pipe TDistributedQueryExecutor::ExtractUnitedPipe()
+{
+    auto pipe = DB::Pipe::unitePipes(std::move(Pipes_));
+    if (QueryAnalysisResult_->ReadInOrderMode != EReadInOrderMode::None && !pipe.empty() && pipe.numOutputPorts() > 1) {
+        pipe.addTransform(std::make_shared<DB::ConcatProcessor>(pipe.getHeader(), pipe.numOutputPorts()));
+    }
+
+    return pipe;
+}
+
+DB::QueryPipelineBuilderPtr TDistributedQueryExecutor::ExtractPipeline(std::function<void()> commitCallback)
+{
+    // We need some sort of async signal indicating that all distributed
+    // queries have finished. This may be done by introducing out own sink
+    // storing callback which must be called upon all query completion.
+
+    struct TSink
+        : public DB::ISink
+    {
+        TSink(const TLogger& logger, const DB::Block& header, std::function<void()> commitCallback)
+            : DB::ISink(header)
+            , Logger(logger)
+            , CommitCallback_(std::move(commitCallback))
+        { }
+
+        void consume(DB::Chunk /*chunk*/) override
+        { }
+
+        void onFinish() override
+        {
+            YT_LOG_DEBUG("All subqueries finished, calling commit callback");
+            CommitCallback_();
+            YT_LOG_DEBUG("Commit callback succeeded");
+        }
+
+        std::string getName() const override
+        {
+            return "CommitSink";
+        }
+
+    private:
+        TLogger Logger;
+        std::function<void()> CommitCallback_;
+    };
+
+    std::vector<DB::QueryPipelineBuilderPtr> pipelines;
+    for (size_t index = 0; index < Pipes_.size(); ++index) {
+        auto& pipe = Pipes_[index];
+        auto& pipeline = pipelines.emplace_back(std::make_unique<DB::QueryPipelineBuilder>());
+        pipeline->init(std::move(pipe));
+    }
+    auto result = std::make_unique<DB::QueryPipelineBuilder>(
+        DB::QueryPipelineBuilder::unitePipelines(std::move(pipelines), {}));
+    result->addTransform(std::make_shared<DB::ResizeProcessor>(DB::Block(), Pipes_.size(), 1));
+    result->setSinks(
+        [=, this] (const DB::Block& header, DB::QueryPipelineBuilder::StreamType) mutable -> DB::ProcessorPtr {
+            return std::make_shared<TSink>(Logger, header, std::move(commitCallback));
+        });
+
+    return result;
+}
+
+std::vector<std::shared_ptr<IChytIndexStat>> TDistributedQueryExecutor::ExtractIndexStats()
+{
+    return std::move(IndexStats_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
