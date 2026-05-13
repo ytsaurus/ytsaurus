@@ -248,11 +248,13 @@ int main(int argc, const char* argv[]) {
     TString pool;
     TString networkProject;
     TString fmrJobBinaryPath;
+    TString alias;
     ui64 jobCount = 1;
     int verbosity = static_cast<int>(TLOG_ERR);
 
     opts.AddLongOption("cluster", "YT cluster URL (e.g. hahn)").Required().StoreResult(&cluster);
     opts.AddLongOption("pool", "YT pool to run in").Optional().StoreResult(&pool);
+    opts.AddLongOption("alias", "Operation alias").Required().StoreResult(&alias);
     opts.AddLongOption("network-project", "Network project name").Required().StoreResult(&networkProject);
     opts.AddLongOption("job-count", "Number of service jobs").Optional().StoreResult(&jobCount);
     opts.AddLongOption("fmr-job-bin", "Cypress path to the FMR job binary").Optional().StoreResult(&fmrJobBinaryPath);
@@ -272,7 +274,7 @@ int main(int argc, const char* argv[]) {
 
     auto client = CreateClient(cluster);
 
-    auto operationSpec = TVanillaOperationSpec().MaxFailedJobCount(0);
+    auto operationSpec = TVanillaOperationSpec().MaxFailedJobCount(0).Alias("*" + alias);
     if (!pool.empty()) {
         operationSpec = operationSpec.Pool(pool);
     }
