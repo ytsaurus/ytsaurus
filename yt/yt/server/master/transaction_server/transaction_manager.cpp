@@ -426,7 +426,7 @@ public:
             hintId);
     }
 
-        TTransaction* StartSequoiaTransaction(
+    TTransaction* StartSequoiaTransaction(
         TTransactionId transactionId,
         std::optional<TDuration> timeout,
         const std::string& title,
@@ -634,7 +634,7 @@ public:
             return transaction;
         }
 
-        // Every active transaction has a fake reference to itself.
+        // Every active transaction has an artificial reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -3457,7 +3457,7 @@ public:
 
         CacheTransactionFinished(transaction);
 
-        // Kill the fake reference thus destroying the object.
+        // Kill the artificial reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
 

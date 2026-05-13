@@ -300,7 +300,7 @@ public:
             /*disableValidation*/ false,
             /*force*/ false);
 
-        // Fastpath.
+        // Fast path.
         if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
             TChunkToStoredChunkReplicaList result;
             for (const auto& chunk : chunks) {
@@ -377,7 +377,7 @@ public:
 
         FetchReplicasFromMaster(chunks, state);
 
-        // Fastpath.
+        // Fast path.
         if (state->ChunkIdsToFetchReplicasFromSequoia.empty()) {
             THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> result;
             for (auto&& [chunkId, replicas] : std::move(state->MasterReplicas)) {

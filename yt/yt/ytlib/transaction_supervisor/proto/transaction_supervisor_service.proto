@@ -67,11 +67,11 @@ message TReqPingTransactions
 }
 
 message TRspPingTransactions
-{ 
+{
     message TSubresponse
     {
         optional NYT.NProto.TError error = 1;
-    } 
+    }
 
     repeated TSubresponse subresponses = 1;
 }
