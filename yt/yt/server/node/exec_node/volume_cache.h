@@ -37,14 +37,11 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLayerLocationPtr DoPickLocation(
+TLayerLocationPtr PickLocation(
     const std::vector<TLayerLocationPtr>& locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue>
-using TAsyncMapValueBase = TAsyncCacheValueBase<TKey, TValue>;
 
 // NB(pogorelov): It is pretty dirty map.
 // The cache shard capacity is calculated to be 1,

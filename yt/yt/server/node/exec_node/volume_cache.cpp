@@ -71,7 +71,7 @@ static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLayerLocationPtr DoPickLocation(
+TLayerLocationPtr PickLocation(
     const std::vector<TLayerLocationPtr>& locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter)
 {
@@ -1099,7 +1099,7 @@ bool TLayerCache::IsEnabled() const
 
 TLayerLocationPtr TLayerCache::PickVolumeLocation() const
 {
-    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+    return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         return candidate->GetVolumeCount() < current->GetVolumeCount();
     });
 }
@@ -1426,7 +1426,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
 
 TLayerLocationPtr TLayerCache::PickLayerLocation() const
 {
-    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+    return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         if (!candidate->IsLayerImportInProgress() && current->IsLayerImportInProgress()) {
             // Always prefer candidate which is not doing import right now.
             return true;
