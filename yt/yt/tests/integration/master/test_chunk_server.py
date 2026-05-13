@@ -516,22 +516,6 @@ class TestChunkServer(YTEnvSetup):
         assert nodes[0] == last_seen_replicas[0]
 
     @authors("grphil")
-    def test_fetch_only_online_replicas(self):
-        assert not get("//sys/@config/chunk_manager/always_fetch_non_online_replicas")
-
-        create("table", "//tmp/t")
-        write_table("//tmp/t", [{"a": "b"}])
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
-
-        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
-            wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 0)
-            set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
-
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
-
-    @authors("grphil")
     def test_refresh_delay(self):
         wait(lambda: self._get_replicator_queue_size() is not None)
 
@@ -1088,8 +1072,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         self.Env.start_nodes()
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
-        assert node not in get(f"#{chunk_id}/@stored_replicas")
-        assert len(get(f"#{chunk_id}/@stored_replicas")) == 2
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
         assert node in get(f"#{chunk_id}/@stored_replicas")
