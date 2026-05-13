@@ -51,7 +51,7 @@ bool TVolumeCacheBase<TKey>::IsEnabled() const
 template <typename TKey>
 TLayerLocationPtr TVolumeCacheBase<TKey>::PickVolumeLocation()
 {
-    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+    return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         return candidate->GetVolumeCount() < current->GetVolumeCount();
     });
 }
