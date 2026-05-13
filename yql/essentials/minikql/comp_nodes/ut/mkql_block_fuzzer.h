@@ -25,10 +25,9 @@ class IFuzzer {
 public:
     virtual ~IFuzzer() = default;
 
-    virtual NYql::NUdf::TUnboxedValue Fuzz(NYql::NUdf::TUnboxedValue input,
-                                           const THolderFactory& holderFactory,
-                                           arrow::MemoryPool& memoryPool,
-                                           IRandomProvider& randomProvider) const = 0;
+    virtual arrow::Datum Fuzz(const arrow::ArrayData& input,
+                              arrow::MemoryPool& memoryPool,
+                              IRandomProvider& randomProvider) const = 0;
 };
 
 using TFuzzerList = TVector<THolder<IFuzzer>>;

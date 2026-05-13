@@ -5,6 +5,9 @@
 #include <yql/essentials/ast/yql_expr.h>
 #include <yql/essentials/minikql/comp_nodes/ut/mkql_computation_node_ut.h>
 #include <yql/essentials/minikql/computation/mkql_computation_node_holders.h>
+#include <yql/essentials/minikql/mkql_node_cast.h>
+
+#include <variant>
 
 namespace NKikimr::NMiniKQL {
 
@@ -231,6 +234,18 @@ public:
         return ConvertValueToLiteralNodeTuple(node, std::index_sequence_for<TArgs...>{});
     }
 
+    template <typename... Args>
+    TRuntimeNode ConvertValueToLiteralNode(std::variant<Args...> v) {
+        TVector<TType*> types = {ConvertValueToLiteralNode(Args{}).GetStaticType()...};
+        TType* varType = Pb_.NewVariantType(Pb_.NewTupleType(types));
+        const ui32 idx = static_cast<ui32>(v.index());
+        TRuntimeNode result;
+        [&]<size_t... Is>(std::index_sequence<Is...>) {
+            Y_UNUSED(((Is == idx && (result = Pb_.NewVariant(ConvertValueToLiteralNode(std::get<Is>(v)), idx, varType), true)) || ...));
+        }(std::index_sequence_for<Args...>{});
+        return result;
+    }
+
     template <typename T>
     TRuntimeNode ConvertNode(T node) {
         return Pb_.AsScalar(ConvertValueToLiteralNode(node));
@@ -242,7 +257,8 @@ public:
         for (auto& node : nodes) {
             convertedNodes.push_back(ConvertValueToLiteralNode(node));
         }
-        return ConvertLiteralListToDatum(convertedNodes, fuzzId);
+        auto* type = ConvertValueToLiteralNode(T{}).GetStaticType();
+        return ConvertLiteralListToDatum(convertedNodes, type, fuzzId);
     }
 
     template <typename T>
@@ -253,7 +269,7 @@ public:
         return convertedNode;
     }
 
-    TRuntimeNode ConvertLiteralListToDatum(TRuntimeNode::TList nodes, ui64 fuzzId);
+    TRuntimeNode ConvertLiteralListToDatum(TRuntimeNode::TList nodes, TType* type, ui64 fuzzId);
 
     template <typename T, typename U, typename V>
     void TestKernel(T left, U right, V expected, std::function<TRuntimeNode(TSetup<false>&, TRuntimeNode, TRuntimeNode)> binaryOp) {
@@ -272,6 +288,38 @@ public:
 
             UNIT_ASSERT_EQUAL_C(outDatum, expectedDatum, "Expected : " << DatumToString(expectedDatum) << "\n but got : " << DatumToString(outDatum));
         }
+    }
+
+    template <typename T>
+    std::tuple<THolder<IComputationGraph>, NUdf::TUnboxedValue, TType*, TType*> GetScalarBlock(T value) {
+        auto node = ConvertNode(value);
+        auto blockType = node.GetStaticType();
+        auto itemType = AS_TYPE(TBlockType, blockType)->GetItemType();
+        auto graph = Setup_.BuildGraph(node);
+        auto returnValue = graph->GetValue();
+        return std::make_tuple(std::move(graph), std::move(returnValue), itemType, blockType);
+    }
+
+    template <typename T>
+    std::pair<THolder<IComputationGraph>, NUdf::TUnboxedValue> BuildAndRunListFuzzied(
+        std::vector<T> data, TFuzzOptions fuzzOptions = TFuzzOptions::FuzzAll())
+    {
+        auto blockNode = ConvertNode(std::make_pair(data, fuzzOptions));
+        auto blockList = Pb_.NewList(blockNode.GetStaticType(), {blockNode});
+        auto pgmReturn = Pb_.Collect(Pb_.ForwardList(Pb_.FromBlocks(Pb_.ToFlow(blockList))));
+        auto graph = Setup_.BuildGraph(pgmReturn);
+        auto value = graph->GetValue();
+        return {std::move(graph), std::move(value)};
+    }
+
+    template <typename T>
+    std::tuple<THolder<IComputationGraph>, NUdf::TUnboxedValue, TType*, TType*> GetArrowBlock(T value, TFuzzOptions fuzzOptions = {}) {
+        auto node = ConvertNode(std::make_pair(value, fuzzOptions));
+        auto blockType = node.GetStaticType();
+        auto itemType = AS_TYPE(TBlockType, blockType)->GetItemType();
+        auto graph = Setup_.BuildGraph(node);
+        auto returnValue = graph->GetValue();
+        return std::make_tuple(std::move(graph), std::move(returnValue), itemType, blockType);
     }
 
     template <typename T, typename V>
