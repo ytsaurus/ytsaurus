@@ -204,6 +204,23 @@ void PackBaggageFromJobSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void UpdateAbortedJobError(
+    NScheduler::EAbortReason abortReason,
+    TNonNullPtr<TError> errorPtr)
+{
+    auto& error = *errorPtr;
+    if (!error.Attributes().Find<std::string>("abort_reason")) {
+        auto inner = std::move(error);
+        error = TError("Job aborted by controller agent")
+            << TErrorAttribute("abort_reason", abortReason);
+        if (!inner.IsOK()) {
+            error <<= std::move(inner);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 void ToProto(NProto::TReleaseJobFlags* protoReleaseJobFlags, const NControllerAgent::TReleaseJobFlags& releaseJobFlags)

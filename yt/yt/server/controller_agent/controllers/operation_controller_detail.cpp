@@ -1670,21 +1670,27 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
         }
         const auto& joblet = allocation.Joblet;
 
-        auto jobSummary = TAbortedJobSummary(joblet->JobId, abortReason);
-        jobSummary.FinishTime = now;
-        UpdateJobletFromSummary(jobSummary, joblet);
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
-            .Item("reason").Value(abortReason);
-        UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
+        auto jobSummary = CreateAbortedJobSummary(joblet->JobId, abortReason);
 
-        GetJobProfiler()->ProfileAbortedJob(*joblet, jobSummary);
+        jobSummary->FinishTime = now;
+
+        UpdateJobletFromSummary(*jobSummary, joblet);
+        LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
+            .Item("reason").Value(abortReason)
+            .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
+                fluent.Item("error").Value(jobSummary->Error);
+            });
+        UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+
+        GetJobProfiler()->ProfileAbortedJob(*joblet, *jobSummary);
 
         if (honestly) {
-            joblet->Task->OnJobAborted(joblet, jobSummary);
+            joblet->Task->OnJobAborted(joblet, *jobSummary);
         }
 
         ReportControllerStateToArchive(joblet, EJobState::Aborted);
         ReportFinishTimeToArchive(joblet);
+        ReportErrorToArchive(joblet, jobSummary->Error);
 
         Host_->AbortJob(
             joblet->JobId,
@@ -3368,7 +3374,7 @@ bool TOperationControllerBase::OnJobCompleted(
     // Controller should abort job if its competitor has already completed.
     if (auto maybeAbortReason = joblet->Task->ShouldAbortCompletingJob(joblet)) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
-        return OnJobAborted(std::move(joblet), std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason));
+        return OnJobAborted(std::move(joblet), CreateAbortedJobSummary(*jobSummary, *maybeAbortReason));
     }
 
     TJobFinishedResult taskJobResult;
@@ -3496,7 +3502,10 @@ bool TOperationControllerBase::OnJobFailed(
             "(JobId: %v, Address: %v)",
             jobId,
             NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
-        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
+        auto abortedJobSummary = CreateAbortedJobSummary(
+            *jobSummary,
+            EAbortReason::NodeBanned,
+            TError("Job failed at a banned node"));
         return OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
     }
 
@@ -3504,7 +3513,10 @@ bool TOperationControllerBase::OnJobFailed(
         YT_LOG_DEBUG("Failed layer probing job is considered aborted "
             "(JobId: %v)",
             jobId);
-        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::JobTreatmentFailed);
+        auto abortedJobSummary = CreateAbortedJobSummary(
+            *jobSummary,
+            EAbortReason::JobTreatmentFailed,
+            TError("Failed layer probing job is considered aborted"));
         return OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
     }
 
@@ -3649,7 +3661,11 @@ bool TOperationControllerBase::OnJobAborted(
         abortReason,
         joblet->JobType);
 
-    auto error = jobSummary->Error;
+    const auto& error = jobSummary->Error;
+
+    if (!error) {
+        YT_LOG_ERROR("No job error provided for aborted job (JobId: %v)", jobId);
+    }
 
     if (joblet->JobSpecProtoFuture) {
         joblet->JobSpecProtoFuture.Cancel(error ? *error : TError("Job aborted"));
@@ -3675,8 +3691,8 @@ bool TOperationControllerBase::OnJobAborted(
             if (joblet->ShouldLogFinishedEvent()) {
                 LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
                     .Item("reason").Value(abortReason)
-                    .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
-                        fluent.Item("error").Value(jobSummary->Error);
+                    .DoIf(error.has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("error").Value(error);
                     })
                     .DoIf(jobSummary->PreemptedFor.has_value(), [&] (TFluentMap fluent) {
                         fluent.Item("preempted_for").Value(jobSummary->PreemptedFor);
@@ -5962,6 +5978,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 
     ReportControllerStateToArchive(joblet, summary->State);
     ReportFinishTimeToArchive(joblet);
+    ReportErrorToArchive(joblet, summary->Error);
 
     bool shouldRetainJob =
         (retainJob && RetainedJobCount_ < Config_->MaxRetainedJobsPerOperation) ||
@@ -11699,7 +11716,7 @@ void TOperationControllerBase::DoAbortJob(
         Host_->AbortJob(joblet->JobId, abortReason, /*requestNewJob*/ false);
     }
 
-    OnJobAborted(std::move(joblet), std::make_unique<TAbortedJobSummary>(jobId, abortReason));
+    OnJobAborted(std::move(joblet), CreateAbortedJobSummary(jobId, abortReason));
 }
 
 void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
@@ -12057,6 +12074,14 @@ void TOperationControllerBase::ReportFinishTimeToArchive(const TJobletPtr& joble
         .FinishTime(joblet->FinishTime));
 }
 
+void TOperationControllerBase::ReportErrorToArchive(const TJobletPtr& joblet, const std::optional<TError>& error) const
+{
+    if (error) {
+        HandleJobReport(joblet, TControllerJobReport()
+            .Error(*error));
+    }
+}
+
 void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(EOperationControllerQueue::JobEvents));
@@ -12209,7 +12234,11 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
                 "(JobId: %v, NodeId: %v)",
                 jobSummary.Id,
                 nodeId);
-            return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::UnresolvedNodeId);
+            return CreateAbortedJobSummary(
+                jobSummary,
+                EAbortReason::UnresolvedNodeId,
+                TError("Job output contains unresolved node id")
+                    << TErrorAttribute("node_id", nodeId));
         }
 
         OutputNodeDirectory_->AddDescriptor(nodeId, *descriptor);

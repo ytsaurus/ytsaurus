@@ -25,6 +25,7 @@ public:
     TControllerJobReport StartTime(TInstant startTime);
     TControllerJobReport FinishTime(TInstant finishTime);
     TControllerJobReport GangRank(std::optional<i64> gangRank);
+    TControllerJobReport Error(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

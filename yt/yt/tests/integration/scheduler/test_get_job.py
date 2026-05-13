@@ -609,6 +609,30 @@ class TestGetJob(_TestGetJobCommon):
 
         wait_no_assert(lambda: check_job_ranks())
 
+    @authors("bystrovserg")
+    def test_controller_error(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id, ) = wait_breakpoint()
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait_for_cells()
+
+        release_breakpoint()
+        op.track()
+
+        @wait_no_assert
+        def check_error():
+            job = get_job(op.id, job_id)
+            assert job["state"] == "aborted"
+            assert job.get("abort_reason") == "node_offline"
+            error = job.get("error")
+            assert error is not None
+            assert error["message"] == "Job aborted by controller agent"
+
 
 @pytest.mark.enabled_multidaemon
 class TestGetJobStatisticsLz4(_TestGetJobCommon):

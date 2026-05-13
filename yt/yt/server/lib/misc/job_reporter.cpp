@@ -111,7 +111,8 @@ public:
             Report_.AllocationId(),
             Report_.ControllerStartTime(),
             Report_.ControllerFinishTime(),
-            Report_.GangRank());
+            Report_.GangRank(),
+            Report_.ControllerError());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -230,6 +231,11 @@ public:
                 record.CollectiveIdHi = collectiveId.Parts64[0];
                 record.CollectiveIdLo = collectiveId.Parts64[1];
             }
+        }
+
+        // COMPAT(bystrovserg)
+        if (archiveVersion >= 67 && Report_.ControllerError()) {
+            record.ControllerError = TYsonString(*Report_.ControllerError());
         }
 
         return FromRecord(record);

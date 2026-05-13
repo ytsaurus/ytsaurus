@@ -132,6 +132,19 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     TJobId jobId,
     TFinishedAllocationSummary&& eventSummary);
 
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    TJobId jobId,
+    EAbortReason abortReason);
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason);
+
+std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
+    const TJobSummary& other,
+    EAbortReason abortReason,
+    TError outerError);
+
 struct TFailedJobSummary
     : public TJobSummary
 {
