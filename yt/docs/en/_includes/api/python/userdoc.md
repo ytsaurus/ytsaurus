@@ -405,7 +405,6 @@ except yt.YtBatchRequestFailedError as err:
    print err.inner_errors[0]["message"]  # "Error resolving path //some/node"
 ```
 
-
 ## Commands { #commands }
 
 The yt library allows running the commands in the system using the Python API. The public part of the library includes only the methods that are in `yt/wrapper/__init__.py` and `yt/yson/__init__.py`.
@@ -593,6 +592,19 @@ You can specify a schema when creating or writing to (an empty) table (in the `s
 ```python
 schema = TableSchema.from_yson_type(yt.get("//path/to/table/@schema"))
 ```
+
+Each schema has a corresponding ID. To retrieve it from a table, use the following command:
+```python
+schema = TableSchema.from_yson_type(yt.get("//path/to/table/@schema_id"))
+```
+You can also retrieve a materialized schema by ID:
+```python
+schema = TableSchema.from_yson_type(yt.get("#<SCHEMA_ID>/@value"))
+```
+
+Note that the relationship between schemas and their IDs is one‑to‑many, not one‑to‑one. Two tables with the same schema might have different schema IDs if the tables have different native cells. Additionally, the lifetime of schemas depends on the lifetime of tables and chunks that reference the schema. That is, if all tables using a schema are deleted, the schema is also deleted. When you create a new table with a previously deleted schema, the schema gets a new ID.
+
+The main use case for IDs is schema deduplication, since schema objects can be quite heavy. Note also that working with schema IDs is supported in the `create` and `alter` verbs.
 
 #### TablePath { #tablepath_class }
 
@@ -803,7 +815,6 @@ yt.is_sorted("//home/table") # Output: False
 
     {% endcut %}
 
-
 #### Parallel reading of tables and files { #parallel_read }
 
 The table is broken down into smaller ranges, assuming that the data is evenly distributed across rows. Each range is considered a separate stream. When you enable retries, the entire range, rather than individual table rows, will be retried. This approach enables you to skip data parsing and streamline the reading process.
@@ -921,7 +932,6 @@ The entire process of parallel writing looks like this:
 **Q: Why is multithreaded writing many times faster for JSON vs. YSON, but is the other way around for singlethreaded writing?**
 **A:** There are two reasons:
 You need to break down the input thread into rows. In JSON, you can do this easily by splitting by `\n`. Doing this in YSON requires much more effort. As this operation is single-threaded, it becomes a weak spot and locks the entire writing process.
-
 
 ### Working with transactions and locks { #transaction_commands }
 
@@ -1504,7 +1514,6 @@ op.wait()
 print(op.get_job_statistics()["custom"])
 ## Output: {"row_count": {"$": {"completed": {"map": {"count": 1, "max": 1, "sum": 1, "min": 1}}}}}
 ```
-
 
 ## Untyped Python operations { #python_operations_untyped }
 
