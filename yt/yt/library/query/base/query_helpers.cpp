@@ -29,6 +29,12 @@ bool IsTrue(TConstExpressionPtr expr)
 
 TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 {
+    if (!lhs) {
+        return rhs;
+    } else if (!rhs) {
+        return lhs;
+    }
+
     if (auto literalExpr = lhs->As<TLiteralExpression>()) {
         TValue value = literalExpr->Value;
         if (value.Type == EValueType::Boolean) {

@@ -1,5 +1,7 @@
 #include "ql_helpers.h"
 
+#include <yt/yt/library/query/base/join_profiler.h>
+
 #include <yt/yt/library/query/engine/folding_profiler.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>

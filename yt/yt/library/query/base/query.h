@@ -374,6 +374,8 @@ struct TJoinClause
 
     bool IsLeft = false;
 
+    std::optional<std::pair<int, int>> PrefetchedBlockRange;
+
     //! See #TDataSource::ObjectId.
     NObjectClient::TObjectId ForeignObjectId;
     //! See #TDataSource::CellId.

@@ -35,6 +35,7 @@ from flaky import flaky
 import pytest
 
 from copy import deepcopy
+from itertools import product
 from random import randint, shuffle
 from math import isnan
 import os
@@ -3437,6 +3438,83 @@ class TestQueryRpcProxy(TestQuery):
                           {"a": 2, "b": 3, "val": 11}, {"a": 2, "b": 2, "val": 10},
                           {"a": 2, "b": 1, "val": 9}, {"a": 2, "b": 0, "val": 8}]
         assert rows_read == 3 * rows_per_tablet
+
+    @authors("sabdenovch")
+    def test_prefetch_join_table(self):
+        set("//sys/rpc_proxies/@config", {
+            "query_engine_config": {
+                "prefetch_join_tables": True,
+            },
+        })
+
+        sync_create_cells(2)
+
+        table = "//tmp/t"
+        create("table", table, attributes={"dynamic": True, "schema": [
+            make_sorted_column("key", "int64"),
+            make_column("value", "int64"),
+            make_column("balue", "int64"),
+        ]})
+        reshard_table(table, [[], [50]])
+        sync_mount_table(table)
+        table_rows = [{"key": i, "value": i % 7, "balue": i} for i in range(100)]
+        insert_rows(table, table_rows)
+
+        dictionary = "//tmp/d"
+        create("table", dictionary, attributes={"dynamic": True, "schema": [
+            make_sorted_column("dkey1", "int64"),
+            make_sorted_column("dkey2", "int64"),
+            make_column("dvalue", "int64"),
+        ]})
+        sync_mount_table(dictionary)
+        dictionary_rows = [{"dkey1": i, "dkey2": 0, "dvalue": i % 11} for i in range(100)]
+        insert_rows(dictionary, dictionary_rows)
+
+        def select_with_statistics(query):
+            stats = {}
+            return select_rows(query, response_parameters=stats, enable_statistics=True), stats
+
+        result, stats = select_with_statistics(
+            f"* from [{table}] left join [{dictionary}] ON (42, 0) = (dkey1, dkey2) limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if d["dkey1"] == 42 and d["dkey2"] == 0
+        ]
+
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (balue) = (dkey1) "
+            "where balue in (3, 1, 4, 2) limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if d["dkey1"] in (1, 2, 3, 4) and t["balue"] == d["dkey1"]
+        ]
+
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (42, value) = (dkey1, dkey2) limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if d["dkey1"] == 42 and d["dkey2"] == t["value"]
+        ]
+
+        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(100000)])
+        insert_rows("//tmp/d", [{"dkey1": 6006, "dkey2": i, "dvalue": 0} for i in range(100000, 200000)])
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (6006, value) = (dkey1, dkey2) limit 10000000")
+        assert "inner_statistics" in stats["inner_statistics"][0]["inner_statistics"][0]
+
+        sync_unmount_table(dictionary)
+        reshard_table(dictionary, [[], [30, 0], [70, 0]])
+        sync_mount_table(dictionary)
+        result, stats = select_with_statistics(
+            f"* from [{table}] join [{dictionary}] ON (key, value) = (dkey1, dkey2) where key in (0, 7, 14, 21) and value = 0 limit 100000")
+        assert "inner_statistics" not in stats["inner_statistics"][0]["inner_statistics"][0]
+        assert result == [
+            t | d for t, d in product(table_rows, dictionary_rows)
+            if t["key"] in (0, 7, 14, 21) and t["value"] == 0 and t["key"] == d["dkey1"]
+        ]
 
 
 @pytest.mark.enabled_multidaemon

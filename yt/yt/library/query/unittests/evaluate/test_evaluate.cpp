@@ -1,5 +1,6 @@
 #include "test_evaluate.h"
 
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
 #include <yt/yt/library/query/engine/query_engine_config.h>

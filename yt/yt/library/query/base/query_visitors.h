@@ -879,4 +879,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReferenceReplacer
+    : public TRewriter<TReferenceReplacer>
+{
+public:
+    TReferenceReplacer(TStringBuf from, const TReferenceExpression* to);
+
+    TConstExpressionPtr OnReference(const TReferenceExpression* referenceExpr);
+
+private:
+    const TStringBuf From_;
+    const TReferenceExpression* To_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

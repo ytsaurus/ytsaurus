@@ -11,6 +11,7 @@
 
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/library/query/engine/time/dates.h>
 
