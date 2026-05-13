@@ -16,6 +16,9 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(pavel-bash): Converge these two functions into a single one when we start passing the
+// medium index alongside the chunk replica list into chunk readers again. If we decide to
+// only do that for offshore media, remove this TODO as the functions will stay separated.
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
@@ -23,10 +26,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TChunkId chunkId,
     TChunkReplicaList seedReplicas);
 
-// TODO(discuss in PR): we need the last argument to be of type TChunkReplicaWithMedium,
-// as we need the medium index to read offshore data. 8 months ago there was a commit which stops
-// passing the medium index into chunk readers, so we need to understand how to handle this. Maybe
-// (partially) revert the commit?
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
