@@ -105,6 +105,14 @@ TControllerJobReport TControllerJobReport::GangRank(std::optional<i64> gangRank)
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::Error(const TError& error)
+{
+    if (!error.IsOK()) {
+        ControllerError_ = NYson::ConvertToYsonString(error).ToString();
+    }
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
