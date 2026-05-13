@@ -365,12 +365,12 @@ private:
 
     void SetReaderConfig(const TTabletStoreReaderConfigPtr& readerConfig)
     {
-        if (readerConfig) {
-            ReaderConfig_ = CloneYsonStruct(readerConfig);
-        }
-        ReaderConfig_->EnableLocalThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
+        auto baseConfig = readerConfig ? readerConfig : ReaderConfig_;
+        auto newConfig = CloneYsonStruct(baseConfig);
+        newConfig->EnableLocalThrottling = Bootstrap_->GetTabletNodeDynamicConfig()
             ->EnableCollocatedDatNodeThrottling;
-        ReaderConfig_->Postprocess();
+        newConfig->Postprocess();
+        ReaderConfig_ = std::move(newConfig);
     }
 
     static bool IsLocalChunkValid(const IChunkPtr& chunk)
