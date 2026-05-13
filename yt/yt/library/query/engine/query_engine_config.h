@@ -44,6 +44,7 @@ struct TQueryEngineDynamicConfig
     std::optional<int> TruncatedQueryLengthForTracing;
     std::optional<bool> AllowHeavyRangeInferenceInJoins;
     std::optional<bool> AllowReverseScanForOrderBy; // COMPAT(dtorilov): Remove after 26.1.
+    std::optional<bool> PrefetchJoinTables;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

@@ -6,6 +6,7 @@
 
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>

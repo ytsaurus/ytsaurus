@@ -177,6 +177,7 @@ struct TQueryBaseOptions
     // COMPAT(sabdenovch)
     bool AllowUnorderedGroupByWithLimit = true;
     std::optional<int> TruncatedQueryLengthForTracing;
+    bool PrefetchJoinTables = false;
 };
 
 struct TQueryOptions

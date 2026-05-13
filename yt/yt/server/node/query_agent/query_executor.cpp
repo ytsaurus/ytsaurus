@@ -65,6 +65,7 @@
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_common.h>
@@ -428,6 +429,7 @@ public:
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<NQueryClient::TDataSource> dataSources,
+        const std::vector<TSharedRef>& attachments,
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
@@ -444,6 +446,7 @@ public:
         , Query_(std::move(query))
         , ExternalCGInfo_(std::move(externalCGInfo))
         , DataSources_(std::move(dataSources))
+        , Attachments_(attachments)
         , Writer_(std::move(writer))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , RowBuffer_(New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_))
@@ -543,6 +546,7 @@ private:
 
     const TConstExternalCGInfoPtr ExternalCGInfo_;
     const std::vector<NQueryClient::TDataSource> DataSources_;
+    const std::vector<TSharedRef> Attachments_;
     const IUnversionedRowsetWriterPtr Writer_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const TRowBufferPtr RowBuffer_;
@@ -719,28 +723,65 @@ private:
                         executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
                     }
 
-                    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
-                    auto queryEngineConfig = singletonsConfig
-                        ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
-                        : nullptr;
-                    auto allowHeavyRangeInferenceInJoins = queryEngineConfig
-                        ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
-                        : false;
+                    if (joinClause->PrefetchedBlockRange) {
+                        auto [firstBlock, lastBlock] = *joinClause->PrefetchedBlockRange;
 
-                    joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
-                        joinClause,
-                        executePlanCallback,
-                        [=, Logger = Logger] (TQueryStatistics statistics) mutable {
-                            YT_LOG_DEBUG("Remote subquery statistics %v", statistics);
-                            subqueryResults->Enqueue(std::move(statistics));
-                        },
-                        [=] () {
-                            return getPrefetchJoinDataSource(subqueryIndex, joinIndex);
-                        },
-                        MemoryChunkProvider_,
-                        QueryOptions_.UseOrderByInJoinSubqueries,
-                        allowHeavyRangeInferenceInJoins,
-                        Logger));
+                        std::vector<TSharedRef> blocks;
+                        for (int blockIndex = firstBlock; blockIndex <= lastBlock; ++blockIndex) {
+                            blocks.push_back(Attachments_[blockIndex]);
+                        }
+
+                        auto reader = CreateWireProtocolRowsetReader(
+                            std::move(blocks),
+                            NCompression::ECodec::Lz4,
+                            joinClause->GetJoinSubquery()->GetTableSchema(),
+                            /*schemaful*/ false,
+                            MemoryChunkProvider_,
+                            Logger);
+
+                        std::vector<TRow> rows;
+                        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
+
+                        while (auto batch = reader->Read()) {
+                            if (!batch) {
+                                break;
+                            }
+                            auto range = batch->MaterializeRows();
+                            for (auto row : range) {
+                                rows.push_back(rowBuffer->CaptureRow(row));
+                            }
+                        }
+
+                        joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinRowsetProfiler(
+                            MakeSharedRange(std::move(rows), std::move(rowBuffer)),
+                            joinClause->ForeignKeyPrefix,
+                            joinClause->ForeignEquations.size(),
+                            QueryOptions_.VerboseLogging
+                                ? Logger
+                                : NLogging::TLogger(/*logManager*/ nullptr, "NullLogger")));
+                    } else {
+                        auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+                        auto queryEngineConfig = singletonsConfig
+                            ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+                            : nullptr;
+                        bool allowHeavyRangeInferenceInJoins = queryEngineConfig
+                            ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+                            : false;
+                        joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
+                            joinClause,
+                            executePlanCallback,
+                            [=, Logger = Logger] (TQueryStatistics statistics) mutable {
+                                YT_LOG_DEBUG("Remote subquery statistics %v", statistics);
+                                subqueryResults->Enqueue(std::move(statistics));
+                            },
+                            [=] () {
+                                return getPrefetchJoinDataSource(subqueryIndex, joinIndex);
+                            },
+                            MemoryChunkProvider_,
+                            QueryOptions_.UseOrderByInJoinSubqueries,
+                            allowHeavyRangeInferenceInJoins,
+                            Logger));
+                    }
                 }
 
                 auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
@@ -1839,6 +1880,7 @@ TQueryStatistics ExecuteSubquery(
     TConstQueryPtr query,
     TConstExternalCGInfoPtr externalCGInfo,
     std::vector<NQueryClient::TDataSource> dataSources,
+    const std::vector<TSharedRef>& attachments,
     IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
@@ -1859,6 +1901,7 @@ TQueryStatistics ExecuteSubquery(
         std::move(query),
         std::move(externalCGInfo),
         std::move(dataSources),
+        attachments,
         std::move(writer),
         std::move(memoryChunkProvider),
         invoker,
