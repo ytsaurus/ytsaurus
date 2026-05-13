@@ -357,6 +357,9 @@ public:
             auto entryGuard = Guard(entry.Lock);
             entry.LastAccessTime = now;
             if (entry.Future == future) {
+                if (entry.Promise.TrySet(TError(NYT::EErrorCode::Canceled, "Replicas were discarded"))) {
+                    YT_LOG_WARNING("Replicas were discarded before being located");
+                }
                 entryGuard.Release();
                 Entries_.erase(it);
                 YT_LOG_DEBUG("Chunk replicas discarded from replica cache (ChunkId: %v)",
