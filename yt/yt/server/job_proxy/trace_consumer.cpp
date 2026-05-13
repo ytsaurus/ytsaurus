@@ -80,8 +80,8 @@ void TTraceConsumer::OnMyListItem()
 
             try {
                 auto timestamp = AttributeConsumer_.GetAttributes()->Get<double>(TimestampAttributeKey);
-                auto threadId = AttributeConsumer_.GetAttributes()->Get<i64>(ThreadIdAttributeKey);
-                auto processId = AttributeConsumer_.GetAttributes()->Find<int>(ProcessIdAttributeKey);
+                auto threadId = AttributeConsumer_.GetAttributes()->Get<TThreadId>(ThreadIdAttributeKey);
+                auto processId = AttributeConsumer_.GetAttributes()->Find<TProcessId>(ProcessIdAttributeKey);
 
                 HasTrace_ = true;
 

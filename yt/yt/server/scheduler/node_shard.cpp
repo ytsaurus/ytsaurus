@@ -1552,7 +1552,7 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
 }
 
 void TNodeShard::UpdateCumulativeUnutilizedResources(
-    const EUnutilizedResourceReason reason,
+    EUnutilizedResourceReason reason,
     const TJobResources& resources,
     const TCompactVector<NProfiling::TTag, 2>& tags)
 {
