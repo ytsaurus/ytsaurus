@@ -1087,6 +1087,27 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
     @authors("buyval01")
+    def test_predicate_pushdown_through_subquery(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for chunk in [[0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [16, 17, 18, 19, 20], [30, 31, 32, 33, 34]]:
+            write_table("<append=%true>" + table_path, [{"a": v} for v in chunk])
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": True,
+                    },
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = f'select a from (select * from "{table_path}") t where t.a > 19'
+            result = clique.make_query_and_validate_read_row_count(query, exact=10)
+            assert_items_equal([row["a"] for row in result], [20, 30, 31, 32, 33, 34])
+
+    @authors("buyval01")
     def test_timestamp_key_filtering(self):
         create(
             "table",

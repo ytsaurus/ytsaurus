@@ -43,6 +43,9 @@ public:
 
     std::vector<std::shared_ptr<IChytIndexStat>> ExtractIndexStats();
 
+    DB::Header GetOutputHeader() const;
+    bool PushDownPredicate() const;
+
 private:
     const DB::ContextPtr Context_;
     TQueryContext* const QueryContext_;
