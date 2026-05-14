@@ -1310,7 +1310,6 @@ private:
     struct TGroupByClosureTotalsBufferTag
     { };
 
-
     TExpressionContext Context_;
     TExpressionContext AggregatedContext_;
     TExpressionContext TotalsContext_;
