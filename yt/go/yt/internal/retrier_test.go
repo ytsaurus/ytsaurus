@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -85,4 +87,57 @@ func TestReadRetrierIgnoresMutations(t *testing.T) {
 	})
 
 	assert.Error(t, err)
+}
+
+func TestReadRetrierRetriesMutationOnHTTPGatewayError(t *testing.T) {
+	gatewayCodes := []int{
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+		http.StatusGatewayTimeout,
+	}
+
+	for _, code := range gatewayCodes {
+		t.Run(fmt.Sprintf("status_%d", code), func(t *testing.T) {
+			r := &Retrier{Config: &yt.Config{}}
+			call := &Call{
+				Params:  NewSetNodeParams(ypath.Root, nil),
+				Backoff: &backoff.ZeroBackOff{},
+			}
+
+			var attempts int
+			_, err := r.Intercept(context.Background(), call, func(context.Context, *Call) (*CallResult, error) {
+				attempts++
+				if attempts == 1 {
+					return nil, NewHTTPError(code, http.Header{}, nil)
+				}
+				return &CallResult{}, nil
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, 2, attempts)
+		})
+	}
+}
+
+func TestReadRetrierRetriesMutationOnAnnotatedHTTPGatewayError(t *testing.T) {
+	r := &Retrier{Config: &yt.Config{}}
+	call := &Call{
+		Params:  NewSetNodeParams(ypath.Root, nil),
+		Backoff: &backoff.ZeroBackOff{},
+	}
+
+	var attempts int
+	ew := &ErrorWrapper{}
+	_, err := r.Intercept(context.Background(), call, func(ctx context.Context, c *Call) (*CallResult, error) {
+		return ew.Intercept(ctx, c, func(context.Context, *Call) (*CallResult, error) {
+			attempts++
+			if attempts == 1 {
+				return nil, NewHTTPError(http.StatusBadGateway, http.Header{}, nil)
+			}
+			return &CallResult{}, nil
+		})
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
 }
