@@ -558,7 +558,7 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
      * Return address of a proxy that is used for this transaction.
      */
     @Nullable
-    String getRpcProxyAddress() {
+    public String getRpcProxyAddress() {
         return client.getRpcProxyAddress();
     }
 }
