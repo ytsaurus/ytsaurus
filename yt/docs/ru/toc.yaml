@@ -320,6 +320,8 @@ items:
               href: user-guide/data-processing/spyt/overview.md
             - name: Запуск Spark задач на выполнение
               href: user-guide/data-processing/spyt/launch.md
+            - name: Определения в SPYT
+              href: user-guide/data-processing/spyt/glossary.md
             - name: Прямой сабмит
               items:
                 - name: Описание
