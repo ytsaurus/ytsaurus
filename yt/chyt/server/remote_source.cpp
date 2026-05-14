@@ -529,6 +529,16 @@ std::vector<std::shared_ptr<IChytIndexStat>> TDistributedQueryExecutor::ExtractI
     return std::move(IndexStats_);
 }
 
+DB::Header TDistributedQueryExecutor::GetOutputHeader() const
+{
+    return DistributeInfo_.OutputHeader;
+}
+
+bool TDistributedQueryExecutor::PushDownPredicate() const
+{
+    return QueryAnalysisResult_->AllowPushDownPredicate;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

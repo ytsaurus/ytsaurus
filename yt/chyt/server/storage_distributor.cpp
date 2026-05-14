@@ -1074,13 +1074,8 @@ public:
             queryInfo,
             context,
             processingStage);
-        executor.Fire();
 
-        auto readStep = std::make_unique<TReadFromYTStep>(
-            executor.ExtractUnitedPipe(),
-            queryInfo,
-            executor.ExtractIndexStats(),
-            GetTables());
+        auto readStep = std::make_unique<TReadFromYTStep>(queryInfo, std::move(executor), GetTables());
         queryPlan.addStep(std::move(readStep));
     }
 
