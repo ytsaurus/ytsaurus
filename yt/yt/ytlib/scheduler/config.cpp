@@ -1558,7 +1558,14 @@ void TUserJobSpec::Register(TRegistrar registrar)
         TVolumePtr newVolume;
         TVolumeMountPtr newVolumeMount;
         std::optional<std::string> newNameForNewVolume = makeNewNameForVolume();
-        if (spec->DiskRequest || spec->DiskSpaceLimit || !spec->LayerPaths.empty()) {
+
+        bool hasRootFSInJobVolumeMounts = [&] () {
+            auto it = std::find_if(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& volumeMount) {
+                return volumeMount->MountPath == "/";
+            });
+            return it != spec->JobVolumeMounts.end();
+        }();
+        if (!hasRootFSInJobVolumeMounts) {
             newVolume = New<TVolume>();
 
             newVolumeMount = New<TVolumeMount>();

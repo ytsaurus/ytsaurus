@@ -240,6 +240,11 @@ class TestLayers(TestPortoLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "default_base_layer_path": "//tmp/layer1",
+                "layer_paths": ["//tmp/layer2"],
+                "mapper": {
+                    "tmpfs_path": ".",
+                    "tmpfs_size": 1024 * 1024,
+                },
             },
         )
 

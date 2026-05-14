@@ -177,16 +177,30 @@ void BuildFileSpecs(
         if (file.GpuCheck) {
             oldDescriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
+            auto createVolumeDescriptor = [&] (const std::string& volumeId) {
+                auto* volumeDescriptor = (*jobSpec->mutable_volumes())[volumeId].add_layers();
+                BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+            };
+
             oldDescriptor = jobSpec->add_root_volume_layers();
-            for (const auto& [name, volume] : config->Volumes) {
-                // COMPAT (krasovav)
+            // COMPAT (krasovav)
+            bool layerInserted = false;
+            for (const auto& [volumeId, volume] : config->Volumes) {
                 for (const auto& layer : volume->Layers) {
                     if (layer->Path == file.Path) {
-                        auto* newDescriptor = (*jobSpec->mutable_volumes())[name].add_layers();
-                        BuildFileSpec(newDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+                        createVolumeDescriptor(volumeId);
+                        layerInserted = true;
                         break;
                     }
                 }
+            }
+
+            if (!layerInserted) {
+                auto rootVolumeIt = std::find_if(config->JobVolumeMounts.begin(), config->JobVolumeMounts.end(), [] (const auto& volume) {
+                    return volume->MountPath == "/";
+                });
+                YT_VERIFY(rootVolumeIt != config->JobVolumeMounts.end());
+                createVolumeDescriptor(rootVolumeIt->Get()->VolumeId);
             }
         } else {
             oldDescriptor = jobSpec->add_files();
