@@ -253,6 +253,7 @@ void TMultiReaderManagerBase::OnReaderFinished()
     }
 
     {
+        YT_VERIFY(CurrentSession_.Reader);
         auto guard = Guard(ActiveReadersLock_);
         DataStatistics_ += CurrentSession_.Reader->GetDataStatistics();
         DecompressionStatistics_ += CurrentSession_.Reader->GetDecompressionStatistics();
