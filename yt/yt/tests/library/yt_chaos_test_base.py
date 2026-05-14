@@ -27,16 +27,6 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_NODES = 4
     NUM_CHAOS_NODES = 1
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "tablet_node": {
-                "replication_card_updates_batcher": {
-                    "enable": True,
-                }
-            }
-        }
-    }
-
     DELTA_CHAOS_NODE_CONFIG = {
         "chaos_node": {
             "chaos_manager": {
