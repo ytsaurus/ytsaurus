@@ -194,8 +194,6 @@ TTabletActionBatch Balance(
             return TTabletActionBatch{
                 .MoveDescriptors = ReassignInMemoryTablets(
                     bundle,
-                    /*movableTables*/ std::nullopt,
-                    /*ignoreTableWiseConfig*/ false,
                     Logger())
                 };
         }
@@ -230,7 +228,6 @@ TTabletActionBatch Balance(
             return TTabletActionBatch{
                 .MoveDescriptors = ReassignOrdinaryTablets(
                     bundle,
-                    /*movableTables*/ std::nullopt,
                     Logger())
             };
         }
