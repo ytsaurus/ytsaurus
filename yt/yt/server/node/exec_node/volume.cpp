@@ -246,11 +246,6 @@ const std::string& TSimpleTmpfsVolume::GetPath() const
     return Path_;
 }
 
-bool TSimpleTmpfsVolume::IsRootVolume() const
-{
-    return false;
-}
-
 DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////

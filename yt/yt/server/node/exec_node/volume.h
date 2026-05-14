@@ -41,8 +41,6 @@ struct IVolume
     virtual const TVolumeId& GetId() const = 0;
     //! Get absolute path to volume mount point.
     virtual const std::string& GetPath() const = 0;
-    //! Overlayfs stores its upper/work directories in root volume.
-    virtual bool IsRootVolume() const = 0;
     //! Link volume mount point to target.
     virtual TFuture<void> Link(
         TGuid tag,
@@ -178,8 +176,6 @@ public:
     const TVolumeId& GetId() const override final;
 
     const std::string& GetPath() const override final;
-
-    bool IsRootVolume() const override final;
 
 private:
     const NProfiling::TTagSet TagSet_;

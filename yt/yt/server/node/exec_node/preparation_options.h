@@ -69,7 +69,6 @@ struct TUserSandboxOptions
     bool EnableDiskQuota = true;
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
     std::string SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
@@ -82,6 +81,7 @@ struct TVolumePreparationOptions
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     TArtifactDownloadOptions ArtifactDownloadOptions;
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
