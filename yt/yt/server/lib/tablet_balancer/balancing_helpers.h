@@ -79,13 +79,10 @@ std::vector<TReshardDescriptor> MergeSplitReplicaTable(
 
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundlePtr& bundle,
-    const std::optional<THashSet<TTableId>>& movableTables,
-    bool ignoreTableWiseConfig,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
     const TTabletCellBundlePtr& bundle,
-    const std::optional<THashSet<TTableId>>& movableTables,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
