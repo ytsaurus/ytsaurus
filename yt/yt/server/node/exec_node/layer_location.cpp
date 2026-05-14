@@ -322,7 +322,7 @@ void TLayerLocation::Disable(const TError& error, bool persistentDisable)
     YT_LOG_WARNING("Layer location disabled (Path: %v)", Config_->Path);
 
     if (HealthChecker_) {
-        //! It should not be a problem to stop health checker asynchronously.
+        // It should not be a problem to stop health checker asynchronously.
         HealthChecker_->Stop()
             .Subscribe(BIND(
                 [
@@ -330,6 +330,7 @@ void TLayerLocation::Disable(const TError& error, bool persistentDisable)
                     weakThis = MakeWeak(this)
                 ] (const TError& error) {
                     if (auto this_ = weakThis.Lock()) {
+                        // By calling YT_LOG_WARNING_IF we use Logger from TDiskLocation.
                         YT_LOG_WARNING_IF(!error.IsOK(), error, "Layer location health checker stopping failed");
                     }
                 }));
