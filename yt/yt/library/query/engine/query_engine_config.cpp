@@ -54,6 +54,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_heavy_range_inference_in_joins", &TThis::AllowHeavyRangeInferenceInJoins)
         .Optional();
+
+    registrar.Parameter("prefetch_join_tables", &TThis::PrefetchJoinTables)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

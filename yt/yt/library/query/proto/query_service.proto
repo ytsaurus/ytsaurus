@@ -43,6 +43,8 @@ message TReqExecute
     reserved 7;
 
     optional TFeatureFlags feature_flags = 8;
+
+    // Attachments may contain wire-encoded data.
 }
 
 message TRspExecute

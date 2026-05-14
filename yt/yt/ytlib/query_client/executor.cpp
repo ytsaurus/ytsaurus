@@ -13,14 +13,17 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
-#include <yt/yt/library/query/base/coordination_helpers.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
 #include <yt/yt/library/query/engine/query_engine_config.h>
 
@@ -49,6 +52,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
@@ -582,13 +586,28 @@ private:
                 groupsByAddress.size());
         }
 
-        return DoCoordinateAndExecute(
-            coordinatedQuery,
+        auto [queryWithPrefetch, prefetchedJoinRowsets, prefetchQueryStatistics] = MaybePrefetchJoinRowsets(
+            std::move(coordinatedQuery),
+            query->WhereClause,
+            externalCGInfo,
+            options,
+            requestFeatureFlags,
+            Logger);
+
+        auto statistics = DoCoordinateAndExecute(
+            queryWithPrefetch,
             externalCGInfo,
             options,
             requestFeatureFlags,
             writer,
-            std::move(groupedDataSplits));
+            std::move(groupedDataSplits),
+            std::move(prefetchedJoinRowsets));
+
+        for (auto& subqueryStatistics : prefetchQueryStatistics) {
+            statistics.AddInnerStatistics(std::move(subqueryStatistics));
+        }
+
+        return statistics;
     }
 
     TQueryStatistics Execute(
@@ -685,7 +704,8 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
-        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits)
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits,
+        std::vector<TSharedRef> prefetchedJoinRowsets)
     {
         auto Logger = MakeQueryLogger(query);
 
@@ -724,6 +744,7 @@ private:
                 &,
                 bottomQueryPattern = bottomQueryPattern,
                 groupedDataSplits = std::move(groupedDataSplits),
+                prefetchedJoinRowsets = std::move(prefetchedJoinRowsets),
                 subqueryIndex = 0
             ] () mutable -> TEvaluateResult {
                 if (subqueryIndex >= std::ssize(groupedDataSplits)) {
@@ -747,6 +768,7 @@ private:
                     options,
                     requestFeatureFlags,
                     std::move(dataSources),
+                    prefetchedJoinRowsets,
                     address);
             },
             [&, frontQuery = frontQuery] (
@@ -783,6 +805,7 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         std::vector<TDataSource> dataSources,
+        const std::vector<TSharedRef>& prefetchedJoinRowsets,
         const std::string& address)
     {
         auto Logger = MakeQueryLogger(query);
@@ -829,6 +852,8 @@ private:
 
         ToProto(req->mutable_feature_flags(), requestFeatureFlags);
 
+        req->Attachments() = prefetchedJoinRowsets;
+
         auto queryFingerprint = InferName(query, {.OmitValues = true});
         YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
             "RequestSize: %v)",
@@ -871,6 +896,227 @@ private:
                 .AsyncVia(invoker)
                 .Run();
         };
+    }
+
+    std::tuple<TConstQueryPtr, std::vector<TSharedRef>, std::vector<TQueryStatistics>> MaybePrefetchJoinRowsets(
+        TConstQueryPtr query,
+        const TConstExpressionPtr& initialPredicate,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
+        const NLogging::TLogger& Logger)
+    {
+        // TODO(sabdenovch): Add this to explain-query.
+        std::vector<TSharedRef> prefetchedRowsets;
+        std::vector<TQueryStatistics> subqueryStatistics;
+
+        if (!options.PrefetchJoinTables) {
+            return {std::move(query), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
+        }
+
+        auto prefetchOptions = options;
+        prefetchOptions.MergeVersionedRows = true;
+        prefetchOptions.InputRowLimit = 300'000;
+        prefetchOptions.OutputRowLimit = 100'000;
+
+        std::vector<IWireProtocolRowsetWriterPtr> blockWriters;
+        std::vector<TFuture<TQueryStatistics>> futures;
+        std::vector<bool> prefetched(query->JoinClauses.size(), false);
+
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            if (!joinClause->ArrayExpressions.empty()) {
+                continue;
+            }
+
+            auto mainPredicate = initialPredicate;
+            auto joinPredicate = joinClause->Predicate;
+
+            for (int index = 0; index < static_cast<int>(joinClause->ForeignKeyPrefix); ++index) {
+                const auto& selfJoinKey = joinClause->SelfEquations[index];
+                const auto* foreignReference = joinClause->ForeignEquations[index]
+                    ->As<TReferenceExpression>();
+                if (const auto* reference = selfJoinKey->As<TReferenceExpression>(); reference && mainPredicate) {
+                    mainPredicate = TReferenceReplacer(reference->ColumnName, foreignReference)
+                        .Visit(mainPredicate);
+                } else if (const auto* literal = selfJoinKey->As<TLiteralExpression>()) {
+                    joinPredicate = MakeAndExpression(
+                        std::move(joinPredicate),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            literal,
+                            foreignReference));
+                }
+            }
+
+            auto totalPredicate = MakeAndExpression(
+                std::move(mainPredicate),
+                std::move(joinPredicate));
+
+            YT_LOG_DEBUG("Inferring ranges to consider prefetching joined tables (JoinIndex: %v, Predicate: %v, TableId: %v)",
+                joinIndex,
+                InferName(totalPredicate),
+                joinClause->ForeignObjectId);
+
+            auto ranges = CreateNewRangeInferrer(
+                std::move(totalPredicate),
+                joinClause->Schema.Original,
+                joinClause->GetKeyColumns(),
+                Connection_->GetColumnEvaluatorCache(),
+                GetBuiltinConstraintExtractors(),
+                options,
+                MemoryChunkProvider_,
+                false);
+
+            if (options.VerboseLogging) {
+                YT_LOG_DEBUG("Ranges are inferred (Ranges: %v)", ranges);
+            } else {
+                YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v)", ranges.size());
+            }
+
+            ui32 keyColumnCount = joinClause->Schema.Original->GetKeyColumnCount();
+
+            bool allRangesAreKeys = std::all_of(
+                ranges.begin(),
+                ranges.end(),
+                [&] (const TRowRange& rowRange) {
+                    return rowRange.first.GetCount() == keyColumnCount &&
+                        rowRange.second.GetCount() == keyColumnCount + 1 &&
+                        rowRange.second[keyColumnCount].Type == EValueType::Max &&
+                        CompareValueRanges(
+                            rowRange.first.Elements(),
+                            rowRange.second.FirstNElements(keyColumnCount)) == 0;
+                });
+
+            // TODO(sabdenovch): Implement proper read_data_weight prediction
+            // algorithm based on inferred ranges.
+            auto checkSmallTableAndStrictEnoughRanges = [&] {
+                int firstNonEvaluated = 0;
+                for (; firstNonEvaluated < static_cast<int>(keyColumnCount); ++firstNonEvaluated) {
+                    if (!joinClause->Schema.Original->Columns()[firstNonEvaluated].Expression()) {
+                        break;
+                    }
+                }
+
+                bool rangesAreStrict = std::all_of(
+                    ranges.begin(),
+                    ranges.end(),
+                    [&] (const TRowRange& rowRange) {
+                        return static_cast<int>(rowRange.first.GetCount()) > firstNonEvaluated &&
+                            static_cast<int>(rowRange.second.GetCount()) > firstNonEvaluated &&
+                            CompareValueRanges(
+                                rowRange.first.FirstNElements(firstNonEvaluated + 1),
+                                rowRange.second.FirstNElements(firstNonEvaluated + 1)) == 0;
+                    });
+
+                if (!rangesAreStrict) {
+                    YT_LOG_DEBUG("Will not prefetch from table due to loose constraints");
+                    return false;
+                }
+
+                auto mountInfo = WaitFor(Connection_
+                    ->GetTableMountCache()
+                    ->GetTableInfo(FromObjectId(joinClause->ForeignObjectId)))
+                    .ValueOrThrow();
+
+                if (mountInfo->Tablets.size() > 1) {
+                    YT_LOG_DEBUG("Will not prefetch from large table (TabletCount: %v)", mountInfo->Tablets.size());
+                    return false;
+                }
+
+                return true;
+            };
+
+            if (allRangesAreKeys || checkSmallTableAndStrictEnoughRanges()) {
+                YT_LOG_DEBUG("Prefetching from joined table (TableId: %v)",
+                    joinClause->ForeignObjectId);
+                prefetched[joinIndex] = true;
+            } else {
+                continue;
+            }
+
+            auto foreignQuery = joinClause->GetJoinSubquery();
+            foreignQuery->InferRanges = false;
+            if (joinClause->ForeignKeyPrefix > 0) {
+                foreignQuery->Limit = OrderedReadWithPrefetchHint;
+            }
+
+            // TODO(sabdenovch): Use SplitPredicateByColumnSubset to filter rows from joined table even further.
+            // Could be useful if some restrictions are applied from which ranges can't be inferred.
+
+            auto writer = CreateWireProtocolRowsetWriter(
+                NCompression::ECodec::Lz4,
+                16_MB,
+                foreignQuery->GetTableSchema(),
+                false,
+                Logger);
+
+            auto dataSource = TDataSource{
+                .ObjectId = joinClause->ForeignObjectId,
+                .CellId = joinClause->ForeignCellId,
+                .Ranges = std::move(ranges),
+            };
+
+            futures.push_back(BIND(
+                &IExecutor::Execute,
+                MakeStrong(this),
+                TPlanFragment{
+                    .Query = std::move(foreignQuery),
+                    .DataSource = std::move(dataSource),
+                },
+                externalCGInfo,
+                writer,
+                prefetchOptions,
+                requestFeatureFlags)
+                .AsyncVia(GetCurrentInvoker())
+                .Run());
+
+            blockWriters.push_back(std::move(writer));
+        }
+
+        if (blockWriters.empty()) {
+            return {std::move(query), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
+        }
+
+        WaitFor(AllSet(futures))
+            .ThrowOnError();
+
+        auto mutableQuery = New<TQuery>(*query);
+
+        int writerIndex = 0;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            if (!prefetched[joinIndex]) {
+                continue;
+            }
+
+            const auto& joinClause = query->JoinClauses[joinIndex];
+            const auto& blockWriter = blockWriters[writerIndex];
+            auto statistics = WaitForFast(futures[writerIndex++])
+                .ValueOrThrow();
+
+            if (statistics.IncompleteInput || statistics.IncompleteOutput) {
+                YT_LOG_DEBUG("Join table prefetch failed, fallback (JoinIndex: %v, TableId: %v)",
+                    joinIndex,
+                    joinClause->ForeignObjectId);
+                continue;
+            }
+            int firstBlock = prefetchedRowsets.size();
+            auto blocks = blockWriter->GetCompressedBlocks();
+            for (auto& block : blocks) {
+                prefetchedRowsets.push_back(std::move(block));
+            }
+            int lastBlock = prefetchedRowsets.size() - 1;
+
+            auto newJoinClause = New<TJoinClause>(*joinClause);
+            newJoinClause->PrefetchedBlockRange = {firstBlock, lastBlock};
+
+            mutableQuery->JoinClauses[joinIndex] = newJoinClause;
+
+            subqueryStatistics.push_back(statistics);
+        }
+
+        return {std::move(mutableQuery), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
     }
 };
 

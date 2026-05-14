@@ -43,6 +43,7 @@ struct TQueryEngineDynamicConfig
     std::optional<bool> AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse;
     std::optional<int> TruncatedQueryLengthForTracing;
     std::optional<bool> AllowHeavyRangeInferenceInJoins;
+    std::optional<bool> PrefetchJoinTables;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 
