@@ -1,12 +1,14 @@
 #include "memory_usage_tracker.h"
 
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/error.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/library/profiling/solomon/helpers.h>
 
