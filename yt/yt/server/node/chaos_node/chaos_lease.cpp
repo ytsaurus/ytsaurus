@@ -18,6 +18,8 @@ bool TChaosLease::IsNormalState() const
 
 void TChaosLease::Save(TSaveContext& context) const
 {
+    TChaosObjectBase::Save(context);
+
     using NYT::Save;
 
     Save(context, RootId_);
@@ -29,6 +31,10 @@ void TChaosLease::Save(TSaveContext& context) const
 
 void TChaosLease::Load(TLoadContext& context)
 {
+    if (context.GetVersion() >= EChaosReign::FixChaosLeasePersist) {
+        TChaosObjectBase::Load(context);
+    }
+
     using NYT::Load;
 
     if (context.GetVersion() >= EChaosReign::IntroduceChaosLeaseManager) {
