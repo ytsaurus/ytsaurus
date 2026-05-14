@@ -313,25 +313,33 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, inpu
         client=client)
 
 
-def read_states(pipeline_path: str, computation_id=None, partition_id=None, key=None, name=None, output_format=None, client=None):
-    """Read every state row matching the supplied filters.
+def read_states(pipeline_path: str, computation_id=None, partition_id=None, key=None, name=None, target=None, limit=None, output_format=None, client=None):
+    """Read state rows matching the supplied filters.
+
+    Three access modes are derived from the argument combination:
+      1. computation_id only          → all tables for every partition of the computation
+      2. computation_id + key         → key_states only (target=partition_state is rejected)
+      3. partition_id                 → partition_states + key_states under the partition's
+                                        SourceKey (when the partition has one)
 
     Returns a map with two arrays: "key_states" (list of {computation_id, key, entries}) and
     "partition_states" (list of {partition_id, entries}); each "entries" is a {name: state} map.
 
-    At least one of ``computation_id`` or ``partition_id`` must be supplied.
-
     :param pipeline_path: path to pipeline.
-    :param computation_id: filter by computation id (required if `key` is set).
-    :param partition_id: filter by partition id; also pulls key_states for the partition's SourceKey, if any.
-    :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator.
-    :param name: optional state name filter, narrows both key_states and partition_states.
+    :param computation_id: filter by computation id.
+    :param partition_id: filter by partition id; mutually exclusive with computation_id.
+    :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator. Requires computation_id.
+    :param name: optional state name filter.
+    :param target: which table(s) to read: ``"all"`` (default), ``"key_state"``, or ``"partition_state"``.
+    :param limit: upper bound on rows scanned per table; defaults to 10 server-side.
     """
     argument = {}
     set_param(argument, "computation_id", computation_id)
     set_param(argument, "partition_id", partition_id)
     set_param(argument, "key", key)
     set_param(argument, "name", name)
+    set_param(argument, "target", target)
+    set_param(argument, "limit", limit)
     return flow_execute(
         pipeline_path,
         flow_command="read-states",
@@ -340,30 +348,38 @@ def read_states(pipeline_path: str, computation_id=None, partition_id=None, key=
         client=client)
 
 
-def read_state(pipeline_path: str, name: str, computation_id=None, partition_id=None, key=None, use_source_key=False, output_format=None, client=None):
-    """Read one specific state row and return its raw YSON value.
+def delete_states(pipeline_path: str, computation_id=None, partition_id=None, key=None, name=None, target=None, force=False, commit=False, output_format=None, client=None):
+    """Delete state rows matching the supplied filters; pipeline must be stopped/completed.
 
-    The address must be unique: exactly one of ``key``, ``partition_id``, or
-    ``partition_id + use_source_key`` is required. Errors out if no row matches.
-    ``computation_id`` is required only when reading by ``key``; for partition-based reads it
-    is derived from the layout.
+    Modes match ``read_states``: computation_id only / computation_id + key / partition_id.
+
+    Dry-run by default: without ``commit`` the call counts matching rows and returns a compact
+    summary without touching the tables. Pass ``commit=True`` once the preview matches the intent.
+    The deletion runs in chunks (List + Erase loop) to avoid blowing through the per-transaction
+    row limit and to keep individual erases responsive.
 
     :param pipeline_path: path to pipeline.
-    :param name: state name.
-    :param computation_id: computation id; required when ``key`` is set.
-    :param partition_id: partition id; without ``use_source_key`` reads from partition_states.
-    :param key: TKey value (list or map form, see ``read_states``).
-    :param use_source_key: when set together with ``partition_id``, reads key_states using the partition's SourceKey instead of partition_states.
+    :param computation_id: filter by computation id; mutually exclusive with partition_id.
+    :param partition_id: filter by partition id; mutually exclusive with computation_id.
+    :param key: TKey value (list or map form, see ``read_states``). Requires computation_id.
+    :param name: optional state name filter.
+    :param target: which table(s) to delete from: ``"all"`` (default), ``"key_state"``, or ``"partition_state"``.
+    :param force: delete states even if the pipeline is only paused, not stopped.
+    :param commit: actually delete; without it the call is a preview.
     """
-    argument = {"name": name}
+    argument = {}
     set_param(argument, "computation_id", computation_id)
     set_param(argument, "partition_id", partition_id)
     set_param(argument, "key", key)
-    if use_source_key:
-        argument["use_source_key"] = True
+    set_param(argument, "name", name)
+    set_param(argument, "target", target)
+    if force:
+        argument["force"] = True
+    if commit:
+        argument["commit"] = True
     return flow_execute(
         pipeline_path,
-        flow_command="read-state",
+        flow_command="delete-states",
         flow_argument=argument,
         output_format=output_format,
         client=client)

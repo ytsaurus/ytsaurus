@@ -2734,7 +2734,7 @@ def add_flow_parser(root_subparsers):
     add_flow_execute_parser(add_flow_subparser)
     add_flow_describe_parser(add_flow_subparser)
     add_flow_read_states_parser(add_flow_subparser)
-    add_flow_read_state_parser(add_flow_subparser)
+    add_flow_delete_states_parser(add_flow_subparser)
 
 
 def wait_pipeline_change(operation, state):
@@ -2949,7 +2949,7 @@ def _parse_flow_key_argument(value):
 
 
 def show_flow_read_states_result(**kwargs):
-    """Read every state row matching the supplied filters."""
+    """Read state rows matching the supplied filters."""
     kwargs["key"] = _parse_flow_key_argument(kwargs.get("key"))
     output_format = kwargs.pop("output_format")
     result = yt.read_states(**kwargs, output_format=output_format)
@@ -2960,43 +2960,51 @@ def show_flow_read_states_result(**kwargs):
 
 def add_flow_read_states_parser(add_parser):
     parser = add_parser("read-states", show_flow_read_states_result,
-                        help="Read every state row matching the supplied filters")
+                        help="Read state rows matching the supplied filters")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--computation-id",
-                        help="Filter by computation id; required if --key is given")
+                        help="Filter by computation id; mutually exclusive with --partition-id")
     parser.add_argument("--partition-id",
-                        help="Filter by partition id; also pulls key_states for the partition's source key, if any")
+                        help="Filter by partition id; mutually exclusive with --computation-id")
     parser.add_argument("--key",
                         help="TKey value as a YSON list ([v0, v1, ...]) or a named map ({col: value, ...}); requires --computation-id")
     parser.add_argument("--name",
                         help="Optional state name filter")
+    parser.add_argument("--target", choices=["all", "key_state", "partition_state"],
+                        help="Which table(s) to read (default all)")
+    parser.add_argument("--limit", type=int, default=10,
+                        help="Upper bound on rows scanned per table")
     add_structured_format_argument(parser, "--output-format")
 
 
-def show_flow_read_state_result(**kwargs):
-    """Read one specific state row and print its raw value."""
+def show_flow_delete_states_result(**kwargs):
+    """Delete state rows matching the supplied filters."""
     kwargs["key"] = _parse_flow_key_argument(kwargs.get("key"))
     output_format = kwargs.pop("output_format")
-    result = yt.read_state(**kwargs, output_format=output_format)
+    result = yt.delete_states(**kwargs, output_format=output_format)
     if output_format is None:
         result = dump_data(result)
     print_to_output(result)
 
 
-def add_flow_read_state_parser(add_parser):
-    parser = add_parser("read-state", show_flow_read_state_result,
-                        help="Read one specific state row and print its raw YSON value")
+def add_flow_delete_states_parser(add_parser):
+    parser = add_parser("delete-states", show_flow_delete_states_result,
+                        help="Delete state rows matching the supplied filters; pipeline must be stopped; dry-run unless --commit")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--computation-id",
-                        help="Computation id; required when reading by --key")
-    parser.add_argument("--name", required=True,
-                        help="State name")
+                        help="Filter by computation id; mutually exclusive with --partition-id")
     parser.add_argument("--partition-id",
-                        help="Partition id; without --use-source-key reads from partition_states")
+                        help="Filter by partition id; mutually exclusive with --computation-id")
     parser.add_argument("--key",
-                        help="TKey value as a YSON list ([v0, v1, ...]) or a named map ({col: value, ...})")
-    parser.add_argument("--use-source-key", action="store_true", default=False,
-                        help="With --partition-id, read key_states using the partition's SourceKey instead of partition_states")
+                        help="TKey value as a YSON list or named map; requires --computation-id")
+    parser.add_argument("--name",
+                        help="Optional state name filter")
+    parser.add_argument("--target", choices=["all", "key_state", "partition_state"],
+                        help="Which table(s) to delete from (default all)")
+    parser.add_argument("--force", action="store_true", default=False,
+                        help="Delete states even if the pipeline is only paused, not stopped")
+    parser.add_argument("--commit", action="store_true", default=False,
+                        help="Actually delete; without it the call only previews the affected rows")
     add_structured_format_argument(parser, "--output-format")
 
 

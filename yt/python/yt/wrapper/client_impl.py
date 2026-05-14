@@ -748,6 +748,44 @@ class YtClient(ClientState):
             atomicity=atomicity, durability=durability, format=format, raw=raw, require_sync_replica=require_sync_replica
         )
 
+    def delete_states(
+        self,
+        pipeline_path: str,
+        computation_id=None,
+        partition_id=None,
+        key=None,
+        name=None,
+        target=None,
+        force=False,
+        commit=False,
+        output_format=None
+    ):
+        """
+        Delete state rows matching the supplied filters; pipeline must be stopped/completed.
+
+        Modes match ``read_states``: computation_id only / computation_id + key / partition_id.
+
+        Dry-run by default: without ``commit`` the call counts matching rows and returns a compact
+        summary without touching the tables. Pass ``commit=True`` once the preview matches the intent.
+        The deletion runs in chunks (List + Erase loop) to avoid blowing through the per-transaction
+        row limit and to keep individual erases responsive.
+
+        :param pipeline_path: path to pipeline.
+        :param computation_id: filter by computation id; mutually exclusive with partition_id.
+        :param partition_id: filter by partition id; mutually exclusive with computation_id.
+        :param key: TKey value (list or map form, see ``read_states``). Requires computation_id.
+        :param name: optional state name filter.
+        :param target: which table(s) to delete from: ``"all"`` (default), ``"key_state"``, or ``"partition_state"``.
+        :param force: delete states even if the pipeline is only paused, not stopped.
+        :param commit: actually delete; without it the call is a preview.
+        """
+        return client_api.delete_states(
+            pipeline_path,
+            client=self,
+            computation_id=computation_id, partition_id=partition_id, key=key, name=name, target=target,
+            force=force, commit=commit, output_format=output_format
+        )
+
     def destroy_chunk_locations(
         self,
         node_address, location_uuids
@@ -2406,38 +2444,6 @@ class YtClient(ClientState):
             result_index=result_index, stage=stage, format=format, raw=raw
         )
 
-    def read_state(
-        self,
-        pipeline_path: str,
-        name: str,
-        computation_id=None,
-        partition_id=None,
-        key=None,
-        use_source_key=False,
-        output_format=None
-    ):
-        """
-        Read one specific state row and return its raw YSON value.
-
-        The address must be unique: exactly one of ``key``, ``partition_id``, or
-        ``partition_id + use_source_key`` is required. Errors out if no row matches.
-        ``computation_id`` is required only when reading by ``key``; for partition-based reads it
-        is derived from the layout.
-
-        :param pipeline_path: path to pipeline.
-        :param name: state name.
-        :param computation_id: computation id; required when ``key`` is set.
-        :param partition_id: partition id; without ``use_source_key`` reads from partition_states.
-        :param key: TKey value (list or map form, see ``read_states``).
-        :param use_source_key: when set together with ``partition_id``, reads key_states using the partition's SourceKey instead of partition_states.
-        """
-        return client_api.read_state(
-            pipeline_path, name,
-            client=self,
-            computation_id=computation_id, partition_id=partition_id, key=key, use_source_key=use_source_key,
-            output_format=output_format
-        )
-
     def read_states(
         self,
         pipeline_path: str,
@@ -2445,26 +2451,35 @@ class YtClient(ClientState):
         partition_id=None,
         key=None,
         name=None,
+        target=None,
+        limit=None,
         output_format=None
     ):
         """
-        Read every state row matching the supplied filters.
+        Read state rows matching the supplied filters.
+
+        Three access modes are derived from the argument combination:
+        1. computation_id only          → all tables for every partition of the computation
+        2. computation_id + key         → key_states only (target=partition_state is rejected)
+        3. partition_id                 → partition_states + key_states under the partition's
+        SourceKey (when the partition has one)
 
         Returns a map with two arrays: "key_states" (list of {computation_id, key, entries}) and
         "partition_states" (list of {partition_id, entries}); each "entries" is a {name: state} map.
 
-        At least one of ``computation_id`` or ``partition_id`` must be supplied.
-
         :param pipeline_path: path to pipeline.
-        :param computation_id: filter by computation id (required if `key` is set).
-        :param partition_id: filter by partition id; also pulls key_states for the partition's SourceKey, if any.
-        :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator.
-        :param name: optional state name filter, narrows both key_states and partition_states.
+        :param computation_id: filter by computation id.
+        :param partition_id: filter by partition id; mutually exclusive with computation_id.
+        :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator. Requires computation_id.
+        :param name: optional state name filter.
+        :param target: which table(s) to read: ``"all"`` (default), ``"key_state"``, or ``"partition_state"``.
+        :param limit: upper bound on rows scanned per table; defaults to 10 server-side.
         """
         return client_api.read_states(
             pipeline_path,
             client=self,
-            computation_id=computation_id, partition_id=partition_id, key=key, name=name, output_format=output_format
+            computation_id=computation_id, partition_id=partition_id, key=key, name=name, target=target,
+            limit=limit, output_format=output_format
         )
 
     def read_table(
