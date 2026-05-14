@@ -80,7 +80,9 @@ namespace DB::Setting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const SettingsBool allow_push_predicate_ast_for_distributed_subqueries;
 extern const SettingsBool extremes;
+
 extern const SettingsUInt64 limit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1090,6 +1092,10 @@ void TQueryAnalyzer::ParseQuery()
         }
     }
 
+    AllowPushDownPredicate_ =
+        getContext()->getSettingsRef()[DB::Setting::allow_push_predicate_ast_for_distributed_subqueries] &&
+        TableExpressions_.size() == 1;
+
     YT_VERIFY(!Storages_.empty());
 
     // In the case of a global join, the second table will materialize on read.
@@ -1122,11 +1128,6 @@ void TQueryAnalyzer::ParseQuery()
         GlobalJoin_,
         RightOrFullJoin_,
         CrossJoin_);
-}
-
-DB::QueryTreeNodePtr TQueryAnalyzer::GetParsedQueryTree() const
-{
-    return QueryInfo_.query_tree->clone();
 }
 
 DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
@@ -1465,6 +1466,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
+    result.AllowPushDownPredicate = AllowPushDownPredicate_;
+    result.QueryTree = QueryInfo_.query_tree->clone();
 
     return result;
 }
