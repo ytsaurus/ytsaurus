@@ -181,6 +181,7 @@ public:
 
         auto valueIt = const_cast<TVersionedValue*>(versionedRow.BeginValues());
         auto valueItEnd = const_cast<TVersionedValue*>(versionedRow.EndValues());
+        bool allNestedAreSingular = true;
 
         while (valueIt != valueItEnd) {
             auto columnId = valueIt->Id;
@@ -206,6 +207,7 @@ public:
 
             if (nestedColumnIndex != -1) {
                 NestedColumns_[nestedColumnIndex] = {valueIt, valueItNext};
+                allNestedAreSingular = allNestedAreSingular && (valueItNext - valueIt) <= 1;
                 valueIt = valueItNext;
             } else if (columnIndex != -1) [[likely]] {
                 auto* aggregateFunction = AggregateFunctions_[columnIndex];
@@ -219,55 +221,72 @@ public:
             }
         }
 
-        auto nestedKeySchema = TRange(NestedColumnsSchema_.KeyColumns);
-        auto nestedValueSchema = TRange(NestedColumnsSchema_.ValueColumns);
+        if (allNestedAreSingular) {
+            for (auto range : NestedColumns_) {
+                if (!range.empty()) {
+                    int columnIndex = ColumnIdToIndex_[range[0].Id];
+                    if (columnIndex == -1) [[unlikely]] {
+                        continue;
+                    }
 
-        NestedMerger_.UnpackKeyColumns(
-            TRange(NestedColumns_).Slice(0, nestedKeySchema.size()),
-            nestedKeySchema);
+                    resultRow[columnIndex] = range[0];
+                }
+            }
+        } else {
+            auto nestedKeySchema = TRange(NestedColumnsSchema_.KeyColumns);
+            auto nestedValueSchema = TRange(NestedColumnsSchema_.ValueColumns);
 
-        // NB(sabdenovch): only here to signal that no discard is needed.
-        // Normally this is called after all UnpackValueColumn.
-        NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
+            NestedMerger_.UnpackKeyColumns(
+                TRange(NestedColumns_).Slice(0, nestedKeySchema.size()),
+                nestedKeySchema);
 
-        for (int index = 0; index < std::ssize(nestedKeySchema); ++index) {
-            if (NestedColumns_[index].Empty()) {
-                continue;
+            // NB(sabdenovch): only here to signal that no discard is needed.
+            // Normally this is called after all UnpackValueColumn.
+            NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
+
+            for (int index = 0; index < std::ssize(nestedKeySchema); ++index) {
+                if (NestedColumns_[index].Empty()) {
+                    continue;
+                }
+
+                auto [columnId, type] = nestedKeySchema[index];
+
+                auto state = NestedMerger_.GetPackedKeyColumn(index, type, pool);
+                state.Id = columnId;
+
+                auto columnIndex = ColumnIdToIndex_[columnId];
+                // Nested key columns are added to enriched column filter.
+                if (columnIndex != -1) {
+                    resultRow[columnIndex] = state;
+                }
             }
 
-            auto [columnId, type] = nestedKeySchema[index];
+            for (int index = 0; index < std::ssize(nestedValueSchema); ++index) {
+                auto valueRange = NestedColumns_[index + std::ssize(nestedKeySchema)];
 
-            auto state = NestedMerger_.GetPackedKeyColumn(index, type, pool);
-            state.Id = columnId;
+                auto [columnId, type, aggregateFunction] = nestedValueSchema[index];
 
-            auto columnIndex = ColumnIdToIndex_[columnId];
-            // Nested key columns are added to enriched column filter.
-            if (columnIndex != -1) {
+                NestedMerger_.UnpackValueColumn(
+                    valueRange,
+                    type,
+                    aggregateFunction);
+
+                if (valueRange.Empty()) {
+                    continue;
+                }
+
+                // For nested value columns requested and enriched column filters are matched.
+                auto state = NestedMerger_.GetPackedValueColumn(index, type, pool);
+                state.Id = columnId;
+
+                auto columnIndex = ColumnIdToIndex_[columnId];
+                YT_VERIFY(columnIndex != -1);
                 resultRow[columnIndex] = state;
             }
         }
 
-        for (int index = 0; index < std::ssize(nestedValueSchema); ++index) {
-            auto valueRange = NestedColumns_[index + std::ssize(nestedKeySchema)];
-
-            auto [columnId, type, aggregateFunction] = nestedValueSchema[index];
-
-            NestedMerger_.UnpackValueColumn(
-                valueRange,
-                type,
-                aggregateFunction);
-
-            if (valueRange.Empty()) {
-                continue;
-            }
-
-            // For nested value columns requested and enriched column filters are matched.
-            auto state = NestedMerger_.GetPackedValueColumn(index, type, pool);
-            state.Id = columnId;
-
-            auto columnIndex = ColumnIdToIndex_[columnId];
-            YT_VERIFY(columnIndex != -1);
-            resultRow[columnIndex] = state;
+        for (auto& range : NestedColumns_) {
+            range = {};
         }
 
         return resultRow;
