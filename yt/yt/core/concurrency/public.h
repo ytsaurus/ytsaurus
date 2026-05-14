@@ -129,7 +129,7 @@ class TPropagatingStorage;
 
 YT_DECLARE_RECONFIGURABLE_SINGLETON(TFiberManagerConfig, TFiberManagerDynamicConfig);
 
-extern const TFairShareThreadPoolTag DefaultExecutionTag;
+inline const TFairShareThreadPoolTag DefaultExecutionTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
