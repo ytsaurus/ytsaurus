@@ -1,5 +1,9 @@
 DOCS()
 
+DOCS_DIR(
+    yt/docs
+)
+
 DOCS_INCLUDE_SOURCES(
     # Python examples
     yt/python/examples/simple_map/example.py
