@@ -26,6 +26,9 @@ data:
         {{- if .expirationTimeout }}
         expiration_timeout: {{ .expirationTimeout }}
         {{- end }}
+        {{- if .mergeImmediately }}
+        merge_immediately: {{ .mergeImmediately }}
+        {{- end }}
         {{- end }}
         {{- end }}
       1d:
@@ -37,6 +40,9 @@ data:
         {{- with (index . "1d") }}
         {{- if .expirationTimeout }}
         expiration_timeout: {{ .expirationTimeout }}
+        {{- end }}
+        {{- if .mergeImmediately }}
+        merge_immediately: {{ .mergeImmediately }}
         {{- end }}
         {{- end }}
         {{- end }}

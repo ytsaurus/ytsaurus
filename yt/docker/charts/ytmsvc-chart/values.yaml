@@ -171,8 +171,10 @@ microservices:
         processings:
           30min:
             expirationTimeout: 168h
-          # 1d:
-          #   expirationTimeout: 672h
+            mergeImmediately: false
+          1d:
+            mergeImmediately: false
+            # expirationTimeout: 672h
     preprocessing:
       enabled: true
       schedule: "*/15 * * * *"
@@ -186,4 +188,5 @@ microservices:
         maxParallelOps: 1
         maxTables: 100
         networkProject: null
+        rewrite: false
     secretRefs: []

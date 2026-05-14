@@ -178,7 +178,7 @@ func ReadClickhouseResponse[T any](input io.ReadCloser) (result []T, err error) 
 				}
 				// ClickHouse return error in answer
 				err = yterrors.Err(string(data))
-				if strings.Contains(err.Error(), "No tables to read from") {
+				if strings.Contains(err.Error(), "No tables to read from") || strings.Contains(err.Error(), "Both table name and UUID are empty") {
 					err = yterrors.Err(
 						"Data is not ready yet. Please try again later or select other dates.",
 						err,

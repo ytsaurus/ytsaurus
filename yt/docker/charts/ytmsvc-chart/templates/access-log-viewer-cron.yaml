@@ -64,6 +64,9 @@ spec:
                 {{- end }}
                 - "--users-to-ignore"
                 - "table_mount_informer"
+                {{- if $.Values.microservices.accessLogViewer.preprocessing.config.rewrite }}
+                - "--rewrite"
+                {{- end }}
               env:
                 - name: YT_PROXY
                   value: {{ $.Values.cluster.name | quote }}

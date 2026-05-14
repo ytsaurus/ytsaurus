@@ -25,6 +25,10 @@ type Processing struct {
 	// Expiration timeout for the output tables.
 	// If not specified, expiration timeout will not be set.
 	ExpirationTimeout time.Duration `yaml:"expiration_timeout"`
+	// If true, merge any existing partition immediately on each run,
+	// ignoring CutoffTime. Late-arriving chunks will be merged on
+	// subsequent runs (mergePartition is idempotent w.r.t. existing output).
+	MergeImmediately bool `yaml:"merge_immediately"`
 }
 
 type Config struct {

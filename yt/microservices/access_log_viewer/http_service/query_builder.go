@@ -253,9 +253,9 @@ func GetPathClause(request AccessLogRequest) (clause string, settings map[string
 }
 
 func GetInstantClause(request AccessLogRequest) (clause string) {
-	clause = fmt.Sprintf("toDateTime(instant) >= toDateTime(%d)", int64(request.Begin))
+	clause = fmt.Sprintf("toDateTime(instant, 'UTC') >= toDateTime(%d, 'UTC')", int64(request.Begin))
 	if int64(request.End) > 0 {
-		clause = fmt.Sprintf("%s AND toDateTime(instant) < toDateTime(%d)", clause, int64(request.End))
+		clause = fmt.Sprintf("%s AND toDateTime(instant, 'UTC') < toDateTime(%d, 'UTC')", clause, int64(request.End))
 	}
 	return
 }
@@ -301,9 +301,9 @@ func GetFromClause(request AccessLogRequest, snapshotRoot string) (clause string
 		return
 	}
 	if int64(request.End) > 0 {
-		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d), toDateTime(%d)))", snapshotRoot, request.Cluster, int64(request.Begin), int64(request.End))
+		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d, 'UTC'), toDateTime(%d, 'UTC')))", snapshotRoot, request.Cluster, int64(request.Begin), int64(request.End))
 	} else {
-		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d)))", snapshotRoot, request.Cluster, int64(request.Begin))
+		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d, 'UTC')))", snapshotRoot, request.Cluster, int64(request.Begin))
 	}
 	return
 }
@@ -377,6 +377,6 @@ func GetQuery(subject string, request AccessLogRequest, accessMasterLogRoot stri
 
 func GetVisibleTimeRangeQuery(accessMasterLogRoot string, cluster string) (query string, settings map[string]string) {
 	settings = make(map[string]string)
-	query = fmt.Sprintf("SELECT toInt64(min(toDateTime($key))) as earliest, toInt64(max(toDateTime($key))) as latests FROM ytListLogTables('%s/%s')", accessMasterLogRoot, cluster)
+	query = fmt.Sprintf("SELECT toInt64(min(toDateTime($key, 'UTC'))) as earliest, toInt64(max(toDateTime($key, 'UTC'))) as latests FROM ytListLogTables('%s/%s')", accessMasterLogRoot, cluster)
 	return
 }

@@ -77,10 +77,16 @@ def main():
     type=str,
     default=DEFAULT_TOKEN_ENV_VARIABLE,
 )
+@click.option(
+    "--rewrite",
+    is_flag=True,
+    default=False,
+    help="Recompute outputs when source table @modification_time changed since last run.",
+)
 def import_access_log_tables(
-    cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable
+    cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable, rewrite
 ):
-    bulk(cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable)
+    bulk(cluster, input, tmp, output, max_parallel_ops, period, pool, max_tables, store_for, network_project, node_id_dict_path, users_to_ignore, token_env_variable, rewrite)
 
 
 @main.command("import")
@@ -134,8 +140,14 @@ def import_access_log_tables(
     type=str,
     default=DEFAULT_TOKEN_ENV_VARIABLE,
 )
-def import_single_table(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable):
-    import_single(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable)
+@click.option(
+    "--rewrite",
+    is_flag=True,
+    default=False,
+    help="Recompute outputs when source table @modification_time changed since last run.",
+)
+def import_single_table(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable, rewrite):
+    import_single(cluster, pool, input, tmp, output, max_parallel_ops, path, network_project, node_id_dict_path, users_to_ignore, token_env_variable, rewrite)
 
 
 @main.command("clear")

@@ -154,6 +154,11 @@ func (m *Merger) setExpirationTimeout(ctx context.Context, tx yt.Tx, processingC
 }
 
 func (m *Merger) partitionReadyToMerge(ctx context.Context, partition string, processingConfig *config.Processing) (bool, error) {
+	if processingConfig.MergeImmediately {
+		ctxlog.Debug(ctx, m.l, "partition is ready for merge due to `merge_immediately`", log.Any("partition", partition))
+		return true, nil
+	}
+
 	partTimeStart, err := time.Parse(processingConfig.TableFormat, partition)
 	if err != nil {
 		return false, xerrors.Errorf("failed to parse partition %q using layout %q: %w", partition, processingConfig.TableFormat, err)
