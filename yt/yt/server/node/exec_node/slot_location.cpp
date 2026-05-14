@@ -626,7 +626,6 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                     SpliceAsync(
                         sourceFile,
                         destinationFile,
-                        /*pipeIsSrc*/ false,
                         sourceLocation->GetAuxPoolInvoker(),
                         Bootstrap_->GetAuxPoller()));
 
