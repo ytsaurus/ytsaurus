@@ -15,5 +15,6 @@ RECURSE(
     test_readers
     test_rpc_api
     test_sequoia
+    test_s3_data
     test_ban_service
 )

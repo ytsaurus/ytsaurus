@@ -369,6 +369,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/offshore_data_gateway/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp

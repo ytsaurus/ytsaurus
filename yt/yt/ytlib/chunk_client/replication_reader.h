@@ -16,12 +16,22 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(pavel-bash): Converge these two functions into a single one when we start passing the
+// medium index alongside the chunk replica list into chunk readers again. If we decide to
+// only do that for offshore media, remove this TODO as the functions will stay separated.
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     TChunkReplicaList seedReplicas);
+
+IChunkReaderAllowingRepairPtr CreateReplicationReader(
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    TChunkReaderHostPtr chunkReaderHost,
+    TChunkId chunkId,
+    TChunkReplicaWithMediumList seedReplicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 
