@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/public.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/public.h>
+
 #include <yt/yt/ytlib/discovery_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
@@ -261,6 +263,7 @@ struct TConnectionDynamicConfig
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
     NTabletBalancerClient::TTabletBalancerChannelConfigPtr TabletBalancer;
+    NOffshoreDataGateway::TOffshoreDataGatewayChannelConfigPtr OffshoreDataGateway;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;

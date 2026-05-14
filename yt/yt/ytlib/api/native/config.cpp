@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/config.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/config.h>
+
 #include <yt/yt/ytlib/discovery_client/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -223,6 +225,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("bundle_controller", &TThis::BundleController)
         .DefaultNew();
     registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
+        .DefaultNew();
+    registrar.Parameter("offshore_data_gateway", &TThis::OffshoreDataGateway)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
