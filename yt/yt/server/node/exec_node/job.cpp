@@ -3604,7 +3604,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
 
     options.VirtualSandboxData = FSSecretary_->GetVirtualSandboxData();
-    options.SandboxNbdRootVolumeData = FSSecretary_->GetSandboxNbdRootVolumeData();
 
     return options;
 }

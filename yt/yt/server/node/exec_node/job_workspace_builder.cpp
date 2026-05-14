@@ -593,6 +593,7 @@ private:
             options.JobId = Context_.Job->GetId();
             options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
             options.UserSandboxOptions = Context_.UserSandboxOptions;
+            options.SandboxNbdRootVolumeData = Context_.FSSecretary->GetSandboxNbdRootVolumeData();
 
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
