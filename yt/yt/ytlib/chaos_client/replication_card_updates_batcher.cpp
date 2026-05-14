@@ -76,7 +76,8 @@ public:
         YT_VERIFY(barrierLockGuard);
 
         return StateLock_->AsyncAcquire(1)
-            .AsUnique().Apply(BIND(
+            .AsUnique()
+            .Apply(BIND(
                 [
                     progressUpdate = std::move(progressUpdate),
                     barrierLockGuard = std::move(barrierLockGuard),
