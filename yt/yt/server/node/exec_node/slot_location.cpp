@@ -1132,7 +1132,7 @@ void TSlotLocation::Disable(const TError& error)
     // TODO(don-dron): Research and fix unconditional Disabled.
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         YT_LOG_DEBUG(
-            "Can not disable not enabled slot location (Path: %v)",
+            "Cannot disable not enabled slot location (Path: %v)",
             Config_->Path);
         return;
     }
