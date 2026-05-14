@@ -146,10 +146,12 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         std::vector<TLayerLocationPtr> layerLocations);
 
+    //! Create or get from cache RO NBD volume.
     TFuture<IVolumePtr> GetOrCreateVolume(
         TGuid tag,
         TPrepareRONbdVolumeOptions options);
 
+    //! Create RW NBD volume.
     TFuture<IVolumePtr> CreateVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);

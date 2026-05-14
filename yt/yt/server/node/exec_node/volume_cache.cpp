@@ -58,7 +58,7 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 namespace {
 
-static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
+i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
     i64 result = 0;
     for (const auto& location : layerLocations) {
@@ -317,7 +317,6 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
         .As<IVolumePtr>();
 }
 
-//! This method creates RW NBD volumes.
 TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
@@ -520,10 +519,9 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
                     YT_UNUSED_FUTURE(device->Finalize());
                     THROW_ERROR_EXCEPTION("Failed to initialize NBD device")
                         << error;
-                } else {
-                    YT_LOG_DEBUG("Initialized NBD device");
-                    return device;
                 }
+                YT_LOG_DEBUG("Initialized NBD device");
+                return device;
             })
             .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
         .ToUncancelable();
@@ -1106,7 +1104,7 @@ TLayerLocationPtr TLayerCache::PickVolumeLocation() const
 
 TLayerLocationPtr TLayerCache::PickRandomLocation() const
 {
-    // Separate locations into non-importing and importing
+    // Separate locations into non-importing and importing.
     std::vector<TLayerLocationPtr> nonImportingLocations;
     std::vector<TLayerLocationPtr> importingLocations;
 
@@ -1122,13 +1120,13 @@ TLayerLocationPtr TLayerCache::PickRandomLocation() const
         }
     }
 
-    // Prefer non-importing locations, pick randomly from them
+    // Prefer non-importing locations, pick randomly from them.
     if (!nonImportingLocations.empty()) {
         auto index = RandomNumber<size_t>(nonImportingLocations.size());
         return nonImportingLocations[index];
     }
 
-    // If all are importing, pick randomly from importing locations
+    // If all are importing, pick randomly from importing locations.
     if (!importingLocations.empty()) {
         auto index = RandomNumber<size_t>(importingLocations.size());
         return importingLocations[index];
