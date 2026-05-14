@@ -424,10 +424,12 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDeprecatedDiskReques
 
         try {
             location->ValidateEnabled();
+        } catch (const std::exception& ex) {
             YT_LOG_DEBUG(
+                ex,
                 "Skipping not enabled slot location (Path: %v)",
                 location->GetPath());
-        } catch (const std::exception& ex) {
+
             ++skippedByDisabled;
             continue;
         }
