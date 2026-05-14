@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -73,6 +74,14 @@ func (r *Retrier) shouldRetry(isRead bool, hasStickyProxy bool, err error) bool 
 	if yterrors.ContainsErrorCode(err, yterrors.CodeRequestQueueSizeLimitExceeded) ||
 		yterrors.ContainsErrorCode(err, yterrors.CodeRPCRequestQueueSizeLimitExceeded) {
 		return true
+	}
+
+	var httpErr *yterrors.HTTPError
+	if errors.As(err, &httpErr) {
+		switch httpErr.StatusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true
+		}
 	}
 
 	if isProxyBannedError(err) && !hasStickyProxy {
