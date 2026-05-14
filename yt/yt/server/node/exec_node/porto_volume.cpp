@@ -291,11 +291,6 @@ TRWNbdVolume::~TRWNbdVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TRWNbdVolume::IsRootVolume() const
-{
-    return true;
-}
-
 TFuture<void> TRWNbdVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
@@ -441,11 +436,6 @@ TOverlayVolume::~TOverlayVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TOverlayVolume::IsRootVolume() const
-{
-    return false;
-}
-
 TFuture<void> TOverlayVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
@@ -506,11 +496,6 @@ TTmpfsVolume::~TTmpfsVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TTmpfsVolume::IsRootVolume() const
-{
-    return false;
-}
-
 TFuture<void> TTmpfsVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
@@ -546,11 +531,6 @@ TLoopVolume::TLoopVolume(
 TLoopVolume::~TLoopVolume()
 {
     YT_UNUSED_FUTURE(Remove());
-}
-
-bool TLoopVolume::IsRootVolume() const
-{
-    return false;
 }
 
 TFuture<void> TLoopVolume::DoRemove(

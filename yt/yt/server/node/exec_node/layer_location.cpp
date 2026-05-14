@@ -1156,10 +1156,7 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
         overlayDataArray.begin(),
         overlayDataArray.end(),
         [] (TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
-            // Do not add root volume to overlayfs layers, it will be used as a "place".
-            if (!volumeOrLayer.IsVolume() || !volumeOrLayer.GetVolume()->IsRootVolume()) {
-                builder->AppendString(volumeOrLayer.GetPath());
-            }
+            builder->AppendString(volumeOrLayer.GetPath());
         },
         ";");
 

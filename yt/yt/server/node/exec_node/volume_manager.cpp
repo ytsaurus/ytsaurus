@@ -538,26 +538,7 @@ public:
                 }));
         }
 
-        if (auto data = userSandboxOptions.SandboxNbdRootVolumeData) {
-            overlayDataFutures.push_back(CreateRWNbdVolume(
-                tag,
-                TPrepareRWNbdVolumeOptions{
-                    .JobId = options.JobId,
-                    .Size = data->Size,
-                    .MediumIndex = data->MediumIndex,
-                    .Filesystem = data->FsType,
-                    .DeviceId = data->DeviceId,
-                    .DataNodeChannel = {/*Channel will be filled later on.*/},
-                    .SessionId = {/*SessionId will be filled later on.*/},
-                    .DataNodeRpcTimeout = data->DataNodeRpcTimeout,
-                    .DataNodeAddress = data->DataNodeAddress,
-                    .DataNodeNbdServiceRpcTimeout = data->DataNodeNbdServiceRpcTimeout,
-                    .DataNodeNbdServiceMakeTimeout = data->DataNodeNbdServiceMakeTimeout,
-                    .MasterRpcTimeout = data->MasterRpcTimeout,
-                    .MinDataNodeCount = data->MinDataNodeCount,
-                    .MaxDataNodeCount = data->MaxDataNodeCount,
-                }));
-        }
+        auto sandboxNbdRootVolumeData = options.SandboxNbdRootVolumeData;
 
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
@@ -568,23 +549,73 @@ public:
                 [
                     tag,
                     jobId = options.JobId,
+                    Logger,
                     userSandboxOptions,
+                    sandboxNbdRootVolumeData,
                     this,
                     this_ = MakeStrong(this)
-                ] (std::vector<TOverlayData>&& overlayDataArray) {
-                    // Now we are ready to create overlay volume. It is a light
-                    // operation so we are allowed to make it uncancelable.
-                    return CreateRootOverlayVolume(
-                        tag,
-                        TPrepareOverlayVolumeOptions{
-                            .JobId = jobId,
-                            .UserSandboxOptions = std::move(userSandboxOptions),
-                            .OverlayDataArray = std::move(overlayDataArray)
-                        })
-                        .ToUncancelable();
+                ] (std::vector<TOverlayData>&& overlayDataArray) mutable -> TFuture<IVolumePtr> {
+                    if (sandboxNbdRootVolumeData) {
+                        // Create NBD root volume separately and use it as the upper layer,
+                        // the same way tmpfs/disk upper layers are handled in PrepareNonRootVolumes().
+                        return CreateRWNbdVolume(
+                            tag,
+                            TPrepareRWNbdVolumeOptions{
+                                .JobId = jobId,
+                                .Size = sandboxNbdRootVolumeData->Size,
+                                .MediumIndex = sandboxNbdRootVolumeData->MediumIndex,
+                                .Filesystem = sandboxNbdRootVolumeData->FsType,
+                                .DeviceId = sandboxNbdRootVolumeData->DeviceId,
+                                .DataNodeChannel = {/*Channel will be filled later on.*/},
+                                .SessionId = {/*SessionId will be filled later on.*/},
+                                .DataNodeRpcTimeout = sandboxNbdRootVolumeData->DataNodeRpcTimeout,
+                                .DataNodeAddress = sandboxNbdRootVolumeData->DataNodeAddress,
+                                .DataNodeNbdServiceRpcTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceRpcTimeout,
+                                .DataNodeNbdServiceMakeTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceMakeTimeout,
+                                .MasterRpcTimeout = sandboxNbdRootVolumeData->MasterRpcTimeout,
+                                .MinDataNodeCount = sandboxNbdRootVolumeData->MinDataNodeCount,
+                                .MaxDataNodeCount = sandboxNbdRootVolumeData->MaxDataNodeCount,
+                            })
+                            .AsUnique()
+                            .Apply(BIND(
+                                [
+                                    tag,
+                                    jobId,
+                                    Logger,
+                                    userSandboxOptions = std::move(userSandboxOptions),
+                                    overlayDataArray = std::move(overlayDataArray),
+                                    this,
+                                    this_ = MakeStrong(this)
+                                ] (IVolumePtr&& nbdVolume) mutable -> TFuture<TOverlayVolumePtr> {
+                                    // See PORTO-460 for "//" prefix.
+                                    TString placePath = "//" + nbdVolume->GetPath();
+                                    YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)", placePath);
+                                    return DoCreateOverlayVolume(
+                                        tag,
+                                        jobId,
+                                        userSandboxOptions.UserId,
+                                        placePath,
+                                        std::move(overlayDataArray),
+                                        /* volumeForUpperLayer */ std::move(nbdVolume))
+                                        .ToUncancelable();
+                                })
+                                .AsyncVia(GetCurrentInvoker()))
+                            .As<IVolumePtr>();
+                    } else {
+                        // Now we are ready to create overlay volume. It is a light
+                        // operation so we are allowed to make it uncancelable.
+                        return CreateRootOverlayVolume(
+                            tag,
+                            TPrepareOverlayVolumeOptions{
+                                .JobId = jobId,
+                                .UserSandboxOptions = std::move(userSandboxOptions),
+                                .OverlayDataArray = std::move(overlayDataArray)
+                            })
+                            .ToUncancelable()
+                            .As<IVolumePtr>();
+                    }
                 })
-                .AsyncVia(GetCurrentInvoker()))
-            .As<IVolumePtr>();
+                .AsyncVia(GetCurrentInvoker()));
     }
 
     TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
@@ -805,12 +836,11 @@ private:
             .As<TOverlayData>();
     }
 
-    TFuture<TOverlayData> CreateRWNbdVolume(
+    TFuture<IVolumePtr> CreateRWNbdVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options)
     {
-        return NbdVolumeFactory_->CreateVolume(tag, std::move(options))
-            .As<TOverlayData>();
+        return NbdVolumeFactory_->CreateVolume(tag, std::move(options));
     }
 
     TFuture<TOverlayData> GetOrCreateSquashFSVolume(
@@ -988,25 +1018,10 @@ private:
     {
         bool placeInUserSlot = false;
 
-        // Place overlayfs (upper and work directories) in root volume, if it is present.
         std::optional<TString> placePath;
-        for (const auto& overlayData : options.OverlayDataArray) {
-            if (overlayData.IsVolume() && overlayData.GetVolume()->IsRootVolume()) {
-                if (placePath) {
-                    THROW_ERROR_EXCEPTION("Can not have multiple root volumes in overlay volume")
-                        << TErrorAttribute("first_root_volume", placePath)
-                        << TErrorAttribute("second_root_volume", overlayData.GetPath());
-                }
-                // See PORTO-460 for "//" prefix.
-                placePath = "//" + overlayData.GetPath();
-
-                YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)",
-                    placePath);
-            }
-        }
 
         const auto& userSandboxOptions = options.UserSandboxOptions;
-        if (userSandboxOptions.EnableRootVolumeDiskQuota && !userSandboxOptions.SlotPath.empty() && !placePath) {
+        if (userSandboxOptions.EnableRootVolumeDiskQuota && !userSandboxOptions.SlotPath.empty()) {
             // Plant porto place for overlay volume in user slot.
             placePath = NFS::CombinePaths(
                 userSandboxOptions.SlotPath,

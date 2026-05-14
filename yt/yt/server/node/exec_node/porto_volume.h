@@ -102,11 +102,6 @@ public:
     {
         return true;
     }
-
-    bool IsRootVolume() const override final
-    {
-        return false;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,8 +145,6 @@ public:
         NNbd::INbdServerPtr nbdServer);
 
     ~TRWNbdVolume() override;
-
-    bool IsRootVolume() const override final;
 
 private:
     const TString NbdDeviceId_;
@@ -211,8 +204,6 @@ public:
 
     ~TOverlayVolume() override;
 
-    bool IsRootVolume() const override final;
-
 private:
     // Holds volumes and layers (so that they are not destroyed) while they are needed.
     const std::vector<TOverlayData> OverlayDataArray_;
@@ -242,8 +233,6 @@ public:
 
     ~TTmpfsVolume() override;
 
-    bool IsRootVolume() const override final;
-
 private:
     static TFuture<void> DoRemove(
         NProfiling::TTagSet tagSet,
@@ -265,8 +254,6 @@ public:
         TLayerLocationPtr location);
 
     ~TLoopVolume() override;
-
-    bool IsRootVolume() const override final;
 
 private:
     static TFuture<void> DoRemove(
