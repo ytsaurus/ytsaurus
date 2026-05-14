@@ -30,6 +30,8 @@ namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 
+const TFairShareThreadPoolTag DefaultExecutionTag = "default";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
