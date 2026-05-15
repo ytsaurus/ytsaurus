@@ -1478,7 +1478,7 @@ void TLayerLocation::RemoveLayers(
         removeFutures.push_back(executor->RemoveLayer(
             layerId,
             place,
-            false /*async*/));
+            /*async*/ false));
     }
 
     auto removeResults = WaitFor(AllSetWithTimeout(std::move(removeFutures), timeout))
@@ -1495,7 +1495,7 @@ void TLayerLocation::RemoveLayers(
     YT_LOG_DEBUG(
         "Removed layers (LayerNames: %v, Duration: %v)",
         MakeShrunkFormattableView(removedLayers, TDefaultFormatter(), 10),
-        (TInstant::Now() - startTime));
+        TInstant::Now() - startTime);
 }
 
 //! Remove volumes planted at a given directory.
@@ -1604,7 +1604,7 @@ void TLayerLocation::RemoveVolumes(
     YT_LOG_DEBUG(
         "Removed volumes (VolumePaths: %v, Duration: %v)",
         MakeShrunkFormattableView(removedVolumes, TDefaultFormatter(), 10),
-        (TInstant::Now() - startTime));
+        TInstant::Now() - startTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
