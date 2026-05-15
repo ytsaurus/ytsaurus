@@ -25,6 +25,10 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NCellBalancer {
 
 using namespace NApi;
@@ -439,20 +443,28 @@ private:
 
         auto transaction = CreateTransaction();
 
-        auto inputState = GetInputState(transaction);
-        DropJailedBundlesFromInputState(&inputState);
+        TSchedulerInputState inputState;
+        YT_PROFILE_TIMING("/bundle_controller/get_input_state") {
+            inputState = GetInputState(transaction);
+            DropJailedBundlesFromInputState(&inputState);
+        }
 
         Bootstrap_->GetNodeTracker()->UpdateNodeStates(inputState.TabletNodes);
 
         TSchedulerMutations mutations;
-        ScheduleBundles(inputState, &mutations, Bootstrap_->GetNodeTracker());
+
+        YT_PROFILE_TIMING("/bundle_controller/schedule_bundles") {
+            ScheduleBundles(inputState, &mutations, Bootstrap_->GetNodeTracker());
+        }
 
         if (dryRun) {
             return;
         }
 
         if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController || ignoreGlobalDisabledSwitch) {
-            Mutate(transaction, mutations);
+            YT_PROFILE_TIMING("/bundle_controller/mutate") {
+                Mutate(transaction, mutations);
+            }
         } else {
             YT_LOG_WARNING("Bundle controller is disabled");
 
@@ -538,28 +550,53 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
+        InstanceAllocationCounter_.Increment(mutations.NewAllocations.size());
         CreateHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.NewAllocations);
+
         ChangeHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.ChangedAllocations);
+
+        InstanceDeallocationCounter_.Increment(mutations.NewDeallocations.size());
         CreateHulkRequests<TDeallocationRequest>(transaction, Config_->HulkDeallocationsPath, mutations.NewDeallocations);
+
         CompleteHulkRequests(transaction, Config_->HulkAllocationsPath, mutations.CompletedAllocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
 
+        ChangedNodeAnnotationCounter_.Increment(mutations.ChangedNodeAnnotations.size());
         SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedNodeAnnotations);
-        SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
+
+        // NB: Decommission must be set before user tags. Newly assigned node must be decommissioned
+        // when it receives its tags, otherwise tablet cells may prematurely occupy the new node.
+        ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
         SetNodeAttributes(transaction, NodeAttributeDecommissioned, mutations.ChangedDecommissionedFlag);
+
+        ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
+        SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
+
+        ChangedBannedFlagCounter_.Increment(mutations.ChangedBannedFlag.size());
         SetNodeAttributes(transaction, NodeAttributeBanned, mutations.ChangedBannedFlag);
+
+        ChangedEnableBundleBalancerFlagCounter_.Increment(mutations.ChangedEnableBundleBalancerFlag.size());
         SetNodeAttributes(transaction, NodeAttributeEnableBundleBalancer, mutations.ChangedEnableBundleBalancerFlag);
 
+        ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
+
+        ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
         SetProxyAttributes(transaction, ProxyAttributeRole, mutations.ChangedProxyRole);
+
+        ChangedProxyRoleCounter_.Increment(mutations.RemovedProxyRole.size());
         RemoveInstanceAttributes(transaction, RpcProxiesPath, ProxyAttributeRole, mutations.RemovedProxyRole);
 
         // We should not violate RootSystemAccountLimit when changing per-bundle ones, so we apply changes in specific order.
+        ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
         SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LoweredSystemAccountLimit);
         SetRootSystemAccountLimits(transaction, mutations.ChangedRootSystemAccountLimit, mutations.LastBundleWithChangedRootSystemAccountLimit);
         SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LiftedSystemAccountLimit);
 
+        CellCreationCounter_.Increment(mutations.CellsToCreate.size());
         CreateTabletCells(transaction, mutations.CellsToCreate);
+
+        CellRemovalCounter_.Increment(mutations.CellsToRemove.size());
         RemoveTabletCells(transaction, mutations.CellsToRemove);
 
         if (mutations.BundlesDynamicConfig) {
@@ -567,37 +604,23 @@ private:
             SetBundlesDynamicConfig(transaction, *mutations.BundlesDynamicConfig);
         }
 
+        ChangedResourceLimitCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
+
+        ChangedBundleShortNameCounter_.Increment(mutations.ChangedBundleShortName.size());
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName);
 
+        InitializedNodeTagFilterCounter_.Increment(mutations.ChangedNodeTagFilters.size());
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.ChangedNodeTagFilters);
+
+        InitializedBundleTargetConfigCounter_.Increment(mutations.InitializedBundleTargetConfig.size());
         SetBundleAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig);
 
         for (const auto& alert : mutations.AlertsToFire) {
             RegisterAlert(alert);
         }
 
-        InstanceAllocationCounter_.Increment(mutations.NewAllocations.size());
-        InstanceDeallocationCounter_.Increment(mutations.NewDeallocations.size());
-        CellCreationCounter_.Increment(mutations.CellsToCreate.size());
-        CellRemovalCounter_.Increment(mutations.CellsToRemove.size());
-        ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
-        ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
-        ChangedBannedFlagCounter_.Increment(mutations.ChangedBannedFlag.size());
-        ChangedEnableBundleBalancerFlagCounter_.Increment(mutations.ChangedEnableBundleBalancerFlag.size());
-        ChangedNodeAnnotationCounter_.Increment(mutations.ChangedNodeAnnotations.size());
         InstanceCypressNodeRemovalCounter_.Increment(mutations.ProxiesToCleanup.size() + mutations.NodesToCleanup.size());
-
-        ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
-        ChangedProxyRoleCounter_.Increment(mutations.RemovedProxyRole.size());
-        ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
-        ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
-        ChangedResourceLimitCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
-
-        ChangedBundleShortNameCounter_.Increment(mutations.ChangedBundleShortName.size());
-        InitializedNodeTagFilterCounter_.Increment(mutations.ChangedNodeTagFilters.size());
-        InitializedBundleTargetConfigCounter_.Increment(mutations.InitializedBundleTargetConfig.size());
-
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
 
@@ -917,6 +940,7 @@ private:
             auto sensors = GetBundleSensors(bundleName);
 
             sensors->AssigningTabletNodes.Update(std::ssize(bundleState->BundleNodeAssignments));
+            sensors->ReleasingTabletNodes.Update(std::ssize(bundleState->BundleNodeReleasements));
             sensors->AssigningSpareNodes.Update(std::ssize(bundleState->SpareNodeAssignments));
             sensors->ReleasingSpareNodes.Update(std::ssize(bundleState->SpareNodeReleasements));
         }
@@ -1090,6 +1114,7 @@ private:
         sensors->UsingSpareProxyCount = bundleProfiler.Gauge("/using_spare_proxy_count");
 
         sensors->AssigningTabletNodes = bundleProfiler.Gauge("/assigning_tablet_nodes");
+        sensors->ReleasingTabletNodes = bundleProfiler.Gauge("/releasing_tablet_nodes");
         sensors->AssigningSpareNodes = bundleProfiler.Gauge("/assigning_spare_nodes");
         sensors->ReleasingSpareNodes = bundleProfiler.Gauge("/releasing_spare_nodes");
 
@@ -1167,7 +1192,7 @@ private:
     {
         TSchedulerInputState inputState{
             .Config = Config_,
-            .DynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig(),
+            .DynamicConfig = GetDynamicConfig(),
         };
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
@@ -1477,15 +1502,22 @@ private:
         const std::string& attributeName,
         const THashMap<std::string, TAttribute>& attributes)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
         for (const auto& [instanceName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            WaitFor(client->SetNode(path, ConvertToYsonString(attribute)))
-                .ThrowOnError();
+            callbacks.push_back(BIND([=] {
+                return client->SetNode(path, ConvertToYsonString(attribute));
+            }));
         }
+
+        WaitFor(RunWithAllSucceededBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ThrowOnError();
     }
 
     template <class TAttribute>
@@ -1495,14 +1527,27 @@ private:
         const std::string& attributeName,
         const THashMap<std::string, TBundleMutation<TAttribute>>& attributes)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
+        std::vector<std::string> bundleNames;
         for (const auto& [instanceName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation)));
-            MoveBundleToJailAndThrowOnError(result, attribute.BundleName);
+            callbacks.push_back(BIND([=] {
+                return client->SetNode(path, ConvertToYsonString(attribute.Mutation));
+            }));
+            bundleNames.push_back(attribute.BundleName);
+        }
+
+        auto results = WaitFor(CancelableRunWithBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
+
+        for (const auto& [result, bundleName] : Zip(results, bundleNames)) {
+            MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
 
@@ -1513,13 +1558,26 @@ private:
         const std::string& attributeName,
         const THashMap<std::string, TAttribute>& attributes)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
+        std::vector<std::string> bundleNames;
         for (const auto& [bundleName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
                 bundleBasePath,
                 NYPath::ToYPathLiteral(bundleName),
                 attributeName);
 
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute)));
+            callbacks.push_back(BIND([=] {
+                return client->SetNode(path, ConvertToYsonString(attribute));
+            }));
+            bundleNames.push_back(bundleName);
+        }
+
+        auto results = WaitFor(CancelableRunWithBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
+
+        for (const auto& [result, bundleName] : Zip(results, bundleNames)) {
             MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
@@ -1530,6 +1588,8 @@ private:
         const std::string& attributeName,
         const THashSet<TBundleMutation<std::string>>& instances)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
+        std::vector<std::string> bundleNames;
         for (const auto& instanceName : instances) {
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
@@ -1538,9 +1598,20 @@ private:
 
             YT_LOG_DEBUG("Removing attribute (Path: %v)",
                 path);
+            callbacks.push_back(BIND([=] {
+                return transaction->RemoveNode(path);
+            }));
 
-            auto result = WaitFor(transaction->RemoveNode(path));
-            MoveBundleToJailAndThrowOnError(result, instanceName.BundleName);
+            bundleNames.push_back(instanceName.BundleName);
+        }
+
+        auto results = WaitFor(CancelableRunWithBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
+
+        for (const auto& [result, bundleName] : Zip(results, bundleNames)) {
+            MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
 
@@ -1630,20 +1701,35 @@ private:
 
     void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<std::string, int>& cellsToCreate)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
+        std::vector<std::string> bundleNames;
         for (const auto& [bundleName, cellCount] : cellsToCreate) {
             TCreateObjectOptions createOptions;
             createOptions.Attributes = CreateEphemeralAttributes();
             createOptions.Attributes->Set("tablet_cell_bundle", bundleName);
 
             for (int index = 0; index < cellCount; ++index) {
-                auto result = WaitFor(transaction->CreateObject(EObjectType::TabletCell, createOptions));
-                MoveBundleToJailAndThrowOnError(result, bundleName);
+                callbacks.push_back(BIND([=] {
+                    return transaction->CreateObject(EObjectType::TabletCell, createOptions).AsVoid();
+                }));
+                bundleNames.push_back(bundleName);
             }
+        }
+
+        auto results = WaitFor(CancelableRunWithBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
+
+        for (const auto& [result, bundleName] : Zip(results, bundleNames)) {
+            MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
 
     void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<TBundleMutation<std::string>>& cellsToRemove)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
+        std::vector<std::string> bundleNames;
         for (const auto& cellId : cellsToRemove) {
             auto path = TYPath(Format("%v/%v", TabletCellsPath, cellId.Mutation));
 
@@ -1651,17 +1737,36 @@ private:
                 cellId.Mutation,
                 path);
 
-            auto result = WaitFor(transaction->RemoveNode(path));
-            MoveBundleToJailAndThrowOnError(result, cellId.BundleName);
+            callbacks.push_back(BIND([=] {
+                return transaction->RemoveNode(path);
+            }));
+            bundleNames.push_back(cellId.BundleName);
+        }
+
+        auto results = WaitFor(CancelableRunWithBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
+
+        for (const auto& [result, bundleName] : Zip(results, bundleNames)) {
+            MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
 
-    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instancesToRemove)
+    void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instancesToRemove)
     {
+        std::vector<TCallback<TFuture<void>()>> callbacks;
         for (const auto& instanceName : instancesToRemove) {
-            WaitFor(transaction->RemoveNode(Format("%v/%v", basePath, instanceName)))
-                .ThrowOnError();
+            auto path = Format("%v/%v", basePath, instanceName);
+            callbacks.push_back(BIND([=] {
+                return transaction->RemoveNode(path);
+            }));
         }
+
+        WaitFor(RunWithAllSucceededBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
     }
 
     static void SetBundlesDynamicConfig(
@@ -1732,6 +1837,11 @@ private:
                     .Item("iteration_count").Value(OrchidScanBundleCounter_)
                 .EndMap()
             .EndMap();
+    }
+
+    TBundleControllerDynamicConfigPtr GetDynamicConfig() const
+    {
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig();
     }
 };
 
