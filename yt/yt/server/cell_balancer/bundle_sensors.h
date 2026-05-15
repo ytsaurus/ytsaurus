@@ -41,6 +41,7 @@ struct TBundleSensors final
     NProfiling::TGauge UsingSpareProxyCount;
 
     NProfiling::TGauge AssigningTabletNodes;
+    NProfiling::TGauge ReleasingTabletNodes;
     NProfiling::TGauge AssigningSpareNodes;
     NProfiling::TGauge ReleasingSpareNodes;
 
