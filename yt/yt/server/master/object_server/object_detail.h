@@ -4,6 +4,7 @@
 #include "object.h"
 #include "object_manager.h"
 #include "object_proxy.h"
+#include "permission_validator.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -12,8 +13,6 @@
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
-
-#include <yt/yt/server/lib/object_server/permission_validator.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
@@ -171,7 +170,6 @@ protected:
         TObject* object,
         NYTree::EPermission permission);
 
-    using IPermissionValidator = NObjectServer::IPermissionValidator<TObject*>;
     class TPermissionValidator
         : public IPermissionValidator
     {

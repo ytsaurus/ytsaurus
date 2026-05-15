@@ -39,7 +39,7 @@ class TAccessControlObjectProxy
     : public TNonversionedObjectProxyBase<TAccessControlObject>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject*>
+    , public THierarchicPermissionValidator<TObject>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -594,7 +594,7 @@ class TAccessControlObjectNamespaceProxy
     : public TNonversionedObjectProxyBase<TAccessControlObjectNamespace>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject*>
+    , public THierarchicPermissionValidator<TObject>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)

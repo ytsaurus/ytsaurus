@@ -4,21 +4,21 @@
 #include "permission_validator.h"
 #endif
 
-#include "helpers.h"
+#include <yt/yt/server/lib/object_server/helpers.h>
 
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TObject, class TObjectBase>
-THierarchicPermissionValidator<TObject, TObjectBase>::THierarchicPermissionValidator(
+template <class TObject>
+THierarchicPermissionValidator<TObject>::THierarchicPermissionValidator(
     std::unique_ptr<IPermissionValidator> validator)
     : Underlying_(std::move(validator))
 { }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidatePermission(
-    TObject object,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidatePermission(
+    TObject* object,
     NYTree::EPermissionCheckScope scope,
     NYTree::EPermission permission)
 {
@@ -39,9 +39,9 @@ void THierarchicPermissionValidator<TObject, TObjectBase>::ValidatePermission(
     }
 }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidatePermissionForSubtree(
-    TObject object,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidatePermissionForSubtree(
+    TObject* object,
     NYTree::EPermission permission,
     bool descendantsOnly)
 {
@@ -54,19 +54,19 @@ void THierarchicPermissionValidator<TObject, TObjectBase>::ValidatePermissionFor
     }
 }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCreatePermissions(
-    TObject object,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidateCreatePermissions(
+    TObject* object,
     bool replace,
     const NYTree::IAttributeDictionary* attributes)
 {
     ValidateAddChildPermissions(object, replace, IsAdministerValidationNeeded(attributes));
 }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCopyPermissions(
-    TObject sourceObject,
-    TObject thisObject,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidateCopyPermissions(
+    TObject* sourceObject,
+    TObject* thisObject,
     NCypressClient::ENodeCloneMode mode,
     bool replace,
     bool validateAdminister)
@@ -75,9 +75,9 @@ void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCopyPermissio
     ValidateCopyToThisDestinationPermissions(thisObject, replace, validateAdminister);
 }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCopyFromSourcePermissions(
-    TObject sourceObject,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidateCopyFromSourcePermissions(
+    TObject* sourceObject,
     NCypressClient::ENodeCloneMode mode)
 {
     ValidatePermission(
@@ -100,18 +100,18 @@ void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCopyFromSourc
     }
 }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCopyToThisDestinationPermissions(
-    TObject thisObject,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidateCopyToThisDestinationPermissions(
+    TObject* thisObject,
     bool replace,
     bool validateAdminister)
 {
     ValidateAddChildPermissions(thisObject, replace, validateAdminister);
 }
 
-template <class TObject, class TObjectBase>
-void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateAddChildPermissions(
-    TObject object,
+template <class TObject>
+void THierarchicPermissionValidator<TObject>::ValidateAddChildPermissions(
+    TObject* object,
     bool replace,
     bool validateAdminister)
 {
