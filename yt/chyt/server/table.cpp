@@ -42,12 +42,12 @@ void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>
     // TableSchemaCache may be not configured.
     const auto& tableSchemaCache = queryContext->Host->GetTableSchemaCache();
 
-    THashMap<TGuid, std::vector<TTablePtr>> schemaIdToTables;
+    THashMap<TObjectId, std::vector<TTablePtr>> schemaIdToTables;
     for (const auto& table : tables) {
         schemaIdToTables[table->SchemaId].push_back(table);
     }
 
-    THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
+    THashMap<TCellTag, std::vector<TObjectId>> cellTagToSchemaIds;
     // Iterate over schemaIds and filter those that are not in the cache and must be additionally fetched.
     // Group missed schemaIds by externall cell of table.
     for (auto& [schemaId, tablesWithIdenticalSchema] : schemaIdToTables) {
@@ -94,7 +94,7 @@ void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>
         for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
             const auto& rsp = rspOrError.Value();
             auto ysonSchema = NYson::TYsonString(rsp->value());
-            auto schemaId = std::any_cast<TGuid>(rsp->Tag());
+            auto schemaId = std::any_cast<TObjectId>(rsp->Tag());
             auto schema = ConvertTo<TTableSchemaPtr>(ysonSchema);
             for (const auto& table : schemaIdToTables[schemaId]) {
                 table->Schema = schema;
@@ -235,12 +235,12 @@ std::vector<TTablePtr> FetchTables(
 
         if (attributesOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             unsuitableErrors.emplace_back(std::move(attributesOrError).Wrap());
-            YT_LOG_DEBUG("Skip %Qv because it wasn't resolved", path);
+            YT_LOG_DEBUG("Skip unresolved table path (Path: %v)", path);
             continue;
         }
 
         if (!attributesOrError.IsOK()) {
-            errors.emplace_back(TError("Error fetching table %v", path)
+            errors.push_back(TError("Error fetching table %v", path)
                 << std::move(attributesOrError).Wrap()
                 << TErrorAttribute("path", path));
             continue;
@@ -250,24 +250,24 @@ std::vector<TTablePtr> FetchTables(
         auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
         static THashSet<EObjectType> allowedTypes = {EObjectType::Table};
         if (!allowedTypes.contains(type)) {
-            unsuitableErrors.emplace_back(TError("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
+            unsuitableErrors.push_back(TError("Path %v does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
                 path,
                 allowedTypes,
                 type));
-            YT_LOG_DEBUG("Skip %Qv because it's not a table", path);
+            YT_LOG_DEBUG("Skip path because it's not a table (Path: %v)", path);
             continue;
         }
 
         if (attributes->Get<bool>("dynamic", false) &&
             enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
         {
-            unsuitableErrors.emplace_back(TError(
+            unsuitableErrors.push_back(TError(
                 "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
                 "set attribute \"enable_dynamic_store_read\" to true and remount table; "
                 "if you indeed want to read only static part of dynamic table, "
                 "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
                 path.GetPath()));
-            YT_LOG_DEBUG("Skip %Qv because it has disabled dynamic store read when required", path);
+            YT_LOG_DEBUG("Skip table because it has disabled dynamic store read when required (Path: %v)", path);
             continue;
         }
 

@@ -54,7 +54,7 @@ public:
 protected:
     DB::StoragePtr DoGetTable(DB::ContextPtr context, const String& name) const;
 
-    DB::StoragePtr DoGetYtTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
+    DB::StoragePtr DoGetYTTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
     DB::StoragePtr DoGetDictionary(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
 };
 

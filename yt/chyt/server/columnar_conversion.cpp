@@ -259,11 +259,11 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumnImpl(
         size_t specialValueCount = isNullable ? 2 : 1;
         auto dictionaryValues = DB::ColumnVector<T>::create(values.size() + specialValueCount, 0);
         auto& dictionaryData = dictionaryValues->getData();
-        size_t nextDictionaryIndex = specialValueCount;
+        i64 nextDictionaryIndex = specialValueCount;
 
         std::vector<ui32> indexMapping(values.size());
         for (const auto& [index, value] : Enumerate(values)) {
-            T decodedValue = DecodeIntegerValue<T>(value, baseValue, zigZagEncoded);
+            auto decodedValue = DecodeIntegerValue<T>(value, baseValue, zigZagEncoded);
             // CH always stores default value in holder column at the first indexes.
             if (!decodedValue) {
                 indexMapping[index] = isNullable ? 1 : 0;
@@ -716,8 +716,8 @@ DB::MutableColumnPtr ConvertTzYTColumnToCHColumnImpl(
 DB::MutableColumnUniquePtr ConvertStringLikeYtColumnDictionaryToChColumnUniqueImpl(
     const std::vector<const char*>& ytStrings,
     const std::vector<i32>& ytStringLengths,
-    const std::vector<ui32> dictionaryIndexes,
-    DB::DataTypePtr dictionaryType)
+    const std::vector<ui32>& dictionaryIndexes,
+    const DB::DataTypePtr& dictionaryType)
 {
     // Additional byte for zero in the end of every string.
     // Default and null elements are accounted in dictionaryIndexes as zero values.
@@ -812,8 +812,6 @@ DB::MutableColumnPtr ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(
             ytValueColumn->Strings->Data,
             TMutableRange(ytStrings),
             TMutableRange(ytStringLengths));
-
-        std::unordered_set<ui32> requiredIdSet;
 
         std::vector<ui32> requiredIds;
         requiredIds.reserve(requiredIds.size() + specialValueCount);

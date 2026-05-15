@@ -10,7 +10,7 @@ void RegisterTableDictionarySource(THost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYPath::TYPath> GetTableDictionarySourcePath(DB::DictionarySourcePtr source);
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(DB::DictionarySourcePtr source);
 
 ////////////////////////////////////////////////////////////////////////////////
 

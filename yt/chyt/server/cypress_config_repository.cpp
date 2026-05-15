@@ -107,7 +107,7 @@ DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary
     auto configYson = WaitFor(Client_->GetNode(GetPathToConfig(dictionaryName), options))
         .ValueOrThrow();
 
-    std::stringstream configStream(ConvertTo<IStringNodePtr>(configYson)->GetValue());
+    std::stringstream configStream(ConvertTo<std::string>(configYson));
 
     DBPoco::AutoPtr<DBPoco::Util::XMLConfiguration> config(new DBPoco::Util::XMLConfiguration);
     config->load(configStream);
