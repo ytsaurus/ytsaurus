@@ -29,6 +29,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/logging/log_manager.h>
+
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/utilex/random.h>
@@ -859,6 +861,11 @@ bool TSlotManager::Disable(TError error)
     auto jobsAbortionError = TError("Job aborted due to fatal alert")
         << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
 
+    constexpr auto abortDramatically = [] (const char* error) {
+        NLogging::TLogManager::Get()->Shutdown();
+        AbortProcessDramatically(EProcessExitCode::InternalError, error);
+    };
+
     const auto& jobController = Bootstrap_->GetJobController();
 
     if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
@@ -871,8 +878,8 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            SortedFreeSlots());
-        AbortProcessDramatically(EProcessExitCode::InternalError, "Free slot synchronization failed");
+            MakeCompactIntervalView(GetSortedFreeSlots()));
+        abortDramatically("Free slot synchronization failed");
     }
 
     if (auto volumeManager = VolumeManager_.Acquire()) {
@@ -889,7 +896,7 @@ bool TSlotManager::Disable(TError error)
                 disableVolumeManagerResult,
                 "Failed to release volumes");
             if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
-                AbortProcessDramatically(EProcessExitCode::InternalError, "Failed to release volumes");
+                abortDramatically("Failed to release volumes");
             }
         }
 
@@ -898,7 +905,7 @@ bool TSlotManager::Disable(TError error)
                 disableLayerCacheResult,
                 "Disabling the layer cache failed with an error");
             if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
-                AbortProcessDramatically(EProcessExitCode::InternalError, "Disabling the layer cache failed with an error");
+                abortDramatically("Disabling the layer cache failed with an error");
             }
         }
     }
@@ -912,8 +919,8 @@ bool TSlotManager::Disable(TError error)
             SlotCount_,
             InitializedSlotCount_.load(),
             InitializationEpoch_,
-            SortedFreeSlots());
-        AbortProcessDramatically(EProcessExitCode::InternalError, "Some slots are hung after disabling slot manager");
+            MakeCompactIntervalView(GetSortedFreeSlots()));
+        abortDramatically("Some slots are hung after disabling slot manager");
     }
 
     VerifyCurrentState(ESlotManagerState::Disabling);
@@ -1323,7 +1330,7 @@ void TSlotManager::PushSlot(int slotIndex)
         SlotCount_,
         InitializedSlotCount_.load(),
         InitializationEpoch_,
-        SortedFreeSlots());
+        MakeCompactIntervalView(GetSortedFreeSlots()));
 }
 
 int TSlotManager::PopSlot()
@@ -1362,7 +1369,7 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, NClusterNode::
         requestedCpu);
 }
 
-std::vector<int> TSlotManager::SortedFreeSlots()
+std::vector<int> TSlotManager::GetSortedFreeSlots()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
