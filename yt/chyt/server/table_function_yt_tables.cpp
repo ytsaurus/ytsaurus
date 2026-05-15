@@ -219,8 +219,7 @@ private:
             queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        DB::StorageID storageId{"YT", BuildStorageName(tables)};
-        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
+        return CreateStorageDistributor(context, std::move(tables));
     }
 
     const char* getStorageTypeName() const override
