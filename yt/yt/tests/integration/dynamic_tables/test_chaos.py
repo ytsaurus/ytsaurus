@@ -5088,7 +5088,7 @@ class TestChaosSpecial(ChaosTestBase):
 
     @authors("savrus")
     def test_nodes_restart(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
+        cell_id = self._sync_create_chaos_bundle_and_cell(align_cell_tags=True)
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
@@ -5098,14 +5098,20 @@ class TestChaosSpecial(ChaosTestBase):
         card_id, _ = self._create_chaos_tables(cell_id, replicas)
         _, _, remote_driver1 = self._get_drivers()
 
+        chaos_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 60000})
+
         values0 = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values0)
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0)
+
+        build_snapshot(cell_id)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
         with Restarter(self.Env, CHAOS_NODES_SERVICE):
             pass
+
+        remove(f"#{chaos_lease_id}")
 
         wait_for_chaos_cell(cell_id, self.get_cluster_names())
         for driver in self._get_drivers():
