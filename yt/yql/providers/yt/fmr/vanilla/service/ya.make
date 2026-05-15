@@ -27,6 +27,7 @@ PEERDIR(
     yt/yql/providers/yt/fmr/table_data_service/local/impl
     yt/yql/providers/yt/fmr/table_data_service/server
     yt/yql/providers/yt/fmr/vanilla/coordinator_client
+    yt/yql/providers/yt/fmr/vanilla/http_mon
     yt/yql/providers/yt/fmr/vanilla/peer_tracker
     yt/yql/providers/yt/fmr/vanilla/tds_discovery
     yt/yql/providers/yt/fmr/worker/impl

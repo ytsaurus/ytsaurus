@@ -15,6 +15,7 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/server/yql_yt_table_data_service_server.h>
 #include <yt/yql/providers/yt/fmr/vanilla/coordinator_client/yql_yt_vanilla_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/vanilla/peer_tracker/yql_yt_vanilla_peer_tracker.h>
+#include <yt/yql/providers/yt/fmr/vanilla/http_mon/yql_yt_vanilla_http_mon.h>
 #include <yt/yql/providers/yt/fmr/vanilla/tds_discovery/yql_yt_vanilla_tds_discovery.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/impl/yql_yt_job_service_impl.h>
@@ -139,6 +140,12 @@ public:
             TTableDataServiceServerSettings{.Host = selfIp, .Port = 8002});
         tdsServer->Start();
 
+        // Peer HTTP server on every job node: lists peers at GET / and identifies self at GET /<cookie>.
+        auto httpMon = MakeVanillaHttpMon(
+            &tracker,
+            TVanillaHttpMonSettings{.Host = selfIp, .Port = 8003});
+        httpMon->Start();
+
         // Coordinator server on cookie=0 only.
         IFmrServer::TPtr coordServer;
         if (selfIndex == 0) {
@@ -211,6 +218,7 @@ public:
         worker->Stop();
         jobFactory->Stop();
         tdsDiscovery->Stop();
+        httpMon->Stop();
         tdsServer->Stop();
         if (coordServer) {
             coordServer->Stop();
