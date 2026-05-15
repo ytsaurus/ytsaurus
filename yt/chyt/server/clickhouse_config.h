@@ -67,7 +67,7 @@ struct TDictionaryConfig
 {
     TString Name;
 
-    TString Database;
+    std::optional<TString> Database;
 
     //! Source configuration.
     TDictionarySourceConfigPtr Source;

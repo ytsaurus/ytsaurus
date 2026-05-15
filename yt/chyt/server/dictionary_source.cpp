@@ -257,7 +257,7 @@ void RegisterTableDictionarySource(THost* host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYPath::TYPath> GetTableDictionarySourcePath(DB::DictionarySourcePtr source)
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(DB::DictionarySourcePtr source)
 {
     auto ytSource = std::dynamic_pointer_cast<TTableDictionarySource>(source);
     if (!ytSource) {

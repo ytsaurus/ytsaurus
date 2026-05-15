@@ -232,25 +232,25 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetLowCardinalityFromStatistics(
-    std::vector<bool>& lowCardinalityMask,
+    std::vector<bool>* lowCardinalityMask,
     ui64 lowCardinalityThreshold,
     const std::vector<NTableClient::TColumnarHyperLogLogDigest>& columnHyperLogLogDigests)
 {
-    YT_VERIFY(columnHyperLogLogDigests.size() == lowCardinalityMask.size());
-    for (int i = 0; i < std::ssize(lowCardinalityMask); ++i) {
-        lowCardinalityMask[i] = columnHyperLogLogDigests[i].EstimateCardinality() <= lowCardinalityThreshold;
+    YT_VERIFY(columnHyperLogLogDigests.size() == lowCardinalityMask->size());
+    for (int i = 0; i < std::ssize(*lowCardinalityMask); ++i) {
+        (*lowCardinalityMask)[i] = columnHyperLogLogDigests[i].EstimateCardinality() <= lowCardinalityThreshold;
     }
 }
 
 void SetStringOnlyLowCardinality(
-    std::vector<bool>& lowCardinalityMask,
+    std::vector<bool>* lowCardinalityMask,
     const std::vector<TColumnSchema>& columns)
 {
-    for (int i = 0; i < std::ssize(lowCardinalityMask); ++i) {
+    for (int i = 0; i < std::ssize(*lowCardinalityMask); ++i) {
         auto type = DenullifyLogicalType(columns[i].LogicalType());
         if (type->GetMetatype() == ELogicalMetatype::Simple) {
             auto element = type->AsSimpleTypeRef().GetElement();
-            lowCardinalityMask[i] =
+            (*lowCardinalityMask)[i] =
                 element == ESimpleLogicalValueType::String ||
                     element == ESimpleLogicalValueType::Utf8 ||
                     element == ESimpleLogicalValueType::Json;
@@ -259,13 +259,13 @@ void SetStringOnlyLowCardinality(
 }
 
 void SetLowCardinalityFromRegExp(
-    std::vector<bool>& lowCardinalityMask,
+    std::vector<bool>* lowCardinalityMask,
     const std::vector<TColumnSchema>& columns,
     NRe2::TRe2Ptr columnNameRegExp)
 {
-    for (int i = 0; i < std::ssize(lowCardinalityMask); ++i) {
+    for (int i = 0; i < std::ssize(*lowCardinalityMask); ++i) {
         if (columnNameRegExp && NRe2::TRe2::FullMatch(columns[i].Name(), *columnNameRegExp)) {
-            lowCardinalityMask[i] = true;
+            (*lowCardinalityMask)[i] = true;
         }
     }
 }
@@ -292,16 +292,16 @@ TTableSchemaPtr BuildLowCardinalitySchema(TStorageContext* storageContext, TTabl
             storageContext->QueryContext->ReadTransactionId);
         if (statistics.has_value() && statistics->HasLargeStatistics() && !statistics->LargeStatistics.ColumnHyperLogLogDigests.empty()) {
             SetLowCardinalityFromStatistics(
-                mask,
+                &mask,
                 settings->LowCardinality->Threshold,
                 statistics->LargeStatistics.ColumnHyperLogLogDigests);
         }
     } else if (settings->LowCardinality->Mode == ELowCardinalityMode::StringOnly) {
-        SetStringOnlyLowCardinality(mask, columns);
+        SetStringOnlyLowCardinality(&mask, columns);
     }
 
     if (settings->LowCardinality->RegExp) {
-        SetLowCardinalityFromRegExp(mask, columns, settings->LowCardinality->RegExp);
+        SetLowCardinalityFromRegExp(&mask, columns, settings->LowCardinality->RegExp);
     }
 
     if (std::none_of(mask.begin(), mask.end(), [] (bool value) { return value; })) {

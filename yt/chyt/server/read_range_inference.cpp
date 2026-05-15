@@ -60,8 +60,7 @@ using NYT::NTableClient::TUnversionedRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
-{
+const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode {
     {"equals", EBinaryOp::Equal},
     {"notEquals", EBinaryOp::NotEqual},
     {"less", EBinaryOp::Less},
@@ -72,8 +71,7 @@ const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
     {"or", EBinaryOp::Or},
 };
 
-const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
-{
+const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp {
     {EBinaryOp::Equal, EBinaryOp::Equal},
     {EBinaryOp::NotEqual, EBinaryOp::NotEqual},
     {EBinaryOp::Less, EBinaryOp::Greater},
@@ -256,7 +254,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
 
                 if (rhsNode->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
                     lhsNode.swap(rhsNode);
-                    opCode = BinaryOpToConversedOp.at(opCode);
+                    opCode = GetOrCrash(BinaryOpToConversedOp, opCode);
                 }
 
                 DB::DataTypePtr desiredLhsDataType;

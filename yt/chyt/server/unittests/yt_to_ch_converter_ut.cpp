@@ -430,7 +430,6 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
             expectedDataType = std::make_shared<DB::DataTypeLowCardinality>(expectedDataType);
         }
 
-
         auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
         TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
         TColumnSchema columnSchemaOptional(/*name*/ "", OptionalLogicalType(logicalType));

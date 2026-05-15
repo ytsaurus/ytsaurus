@@ -143,7 +143,7 @@ DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
-DECLARE_REFCOUNTED_CLASS(IDictionaryAccessControl)
+DECLARE_REFCOUNTED_STRUCT(IDictionaryAccessControl)
 
 struct TValue;
 struct TSubquerySpec;
@@ -261,9 +261,9 @@ DEFINE_ENUM(ETableReadLockMode,
 );
 
 DEFINE_ENUM(EStorageConflictResolveMode,
-    ((Throw) (0))
-    ((Clique) (1))
-    ((Yt) (2))
+    ((Throw)    (0))
+    ((Clique)   (1))
+    ((YT)       (2) ("yt"))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -121,7 +121,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
 
             try {
                 columnType = MergeTypes(columnType, commonType);
-            } catch (...) {
+            } catch (std::exception&) {
                 // We will handle type missmatch on the second pass.
             }
 

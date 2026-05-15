@@ -93,7 +93,7 @@ public:
     }
 
 private:
-    TYPath Root_;
+    const TYPath Root_;
 
     std::vector<TTablePtr> FetchTablesFromRootDirectory(TQueryContext* queryContext, const FilterByNameFunction& filterByTableName) const
     {
