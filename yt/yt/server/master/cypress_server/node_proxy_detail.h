@@ -10,12 +10,11 @@
 #include <yt/yt/server/master/chunk_server/chunk_owner_data_statistics.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/permission_validator.h>
 
 #include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
-
-#include <yt/yt/server/lib/object_server/permission_validator.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -29,7 +28,7 @@ namespace NYT::NCypressServer {
 class TNontemplateCypressNodeProxyBase
     : public virtual NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
-    , public NObjectServer::THierarchicPermissionValidator<TCypressNode*, NObjectServer::TObject*>
+    , public NObjectServer::THierarchicPermissionValidator<TCypressNode>
     , public ICypressNodeProxy
 {
 public:
@@ -206,8 +205,8 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    TCompactVector<NObjectServer::TObject*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
-    NObjectServer::TObject* GetParentForPermissionValidation(TCypressNode* node) override;
+    TCompactVector<TCypressNode*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
+    TCypressNode* GetParentForPermissionValidation(TCypressNode* node) override;
 
     void SetReachableSubtreeNodes(TCypressNode* node);
     void SetUnreachableSubtreeNodes(TCypressNode* node);

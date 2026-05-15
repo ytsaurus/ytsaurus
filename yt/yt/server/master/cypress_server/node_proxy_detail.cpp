@@ -1517,18 +1517,14 @@ void TNontemplateCypressNodeProxyBase::ValidateAdHocPermission(
     }
 }
 
-TCompactVector<TObject*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
+TCompactVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendantsForPermissionValidation(TCypressNode* node)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* trunkNode = node->GetTrunkNode();
-    auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
-
-    return TCompactVector<TObject*, 1>(
-        descendants.begin(),
-        descendants.end());
+    return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
 }
 
-TObject* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
+TCypressNode* TNontemplateCypressNodeProxyBase::GetParentForPermissionValidation(TCypressNode* node)
 {
     return node->GetParent();
 }

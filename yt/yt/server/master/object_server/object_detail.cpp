@@ -943,7 +943,7 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
-std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
 {
     return std::make_unique<TPermissionValidator>(this);
 }
