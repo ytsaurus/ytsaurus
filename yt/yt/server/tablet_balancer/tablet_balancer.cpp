@@ -1690,6 +1690,10 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
             continue;
         }
 
+        if (!table->Sorted) {
+            continue;
+        }
+
         auto tableDescriptors = WaitFor(reshardIteration->MergeSplitTable(table, WorkerPool_->GetInvoker()))
             .ValueOrThrow();
 
