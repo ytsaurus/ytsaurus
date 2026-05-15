@@ -24,6 +24,7 @@ def chunk_replicas_table_mapper(row):
     id_parts = parse_guid(result["chunk_id"])
     result["cell_tag"] = get_chunk_cell_tag(id_parts)
     result["shard_index"] = get_chunk_shard_index(id_parts)
+    result["stored_replicas"] = [result["stored_replicas"], []]
     yield result
 
 
