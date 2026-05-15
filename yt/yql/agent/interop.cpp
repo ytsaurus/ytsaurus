@@ -112,18 +112,17 @@ void TYqlRef::Register(TRegistrar registrar)
 }
 
 TYqlRowset BuildRowsetByRef(
-    TTableSchemaPtr targetSchema,
     const std::vector<std::pair<TString, TString>>& clusters,
     const TClientOptions& clientOptions,
-    TYqlRefPtr reference,
+    TYqlRefPtr references,
     int resultIndex,
     i64 rowCountLimit)
 {
-    if (reference->Reference.size() != 3 || reference->Reference[0] != "yt") {
-        THROW_ERROR_EXCEPTION("Malformed YQL reference %v", reference->Reference);
+    if (references->Reference.size() != 3 || references->Reference[0] != "yt") {
+        THROW_ERROR_EXCEPTION("Malformed YQL reference %v", references->Reference);
     }
-    const auto& cluster = reference->Reference[1];
-    auto table = reference->Reference[2];
+    const auto& cluster = references->Reference[1];
+    auto table = references->Reference[2];
     if (!table.StartsWith("#") && !table.StartsWith("//")) {
         // Best effort to deYQLize paths.
         table = "//" + table;
@@ -142,6 +141,7 @@ TYqlRowset BuildRowsetByRef(
     auto connection = NRpcProxy::CreateConnection(config);
     auto client = connection->CreateClient(clientOptions);
 
+    TTableSchemaPtr targetSchema;
     TNameTablePtr targetNameTable;
     TNameTablePtr sourceNameTable;
     std::vector<TUnversionedRow> resultRows;
@@ -158,6 +158,7 @@ TYqlRowset BuildRowsetByRef(
 
         auto selectResult = WaitFor(client->SelectRows(Format("* from [%v] limit %v", table, rowCountLimit + 1)))
             .ValueOrThrow();
+        targetSchema = selectResult.Rowset->GetSchema()->Filter(references->Columns);
         targetNameTable = TNameTable::FromSchema(*targetSchema);
         sourceNameTable = selectResult.Rowset->GetNameTable();
 
@@ -166,8 +167,8 @@ TYqlRowset BuildRowsetByRef(
         ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, selectResult.Rowset->GetRows(), resultRows);
     } else {
         TRichYPath path(table);
-        if (reference->Columns) {
-            path.SetColumns(*reference->Columns);
+        if (references->Columns) {
+            path.SetColumns(*references->Columns);
         }
         TReadLimit upperReadLimit;
         upperReadLimit.SetRowIndex(rowCountLimit + 1);
@@ -179,6 +180,7 @@ TYqlRowset BuildRowsetByRef(
         auto reader = WaitFor(client->CreateTableReader(path, NApi::TTableReaderOptions{.EnableAnyUnpacking = false}))
             .ValueOrThrow();
 
+        targetSchema = reader->GetTableSchema()->Filter(references->Columns);
         targetNameTable = TNameTable::FromSchema(*targetSchema);
         sourceNameTable = reader->GetNameTable();
 
@@ -201,10 +203,11 @@ TYqlRowset BuildRowsetByRef(
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
     return TYqlRowset {
+        .TargetSchema = targetSchema,
         .ResultRows = resultRows,
         .RowBuffer = rowBuffer,
         .Incomplete = incomplete,
-        .References = {reference},
+        .References = references,
     };
 }
 
@@ -228,7 +231,6 @@ TYqlRowset BuildRowset(
     const TBuildingValueConsumer& consumer,
     int resultIndex,
     bool incomplete,
-    const std::vector<TYqlRefPtr>& references,
     THashMap<TString, ui32> columns = {},
     std::optional<i64> rowCountLimit = std::nullopt)
 {
@@ -267,20 +269,8 @@ TYqlRowset BuildRowset(
         .ResultRows = std::move(resultRows),
         .RowBuffer = std::move(rowBuffer),
         .Incomplete = incomplete,
-        .References = references,
     };
 }
-
-void CombineRowsets(TYqlRowset& resultRowset, TYqlRowset newRowset)
-{
-    YT_ASSERT(newRowset.References.size() == 1);
-
-    resultRowset.References.push_back(newRowset.References[0]);
-    resultRowset.ResultRows.insert(resultRowset.ResultRows.end(), newRowset.ResultRows.begin(), newRowset.ResultRows.end());
-    resultRowset.RowBuffer->Absorb(std::move(*newRowset.RowBuffer));
-    resultRowset.Incomplete |= newRowset.Incomplete;
-}
-
 
 TYqlRowset BuildRowsetFromYson(
     const std::vector<std::pair<TString, TString>>& clusters,
@@ -289,38 +279,27 @@ TYqlRowset BuildRowsetFromYson(
     int resultIndex,
     i64 rowCountLimit)
 {
+    if (!write.Refs.empty()) {
+        if (write.Refs.size() != 1) {
+            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet");
+        }
+        auto ref = New<TYqlRef>();
+        ref->Reference = write.Refs.front().Reference;
+        if (const auto& columns = write.Refs.front().Columns) {
+            ref->Columns.emplace(columns->size());
+            std::copy(columns->cbegin(), columns->cend(), ref->Columns->begin());
+        }
+        return BuildRowsetByRef(clusters, clientOptions, std::move(ref), resultIndex, rowCountLimit);
+    }
+
     TTypeBuilder typeBuilder;
     NYql::NResult::ParseType(*write.Type, typeBuilder);
     auto typeResult = typeBuilder.PullResult();
     const auto schema = BuildSchema(*typeResult);
-
-    std::vector<TYqlRefPtr> references;
-    for (const auto& resultRef : write.Refs) {
-        auto ref = New<TYqlRef>();
-        ref->Reference = resultRef.Reference;
-        if (const auto& columns = resultRef.Columns; columns) {
-            ref->Columns.emplace(columns->size());
-            std::copy(columns->cbegin(), columns->cend(), ref->Columns->begin());
-        }
-        references.push_back(std::move(ref));
-    }
-
-    if (!write.Refs.empty() && !write.Data) {
-        TYqlRowset result = {
-            .TargetSchema = schema,
-            .RowBuffer = New<TRowBuffer>(),
-        };
-
-        for (const auto& ref : references) {
-            CombineRowsets(result, BuildRowsetByRef(schema, clusters, clientOptions, ref, resultIndex, rowCountLimit - result.ResultRows.size()));
-        }
-        return result;
-    }
-
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
     TDataBuilder dataBuilder(&consumer, typeResult);
     NYql::NResult::ParseData(*write.Type, *write.Data, dataBuilder);
-    return BuildRowset(consumer, resultIndex, write.IsTruncated, references, {}, rowCountLimit);
+    return BuildRowset(consumer, resultIndex, write.IsTruncated, {}, rowCountLimit);
 }
 
 TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
