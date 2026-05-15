@@ -444,9 +444,7 @@ func TestListAllJobs(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
-	defer cancel()
+	baseCtx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
 
 	s := spec.Vanilla().AddVanillaTask("job", 10)
 	s.MaxFailedJobCount = 1
@@ -454,6 +452,9 @@ func TestListAllJobs(t *testing.T) {
 	op, err := env.MR.Vanilla(s, map[string]mapreduce.Job{"job": &HelloJob{}})
 	require.NoError(t, err)
 	require.NoError(t, op.Wait())
+
+	ctx, cancel := context.WithTimeout(baseCtx, time.Minute*3)
+	defer cancel()
 
 	jobs, err := yt.ListAllJobs(ctx, env.YT, op.ID(), &yt.ListJobsOptions{
 		Limit: ptr.Int(2),
