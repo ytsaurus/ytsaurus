@@ -1,7 +1,6 @@
 from .common import set_param
 from .driver import make_request, make_formatted_request, get_structured_format
 from .dynamic_table_commands import get_tablet_infos, select_rows
-from .format import YsonFormat
 from .ypath import YPath
 
 from yt.common import YtError
@@ -21,13 +20,11 @@ def start_pipeline(pipeline_path, timeout=None, client=None):
     :param pipeline_path: path to pipeline.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-
-    return make_request(
-        "start_pipeline",
-        params=params,
-        client=client,
-        timeout=timeout)
+    return flow_execute(
+        pipeline_path,
+        flow_command="set-target-pipeline-state",
+        flow_argument={"target_pipeline_state": "completed"},
+        client=client)
 
 
 def stop_pipeline(pipeline_path, client=None):
@@ -36,9 +33,11 @@ def stop_pipeline(pipeline_path, client=None):
     :param pipeline_path: path to pipeline.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-
-    return make_request("stop_pipeline", params, client=client)
+    return flow_execute(
+        pipeline_path,
+        flow_command="set-target-pipeline-state",
+        flow_argument={"target_pipeline_state": "stopped"},
+        client=client)
 
 
 def pause_pipeline(pipeline_path, client=None):
@@ -47,9 +46,11 @@ def pause_pipeline(pipeline_path, client=None):
     :param pipeline_path: path to pipeline.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-
-    return make_request("pause_pipeline", params, client=client)
+    return flow_execute(
+        pipeline_path,
+        flow_command="set-target-pipeline-state",
+        flow_argument={"target_pipeline_state": "paused"},
+        client=client)
 
 
 def get_pipeline_spec(pipeline_path, spec_path=None, format=None, client=None):
@@ -59,44 +60,40 @@ def get_pipeline_spec(pipeline_path, spec_path=None, format=None, client=None):
     :param spec_path: path inside pipeline spec yson struct, starting with /.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-    set_param(params, "spec_path", spec_path)
+    argument = {}
+    set_param(argument, "path", spec_path)
 
-    result = make_formatted_request(
-        "get_pipeline_spec",
-        params=params,
-        format=format,
+    return flow_execute(
+        pipeline_path,
+        flow_command="get-pipeline-spec",
+        flow_argument=argument,
+        output_format=format,
         client=client)
-    return result
 
 
 def set_pipeline_spec(pipeline_path, value, spec_path=None, expected_version=None, force=None, format=None, client=None):
     """Set YT Flow pipeline spec.
 
     :param pipeline_path: path to pipeline.
-    :param spec: new pipeline spec.
+    :param value: new pipeline spec.
     :param spec_path: path inside pipeline spec yson struct, starting with /.
     :param expected_version: current spec expected version.
     :param force: if true, update spec even if pipeline is paused.
     """
 
-    is_format_specified = format is not None
-    format = get_structured_format(format, client=client)
-    if not is_format_specified:
-        value = format.dumps_node(value)
+    if format is not None:
+        # value is pre-serialized bytes; parse it first so it can be wrapped into the argument map.
+        value = yson.loads(value)
 
-    params = {
-        "pipeline_path": YPath(pipeline_path, client=client),
-        "input_format": format.to_yson_type(),
-    }
-    set_param(params, "spec_path", spec_path)
+    params = {"spec": value}
+    set_param(params, "path", spec_path)
     set_param(params, "expected_version", expected_version)
     set_param(params, "force", force)
 
-    return make_request(
-        "set_pipeline_spec",
-        params,
-        data=value,
+    return flow_execute(
+        pipeline_path,
+        flow_command="set-pipeline-spec",
+        flow_argument=params,
         client=client)
 
 
@@ -127,42 +124,38 @@ def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, format=None, client
     :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-    set_param(params, "spec_path", spec_path)
+    params = {}
+    set_param(params, "path", spec_path)
 
-    result = make_formatted_request(
-        "get_pipeline_dynamic_spec",
-        params=params,
-        format=format,
+    return flow_execute(
+        pipeline_path,
+        flow_command="get-pipeline-dynamic-spec",
+        flow_argument=params,
+        output_format=format,
         client=client)
-    return result
 
 
 def set_pipeline_dynamic_spec(pipeline_path, value, spec_path=None, expected_version=None, format=None, client=None):
     """Set YT Flow pipeline dynamic spec.
 
     :param pipeline_path: path to pipeline.
-    :param spec: new pipeline spec.
+    :param value: new pipeline dynamic spec.
     :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
     :param expected_version: current dynamic spec expected version.
     """
 
-    is_format_specified = format is not None
-    format = get_structured_format(format, client=client)
-    if not is_format_specified:
-        value = format.dumps_node(value)
+    if format is not None:
+        # value is pre-serialized bytes; parse it first so it can be wrapped into the argument map.
+        value = yson.loads(value)
 
-    params = {
-        "pipeline_path": YPath(pipeline_path, client=client),
-        "input_format": format.to_yson_type(),
-    }
-    set_param(params, "spec_path", spec_path)
+    params = {"spec": value}
+    set_param(params, "path", spec_path)
     set_param(params, "expected_version", expected_version)
 
-    return make_request(
-        "set_pipeline_dynamic_spec",
-        params,
-        data=value,
+    return flow_execute(
+        pipeline_path,
+        flow_command="set-pipeline-dynamic-spec",
+        flow_argument=params,
         client=client)
 
 
@@ -190,18 +183,12 @@ def get_pipeline_state(pipeline_path, timeout=None, client=None):
     :param pipeline_path: path to pipeline
     """
 
-    params = {
-        "pipeline_path": YPath(pipeline_path, client=client),
-        "timeout": timeout
-    }
-
-    result = make_formatted_request(
-        "get_pipeline_state",
-        params=params,
-        format=YsonFormat(),
-        timeout=timeout,
+    result = flow_execute(
+        pipeline_path,
+        flow_command="get-pipeline-state",
+        flow_argument={},
         client=client)
-    return result.decode("utf-8").lower()
+    return result["pipeline_state"].lower()
 
 
 class PipelineState(str, enum.Enum):
@@ -270,16 +257,16 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, format=None, client
     :param cache: use controller cache
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
-    set_param(params, "view_path", view_path)
+    params = {}
+    set_param(params, "path", view_path)
     set_param(params, "cache", cache)
 
-    result = make_formatted_request(
-        "get_flow_view",
-        params=params,
-        format=format,
+    return flow_execute(
+        pipeline_path,
+        flow_command="get-flow-view",
+        flow_argument=params,
+        output_format=format,
         client=client)
-    return result
 
 
 def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, input_format=None, output_format=None, client=None):
