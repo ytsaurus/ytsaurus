@@ -215,13 +215,15 @@ public:
     {
         auto chaosLeaseId = chaosLeaseHolder->GetId();
         auto* chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
-        ChaosLeaseTracker_->RegisterTransaction(
-            chaosLeaseId,
-            chaosLease->GetParentId(),
-            chaosLease->GetTimeout(),
-            std::nullopt,
-            BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
-                .Via(Slot_->GetEpochAutomatonInvoker()));
+        if (IsLeader()) {
+            ChaosLeaseTracker_->RegisterTransaction(
+                chaosLeaseId,
+                chaosLease->GetParentId(),
+                chaosLease->GetTimeout(),
+                std::nullopt,
+                BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
+                    .Via(Slot_->GetEpochAutomatonInvoker()));
+        }
     }
 
     void HydraChaosNodeSetState(NChaosNode::NProto::TReqSetState* request)
@@ -265,13 +267,16 @@ public:
             }
 
             chaosLease->SetState(EChaosLeaseState::Normal);
-            ChaosLeaseTracker_->RegisterTransaction(
-                chaosLeaseId,
-                chaosLease->GetParentId(),
-                chaosLease->GetTimeout(),
-                std::nullopt,
-                BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
-                    .Via(Slot_->GetEpochAutomatonInvoker()));
+
+            if (IsLeader()) {
+                ChaosLeaseTracker_->RegisterTransaction(
+                    chaosLeaseId,
+                    chaosLease->GetParentId(),
+                    chaosLease->GetTimeout(),
+                    std::nullopt,
+                    BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
+                        .Via(Slot_->GetEpochAutomatonInvoker()));
+            }
 
             // COMPAT(osidorkin)
             if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
@@ -766,13 +771,15 @@ private:
         chaosLeaseHolder->SetTimeout(timeout);
         auto* chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
 
-        ChaosLeaseTracker_->RegisterTransaction(
-            chaosLeaseId,
-            parentId,
-            timeout,
-            std::nullopt,
-            BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
-                .Via(Slot_->GetEpochAutomatonInvoker()));
+        if (IsLeader()) {
+            ChaosLeaseTracker_->RegisterTransaction(
+                chaosLeaseId,
+                parentId,
+                timeout,
+                std::nullopt,
+                BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
+                    .Via(Slot_->GetEpochAutomatonInvoker()));
+        }
 
         YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
             chaosLeaseId);

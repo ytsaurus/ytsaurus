@@ -5,7 +5,8 @@ from yt_commands import (
     print_debug, wait, get_driver, get, set, ls, exists, create, alter_table, insert_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     create_tablet_cell, wait_for_cells, mount_table, wait_for_tablet_state,
-    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
+    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards,
+    align_chaos_cell_tag)
 
 import yt_error_codes
 
@@ -59,9 +60,11 @@ class ChaosTestBase(DynamicTablesBase):
             node_tag_filter=node_tag_filter,
             options=options)
 
-    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default"):
+    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default", align_cell_tags=False):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
+        if align_cell_tags:
+            align_chaos_cell_tag()
         cell_id = generate_chaos_cell_id()
         sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names, area=area)
         return cell_id
@@ -73,7 +76,8 @@ class ChaosTestBase(DynamicTablesBase):
         meta_cluster_names=[],
         clock_cluster_tag=None,
         node_tag_filter=None,
-        chaos_bundle_options=None
+        chaos_bundle_options=None,
+        align_cell_tags=False,
     ):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
@@ -87,7 +91,8 @@ class ChaosTestBase(DynamicTablesBase):
         return self._sync_create_chaos_cell(
             name=name,
             peer_cluster_names=peer_cluster_names,
-            meta_cluster_names=meta_cluster_names)
+            meta_cluster_names=meta_cluster_names,
+            align_cell_tags=align_cell_tags)
 
     def _list_chaos_nodes(self, driver=None):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
