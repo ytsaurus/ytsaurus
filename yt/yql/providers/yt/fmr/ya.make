@@ -1,6 +1,7 @@
 RECURSE(
     coordinator
     file
+    fmr_download
     fmr_tool_lib
     gc_service
     job
