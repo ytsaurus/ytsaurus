@@ -158,6 +158,9 @@ template<> struct VLEN<double> { static constexpr size_t val=2; };
 #elif (defined(__ARM_NEON__) || defined(__ARM_NEON))
 template<> struct VLEN<float> { static constexpr size_t val=4; };
 template<> struct VLEN<double> { static constexpr size_t val=2; };
+#elif (defined(__riscv_vector) || defined(__riscv_v_intrinsic))
+template<> struct VLEN<float> { static constexpr size_t val=8; };
+template<> struct VLEN<double> { static constexpr size_t val=4; };
 #else
 #define POCKETFFT_NO_VECTORS
 #endif
