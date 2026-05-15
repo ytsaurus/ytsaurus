@@ -1328,10 +1328,10 @@ void TLayerLocation::DoRemoveVolume(
         });
 
         auto timeout = TDuration::Minutes(10);
-        auto deadLine = TInstant::Now() + timeout;
-        auto checkDeadLine = [&] {
+        auto deadline = TInstant::Now() + timeout;
+        auto checkDeadline = [&] {
             auto now = TInstant::Now();
-            if (now > deadLine) {
+            if (now > deadline) {
                 THROW_ERROR_EXCEPTION("Failed to wait for volume to be removed")
                     << TErrorAttribute("timeout", timeout)
                     << TErrorAttribute("volume_path", mountPath);
@@ -1339,7 +1339,7 @@ void TLayerLocation::DoRemoveVolume(
         };
 
         while (true) {
-            checkDeadLine();
+            checkDeadline();
 
             auto unlinkError = WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"));
             if (unlinkError.IsOK()) {
@@ -1353,7 +1353,8 @@ void TLayerLocation::DoRemoveVolume(
             }
 
             if (unlinkError.GetCode() == EPortoErrorCode::VolumeNotFound ||
-                    unlinkError.GetCode() == EPortoErrorCode::VolumeNotLinked) {
+                    unlinkError.GetCode() == EPortoErrorCode::VolumeNotLinked)
+            {
                 if (portoPlacePath) {
                     // Ignore VolumeNotFound and VolumeNotLinked errors for custom porto places.
                     YT_LOG_INFO(
@@ -1503,18 +1504,18 @@ void TLayerLocation::RemoveVolumes(
     TDuration timeout)
 {
     auto startTime = TInstant::Now();
-    auto deadLine = startTime + timeout;
+    auto deadline = startTime + timeout;
 
     auto Logger = ExecNodeLogger()
         .WithTag("Path: %v", path);
 
     YT_LOG_DEBUG(
-        "Removing volumes from path (DeadLine: %v)",
-        deadLine);
+        "Removing volumes from path (Deadline: %v)",
+        deadline);
 
-    auto checkDeadLine = [&] {
+    auto checkDeadline = [&] {
         auto now = TInstant::Now();
-        if (now > deadLine) {
+        if (now > deadline) {
             THROW_ERROR_EXCEPTION("Failed to wait for volumes to be removed")
                 << TErrorAttribute("timeout", timeout)
                 << TErrorAttribute("path", path);
@@ -1524,7 +1525,7 @@ void TLayerLocation::RemoveVolumes(
     std::vector<std::string> removedVolumes;
 
     while (true) {
-        checkDeadLine();
+        checkDeadline();
 
         auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
             .ValueOrThrow();
@@ -1588,7 +1589,7 @@ void TLayerLocation::RemoveVolumes(
         }
 
         if (waitForVolumesToBecomeReady) {
-            checkDeadLine();
+            checkDeadline();
 
             static const TDuration Duration = TDuration::Seconds(30);
 
