@@ -661,6 +661,14 @@ class TestJobProxyTls(YTEnvSetup):
     def test_smoke(self):
         run_test_vanilla("true", track=True)
 
+    def test_secure_environment(self):
+        script = [
+            "grep -q JobProxyMain /proc/$PPID/comm",
+            "grep -q YT_JOB_PROXY_BUS_CLIENT_PRIVATE_KEY /proc/$PPID/environ",
+            "! grep -q 'PRIVATE KEY' /proc/$PPID/environ",
+        ]
+        run_test_vanilla(" && ".join(script), track=True)
+
 
 @authors("khlebnikov")
 class TestJobProxyTlsCri(TestJobProxyTls):

@@ -6,6 +6,7 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     crypto_ut.cpp
+    secure_environment_ut.cpp
     tls_ut.cpp
 )
 

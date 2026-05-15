@@ -1,4 +1,5 @@
 #include "config.h"
+#include "secure_environment.h"
 
 #include <util/system/env.h>
 
@@ -33,6 +34,9 @@ TPemBlobConfigPtr TPemBlobConfig::CreateFileReference(const TString& fileName)
 TString TPemBlobConfig::LoadBlob(TCertificatePathResolver pathResolver) const
 {
     if (EnvironmentVariable) {
+        if (auto value = GetSecureEnvironment()->Find<TString>(*EnvironmentVariable)) {
+            return *std::move(value);
+        }
         if (auto value = TryGetEnv(*EnvironmentVariable)) {
             return *std::move(value);
         }

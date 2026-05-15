@@ -112,6 +112,8 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/crypto/secure_environment.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -859,6 +861,19 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
 {
     return JobProxyEnvironment_.Acquire();
+}
+
+void TJobProxy::SecureEnvironmentVariables() const
+{
+    std::vector<TStringBuf> names;
+    for (const auto& variable : Config_->EnvironmentVariables) {
+        if (!variable->ForwardToUserJob.value_or(true)) {
+            names.push_back(variable->Name);
+        }
+    }
+    if (!names.empty()) {
+        NCrypto::MoveToSecureEnvironment(names);
+    }
 }
 
 TJobResult TJobProxy::RunJob()
