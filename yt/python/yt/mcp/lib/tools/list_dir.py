@@ -27,7 +27,7 @@ The path to the directory must start from `//` and cannot start from: {}
                 self.ToolInputField(
                     field_type=str,
                     name="cluster",
-                    description=f"Cluster. One of: {self.runner.helper_get_public_clusters(delimeter=", ")}",
+                    description=f"Cluster. One of: {self.runner.helper_get_public_clusters(delimeter=', ')}",
                     examples=self.runner.helper_get_public_clusters(),
                 )
             ]
@@ -104,7 +104,7 @@ List of result attributes: account, owner
                 ),
                 self.ToolInputField(
                     name="cluster",
-                    description=f"Cluster. One of: {self.runner.helper_get_public_clusters(delimeter=", ")}",
+                    description=f"Cluster. One of: {self.runner.helper_get_public_clusters(delimeter=', ')}",
                     examples=self.runner.helper_get_public_clusters(),
                 ),
             ]
