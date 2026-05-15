@@ -2002,7 +2002,8 @@ TEST_F(TExpressionTest, Aliasing)
 TUnversionedValue YsonToUnversionedValue(TStringBuf str)
 {
     NYson::TTokenizer tokenizer(str);
-    const auto& token = SkipAttributes(&tokenizer);
+    tokenizer.SkipAttributes();
+    const auto& token = tokenizer.CurrentToken();
     switch (token.GetType()) {
         case NYson::ETokenType::Int64:
             return MakeUnversionedInt64Value(token.GetInt64Value());
