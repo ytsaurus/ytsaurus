@@ -910,6 +910,8 @@ SRCS(
     Functions/UserDefined/UserDefinedSQLObjectsZooKeeperStorage.cpp
     Functions/UserDefined/createUserDefinedSQLObjectsStorage.cpp
     Functions/divide/divide.cpp
+    Functions/keyvaluepair/impl/Configuration.cpp
+    Functions/keyvaluepair/impl/KeyValuePairExtractorBuilder.cpp
     GLOBAL Functions/CRC.cpp
     GLOBAL Functions/CastOverloadResolver.cpp
     GLOBAL Functions/DateTimeTransforms.cpp
@@ -1310,6 +1312,8 @@ SRCS(
     GLOBAL Functions/isZeroOrNull.cpp
     GLOBAL Functions/jsonMergePatch.cpp
     GLOBAL Functions/jumpConsistentHash.cpp
+    GLOBAL Functions/keyvaluepair/ArgumentExtractor.cpp
+    GLOBAL Functions/keyvaluepair/extractKeyValuePairs.cpp
     GLOBAL Functions/kostikConsistentHash.cpp
     GLOBAL Functions/lcm.cpp
     GLOBAL Functions/least.cpp
