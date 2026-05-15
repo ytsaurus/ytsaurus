@@ -878,6 +878,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsZooKeeperStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/createUserDefinedSQLObjectsStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide/divide.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/keyvaluepair/impl/Configuration.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/keyvaluepair/impl/KeyValuePairExtractorBuilder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateQuotaQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRoleQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRowPolicyQuery.cpp
@@ -2452,6 +2454,8 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/isZeroOrNull.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/jsonMergePatch.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/jumpConsistentHash.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/keyvaluepair/ArgumentExtractor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/keyvaluepair/extractKeyValuePairs.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/kostikConsistentHash.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/lcm.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/least.cpp
