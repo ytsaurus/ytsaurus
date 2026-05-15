@@ -1491,6 +1491,17 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
     THashSet<int>* touchedTabletIndexes,
     const TTableStatistics& statistics)
 {
+    const auto& tablet = table->Tablets[tabletIndex];
+    if (tablet->State != ETabletState::Mounted) {
+        YT_LOG_DEBUG_IF(
+            (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
+            LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Tablet is not mounted, skipping reshard (TabletId: %v, TabletState: %v)",
+            tablet->Id,
+            tablet->State);
+        return std::nullopt;
+    }
+
     auto tabletMetric = statistics.TabletMetrics[tabletIndex];
     auto tabletSize = statistics.TabletSizes[tabletIndex];
 
@@ -1506,7 +1517,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
                 "Trying to split an empty tablet. Skip it "
                 "(TableId: %v, TabletId: %v, TabletMetric: %e, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
                 table->Id,
-                table->Tablets[tabletIndex]->Id,
+                tablet->Id,
                 tabletMetric,
                 statistics.TableSize,
                 statistics.DesiredTabletSize,
@@ -1525,7 +1536,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
             "Tablet is just right (TabletId: %v, TabletMetric: %e, TabletSize: %v)",
-            table->Tablets[tabletIndex]->Id,
+            tablet->Id,
             tabletMetric,
             tabletSize);
         return std::nullopt;
@@ -1591,9 +1602,15 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         statistics.TabletMetrics[tabletIndex] / statistics.DesiredTabletMetric,
         static_cast<double>(statistics.TabletSizes[tabletIndex]) / statistics.DesiredTabletSize);
 
+    auto isMergeableNeighbor = [&] (int index) {
+        return index >= 0 &&
+            index < tabletCount &&
+            !touchedTabletIndexes->contains(index) &&
+            table->Tablets[index]->State == ETabletState::Mounted;
+    };
+
     while (AreMoreTabletsNeeded(statistics, enlargedTabletSize, enlargedTabletMetric) &&
-        leftTabletIndex > 0 &&
-        !touchedTabletIndexes->contains(leftTabletIndex - 1) &&
+        isMergeableNeighbor(leftTabletIndex - 1) &&
         IsPossibleToAddTablet(statistics, enlargedTabletSize, enlargedTabletMetric, leftTabletIndex - 1))
     {
         --leftTabletIndex;
@@ -1608,8 +1625,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     }
 
     while (AreMoreTabletsNeeded(statistics, enlargedTabletSize, enlargedTabletMetric) &&
-        rightTabletIndex < tabletCount &&
-        !touchedTabletIndexes->contains(rightTabletIndex) &&
+        isMergeableNeighbor(rightTabletIndex) &&
         IsPossibleToAddTablet(statistics, enlargedTabletSize, enlargedTabletMetric, rightTabletIndex))
     {
         enlargedTabletSize += statistics.TabletSizes[rightTabletIndex];
