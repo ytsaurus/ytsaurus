@@ -243,20 +243,28 @@ class ConversionAction(actions.Action):
 
     @override
     def execute(self, app: sequoia_app.SequoiaTool) -> None:
-        def convert_to_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
+        # TODO(danilalexeev): Use dict in `migrationlib.TableInfo`.
+        def convert_to_key_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
             return (
                 column["name"],
                 column["type"],
-                column.get("expression"))
+                column.get("expression"),
+                column)
+
+        def convert_to_value_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
+            return (
+                column["name"],
+                column["type"],
+                column)
 
         table_info = migrationlib.TableInfo(
             key_columns=[
-                convert_to_tuple(c)
+                convert_to_key_tuple(c)
                 for c in self._table_context.descriptor.schema
                 if c.get("sort_order") is not None
             ],
             value_columns=[
-                convert_to_tuple(c)
+                convert_to_value_tuple(c)
                 for c in self._table_context.descriptor.schema
                 if c.get("sort_order") is None
             ],
