@@ -725,3 +725,62 @@ TEST(CypressClient, TestMultisetAttributes)
     EXPECT_EQ(tx->Get(workingDir + "/node/@a"), TNode("foo"));
     EXPECT_EQ(tx->Get(workingDir + "/node/@b/d"), TNode("qux"));
 }
+
+TEST(CypressClient, TestPrerequisiteTransactionIds)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    client->Set(workingDir + "/node", TNode()("key", "value"));
+
+    auto tx = client->StartTransaction();
+
+    // Success (transaction alive)
+    auto getOptions = TGetOptions().PrerequisiteTransactionIds({tx->GetId()});
+    EXPECT_EQ(client->Get(workingDir + "/node", getOptions), TNode()("key", "value"));
+
+    tx->Abort();
+
+    // Fail (transaction aborted)
+    EXPECT_THROW(
+        client->Get(workingDir + "/node", getOptions),
+        yexception);
+}
+
+TEST(CypressClient, TestPrerequisiteRevisions)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    client->Create(workingDir + "/node", NT_MAP);
+    auto revisionBefore = client->Get(workingDir + "/node/@revision");
+
+    // Success (valid revision)
+    auto getOptions = TGetOptions().PrerequisiteRevisions({
+        TPrerequisiteRevisionOptions()
+            .Revision(revisionBefore.AsUint64())
+            .Path(workingDir + "/node")});
+    EXPECT_EQ(client->Get(workingDir + "/node", getOptions), TNode::CreateMap());
+
+    client->MultisetAttributes(workingDir + "/node/@", {
+        {"a", TNode("foo")},
+        {"b", TNode()("c", "bar")},
+    });
+
+    // Fail (invalid revision)
+    auto revisionAfter = client->Get(workingDir + "/node/@revision");
+    EXPECT_NE(revisionBefore, revisionAfter);
+    EXPECT_THROW(
+        client->Get(workingDir + "/node", getOptions),
+        yexception);
+
+    // Fail (no revision set)
+    getOptions = TGetOptions().PrerequisiteRevisions({
+        TPrerequisiteRevisionOptions()
+            .Path(workingDir + "/node")});
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        client->Get(workingDir + "/node", getOptions),
+        TApiUsageError,
+        "Revision for TPrerequisiteRevisionOptions must be explicitly specified");
+}
