@@ -270,8 +270,6 @@ private:
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
         auto nodeAddress = FromProto<std::string>(request->node_address());
 
-        YT_LOG_INFO("Bundle controller got node heartbeat (NodeId: %v, NodeAddress: %v)", nodeId, nodeAddress);
-
         Bootstrap_->GetNodeTracker()->ProcessNodeHeartbeat(&context->Request(), &context->Response());
 
         context->SetRequestInfo("NodeId: %v, NodeAddress: %v",

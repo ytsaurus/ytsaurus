@@ -40,9 +40,9 @@ TBundleControllerConnector::TBundleControllerConnector(IBootstrap* bootstrap)
     , DynamicConfig_(New<TBundleControllerConnectorDynamicConfig>())
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND([this, weakThis = MakeWeak(this)] {
+        BIND([weakThis = MakeWeak(this)] {
             auto this_ = weakThis.Lock();
-            return this_ ? SendHeartbeat() : TError("Bundle controller connector is destroyed");
+            return this_ ? this_->SendHeartbeat() : TError("Bundle controller connector is destroyed");
         }),
         DynamicConfig_->HeartbeatExecutor))
 {

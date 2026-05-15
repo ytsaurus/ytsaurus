@@ -1031,7 +1031,7 @@ void TTabletBalancer::LinkOrchidService(TTransactionId prerequisiteTransactionId
         WaitFor(client->CreateNode(LeaderOrchidServicePath, EObjectType::Orchid, createOptions))
             .ThrowOnError();
 
-        YT_LOG_INFO("Succesfully created orchid node");
+        YT_LOG_INFO("Successfully created orchid node");
 
         auto remoteAddressPath = Format("%v&/@remote_addresses", LeaderOrchidServicePath);
 
@@ -1043,9 +1043,9 @@ void TTabletBalancer::LinkOrchidService(TTransactionId prerequisiteTransactionId
         WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses), setOptions))
             .ThrowOnError();
 
-        YT_LOG_INFO("Succesfully linked orchid service");
-    } catch (const std::exception& e) {
-        YT_LOG_ERROR(e, "Failed to link orchid service, will stop leading");
+        YT_LOG_INFO("Successfully linked orchid service");
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to link orchid service, will stop leading");
 
         YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
     }
@@ -1069,7 +1069,7 @@ void TTabletBalancer::LinkTabletBalancerService(TTransactionId prerequisiteTrans
         options));
 
     if (rspOrError.IsOK()) {
-        YT_LOG_INFO("Succesfully linked tablet balancer service");
+        YT_LOG_INFO("Successfully linked tablet balancer service");
     } else {
         YT_LOG_ERROR(rspOrError, "Failed to link tablet balancer service, will stop leading");
         YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());

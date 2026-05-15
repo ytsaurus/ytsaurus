@@ -743,7 +743,7 @@ struct TTabletNodeInfo
     TTabletNodeStatisticsPtr Statistics;
     std::string Rack;
 
-    // Not registered as yson struct field.
+    // Not registered as YSON struct field.
     ELocalNodeState LocalState = ELocalNodeState::Unknown;
 
     bool IsOnline() const override;

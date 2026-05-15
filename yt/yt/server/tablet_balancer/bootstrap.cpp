@@ -161,7 +161,7 @@ public:
         return Connection_->GetClusterDirectory();
     }
 
-    virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const override
+    NNodeTrackerClient::TAddressMap GetLocalAddresses() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
