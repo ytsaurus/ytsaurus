@@ -128,6 +128,15 @@ IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)
     return attributes;
 }
 
+IAttributeDictionaryPtr MakeConsumerAttributes(const std::string& cluster, const std::optional<std::string>& queueConsumerName)
+{
+    auto attributes = MakeAttributesWithCluster(cluster);
+    if (queueConsumerName) {
+        attributes->Set(QueueConsumerNameAttributeKey, *queueConsumerName);
+    }
+    return attributes;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient

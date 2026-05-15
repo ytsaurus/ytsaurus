@@ -522,6 +522,7 @@ private:
 
     static constexpr auto ConsumerClusterColumnName_ = "consumer_cluster";
     static constexpr auto ConsumerPathColumnName_ = "consumer_path";
+    static constexpr auto ConsumerNameColumnName_ = "consumer_name";
     static constexpr auto ConsumersPlaceholderValueName_ = "consumers";
 
     std::vector<std::vector<TConsumerRegistrationTableRow>> DoLookup(TConsumerRegistrationTablePtr table) const override
@@ -590,15 +591,16 @@ private:
     TFuture<THashMap<TConsumerReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
-            "([%v], [%v]) IN {%v}",
+            "([%v], [%v], [%v]) IN {%v}",
             ConsumerClusterColumnName_,
             ConsumerPathColumnName_,
+            ConsumerNameColumnName_,
             ConsumersPlaceholderValueName_);
 
-        std::vector<std::pair<TString, TString>> consumers;
+        std::vector<std::tuple<TString, TString, std::optional<std::string>>> consumers;
         for (const auto& key : Keys_) {
             if (auto consumer = key.Consumer; consumer.has_value()) {
-                consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath());
+                consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath(), consumer->GetQueueConsumerName());
             }
         }
 

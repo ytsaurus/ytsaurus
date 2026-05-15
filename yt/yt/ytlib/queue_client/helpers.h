@@ -43,6 +43,8 @@ TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
     const NYPath::TYPath& path,
     const std::string& user);
 
+bool IsMultiConsumerSchema(const NTableClient::TTableSchema& schema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient

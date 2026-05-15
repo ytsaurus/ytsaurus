@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/ytlib/queue_client/records/consumer_registration.record.h>
+
 #include <library/cpp/yt/string/format.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +91,7 @@ public:
             "{name=key;type=uint64;sort_order=ascending};"
             "{name=value;type=uint64}]");
 
-        CreateTableOnce(RegistrationTablePath, GetQueueAgentRegistrationTableSchema());
+        CreateTableOnce(RegistrationTablePath, NQueueClient::NRecords::TConsumerRegistrationDescriptor::Get()->GetSchema());
     }
 
     class TDynamicTable final
@@ -258,20 +260,6 @@ public:
     void AssertPermissionDenied(const std::string& user, const TYPath& path, EPermission permission) const
     {
         AssertPermission(user, path, permission, ESecurityAction::Deny);
-    }
-
-    static const TTableSchemaPtr& GetQueueAgentRegistrationTableSchema()
-    {
-        static const TTableSchemaPtr RegistrationTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
-            TColumnSchema("queue_cluster", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("queue_path", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("consumer_cluster", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("consumer_path", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("vital", EValueType::Boolean),
-            TColumnSchema("partitions", EValueType::Any),
-        });
-
-        return RegistrationTableSchema;
     }
 
     static void CreateTableOnce(const TYPath& path, const TTableSchemaPtr& schema)

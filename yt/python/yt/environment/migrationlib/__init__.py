@@ -283,7 +283,10 @@ class Conversion(object):
 
             if len(source_tables) == 1:
                 old_key_columns = client.get(source_tables[0] + "/@key_columns")
-                need_sort = False if self.operation == "temporarily-copy" else old_key_columns != table_info.key_columns
+                need_sort = not (
+                    self.operation == "temporarily-copy"
+                    or old_key_columns == table_info.key_columns[:len(old_key_columns)]
+                )
             else:
                 need_sort = True
         else:
