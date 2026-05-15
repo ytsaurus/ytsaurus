@@ -7,7 +7,8 @@ _ATTRIBUTES_MAIN = _ATTRIBUTES_COMMON + ("replication_factor", "erasure_codec", 
 
 _ATTRIBUTES_BUNDLE = _ATTRIBUTES_COMMON + ("resource_limits", "resource_quota")
 
-_ATTRIBUTES_POOL = ("strong_guarantee_resources", "integral_guaranties", "max_operation_count", "max_running_operation_count")
+_ATTRIBUTES_POOL = ("strong_guarantee_resources", "integral_guaranties", "max_operation_count", "max_running_operation_count", "running_operation_count",
+                    "scheduling_status", "starvation_status", "resource_usage")
 
 _ATTRIBUTES_ACCOUNT = _ATTRIBUTES_COMMON + ("abc", "resource_limits", "resource_usage")
 
@@ -149,7 +150,10 @@ Returns resource quota with detalization by "cpu" (by cores), "memory".
             },
             {
                 "name": "pool",
-                "description": "A tool for getting named attributes from cluster pool.",
+                "description": """A tool for getting named attributes from cluster pool.
+Use 'resource_usage' attribute to get current pull load (cpu, gpu, user_memory, user_slots).
+
+""",
                 "input": [
                     {"name": "pool"},
                     {"name": "pool_tree"},
