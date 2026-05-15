@@ -486,6 +486,29 @@ ACTIONS[6] = [
     create_replica_mapping_index_action_factory(),
 ]
 
+# Add consumer_name field to consumer_registrations table.
+TRANSFORMS[7] = [
+    Conversion(
+        "consumer_registrations",
+        table_info=TableInfo(
+            [
+                ("queue_cluster", "string"),
+                ("queue_path", "string"),
+                ("consumer_cluster", "string"),
+                ("consumer_path", "string"),
+                ("consumer_name", "string"),  # new field
+            ],
+            [
+                ("vital", "boolean"),
+                ("partitions", "any"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_replicated_table_filter_callback,
+    ),
+]
+
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,
@@ -519,6 +542,15 @@ CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
 ]
 
 CONSUMER_OBJECT_TABLE_SCHEMA = CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META + [
+    {"name": "meta", "type": "any", "required": False},
+]
+
+MULTI_CONSUMER_OBJECT_TABLE_SCHEMA = [
+    {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
+    {"name": "offset", "type": "uint64", "required": True},
     {"name": "meta", "type": "any", "required": False},
 ]
 

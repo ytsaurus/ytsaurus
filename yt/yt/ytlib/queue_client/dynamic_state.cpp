@@ -1,6 +1,8 @@
 #include "dynamic_state.h"
-#include "private.h"
+
 #include "config.h"
+#include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -185,9 +187,10 @@ NRecords::TConsumerObject RecordFromRow(const TConsumerTableRow& row)
 TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistration& record)
 {
     const auto& key = record.Key;
+    TConsumerReference consumerRef{key.ConsumerPath, *MakeConsumerAttributes(key.ConsumerCluster, key.ConsumerName)};
     return TConsumerRegistrationTableRow{
         .Queue = TTablePath{key.QueuePath, *MakeAttributesWithCluster(key.QueueCluster)},
-        .Consumer = TConsumerReference{key.ConsumerPath, *MakeAttributesWithCluster(key.ConsumerCluster)},
+        .Consumer = std::move(consumerRef),
         .Vital = record.Vital.value_or(false),
         .Partitions = FromOptionalYsonString<std::vector<int>>(record.Partitions),
     };
@@ -200,6 +203,7 @@ NRecords::TConsumerRegistrationKey RecordKeyFromRow(const TConsumerRegistrationT
         .QueuePath = row.Queue.GetPath(),
         .ConsumerCluster = row.Consumer.GetCluster().value(),
         .ConsumerPath = row.Consumer.GetPath(),
+        .ConsumerName = row.Consumer.GetQueueConsumerName(),
     };
 }
 
@@ -564,7 +568,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
 
 bool TConsumerTableRow::IsMultiConsumerRow() const
 {
-    return Schema.has_value() && Schema->FindColumnByStableName(TColumnStableName{"queue_consumer_name"});
+    return Schema.has_value() && IsMultiConsumerSchema(*Schema);
 }
 
 void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)

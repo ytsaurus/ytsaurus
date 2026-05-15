@@ -63,6 +63,8 @@ void FormatValue(TStringBuilderBase* builder, const NQueueClient::TGenericObject
 
 NYTree::IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster);
 
+NYTree::IAttributeDictionaryPtr MakeConsumerAttributes(const std::string& cluster, const std::optional<std::string>& queueConsumerName);
+
 } // namespace NYT::NQueueClient
 
 ////////////////////////////////////////////////////////////////////////////////
