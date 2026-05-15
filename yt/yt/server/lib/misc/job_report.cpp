@@ -125,7 +125,7 @@ bool TJobReport::IsEmpty() const
         Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ ||
         Profile_ || JobCookie_ || CollectiveMemberRank_ || CollectiveId_ ||
         CoreInfos_ || HasCompetitors_ || HasProbingCompetitors_ || MonitoringDescriptor_ || ExecAttributes_ || ControllerState_ ||
-        ArchiveFeatures_ || Ttl_ || OperationIncarnation_ || ControllerStartTime_ || ControllerFinishTime_ || GangRank_;
+        ArchiveFeatures_ || Ttl_ || OperationIncarnation_ || ControllerStartTime_ || ControllerFinishTime_ || GangRank_ || ControllerError_;
     return !somethingSpecified;
 }
 

@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/tracing/public.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent {
 
 static constexpr TStringBuf DockerAuthEnv("docker_auth");
@@ -95,6 +97,12 @@ void PackBaggageFromJobSpec(
     TOperationId operationId,
     TJobId jobId,
     EJobType jobType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateAbortedJobError(
+    NScheduler::EAbortReason abortReason,
+    TNonNullPtr<TError> errorPtr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

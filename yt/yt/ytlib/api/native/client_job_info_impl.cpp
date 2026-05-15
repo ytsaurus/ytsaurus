@@ -240,6 +240,7 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"controller_start_time", 58},
     {"controller_finish_time", 58},
     {"gang_rank", 60},
+    {"controller_error", 67},
 };
 
 static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
@@ -1831,13 +1832,14 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
-    const std::vector<NRecords::TJobPartial>& records,
+    std::vector<NRecords::TJobPartial>&& records,
     const NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping& responseIdMapping,
     bool needFullStatistics)
 {
+    // TODO(bystrovserg): Move objects from records to jobs.
     std::vector<TJob> jobs;
     jobs.reserve(records.size());
-    for (const auto& record : records) {
+    for (auto&& record : std::move(records)) {
         auto jobType = record.Type;
         if (!jobType) {
             jobType = record.JobType;
@@ -1918,6 +1920,14 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.FinishTime = TInstant::MicroSeconds(*record.ControllerFinishTime);
         } else if (record.FinishTime) {
             job.FinishTime = TInstant::MicroSeconds(*record.FinishTime);
+        }
+
+        // We use node's error (record.Error) as default value.
+        // If it's empty we switch to controller's error.
+        if (record.Error) {
+            job.Error = std::move(*record.Error);
+        } else if (record.ControllerError) {
+            job.Error = std::move(*record.ControllerError);
         }
 
         if (responseIdMapping.HasSpec) {
@@ -2009,7 +2019,7 @@ void TClient::AddSelectExpressions(
         if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "collective_id") {
             builder->AddSelectExpression(attribute + "_hi");
             builder->AddSelectExpression(attribute + "_lo");
-        } else if (attribute == "start_time" || attribute == "finish_time") {
+        } else if (attribute == "start_time" || attribute == "finish_time" || attribute == "error") {
             auto controllerAttribute = "controller_" + attribute;
             if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
                 builder->AddSelectExpression(
@@ -2129,7 +2139,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
             auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
             return ParseJobsFromArchiveResponse(
                 operationId,
-                records,
+                std::move(records),
                 idMapping,
                 /*needFullStatistics*/ attributes.contains("statistics"));
         }));
@@ -2839,7 +2849,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "contoller_state" && !attributes.contains("state")){
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
             result.emplace_back("controller_state");
-        } else if (attribute == "start_time" || attribute == "finish_time") {
+        } else if (attribute == "start_time" || attribute == "finish_time" || attribute == "error") {
             auto controllerAttribute = "controller_" + attribute;
             if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
                 result.emplace_back(controllerAttribute);
@@ -2903,7 +2913,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     auto records = ToRecords<NRecords::TJobPartial>(rowset->GetRows(), idMapping);
     auto jobs = ParseJobsFromArchiveResponse(
         operationId,
-        records,
+        std::move(records),
         idMapping,
         /*needFullStatistics*/ true);
     if (jobs.empty()) {

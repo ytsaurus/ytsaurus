@@ -236,3 +236,8 @@ types:
         cpp_type: i64
         column_name: gang_rank
         column_type: Int64
+
+      - cpp_name: ControllerError
+        cpp_type: NYson::TYsonString
+        column_name: controller_error
+        column_type: Any
