@@ -392,7 +392,7 @@ private:
             return MakeFuture(InvalidCellTag);
         }
 
-        auto proxy = TChaosNodeServiceProxy(channel);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
         proxy.SetDefaultTimeout(timeout);
 
         auto req = proxy.FindChaosObject();
@@ -579,7 +579,7 @@ private:
                 CheckResidency(std::move(channel), ObjectId_, timeout, cellTag)
                 .AsUnique().Apply(BIND([] (TErrorOr<TChaosObjectLocationResult>&& result) {
                     if (!result.IsOK() || !result.Value().IsAbsent()) {
-                        return result;
+                        return std::move(result);
                     }
 
                     return TErrorOr<TChaosObjectLocationResult>(
@@ -603,7 +603,7 @@ private:
     {
         if (!errorOrCellTag.IsOK()) {
             return TError(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v", type, objectId)
-                << errorOrCellTag;
+                << std::move(errorOrCellTag);
         }
 
         const auto& locationResult = errorOrCellTag.Value();
@@ -731,10 +731,14 @@ public:
                 objectId = ObjectId_
             ] (TErrorOr<TChaosNodeServiceProxy::TRspGetChaosObjectResidencyPtr>&& resultOrError) {
             if (!resultOrError.IsOK()) {
+                if (auto resolveError = resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR *resolveError;
+                }
+
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                     type,
                     objectId)
-                    << resultOrError;
+                    << std::move(resultOrError);
             }
 
             return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());
