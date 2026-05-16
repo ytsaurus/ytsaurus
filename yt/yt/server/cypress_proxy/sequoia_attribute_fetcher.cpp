@@ -14,8 +14,6 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
-
 #include <yt/yt/core/ytree/attribute_filter.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
@@ -604,12 +602,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ETreeScope,
-    ((RequestedValues)      (1))
-    ((RequestedAttributes)  (2))
-    ((Ancestry)             (3))
-    ((Descendants)          (4))
-);
 
 class TSequoiaAttributeRequest
 {
@@ -880,7 +872,7 @@ private:
         return RootAncestry_.Back();
     }
 
-    TYPathProxy::TReqGetPtr CreateRequestTemplate(ETreeScope scope) const
+    TMasterYPathProxy::TVectorizedGetBatcher CreateGetBatcher(ETreeScope scope, TRange<TNodeId> nodeIds) const
     {
         auto req = TYPathProxy::Get(scope == ETreeScope::RequestedValues ? "&" : "&/@");
         if (auto attributeFilter = AttributeRequest_.GetBaseAttributeFilter(scope)) {
@@ -888,7 +880,7 @@ private:
         }
         SetSuppressAccessTracking(req, true);
         SetSuppressExpirationTimeoutRenewal(req, true);
-        return req;
+        return SequoiaSession_->CreateGetBatcher(req, nodeIds, scope);
     }
 
     template <bool IsScalars>
@@ -945,13 +937,7 @@ private:
             nodeIds.push_back(descriptor.Id);
         }
 
-        auto requestTemplate = CreateRequestTemplate(ETreeScope::Ancestry);
-        auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
-            SequoiaSession_->GetNativeAuthenticatedClient(),
-            requestTemplate,
-            nodeIds,
-            SequoiaSession_->GetCurrentCypressTransactionId());
-
+        auto batcher = CreateGetBatcher(ETreeScope::Ancestry, nodeIds);
         return batcher.Invoke()
             .Apply(BIND(&TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::move(nodeIds)))
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNodeIdToAttributes& result) -> std::optional<TEffectiveAttributeCalculator> {
@@ -1002,13 +988,7 @@ private:
                 }
             }
 
-            auto requestTemplate = CreateRequestTemplate(ETreeScope::Descendants);
-            auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
-                SequoiaSession_->GetNativeAuthenticatedClient(),
-                requestTemplate,
-                targetNodeIds,
-                SequoiaSession_->GetCurrentCypressTransactionId());
-
+            auto batcher = CreateGetBatcher(ETreeScope::Descendants, targetNodeIds);
             return WaitFor(
                 batcher.Invoke()
                     .Apply(BIND(&TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::vector<TNodeId>{})))
@@ -1066,13 +1046,7 @@ private:
                 YT_ABORT();
             });
 
-        auto requestTemplate = CreateRequestTemplate(ETreeScope::RequestedValues);
-        auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
-            SequoiaSession_->GetNativeAuthenticatedClient(),
-            requestTemplate,
-            targetNodeIds,
-            SequoiaSession_->GetCurrentCypressTransactionId());
-
+        auto batcher = CreateGetBatcher(ETreeScope::RequestedValues, targetNodeIds);
         return batcher.Invoke()
             .Apply(BIND(TSequoiaAttributeFetcher::ConvertToAttributesMap<true>, std::move(rootNodeHolder)))
             .AsUnique()
@@ -1114,13 +1088,7 @@ private:
                 YT_ABORT();
             });
 
-        auto requestTemplate = CreateRequestTemplate(ETreeScope::RequestedAttributes);
-        auto batcher = TMasterYPathProxy::TVectorizedGetBatcher(
-            SequoiaSession_->GetNativeAuthenticatedClient(),
-            requestTemplate,
-            targetNodeIds,
-            SequoiaSession_->GetCurrentCypressTransactionId());
-
+        auto batcher = CreateGetBatcher(ETreeScope::RequestedAttributes, targetNodeIds);
         return batcher.Invoke()
             .Apply(BIND(TSequoiaAttributeFetcher::ConvertToAttributesMap<false>, std::vector{GetRoot().Id}))
             .AsUnique()

@@ -139,6 +139,10 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("select_subtree_rows_limit", &TThis::SelectSubtreeRowsLimit)
        .GreaterThanOrEqual(100)
        .Default(1'000'000);
+    registrar.Parameter("default_vectorized_subbatch_size", &TThis::DefaultVectorizedSubbatchSize)
+        .Default(100);
+    registrar.Parameter("vectorized_subbatch_size_overrides", &TThis::VectorizedSubbatchSizeOverrides)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

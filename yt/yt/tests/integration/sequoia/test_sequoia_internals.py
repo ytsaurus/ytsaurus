@@ -759,6 +759,7 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("danilalexeev")
     def test_recursive_attributes_heavy(self):
         set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
+        set("//sys/cypress_proxies/@config/vectorized_subbatch_size_overrides/descendants", 50)
         sleep(0.5)
         MAP_SIZE = 123
         yson = {f"{i:03}": 42 for i in range(MAP_SIZE)}

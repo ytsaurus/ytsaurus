@@ -9,9 +9,10 @@ namespace NYT::NObjectClient {
         const NApi::NNative::IClientPtr& client, \
         const TIntrusivePtr<NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method>>& typedRequestPtr, \
         TRange<TObjectId> objectIds, \
-        TTransactionId cypressTransactionId) \
+        TTransactionId cypressTransactionId, \
+        int subbatchSize) \
     { \
-        return TVectorized##method##Batcher(client, typedRequestPtr, objectIds, cypressTransactionId); \
+        return TVectorized##method##Batcher(client, typedRequestPtr, objectIds, cypressTransactionId, subbatchSize); \
     } \
     static_assert(true)
 
