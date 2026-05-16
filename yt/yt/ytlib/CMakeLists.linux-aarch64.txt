@@ -328,9 +328,9 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/any_to_composite_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/first_batch_tracking_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/job_spec_helper.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/profiling_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/profiling_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp

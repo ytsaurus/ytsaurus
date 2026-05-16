@@ -314,9 +314,9 @@ SRCS(
 
     job_proxy/any_to_composite_converter.cpp
     job_proxy/config.cpp
+    job_proxy/first_batch_tracking_base.cpp
     job_proxy/helpers.cpp
     job_proxy/job_spec_helper.cpp
-    job_proxy/private.cpp
     job_proxy/profiling_reader.cpp
     job_proxy/profiling_writer.cpp
     job_proxy/user_job_io_factory.cpp
