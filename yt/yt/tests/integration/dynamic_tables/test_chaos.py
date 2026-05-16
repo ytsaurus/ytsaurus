@@ -2669,7 +2669,7 @@ class TestChaos(ChaosTestBase):
         else:
             wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[1]) == values1)
 
-    @authors("savrus")
+    @authors("savrus", "osidorkin")
     def test_coordinator_suspension(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         coordinator_cell_id = self._sync_create_chaos_cell()
@@ -2684,18 +2684,25 @@ class TestChaos(ChaosTestBase):
         def _get_shortcuts(cell_id):
             return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/shortcuts")
 
+        def _get_coordinator_suspension_status(cell_id) -> str:
+            return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/internal/suspension_status")
+
         assert list(_get_shortcuts(cell_id).keys()) == [card_id]
         assert list(_get_shortcuts(coordinator_cell_id).keys()) == [card_id]
 
         chaos_cell_ids = [cell_id, coordinator_cell_id]
         assert_items_equal(get("#{0}/@coordinator_cell_ids".format(card_id)), chaos_cell_ids)
 
+        assert _get_coordinator_suspension_status(coordinator_cell_id) == "normal"
         suspend_coordinator(coordinator_cell_id)
+        assert _get_coordinator_suspension_status(coordinator_cell_id) in {"suspending", "suspended"}
         # NB: Chaos cell orchid reads from follower do not sync with upstream.
         wait(lambda: self._get_chaos_cell_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
+        assert _get_coordinator_suspension_status(coordinator_cell_id) == "suspended"
         wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [cell_id])
 
         resume_coordinator(coordinator_cell_id)
+        assert _get_coordinator_suspension_status(coordinator_cell_id) == "normal"
         wait(lambda: not self._get_chaos_cell_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
 
@@ -6115,7 +6122,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         check_suspend(alpha_cell, beta_cell)
         check_suspend(beta_cell, alpha_cell)
 
-    @authors("savrus")
+    @authors("savrus", "osidorkin")
     @pytest.mark.parametrize("method", ["migrate", "suspend"])
     def test_replication_card_migration(self, method):
         cells = self._create_dedicated_areas_and_cells()
@@ -6132,10 +6139,16 @@ class TestChaosMetaCluster(ChaosTestBase):
             if method == "migrate":
                 migrate_replication_cards(cell_id, card_ids)
             else:
+                suspension_status_path = "{0}/chaos_manager/internal/suspension_status".format(self._get_chaos_cell_orchid_path(cell_id, driver=driver))
+                assert get(suspension_status_path, driver=driver) == "normal"
+
                 suspend_chaos_cells([cell_id])
+                assert get(suspension_status_path, driver=driver) in {"suspending", "suspended"}
                 suspended_path = "{0}/chaos_manager/internal/suspended".format(self._get_chaos_cell_orchid_path(cell_id, driver=driver))
                 wait(lambda: get(suspended_path, driver=driver))
+                assert get(suspension_status_path, driver=driver) == "suspended"
                 resume_chaos_cells([cell_id])
+                assert get(suspension_status_path, driver=driver) == "normal"
                 assert not get(suspended_path, driver=driver)
 
         def _migrated(migrated_card_path, origin, driver=None):

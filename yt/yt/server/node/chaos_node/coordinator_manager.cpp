@@ -3,8 +3,8 @@
 #include "automaton.h"
 #include "chaos_manager.h"
 #include "chaos_slot.h"
-#include "private.h"
-#include "replication_card.h"
+#include "helpers.h"
+#include "chaos_object_base.h"
 #include "shortcut_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
@@ -630,10 +630,12 @@ private:
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
+        bool completelySuspended = Suspended_ && Shortcuts_.empty();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("suspended").Value(
-                    Suspended_ && Shortcuts_.empty())
+                    completelySuspended)
+                .Item("suspension_status").Value(GetSuspensionStatus(Suspended_, completelySuspended))
             .EndMap();
     }
 
