@@ -1,4 +1,6 @@
-#include "private.h"
+#include "first_batch_tracking_base.h"
+
+#include <library/cpp/yt/assert/assert.h>
 
 #include <library/cpp/yt/cpu_clock/clock.h>
 

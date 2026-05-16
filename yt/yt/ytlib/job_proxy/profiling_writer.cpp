@@ -1,4 +1,4 @@
-#include "private.h"
+#include "first_batch_tracking_base.h"
 #include "profiling_writer.h"
 
 #include <yt/yt/client/table_client/row_batch.h>
