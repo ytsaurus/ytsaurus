@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/cypress_proxy/public.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -359,6 +362,11 @@ public:
         const NYTree::TAttributeFilter& attributeFilter) const;
 
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
+
+    NObjectClient::TMasterYPathProxy::TVectorizedGetBatcher CreateGetBatcher(
+        const NYTree::TYPathProxy::TReqGetPtr& requestTemplate,
+        TRange<NObjectClient::TObjectId> objectIds,
+        std::optional<ETreeScope> scope = {}) const;
 
 private:
     IBootstrap* const Bootstrap_;

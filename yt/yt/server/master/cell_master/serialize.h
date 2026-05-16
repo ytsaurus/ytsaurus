@@ -195,6 +195,7 @@ DEFINE_ENUM(EMasterReign,
     ((DefaultUserClusterwideLimitToCellLimit_26_1)                  (3241))  // shakurov
     ((DropMulticellIndex)                                           (3242))  // cherepashka
     ((HandleOptimizeForInBeginUpload)                               (3243))  // h0pless
+    ((MakeVectorizedSubbatchSizeDynamiclyConfigurable)              (3244))  // danilalexeev
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
