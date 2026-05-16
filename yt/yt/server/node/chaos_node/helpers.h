@@ -1,15 +1,18 @@
 #pragma once
 
-#include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/library/profiling/sensor.h>
+#include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChaosNodeLogger, "ChaosNode");
-inline const NProfiling::TRegistry ChaosNodeProfiler("/chaos_node");
+DEFINE_ENUM(ESuspensionStatus,
+    ((Normal)       (0))
+    ((Suspending)   (1))
+    ((Suspended)    (2))
+);
+
+ESuspensionStatus GetSuspensionStatus(bool suspended, bool completelySuspended);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,6 +7,7 @@
 #include "chaos_lease_manager.h"
 #include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
+#include "helpers.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
 #include "replication_card_batcher.h"
@@ -3102,12 +3103,15 @@ private:
         auto replicationCardStateCounts = CountReplicationCardStates();
         auto collocationStateCounts = CountReplicationCardCollocationStates();
 
+        bool completelySuspended = Suspended_
+            && replicationCardStateCounts[EReplicationCardState::Migrated] == ReplicationCardMap_.GetSize()
+            && transactionManager->Transactions().empty()
+            && CollocationMap_.empty();
+
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_
-                    && replicationCardStateCounts[EReplicationCardState::Migrated] == ReplicationCardMap_.GetSize()
-                    && transactionManager->Transactions().empty()
-                    && CollocationMap_.empty())
+                .Item("suspended").Value(completelySuspended)
+                .Item("suspension_status").Value(GetSuspensionStatus(Suspended_, completelySuspended))
                 .Item("replication_card_states").DoMapFor(
                     TEnumTraits<EReplicationCardState>::GetDomainValues(),
                     [&] (TFluentMap fluent, const auto& state) {
