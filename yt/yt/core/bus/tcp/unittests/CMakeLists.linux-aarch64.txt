@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(unittester-core-bus)
+add_executable(unittester-core-bus-tcp)
 
 
-target_compile_options(unittester-core-bus PRIVATE
+target_compile_options(unittester-core-bus-tcp PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,26 +27,25 @@ target_compile_options(unittester-core-bus PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(unittester-core-bus PUBLIC
+target_link_libraries(unittester-core-bus-tcp PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   build-cow-on
-  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+  bus-unittests-lib
   cpp-testing-common
   library-cpp-resource
 )
 
-target_allocator(unittester-core-bus
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+target_allocator(unittester-core-bus-tcp
+  system_allocator
 )
 
-target_link_options(unittester-core-bus PRIVATE
+target_link_options(unittester-core-bus-tcp PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -57,22 +56,24 @@ target_link_options(unittester-core-bus PRIVATE
   -lutil
 )
 
-target_sources(unittester-core-bus PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/bus_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/ssl_ut.cpp
+target_sources(unittester-core-bus-tcp PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/unittests/bus_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/unittests/ssl_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/unittests/tcp_specific_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/unittests/traits.cpp
 )
 
 
 add_test(
   NAME
-  unittester-core-bus
+  unittester-core-bus-tcp
   COMMAND
-  unittester-core-bus
+  unittester-core-bus-tcp
 )
 
 set_property(
   TEST
-  unittester-core-bus
+  unittester-core-bus-tcp
   PROPERTY
   LABELS
   MEDIUM
@@ -80,16 +81,16 @@ set_property(
 
 set_property(
   TEST
-  unittester-core-bus
+  unittester-core-bus-tcp
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(unittester-core-bus)
+vcs_info(unittester-core-bus-tcp)
 
 set_property(
   TEST
-  unittester-core-bus
+  unittester-core-bus-tcp
   PROPERTY
   PROCESSORS
   1
