@@ -3126,6 +3126,14 @@ private:
     {
         YT_VERIFY(std::ssize(blockIndexes) <= std::ssize(BlockIndexes_));
 
+        // NB(achains): If P2P is enabled but node directory synchronizer is not active,
+        //              we must forcefully request node descriptors (see YT-26951).
+        bool fetchNodeDescriptors = FetchNodeDescriptors_;
+        if (!fetchNodeDescriptors && EnableP2P_ && !reader->HasActiveNodeDirectorySynchronizer()) {
+            YT_LOG_DEBUG("Forcing node descriptor fetch because node directory synchronizer is inactive");
+            fetchNodeDescriptors = true;
+        }
+
         TFuture<IRequestBatcher::TGetBlocksResult> future;
         if (backupPeer && SessionOptions_.AdaptiveHedgingManager) {
             future = New<TReadBlockSetHedgedRequest>(
@@ -3135,8 +3143,8 @@ private:
                 applyPreliminaryThrottling,
                 blockIndexes,
                 peers,
-                /*enableP2P*/ ReaderConfig_->FetchFromPeers,
-                /*fetchNodeDescriptors*/ ReaderConfig_->FetchNodeDescriptors)
+                /*enableP2P*/ EnableP2P_,
+                /*fetchNodeDescriptors*/ fetchNodeDescriptors)
                 ->Run();
         } else {
             std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->BlockRpcHedgingDelay
@@ -3169,14 +3177,6 @@ private:
                         throttlingError);
                     return MakeFuture(false);
                 }
-            }
-
-            // NB(achains): If P2P is enabled but node directory synchronizer is not active,
-            //              we must forcefully request node descriptors (see YT-26951).
-            bool fetchNodeDescriptors = FetchNodeDescriptors_;
-            if (!fetchNodeDescriptors && EnableP2P_ && !reader->HasActiveNodeDirectorySynchronizer()) {
-                YT_LOG_DEBUG("Forcing node descriptor fetch because node directory synchronizer is inactive");
-                fetchNodeDescriptors = true;
             }
 
             future = RequestBatcher_->GetBlockSet(
@@ -4701,6 +4701,9 @@ private:
         TPeer PrimaryPeer;
         std::optional<TPeer> BackupPeer;
 
+        bool EnableP2P = true;
+        bool FetchNodeDescriptors = false;
+
         bool RequestIsInitialized = false;
         TPromise<TResponse> RequestResult;
 
@@ -4741,6 +4744,8 @@ private:
         batch.Barriers = request.Barriers;
         batch.PrimaryPeer = request.PrimaryPeer;
         batch.BackupPeer = request.BackupPeer;
+        batch.EnableP2P = request.EnableP2P;
+        batch.FetchNodeDescriptors = request.FetchNodeDescriptors;
         batch.RequestCount = 1;
 
         for (auto index : request.BlockIndexes) {
@@ -4831,6 +4836,9 @@ private:
         req->SetAcknowledgementTimeout(std::nullopt);
         req->set_ally_replicas_revision(ToProto(queuedBatch.Session->SeedReplicas_.Revision));
 
+        req->set_enable_p2p(queuedBatch.EnableP2P);
+        req->set_fetch_node_descriptors(queuedBatch.FetchNodeDescriptors);
+
         return req->Invoke();
     }
 
@@ -4862,6 +4870,9 @@ private:
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_read_session_id(), queuedBatch.Session->SessionOptions_.ReadSessionId);
 
+        req->set_enable_p2p(queuedBatch.EnableP2P);
+        req->set_fetch_node_descriptors(queuedBatch.FetchNodeDescriptors);
+
         for (const auto& barrier : queuedBatch.Barriers) {
             auto* waitBarrier = req->add_wait_barriers();
             waitBarrier->CopyFrom(barrier);
@@ -4888,7 +4899,7 @@ private:
         YT_VERIFY(state.Current.RequestIsInitialized || !state.Next.RequestIsInitialized);
 
         if (state.Current.RequestIsInitialized) {
-            if (CurrentBatchContainsBlocks(state, request.BlockIndexes)) {
+            if (CurrentBatchCanSatisfyRequest(state, request)) {
                 return state.Current.GetRequestResultFuture();
             } else {
                 AddBlocksToBatchRequest(request, state.Next);
@@ -4943,6 +4954,8 @@ private:
         nextBatch.PrimaryPeer = request.PrimaryPeer;
         nextBatch.BackupPeer = request.BackupPeer;
         nextBatch.Barriers = request.Barriers;
+        nextBatch.EnableP2P = request.EnableP2P;
+        nextBatch.FetchNodeDescriptors = request.FetchNodeDescriptors;
         nextBatch.RequestCount++;
 
         if (!nextBatch.RequestIsInitialized) {
@@ -4956,11 +4969,20 @@ private:
     }
 
     template <class TState>
-    bool CurrentBatchContainsBlocks(const TState& probeNodeState, const std::vector<int>& blockIndexes)
+    bool CurrentBatchCanSatisfyRequest(const TState& probeNodeState, const TRequest& request)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
-        for (auto index : blockIndexes) {
+        // NB: We can reuse current batch only if its response will contain all data requested by request.
+        if (request.EnableP2P && !probeNodeState.Current.EnableP2P) {
+            return false;
+        }
+
+        if (request.FetchNodeDescriptors && !probeNodeState.Current.FetchNodeDescriptors) {
+            return false;
+        }
+
+        for (auto index : request.BlockIndexes) {
             if (!probeNodeState.Current.BlockIds.contains(index)) {
                 return false;
             }

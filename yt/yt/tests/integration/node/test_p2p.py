@@ -76,6 +76,36 @@ class TestP2P(YTEnvSetup):
     def peer_counter(self, peer, path):
         return profiler_factory().at_node(peer).counter(path)
 
+    @authors("achains")
+    def test_per_request_disable_p2p_prevents_peer_reads(self):
+        throttled = self.seed_counter("data_node/p2p/throttled_bytes")
+        distributed = self.seed_counter("data_node/p2p/distributed_bytes")
+        peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]
+
+        def read_with_p2p_disabled():
+            return read_table(
+                "//tmp/t",
+                table_reader={
+                    "fetch_from_peers": False,
+                })
+
+        for _ in range(10):
+            assert read_with_p2p_disabled() == [{"a": 1}]
+
+        time.sleep(2)
+
+        disabled_peer_hit = sum(c.get_delta() for c in peer_hit)
+        assert disabled_peer_hit == 0
+
+        for _ in range(6):
+            self.access_table()
+        time.sleep(2)
+
+        wait(lambda: throttled.get_delta() > 0)
+        wait(lambda: distributed.get_delta() > 0)
+
+        assert sum(c.get_delta() for c in peer_hit) > disabled_peer_hit
+
     @authors("prime")
     def test_no_distribution(self):
         throttled = self.seed_counter("data_node/p2p/throttled_bytes")
@@ -248,23 +278,19 @@ class TestP2PWithoutNodeDirectorySynchronizer(YTEnvSetup):
         return profiler_factory().at_node(peer).counter(path)
 
     @authors("achains")
-    def test_p2p_distribution_without_node_directory_synchronizer(self):
+    def test_peer_reads_without_node_directory_synchronizer(self):
         throttled = self.seed_counter("data_node/p2p/throttled_bytes")
         distributed = self.seed_counter("data_node/p2p/distributed_bytes")
         peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]
 
-        # Reach hot_block_threshold, no P2P envolved yet
-        for _ in range(3):
+        def check_distribution_started():
             assert self.access_table() == [{"a": 1}]
+            return throttled.get_delta() > 0 and distributed.get_delta() > 0
 
-        # Now we will receive blocks from peers but shouldn't be able to resolve them
-        # Here force fetch node descriptors must kick in
-        for _ in range(6):
-            self.access_table() == [{"a": 1}]
-        time.sleep(2)
+        wait(check_distribution_started)
 
-        wait(lambda: throttled.get_delta() > 0)
-        wait(lambda: distributed.get_delta() > 0)
+        def check_peer_hit():
+            assert self.access_table() == [{"a": 1}]
+            return sum(c.get_delta() for c in peer_hit) > 0
 
-        # ChunkClient shouldn't resolve peer descriptors here, peer_hit is expected to be 0
-        assert sum(c.get_delta() for c in peer_hit) == 0
+        wait(check_peer_hit)
