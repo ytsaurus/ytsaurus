@@ -81,14 +81,14 @@ struct TLayerMeta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TLayerLocation)
-DECLARE_REFCOUNTED_CLASS(TLayer)
-
 class TLayer
     : public TAsyncCacheValueBase<TArtifactKey, TLayer>
 {
 public:
-    TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation);
+    TLayer(
+        const TLayerMeta& layerMeta,
+        const TArtifactKey& artifactKey,
+        const TLayerLocationPtr& layerLocation);
 
     ~TLayer();
 
@@ -148,8 +148,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TSimpleTmpfsVolume)
 
 class TSimpleTmpfsVolume
     : public IVolume
