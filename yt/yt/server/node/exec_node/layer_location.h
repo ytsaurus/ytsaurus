@@ -27,11 +27,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NServer::TDiskHealthCheckerPtr;
-using NServer::TDiskHealthCheckerConfigPtr;
-using NProfiling::TTagSet;
-using NProfiling::TEventTimerGuard;
-
 class TOverlayData;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +38,7 @@ public:
     TLayerLocation(
         NDataNode::TLayerLocationConfigPtr locationConfig,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        TDiskHealthCheckerConfigPtr healthCheckerConfig,
+        NServer::TDiskHealthCheckerConfigPtr healthCheckerConfig,
         NContainers::IPortoExecutorPtr volumeExecutor,
         NContainers::IPortoExecutorPtr layerExecutor,
         NContainers::IPortoExecutorPtr fastLayerExecutor,
@@ -53,14 +48,14 @@ public:
 
     TFuture<TVolumeMeta> CreateNbdVolume(
         TGuid tag,
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TNbdConfigPtr nbdConfig,
         TCreateNbdVolumeOptions options);
 
     TFuture<TVolumeMeta> CreateOverlayVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         int userId,
         const std::optional<std::string>& placePath,
         std::optional<int> diskSpaceLimit,
@@ -70,21 +65,21 @@ public:
 
     TFuture<TVolumeMeta> CreateSquashFSVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
     TFuture<TVolumeMeta> CreateLoopVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TLocalDiskVolumeParamsPtr tmpfsVolume);
 
     TFuture<TVolumeMeta> CreateTmpfsVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TTmpfsVolumeParamsPtr tmpfsVolume);
 
     void Disable(const TError& error, bool persistentDisable = true);
@@ -121,7 +116,7 @@ public:
     TFuture<void> RemoveLayer(const TLayerId& layerId);
 
     TFuture<void> RemoveVolume(
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TVolumeId volumeId,
         std::optional<std::string> portoPlacePath);
 
@@ -170,7 +165,7 @@ private:
     const std::string LayersMetaPath_;
     const std::string PlacePath_;
 
-    TDiskHealthCheckerPtr HealthChecker_;
+    NServer::TDiskHealthCheckerPtr HealthChecker_;
 
     TLayerLocationPerformanceCounters PerformanceCounters_;
 
@@ -223,22 +218,22 @@ private:
 
     TVolumeMeta DoCreateVolume(
         TGuid tag,
-        TTagSet tagSet,
-        std::optional<TEventTimerGuard> volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        std::optional<NProfiling::TEventTimerGuard> volumeCreateTimeGuard,
         TVolumeMeta volumeMeta,
         THashMap<std::string, std::string> volumeProperties,
         std::optional<std::string> portoPlacePath = std::nullopt);
 
     TVolumeMeta DoCreateNbdVolume(
         TGuid tag,
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TNbdConfigPtr nbdConfig,
         TCreateNbdVolumeOptions options);
 
     TVolumeMeta DoCreateOverlayVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         int userId,
         const std::optional<std::string>& placePath,
         std::optional<int> diskSpaceLimit,
@@ -248,25 +243,25 @@ private:
 
     TVolumeMeta DoCreateSquashFSVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
     TVolumeMeta DoCreateLoopVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TLocalDiskVolumeParamsPtr volumeParams);
 
     TVolumeMeta DoCreateTmpfsVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TTmpfsVolumeParamsPtr volumeParams);
 
     void DoRemoveVolume(
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TVolumeId volumeId,
         std::optional<std::string> portoPlacePath = std::nullopt);
 
@@ -282,8 +277,6 @@ private:
     //! Remove volumes planted in VolumesPath_.
     void RemoveVolumes(TDuration timeout);
 };
-
-DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

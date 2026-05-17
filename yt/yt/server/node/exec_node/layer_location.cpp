@@ -38,6 +38,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NNode;
+using namespace NProfiling;
+using namespace NServer;
 using namespace NTools;
 using namespace NYTree;
 
