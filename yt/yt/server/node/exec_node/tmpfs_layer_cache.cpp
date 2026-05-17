@@ -34,6 +34,7 @@ using namespace NClusterNode;
 using namespace NContainers;
 using namespace NDataNode;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NFS;
