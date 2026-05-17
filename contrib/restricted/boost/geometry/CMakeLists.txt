@@ -53,7 +53,6 @@ target_link_libraries(restricted-boost-geometry INTERFACE
   restricted-boost-range
   restricted-boost-rational
   restricted-boost-serialization
-  restricted-boost-static_assert
   restricted-boost-thread
   restricted-boost-throw_exception
   restricted-boost-tokenizer
