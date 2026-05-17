@@ -27,7 +27,10 @@ DEFINE_REFCOUNTED_TYPE(IVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLayer::TLayer(const TLayerMeta& layerMeta, const TArtifactKey& artifactKey, const TLayerLocationPtr& layerLocation)
+TLayer::TLayer(
+    const TLayerMeta& layerMeta,
+    const TArtifactKey& artifactKey,
+    const TLayerLocationPtr& layerLocation)
     : TAsyncCacheValueBase<TArtifactKey, TLayer>(artifactKey)
     , LayerMeta_(layerMeta)
     , Location_(layerLocation)
@@ -169,8 +172,8 @@ bool TSimpleTmpfsVolume::IsCached() const
 }
 
 TFuture<void> TSimpleTmpfsVolume::Link(
-    TGuid,
-    const TString&)
+    TGuid /*tag*/,
+    const TString& /*target*/)
 {
     // Simple volume is created inside sandbox, so we don't need to link it.
     YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
