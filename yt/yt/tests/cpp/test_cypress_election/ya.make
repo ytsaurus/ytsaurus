@@ -26,7 +26,7 @@ ENDIF()
 IF (YT_TEAMCITY)
     TAG(ya:yt ya:fat)
 
-    YT_SPEC(yt/yt/tests/integration/spec.yson)
+    YT_SPEC(yt/yt/tests/integration/spec_teamcity.yson)
 
     SIZE(LARGE)
 ELSE()

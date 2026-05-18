@@ -32,7 +32,7 @@ TAG(
 
 ENV(ASAN_OPTIONS="detect_leaks=0")
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 SIZE(LARGE)
 
