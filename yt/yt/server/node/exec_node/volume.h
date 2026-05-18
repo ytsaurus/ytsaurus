@@ -54,6 +54,8 @@ struct IVolume
     virtual bool IsCached() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IVolume)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Used for layer and for volume meta files.
@@ -120,6 +122,8 @@ private:
     bool IsLayerRemovalNeeded_ = true;
 };
 
+DEFINE_REFCOUNTED_TYPE(TLayer)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOverlayData
@@ -183,6 +187,8 @@ private:
     const bool DetachUnmount_ = false;
     TFuture<void> RemoveFuture_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
