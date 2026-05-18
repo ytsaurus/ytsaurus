@@ -1103,9 +1103,10 @@ class TestInputFetching(ClickHouseTestBase):
             }
         }
         with Clique(1, config_patch=config_patch) as clique:
-            query = f'select a from (select * from "{table_path}") t where t.a > 19'
-            result = clique.make_query_and_validate_read_row_count(query, exact=10)
-            assert_items_equal([row["a"] for row in result], [20, 30, 31, 32, 33, 34])
+            for table_expression in [f"'{table_path}'", f"ytTables('{table_path}')"]:
+                query = f'select a from (select * from {table_expression}) t where t.a > 19'
+                result = clique.make_query_and_validate_read_row_count(query, exact=10)
+                assert_items_equal([row["a"] for row in result], [20, 30, 31, 32, 33, 34])
 
     @authors("buyval01")
     def test_timestamp_key_filtering(self):

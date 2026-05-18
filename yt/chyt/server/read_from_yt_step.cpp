@@ -250,15 +250,27 @@ void TReadFromYTStep::initializePipeline(DB::QueryPipelineBuilder& pipeline, con
             const auto& context = QueryInfo_.planner_context->getMutableQueryContext();
 
             const auto* tableNode = QueryInfo_.table_expression->as<DB::TableNode>();
-            DB::TableWithColumnNamesAndTypes tableWithColumns(
-                DB::DatabaseAndTableWithAlias(tableNode->toASTIdentifier()),
-                tableNode->getStorageSnapshot()->getColumns(DB::GetColumnsOptions::Kind::Ordinary));
-            tableWithColumns.table.alias = tableNode->getAlias();
+            const auto* tableFunctionNode = QueryInfo_.table_expression->as<DB::TableFunctionNode>();
 
+            DB::DatabaseAndTableWithAlias tableWithAlias;
+            DB::StorageSnapshotPtr snapshot;
+            if (tableNode) {
+                tableWithAlias = DB::DatabaseAndTableWithAlias(tableNode->toASTIdentifier());
+                snapshot = tableNode->getStorageSnapshot();
+            } else if (tableFunctionNode) {
+                snapshot = tableFunctionNode->getStorageSnapshot();
+            }
 
-            Executor_.ModifySecondaryQueries([&] (DB::ASTPtr& query) {
-                AddFilterToQuery(context, query, tableWithColumns, pushedDownPredicate);
-            });
+            if (snapshot) {
+                DB::TableWithColumnNamesAndTypes tableWithColumns(
+                    tableWithAlias,
+                    snapshot->getColumns(DB::GetColumnsOptions::Kind::Ordinary));
+                tableWithColumns.table.alias = QueryInfo_.table_expression->getAlias();
+
+                Executor_.ModifySecondaryQueries([&] (DB::ASTPtr& query) {
+                    AddFilterToQuery(context, query, tableWithColumns, pushedDownPredicate);
+                });
+            }
         }
     }
 
