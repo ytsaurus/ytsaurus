@@ -3455,7 +3455,7 @@ class YtClient(ClientState):
         Set YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec: new pipeline spec.
+        :param value: new pipeline dynamic spec.
         :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
         """
@@ -3474,7 +3474,7 @@ class YtClient(ClientState):
         Set YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec: new pipeline spec.
+        :param value: new pipeline spec.
         :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, update spec even if pipeline is paused.
