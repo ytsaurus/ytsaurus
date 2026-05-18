@@ -2765,6 +2765,9 @@ public:
                     nodeId,
                     sequenceNumber);
             }
+            YT_LOG_DEBUG("Ground update queue manager sequence number inserted (NodeId: %v, SequenceNumber: %v)",
+                nodeId,
+                sequenceNumber);
         } else {
             auto oldSequenceNumber = nodeIt->second;
             if (oldSequenceNumber < sequenceNumber) {
@@ -2799,6 +2802,9 @@ public:
                 }
 
                 nodeIt->second = sequenceNumber;
+                YT_LOG_DEBUG("Ground update queue manager sequence number updated (NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
             } else {
                 YT_LOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one "
                     "(NodeId: %v, OldSequenceNumber: %v, NewSequenceNumber: %v)",
@@ -2847,7 +2853,7 @@ public:
         }
     }
 
-    i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const override
+    i64 GetGroundUpdateQueueManagerSequenceNumber(const TCypressNode* node) const override
     {
         auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(node->GetVersionedId());
         if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {

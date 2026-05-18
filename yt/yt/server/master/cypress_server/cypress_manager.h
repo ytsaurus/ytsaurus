@@ -259,7 +259,7 @@ struct ICypressManager
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const = 0;
+    virtual i64 GetGroundUpdateQueueManagerSequenceNumber(const TCypressNode* node) const = 0;
 
     virtual void UpdateGroundUpdateQueueManagerSequenceNumber(
         TCypressNode* node,

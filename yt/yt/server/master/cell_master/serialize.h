@@ -196,7 +196,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropMulticellIndex)                                           (3242))  // cherepashka
     ((HandleOptimizeForInBeginUpload)                               (3243))  // h0pless
     ((MakeVectorizedSubbatchSizeDynamiclyConfigurable)              (3244))  // danilalexeev
-
+    ((KulenovClockPart2)                                            (3245))  // aleksandra-zh
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
     ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird

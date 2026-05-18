@@ -169,6 +169,8 @@ message TReqCommitMutation
 
 message TRspCommitMutation
 {
+    optional int64 ground_update_queue_sequence_number = 1;
+
     // Response data is passed via attachments.
 }
 
