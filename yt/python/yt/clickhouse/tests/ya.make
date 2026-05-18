@@ -40,7 +40,7 @@ IF (SANITIZER_TYPE)
 ENDIF()
 
 TAG(ya:yt ya:fat)
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 SIZE(LARGE)
 
 TAG(
