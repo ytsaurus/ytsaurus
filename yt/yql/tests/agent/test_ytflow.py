@@ -385,9 +385,13 @@ class TestYtflowBase(TestQueueAgentBase):
     def setup_yt_utils(self):
         self.yt_table_index_generator = itertools.count()
 
+    def _allocate_yt_table_path(self):
+        table_index = next(self.yt_table_index_generator)
+        table_path = self.YT_TABLE_PATH + str(table_index)
+        return table_path
+
     def _create_yt_table(self, input_table_attrs):
-        table_idx = next(self.yt_table_index_generator)
-        table_path = self.YT_TABLE_PATH + str(table_idx)
+        table_path = self._allocate_yt_table_path()
         input_table_attrs.update(dynamic=True)
         create("table", table_path, attributes=input_table_attrs)
         sync_mount_table(table_path)
@@ -833,6 +837,51 @@ $stream = select Data || "_ytflow" as Data from logbroker.`{input_topic_path}`;
 
 insert into `{out_table_path}`
 select * from $stream;
+""")
+
+        self._assert_yt_table_content(out_table_path, [
+            {"Data": "a_ytflow"},
+            {"Data": "b_ytflow"},
+            {"Data": "c_ytflow"},
+        ])
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("creation_mode", ["fresh_table", "truncate"])
+    @pytest.mark.parametrize("selection_mode", ["all_columns", "exact_columns"])
+    def test_logbroker_transparent_column_removal(
+        self, query_tracker, yql_agent, run_query, logbroker_client,
+        creation_mode, selection_mode
+    ):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, ["a", "b", "c"], logbroker_client)
+
+        if creation_mode == "fresh_table":
+            out_table_path = self._allocate_yt_table_path()
+            write_hint = ""
+        elif creation_mode == "truncate":
+            out_table_path = self._create_yt_table(dict(
+                schema=self._make_queue_schema([
+                    {"name": "Data", "type": "string"},
+                ]),
+            ))
+
+            write_hint = " with truncate"
+        else:
+            raise ValueError(f"Unsupported creation mode: {creation_mode}")
+
+        if selection_mode == "all_columns":
+            select_body = "*"
+        elif selection_mode == "exact_columns":
+            select_body = "Data"
+        else:
+            raise ValueError(f"Unsupported selection mode: {selection_mode}")
+
+        run_query(f"""
+$stream = select Data || "_ytflow" as Data from logbroker.`{input_topic_path}`;
+
+insert into `{out_table_path}`{write_hint}
+select {select_body} from $stream;
 """)
 
         self._assert_yt_table_content(out_table_path, [
