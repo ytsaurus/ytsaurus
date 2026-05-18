@@ -312,6 +312,9 @@ class TestTableFunctions(ClickHouseTestBase):
                 # dir1 contains subdir.
                 clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1'))")
 
+            with raises_yt_error("No tables to read from"):
+                clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1/subdir'))")
+
             subquery = "select $path from ytListTables('//tmp/dir1') where splitByChar('/',assumeNotNull($path))[-1] = 't0'"
             assert clique.make_query(subquery) == [
                 {"$path": "//tmp/dir1/t0"},
