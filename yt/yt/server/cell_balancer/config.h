@@ -139,6 +139,10 @@ struct TBundleControllerDynamicConfig
     // For unittests.
     bool FlushLogAfterMutations;
 
+    std::optional<bool> EnableChaosBundleManagement;
+
+    TDuration ForeignClusterRequestTimeout;
+
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
