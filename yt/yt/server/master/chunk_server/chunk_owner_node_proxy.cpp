@@ -1637,6 +1637,10 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
         replicationRequest->set_schema_mode(request->schema_mode());
     }
 
+    if (request->has_optimize_for()) {
+        replicationRequest->set_optimize_for(request->optimize_for());
+    }
+
     ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
     if (request->has_upload_transaction_title()) {
         replicationRequest->set_upload_transaction_title(request->upload_transaction_title());
@@ -1821,6 +1825,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     uploadContext.SchemaMode = FromProto<ETableSchemaMode>(request->schema_mode());
 
+    if (request->has_optimize_for()) {
+        uploadContext.OptimizeFor = FromProto<EOptimizeFor>(request->optimize_for());
+    }
+
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
     auto replicatedToCellTags = FromProto<TCellTagSet>(request->upload_transaction_secondary_cell_tags());
@@ -1843,10 +1851,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     replicateStartToCellTags.erase(externalCellTag);
 
     context->SetRequestInfo(
-        "SchemaMode: %v, UpdateMode: %v, LockMode: %v, Title: %v, "
-        "Timeout: %v, ReplicatedToCellTags: %v, IsTableSchemaPresent: %v, TableSchemaId: %v, ChunkSchemaId: %v",
+        "SchemaMode: %v, UpdateMode: %v, OptimizeFor: %v, LockMode: %v, Title: %v, Timeout: %v, "
+        "ReplicatedToCellTags: %v, IsTableSchemaPresent: %v, TableSchemaId: %v, ChunkSchemaId: %v",
         uploadContext.SchemaMode,
         uploadContext.Mode,
+        uploadContext.OptimizeFor,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
