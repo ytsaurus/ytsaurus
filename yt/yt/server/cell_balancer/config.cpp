@@ -151,6 +151,12 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("flush_log_after_mutations", &TThis::FlushLogAfterMutations)
         .Default(false);
+
+    registrar.Parameter("enable_chaos_bundle_management", &TThis::EnableChaosBundleManagement)
+        .Default();
+
+    registrar.Parameter("foreign_cluster_request_timeout", &TThis::ForeignClusterRequestTimeout)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
