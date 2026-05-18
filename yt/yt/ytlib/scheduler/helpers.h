@@ -174,7 +174,7 @@ TError CheckOperationAccessByAcl(
     TOperationId operationId,
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
-    const NSecurityClient::TSerializableAccessControlList& acl,
+    NSecurityClient::TSerializableAccessControlList acl,
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
