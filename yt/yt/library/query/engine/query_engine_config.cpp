@@ -60,6 +60,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("prefetch_join_tables", &TThis::PrefetchJoinTables)
         .Optional();
+
+    registrar.Parameter("join_cache_size", &TThis::JoinCacheSize)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

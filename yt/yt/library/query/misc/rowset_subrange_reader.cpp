@@ -12,6 +12,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::pair<TKeyBoundRef, TKeyBoundRef> UniversalRange = {
+    TKeyBoundRef(ToKeyRef(MinKey()), /*inclusive*/ true, /*upper*/ false),
+    TKeyBoundRef(ToKeyRef(MaxKey()), /*inclusive*/ true, /*upper*/ true)
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TRowsetSubrangeReader)
 
 class TRowsetSubrangeReader

@@ -680,6 +680,7 @@ private:
                 MemoryChunkProvider_,
                 options.UseOrderByInJoinSubqueries,
                 allowHeavyRangeInferenceInJoins,
+                options.JoinCacheSize,
                 Logger));
         }
 

@@ -673,6 +673,7 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             GetDefaultMemoryChunkProvider(),
             /*useOrderByInJoinSubqueries*/ true,
             /*allowHeavyRangeInferenceInJoins*/ false,
+            /*cacheSize*/ 8,
             Logger()));
     }
 

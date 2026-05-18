@@ -216,6 +216,8 @@ struct TQueryOptions
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
 
+    std::optional<i64> JoinCacheSize;
+
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
 };
 
