@@ -73,6 +73,11 @@ public:
         return true;
     }
 
+    bool IsTabletCellSmoothingEnabled() override
+    {
+        return GetConfig()->EnableTabletCellSmoothing;
+    }
+
 private:
     const ECellarType CellarType_;
     const TDynamicTabletCellBalancerMasterConfigPtr Config_;

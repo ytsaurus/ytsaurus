@@ -118,8 +118,7 @@ public:
 
     bool IsVerboseLoggingEnabled() override
     {
-        return Bootstrap_->GetConfigManager()->GetConfig()
-            ->TabletManager->TabletCellBalancer->EnableVerboseLogging;
+        return GetConfig()->EnableVerboseLogging;
     }
 
     bool IsBalancingRequired() override
@@ -136,6 +135,11 @@ public:
         }
 
         return false;
+    }
+
+    bool IsTabletCellSmoothingEnabled() override
+    {
+        return GetConfig()->EnableTabletCellSmoothing;
     }
 
 private:
