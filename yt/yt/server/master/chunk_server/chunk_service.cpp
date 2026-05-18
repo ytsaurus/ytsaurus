@@ -155,6 +155,13 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    // COMPAT(danilalexeev) ExecuteBatch will be removed in the future.
+    TPerUserRequestQueueProvider::TReconfigurationCallback ReconfigurationCallback_;
+    TPerUserRequestQueueProviderPtr CreateChunkRequestQueueProvider_;
+    TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
+
+    std::atomic<bool> EnableCypressTransactionsInSequoia_;
+
     void OnLeaderActive()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -162,13 +169,6 @@ private:
         CreateChunkRequestQueueProvider_->ReconfigureAllQueues();
         ExecuteBatchRequestQueueProvider_->ReconfigureAllQueues();
     }
-
-    // COMPAT(danilalexeev) ExecuteBatch will be removed in the future.
-    TPerUserRequestQueueProvider::TReconfigurationCallback ReconfigurationCallback_;
-    TPerUserRequestQueueProviderPtr CreateChunkRequestQueueProvider_;
-    TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
-
-    std::atomic<bool> EnableCypressTransactionsInSequoia_;
 
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
