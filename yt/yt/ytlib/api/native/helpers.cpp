@@ -298,10 +298,6 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
         error,
         /*forceRetry*/ false);
 
-    YT_LOG_INFO(error, "ERRORCODE (5) invalidationResult (Retryable: %v, ErrorCode: %v, RetryCount: %v, OnErrorRetryCount: %v)",
-        invalidationResult.Retryable, invalidationResult.ErrorCode,
-        *retryCount, config->TableMountCache->OnErrorRetryCount);
-
     TDuration timeToWait;
     if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {
         YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
@@ -324,8 +320,6 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
 
         return timeToWait;
     }
-
-    YT_LOG_INFO(error, "ERRORCODE (6) throwing error (RetryCount: %v)", *retryCount);
 
     THROW_ERROR error;
 }
