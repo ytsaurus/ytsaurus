@@ -1688,6 +1688,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 
         queryOptions.TruncatedQueryLengthForTracing = queryConfig->TruncatedQueryLengthForTracing;
         queryOptions.PrefetchJoinTables = queryConfig->PrefetchJoinTables.value_or(false);
+        queryOptions.JoinCacheSize = queryConfig->JoinCacheSize;
     }
 
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;

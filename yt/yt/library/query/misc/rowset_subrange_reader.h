@@ -9,9 +9,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern std::pair<TKeyBoundRef, TKeyBoundRef> UniversalRange;
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemafulUnversionedReaderPtr CreateRowsetSubrangeReader(
     TFuture<TSharedRange<TUnversionedRow>> asyncRows,
-    std::pair<TKeyBoundRef, TKeyBoundRef> readRange);
+    std::pair<TKeyBoundRef, TKeyBoundRef> readRange = UniversalRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 

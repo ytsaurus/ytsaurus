@@ -54,6 +54,7 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     IMemoryChunkProviderPtr memoryChunkProvider,
     bool useOrderByInJoinSubqueries,
     bool allowHeavyRangeInferenceInJoins,
+    std::optional<i64> cacheSize,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
