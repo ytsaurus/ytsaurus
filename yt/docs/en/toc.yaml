@@ -315,6 +315,8 @@ items:
                href: user-guide/data-processing/spyt/overview.md
              - name: Launching Spark tasks in {{product-name}}
                href: user-guide/data-processing/spyt/launch.md
+             - name: Definitions in SPYT
+               href: user-guide/data-processing/spyt/glossary.md
              - name: Direct submit
                items:
                - name: Description
