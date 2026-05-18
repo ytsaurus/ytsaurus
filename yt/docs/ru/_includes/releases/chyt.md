@@ -8,15 +8,23 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.4**" %}
+
+**Release date:** 2026-05-15
+
+
+**Fixes:**
+
+* Add missing extractKeyValuePairs functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Use FetcherInvoker for TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+
+
+{% endcut %}
+
+
 {% cut "**2.18.3**" %}
 
 **Release date:** 2026-04-02
-
-
-**Release page:** [2.18.3](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.3)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.3](https://github.com/orgs/ytsaurus/packages/container/chyt/785932269?tag=stable-2.18.3)
 
 
 **Fixes:**
@@ -33,13 +41,8 @@ Is released as a docker image.
 **Release date:** 2026-03-23
 
 
-**Release page:** [2.18.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.2)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
-
-
-No description
+#### Fixes:
+* Fix distinct optimization reading not full block (056b99bd53dc92c2fdb2d59b8c0f30dafca9c80c)
 
 {% endcut %}
 
@@ -47,12 +50,6 @@ No description
 {% cut "**2.18.1**" %}
 
 **Release date:** 2026-03-04
-
-
-**Release page:** [2.18.1](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.1)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.1](https://github.com/orgs/ytsaurus/packages/container/chyt/721252481?tag=stable-2.18.1)
 
 
 **Fixes:**
@@ -66,9 +63,6 @@ No description
 {% cut "**2.18.0**" %}
 
 **Release date:** 2026-01-20
-
-
-**Release page:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
 
 
 #### Features:
@@ -95,12 +89,6 @@ No description
 {% cut "**2.17.4**" %}
 
 **Release date:** 2025-09-23
-
-
-**Release page:** [2.17.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.4)
-
-
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.4](https://github.com/orgs/ytsaurus/packages/container/chyt/524445395?tag=2.17.4)
 
 
 - Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
