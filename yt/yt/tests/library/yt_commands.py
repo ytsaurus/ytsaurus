@@ -196,6 +196,13 @@ def init_drivers(clusters):
             _clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
 
 
+def create_cypress_proxy_bypass_driver(driver_config):
+    config_without_cypress_proxy = pycopy.deepcopy(driver_config)
+    config_without_cypress_proxy["api_version"] = 4
+    del config_without_cypress_proxy["cypress_proxy"]
+    return Driver(config=config_without_cypress_proxy)
+
+
 def sorted_dicts(list_of_dicts):
     sorted_items_list = [(sorted(list(dict.items())), index) for index, dict in enumerate(list_of_dicts)]
     sorted_items_list.sort()
