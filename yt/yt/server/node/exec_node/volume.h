@@ -44,7 +44,7 @@ struct IVolume
     //! Link volume mount point to target.
     virtual TFuture<void> Link(
         TGuid tag,
-        const TString& target) = 0;
+        const std::string& target) = 0;
     //! Unlink volume from all targets without removing the volume.
     //! Used for reusable volumes that need to be re-linked in the next job.
     virtual TFuture<void> Unlink() = 0;
@@ -169,7 +169,7 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target) override final;
+        const std::string& target) override final;
 
     TFuture<void> Unlink() override final;
 

@@ -189,7 +189,7 @@ struct IUserJobEnvironment
     virtual bool IsPidNamespaceIsolationEnabled() const = 0;
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    virtual const std::vector<TString>& GetEnvironmentVariables() const = 0;
+    virtual const std::vector<std::string>& GetEnvironmentVariables() const = 0;
 
     virtual i64 GetMajorPageFaultCount() const = 0;
 
@@ -207,7 +207,7 @@ struct IJobProxyEnvironment
 {
     virtual void SetCpuGuarantee(double value) = 0;
     virtual void SetCpuLimit(double value) = 0;
-    virtual void SetCpuPolicy(const TString& policy) = 0;
+    virtual void SetCpuPolicy(const std::string& policy) = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
         NJobTrackerClient::TJobId jobId,
         const TUserJobEnvironmentOptions& options) = 0;

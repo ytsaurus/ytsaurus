@@ -91,13 +91,13 @@ struct TNetworkAttributes
 
 struct TGpuCheckOptions
 {
-    TString BinaryPath;
+    std::string BinaryPath;
     std::vector<std::string> BinaryArgs;
     std::optional<TNetworkAttributes> NetworkAttributes;
     THashMap<std::string, std::string> Environment;
     std::vector<NContainers::TDevice> Devices;
     std::vector<TShellCommandConfigPtr> SetupCommands;
-    std::optional<TString> InfinibandCluster;
+    std::optional<std::string> InfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

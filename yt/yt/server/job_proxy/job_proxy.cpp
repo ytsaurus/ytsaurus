@@ -183,7 +183,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString ExecutorConfigFileName = "executor_config.yson";
+static const std::string ExecutorConfigFileName = "executor_config.yson";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,12 +227,12 @@ TJobProxy::TJobProxy(
     }
 }
 
-TString TJobProxy::GetPreparationPath() const
+std::string TJobProxy::GetPreparationPath() const
 {
     return NFs::CurrentWorkingDirectory();
 }
 
-TString TJobProxy::GetSlotPath() const
+std::string TJobProxy::GetSlotPath() const
 {
     if ((!Config_->RootPath && !Config_->DockerImage) || Config_->TestRootFS) {
         return NFs::CurrentWorkingDirectory();
@@ -241,10 +241,9 @@ TString TJobProxy::GetSlotPath() const
     return "/slot";
 }
 
-TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
+std::string TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
-    // TODO(babenko): migrate to std::string
-    return AdjustPath(TString(*Config_->BusServer->UnixDomainSocketPath));
+    return AdjustPath(*Config_->BusServer->UnixDomainSocketPath);
 }
 
 std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
@@ -255,12 +254,12 @@ std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
     YT_VERIFY(addresses.size() == 1);
     YT_VERIFY(addresses[0]->Address.starts_with(prefix));
 
-    return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
+    return AdjustPath(addresses[0]->Address.substr(prefix.size()));
 }
 
 std::string TJobProxy::GetJobProxyHttpUnixDomainSocketPath() const
 {
-    return AdjustPath(TString(Config_->HttpServerUdsPath));
+    return AdjustPath(Config_->HttpServerUdsPath);
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -569,7 +568,7 @@ void TJobProxy::RetrieveJobSpec()
         ? jobSpecExt.estimated_job_proxy_memory()
         : JobProxyMemoryReserve_;
 
-    std::vector<TString> annotations{
+    std::vector<std::string> annotations{
         Format("Type: SchedulerJob"),
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", JobId_),
@@ -726,7 +725,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
     }
 }
 
-TString TJobProxy::AdjustPath(const TString& path) const
+std::string TJobProxy::AdjustPath(const std::string& path) const
 {
     return NFS::CombinePaths(GetSlotPath(), NFS::GetRelativePath(GetPreparationPath(), path));
 }
@@ -1113,7 +1112,7 @@ TJobResult TJobProxy::RunJob()
         OnSpawned();
     } catch (const std::exception& ex) {
         auto isSupervisorProxyTimeoutError = [] (const TError& error) {
-            auto serviceAttribute = error.Attributes().Find<std::optional<TString>>("service");
+            auto serviceAttribute = error.Attributes().Find<std::optional<std::string>>("service");
             return error.GetCode() == NYT::EErrorCode::Timeout &&
                 serviceAttribute == TSupervisorServiceProxy::GetDescriptor().ServiceName;
         };
@@ -1541,7 +1540,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     YT_VERIFY(environment);
 
     auto createRootFS = [&] () -> std::optional<TRootFS> {
-        TString stderrPath;
+        std::string stderrPath;
         if (Config_->ExecutorStderrPath) {
             stderrPath = *Config_->ExecutorStderrPath;
         } else {
@@ -1584,13 +1583,13 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             GetSandboxRelPath(ESandboxKind::Tmp));
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = TString(tmpPath),
+            .SourcePath = tmpPath,
             .TargetPath = "/tmp",
             .ReadOnly = false,
         });
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = TString(tmpPath),
+            .SourcePath = tmpPath,
             .TargetPath = "/var/tmp",
             .ReadOnly = false,
         });
@@ -1639,8 +1638,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 target);
 
             rootFS.Binds.push_back(TBind{
-                .SourcePath = TString(source),
-                .TargetPath = TString(target),
+                .SourcePath = source,
+                .TargetPath = target,
                 .ReadOnly = false,
             });
         }
@@ -1734,7 +1733,7 @@ TJobId TJobProxy::GetJobId() const
     return JobId_;
 }
 
-TString TJobProxy::GetAuthenticatedUser() const
+std::string TJobProxy::GetAuthenticatedUser() const
 {
     return JobSpecHelper_->GetJobSpecExt().authenticated_user();
 }
@@ -1828,8 +1827,8 @@ void TJobProxy::OnPrepared()
 }
 
 void TJobProxy::PrepareArtifact(
-    const TString& artifactName,
-    const TString& pipePath)
+    const std::string& artifactName,
+    const std::string& pipePath)
 {
     YT_LOG_INFO("Requesting node to prepare artifact (ArtifactName: %v, PipePath: %v)",
         artifactName,
@@ -1845,8 +1844,8 @@ void TJobProxy::PrepareArtifact(
 }
 
 void TJobProxy::OnArtifactPreparationFailed(
-    const TString& artifactName,
-    const TString& artifactPath,
+    const std::string& artifactName,
+    const std::string& artifactPath,
     const TError& error)
 {
     YT_LOG_ERROR(error, "Artifact preparation failed (ArtifactName: %v, ArtifactPath: %v)",

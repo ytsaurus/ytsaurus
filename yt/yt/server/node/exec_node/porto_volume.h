@@ -44,7 +44,7 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target) override final;
+        const std::string& target) override final;
 
     TFuture<void> Unlink() override final;
 
@@ -61,7 +61,7 @@ protected:
     std::atomic<bool> RemovalRequested_ = false;
 
     static TFuture<void> DoRemoveVolumeCommon(
-        const TString& volumeType,
+        const std::string& volumeType,
         NProfiling::TTagSet tagSet,
         TLayerLocationPtr location,
         TVolumeMeta volumeMeta,
@@ -71,11 +71,11 @@ protected:
 
 private:
     NConcurrency::TAsyncReaderWriterLock Lock_;
-    std::vector<TString> Targets_;
+    std::vector<std::string> Targets_;
 
-    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
+    TCallback<TFuture<void>(const std::vector<std::string>&)> RemoveCallback_;
 
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets);
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

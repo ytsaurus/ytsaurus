@@ -29,7 +29,7 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString ProxyConfigFileName;
+extern const std::string ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_STRUCT(IJobController)
 
