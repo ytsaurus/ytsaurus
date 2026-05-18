@@ -84,7 +84,7 @@ using TSequoiaMapNode = TMapNodeImpl<TNodeId>;
 
 template <class T>
 class TScalarNode;
-using TStringNode  = TScalarNode<TString>;
+using TStringNode  = TScalarNode<std::string>;
 using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
@@ -92,10 +92,10 @@ using TBooleanNode = TScalarNode<bool>;
 
 template <class T>
 class TScalarNodeTypeHandler;
-using TStringNodeTypeHandler = TScalarNodeTypeHandler<TString>;
-using TInt64NodeTypeHandler = TScalarNodeTypeHandler<i64>;
-using TUint64NodeTypeHandler = TScalarNodeTypeHandler<ui64>;
-using TDoubleNodeTypeHandler = TScalarNodeTypeHandler<double>;
+using TStringNodeTypeHandler  = TScalarNodeTypeHandler<std::string>;
+using TInt64NodeTypeHandler   = TScalarNodeTypeHandler<i64>;
+using TUint64NodeTypeHandler  = TScalarNodeTypeHandler<ui64>;
+using TDoubleNodeTypeHandler  = TScalarNodeTypeHandler<double>;
 using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
 
 struct TCreateNodeContext;

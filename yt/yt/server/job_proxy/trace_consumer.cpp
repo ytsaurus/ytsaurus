@@ -13,14 +13,14 @@ static const std::string ControlTraceEventName = "ytControlEvent";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString TimestampAttributeKey = "ts";
-static const TString ThreadIdAttributeKey = "tid";
-static const TString ProcessIdAttributeKey = "pid";
-static const TString EventNameAttributeKey = "name";
-static const TString TraceIdAttributeKey = "traceId";
-static const TString EventTypeAttributeKey = "type";
+static const std::string TimestampAttributeKey = "ts";
+static const std::string ThreadIdAttributeKey = "tid";
+static const std::string ProcessIdAttributeKey = "pid";
+static const std::string EventNameAttributeKey = "name";
+static const std::string TraceIdAttributeKey = "traceId";
+static const std::string EventTypeAttributeKey = "type";
 
-static const THashSet<TString> TraceAttributeKeyWhitelist = {
+static const THashSet<std::string> TraceAttributeKeyWhitelist = {
     TimestampAttributeKey,
     ThreadIdAttributeKey,
     ProcessIdAttributeKey,

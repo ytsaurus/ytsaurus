@@ -4635,7 +4635,7 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("is too long"):
             set("{}/sample/@folder_id".format(object_map), "abacaba" * 42)
         set("{}/sample/@folder_id".format(object_map), "b7189bb3-fcf3-46da-accf-52be0d4148f0")
-        with raises_yt_error("Cannot parse \"string\"; expected \"string_value\", actual \"int64_value\""):
+        with raises_yt_error("Cannot parse \"string\" from \"int64\""):
             set("{}/sample/@folder_id".format(object_map), 0)
 
     @authors("cookiedoth")
