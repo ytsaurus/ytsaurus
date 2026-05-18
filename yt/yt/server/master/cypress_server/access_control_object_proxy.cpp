@@ -491,7 +491,7 @@ protected:
 
             auto parent = GetParent<TAccessControlObjectProxy>();
             parent->SetAttribute(
-                renamedKey.Unintern(),
+                TYPath(renamedKey.Unintern()),
                 &typedContext->Request(),
                 &typedContext->Response(),
                 typedContext);
@@ -530,7 +530,7 @@ protected:
             auto parent = GetParent<TAccessControlObjectProxy>();
 
             parent->RemoveAttribute(
-                renamedKey.Unintern(),
+                TYPath(renamedKey.Unintern()),
                 &typedContext->Request(),
                 &typedContext->Response(),
                 typedContext);

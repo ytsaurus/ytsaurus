@@ -716,7 +716,8 @@ TError SetScalarField(
 {
     switch (value->GetType()) {
         case NYTree::ENodeType::String:
-            return SetScalarField(message, fieldDescriptor, value->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            return SetScalarField(message, fieldDescriptor, TString(value->AsString()->GetValue()));
         case NYTree::ENodeType::Int64:
             return SetScalarField(message, fieldDescriptor, value->AsInt64()->GetValue());
         case NYTree::ENodeType::Uint64:
@@ -788,7 +789,8 @@ TError SetScalarRepeatedFieldEntry(
 {
     switch (value->GetType()) {
         case NYTree::ENodeType::String:
-            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TString(value->AsString()->GetValue()));
         case NYTree::ENodeType::Int64:
             return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value->AsInt64()->GetValue());
         case NYTree::ENodeType::Uint64:
@@ -861,7 +863,8 @@ TError AddScalarRepeatedFieldEntry(
 {
     switch (value->GetType()) {
         case NYTree::ENodeType::String:
-            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TString(value->AsString()->GetValue()));
         case NYTree::ENodeType::Int64:
             return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value->AsInt64()->GetValue());
         case NYTree::ENodeType::Uint64:

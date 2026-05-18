@@ -432,9 +432,9 @@ private:
             node); \
     }
 
-BEGIN_DEFINE_SCALAR_TYPE(String, TString)
+BEGIN_DEFINE_SCALAR_TYPE(String, std::string)
     protected:
-        void ValidateValue(const TString& value) override
+        void ValidateValue(const std::string& value) override
         {
             auto length = std::ssize(value);
             auto limit = GetDynamicCypressManagerConfig()->MaxStringNodeLength;
@@ -446,7 +446,7 @@ BEGIN_DEFINE_SCALAR_TYPE(String, TString)
                     limit);
             }
         }
-END_DEFINE_SCALAR_TYPE(String, TString)
+END_DEFINE_SCALAR_TYPE(String, std::string)
 
 BEGIN_DEFINE_SCALAR_TYPE(Int64, i64)
 END_DEFINE_SCALAR_TYPE(Int64, i64)

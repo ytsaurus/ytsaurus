@@ -218,7 +218,8 @@ TString TPoolName::ToString() const
 
 void Deserialize(TPoolName& value, INodePtr node)
 {
-    value = TPoolName::FromString(node->AsString()->GetValue());
+    // TODO(babenko): migrate to std::string
+    value = TPoolName::FromString(TString(node->AsString()->GetValue()));
 }
 
 void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)

@@ -262,7 +262,8 @@ std::string GetFilterFactors(const TArchiveOperationRequest& request)
 
     for (const auto& node : {filteredSpec.Pool, filteredSpec.Title}) {
         if (node && node->GetType() == ENodeType::String) {
-            parts.push_back(node->AsString()->GetValue());
+            // TODO(babenko): migrate to std::string
+            parts.push_back(TString(node->AsString()->GetValue()));
         }
     }
 

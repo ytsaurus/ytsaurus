@@ -1335,8 +1335,9 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
     THashSet<std::string> currentBundles;
     std::vector<std::string> newBundles;
     for (const auto& bundle : bundleList->GetChildren()) {
-        const auto& name = bundle->AsString()->GetValue();
-        currentBundles.insert(bundle->AsString()->GetValue());
+        // TODO(babenko): migrate to std::string
+        auto name = TString(bundle->AsString()->GetValue());
+        currentBundles.insert(name);
 
         auto [it, isNew] = Bundles_.emplace(
             name,
