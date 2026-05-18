@@ -4456,7 +4456,7 @@ TGpuCheckOptions TJob::GetGpuCheckOptions() const
         .Environment = FromProto<THashMap<std::string, std::string>>(UserJobSpec_->gpu_check_environment()),
         .Devices = GetGpuDevices(),
         .SetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands(),
-        .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),
+        .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<std::string>(InfinibandClusterNameKey),
     };
 }
 

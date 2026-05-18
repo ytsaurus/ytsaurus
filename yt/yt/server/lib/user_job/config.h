@@ -12,7 +12,7 @@ namespace NYT::NUserJob {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString DefaultExecutorStderrPath("logs/ytserver_exec_stderr");
+inline const std::string DefaultExecutorStderrPath("logs/ytserver_exec_stderr");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,16 +41,16 @@ struct TUserJobExecutorConfig
     : public NYTree::TYsonStruct
 {
     //! Command to execute.
-    TString Command;
+    std::string Command;
 
     //! Pipes to redirect into user job.
     std::vector<NPipeIO::TNamedPipeConfigPtr> Pipes;
 
     //! Id of the running job.
-    TString JobId;
+    std::string JobId;
 
     //! Environment variables in format "key=value" to set in user job.
-    std::vector<TString> Environment;
+    std::vector<std::string> Environment;
 
     //! User to impersonate before spawning a child process.
     int Uid = -1;
@@ -60,7 +60,7 @@ struct TUserJobExecutorConfig
     //! Whether to adjust resource limits to allow core dumps.
     bool EnableCoreDump = false;
 
-    TString StderrPath;
+    std::string StderrPath;
 
     //! Config of the connection between user job executor and job proxy.
     NUserJob::TUserJobSynchronizerConnectionConfigPtr UserJobSynchronizerConnectionConfig;

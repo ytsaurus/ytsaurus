@@ -139,9 +139,9 @@ public:
                 if (parameters.Command) {
                     options->Command = parameters.Command;
                 } else {
-                    auto bashrc = TString{Bashrc};
+                    std::string bashrc = Bashrc;
                     for (const auto& variable : Environment_) {
-                        if (variable.StartsWith("PS1=")) {
+                        if (variable.starts_with("PS1=")) {
                             bashrc = Format("export %v\n%v", variable, bashrc);
                         }
                     }
@@ -254,14 +254,14 @@ public:
     }
 
 protected:
-    const TString PreparationDir_;
-    const TString WorkingDir_;
+    const std::string PreparationDir_;
+    const std::string WorkingDir_;
     const bool EnableJobShellSeccopm;
     std::optional<int> UserId_;
     std::optional<int> GroupId_;
-    std::optional<TString> MessageOfTheDay_;
+    std::optional<std::string> MessageOfTheDay_;
 
-    std::vector<TString> Environment_;
+    std::vector<std::string> Environment_;
     THashMap<TShellId, IShellPtr> IdToShell_;
     THashMap<int, IShellPtr> IndexToShell_;
     bool Terminated_ = false;
@@ -363,7 +363,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
 
 #ifdef _linux_
-    void EnsureToolBinaryPath(const TString& container) const
+    void EnsureToolBinaryPath(const std::string& container) const
     {
         auto containerRoot = WaitFor(PortoExecutor_->ConvertPath("/", container))
             .ValueOrThrow();

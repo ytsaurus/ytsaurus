@@ -167,7 +167,7 @@ bool TSimpleTmpfsVolume::IsCached() const
 
 TFuture<void> TSimpleTmpfsVolume::Link(
     TGuid /*tag*/,
-    const TString& /*target*/)
+    const std::string& /*target*/)
 {
     // Simple volume is created inside sandbox, so we don't need to link it.
     YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");

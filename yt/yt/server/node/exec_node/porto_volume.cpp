@@ -42,7 +42,7 @@ const std::string& TPortoVolumeBase::GetPath() const
 
 TFuture<void> TPortoVolumeBase::Link(
     TGuid tag,
-    const TString& target)
+    const std::string& target)
 {
     return TAsyncLockWriterGuard::Acquire(&Lock_)
         .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
@@ -61,8 +61,7 @@ TFuture<void> TPortoVolumeBase::Link(
 
             Targets_.push_back(target);
 
-            // TODO(dgolear): Switch to std::string.
-            auto source = TString(GetPath());
+            auto source = GetPath();
             return LayerLocation_->LinkVolume(tag, source, target);
         }))
         .ToUncancelable();
@@ -88,7 +87,7 @@ TFuture<void> TPortoVolumeBase::Unlink()
             auto targets = std::move(Targets_);
             Targets_.clear();
 
-            auto source = TString(GetPath());
+            auto source = GetPath();
             return UnlinkTargets(LayerLocation_, source, targets);
         }));
 }
@@ -131,7 +130,7 @@ bool TPortoVolumeBase::IsCached() const
 }
 
 TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
-    const TString& volumeType,
+    const std::string& volumeType,
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
@@ -182,7 +181,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
             location = LayerLocation_,
             volumePath = ToString(VolumeMeta_.MountPath),
             callback = std::move(callback)
-        ] (const std::vector<TString>& targets) {
+        ] (const std::vector<std::string>& targets) {
             return UnlinkTargets(location, volumePath, targets)
                 .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
                     auto Logger = ExecNodeLogger()
@@ -199,7 +198,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
         });
 }
 
-TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets)
+TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets)
 {
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath: %v", source);
