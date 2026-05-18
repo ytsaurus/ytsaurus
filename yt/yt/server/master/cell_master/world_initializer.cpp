@@ -517,6 +517,26 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/offshore_data_gateways",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                        .Item("config").BeginMap()
+                        .EndMap()
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/offshore_data_gateways/instances",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/hosts",
                 transactionId,
                 EObjectType::HostMap);
