@@ -228,13 +228,23 @@ protected:
     {
         auto controllerWeakPtr = TWeakPtr(controller);
         controller.Reset();
+
         // The invoker thread may still be inside a callback that holds
         // MakeStrong(this). Shut down the action queue to join the
         // thread and let the current callback finish. Non-graceful
         // shutdown discards pending callbacks to verify they use
         // MakeWeak(this).
         actionQueue->Shutdown(/*graceful*/ false);
-        EXPECT_TRUE(controllerWeakPtr.IsExpired());
+
+        // The StartSession()/CloseSession() future chains capture
+        // MakeStrong(this) inside BIND callbacks attached via Apply().
+        // Those callbacks (and their strong refs) are destroyed when
+        // the upstream future's subscriber list is cleared, which can
+        // happen on RPC threads outside Invoker_. Poll for expiration
+        // instead of asserting synchronously.
+        WaitUntil(
+            [&] { return controllerWeakPtr.IsExpired(); },
+            "Controller was not destroyed");
     }
 
     static std::vector<std::string> GetChunkReplicaNodes(TChunkId chunkId)
