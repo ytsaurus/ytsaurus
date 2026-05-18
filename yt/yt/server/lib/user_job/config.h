@@ -20,7 +20,7 @@ struct TUserJobSynchronizerConnectionConfig
     : public NYTree::TYsonStruct
 {
     //! User job -> Job proxy connection config.
-    NBus::TBusClientConfigPtr BusClientConfig;
+    NBus::NTcp::TBusClientConfigPtr BusClientConfig;
 
     REGISTER_YSON_STRUCT(TUserJobSynchronizerConnectionConfig);
 

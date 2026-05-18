@@ -311,7 +311,7 @@ struct TConnectionDynamicConfig
 
     int ThreadPoolSize;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 
     TDuration DefaultGetInSyncReplicasTimeout;

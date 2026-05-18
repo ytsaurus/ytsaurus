@@ -38,6 +38,7 @@ namespace NYT::NExecNode {
 static NLogging::TLogger SlotLogger("Slot");
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NNode;

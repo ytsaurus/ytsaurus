@@ -213,6 +213,7 @@ namespace NYT::NCellMaster {
 using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChaosServer;

@@ -98,7 +98,7 @@ void Initialize(
     SetNodeByYPath(
         *orchidRoot,
         "/tcp_dispatcher",
-        CreateVirtualNode(NYT::NBus::TTcpDispatcher::Get()->GetOrchidService()));
+        CreateVirtualNode(NYT::NBus::NTcp::TDispatcher::Get()->GetOrchidService()));
 
 #ifdef _linux_
     auto buildInfo = NYTProf::TBuildInfo::GetDefault();

@@ -405,7 +405,7 @@ struct TProxyDynamicConfig
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
 
-    NBus::TBusServerDynamicConfigPtr BusServer;
+    NBus::NTcp::TBusServerDynamicConfigPtr BusServer;
 
     TMemoryLimitsConfigPtr MemoryLimits;
 

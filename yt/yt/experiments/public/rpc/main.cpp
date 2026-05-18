@@ -47,6 +47,7 @@ namespace NYT {
 
 using namespace NRpc;
 using namespace NYT::NBus;
+using namespace NYT::NBus::NTcp;
 using namespace NConcurrency;
 using namespace NAdmin;
 

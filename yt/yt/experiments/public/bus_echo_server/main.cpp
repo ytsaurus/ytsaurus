@@ -13,6 +13,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");
 

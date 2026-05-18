@@ -72,6 +72,7 @@ namespace NYT::NQueueAgent {
 using namespace NAdmin;
 using namespace NAlertManager;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;

@@ -170,7 +170,7 @@ private:
 
     void DoInitialize()
     {
-        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
+        BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);

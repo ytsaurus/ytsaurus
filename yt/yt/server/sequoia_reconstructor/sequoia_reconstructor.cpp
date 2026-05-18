@@ -49,7 +49,7 @@ TBootstrapPtr InitializeMasterBootstrap(
         NFusion::CreateServiceDirectory());
     DoNotOptimizeAway(bootstrap);
 
-    NBus::TTcpDispatcher::Get()->DisableNetworking();
+    NBus::NTcp::TDispatcher::Get()->DisableNetworking();
 
     bootstrap->Initialize();
 

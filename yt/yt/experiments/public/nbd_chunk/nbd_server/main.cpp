@@ -79,7 +79,7 @@ protected:
 
         for (const auto& [deviceId, deviceConfig] : config->NbdChunkBlockDevices) {
             // Create channel to data node NBD service.
-            auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(config->DataNodeNbdServiceAddress));
+            auto client = CreateBusClient(NBus::NTcp::TBusClientConfig::CreateTcp(config->DataNodeNbdServiceAddress));
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
             auto logger = nbdServer->GetLogger();
 

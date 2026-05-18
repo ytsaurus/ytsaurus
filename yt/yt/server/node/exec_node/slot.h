@@ -113,8 +113,8 @@ struct IUserSlot
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 
-    virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
-    virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
+    virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;
+    virtual NBus::NTcp::TBusClientConfigPtr GetBusClientConfig() const = 0;
 
     virtual NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const = 0;
 

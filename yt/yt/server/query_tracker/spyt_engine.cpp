@@ -509,7 +509,7 @@ public:
             std::move(user),
             std::move(clusterClient),
             std::move(logger))
-        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
+        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::NTcp::TDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
     {
         auto discoveryValues = GetDiscoveryValues({"rest", "operation"});
