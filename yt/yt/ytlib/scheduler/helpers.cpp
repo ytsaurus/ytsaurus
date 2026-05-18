@@ -586,7 +586,7 @@ TError CheckOperationAccessByAco(
         operationId,
         jobId,
         permissionSet,
-        acl,
+        std::move(acl),
         client,
         logger);
 }
@@ -596,7 +596,7 @@ TError CheckOperationAccessByAcl(
     TOperationId operationId,
     TJobId jobId,
     EPermissionSet permissionSet,
-    const TSerializableAccessControlList& acl,
+    TSerializableAccessControlList acl,
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {
@@ -611,19 +611,15 @@ TError CheckOperationAccessByAcl(
         Logger.AddTag("JobId: %v", jobId);
     }
 
-    INodePtr aclNode;
-
     if (checkBaseAco) {
         const auto& baseAcoPrincipalAcl = GetAclFromAcoName(client, client->GetNativeConnection()->GetConfig()->OperationBaseAcoName);
-        auto finalAcl = acl;
-        finalAcl.Entries.insert(
-            finalAcl.Entries.end(),
+        acl.Entries.insert(
+            acl.Entries.end(),
             baseAcoPrincipalAcl.Entries.begin(),
             baseAcoPrincipalAcl.Entries.end());
-        aclNode = ConvertToNode(std::move(finalAcl));
-    } else {
-        aclNode = ConvertToNode(acl);
     }
+
+    auto aclNode = ConvertToNode(acl);
 
     TCheckPermissionByAclOptions options;
     options.IgnoreMissingSubjects = true;
@@ -650,7 +646,7 @@ TError CheckOperationAccessByAcl(
         jobId,
         permissionSet,
         results,
-        TAccessControlRule(acl),
+        TAccessControlRule(std::move(acl)),
         logger);
 }
 
