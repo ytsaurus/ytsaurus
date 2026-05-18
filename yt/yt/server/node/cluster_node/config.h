@@ -470,7 +470,7 @@ struct TClusterNodeDynamicConfig
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
-    NBus::TBusServerDynamicConfigPtr BusServer;
+    NBus::NTcp::TBusServerDynamicConfigPtr BusServer;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 

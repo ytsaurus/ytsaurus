@@ -68,6 +68,7 @@ namespace NYT::NClusterClock {
 using namespace NApi;
 using namespace NAdmin;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NRpc;
 using namespace NNet;
 using namespace NYTree;

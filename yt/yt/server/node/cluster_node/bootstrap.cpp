@@ -193,6 +193,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellMasterClient;

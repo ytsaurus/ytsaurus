@@ -761,7 +761,7 @@ struct TJobProxyConfig
 
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
 
-    NBus::TBusClientConfigPtr SupervisorConnection;
+    NBus::NTcp::TBusClientConfigPtr SupervisorConnection;
 
     TDuration SupervisorRpcTimeout;
 

@@ -312,7 +312,7 @@ struct TCellMasterBootstrapConfig
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     NYTree::IMapNodePtr CypressAnnotations;
 

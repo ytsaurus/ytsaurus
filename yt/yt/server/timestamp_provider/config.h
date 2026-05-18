@@ -17,7 +17,7 @@ struct TTimestampProviderBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     //! Clock server cell tag
     NObjectClient::TCellTag ClockClusterTag;

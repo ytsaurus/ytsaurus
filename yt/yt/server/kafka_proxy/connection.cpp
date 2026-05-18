@@ -16,6 +16,7 @@
 namespace NYT::NKafkaProxy {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NKafka;
 

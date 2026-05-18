@@ -459,12 +459,12 @@ private:
             NFS::Remove(unixDomainSocketPath);
         }
 
-        auto serverConfig = NBus::TBusServerConfig::CreateUds(unixDomainSocketPath);
-        auto clientConfig = NBus::TBusClientConfig::CreateUds(unixDomainSocketPath);
+        auto serverConfig = NBus::NTcp::TBusServerConfig::CreateUds(unixDomainSocketPath);
+        auto clientConfig = NBus::NTcp::TBusClientConfig::CreateUds(unixDomainSocketPath);
 
         auto config = BuildProcessConfig(slotIndex, serverConfig);
 
-        auto client = NBus::CreateBusClient(clientConfig);
+        auto client = NBus::NTcp::CreateBusClient(clientConfig);
 
         auto process = New<TSimpleProcess>(YqlAgentProgramName);
 
@@ -489,7 +489,7 @@ private:
             Config_->ProcessPluginConfig->RunRequestTimeout);
     }
 
-    TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::TBusServerConfigPtr serverConfig)
+    TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::NTcp::TBusServerConfigPtr serverConfig)
     {
         auto config = NYTree::CloneYsonStruct(ConfigTemplate_);
 

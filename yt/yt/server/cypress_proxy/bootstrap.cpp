@@ -258,7 +258,7 @@ private:
     {
         ITableDescriptor::ScheduleInitialization();
 
-        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
+        BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 

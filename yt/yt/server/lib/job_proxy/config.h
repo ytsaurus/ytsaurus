@@ -447,10 +447,10 @@ struct TJobProxyInternalConfig
     //! Path to write executor stderr (for testing purposes).
     std::optional<TString> ExecutorStderrPath;
 
-    NBus::TBusClientConfigPtr SupervisorConnection;
+    NBus::NTcp::TBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
 
-    NBus::TBusClientConfigPtr TvmBridgeConnection;
+    NBus::NTcp::TBusClientConfigPtr TvmBridgeConnection;
     NAuth::TTvmBridgeConfigPtr TvmBridge;
 
     TDuration HeartbeatPeriod;

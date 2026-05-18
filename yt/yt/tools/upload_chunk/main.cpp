@@ -18,6 +18,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NRpc::NBus;
 using namespace NConcurrency;
 using namespace NIO;

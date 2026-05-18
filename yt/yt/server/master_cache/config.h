@@ -27,7 +27,7 @@ struct TMasterCacheBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 

@@ -361,7 +361,7 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
+        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
         OverloadController_->TrackInvoker(StorageHeavyPoolName, NRpc::TDispatcher::Get()->GetHeavyInvoker());
         OverloadController_->TrackInvoker(StorageLightPoolName, NRpc::TDispatcher::Get()->GetLightInvoker());
 

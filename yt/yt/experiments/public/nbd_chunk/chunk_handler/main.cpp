@@ -81,7 +81,7 @@ protected:
 
         auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
 
-        auto client = NYT::NBus::CreateBusClient(NYT::NBus::TBusClientConfig::CreateTcp(config->Address));
+        auto client = NYT::NBus::NTcp::CreateBusClient(NYT::NBus::NTcp::TBusClientConfig::CreateTcp(config->Address));
         auto channel = NRpc::NBus::CreateBusChannel(client);
         auto queue = New<TActionQueue>("RPC");
 

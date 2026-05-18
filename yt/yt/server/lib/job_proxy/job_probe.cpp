@@ -13,7 +13,7 @@
 
 namespace NYT::NJobProxy {
 
-using NBus::TBusClientConfigPtr;
+using NBus::NTcp::TBusClientConfigPtr;
 using NChunkClient::TChunkId;
 using NYson::TYsonString;
 using NJobTrackerClient::TJobId;
@@ -169,7 +169,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TBusClientConfigPtr busClientConfig,
+    NBus::NTcp::TBusClientConfigPtr busClientConfig,
     TJobProbeConfigPtr probeConfig)
 {
     return New<TJobProberClient>(std::move(busClientConfig), std::move(probeConfig));

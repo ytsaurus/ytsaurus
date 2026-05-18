@@ -15,6 +15,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 
 static const auto Logger = NLogging::TLogger("BusEchoServer");

@@ -148,6 +148,7 @@ using namespace NRpcProxy;
 
 using namespace NApi;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NContainers;
@@ -814,7 +815,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         YT_VERIFY(JobProxyRpcServerPort_.has_value());
         Config_->BusServer->Port = *JobProxyRpcServerPort_;
 
-        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreateRemoteTcpBusServer(Config_->BusServer));
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreateRemoteBusServer(Config_->BusServer));
         PublicRpcServer_->Start();
         YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
 
@@ -833,7 +834,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     auto authenticationManager = NAuth::CreateAuthenticationManager(
         Config_->AuthenticationManager,
-        NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
+        NYT::NBus::NTcp::TDispatcher::Get()->GetXferPoller(),
         rootClient);
 
     auto signatureValidator = New<TProxySignatureValidator>(*SupervisorProxy_, JobId_);
@@ -921,7 +922,7 @@ TJobResult TJobProxy::RunJob()
             Config_->BusServer->UnixDomainSocketPath,
             Config_->GrpcServer->Addresses[0]->Address);
 
-        RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalTcpBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalBusServer(Config_->BusServer));
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->OnDynamicConfigChanged(Config_->RpcServerDynamic);
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));

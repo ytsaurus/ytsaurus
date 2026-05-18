@@ -74,6 +74,7 @@ namespace NYT::NQueryTracker {
 using namespace NAdmin;
 using namespace NAlertManager;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;

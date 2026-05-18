@@ -22,7 +22,7 @@ namespace NYT::NServer {
 struct TServerBootstrapConfig
     : public virtual NYTree::TYsonStruct
 {
-    NBus::TBusServerConfigPtr BusServer;
+    NBus::NTcp::TBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
 
     int RpcPort;

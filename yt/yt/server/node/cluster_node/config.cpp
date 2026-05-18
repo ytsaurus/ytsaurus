@@ -480,12 +480,12 @@ NHttp::TServerConfigPtr TClusterNodeBootstrapConfig::CreateSkynetHttpServerConfi
 void TClusterNodeProgramConfig::Register(TRegistrar registrar)
 {
     registrar.Postprocessor([] (TThis* config) {
-        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto dispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!dispatcherConfig->NetworkBandwidth) {
             dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
 
-        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!tcpDispatcherConfig->NetworkBandwidth) {
             tcpDispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }

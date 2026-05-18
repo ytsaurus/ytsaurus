@@ -130,7 +130,7 @@ struct TProxyBootstrapConfig
 
     int PublicRpcPort;
 
-    NBus::TBusServerConfigPtr PublicBusServer;
+    NBus::NTcp::TBusServerConfigPtr PublicBusServer;
 
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
@@ -194,7 +194,7 @@ struct TProxyDynamicConfig
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
-    NBus::TBusServerDynamicConfigPtr BusServer;
+    NBus::NTcp::TBusServerDynamicConfigPtr BusServer;
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     TProxyMemoryLimitsPtr MemoryLimits;

@@ -18,6 +18,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NLogging;
 using namespace NRpc;
 using namespace NRpc::NBus;

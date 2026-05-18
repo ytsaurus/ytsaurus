@@ -233,7 +233,7 @@ private:
         RpcServer_->RegisterService(CreateOffshoreDataGatewayService(
             ControlInvoker_,
             StorageThreadPool_->GetInvoker(),
-            NBus::TTcpDispatcher::Get()->GetXferPoller(),
+            NBus::NTcp::TDispatcher::Get()->GetXferPoller(),
             NativeAuthenticator_,
             NativeConnection_->GetMediumDirectory(),
             NativeConnection_->GetMediumDirectorySynchronizer()));

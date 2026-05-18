@@ -80,7 +80,7 @@ int main(int /*argc*/, char* argv[])
         auto txId = TGuid::FromString(TString(argv[3]));
 
         auto channel = NRpc::CreateRealmChannel(
-            NRpc::NBus::CreateTcpBusChannelFactory(New<NBus::TBusConfig>())->CreateChannel(addr),
+            NRpc::NBus::CreateTcpBusChannelFactory(New<NBus::NTcp::TBusConfig>())->CreateChannel(addr),
             cellId);
 
 
