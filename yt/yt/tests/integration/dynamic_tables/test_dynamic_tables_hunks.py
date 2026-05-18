@@ -2536,7 +2536,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         update_nodes_dynamic_config({
             "tablet_node": {
                 "tablet_cell_write_manager": {
-                    "write_failure_probability": 0.2,
+                    "failure_probability_before_write": 0.1,
+                    "failure_probability_after_write": 0.1,
                 },
             },
         })
