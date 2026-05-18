@@ -968,11 +968,13 @@ protected:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        SequoiaTransaction_->AddBarrierTags({NNative::SequoiaCypressOrderingTag});
+        SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+
         // NB: |CoordinatorCellId_| may be null here but it's OK.
         return SequoiaTransaction_->Commit({
             .CoordinatorCellId = CoordinatorCellId_,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-            .StronglyOrdered = true,
         });
     }
 

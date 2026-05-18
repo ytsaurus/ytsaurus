@@ -54,11 +54,11 @@ void TDynamicTransactionManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("throw_on_lease_revocation", &TThis::ThrowOnLeaseRevocation)
         .Default(false);
-    registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
-        .Default();
-    registrar.Parameter("sequoia_transaction_barrier_delay", &TThis::SequoiaTransactionBarrierDelay)
+    registrar.Parameter("prepared_transactions_barrier_delay", &TThis::PreparedTransactionsBarrierDelay)
         .Optional()
         .DontSerializeDefault();
+    registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,10 +82,6 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_transaction_is_not_compatible_with_method", &TThis::AlertTransactionIsNotCompatibleWithMethod)
         .Default(false);
 
-    registrar.Parameter("recompute_strongly_ordered_transaction_refs", &TThis::RecomputeStronglyOrderedTransactionRefs)
-        .Default(0)
-        .DontSerializeDefault();
-
     THashMap<EObjectType, THashSet<std::string>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
         "BeginUpload",
@@ -102,6 +98,9 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("transaction_type_to_method_whitelist", &TThis::TransactionTypeToMethodWhitelist)
         .Default(defaultWhitelist);
+
+    registrar.Parameter("enable_wait_until_prepared_transactions_finished", &TThis::EnableWaitUntilPreparedTransactionsFinished)
+        .Default(false);
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();

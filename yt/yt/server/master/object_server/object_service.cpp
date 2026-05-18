@@ -1076,8 +1076,9 @@ private:
         if (syncPhase == ESyncPhase::One &&
             !SuppressStronglyOrderedTransactionBarrier_)
         {
-            // NB: we have to wait for prepared Sequoia transactions to observe
-            // Cypress transaction replications, aborts and commits.
+            // NB: We have to wait for all currently prepared transactions
+            // with respect to barrier tags to observe side effects of
+            // Sequoia transactions.
             CellSyncSession_->ScheduleSyncWithSequoiaTransactions();
         }
 

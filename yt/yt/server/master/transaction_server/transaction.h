@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/core/concurrency/async_barrier.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
@@ -240,6 +242,15 @@ public:
     //! Can be confused with IsSequiaTransaction().
     bool IsSequoia() const = delete;
 
+    //! Saves a barrier tag and its corresponding cookie. Passing #InvalidAsyncBarrierCookie
+    //! as cookie indicates that an actual cookie is not known yet and will be delivered later,
+    //! but attaches the tag to the transaction permanently.
+    void RegisterBarrierCookie(
+        const std::string& tag,
+        NConcurrency::TAsyncBarrierCookie cookie);
+
+    const THashMap<std::string, NConcurrency::TAsyncBarrierCookie>& GetBarrierCookies() const;
+
 protected:
     IActionStateFactory* GetActionStateFactory() override;
 
@@ -252,6 +263,8 @@ private:
     bool NativeTxExternalizationEnabled_ = true;
 
     ETransactionLeasesState LeasesState_ = ETransactionLeasesState::Active;
+
+    THashMap<std::string, NConcurrency::TAsyncBarrierCookie> BarrierTagToCookie_;
 
     void IncrementRecursiveLockCount();
     void DecrementRecursiveLockCount();

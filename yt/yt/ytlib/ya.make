@@ -58,6 +58,7 @@ SRCS(
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
     api/native/pool_weight_provider.cpp
+    api/native/public.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp

@@ -20,6 +20,7 @@ namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -291,6 +292,11 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     if (IsCypressTransactionType(GetType())) {
         Save(context, NativeTxExternalizationEnabled_);
     }
+
+    // Cookies are invalidated anyway, so let's save the keys only.
+    auto tags = GetKeys(BarrierTagToCookie_);
+    std::sort(tags.begin(), tags.end());
+    Save(context, tags);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -356,6 +362,16 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     {
         if (IsCypressTransactionType(GetType())) {
             Load(context, NativeTxExternalizationEnabled_);
+        }
+    }
+
+    if ((EMasterReign::StrongOrderingTags <= context.GetVersion() && context.GetVersion() < EMasterReign::Start_26_2) ||
+        EMasterReign::StrongOrderingTags_26_2 <= context.GetVersion())
+    {
+        auto barrierTags = Load<std::vector<std::string>>(context);
+
+        for (const auto& tag : barrierTags) {
+            RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
         }
     }
 }
@@ -516,6 +532,22 @@ int TTransaction::GetSuccessorTransactionLeaseCount() const
 bool TTransaction::IsNativeTxExternalizationEnabled() const
 {
     return NativeTxExternalizationEnabled_;
+}
+
+void TTransaction::RegisterBarrierCookie(
+    const std::string& tag,
+    TAsyncBarrierCookie cookie)
+{
+    if (cookie == InvalidAsyncBarrierCookie) {
+        YT_VERIFY(!BarrierTagToCookie_.contains(tag));
+    }
+
+    BarrierTagToCookie_[tag] = cookie;
+}
+
+const THashMap<std::string, TAsyncBarrierCookie>& TTransaction::GetBarrierCookies() const
+{
+    return BarrierTagToCookie_;
 }
 
 auto TTransaction::GetActionStateFactory() -> IActionStateFactory*
