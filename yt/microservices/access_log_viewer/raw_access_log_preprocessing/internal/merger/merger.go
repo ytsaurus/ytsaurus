@@ -14,6 +14,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/microservices/access_log_viewer/raw_access_log_preprocessing/internal/config"
 	"go.ytsaurus.tech/yt/microservices/access_log_viewer/raw_access_log_preprocessing/internal/consts"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type Merger struct {
@@ -131,13 +132,9 @@ func (m *Merger) mergePartition(ctx context.Context, tx yt.Tx, processingName st
 	sortSpec.Title = fmt.Sprintf("[Raw Access Log Preprocessing] Processing time partitions [%s]", spanID)
 
 	mr := mapreduce.New(m.yc).WithTx(tx)
-	sortOp, err := mr.Sort(sortSpec)
-	if err != nil {
-		return xerrors.Errorf("failed to create sort operation: %w", err)
-	}
 
-	if err := sortOp.Wait(); err != nil {
-		return xerrors.Errorf("failed to wait for sort operation: %w", err)
+	if err := ytmsvc.SafeSort(ctx, mr, tx, sortSpec, chunksParent); err != nil {
+		return xerrors.Errorf("safe sort failed for partition %q: %w", partition, err)
 	}
 
 	return nil

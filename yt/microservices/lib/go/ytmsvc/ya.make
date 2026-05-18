@@ -4,6 +4,7 @@ SRCS(
     common.go
     crypto.go
     http.go
+    safesort.go
 )
 
 GO_TEST_SRCS(crypto_test.go)
