@@ -58,7 +58,7 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet)
 
 bool IsTabletReshardable(const TTabletPtr& tablet)
 {
-    return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
+    return tablet->State == ETabletState::Mounted &&
         tablet->Table->TableConfig->EnableAutoReshard &&
         tablet->Table->Bundle->Config->EnableTabletSizeBalancer &&
         tablet->Table->Sorted;
