@@ -187,7 +187,6 @@ public:
         return BIND(
             ReassignOrdinaryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -240,8 +239,6 @@ public:
         return BIND(
             ReassignInMemoryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
-            /*ignoreTableWiseConfig*/ false,
             Logger())
             .AsyncVia(invoker)
             .Run()
