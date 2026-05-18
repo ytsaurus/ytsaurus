@@ -20,6 +20,7 @@ PY_SRCS(
     yt_dashboards/bundle_ui/proxy_details.py
     yt_dashboards/bundle_ui/planning.py
     yt_dashboards/bundle_ui/key_filter.py
+    yt_dashboards/bundle_ui/cache_and_filtration.py
     yt_dashboards/cache.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
