@@ -340,6 +340,7 @@ private:
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
         ERequestTarget Target = ERequestTarget::Undetermined;
+        bool IsSequoiaFallback = false;
 
         // If request was resolved in Sequoia and forwared to master server then
         // "No such object" error should be retriable to allow the following use
@@ -752,6 +753,7 @@ private:
         if (involvesSequoiaError.has_value()) {
             auto& subrequest = Subrequests_[subrequestIndex];
             subrequest.Target = ERequestTarget::Sequoia;
+            subrequest.IsSequoiaFallback = true;
             RewriteSequoiaRequestTargetPath(&subrequest, *involvesSequoiaError);
         }
 
@@ -1037,18 +1039,27 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
+        bool hasSequoiaFallbackRequests = false;
+        int relevantSubrequestCount = 0;
         auto isSubrequestRelevant = [] (const TSubrequest& subrequest) {
             return subrequest.Target == ERequestTarget::Undetermined ||
                 subrequest.Target == ERequestTarget::Sequoia;
         };
+        for (const auto& subrequest : Subrequests_) {
+            if (isSubrequestRelevant(subrequest)) {
+                ++relevantSubrequestCount;
+            }
+            if (subrequest.IsSequoiaFallback) {
+                hasSequoiaFallbackRequests = true;
+            }
+        }
 
-        auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
         if (relevantSubrequestCount == 0) {
             // No Sequoia requests are present.
             return;
         }
 
-        MaybeSyncWithMaster();
+        MaybeSyncWithMaster(hasSequoiaFallbackRequests);
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
@@ -1133,7 +1144,7 @@ private:
     // Performs selective synchronization with
     // - the user directory,
     // - the ground update queues across all master cells.
-    void MaybeSyncWithMaster() const
+    void MaybeSyncWithMaster(bool hasSequoiaFallbackRequests) const
     {
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
         if (!config->EnableUserDirectoryPerRequestSync &&
@@ -1153,7 +1164,9 @@ private:
             const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
             futures.push_back(userDirectorySynchronizer->NextSync(true));
         }
-        if (config->EnableGroundUpdateQueuesSync) {
+        if (config->EnableGroundUpdateQueuesSync &&
+            (Owner_->GetDynamicConfig()->SyncGroundUpdateQueueOnEveryRequest || hasSequoiaFallbackRequests))
+        {
             futures.push_back(DoSyncWithGroundUpdateQueues());
         }
 

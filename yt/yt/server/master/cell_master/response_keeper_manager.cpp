@@ -121,7 +121,8 @@ private:
     {
         using NYT::Load;
 
-        ResponseKeeper_->Load(context);
+        auto loadGroundUpdateSequenceNumbers = context.GetVersion() >= EMasterReign::KulenovClockPart2;
+        ResponseKeeper_->Load(context, loadGroundUpdateSequenceNumbers);
     }
 };
 

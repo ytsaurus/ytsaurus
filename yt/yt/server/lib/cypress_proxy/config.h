@@ -115,6 +115,8 @@ struct TObjectServiceDynamicConfig
     // COMPAT(h0pless): remove once cypress proxy throttlers are stable.
     int RequestRateLimitFactor;
 
+    bool SyncGroundUpdateQueueOnEveryRequest;
+
     REGISTER_YSON_STRUCT(TObjectServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);

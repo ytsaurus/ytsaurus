@@ -74,6 +74,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("request_rate_limit_factor", &TThis::RequestRateLimitFactor)
         .Default(10);
 
+    registrar.Parameter("sync_ground_update_queue_on_every_request", &TThis::SyncGroundUpdateQueueOnEveryRequest)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         THROW_ERROR_EXCEPTION_IF(
             config->DistributedThrottler->Mode == NDistributedThrottler::EDistributedThrottlerMode::Precise,
