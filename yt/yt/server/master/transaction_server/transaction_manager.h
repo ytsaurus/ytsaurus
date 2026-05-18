@@ -59,7 +59,8 @@ struct ITransactionManager
         TTransactionId transactionId,
         std::optional<TDuration> timeout,
         const std::string& title,
-        const NYTree::IAttributeDictionary& attributes) = 0;
+        const NYTree::IAttributeDictionary& attributes,
+        const std::vector<std::string>& barrierTags = {}) = 0;
 
     //! Starts Cypress transaction which is not mirrored to Sequoia.
     /*!
@@ -160,6 +161,24 @@ struct ITransactionManager
         TTransaction* transaction,
         NElection::TCellId cellId,
         THashSet<TTransactionId>* cellLeaseTransactionIds) = 0;
+
+    //! Returns a future which is set once all currently prepared transactions
+    //! whose tags intersect with the given set of tags are finished.
+    /*!
+     *  The main usage of this function is to ensure that effects of committed
+     *  (from client's point of view) Sequoia transaction will be observed:
+     *  coordinator replies to commit request after transaction is prepared on
+     *  every participant but not necessary committed.
+     *
+     *  Note that effects of transactions coordinated by current cell are
+     *  instantaneously visible on said cell when late prepare mode is used.
+     */
+    virtual TFuture<void> WaitUntilPreparedTransactionsFinished(
+        const std::vector<std::string>& barrierTags) = 0;
+
+    //! Same as the above, but the future is set when all currently prepared
+    //! transactions are finished.
+    virtual TFuture<void> WaitUntilAllPreparedTransactionsFinished() = 0;
 
     virtual void RegisterTransactionActionHandlers(
         TTypeErasedTransactionActionDescriptor descriptor) = 0;

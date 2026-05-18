@@ -1191,6 +1191,9 @@ private:
             options.CellIdsToSyncWithBeforePrepare,
             options.AllowAlienCoordinator);
 
+        // Strong ordering cannot be enforced for 1PC transactions.
+        bool shouldForce2PC = options.Force2PC || !options.StrongOrderingTags.empty();
+
         auto coordinatorChannel = options.AllowAlienCoordinator
             ? GetParticipantChannelOrThrow(CoordinatorCellId_)
             : Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
@@ -1213,14 +1216,25 @@ private:
         ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
         ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
         ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
-        req->set_force_2pc(options.Force2PC);
+        req->set_force_2pc(shouldForce2PC);
         req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
         req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
         req->set_coordinator_prepare_mode(ToProto(options.CoordinatorPrepareMode));
         req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
         req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
-        req->set_strongly_ordered(options.StronglyOrdered);
+
+        for (const auto& [cellId, tags] : options.StrongOrderingTags) {
+            auto* entry = req->add_strong_ordering_tags_map();
+            ToProto(entry->mutable_cell_id(), cellId);
+            ToProto(entry->mutable_strong_ordering_tags(), tags);
+        }
+
+        // COMPAT(h0pless): Remove strongly_ordered flag in favour in ordering tags after 26.1.
+        if (!options.StrongOrderingTags.empty()) {
+            req->set_strongly_ordered(true);
+        }
+
         req->set_dynamic_tables_locked(dynamicTablesLocked);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 

@@ -400,6 +400,8 @@ struct IChunkManager
 
     virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
 
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastSequoiaReplicasCommitTimestamp, NTransactionClient::NullTimestamp);
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;

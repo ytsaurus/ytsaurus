@@ -32,7 +32,7 @@ TCommit::TCommit(
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    bool stronglyOrdered,
+    TStrongOrderingTagsMap strongOrderingTags,
     TTimestamp maxAllowedCommitTimestamp,
     NRpc::TAuthenticationIdentity identity,
     std::vector<TTransactionId> prerequisiteTransactionIds)
@@ -46,7 +46,7 @@ TCommit::TCommit(
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorPrepareMode_(coordinatorPrepareMode)
     , CoordinatorCommitMode_(coordinatorCommitMode)
-    , StronglyOrdered_(stronglyOrdered)
+    , StrongOrderingTags_(std::move(strongOrderingTags))
     , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
     , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
@@ -91,7 +91,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
-    Save(context, StronglyOrdered_);
+    Save(context, StrongOrderingTags_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -134,9 +134,14 @@ void TCommit::Load(TLoadContext& context)
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= 14) {
-        Load(context, StronglyOrdered_);
+    // COMPAT(h0pless): StrongOrderingTags.
+    if (14 <= context.GetVersion() && context.GetVersion() < 17) {
+        Load<bool>(context);
+    }
+
+    // COMPAT(h0pless): StrongOrderingTags.
+    if (context.GetVersion() >= 17) {
+        Load(context, StrongOrderingTags_);
     }
 }
 
@@ -174,13 +179,32 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
             .Item("transient_state").Value(TransientState_)
             .Item("persistent_state").Value(PersistentState_)
             .Item("responded_cell_ids").Value(RespondedCellIds_)
-            .Item("strongly_ordered").Value(StronglyOrdered_)
+            .Item("strong_ordering_tags").DoMapFor(
+                StrongOrderingTags_,
+                [] (auto fluent, const auto& item) {
+                    fluent.Item(ToString(item.first)).Value(item.second);
+                })
             .DoIf(!PrerequisiteTransactionIds_.empty(), [&] (auto fluent) {
                 fluent
                     .Item("prerequisite_transaction_ids")
                     .Value(PrerequisiteTransactionIds_);
             })
         .EndMap();
+}
+
+bool TCommit::IsStronglyOrderedForCell(TCellId cellId) const
+{
+    return StrongOrderingTags_.contains(cellId);
+}
+
+std::vector<std::string> TCommit::GetStrongOrderingTagsForCell(TCellId cellId) const
+{
+    auto it = StrongOrderingTags_.find(cellId);
+    if (it == StrongOrderingTags_.end()) {
+        return {};
+    }
+
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

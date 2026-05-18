@@ -88,6 +88,7 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/core/concurrency/async_barrier.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -179,6 +180,11 @@ private:
 };
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAllBarrierTags
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -430,9 +436,10 @@ public:
         TTransactionId transactionId,
         std::optional<TDuration> timeout,
         const std::string& title,
-        const IAttributeDictionary& attributes) override
+        const IAttributeDictionary& attributes,
+        const std::vector<std::string>& barrierTags = {}) override
     {
-        return StartTransaction(
+        auto* transaction = StartTransaction(
             ETransactionType::Sequoia,
             /*parent*/ nullptr,
             /*prerequisiteTransactions*/ {},
@@ -442,6 +449,12 @@ public:
             title,
             attributes,
             transactionId);
+
+        for (const auto& tag : barrierTags) {
+            transaction->RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
+        }
+
+        return transaction;
     }
 
     TTransaction* StartNonMirroredCypressTransaction(
@@ -1664,6 +1677,33 @@ public:
             RunPrepareTransactionActions(transaction, options);
         }
 
+        if (!transaction->GetBarrierCookies().empty()) {
+            YT_LOG_DEBUG("Adding transaction to barriers (TransactionId: %v, BarrierTags: %v)",
+                transaction->GetId(),
+                MakeShrunkFormattableView(
+                    transaction->GetBarrierCookies(),
+                    [] (auto* builder, const auto& pair) {
+                        builder->AppendFormat("%v", pair.first);
+                    },
+                    /*limit*/ 100));
+        }
+
+        {
+            auto guard = WriterGuard(BarrierLock_);
+
+            for (const auto& [tag, originalCookie] : transaction->GetBarrierCookies()) {
+                YT_VERIFY(originalCookie == InvalidAsyncBarrierCookie);
+
+                auto [it, _] = TagToBarrier_.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(tag),
+                    std::forward_as_tuple());
+
+                auto cookie = it->second.Insert();
+                transaction->RegisterBarrierCookie(tag, cookie);
+            }
+        }
+
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
         } else {
@@ -2359,6 +2399,19 @@ private:
     THashSet<TTransaction*> ForeignTransactions_;
     THashSet<TTransaction*> NativeTopmostTransactions_;
     THashSet<TTransaction*> NativeTransactions_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BarrierLock_);
+    // This map is transient.
+    THashMap<std::string, TAsyncBarrier> TagToBarrier_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BarrierProfilingLock_);
+    // This map is transient and used for profiling.
+    std::map<TInstant, int> BarrierTimestampStartMap_;
+
+    // To ensure no data race with config, these values have to be atomic.
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigLock_);
+    bool EnableWaitUntilPreparedTransactionsFinished_ = false;
+    std::optional<TDuration> PreparedTransactionsBarrierDelay_ = std::nullopt;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3383,10 +3436,61 @@ private:
         }
     }
 
+    void RemoveTransactionFromBarriers(TTransaction* transaction)
+    {
+        const auto& barrierCookies = transaction->GetBarrierCookies();
+        // Logging and validation, that can be removed once barriers are stable.
+        if (!barrierCookies.empty()) {
+            YT_LOG_DEBUG("Attempting to remove transaction from barriers (TransactionId: %v)",
+                transaction->GetId());
+
+            std::vector<std::string_view> registeredBarrierTags;
+            std::vector<std::string_view> unpreparedBarrierTags;
+            for (const auto& [tag, cookie] : barrierCookies) {
+                if (cookie != InvalidAsyncBarrierCookie) {
+                    registeredBarrierTags.push_back(tag);
+                } else {
+                    unpreparedBarrierTags.push_back(tag);
+                }
+            }
+
+            YT_VERIFY(registeredBarrierTags.empty() || unpreparedBarrierTags.empty());
+
+            if (!registeredBarrierTags.empty()) {
+                YT_LOG_DEBUG("Removing transaction from barriers (TransactionId: %v, BarrierTags: %v)",
+                    transaction->GetId(),
+                    MakeShrunkFormattableView(registeredBarrierTags, TDefaultFormatter(), /*limit*/ 100));
+            }
+        }
+
+        {
+            auto guard = WriterGuard(BarrierLock_);
+
+            for (const auto& [tag, cookie] : barrierCookies) {
+                // Transaction might not have been registered yet.
+                // This can happen, for example, when prepare fails.
+                if (cookie == InvalidAsyncBarrierCookie) {
+                    continue;
+                }
+
+                auto it = GetIteratorOrCrash(TagToBarrier_, tag);
+                it->second.Remove(cookie);
+
+                if (it->second.Empty()) {
+                    YT_LOG_DEBUG("Barrier is empty, removing (BarrierTag: %v)",
+                        tag);
+                    TagToBarrier_.erase(it);
+                }
+            }
+        }
+    }
+
 public:
     void FinishTransaction(TTransaction* transaction)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        RemoveTransactionFromBarriers(transaction);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -3565,6 +3669,143 @@ private:
         return true;
     }
 
+    /*
+     * This function prevents a race between a reply being sent to the client and changes being actually applied.
+     *
+     * Let's look at a following example:
+     * The user sends some mutating request, for simplicity, let's call it SET, waits for a reply and immediately
+     * after that sends another request. It doesn't matter if the request is mutating or not, but let's call it GET.
+     * SET involves a 2-phase commit with at least one master cell not using the late prepare mode.
+     * Again, for illustrative purposes, let's say that there are two master cells.
+     * Cell 1 is a coordinator in late-prepare mode.
+     * Cell 2 executes actions normally.
+     *
+     * +------User------+-----Cell 1-----+-----Cell 2-----+
+     * |      SET       |                |                |
+     * |    waiting     |   Sequoia transaction started   |
+     * |    waiting     |   Starting transaction commit   |
+     * |    waiting     |                |    prepared    |
+     * |    waiting     |    committed   |    prepared    |
+     * |    waiting     |          Response sent          |
+     * |  Got response  |    committed   |    prepared    |
+     * |      GET       |    committed   |    prepared    | <--  GET arrives on a cell where the effects
+     * +----------------+----------------+----------------+      of SET are not fully applied yet.
+     *
+     * This situation is trivially resolved by waiting until there are no more prepared,
+     * but not committed transactions.
+    */
+    TFuture<void> WaitUntilPreparedTransactionsFinished(const std::vector<std::string>& barrierTags) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DoWaitUntilPreparedTransactionsFinished(barrierTags);
+    }
+
+    TFuture<void> WaitUntilAllPreparedTransactionsFinished() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DoWaitUntilPreparedTransactionsFinished(TAllBarrierTags{});
+    }
+
+    TFuture<void> DoWaitUntilPreparedTransactionsFinished(
+        std::variant<TAllBarrierTags, std::vector<std::string>> barrierTags)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        std::optional<TDuration> preparedTransactionsBarrierDelay = std::nullopt;
+
+        {
+            auto guard = ReaderGuard(ConfigLock_);
+
+            if (!EnableWaitUntilPreparedTransactionsFinished_) {
+                return OKFuture;
+            }
+
+            preparedTransactionsBarrierDelay = PreparedTransactionsBarrierDelay_;
+        }
+
+        auto delayed = [delay = preparedTransactionsBarrierDelay] (TFuture<void> future) {
+            if (delay) {
+                return AllSucceeded<void>({std::move(future), TDelayedExecutor::MakeDelayed(*delay)});
+            }
+
+            return future;
+        };
+
+        auto now = GetInstant();
+        {
+            auto guard = Guard(BarrierProfilingLock_);
+            BarrierTimestampStartMap_[now] += 1;
+        }
+
+        auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] {
+            auto guard = Guard(BarrierProfilingLock_);
+            auto& counter = BarrierTimestampStartMap_[start];
+            --counter;
+
+            YT_LOG_ALERT_IF(counter < 0,
+                "Barrier wait time metrics have negative counter (StartTime: %v)",
+                start);
+
+            if (counter == 0) {
+                BarrierTimestampStartMap_.erase(start);
+            }
+        });
+
+        // Only for logging.
+        std::vector<std::string> tagsAssociatedWithPresentBarriers;
+
+        std::vector<TFuture<void>> barriers;
+        {
+            auto guard = ReaderGuard(BarrierLock_);
+            Visit(barrierTags,
+                [&] (TAllBarrierTags) {
+                    for (auto& [tag, barrier] : TagToBarrier_) {
+                        barriers.push_back(barrier.GetBarrierFuture());
+                        tagsAssociatedWithPresentBarriers.push_back(tag);
+                    }
+                },
+                [&] (const std::vector<std::string>& specifiedTags) {
+                    for (const auto& tag : specifiedTags) {
+                        auto it = TagToBarrier_.find(tag);
+                        if (it != TagToBarrier_.end()) {
+                            barriers.push_back(it->second.GetBarrierFuture());
+                            tagsAssociatedWithPresentBarriers.push_back(tag);
+                        }
+                    }
+                }
+            );
+        }
+
+        if (barriers.empty()) {
+            YT_LOG_DEBUG("No prepared transactions %v",
+                MakeFormatterWrapper([&barrierTags] (auto* builder) {
+                    Visit(barrierTags,
+                        [builder=builder] (TAllBarrierTags) {
+                            builder->AppendFormat("with barrier tags");
+                        },
+                        [builder=builder] (const std::vector<std::string>& specifiedTags) {
+                            builder->AppendFormat("(BarrierTags: %v)",
+                                specifiedTags);
+                        }
+                    );
+                })
+            );
+
+            return delayed(OKFuture);
+        }
+
+        YT_LOG_DEBUG("Waiting for barriers (BarrierCount: %v, TagsAssociatedWithPresentBarriers: %v)",
+            std::ssize(barriers),
+            tagsAssociatedWithPresentBarriers);
+
+        auto newBarriers = AllSucceeded(barriers)
+            .Apply(updateMetrics);
+
+        return delayed(newBarriers);
+    }
+
     void SaveKeys(NCellMaster::TSaveContext& context)
     {
         TransactionMap_.SaveKeys(context);
@@ -3630,6 +3871,33 @@ private:
             }
         }
 
+        // Restore barriers.
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            if (transaction->GetPersistentState() != ETransactionState::PersistentCommitPrepared &&
+                transaction->GetPersistentState() != ETransactionState::TransientCommitPrepared)
+            {
+                continue;
+            }
+
+            {
+                auto guard = WriterGuard(BarrierLock_);
+
+                for (auto [tag, _] : transaction->GetBarrierCookies()) {
+                    auto [it, emplaced] = TagToBarrier_.emplace(
+                        std::piecewise_construct,
+                        std::forward_as_tuple(tag),
+                        std::forward_as_tuple());
+
+                    auto cookie = it->second.Insert();
+                    transaction->RegisterBarrierCookie(tag, cookie);
+                }
+            }
+        }
+
         // COMPAT(h0pless): AbortStuckTransactions.
         for (auto [id, transaction] : TransactionMap_) {
             if (!IsCypressTransactionType(transaction->GetType())) {
@@ -3660,6 +3928,18 @@ private:
         }
     }
 
+    void ClearBarriers(TError error = TError(BarrierAbandonedError))
+    {
+        auto guard = WriterGuard(BarrierLock_);
+
+        YT_VERIFY(!error.IsOK());
+
+        for (auto& [tag, barrier] : TagToBarrier_) {
+            barrier.Clear(error);
+        }
+        TagToBarrier_.clear();
+    }
+
     void Clear() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -3675,6 +3955,7 @@ private:
         NeedUnrefStagedNodes_ = false;
 
         StuckTransactions_.clear();
+        ClearBarriers();
     }
 
     void OnStartLeading() override
@@ -3745,17 +4026,17 @@ private:
         LeaseTracker_->Stop();
 
         // Reset all transiently prepared transactions back into active state.
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
         for (auto [transactionId, transaction] : TransactionMap_) {
             transaction->ResetTransientState();
 
             if (transaction->LeasesRevokedPromise()) {
-                auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
                 transaction->LeasesRevokedPromise().TrySet(error);
                 transaction->LeasesRevokedPromise() = NewPromise<void>();
             }
         }
 
-        OnStopEpoch();
+        OnStopEpoch(std::move(error));
     }
 
     void OnStopFollowing() override
@@ -3764,12 +4045,15 @@ private:
 
         TMasterAutomatonPart::OnStopFollowing();
 
-        OnStopEpoch();
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+        OnStopEpoch(std::move(error));
     }
 
-    void OnStopEpoch()
+    void OnStopEpoch(TError error)
     {
         TransactionPresenceCache_->Stop();
+
+        ClearBarriers(std::move(error));
     }
 
     void OnRecoveryStarted() override
@@ -3788,12 +4072,7 @@ private:
 
     TFuture<void> GetReadyToEnterReadOnlyMode() override
     {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        if (!transactionSupervisor) {
-            return OKFuture;
-        }
-
-        return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+        return WaitUntilAllPreparedTransactionsFinished();
     }
 
     void CreateLease(TTransaction* transaction)
@@ -4005,6 +4284,22 @@ private:
             buffer.AddGauge("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount());
         }
 
+        auto elapsedTime = TDuration::Zero();
+        {
+            auto now = GetInstant();
+            auto guard = Guard(BarrierProfilingLock_);
+
+            if (!BarrierTimestampStartMap_.empty()) {
+                elapsedTime = now - BarrierTimestampStartMap_.begin()->first;
+            }
+        }
+
+        // TODO(h0pless): Support AddEventTimer interface to the buffer.
+        // NB: this metric takes into account only currently active barriers,
+        // meaning that worst case scenario barrier wait time is equal to the
+        // period with which OnProfiling is called.
+        buffer.AddGauge("/max_barrier_wait_time", elapsedTime.SecondsFloat());
+
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         if (transactionSupervisor) {
             transactionSupervisor->OnProfiling(&buffer);
@@ -4025,17 +4320,7 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
     {
         const auto& newConfig = GetDynamicConfig();
-
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        transactionSupervisor->SetDynamicStronglyOrderedPreparedTransactionsBarrierDelay(newConfig->Testing->SequoiaTransactionBarrierDelay);
-
         ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
-
-        if (HasMutationContext()) {
-            if (oldConfig->TransactionManager->RecomputeStronglyOrderedTransactionRefs != newConfig->RecomputeStronglyOrderedTransactionRefs) {
-                transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
-            }
-        }
 
         auto getCypressTransactionMirroringEnabled = [] (const TDynamicClusterConfigPtr& config) {
             const auto& sequoiaManager = config->SequoiaManager;
@@ -4047,6 +4332,25 @@ private:
         if (mirroringEnabled != mirroringWasEnabled) {
             YT_LOG_INFO("Cypress transaction mirroring %v",
                 mirroringEnabled ? "enabled" : "disabled");
+        }
+
+        {
+            auto guard = WriterGuard(ConfigLock_);
+
+            auto barriersEnabled = newConfig->EnableWaitUntilPreparedTransactionsFinished;
+            if (barriersEnabled != EnableWaitUntilPreparedTransactionsFinished_) {
+                YT_LOG_INFO("Barriers for 2pc transactions are %v",
+                    barriersEnabled ? "enabled" : "disabled");
+                EnableWaitUntilPreparedTransactionsFinished_ = barriersEnabled;
+            }
+
+            auto newDelay = newConfig->Testing->PreparedTransactionsBarrierDelay;
+            if (newDelay != PreparedTransactionsBarrierDelay_) {
+                YT_LOG_INFO("Setting prepared transaction barrier delay (PreviousDelay: %v, NewDelay: %v)",
+                    PreparedTransactionsBarrierDelay_,
+                    newDelay);
+                PreparedTransactionsBarrierDelay_ = newDelay;
+            }
         }
     }
 

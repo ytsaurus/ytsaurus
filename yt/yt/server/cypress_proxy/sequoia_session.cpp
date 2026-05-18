@@ -600,10 +600,12 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
 
     MaybeLockAndReplicateCypressTransaction();
 
+    SequoiaTransaction_->AddBarrierTags({NNative::SequoiaCypressOrderingTag});
+    SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+
     WaitFor(SequoiaTransaction_->Commit({
             .CoordinatorCellId = coordinatorCellId,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-            .StronglyOrdered = true,
         })
         .Apply(BIND([] (const TError& error) -> TError {
             if (error.IsOK()) {

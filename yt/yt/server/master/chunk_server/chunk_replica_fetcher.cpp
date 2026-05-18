@@ -638,8 +638,8 @@ private:
             // If ApprovedMasterReplicasForPendingValidationChunks is not empty, we need to validate replicas for some chunks.
             // In this case we need Sequoia state at the time of last coordinator commit timestamp.
 
-            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-            state->Timestamp = transactionSupervisor->GetLastCoordinatorCommitTimestamp();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            state->Timestamp = chunkManager->GetLastSequoiaReplicasCommitTimestamp();
 
             if (state->Timestamp == NTransactionClient::NullTimestamp) {
                 state->Timestamp = NTransactionClient::SyncLastCommittedTimestamp;

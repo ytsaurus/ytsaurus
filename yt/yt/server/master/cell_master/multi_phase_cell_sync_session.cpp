@@ -2,13 +2,12 @@
 
 #include "private.h"
 #include "bootstrap.h"
+#include "hydra_facade.h"
 #include "multicell_manager.h"
 
-#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-
-#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -67,9 +66,9 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
 
     if (SyncWithSequoiaTransactions_ == ESyncRequest::Need) {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        addAsyncResult(hydraManager->SyncWithLeader().Apply(BIND([transactionSupervisor] {
-            return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        addAsyncResult(hydraManager->SyncWithLeader().Apply(BIND([transactionManager] {
+            return transactionManager->WaitUntilAllPreparedTransactionsFinished();
         })));
         SyncWithSequoiaTransactions_ = ESyncRequest::Done;
     }
