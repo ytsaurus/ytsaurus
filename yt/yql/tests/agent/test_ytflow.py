@@ -12,6 +12,7 @@ import library.python.ydb.federated_topic_client as federated_topic_client
 import contrib.ydb.library.yql.tools.solomon_emulator.client.client as solomon_emulator_client
 
 import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
+from logbroker.public.api.admin import config_manager_admin_pb2
 
 from library.python.port_manager import PortManager
 
@@ -52,6 +53,10 @@ def has_logbroker_federation():
 
 def get_logbroker_endpoint(cluster):
     return f"localhost:{os.getenv(f'{cluster}_port')}"
+
+
+def get_logbroker_cm_endpoint():
+    return f"localhost:{os.getenv("CM_PORT")}"
 
 
 class LogbrokerClient:
@@ -96,12 +101,20 @@ class LogbrokerClient:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
+    def make_create_topic_request(self, path):
+        request = config_manager_admin_pb2.SingleModifyRequest()
+        request.create_topic.path.path = path
+        request.create_topic.parent_template = 'default'
+        request.create_topic.properties.partitions_count.user_defined = 1
+        request.create_topic.properties.auto_partitioning_strategy.user_defined = "disabled"
+        return request
+
     def create_topic(self):
         topic_index = next(self._topic_index_generator)
         topic_path = self._test_id + "." + self.LOGBROKER_TOPIC + str(topic_index)
         full_topic_path = self.LOGBROKER_ACCOUNT + "/" + topic_path
         self._cm.exec_request((
-            cm_requests.request_create_topic(full_topic_path),
+            self.make_create_topic_request(full_topic_path),
         ))
 
         self._created_topics.append(full_topic_path)
@@ -350,6 +363,10 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_WorkerEnableStderrLogging', value='false'),
                 dict(name='_LogsDirectory', value='logs'),
                 dict(name='YtPartitionCount', value='1'),
+                dict(name='LogbrokerSubject', value='authenticated@well-known'),
+                dict(name='LogbrokerTopicPartitionCount', value='3'),
+                dict(name='_LogbrokerMirrorToCluster', value='all_original'),
+                dict(name='_LogbrokerConfigManagerPollingPeriod', value='100ms'),
             ],
             cluster_mapping=[dict(
                 name=cls.Env.id,
@@ -360,11 +377,14 @@ class TestYtflowBase(TestQueueAgentBase):
 
         if has_logbroker_federation():
             logbroker_endpoint = get_logbroker_endpoint(LogbrokerClient.LOGBROKER_CLUSTER)
+            logbroker_cm_endpoint = get_logbroker_cm_endpoint()
             config['yql_agent']['pq_gateway_config'] = dict(
                 cluster_mapping=[dict(
                     name='logbroker',
                     endpoint=logbroker_endpoint,
+                    token="dummy_token",
                     database=LogbrokerClient.LOGBROKER_DATABASE,
+                    config_manager_endpoint=logbroker_cm_endpoint
                 )]
             )
 
@@ -372,6 +392,7 @@ class TestYtflowBase(TestQueueAgentBase):
             cluster_mapping=[dict(
                 name='solomon',
                 cluster=get_solomon_endpoint(),
+                token="dummy_token",
             )]
         )
 
@@ -1123,6 +1144,68 @@ select * from $processed_stream;
 """)
 
         self._assert_yt_table_content(out_table_path, [{"Data": data + "_processed"} for data in input_data])
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_logbroker_output_topics_creation(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "Data", "type": "string", "required": True},
+            ]),
+        ))
+        input_data = [{"Data": str(i)} for i in range(4)]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_topic_paths = [
+            "test/topic_dir/topic_first",
+            "test/topic_dir/topic_second",
+            "test/other_topics/topic",
+            "test/other_topics/inner/topic"
+        ]
+
+        run_query(f"""
+$stream = select Data from `{input_table_path}`;
+
+$lambda = ($row) -> {{
+    $row_type = TypeOf($row);
+    $variant_type = Variant<$row_type, $row_type, $row_type, $row_type>;
+
+    return case $row.Data
+        {"\n".join([f"""when "{idx}" then Variant($row, "{idx}", $variant_type)""" for idx in range(len(input_data))])}
+        else Variant(<|Data:"Unexpected!"|>, "0", $variant_type)
+    end;
+}};
+
+$stream0, $stream1, $stream2, $stream3 = process $stream using $lambda(TableRow());
+
+{"\n".join([f"""insert into logbroker.`{out_topic_path}`
+select * from $stream{idx};""" for idx, out_topic_path in enumerate(out_topic_paths)])}
+
+""")
+
+        for idx, out_topic_path in enumerate(out_topic_paths):
+            self._assert_logbroker_topic_content(out_topic_path, [f"{idx}"], logbroker_client)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_logbroker_consumer_creation(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        input_data = [str(i) for i in range(5)]
+        self._write_logbroker_topic(input_topic_path, input_data, logbroker_client)
+
+        out_topic_path = "test/topic_dir/topic"
+
+        run_query(f"""
+pragma Ytflow.LogbrokerConsumerPath = "test/consumer_dir/consumer";
+
+$stream = select Data || "_dummy" as Data from logbroker.`{input_topic_path}`;
+
+insert into logbroker.`{out_topic_path}`
+select * from $stream;
+""")
+
+        self._assert_logbroker_topic_content(
+            out_topic_path, [f"{input}_dummy" for input in input_data], logbroker_client)
 
 
 class TestYtflowSolomon(TestYtflowBase):
