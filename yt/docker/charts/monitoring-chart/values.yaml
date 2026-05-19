@@ -1,0 +1,279 @@
+cluster:
+  proxy: "http://http-proxies.default.svc.cluster.local"
+  name: "ytsaurus"
+  namespace: ""
+
+secretRefs:
+  - ytsaurus-monitoring
+
+alerts:
+  enabled: true
+
+  additionalLabels:
+    release: kube-prom
+    yt_alerts: "true"
+
+  defaultRuleLabels:
+    service: ytsaurus
+
+  defaultRuleAnnotations: {}
+
+  groups:
+    master:
+      enabled: true
+      rules:
+        MastersDisappearedFromMetricsScrapingCritical:
+          enabled: true
+          expr: absent(yt_build_version{cluster="{{ $.Values.cluster.name }}", service="yt-master"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: YTsaurus master(s) have disappeared from metrics scraping
+            description: "*{{ $.Values.cluster.name }}* Only {{`{{ $value }}`}} master(s) are reachable"
+        MediumAlmostOutOfSpace:
+          enabled: true
+          expr: |
+            5 > 100 * (
+              avg by (k8s_cluster_name, namespace, cluster, medium) (
+                yt_node_tracker_available_space_per_medium{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master", cluster="{{ $.Values.cluster.name }}", cell_tag!="", medium!=""}
+              )
+            ) /
+            (
+              avg by (k8s_cluster_name, namespace, cluster, medium) (
+                yt_node_tracker_available_space_per_medium{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master", cluster="{{ $.Values.cluster.name }}", cell_tag!="", medium!=""}
+              ) +
+              avg by (k8s_cluster_name, namespace, cluster, medium) (
+                yt_node_tracker_used_space_per_medium{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master", cluster="{{ $.Values.cluster.name }}", cell_tag!="", medium!=""}
+              )
+            )
+            or
+            5 > 100 * avg by(k8s_cluster_name,namespace,cluster,medium) (
+              predict_linear(yt_node_tracker_available_space_per_medium{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}",cell_tag!="",flavor="cluster",medium!="",pod!="Aggr"}[12h], 12*3600)
+            ) /
+            avg by (k8s_cluster_name,namespace,cluster,medium) (
+              yt_node_tracker_used_space_per_medium{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}",cell_tag!="",flavor="cluster",medium!="",pod!="Aggr"} +
+              yt_node_tracker_available_space_per_medium{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}",cell_tag!="",flavor="cluster",medium!="",pod!="Aggr"}
+            )
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: Medium is predicted to run out of space within the next 12 hours
+            description: |
+              *{{ $.Values.cluster.name }}* Medium *{{`{{`}} $labels.medium {{`}}`}}* is predicted to run out of space
+              within the next 12 hours or has less than 5% of free space
+        MasterUnderreplicatedChunksRatio:
+          enabled: true
+          expr: |
+            sum by (k8s_cluster_name, namespace, cluster, cell_tag) (
+              yt_chunk_server_underreplicated_chunk_count{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master", cluster="{{ $.Values.cluster.name }}", cell_tag!=""}
+            ) /
+            sum by (k8s_cluster_name, namespace, cluster, cell_tag) (
+              yt_chunk_server_chunk_count{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master", cluster="{{ $.Values.cluster.name }}", cell_tag!=""}
+            ) > 0.1
+            and
+            max by (k8s_cluster_name, namespace, cluster, cell_tag) (
+              yt_chunk_server_chunk_count{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master", cluster="{{ $.Values.cluster.name }}", cell_tag!=""}
+            ) > 100000
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Underreplicated chunks detected in YTsaurus cluster
+            description: "*{{ $.Values.cluster.name }}* cluster has underreplicated chunks in {{`{{`}} $labels.cell_tag {{`}}`}} cellTag"
+        MasterUnderreplicatedChunksDerivative:
+          enabled: true
+          expr: |
+            (
+                quantile_over_time(
+                  0.15,
+                  deriv(
+                    (
+                      sum by (cell_tag) (
+                        yt_chunk_server_underreplicated_chunk_count{cell_tag!="",cluster="{{ $.Values.cluster.name }}",namespace="{{ include "monitoring.clusterNamespace" . }}",service="yt-master"}
+                      )
+                    )[15m:1m]
+                  )[4h:5m]
+                )
+              >=
+                0
+            )
+            and
+            (
+                  sum by (cell_tag) (
+                    yt_chunk_server_underreplicated_chunk_count{cell_tag!="",cluster="{{ $.Values.cluster.name }}",namespace="{{ include "monitoring.clusterNamespace" . }}",service="yt-master"}
+                  )
+                /
+                  sum by (cell_tag) (
+                    yt_chunk_server_chunk_count{cell_tag!="",cluster="{{ $.Values.cluster.name }}",namespace="{{ include "monitoring.clusterNamespace" . }}",service="yt-master"}
+                  )
+              >
+                0.05
+            )
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Underreplicated chunks detected in YTsaurus cluster
+            description: "*{{ $.Values.cluster.name }}* Underreplicated chunk count is growing for over 4 hours on cell {{`{{`}} $labels.cell_tag {{`}}`}}"
+        SystemAccountQuotaDiskSpaceFillingUp:
+          enabled: true
+          expr: |
+            75 < 100 * (
+              avg by (cluster, account, medium) (
+                yt_accounts_disk_space_in_gb{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}", account=~"(sys|operations_archive|intermediate|tmp)", medium!=""}
+              ) > 0
+            ) /
+            avg by (cluster, account, medium) (yt_accounts_disk_space_limit_in_gb{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}", account=~"(sys|operations_archive|intermediate|tmp)", medium!=""})
+          for: 60m
+          labels:
+            severity: warning
+          annotations:
+            summary: System account disk space quota is filling up
+            description: |
+              *{{ $.Values.cluster.name }}*: more than 75% of *{{`{{`}} $labels.account {{`}}`}}*/*{{`{{`}} $labels.medium {{`}}`}}* disk space quota is utilized
+        SystemAccountQuotaChunkCountFillingUp:
+          enabled: true
+          expr: |
+            75 < 100 * (
+              avg by (cluster, account) (
+                yt_accounts_chunk_count{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}", account=~"(sys|operations_archive|intermediate|tmp)"}
+              ) > 0
+            ) /
+            avg by (cluster, account) (yt_accounts_chunk_count_limit{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}", account=~"(sys|operations_archive|intermediate|tmp)"})
+          for: 60m
+          labels:
+            severity: warning
+          annotations:
+            summary: System account chunk count quota is filling up
+            description: |
+              *{{ $.Values.cluster.name }}*: more than 75% of *{{`{{`}} $labels.account {{`}}`}}* chunk count quota is utilized
+        SystemAccountQuotaNodeCountFillingUp:
+          enabled: true
+          expr: |
+            75 < 100 * (
+              avg by (cluster, account) (
+                yt_accounts_node_count{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}", account=~"(sys|operations_archive|intermediate|tmp)"}
+              ) > 0
+            ) /
+            avg by (cluster, account) (yt_accounts_node_count_limit{namespace="{{ include "monitoring.clusterNamespace" . }}", service="yt-master",cluster="{{ $.Values.cluster.name }}", account=~"(sys|operations_archive|intermediate|tmp)"})
+          for: 60m
+          annotations:
+            summary: System account node count quota is filling up
+            description: |
+              *{{ $.Values.cluster.name }}*: more than 75% of *{{`{{`}} $labels.account {{`}}`}}* node count quota is utilized
+          labels:
+            severity: warning
+        MasterAutomatonThreadOverload:
+          enabled: true
+          expr: |
+              avg_over_time(yt_resource_tracker_total_cpu{
+                namespace="{{ include "monitoring.clusterNamespace" . }}",
+                cluster="{{ $.Values.cluster.name }}",
+                service="yt-master",
+                pod!="Aggr",
+                thread="Automaton",
+              }[5m]) > 90
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: YTsaurus master has an overloaded automaton thread
+            description: "*{{ $.Values.cluster.name }}* *{{`{{ $labels.pod }}`}}* pod has a CPU usage of automaton thread over 90%: {{`{{ $value }}`}}%"
+
+    scheduler:
+      enabled: true
+      rules:
+        SchedulersUnavailableCritical:
+          enabled: true
+          expr: |
+            absent(
+              yt_build_version{
+                namespace="{{ include "monitoring.clusterNamespace" . }}",
+                cluster="{{ $.Values.cluster.name }}",
+                service="yt-scheduler"
+              }
+            ) == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: All YTsaurus scheduler disappeared from metrics scraping
+            description: "*{{ $.Values.cluster.name }}* cluster doesn't have healthy schedulers"
+    controllerAgent:
+      enabled: true
+      rules:
+        ControllerAgentsUnavailableCritical:
+          enabled: true
+          expr: |
+            absent(
+              yt_build_version{
+                namespace="{{ include "monitoring.clusterNamespace" . }}",
+                cluster="{{ $.Values.cluster.name }}",
+                service="yt-controller-agent"
+              }
+            ) == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: All YTsaurus controller-agents disappeared from metrics scraping
+            description: "*{{ $.Values.cluster.name }}* cluster doesn't have healthy controller-agents"
+
+    queryTracker:
+      enabled: true
+      rules:
+        QueryTrackersUnavailableCritical:
+          enabled: true
+          expr: absent(yt_build_version{namespace="{{ include "monitoring.clusterNamespace" . }}", cluster="{{ $.Values.cluster.name }}", service="yt-query-tracker"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: All YTsaurus query-trackers disappeared from metrics scraping
+            description: "*{{ $.Values.cluster.name }}* cluster doesn't have healthy query-trackers"
+    yqlAgent:
+      enabled: true
+      rules:
+        YQLAgentsUnavailableCritical:
+          enabled: true
+          expr: absent(yt_build_version{namespace="{{ include "monitoring.clusterNamespace" . }}", cluster="{{ $.Values.cluster.name }}", service="yt-yql-agent"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: All YTsaurus yql-agents disappeared from metrics scraping
+            description: "*{{ $.Values.cluster.name }}* cluster doesn't have healthy yql-agents"
+
+dashboards:
+  enabled: true
+
+  image:
+    repository: ghcr.io/ytsaurus/monitoring-nightly
+    tag: "0.0.0-alpha"
+    pullPolicy: IfNotPresent
+
+  grafana:
+    enabled: true
+    url: "http://grafana.default.svc.cluster.local:3000"
+    datasource:
+      uid: prometheus
+
+  cypress:
+    enabled: true
+    path: "//sys/interface-monitoring"
+
+  job:
+    backoffLimit: 3
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+
+ui:
+  chart:
+    name: "ytsaurus-ui"
+    namespace: "default"
+
+  prometheusInternalUrl: "http://prometheus-operated.default.svc.cluster.local:9090/"
+  grafanaPublicUrl: "https://grafana.yt.ytsaurus.tech"

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: monitoring-chart
+description: Helm chart for YTsaurus monitoring
+version: 0.0.0-alpha
+type: application
+keywords:
+  - ytsaurus
+  - monitoring
+home: https://ytsaurus.tech/
+sources:
+  - https://github.com/ytsaurus/ytsaurus
