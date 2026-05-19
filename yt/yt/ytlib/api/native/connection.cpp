@@ -454,6 +454,7 @@ public:
                 : GetNullMemoryUsageTracker());
 
         SetupTvmIdSynchronization();
+        SetupSequoiaConnectionSynchronization();
     }
 
     void InitializeDiscoveryServerAddressPool() override
@@ -1506,6 +1507,41 @@ private:
     void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
     {
         SignatureGenerator_.Store(signatureGenerator);
+    }
+
+    void SetupSequoiaConnectionSynchronization()
+    {
+        ClusterDirectory_->SubscribeOnClusterUpdated(BIND_NO_PROPAGATE(
+            &TConnection::MaybeReconfigureSequoiaConnection,
+            MakeWeak(this)));
+    }
+
+    void MaybeReconfigureSequoiaConnection(const std::string& clusterName, INodePtr /*config*/)
+    {
+        Y_UNUSED(clusterName);
+
+        // Sequoia transaction uses cell directory in 2 different places:
+        // 1) Ground client uses cell directory associated with Ground cluster
+        //    connection to send rows to tablet cells;
+        // 2) transaction manager takes Ground cluster connection from (local
+        //    connection's) cluster directory and uses cell directory associated
+        //    with it to send transaction abort to tablet cells.
+        // (1) uses mount cache which is responsible for populating cell
+        // directory. In contrast, (2) just tries to find tablet cell channel
+        // and does nothing if there is no such channel. (2) usually can find
+        // the channel because (2) happens strictly after (1). So current
+        // behavior heavily relies on the fact that (1) and (2) use the same cell
+        // directory. Since ground client caches remote connection on creation
+        // it has to be manually reconfigured on cluster directory change.
+        // Otherwise, (1) and (2) end up using different cell directories, which
+        // leads to failures of sending of transaction abort requests to tablet
+        // cells.
+
+        if (auto sequoiaConnectionConfig = Config_.Acquire()->SequoiaConnection) {
+            if (sequoiaConnectionConfig->GroundClusterName == clusterName) {
+                SequoiaConnection_->Reconfigure(sequoiaConnectionConfig);
+            }
+        }
     }
 };
 
