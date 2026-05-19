@@ -2678,8 +2678,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(3.5)
         assert not exists("//tmp/t1")
 
-    @authors("shakurov")
-    @flaky(max_runs=3)
+    @authors("kvk1920", "shakurov")
     def test_expiration_timeout5(self):
         tx = start_transaction()
 

@@ -1488,7 +1488,11 @@ TLockNodeDetailedResult TClient::DoLockNodeDetailed(
 {
     auto proxy = CreateObjectServiceWriteProxy();
 
-    auto batchReqConfig = New<TReqExecuteBatchRetriesConfig>();
+    auto config = Connection_->GetConfig()->SequoiaRetries;
+
+    auto batchReqConfig = config->Enable
+        ? config->ToRetriesConfig()
+        : New<TReqExecuteBatchRetriesConfig>();
 
     auto batchReq = proxy.ExecuteBatchWithRetries(std::move(batchReqConfig));
     SetSuppressUpstreamSyncs(batchReq, options);
