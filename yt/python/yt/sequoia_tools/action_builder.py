@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 def _get_sequoia_table_descriptors(
-    group_names: list[str],
+    scope: cfg.Scope,
     version: int,
 ) -> dict[str, descriptors.TableDescriptor]:
     """Return table descriptors from the parsed versioned registry."""
+    group_names = cfg.SCOPE_GROUPS[scope]
     tds = descriptors.get_table_descriptors(version).as_dict()
     return {k: v for k, v in tds.items() if v.group in group_names}
 
@@ -41,7 +42,7 @@ class ComponentContext:
 
     def get_table_attributes(self, table_descriptor: yt_sequoia.TableDescriptor) -> dict[str, Any]:
         """Build standard table attributes for this component."""
-        attributes = self.config.get_table_group_attributes(table_descriptor.group)
+        attributes = self.config.get_table_attributes(table_descriptor.name)
         attributes.update(
             account=self.ground_config.account,
             tablet_cell_bundle=self.config.tablet_cell_bundle)
@@ -147,8 +148,7 @@ class ActionBuilder:
             component_context = ComponentContext(scope, component_config, self._ground_config)
             root_dir = self._ground_config.sequoia_root_cypress_path
 
-            group_names = [d.name for d in component_config.table_groups]
-            table_descriptors = _get_sequoia_table_descriptors(group_names, self._version)
+            table_descriptors = _get_sequoia_table_descriptors(scope, self._version)
 
             for descriptor in table_descriptors.values():
                 attributes = component_context.get_table_attributes(descriptor)
