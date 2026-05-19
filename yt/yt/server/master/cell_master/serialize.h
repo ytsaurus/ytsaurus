@@ -198,6 +198,7 @@ DEFINE_ENUM(EMasterReign,
     ((MakeVectorizedSubbatchSizeDynamiclyConfigurable)              (3244))  // danilalexeev
     ((KulenovClockPart2)                                            (3245))  // aleksandra-zh
     ((StrongOrderingTags)                                           (3246))  // h0pless
+    ((NativeClientUnfoldedIndexPartialBackCompat)                   (3247))  // sabdenovch
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
@@ -213,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((HandleOptimizeForInBeginUpload_26_2)                          (3310))  // h0pless
     ((KulenovClockPart2_26_2)                                       (3311))  // aleksandra-zh
     ((StrongOrderingTags_26_2)                                      (3312))  // h0pless
+    ((NativeClientUnfoldedIndexPartialBackCompat_26_2)              (3313))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
