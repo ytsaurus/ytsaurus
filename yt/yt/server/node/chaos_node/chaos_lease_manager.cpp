@@ -827,7 +827,6 @@ private:
         std::vector<TChaosLease*> chaosLeases;
         TraverseLeaseSubtree(rootChaosLease, &chaosLeases);
         for (auto* chaosLease : chaosLeases) {
-            chaosLease->RemovePromise() = NewPromise<void>();
             chaosLease->SetState(EChaosLeaseState::RevokingShortcutsForRemoval);
         }
 
