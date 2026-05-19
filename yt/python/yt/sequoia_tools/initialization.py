@@ -1,6 +1,6 @@
 """Sequoia ground cluster initialization logic."""
 
-from . import action_builder as builder, actions, app as sequoia_app, config as cfg
+from . import action_builder as builder, actions, app as sequoia_app, config as cfg, helpers
 
 
 def initialize_ground(app: sequoia_app.SequoiaTool, target_reign: int) -> None:
@@ -45,10 +45,10 @@ def initialize_ground(app: sequoia_app.SequoiaTool, target_reign: int) -> None:
                     ctx.attributes)
             ])
         .then()
-        .promote_reign(initialize=True)
         .build())
 
     actions.run_action_plan(plan, app)
+    helpers.promote_reign(app, target_reign)
 
 
 def _make_mount_action_plan(

@@ -161,14 +161,10 @@ class ActionPlan():
 class SetAttributeAction(Action):
     """Set YT object attribute."""
 
-    # Use this to validate that value is not set.
-    NON_EXISTING_KEY = "__not_existing"
-
     def __init__(
         self,
         path: str,
         value: Any,
-        old_value: Any = None,
         remote: bool = False,
     ) -> None:
         if not path.count("@"):
@@ -179,7 +175,7 @@ class SetAttributeAction(Action):
 
         self._path = path
         self._value = value
-        self._old_value: Any = old_value
+        self._old_value: Any = None
         self._remote = remote
 
     def yt_client(self, app: SequoiaTool) -> yt.YtClient:
@@ -219,13 +215,6 @@ class SetAttributeAction(Action):
         dirname = yt.ypath_dirname(self._path)
         if not self.yt_client(app).exists(dirname):
             raise ValidationFailed(f"Parent path {dirname} doesn't exist")
-
-        if self._old_value is not None:
-            expected: Any = (
-                self._old_value
-                if self._old_value != self.NON_EXISTING_KEY
-                else None)
-            self._validate_current_value(app, expected)
 
     @override
     def validate_state(self, app: SequoiaTool) -> None:
