@@ -6,7 +6,7 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
-    create_account, remove_account,
+    create_account, remove_account, create_cypress_proxy_bypass_driver,
 )
 
 from yt_sequoia_helpers import (
@@ -24,7 +24,7 @@ from yt.sequoia_tools import DESCRIPTORS
 
 from yt_helpers import profiler_factory
 
-from yt_driver_bindings import Driver
+from yt.common import YtError
 
 import yt.yson as yson
 
@@ -819,6 +819,46 @@ class TestSequoiaInternals(YTEnvSetup):
                 create("int64_node", f"//tmp/i64-{i}")
         finally:
             set("//sys/@config/sequoia_manager/testing/sequoia_transaction_start_failure_probability", 0.0)
+
+    @authors("kvk1920")
+    def test_ground_connection_synchronization(self):
+        clusters = get("//sys/clusters")
+        remove("//sys/clusters/primary_ground")
+
+        num = 0
+
+        def sequoia_broken():
+            nonlocal num
+            try:
+                create("map_node", f"//tmp/m{num}")
+                num += 1
+                return False
+            except YtError as error:
+                return error.contains_code(yt_error_codes.UnknownCell)
+
+        wait(sequoia_broken)
+
+        if self.DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG.get("object_service", {}).get("allow_bypass_master_resolve", False):
+            cypress_proxy_bypass_driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
+            set("//sys/clusters", clusters, driver=cypress_proxy_bypass_driver)
+        else:
+            set("//sys/clusters", clusters)
+
+        def sequoia_works():
+            nonlocal num
+            try:
+                create("map_node", f"//tmp/m{num}")
+                num += 1
+                return True
+            except YtError as error:
+                if error.contains_code(yt_error_codes.UnknownCell):
+                    return False
+                raise
+
+        wait(sequoia_works)
+
+        remove("//tmp/*")
+        assert not ls("//tmp")
 
 
 @pytest.mark.enabled_multidaemon
@@ -3065,10 +3105,7 @@ class TestSequoiaClusterDirectoryInitialization(YTEnvSetup):
         # GUQM cannot be unpaused via regular driver since every request to
         # Cypress waits for sync with GUQM on Cypress proxy. Therefore, request
         # has to be sent to master directly.
-        config_without_cypress_proxy = deepcopy(self.Env.configs["driver"])
-        config_without_cypress_proxy["api_version"] = 4
-        del config_without_cypress_proxy["cypress_proxy"]
-        cypress_proxy_bypass_driver = Driver(config=config_without_cypress_proxy)
+        cypress_proxy_bypass_driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
 
         def try_reset_guqm_config():
             print_debug("Trying to remove GUQM config...")

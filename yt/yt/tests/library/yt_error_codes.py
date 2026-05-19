@@ -51,6 +51,7 @@ LocationMediumIsMisconfigured = 753
 FormatDisabled = 1925
 DataSliceLimitExceeded = 2000
 ProxyBanned = 2100
+UnknownCell = 2203
 UnrecognizedConfigOption = 2500
 FailedToFetchDynamicConfig = 2600
 DuplicateMatchingDynamicConfigs = 2601
