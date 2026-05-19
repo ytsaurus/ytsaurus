@@ -317,6 +317,7 @@ message TQueryOptions
     optional int32 read_from = 28; // NHydra::EPeerKind
     optional int32 optimization_level = 29; // EOptimizationLevel
     optional int64 join_cache_size = 30;
+    optional bool enable_parallelize_unordered_group_by = 31;
 }
 
 message TFeatureFlags

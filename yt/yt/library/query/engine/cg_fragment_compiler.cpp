@@ -2358,7 +2358,8 @@ TCodegenExpression MakeCodegenTransformExpr(
                     builder,
                     result,
                     keySize,
-                    resultType);
+                    resultType,
+                    "transformResult");
             },
             [&] (TCGExprContext& builder) {
                 if (defaultExprId) {
@@ -2795,7 +2796,8 @@ size_t MakeCodegenNestedGroupOp(
                         builder,
                         groupValues,
                         groupKeySize + index,
-                        stateTypes[index]);
+                        stateTypes[index],
+                        "nestedGroupAggregate");
 
                     std::vector<TCGValue> newValues;
                     for (size_t argId : aggregateExprIds[index]) {
@@ -3046,7 +3048,8 @@ size_t MakeCodegenMultiJoinOp(
                         builder,
                         values,
                         primaryColumns[column].first,
-                        primaryColumns[column].second)
+                        primaryColumns[column].second,
+                        "multijoinPrimaryRow")
                         .StoreToValues(builder, primaryValues, column);
                 }
 
@@ -3230,7 +3233,8 @@ size_t MakeCodegenFilterFinalizedOp(
                     builder,
                     values,
                     index,
-                    keyTypes[index]);
+                    keyTypes[index],
+                    "finalizedFilterKey");
 
                 value.StoreToValues(builder, finalizedValuesRef, index);
             }
@@ -3240,7 +3244,8 @@ size_t MakeCodegenFilterFinalizedOp(
                     builder,
                     values,
                     std::ssize(keyTypes) + index,
-                    stateTypes[index]);
+                    stateTypes[index],
+                    "finalizedFilterValues");
 
                 codegenAggregates[index].Finalize(builder, builder.Buffer, value)
                     .StoreToValues(builder, finalizedValuesRef, std::ssize(keyTypes) + index);
@@ -3308,7 +3313,8 @@ size_t MakeCodegenAddStreamOp(
                     builder,
                     values,
                     index,
-                    stateTypes[index]);
+                    stateTypes[index],
+                    "addStream");
 
                 value.StoreToValues(builder, newValuesRef, index);
             }
@@ -3687,6 +3693,8 @@ TGroupOpSlots MakeCodegenGroupOp(
                 bool shouldReadStreamTagFromRow = isMerge;
                 Value* streamTag = nullptr;
                 Value* streamTagIsAggregated = nullptr;
+                Value* streamTagIsTotals = nullptr;
+                Value* streamTagIsIntermediate = nullptr;
 
                 if (shouldReadStreamTagFromRow) {
                     // NB: This streamIndex is an index inside of the incoming row. It is equal to group key length + group state length.
@@ -3699,13 +3707,19 @@ TGroupOpSlots MakeCodegenGroupOp(
                         "reference.streamIndex");
                     streamTag = streamIndexValue.GetTypedData(builder);
 
-                    streamTagIsAggregated = builder->CreateOr(
-                        builder->CreateICmpEQ(streamTag, builder->getInt64(static_cast<ui64>(EStreamTag::Aggregated))),
-                        builder->CreateICmpEQ(streamTag, builder->getInt64(static_cast<ui64>(EStreamTag::Totals))));
+                    streamTagIsAggregated = builder->CreateICmpEQ(streamTag, builder->getInt64(static_cast<ui64>(EStreamTag::Aggregated)));
+                    streamTagIsIntermediate = builder->CreateICmpEQ(streamTag, builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate)));
+                    streamTagIsTotals = builder->CreateICmpEQ(streamTag, builder->getInt64(static_cast<ui64>(EStreamTag::Totals)));
 
                     CodegenIf<TCGContext>(builder, streamTagIsAggregated, [&] (TCGContext& builder) {
                         for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
-                            TCGValue::LoadFromRowValues(builder, values, groupKeySize + index, aggregatedTypes[index], "finalized")
+                            TCGValue::LoadFromRowValues(builder, values, groupKeySize + index, aggregatedTypes[index], "groupOp.finalizedInput")
+                                .StoreToValues(builder, dstValues, groupKeySize + index);
+                        }
+                    });
+                    CodegenIf<TCGContext>(builder, streamTagIsTotals, [&] (TCGContext& builder) {
+                        for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
+                            TCGValue::LoadFromRowValues(builder, values, groupKeySize + index, stateTypes[index], "groupOp.totalsStates")
                                 .StoreToValues(builder, dstValues, groupKeySize + index);
                         }
                     });
@@ -3714,6 +3728,8 @@ TGroupOpSlots MakeCodegenGroupOp(
                     streamTag = builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate));
 
                     streamTagIsAggregated = builder->getFalse();
+                    streamTagIsTotals = builder->getFalse();
+                    streamTagIsIntermediate = builder->getTrue();
                     // TODO(dtorilov): If query is disjoint, we can set Aggregated tag here.
                 }
 
@@ -3743,7 +3759,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                     Value* incomingRowIsNew = builder->CreateICmpEQ(groupValues, newValuesRef);
 
                     CodegenIf<TCGContext>(builder, incomingRowIsNew, [&] (TCGContext& builder) {
-                        CodegenIf<TCGContext>(builder, builder->CreateNot(streamTagIsAggregated), [&] (TCGContext& builder) {
+                        CodegenIf<TCGContext>(builder, streamTagIsIntermediate, [&] (TCGContext& builder) {
                             for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
                                 codegenAggregates[index].Initialize(builder, bufferRef)
                                     .StoreToValues(builder, groupValues, groupKeySize + index);
@@ -3771,14 +3787,16 @@ TGroupOpSlots MakeCodegenGroupOp(
                                 builder,
                                 groupValues,
                                 groupKeySize + index,
-                                stateTypes[index]);
+                                stateTypes[index],
+                                "groupOp.currentState");
 
                             if (isMerge) {
                                 auto dstAggState = TCGValue::LoadFromRowValues(
                                     builder,
                                     innerBuilder.RowValues,
                                     groupKeySize + index,
-                                    stateTypes[index]);
+                                    stateTypes[index],
+                                    "groupOp.incomingState");
                                 auto mergeResult = (codegenAggregates[index].Merge)(builder, bufferRef, aggState, dstAggState);
                                 mergeResult.StoreToValues(builder, groupValues, groupKeySize + index);
                             } else {
@@ -3799,7 +3817,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                     // NB: Here the query is not ordered, so allAggregatesFirst is useless.
                     return builder->getFalse();
                 } else {
-                    CodegenIf<TCGContext>(builder, builder->CreateNot(streamTagIsAggregated), [&] (TCGContext& builder) {
+                    CodegenIf<TCGContext>(builder, streamTagIsIntermediate, [&] (TCGContext& builder) {
                         codegenMergeOrUpdate(builder);
                     });
 
@@ -3937,13 +3955,15 @@ size_t MakeCodegenGroupTotalsOp(
                         builder,
                         groupValuesRef,
                         keySize + index,
-                        stateTypes[index]);
+                        stateTypes[index],
+                        "groupTotals.currentState");
 
                     auto newValue = TCGValue::LoadFromRowValues(
                         builder,
                         values,
                         keySize + index,
-                        stateTypes[index]);
+                        stateTypes[index],
+                        "groupTotals.incomingState");
 
                     codegenAggregates[index].Merge(builder, bufferRef, aggState, newValue)
                         .StoreToValues(builder, groupValuesRef, keySize + index);
@@ -4001,7 +4021,8 @@ size_t MakeCodegenFinalizeOp(
                     builder,
                     values,
                     keySize + index,
-                    stateTypes[index]);
+                    stateTypes[index],
+                    "finalize");
 
                 codegenAggregates[index].Finalize(builder, builder.Buffer, value)
                     .StoreToValues(builder, values, keySize + index);
@@ -4063,7 +4084,8 @@ size_t MakeCodegenOrderOp(
                         builder,
                         values,
                         index,
-                        sourceSchema[index]);
+                        sourceSchema[index],
+                        "orderedRow");
 
                     value.StoreToValues(builder, newValuesRef, index);
                 }

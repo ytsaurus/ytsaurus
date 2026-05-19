@@ -451,8 +451,9 @@ struct TBaseQuery
 {
     TGuid Id;
 
-    // Merge and Final
     bool IsFinal = true;
+    bool HasExclusiveGroupKeyView = false;
+    bool EnableCombineGroupOpWithOrderOp = true;
 
     TConstGroupClausePtr GroupClause;
     TConstExpressionPtr HavingClause;

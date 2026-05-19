@@ -1674,8 +1674,9 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 {
     TQueryOptions queryOptions;
 
-    auto useOrderByInJoinSubqueriesDefault = false;
+    bool useOrderByInJoinSubqueriesDefault = false;
     auto statisticsAggregationDefault = EStatisticsAggregation::DepthOmitNode;
+    bool enableParallelizeUnorderedGroupByDefault = false;
     if (queryConfig) {
         useOrderByInJoinSubqueriesDefault = queryConfig->UseOrderByInJoinSubqueries.value_or(
             useOrderByInJoinSubqueriesDefault);
@@ -1686,6 +1687,9 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
         queryOptions.TruncatedQueryLengthForTracing = queryConfig->TruncatedQueryLengthForTracing;
         queryOptions.PrefetchJoinTables = queryConfig->PrefetchJoinTables.value_or(false);
         queryOptions.JoinCacheSize = queryConfig->JoinCacheSize;
+
+        enableParallelizeUnorderedGroupByDefault = queryConfig->EnableParallelizeUnorderedGroupBy.value_or(
+            enableParallelizeUnorderedGroupByDefault);
     }
 
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
@@ -1738,6 +1742,8 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.StatisticsAggregation = options.StatisticsAggregation.value_or(
         statisticsAggregationDefault);
     queryOptions.ReadFrom = options.ReadFrom;
+    queryOptions.EnableParallelizeUnorderedGroupBy = options.EnableParallelizeUnorderedGroupBy.value_or(
+        enableParallelizeUnorderedGroupByDefault);
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
         "Expected \"rowset_processing_batch_size\" > 0, found %v",

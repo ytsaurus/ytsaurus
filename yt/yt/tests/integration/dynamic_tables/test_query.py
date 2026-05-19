@@ -3349,6 +3349,67 @@ class TestQueryRpcProxy(TestQuery):
             if t["key"] in (0, 7, 14, 21) and t["value"] == 0 and t["key"] == d["dkey1"]
         ]
 
+    @authors("sabdenovch")
+    def test_parallel_group_by(self):
+        sync_create_cells(3)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+        reshard_table("//tmp/t", [[]] + [[i] for i in range(10, 100, 10)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": i % 7} for i in range(100)])
+
+        query_prefix = """
+            gk, uniq(value) AS u, sum(value) AS s, array_agg(value, false) as a
+            FROM [//tmp/t] GROUP BY key % 5 AS gk
+        """
+
+        def run_queries():
+            results = []
+            for having_before, totals, having_after in (
+                ("", "", ""),
+                ("", "WITH TOTALS ", ""),
+                ("HAVING s % 2 = 0 ", "", ""),
+                ("HAVING sum(value % 3) > 4 ", "WITH TOTALS ", ""),
+                ("", "WITH TOTALS ", "HAVING u % 3 = 0 "),
+            ):
+                for order_by in ("", "ORDER BY gk LIMIT 3", "ORDER BY s DESC, u DESC, gk DESC, gk ASC LIMIT 2"):
+                    query = query_prefix + having_before + totals + having_after + order_by
+                    statistics = {}
+                    result = select_rows(
+                        query,
+                        response_parameters=statistics,
+                        enable_statistics=True,
+                        expression_builder_version=2)
+                    for row in result:
+                        # aggregation order is not deterministic
+                        row["a"] = sorted(row["a"])
+                        # YsonEntity is not hashable
+                        row["gk"] = row["gk"] if not isinstance(row["gk"], yson.YsonEntity) else None
+                    if not order_by:
+                        result = {row["gk"] : (row["s"], row["u"], row["a"]) for row in result}
+                    results.append((result, statistics["grouped_row_count"], query))
+            return results
+
+        baselines = run_queries()
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_parallelize_unordered_group_by", True):
+            sidelines = run_queries()
+            for i in range(len(baselines)):
+                assert baselines[i][0] == sidelines[i][0], "Mismatch in query: " + baselines[i][2]
+                assert baselines[i][1] == sidelines[i][1], "Grouped row count differs for query: " + baselines[i][2]
+
+            assert select_rows("* from [//tmp/t] where false group by key % 5 as gk") == []  # should not not hang
+
+            # Correct handling of errors on various stages of execution
+            with raises_yt_error("Division by zero"):
+                select_rows("* from [//tmp/t] where 1 / (value - value) = 1 group by key % 5 as gk")
+            with raises_yt_error("Division by zero"):
+                select_rows("(1 / sum(0)) as s from [//tmp/t] group by key % 5 as gk")
+            with raises_yt_error("Division by zero"):
+                select_rows("sum(0) as s from [//tmp/t] group by key % 5 as gk having (1 / s) = 0")
+
 
 @pytest.mark.enabled_multidaemon
 class TestSelectWithRowCache(TestLookupCache):

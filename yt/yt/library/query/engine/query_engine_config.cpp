@@ -36,6 +36,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_order_by_in_join_subqueries", &TThis::UseOrderByInJoinSubqueries)
         .Optional();
 
+    registrar.Parameter("enable_parallelize_unordered_group_by", &TThis::EnableParallelizeUnorderedGroupBy)
+        .Optional();
+
     registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
         .Optional();
 

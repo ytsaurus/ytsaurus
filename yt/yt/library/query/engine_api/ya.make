@@ -19,6 +19,7 @@ SRCS(
     position_independent_value_transfer.cpp
     query_evaluator.cpp
     range_inferrer.cpp
+    shuffling_reader.cpp
     top_collector.cpp
 )
 

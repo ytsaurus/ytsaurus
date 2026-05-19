@@ -504,8 +504,9 @@ def execute_command(
 
     if response_parameters is not None:
         response_params = response.response_parameters()
-        print_debug(response_parameters)
-        response_parameters.update(response_params)
+        if response_params is not None:
+            print_debug(response_parameters)
+            response_parameters.update(response_params)
 
     if not response.is_ok():
         # TODO(ignat): it build empty error with response.error() as inner error. Fix it!
