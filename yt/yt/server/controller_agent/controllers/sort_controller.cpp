@@ -384,9 +384,12 @@ public:
         // race with SetStreamDescriptors running on JobSpecBuildInvoker. The flag is
         // set inside DoSwitchIntermediateMedium after the mutation completes, ensuring
         // snapshot consistency.
-        BIND(&TSortControllerBase::DoSwitchIntermediateMedium, MakeWeak(this), usage, fastIntermediateMediumLimit, outputTransaction->GetId())
-            .Via(GetCancelableInvoker())
-            .Run();
+        GetCancelableInvoker()->Invoke(
+            BIND(&TSortControllerBase::DoSwitchIntermediateMedium,
+                MakeWeak(this),
+                usage,
+                fastIntermediateMediumLimit,
+                outputTransaction->GetId()));
     }
 
 private:
