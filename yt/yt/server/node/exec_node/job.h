@@ -357,6 +357,7 @@ private:
 
     std::optional<TInstant> PreparationStartTime_;
     std::optional<TInstant> NodeDirectoryPreparationStartTime_;
+    std::optional<TInstant> ArtifactsDownloadStartTime_;
     std::optional<TInstant> ArtifactsDownloadedTime_;
     std::optional<TInstant> StartTime_;
     std::optional<TInstant> ExecStartTime_;

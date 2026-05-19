@@ -1188,7 +1188,7 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
     return {
         .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), PreparationStartTime_),
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
-        .ArtifactsCachingDuration = getDuration(NodeDirectoryPreparationStartTime_, ArtifactsDownloadedTime_),
+        .ArtifactsCachingDuration = getDuration(ArtifactsDownloadStartTime_, ArtifactsDownloadedTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
         .PrepareNonRootVolumesDuration = getDuration(PrepareNonRootVolumesStartTime_, PrepareNonRootVolumesFinishTime_),
         .LinkVolumesDuration = getDuration(LinkVolumesStartTime_, LinkVolumesFinishTime_),
@@ -2416,6 +2416,8 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             if (UserJobSpec_ && UserJobSpec_->enable_caching_artifacts_phase()) {
                 SetJobPhase(EJobPhase::CachingArtifacts);
             }
+
+            ArtifactsDownloadStartTime_ = TInstant::Now();
 
             auto artifactsFuture = DownloadArtifacts();
 
