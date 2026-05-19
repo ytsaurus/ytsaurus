@@ -32,6 +32,10 @@ class Action(ABC):
         """Perform the mutation."""
         pass
 
+    def wait_ready(self, app: SequoiaTool) -> None:
+        """(Optional) Block until deferred work from execute() completes."""
+        pass
+
     @abstractmethod
     def dry_run(self, app: SequoiaTool) -> None:
         """Simulate changes WITHOUT modifying the real state."""
@@ -95,6 +99,17 @@ class ActionPlan():
         """Action plan name for logging."""
         return self._name
 
+    def _maybe_rollback(self, app: SequoiaTool, stop_index: int) -> None:
+        if not app.interaction.confirm("Roll back changes?"):
+            return
+        for action in reversed(self._actions[:stop_index]):
+            try:
+                logging.info(f"--- {action.describe()}")
+                action.rollback(app)
+            except Exception as roll_exc:
+                logging.warning(
+                    f'Could not roll back "{action.describe()}": {roll_exc}')
+
     def execute_all(self, app: SequoiaTool) -> None:
         logging.info("Executing actions")
 
@@ -102,19 +117,27 @@ class ActionPlan():
             try:
                 logging.info(f"+++ {action.describe()}")
                 action.execute(app)
-
             except Exception as exc:
                 logging.error(f'"{action.describe()}" failed: {exc}')
-                if app.interaction.confirm("Roll back changes?"):
-                    for action in reversed(self._actions[:index]):
-                        try:
-                            logging.info(f"--- {action.describe()}")
-                            action.rollback(app)
-                        except Exception as roll_exc:
-                            logging.warning(
-                                "Could not roll back"
-                                f'"{action.describe()}": {roll_exc}')
+                self._maybe_rollback(app, index)
                 raise
+
+        deferred = [
+            action for action in self._actions
+            if type(action).wait_ready is not Action.wait_ready
+        ]
+        if deferred:
+            logging.info(
+                f"Waiting for {len(deferred)} action(s) to complete")
+            for action in deferred:
+                try:
+                    logging.info(f"... {action.describe()}")
+                    action.wait_ready(app)
+                except Exception as exc:
+                    logging.error(
+                        f'"{action.describe()}" wait failed: {exc}')
+                    self._maybe_rollback(app, len(self._actions))
+                    raise
 
         logging.info("Successfully executed all actions")
 
@@ -447,19 +470,25 @@ class MountTabletAction(Action):
         self,
         path: str,
         unmount: bool,
-        **kwargs,
     ) -> None:
         self._path = path
         self._unmount = unmount
-        self._kwargs = kwargs
         self._executed = False
+
+    def _op(self, app: SequoiaTool):
+        return (app.ground_client.unmount_table if self._unmount
+                else app.ground_client.mount_table)
 
     @override
     def execute(self, app: SequoiaTool) -> None:
-        op = (app.ground_client.unmount_table if self._unmount
-              else app.ground_client.mount_table)
-        op(self._path, **self._kwargs)
+        self._op(app)(self._path, sync=False)
         self._executed = True
+
+    @override
+    def wait_ready(self, app: SequoiaTool) -> None:
+        if not self._executed:
+            return
+        self._op(app)(self._path, sync=True)
 
     @override
     def rollback(self, app: SequoiaTool) -> None:
@@ -491,9 +520,7 @@ class MountTabletAction(Action):
     def dry_run(self, app: SequoiaTool) -> None:
         verb = "unmount" if self._unmount else "mount"
         log_dry_run(
-            MessageBuilder(f"Would {verb} table {self._path}")
-            .with_fields(self._kwargs)
-            .build(),
+            f"Would {verb} table {self._path}",
             logger)
 
 
