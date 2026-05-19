@@ -57,6 +57,10 @@ struct TEvaluateResult
 
 using TSubQueryEvaluator = std::function<TEvaluateResult()>;
 
+using TMiddleQueryEvaluator = std::function<TEvaluateResult(
+    ISchemafulUnversionedReaderPtr /*reader*/,
+    TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
+
 using TTopQueryEvaluator = std::function<TQueryStatistics(
     const ISchemafulUnversionedReaderPtr& /*reader*/,
     TFuture<TFeatureFlags> /*responseFeatureFlags*/)>;
@@ -70,6 +74,14 @@ TQueryStatistics CoordinateAndExecute(
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
     TTopQueryEvaluator evaluateTopQuery);
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int splitCount,
+    int groupKeyPrefix,
+    TSubQueryEvaluator evaluateSubQuery,
+    TMiddleQueryEvaluator evaluateMiddleQuery,
+    TTopQueryEvaluator evaluateTopQuery,
+    const IMemoryChunkProviderPtr& memoryChunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

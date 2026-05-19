@@ -740,52 +740,47 @@ private:
 
         int splitCount = std::ssize(groupedDataSplits);
 
-        auto statistics = CoordinateAndExecute(
-            query->GetScanOrder(options.AllowUnorderedGroupByWithLimit),
-            query->IsPrefetching(),
-            splitCount,
-            query->Offset,
-            query->Limit,
-            options.AdaptiveOrderedSchemafulReader,
-            [
-                &,
-                bottomQueryPattern = bottomQueryPattern,
-                groupedDataSplits = std::move(groupedDataSplits),
-                prefetchedJoinRowsets = std::move(prefetchedJoinRowsets),
-                subqueryIndex = 0
-            ] () mutable -> TEvaluateResult {
-                if (subqueryIndex >= std::ssize(groupedDataSplits)) {
-                    return {};
-                }
+        auto evaluateBottom = [
+            &,
+            bottomQueryPattern = bottomQueryPattern,
+            groupedDataSplits = std::move(groupedDataSplits),
+            prefetchedJoinRowsets = std::move(prefetchedJoinRowsets),
+            subqueryIndex = 0] () mutable -> TEvaluateResult
+        {
+            if (subqueryIndex >= std::ssize(groupedDataSplits)) {
+                return {};
+            }
 
-                auto& [dataSources, address] = groupedDataSplits[subqueryIndex++];
+            auto& [dataSources, address] = groupedDataSplits[subqueryIndex++];
 
-                // Copy query to generate new id.
-                auto bottomQuery = New<TQuery>(*bottomQueryPattern);
+            // Copy query to generate new id.
+            auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
-                YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v, MinRowCountPerSubquery: %v)",
-                    bottomQuery->Id,
-                    address,
-                    options.MaxSubqueries,
-                    options.MinRowCountPerSubquery);
+            YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v, MinRowCountPerSubquery: %v)",
+                bottomQuery->Id,
+                address,
+                options.MaxSubqueries,
+                options.MinRowCountPerSubquery);
 
-                return Delegate(
-                    bottomQuery,
-                    externalCGInfo,
-                    options,
-                    requestFeatureFlags,
-                    std::move(dataSources),
-                    prefetchedJoinRowsets,
-                    address);
-            },
-            [&, frontQuery = frontQuery] (
+            return Delegate(
+                bottomQuery,
+                externalCGInfo,
+                options,
+                requestFeatureFlags,
+                std::move(dataSources),
+                prefetchedJoinRowsets,
+                address);
+        };
+
+        auto getEvaluateTop = [&] (TConstFrontQueryPtr frontQuery) {
+            return [=, this, this_ = MakeStrong(this), frontQuery = std::move(frontQuery)] (
                 const ISchemafulUnversionedReaderPtr& reader,
-                TFuture<TFeatureFlags> responseFeatureFlags
-            ) -> TQueryStatistics {
+                TFuture<TFeatureFlags> responseFeatureFlags) -> TQueryStatistics
+            {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", frontQuery->Id);
                 return Evaluator_->Run(
-                    std::move(frontQuery),
-                    std::move(reader),
+                    frontQuery,
+                    reader,
                     writer,
                     /*joinProfilerRegistry*/ {},
                     functionGenerators,
@@ -795,7 +790,76 @@ private:
                     options,
                     requestFeatureFlags,
                     responseFeatureFlags);
-            });
+            };
+        };
+
+        TQueryStatistics statistics;
+
+        auto scanOrder = query->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
+        if (options.EnableParallelizeUnorderedGroupBy &&
+            scanOrder == EScanOrder::Unordered &&
+            query->GroupClause &&
+            query->GroupClause->CommonPrefixWithPrimaryKey == 0 &&
+            !query->UseDisjointGroupBy)
+        {
+            if (splitCount == 0) {
+                WaitForFast(writer->Close())
+                    .ThrowOnError();
+                return {};
+            }
+            auto [middleQuery, newFrontQuery] = GetGroupingQueriesForParallelization(frontQuery);
+            auto evaluateMiddle = [&, middleQuery] (
+                const ISchemafulUnversionedReaderPtr& reader,
+                TFuture<TFeatureFlags> responseFeatureFlags)
+            {
+                YT_LOG_DEBUG("Evaluating middle query (MiddleQueryId: %v)", middleQuery->Id);
+
+                TEvaluateResult middleResult;
+                auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
+                middleResult.Reader = pipe->GetReader();
+
+                middleResult.Statistics = BIND(&IEvaluator::Run, Evaluator_)
+                    .AsyncVia(GetCurrentInvoker())
+                    .Run(
+                        middleQuery,
+                        reader,
+                        pipe->GetWriter(),
+                        /*joinProfilerRegistry*/ {},
+                        functionGenerators,
+                        aggregateGenerators,
+                        sdk,
+                        MemoryChunkProvider_,
+                        options,
+                        requestFeatureFlags,
+                        std::move(responseFeatureFlags))
+                    .AsUnique()
+                    .Apply(BIND([pipe] (TErrorOr<TQueryStatistics>&& errorOrStatistics) {
+                        if (!errorOrStatistics.IsOK()) {
+                            pipe->Fail(errorOrStatistics);
+                        }
+                        return errorOrStatistics;
+                    }));
+
+                return middleResult;
+            };
+            statistics = CoordinateAndExecuteWithShuffle(
+                splitCount,
+                query->GroupClause->GroupItems.size(),
+                evaluateBottom,
+                evaluateMiddle,
+                getEvaluateTop(newFrontQuery),
+                MemoryChunkProvider_);
+        } else {
+            statistics = CoordinateAndExecute(
+                scanOrder,
+                query->IsPrefetching(),
+                splitCount,
+                query->Offset,
+                query->Limit,
+                options.AdaptiveOrderedSchemafulReader,
+                evaluateBottom,
+                getEvaluateTop(frontQuery));
+        }
 
         if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {
             auto aggregated = TQueryStatistics();
@@ -1124,6 +1188,27 @@ private:
         }
 
         return {std::move(mutableQuery), std::move(prefetchedRowsets), std::move(subqueryStatistics)};
+    }
+
+    std::pair<TConstFrontQueryPtr, TConstFrontQueryPtr> GetGroupingQueriesForParallelization(
+        const TConstFrontQueryPtr& frontQuery)
+    {
+        auto middleQuery = New<TFrontQuery>();
+        middleQuery->GroupClause = frontQuery->GroupClause;
+        middleQuery->HavingClause = frontQuery->HavingClause;
+        middleQuery->Schema = frontQuery->Schema;
+        middleQuery->OrderClause = frontQuery->OrderClause;
+        middleQuery->Limit = frontQuery->Limit;
+        middleQuery->Offset = frontQuery->Offset;
+        middleQuery->IsFinal = false;
+        middleQuery->HasExclusiveGroupKeyView = true;
+        // Why does this field even exist for front query. This code makes no gosh darn sense.
+        middleQuery->InferRanges = false;
+
+        auto newFrontQuery = New<TFrontQuery>(*frontQuery);
+        newFrontQuery->EnableCombineGroupOpWithOrderOp = false;
+
+        return {std::move(middleQuery), std::move(newFrontQuery)};
     }
 };
 
