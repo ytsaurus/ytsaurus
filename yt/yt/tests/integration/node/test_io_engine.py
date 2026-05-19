@@ -1096,9 +1096,9 @@ class TestRpcDecoderMemoryTracking(BaseTestRpcMemoryTracking):
 
                 return None
 
-            rct_write = find_in_rct("NYT::NBus::TTcpServerConnectionReadBufferTag")
-            rct_read = find_in_rct("NYT::NBus::TTcpServerConnectionWriteBufferTag")
-            rct_decoder = find_in_rct("NYT::NBus::TPacketDecoderTag")
+            rct_write = find_in_rct("NYT::NBus::NTcp::TServerConnectionReadBufferTag")
+            rct_read = find_in_rct("NYT::NBus::NTcp::TServerConnectionWriteBufferTag")
+            rct_decoder = find_in_rct("NYT::NBus::NTcp::TPacketDecoderTag")
 
             rct_write_bytes_alive = 0 if rct_write is None else rct_write['bytes_alive']
             rct_read_bytes_alive = 0 if rct_read is None else rct_read['bytes_alive']
