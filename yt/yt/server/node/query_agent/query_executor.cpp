@@ -780,6 +780,7 @@ private:
                             MemoryChunkProvider_,
                             QueryOptions_.UseOrderByInJoinSubqueries,
                             allowHeavyRangeInferenceInJoins,
+                            QueryOptions_.JoinCacheSize,
                             Logger));
                     }
                 }

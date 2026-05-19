@@ -45,6 +45,8 @@ struct TQueryEngineDynamicConfig
     std::optional<bool> AllowHeavyRangeInferenceInJoins;
     std::optional<bool> PrefetchJoinTables;
 
+    std::optional<i64> JoinCacheSize;
+
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 
     static void Register(TRegistrar registrar);
