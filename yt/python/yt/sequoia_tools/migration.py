@@ -12,10 +12,14 @@ def migrate_ground(
     target_reign: int,
 ) -> None:
     """Sequentially execute ground cluster state migrations."""
+    if target_reign == ground_reign:
+        logger.info("Ground reign is already equal to target: %d", ground_reign)
+        return
+
     assert target_reign > ground_reign
 
     logger.info(
-        "Started ground cluster state migration: %d->%d",
+        "Started ground cluster state migration: %d -> %d",
         ground_reign,
         target_reign)
 
