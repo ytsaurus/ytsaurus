@@ -1,8 +1,19 @@
 #pragma once
 
+#include <yt/yt/core/misc/public.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NCypressProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETreeScope,
+    ((RequestedValues)      (1))
+    ((RequestedAttributes)  (2))
+    ((Ancestry)             (3))
+    ((Descendants)          (4))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

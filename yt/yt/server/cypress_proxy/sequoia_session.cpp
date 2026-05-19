@@ -826,11 +826,7 @@ TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster
     auto requestTemplate = TYPathProxy::Get("&/@");
     ToProto(requestTemplate->mutable_attributes(), attributeFilter);
 
-    auto batcher = TMasterYPathProxy::CreateGetBatcher(
-        GetNativeAuthenticatedClient(),
-        requestTemplate,
-        nodeIds,
-        GetCurrentCypressTransactionId());
+    auto batcher = CreateGetBatcher(requestTemplate, nodeIds);
     return batcher.Invoke()
         .Apply(BIND([] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& nodeIdToRspOrError) {
             TNodeIdToConstAttributes result;
@@ -847,6 +843,29 @@ TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster
 const NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
 {
     return NativeAuthenticatedClient_;
+}
+
+TMasterYPathProxy::TVectorizedGetBatcher TSequoiaSession::CreateGetBatcher(
+    const TYPathProxy::TReqGetPtr& requestTemplate,
+    TRange<TObjectId> objectIds,
+    std::optional<ETreeScope> scope) const
+{
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+    auto subbatchSize = dynamicConfig->DefaultVectorizedSubbatchSize;
+
+    if (scope) {
+        auto it = dynamicConfig->VectorizedSubbatchSizeOverrides.find(*scope);
+        if (it != dynamicConfig->VectorizedSubbatchSizeOverrides.end()) {
+            subbatchSize = it->second;
+        }
+    }
+
+    return TMasterYPathProxy::CreateGetBatcher(
+        GetNativeAuthenticatedClient(),
+        requestTemplate,
+        objectIds,
+        GetCurrentCypressTransactionId(),
+        subbatchSize);
 }
 
 void TSequoiaSession::AcquireCypressLockInSequoia(

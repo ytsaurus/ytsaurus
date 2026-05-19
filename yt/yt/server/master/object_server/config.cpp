@@ -163,6 +163,9 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("local_write_request_throttler", &TThis::LocalWriteRequestThrottler)
         .DefaultNew();
 
+    registrar.Parameter("max_vectorized_read_request_size", &TThis::MaxVectorizedReadRequestSize)
+        .Default(100);
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 }

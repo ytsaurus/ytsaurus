@@ -171,6 +171,10 @@ struct TCypressProxyDynamicConfig
 
     int SelectSubtreeRowsLimit;
 
+    int DefaultVectorizedSubbatchSize;
+
+    THashMap<ETreeScope, int> VectorizedSubbatchSizeOverrides;
+
     constexpr static int DefaultThreadPoolSize = 2;
 
     REGISTER_YSON_STRUCT(TCypressProxyDynamicConfig);
