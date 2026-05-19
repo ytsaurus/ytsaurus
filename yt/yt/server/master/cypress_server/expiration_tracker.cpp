@@ -340,7 +340,7 @@ public:
             if (!IsObjectAlive(user)) {
                 continue;
             }
-            result.emplace(TEphemeralObjectPtr(user), attempts);
+            result.emplace(TEphemeralObjectPtr<TUser>(user), attempts);
         }
         return result;
     }
