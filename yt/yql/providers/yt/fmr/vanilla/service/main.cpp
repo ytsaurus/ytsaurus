@@ -23,6 +23,7 @@
 #include <yql/essentials/core/file_storage/file_storage.h>
 #include <yql/essentials/core/file_storage/proto/file_storage.pb.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
+#include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 
@@ -111,6 +112,7 @@ public:
         , FmrJobBinaryPath_(std::move(fmrJobBinaryPath))
         , Verbosity_(verbosity)
     {
+        YQL_ENSURE(JobCount_ > 1);
     }
 
     void Do() override {
@@ -133,12 +135,25 @@ public:
         const TString selfIp = tracker.GetSelfIpAddress();
         const TString operationId = tracker.GetOperationId();
 
-        // TDS server on every job node.
-        auto localTds = MakeLocalTableDataService();
-        auto tdsServer = MakeTableDataServiceServer(
-            localTds,
-            TTableDataServiceServerSettings{.Host = selfIp, .Port = 8002});
-        tdsServer->Start();
+        // Vanilla TDS discovery: resolves per-cookie IPs at port 8002.
+        // Passed directly into RunJob — no temp file needed.
+        auto tdsDiscovery = MakeVanillaTdsDiscovery(tracker, TVanillaTdsDiscoverySettings{
+            .TdsPort = 8002,
+            .MinIndex = 1
+        });
+        tdsDiscovery->Start();
+
+        auto tableDataServiceClient = MakeTableDataServiceClient(tdsDiscovery);
+
+        // TDS server on non-coordinator node
+        IFmrServer::TPtr tdsServer;
+        if (selfIndex > 0) {
+            auto localTds = MakeLocalTableDataService();
+            tdsServer = MakeTableDataServiceServer(
+                localTds,
+                TTableDataServiceServerSettings{.Host = selfIp, .Port = 8002});
+            tdsServer->Start();
+        }
 
         // Peer HTTP server on every job node: lists peers at GET / and identifies self at GET /<cookie>.
         auto httpMon = MakeVanillaHttpMon(
@@ -149,9 +164,9 @@ public:
         // Coordinator server on cookie=0 only.
         IFmrServer::TPtr coordServer;
         if (selfIndex == 0) {
-            auto gcService = MakeGcService(/*tableDataService=*/nullptr);
+            auto gcService = MakeGcService(tableDataServiceClient);
             auto coordinator = MakeFmrCoordinator(
-                [&] { TFmrCoordinatorSettings s; s.WorkersNum = static_cast<ui32>(JobCount_); return s; }(),
+                [&] { TFmrCoordinatorSettings s; s.WorkersNum = static_cast<ui32>(JobCount_) - 1; return s; }(),
                 MakeYtCoordinatorService(),
                 gcService);
             coordServer = MakeFmrCoordinatorServer(
@@ -160,66 +175,72 @@ public:
             coordServer->Start();
         }
 
-        // Vanilla coordinator client: routes to cookie=0 at port 8001.
-        auto coordClient = MakeVanillaFmrCoordinatorClient(tracker, TVanillaFmrCoordinatorClientSettings{
-            .CoordinatorPort = 8001,
-        });
+        IFmrJobFactory::TPtr jobFactory;
+        IFmrWorker::TPtr worker;
+        if (selfIndex > 0) {
+            // Vanilla coordinator client: routes to cookie=0 at port 8001.
+            auto coordClient = MakeVanillaFmrCoordinatorClient(tracker, TVanillaFmrCoordinatorClientSettings{
+                .CoordinatorPort = 8001,
+            });
 
-        // Vanilla TDS discovery: resolves per-cookie IPs at port 8002.
-        // Passed directly into RunJob — no temp file needed.
-        auto tdsDiscovery = MakeVanillaTdsDiscovery(tracker, TVanillaTdsDiscoverySettings{
-            .TdsPort = 8002
-        });
-        tdsDiscovery->Start();
+            NYql::TFileStorageConfig fsConfig;
+            fsConfig.SetThreads(2);
+            fsConfig.SetMaxFiles(100);
+            auto ytDownloader = NYql::MakeYtDownloader(fsConfig, Cluster_);
+            auto fileStorage = NYql::CreateAsyncFileStorage(fsConfig, {ytDownloader});
 
-        NYql::TFileStorageConfig fsConfig;
-        fsConfig.SetThreads(2);
-        fsConfig.SetMaxFiles(100);
-        auto ytDownloader = NYql::MakeYtDownloader(fsConfig, Cluster_);
-        auto fileStorage = NYql::CreateAsyncFileStorage(fsConfig, {ytDownloader});
+            auto jobPreparer = MakeIntrusive<TVanillaJobPreparer>(
+                fileStorage, Cluster_, FmrJobBinaryPath_);
+            TString localBinaryPath = jobPreparer->GetLocalFmrJobBinaryPath();
 
-        auto jobPreparer = MakeIntrusive<TVanillaJobPreparer>(
-            fileStorage, Cluster_, FmrJobBinaryPath_);
-        TString localBinaryPath = jobPreparer->GetLocalFmrJobBinaryPath();
+            auto ytJobService = MakeYtJobSerivce();
+            auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
+                .RunInSeparateProcess = !localBinaryPath.empty(),
+                .FmrJobBinaryPath = localBinaryPath,
+                .GatewayType = "native",
+            });
 
-        auto ytJobService = MakeYtJobSerivce();
-        auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
-            .RunInSeparateProcess = !localBinaryPath.empty(),
-            .FmrJobBinaryPath = localBinaryPath,
-            .GatewayType = "native",
-        });
-
-        auto jobFactorySettings = GetDefaultJobFactorySettings();
-        TVanillaInfo vanillaInfo{
-            .Tracker = {
-                .OperationId = operationId,
-                .SelfIndex = selfIndex,
-                .SelfJobId = tracker.GetSelfJobId(),
-                .PeerIps = tracker.GetPeerAddresses()
-            }
-        };
-        jobFactorySettings.Function =
-            [&, vanillaInfo](TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) {
-                return RunJob(task, tdsDiscovery, vanillaInfo, ytJobService, jobLauncher, cancelFlag);
+            auto jobFactorySettings = GetDefaultJobFactorySettings();
+            TVanillaInfo vanillaInfo{
+                .Tracker = {
+                    .OperationId = operationId,
+                    .SelfIndex = selfIndex,
+                    .SelfJobId = tracker.GetSelfJobId(),
+                    .PeerIps = tracker.GetPeerAddresses()
+                }
             };
-        auto jobFactory = MakeFmrJobFactory(jobFactorySettings);
-        jobFactory->Start();
+            jobFactorySettings.Function =
+                [tdsDiscovery, jobLauncher, ytJobService, vanillaInfo](TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) {
+                    return RunJob(task, tdsDiscovery, vanillaInfo, ytJobService, jobLauncher, cancelFlag);
+                };
+            jobFactory = MakeFmrJobFactory(jobFactorySettings);
+            jobFactory->Start();
 
-        auto worker = MakeFmrWorker(
-            coordClient,
-            jobFactory,
-            jobPreparer,
-            TFmrWorkerSettings{.WorkerId = static_cast<ui32>(selfIndex)});
-        worker->Start();
+            worker = MakeFmrWorker(
+                coordClient,
+                jobFactory,
+                jobPreparer,
+                TFmrWorkerSettings{.WorkerId = static_cast<ui32>(selfIndex) - 1});
+            worker->Start();
+        }
 
         // Block until this job is superseded or the operation ends.
         tracker.Run();
 
-        worker->Stop();
-        jobFactory->Stop();
+        if (worker) {
+            worker->Stop();
+        }
+
+        if (jobFactory) {
+            jobFactory->Stop();
+        }
+
         tdsDiscovery->Stop();
         httpMon->Stop();
-        tdsServer->Stop();
+        if (tdsServer) {
+            tdsServer->Stop();
+        }
+
         if (coordServer) {
             coordServer->Stop();
         }
@@ -257,18 +278,20 @@ int main(int argc, const char* argv[]) {
     TString networkProject;
     TString fmrJobBinaryPath;
     TString alias;
-    ui64 jobCount = 1;
+    ui64 jobCount = 0;
     int verbosity = static_cast<int>(TLOG_ERR);
 
     opts.AddLongOption("cluster", "YT cluster URL (e.g. hahn)").Required().StoreResult(&cluster);
     opts.AddLongOption("pool", "YT pool to run in").Optional().StoreResult(&pool);
     opts.AddLongOption("alias", "Operation alias").Required().StoreResult(&alias);
     opts.AddLongOption("network-project", "Network project name").Required().StoreResult(&networkProject);
-    opts.AddLongOption("job-count", "Number of service jobs").Optional().StoreResult(&jobCount);
+    opts.AddLongOption("job-count", "Number of service jobs (>1)").Required().StoreResult(&jobCount);
     opts.AddLongOption("fmr-job-bin", "Cypress path to the FMR job binary").Optional().StoreResult(&fmrJobBinaryPath);
     opts.AddLongOption('v', "verbosity", "Logging verbosity level").Optional().StoreResult(&verbosity).DefaultValue(verbosity);
 
     TOptsParseResult parseResult(&opts, argc, argv);
+
+    YQL_ENSURE(jobCount > 1);
 
     NYql::NLog::YqlLoggerScope logger(&Cerr, NYql::NLog::LegacyFormat);
     {

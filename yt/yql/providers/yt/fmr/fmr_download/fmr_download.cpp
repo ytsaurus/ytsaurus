@@ -61,6 +61,10 @@ public:
         tracker.Start();
         auto host = tracker.GetPeerAddress(hostIndex);
         YQL_CLOG(DEBUG, FastMapReduce) << "Resolved host " << host << " with index " << hostIndex;
+        if (!host) {
+            throw yexception() << "No IP address is assigned yet, try later";
+        }
+
         TFsPath rest("/");
         for (ui32 i = 1; i < split.size(); ++i) {
             rest /= TFsPath(split[i]);
