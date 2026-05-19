@@ -7,6 +7,7 @@ namespace NYT::NFlow {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline constexpr TStringBuf InputMessagesTableName = "input_messages";
+inline constexpr TStringBuf CompactInputMessagesTableName = "compact_input_messages";
 inline constexpr TStringBuf OutputMessagesTableName = "output_messages";
 inline constexpr TStringBuf PartitionOutputMessagesTableName = "partition_output_messages";
 inline constexpr TStringBuf StatesTableName = "states";
