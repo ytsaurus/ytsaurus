@@ -178,6 +178,7 @@ struct TQueryBaseOptions
     bool AllowUnorderedGroupByWithLimit = true;
     std::optional<int> TruncatedQueryLengthForTracing;
     bool PrefetchJoinTables = false;
+    bool EnableParallelizeUnorderedGroupBy = false;
 };
 
 struct TQueryOptions

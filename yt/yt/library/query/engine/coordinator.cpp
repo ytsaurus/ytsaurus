@@ -2,6 +2,7 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
+#include <yt/yt/library/query/engine_api/shuffling_reader.h>
 
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
@@ -400,6 +401,102 @@ TQueryStatistics CoordinateAndExecute(
     }
 
     return queryStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int splitCount,
+    int groupKeyPrefix,
+    TSubQueryEvaluator evaluateSubQuery,
+    TMiddleQueryEvaluator evaluateMiddleQuery,
+    TTopQueryEvaluator evaluateTopQuery,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
+{
+    if (splitCount == 0) {
+        return {};
+    }
+
+    constexpr int ParallelizationFactor = 8;
+    int destinationCount = std::min(ParallelizationFactor, splitCount);
+
+    std::vector<TFuture<TQueryStatistics>> bottomSubqueryStatistics;
+    std::vector<TFuture<TFeatureFlags>> subqueryFeatureFlags;
+    std::vector<ISchemafulUnversionedReaderPtr> readers;
+    readers.reserve(splitCount);
+    bottomSubqueryStatistics.reserve(splitCount);
+    subqueryFeatureFlags.reserve(splitCount);
+    for (int index = 0; index < splitCount; ++index) {
+        auto bottomResult = evaluateSubQuery();
+        bottomSubqueryStatistics.push_back(std::move(bottomResult.Statistics));
+        subqueryFeatureFlags.push_back(bottomResult.ResponseFeatureFlags);
+        readers.push_back(bottomResult.Reader);
+    }
+
+    auto anyFeatureFlag = AnySucceeded(subqueryFeatureFlags, {.CancelInputOnShortcut = false});
+
+    auto [shuffledReaders, shuffleFutures] = ShuffleByPrefixHash(
+        readers,
+        groupKeyPrefix,
+        destinationCount,
+        GetCurrentInvoker(),
+        memoryChunkProvider);
+
+    readers.clear();
+    readers.reserve(shuffledReaders.size());
+    std::vector<TFuture<TQueryStatistics>> middleSubqueryStatistics;
+    middleSubqueryStatistics.reserve(shuffledReaders.size());
+    for (const auto& reader : shuffledReaders) {
+        auto middleResult = evaluateMiddleQuery(reader, anyFeatureFlag);
+        readers.push_back(std::move(middleResult.Reader));
+        middleSubqueryStatistics.push_back(std::move(middleResult.Statistics));
+    }
+
+    auto getNextReader = [readers = std::move(readers), index = 0] () mutable {
+        if (index >= std::ssize(readers)) {
+            return ISchemafulUnversionedReaderPtr();
+        }
+        return readers[index++];
+    };
+    auto finalReader = CreateUnorderedSchemafulReader(getNextReader, destinationCount);
+
+    // TODO(sabdenovch): No clue if MostFreshFeatureFlags would be more or less correct.
+    // Middle stage is executed locally, MostFreshFeatureFlags makes sense.
+    // But the data itself comes from the bottom subqueries, just shuffled and merged a little more.
+    // Input might have traits of different code versions.
+    auto statisticsFuture = BIND(evaluateTopQuery, finalReader, anyFeatureFlag)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+
+    shuffleFutures.push_back(statisticsFuture.AsVoid());
+    for (const auto& future : middleSubqueryStatistics) {
+        shuffleFutures.push_back(future.AsVoid());
+    }
+    for (const auto& future : bottomSubqueryStatistics) {
+        shuffleFutures.push_back(future.AsVoid());
+    }
+
+    WaitFor(AllSucceeded(shuffleFutures))
+        .ThrowOnError();
+
+    auto statistics = WaitForFast(statisticsFuture)
+        .ValueOrThrow();
+
+    statistics.InnerStatistics = WaitForFast(AllSucceeded(middleSubqueryStatistics))
+        .ValueOrThrow();
+
+    statistics.InnerStatistics.front().InnerStatistics = WaitForFast(AllSucceeded(bottomSubqueryStatistics))
+        .ValueOrThrow();
+
+    statistics.GroupedRowCount.SetTotal(std::accumulate(
+        statistics.InnerStatistics.begin(),
+        statistics.InnerStatistics.end(),
+        static_cast<i64>(0),
+        [] (i64 groupedRowCount, const TQueryStatistics& innerStatistics) {
+            return groupedRowCount + innerStatistics.GroupedRowCount.GetTotal();
+        }));
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

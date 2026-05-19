@@ -4705,6 +4705,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
         options.MaxJoinBatchSize = request->max_join_batch_size();
     }
     options.UseOrderByInJoinSubqueries = YT_OPTIONAL_FROM_PROTO(*request, use_order_by_in_join_subqueries);
+    options.EnableParallelizeUnorderedGroupBy = YT_OPTIONAL_FROM_PROTO(*request, enable_parallelize_unordered_group_by);
     if (request->has_statistics_aggregation()) {
         options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
     }

@@ -256,7 +256,7 @@ class DynamicTablesBase(YTEnvSetup):
                     proxies = ls("//sys/rpc_proxies", driver=driver)
                     orchid_path = f"orchid/dynamic_config_manager/effective_config{config_path}"
                     for proxy in proxies:
-                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value)
+                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value, ignore_exceptions=True)
             else:
                 assert config_path == ""
                 self._update_and_wait(lambda: remove("//sys/rpc_proxies/@config", driver=driver), driver)

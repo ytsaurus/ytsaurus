@@ -1684,6 +1684,7 @@ class TGroupByStreamManager
 public:
     TGroupByStreamManager(
         bool finalMode,
+        bool exclusiveGroupKeyView,
         bool mergeMode,
         TCodegenSource* codegenSource,
         const TConstBaseQueryPtr& query,
@@ -1698,6 +1699,7 @@ public:
         bool combineGroupOpWithOrderOp,
         bool allowUnorderedGroupByWithLimit)
         : FinalMode_(finalMode)
+        , ExclusiveGroupKeyView_(exclusiveGroupKeyView)
         , MergeMode_(mergeMode)
         , CodegenSource_(codegenSource)
         , Query_(query)
@@ -1727,6 +1729,7 @@ public:
 
 private:
     const bool FinalMode_;
+    const bool ExclusiveGroupKeyView_;
     const bool MergeMode_;
 
     TCodegenSource* CodegenSource_;
@@ -1768,7 +1771,7 @@ private:
     {
         bool boundarySegmentsAreAlsoFinal = Query_->UseDisjointGroupBy && !CombineGroupOpWithOrderOp_;
 
-        if (boundarySegmentsAreAlsoFinal || FinalMode_) {
+        if (boundarySegmentsAreAlsoFinal || FinalMode_ || ExclusiveGroupKeyView_) {
             *delta = MakeCodegenMergeOp(CodegenSource_, SlotCount_, *intermediate, *delta);
             *intermediate = Dummy_;
         }
@@ -1960,11 +1963,13 @@ void TQueryProfiler::Profile(
     size_t totalsSlot = dummySlot;
 
     bool finalMode = query->IsFinal;
+    bool exclusiveGroupKeyView = query->HasExclusiveGroupKeyView;
 
     Fold(EFoldingObjectType::FinalMode);
     Fold(finalMode);
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
+    Fold(exclusiveGroupKeyView);
     Fold(EFoldingObjectType::QueryIsOrdered);
     Fold(query->GetScanOrder(AllowUnorderedGroupByWithLimit_));
 
@@ -1974,6 +1979,7 @@ void TQueryProfiler::Profile(
         Fold(EFoldingObjectType::GroupOp);
         Fold(groupClause->CommonPrefixWithPrimaryKey);
         Fold(query->UseDisjointGroupBy);
+        Fold(query->EnableCombineGroupOpWithOrderOp);
 
         bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
 
@@ -2071,10 +2077,14 @@ void TQueryProfiler::Profile(
                     return TExpressionHasAggregatesChecker(groupClause->AggregateItems).Check(item.Expression);
                 });
 
-            if (!addHaving && !orderOpHasAggregates && groupClause->TotalsMode == ETotalsMode::None) {
+            if (query->EnableCombineGroupOpWithOrderOp &&
+                !addHaving &&
+                !orderOpHasAggregates &&
+                groupClause->TotalsMode == ETotalsMode::None)
+            {
                 Fold(EFoldingObjectType::CombineGroupOpWithOrderOp);
 
-                auto afterGroupSchema = groupClause->GetTableSchema(query->IsFinal);
+                auto sourceSchema = groupClause->GetTableSchema(finalMode);
 
                 std::vector<size_t> orderExprIds;
                 std::vector<bool> isDesc;
@@ -2082,7 +2092,7 @@ void TQueryProfiler::Profile(
                 TExpressionFragments orderExprFragments;
                 for (const auto& item : orderClause->OrderItems) {
                     orderExprIds.push_back(
-                        TExpressionProfiler::Profile(item.Expression, afterGroupSchema, &orderExprFragments));
+                        TExpressionProfiler::Profile(item.Expression, sourceSchema, &orderExprFragments));
                     Fold(item.Descending);
                     isDesc.push_back(item.Descending);
                     orderColumnTypes.push_back(item.Expression->GetWireType());
@@ -2091,7 +2101,7 @@ void TQueryProfiler::Profile(
                 auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
                 orderExprFragments.DumpArgs(orderExprIds);
 
-                auto schemaTypes = GetTypesFromSchema(*afterGroupSchema);
+                auto schemaTypes = GetTypesFromSchema(*sourceSchema);
                 for (auto type : schemaTypes) {
                     Fold(static_cast<ui8>(type));
                 }
@@ -2127,7 +2137,7 @@ void TQueryProfiler::Profile(
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
-        schema = groupClause->GetTableSchema(query->IsFinal);
+        schema = groupClause->GetTableSchema(/*isFinal*/ true);
 
         size_t havingPredicateId = 0;
         TCodegenFragmentInfosPtr havingFragmentsInfos;
@@ -2147,6 +2157,7 @@ void TQueryProfiler::Profile(
 
         auto manager = TGroupByStreamManager(
             finalMode,
+            exclusiveGroupKeyView,
             mergeMode,
             codegenSource,
             query,

@@ -359,6 +359,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     if (original.JoinCacheSize) {
         serialized->set_join_cache_size(*original.JoinCacheSize);
     }
+    serialized->set_enable_parallelize_unordered_group_by(original.EnableParallelizeUnorderedGroupBy);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -442,6 +443,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_join_cache_size()) {
         original->JoinCacheSize = serialized.join_cache_size();
+    }
+    if (serialized.has_enable_parallelize_unordered_group_by()) {
+        original->EnableParallelizeUnorderedGroupBy = serialized.enable_parallelize_unordered_group_by();
     }
 }
 
