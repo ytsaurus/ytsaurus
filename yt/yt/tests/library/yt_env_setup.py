@@ -2212,6 +2212,12 @@ class YTEnvSetup(object):
         if cls.Env.get_component_version("ytserver-master").abi < (24, 2):
             config["node_tracker"]["full_node_states_gossip_period"] = 6 * 60 * 60 * 1000
 
+        # COMPAT(kvk1920): async sequoia tx start lead to too long transient
+        # locks in tablet cells due to not accurate enough handling of entering
+        # in read-only mode.
+        if cls.Env.get_component_version("ytserver-master").abi < (26, 2):
+            config["sequoia_manager"]["enable_async_sequoia_transaction_start"] = False
+
         if not cls._is_ground_cluster(cluster_index) and cls.get_param("USE_SEQUOIA", cluster_index):
             config["sequoia_manager"]["enable"] = True
             update_inplace(config["transaction_manager"], {
