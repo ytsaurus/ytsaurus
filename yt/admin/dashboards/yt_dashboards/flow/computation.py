@@ -311,13 +311,13 @@ class ComputationCellGenerator:
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
                             .all("host")
-                            .alias(host_alias)
+                            .alias("input_messages - " + host_alias)
                             .top(50),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.tables.lookup_time.max"))
-                            .value("table", "input_messages")
+                            .value("table", "input_messages|compact_input_messages")
                             .aggr("tag")
                             .all("host")
-                            .alias(host_alias)
+                            .alias("{{table}} - " + host_alias)
                             .top(50))
                         .unit("UNIT_SECONDS"))
         )
