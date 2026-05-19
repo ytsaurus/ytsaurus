@@ -108,6 +108,7 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
     auto guard = Guard(entry->Lock);
     return entry->Future;
 }
+
 template <class TKey, class TValue, class TContext>
 void TAuthCache<TKey, TValue, TContext>::ScheduleErase(const TEntryPtr& entry)
 {
