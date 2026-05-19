@@ -531,7 +531,9 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     // lib/sequoia/cypress_transaction.cpp.
     SequoiaTransaction_->LockRow(
         NRecords::TTransactionKey{.TransactionId = cypressTransactionId},
-        ELockType::SharedWrite);
+        SequoiaTransaction_->GetFeatures().UseSharedWriteLocksForCypressTransactions
+            ? ELockType::SharedWrite
+            : ELockType::SharedStrong);
 
     auto affectedCellTags = SequoiaTransaction_->GetAffectedMasterCellTags();
     Erase(affectedCellTags, CellTagFromId(cypressTransactionId));
