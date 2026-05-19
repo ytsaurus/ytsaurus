@@ -26,12 +26,12 @@ constexpr TDuration::TValue NoDurationSentinel = ::Max<TDuration::TValue>();
 
 void StoreOptionalDuration(std::atomic<TDuration::TValue>& target, std::optional<TDuration> value)
 {
-    target.store(value ? value->GetValue() : NoDurationSentinel, std::memory_order_relaxed);
+    target.store(value ? value->GetValue() : NoDurationSentinel, std::memory_order::relaxed);
 }
 
 void MaybeDelay(const std::atomic<TDuration::TValue>& delay, EDelayType delayType)
 {
-    auto raw = delay.load(std::memory_order_relaxed);
+    auto raw = delay.load(std::memory_order::relaxed);
     if (raw != NoDurationSentinel) {
         Delay(TDuration::MicroSeconds(raw), delayType);
     }
@@ -369,7 +369,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
         YT_VERIFY(element->IncreaseLocalResourceUsagePrecommitUnsafe(-delta));
         currentElement = element->Parent_.Get();
         while (currentElement != failedParent) {
-            auto raw = ResourceTreeRevertResourceUsagePrecommitRandomDelay_.load(std::memory_order_relaxed);
+            auto raw = ResourceTreeRevertResourceUsagePrecommitRandomDelay_.load(std::memory_order::relaxed);
             if (raw != NoDurationSentinel) {
                 // NB: under RWLock only synchronous sleep is allowed.
                 Delay(RandomDuration(TDuration::MicroSeconds(raw)), EDelayType::Sync);

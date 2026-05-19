@@ -805,8 +805,8 @@ public:
 
         auto onField = [&] (auto field) {
             (this->*field)().fetch_add(
-                (from.Get()->*field)().load(std::memory_order_relaxed),
-                std::memory_order_relaxed);
+                (from.Get()->*field)().load(std::memory_order::relaxed),
+                std::memory_order::relaxed);
         };
 
         onField(&IHunkChunkReaderStatistics::DataWeight);

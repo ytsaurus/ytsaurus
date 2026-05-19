@@ -1050,7 +1050,7 @@ protected:
             protoChunkReaderStatistics.data_bytes_read_from_disk() +
             protoChunkReaderStatistics.wasted_data_bytes_read_from_disk() +
             protoChunkReaderStatistics.meta_bytes_read_from_disk();
-        TotalBytesReadFromDisk_.fetch_add(bytesReadFromDisk, std::memory_order_relaxed);
+        TotalBytesReadFromDisk_.fetch_add(bytesReadFromDisk, std::memory_order::relaxed);
     }
 
     void AccountExtraMediumBandwidth(i64 throttledBytes)
