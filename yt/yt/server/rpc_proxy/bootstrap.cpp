@@ -559,7 +559,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
-    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+    BusServer_->Reconfigure(newConfig->BusServer);
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
     QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);
