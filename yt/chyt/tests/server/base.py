@@ -989,6 +989,9 @@ def enable_sequoia(test_class):
 
 
 def enable_sequoia_acls(test_class):
+    if not test_class.USE_SEQUOIA:
+        return test_class
+
     if not hasattr(test_class, "DELTA_CYPRESS_PROXY_CONFIG"):
         test_class.DELTA_CYPRESS_PROXY_CONFIG = {}
     test_class.DELTA_CYPRESS_PROXY_CONFIG.update({

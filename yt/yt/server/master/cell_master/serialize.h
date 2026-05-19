@@ -196,6 +196,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropMulticellIndex)                                           (3242))  // cherepashka
     ((HandleOptimizeForInBeginUpload)                               (3243))  // h0pless
     ((MakeVectorizedSubbatchSizeDynamiclyConfigurable)              (3244))  // danilalexeev
+    ((KulenovClockPart2)                                            (3245))  // aleksandra-zh
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

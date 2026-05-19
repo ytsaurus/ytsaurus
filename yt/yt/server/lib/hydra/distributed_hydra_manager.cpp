@@ -584,9 +584,15 @@ public:
         return req->Invoke().Apply(BIND([] (const TInternalHydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
             const auto& rsp = rspOrError.Value();
+            // Don't use response keeper for that in case mutation does not have mutation id.
+            // (Could probably also generate it here, but let's not).
+            auto groundUpdateQueueSequenceNumber = rsp->has_ground_update_queue_sequence_number()
+                ? std::make_optional(rsp->ground_update_queue_sequence_number())
+                : std::nullopt;
             return TMutationResponse{
                 EMutationResponseOrigin::LeaderForwarding,
-                TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{})
+                TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{}),
+                groundUpdateQueueSequenceNumber
             };
         }));
     }
@@ -1178,6 +1184,9 @@ private:
                     }
 
                     const auto& mutationResponse = result.Value();
+                    if (mutationResponse.GroundUpdateQueueSequenceNumber) {
+                        response->set_ground_update_queue_sequence_number(*mutationResponse.GroundUpdateQueueSequenceNumber);
+                    }
                     response->Attachments() = mutationResponse.Data.ToVector();
                     context->Reply();
                 }));

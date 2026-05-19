@@ -240,7 +240,10 @@ class TestSequoiaSymlinks(YTEnvSetup):
 
         s = create("map_node", "//tmp/s")
         link("//tmp/s", "//cypress/m1/m2/link_to_sequoia")
+        assert exists("//tmp/link_to_cypress/m2/link_to_sequoia")
+
         assert s == get("//tmp/link_to_cypress/m2/link_to_sequoia/@id")
+        assert get("//tmp/link_to_cypress/m2/@count") == 1
 
         tx = start_transaction()
         lock("//tmp/link_to_cypress/m2/link_to_sequoia", mode="snapshot", tx=tx)
