@@ -225,6 +225,7 @@
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
     XX(ExternalizedToCellTags, externalized_to_cell_tags) \
+    XX(FailedExpirationAttempts, failed_expiration_attempts) \
     XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
     XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
