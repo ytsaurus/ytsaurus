@@ -1,8 +1,12 @@
 #include "yql_yt_vanilla_http_mon.h"
 
+#include <yql/essentials/utils/rand_guid.h>
+
 #include <library/cpp/http/misc/parsed_request.h>
 #include <library/cpp/http/server/http.h>
 #include <library/cpp/http/server/response.h>
+
+#include <library/cpp/json/json_writer.h>
 
 #include <util/string/builder.h>
 #include <util/string/cast.h>
@@ -31,10 +35,7 @@ public:
                 return true;
             }
             if (cookie == Tracker_->GetSelfIndex()) {
-                THttpResponse response(HTTP_OK);
-                response.SetContentType("text/html");
-                response.SetContent(TStringBuilder() << "<h1>I am node #" << cookie << "</h1>\n");
-                params.Output << response;
+                params.Output << MakeSelfResponse();
             } else {
                 params.Output << THttpResponse(HTTP_NOT_FOUND);
             }
@@ -44,19 +45,52 @@ public:
 
 private:
     IVanillaPeerTracker* Tracker_;
+    TRandGuid RandGuid_;
+
+    TString MakeRandomETag() {
+        return "W/" + RandGuid_.GenGuid();
+    }
 
     THttpResponse MakePeersListResponse() {
-        TStringBuilder html;
-        html << "<html><body><ul>\n";
+        TStringStream stream;
+        NJson::TJsonWriter writer(&stream, false);
+        writer.OpenMap();
+        writer.WriteKey("nodes");
+        writer.OpenArray();
         ui64 count = Tracker_->GetPeerCount();
         for (ui64 i = 0; i < count; ++i) {
             TString ip = Tracker_->GetPeerAddress(i);
-            html << "<li><a href=\"" << i << "/\">Node #" << i << ": " << ip << "</a></li>\n";
+            writer.OpenMap();
+            writer.WriteKey("index");
+            writer.Write(i);
+            writer.WriteKey("ip");
+            writer.Write(ip);
+            writer.CloseMap();
         }
-        html << "</ul></body></html>\n";
+
+        writer.CloseArray();
+        writer.CloseMap();
+        writer.Flush();
         THttpResponse response(HTTP_OK);
-        response.SetContentType("text/html");
-        response.SetContent(html);
+        response.SetContentType("application/json");
+        response.SetContent(stream.Str());
+        response.AddHeader("ETag", MakeRandomETag());
+        return response;
+    }
+
+    THttpResponse MakeSelfResponse() {
+        TStringStream stream;
+        NJson::TJsonWriter writer(&stream, false);
+        writer.OpenMap();
+        writer.WriteKey("self_index");
+        writer.Write(Tracker_->GetSelfIndex());
+        writer.CloseMap();
+        writer.Flush();
+
+        THttpResponse response(HTTP_OK);
+        response.SetContentType("application/json");
+        response.SetContent(stream.Str());
+        response.AddHeader("ETag", MakeRandomETag());
         return response;
     }
 };
