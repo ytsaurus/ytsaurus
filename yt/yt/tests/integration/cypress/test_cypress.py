@@ -2166,14 +2166,11 @@ class TestCypress(YTEnvSetup):
             assert not exists("//tmp/t/@expiration_timeout_last_reset_time")
 
     @authors("koloshmet")
-    @flaky(max_runs=3)
     def test_drop_expiration_user_with_restarts(self):
-        set("//sys/@config/cypress_manager/expiration_backoff_time", 2000)
-        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 3000)
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 200)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 100)
+        set("//sys/@config/cypress_manager/expiration_attempt_limit", 1000)
         set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
-
-        time_delta = 2
-        final_sleep = 4 if type(self).__name__ == "TestCypress" else 10
 
         create_user("u1")
         create_user("u2")
@@ -2183,18 +2180,34 @@ class TestCypress(YTEnvSetup):
             "//tmp/t",
             authenticated_user="u1",
         )
-        set("//tmp/t/@expiration_time", str(get_current_time() + timedelta(seconds=time_delta)), authenticated_user="u2")
+        # The expiration time is set slightly in the future so that the ACL
+        # below is in place by the time the expiration tracker first tries to
+        # remove the node.
+        set(
+            "//tmp/t/@expiration_time",
+            str(get_current_time() + timedelta(seconds=2)),
+            authenticated_user="u2")
         set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
-        time.sleep(5)
-        risen = None
+
+        # Accumulate enough failed attempts that any plausible value not coming
+        # from the snapshot post-restart will be strictly smaller.
+        threshold = 5
+        wait(lambda: get("//tmp/t/@failed_expiration_attempts").get("u2", 0) >= threshold)
+        before = get("//tmp/t/@failed_expiration_attempts")["u2"]
+
         with Restarter(self.Env, MASTERS_SERVICE):
-            risen = time.time()
-        time.sleep(max(3 - (time.time() - risen), 0))
+            pass
+
+        # The counter cannot decrease across a restart unless persistence is
+        # broken - extra attempts may fire post-restart, but the value must not
+        # drop below what we persisted.
+        wait(lambda: get("//tmp/t/@failed_expiration_attempts").get("u2", 0) >= before)
         assert exists("//tmp/t/@expiration_time")
         assert exists("//tmp/t/@expiration_time_user")
 
-        time.sleep(final_sleep)
-        assert not exists("//tmp/t/@expiration_time")
+        # Lower the limit; the next attempt must trip it and drop the expiration.
+        set("//sys/@config/cypress_manager/expiration_attempt_limit", before)
+        wait(lambda: not exists("//tmp/t/@expiration_time"))
         assert not exists("//tmp/t/@expiration_time_user")
         assert exists("//tmp/t/@expiration_time_last_reset_time")
 

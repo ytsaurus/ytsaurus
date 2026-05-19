@@ -16,6 +16,7 @@
 #include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/expiration_tracker.h>
 
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
@@ -683,6 +684,9 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetPresent(node->GetExpirationTimeoutLastResetTime().has_value()));
 
     if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FailedExpirationAttempts)
+            .SetPresent(node->IsNative())
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WrongDoorSync)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WrongDoorAsync)
@@ -1004,6 +1008,25 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             }
             BuildYsonFluently(consumer)
                 .Value(*optionalLastReset);
+            return true;
+        }
+
+        case EInternedAttributeKey::FailedExpirationAttempts: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+            if (!trunkNode || !isNative) {
+                break;
+            }
+            const auto& expirationTracker = Bootstrap_->GetExpirationTracker();
+            auto attempts = expirationTracker->GetFailedExpirationAttempts(trunkNode);
+            BuildYsonFluently(consumer)
+                .DoMapFor(attempts, [] (TFluentMap fluent, const auto& pair) {
+                    fluent
+                        .DoIf(IsObjectAlive(pair.first), [&] (TFluentMap fluent) {
+                            fluent.Item(pair.first->GetName()).Value(pair.second);
+                        });
+                });
             return true;
         }
 

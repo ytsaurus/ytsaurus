@@ -326,6 +326,25 @@ public:
         }
     }
 
+    THashMap<TEphemeralObjectPtr<TUser>, int> GetFailedExpirationAttempts(const TCypressNode* trunkNode) const override
+    {
+        VerifyPersistentStateRead();
+        YT_ASSERT(trunkNode->IsTrunk());
+
+        THashMap<TEphemeralObjectPtr<TUser>, int> result;
+        for (const auto& [key, attempts] : PersistentFailedExpirationAttempts_) {
+            const auto& [node, user] = key;
+            if (node.Get() != trunkNode) {
+                continue;
+            }
+            if (!IsObjectAlive(user)) {
+                continue;
+            }
+            result.emplace(TEphemeralObjectPtr(user), attempts);
+        }
+        return result;
+    }
+
 private:
     const NProfiling::TBufferedProducerPtr BufferedProducer_ = New<NProfiling::TBufferedProducer>();
 
