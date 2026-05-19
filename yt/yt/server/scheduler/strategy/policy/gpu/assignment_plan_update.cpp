@@ -382,13 +382,15 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUsePriorityModuleBinding(
         *operation->WaitingForModuleBindingSince() + Config_->PriorityModuleBindingTimeout < Now_;
 }
 
-bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldResetModule(const TOperationPtr& operation) const {
+bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldResetModule(const TOperationPtr& operation) const
+{
     return operation->SchedulingModule() &&
         operation->WaitingForAssignmentsSince() &&
         operation->WaitingForAssignmentsSince().value() + Config_->ModuleReconsiderationTimeout < Now_;
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription) {
+void TGpuAllocationAssignmentPlanUpdateExecutor::EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription)
+{
     auto& moduleState = GetOrCrash(ModuleStates_, operation->SchedulingModule().value());
     moduleState.RemoveFullHostBoundOperation(operation);
 
