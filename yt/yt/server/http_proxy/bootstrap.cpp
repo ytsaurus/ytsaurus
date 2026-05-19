@@ -449,7 +449,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     DynamicConfig_.Store(newConfig);
 
-    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+    BusServer_->Reconfigure(newConfig->BusServer);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
 

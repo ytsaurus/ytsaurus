@@ -1494,7 +1494,7 @@ private:
             fairShareScheduler->Reconfigure(newConfig->FairShareHierarchicalScheduler);
         }
 
-        BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+        BusServer_->Reconfigure(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
