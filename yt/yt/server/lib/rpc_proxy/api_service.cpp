@@ -2111,6 +2111,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
                     auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
                     ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
                     ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
+                    // COMPAT(sabdenovch): Query tracker best-effort backwards compat.
+                    if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
+                        ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
+                    }
                 }
                 protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
                 if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
