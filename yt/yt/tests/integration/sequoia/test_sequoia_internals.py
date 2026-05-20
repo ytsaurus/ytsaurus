@@ -79,6 +79,7 @@ class TestSequoiaInternals(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 2
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -777,12 +778,14 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_sequoia_barrier_delay(self):
-        set("//sys/@config/transaction_manager/testing/sequoia_transaction_barrier_delay", 2000)
+        set("//sys/@config/transaction_manager/testing/prepared_transactions_barrier_delay", 2000)
 
         start = datetime.now()
         get("//@owner")
         finish = datetime.now()
         assert finish - start >= timedelta(seconds=2)
+        # Remove this option or teardown will take forever.
+        remove("//sys/@config/transaction_manager/testing/prepared_transactions_barrier_delay")
 
     @authors("kvk1920")
     def test_sequoia_tx_start_failure(self):

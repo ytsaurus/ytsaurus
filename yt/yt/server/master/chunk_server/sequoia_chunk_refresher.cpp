@@ -788,10 +788,7 @@ private:
                         };
                     }
 
-                    NApi::TTransactionCommitOptions commitOptions{
-                        .StronglyOrdered = false,
-                    };
-                    WaitFor(transaction->Commit(commitOptions))
+                    WaitFor(transaction->Commit())
                         .ThrowOnError();
                 })
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));
@@ -1032,10 +1029,7 @@ private:
                     "Adding chunks to refresh queue during Sequoia location refresh iteration (ChunksAddedToRefreshQueue: %v)",
                     chunksAddedToRefreshQueue);
 
-                NApi::TTransactionCommitOptions commitOptions{
-                    .StronglyOrdered = false,
-                };
-                WaitFor(transaction->Commit(commitOptions))
+                WaitFor(transaction->Commit())
                     .ThrowOnError();
             })
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));

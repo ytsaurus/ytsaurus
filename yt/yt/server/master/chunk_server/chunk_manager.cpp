@@ -508,6 +508,11 @@ public:
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmMultipleChunks, Unretained(this)),
         });
 
+        // This is needed for validation only. Remove once replicas are stable.
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqPromoteLastCommitTimestamp>({
+            .Commit = BIND_NO_PROPAGATE(&TChunkManager::HydraPromoteLastCommitTimestamp, Unretained(this)),
+        });
+
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler()
             .WithDefaultDisabled()
@@ -1332,6 +1337,25 @@ public:
                 protoChunkInfo.chunk_meta(),
                 confirmationResult);
         }
+    }
+
+    void HydraPromoteLastCommitTimestamp(
+        TTransaction* /*transaction*/,
+        NProto::TReqPromoteLastCommitTimestamp* /*request*/,
+        const NTransactionSupervisor::TTransactionCommitOptions& options)
+    {
+        YT_LOG_DEBUG("Promoting Sequoia replicas commit timestamp (CommitTimestamp: %v)",
+            options.CommitTimestamp);
+
+        if (LastSequoiaReplicasCommitTimestamp_ >= options.CommitTimestamp) {
+            YT_LOG_ALERT(
+                "Last Sequoia replicas commit timestamp is greater than the current one "
+                "(PreviousCommitTimestamp: %v, CurrentCommitTimestamp: %v)",
+                LastSequoiaReplicasCommitTimestamp_,
+                options.CommitTimestamp);
+        }
+
+        LastSequoiaReplicasCommitTimestamp_ = options.CommitTimestamp;
     }
 
     void DestroyChunk(TChunk* chunk) override
@@ -3746,13 +3770,19 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(confirmChunksRequest));
 
+                NProto::TReqPromoteLastCommitTimestamp promoteCommitTimestampRequest;
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(promoteCommitTimestampRequest));
+
+                transaction->AddBarrierTags({NNative::SequoiaReplicasOrderingTag});
+                transaction->AddStrongOrderingTags({NNative::SequoiaReplicasOrderingTag});
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
-                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                    .StronglyOrdered = true,
+                    .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
                 };
 
-                auto result = WaitFor(transaction->Commit(commitOptions));
+                auto result = WaitFor(transaction->Commit(std::move(commitOptions)));
                 ThrowOnSequoiaReplicasError(result, config->RetriableErrorCodes);
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         promise.SetFrom(std::move(future));
@@ -3850,17 +3880,23 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(*request));
 
+                NProto::TReqPromoteLastCommitTimestamp promoteCommitTimestampRequest;
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(promoteCommitTimestampRequest));
+
+                transaction->AddBarrierTags({NNative::SequoiaReplicasOrderingTag});
+                transaction->AddStrongOrderingTags({NNative::SequoiaReplicasOrderingTag});
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
-                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                    .StronglyOrdered = true,
+                    .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
                 };
 
                 YT_LOG_DEBUG("Confirming Sequoia chunk (ChunkId: %v, SequoiaReplicas: %v)",
                     chunkId,
                     MakeFormattableView(sequoiaReplicas, TChunkReplicaWithLocationIndexAndStateFormatter()));
 
-                auto result = WaitFor(transaction->Commit(commitOptions));
+                auto result = WaitFor(transaction->Commit(std::move(commitOptions)));
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
@@ -5851,6 +5887,8 @@ private:
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
         RecomputeHistoricallyNonVital_ = false;
+
+        LastSequoiaReplicasCommitTimestamp_ = NullTimestamp;
     }
 
     void SetZeroState() override
@@ -6247,8 +6285,9 @@ private:
         }
 
         if (IsFirstSequoiaReplicaRemovalIteration_) {
-            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-            auto transactionsFinishResult = WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished());
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto barrierFuture = transactionManager->WaitUntilPreparedTransactionsFinished({NNative::SequoiaReplicasOrderingTag});
+            auto transactionsFinishResult = WaitFor(barrierFuture);
             if (!transactionsFinishResult.IsOK()) {
                 YT_LOG_WARNING(
                     transactionsFinishResult,
@@ -6338,12 +6377,18 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(*request));
 
+                NProto::TReqPromoteLastCommitTimestamp promoteCommitTimestampRequest;
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(promoteCommitTimestampRequest));
+
+                transaction->AddBarrierTags({NNative::SequoiaReplicasOrderingTag});
+                transaction->AddStrongOrderingTags({NNative::SequoiaReplicasOrderingTag});
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
-                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                    .StronglyOrdered = true,
+                    .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
                 };
-                WaitFor(transaction->Commit(commitOptions))
+                WaitFor(transaction->Commit(std::move(commitOptions)))
                     .ThrowOnError();
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }

@@ -51,8 +51,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorPrepareMode, CoordinatorPrepareMode);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
-    DEFINE_BYVAL_RO_PROPERTY(bool, StronglyOrdered);
-    DEFINE_BYVAL_RW_PROPERTY(i64, StronglyOrderedSequenceNumber);
+    DEFINE_BYREF_RO_PROPERTY(TStrongOrderingTagsMap, StrongOrderingTags);
+
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, MaxAllowedCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYREF_RW_PROPERTY(TTimestamp, PrepareTimestamp);
@@ -78,7 +78,7 @@ public:
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        bool stronglyOrdered,
+        TStrongOrderingTagsMap strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
         std::vector<TTransactionId> prerequisiteTransactionIds = {});
@@ -92,6 +92,9 @@ public:
     void Load(NHydra::TLoadContext& context);
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
+
+    bool IsStronglyOrderedForCell(TCellId cellId) const;
+    std::vector<std::string> GetStrongOrderingTagsForCell(TCellId cellId) const;
 
 private:
     TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();

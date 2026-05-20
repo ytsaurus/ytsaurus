@@ -48,6 +48,8 @@ message TReqStartTransaction
     optional int32 sequoia_reign = 7; // ESequoiaReign
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
 
+    repeated string barrier_tags = 10;
+
     extensions 100 to max;
 }
 

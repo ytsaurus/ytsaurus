@@ -1222,7 +1222,6 @@ class YTEnvSetup(object):
                 cls._apply_effective_config_patch(config, "DELTA_MASTER_CONFIG", cluster_index)
                 cls.update_timestamp_provider_config(config, cluster_index)
                 cls.update_sequoia_connection_config(config, cluster_index)
-                cls.update_transaction_supervisor_config(config, cluster_index)
                 cls.update_master_replication_card_cache_config(
                     config,
                     cluster_index,
@@ -1375,13 +1374,6 @@ class YTEnvSetup(object):
 
         cls._apply_effective_config_patch(configs["rpc_driver"], "DELTA_RPC_DRIVER_CONFIG", cluster_index)
         cls.modify_cluster_connection_config(configs["cluster_connection"], cluster_index)
-
-    @classmethod
-    def update_transaction_supervisor_config(cls, config, cluster_index):
-        if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
-            return
-        config.setdefault("transaction_supervisor", {})
-        config["transaction_supervisor"]["enable_wait_until_prepared_transactions_finished"] = True
 
     @classmethod
     def update_master_replication_card_cache_config(cls, config, cluster_index, cluster_connection_config):
@@ -2222,6 +2214,10 @@ class YTEnvSetup(object):
 
         if not cls._is_ground_cluster(cluster_index) and cls.get_param("USE_SEQUOIA", cluster_index):
             config["sequoia_manager"]["enable"] = True
+            update_inplace(config["transaction_manager"], {
+                "enable_wait_until_prepared_transactions_finished": True,
+            })
+
             if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
                 config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
                 update_inplace(config["transaction_manager"], {

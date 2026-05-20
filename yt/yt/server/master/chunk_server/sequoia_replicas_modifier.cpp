@@ -495,13 +495,19 @@ private:
 
     TRspModifyReplicas Finish()
     {
+        NProto::TReqPromoteLastCommitTimestamp promoteCommitTimestampRequest;
+        Transaction_->AddTransactionAction(
+            Bootstrap_->GetCellTag(),
+            NTransactionClient::MakeTransactionActionData(promoteCommitTimestampRequest));
+
+        Transaction_->AddBarrierTags({NApi::NNative::SequoiaReplicasOrderingTag});
+        Transaction_->AddStrongOrderingTags({NApi::NNative::SequoiaReplicasOrderingTag});
         NApi::TTransactionCommitOptions commitOptions{
             .CoordinatorCellId = Bootstrap_->GetCellId(),
             .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-            .StronglyOrdered = true,
         };
 
-        auto result = WaitFor(Transaction_->Commit(commitOptions));
+        auto result = WaitFor(Transaction_->Commit(std::move(commitOptions)));
 
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::CommitTransaction].Add(Timer_.GetElapsedTime());
 

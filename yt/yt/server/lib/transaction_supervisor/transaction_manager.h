@@ -20,8 +20,6 @@ struct TTransactionPrepareOptions
 
     bool LatePrepare = false;
 
-    bool StronglyOrdered = false;
-
     TTimestamp PrepareTimestamp = NHiveClient::NullTimestamp;
     NApi::TClusterTag PrepareTimestampClusterTag = NObjectClient::InvalidCellTag;
 

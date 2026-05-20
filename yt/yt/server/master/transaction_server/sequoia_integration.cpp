@@ -201,7 +201,7 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
         .Apply(BIND([
             hydraManager = bootstrap->GetHydraFacade()->GetHydraManager(),
             latePrepare = cypressTransactionCoordinatorCellId == bootstrap->GetCellId(),
-            transactionSupervisor = bootstrap->GetTransactionSupervisor()
+            transactionManager = bootstrap->GetTransactionManager()
         ] {
             // NB: |sequoiaTransaction->Commit()| is set when Sequoia tx is
             // prepared on leader (and probably some of followers). Since we
@@ -215,8 +215,8 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
             auto future = hydraManager->SyncWithLeader();
 
             if (!latePrepare) {
-                future = future.Apply(BIND([transactionSupervisor] {
-                    return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+                future = future.Apply(BIND([transactionManager] {
+                    return transactionManager->WaitUntilPreparedTransactionsFinished({NApi::NNative::SequoiaCypressOrderingTag});
                 }));
             }
 

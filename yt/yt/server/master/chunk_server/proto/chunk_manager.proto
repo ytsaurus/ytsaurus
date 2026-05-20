@@ -84,6 +84,9 @@ message TReqConfirmMultipleChunks
     repeated TChunkConfirmation chunk_confirmations = 1;
 }
 
+message TReqPromoteLastCommitTimestamp
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqTopUpSequoiaChunkPurgatory

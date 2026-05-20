@@ -2408,7 +2408,12 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
     try {
         auto targetCellTag = CellTagFromId(nodeId);
 
-        if (auto coordinatorCellTag = CellTagFromId(transactionId); coordinatorCellTag != targetCellTag) {
+        auto coordinatorCellTag = CellTagFromId(transactionId);
+        auto coordinatorCellId = Client_->GetNativeConnection()->GetMasterCellId(coordinatorCellTag);
+        auto targetCellId = Client_->GetNativeConnection()->GetMasterCellId(targetCellTag);
+
+        TStrongOrderingTagsMap strongOrderingTags{{coordinatorCellId, {NNative::SequoiaCypressOrderingTag}}};
+        if (coordinatorCellTag != targetCellTag) {
             // Output completion transaction should become committed on node's
             // native cell.
             auto channel = Host_->GetClient()->GetMasterChannelOrThrow(
@@ -2418,9 +2423,11 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
             auto request = proxy.SyncWithOthers();
             ToProto(
                 request->add_src_cell_ids(),
-                Client_->GetNativeConnection()->GetMasterCellId(coordinatorCellTag));
+                coordinatorCellId);
             WaitFor(request->Invoke())
                 .ThrowOnError();
+
+            strongOrderingTags[targetCellId] = {NNative::SequoiaCypressOrderingTag};
         }
 
         // It is just a way to run custom logic at master.
@@ -2437,17 +2444,16 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         NNative::NProto::TReqMergeToTrunkAndUnlockNode reqCommitBranchNode;
         ToProto(reqCommitBranchNode.mutable_transaction_id(), transactionId);
         ToProto(reqCommitBranchNode.mutable_node_id(), nodeId);
+
         helperTransaction->AddAction(
-            Client_->GetNativeConnection()->GetMasterCellId(targetCellTag),
+            targetCellId,
             MakeTransactionActionData(reqCommitBranchNode));
 
         TTransactionCommitOptions options;
         // In case of Cypress tx mirroring this system tx have to be committed
         // after all nested Cypress transactions are finished.
         if (IsCypressTransactionMirroredToSequoia(transactionId)) {
-            options.StronglyOrdered = true;
-            // NB: |StronglyOrdered| is ignored for 1PC transactions.
-            options.Force2PC = true;
+            options.StrongOrderingTags = strongOrderingTags;
         }
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();

@@ -488,12 +488,13 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(request));
 
+                transaction->AddBarrierTags({NApi::NNative::SequoiaCypressOrderingTag});
+                transaction->AddStrongOrderingTags({NApi::NNative::SequoiaCypressOrderingTag});
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                    .StronglyOrdered = true,
                 };
-                return transaction->Commit(commitOptions);
+                return transaction->Commit(std::move(commitOptions));
             }).AsyncVia(EpochAutomatonInvoker_))));
     }
 

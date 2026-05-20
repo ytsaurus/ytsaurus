@@ -1398,7 +1398,7 @@ private:
      *
      * 2. Currently Sequoia session replies to user when all participants are prepared,
      *    but before they commit. This is also not possible.
-     *    See TTransactionSupervisor::WaitUntilPreparedTransactionsFinished().
+     *    See TTransactionManager::WaitUntilPreparedTransactionsFinished().
      */
     void HydraPrepareAndCommitFinishNodeMaterialization(
         TTransaction* /*sequoiaTransaction*/,

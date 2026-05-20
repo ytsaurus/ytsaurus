@@ -82,8 +82,14 @@ public:
         // sequencer will be implemented.
         // TODO(aleksandra-zh): do it.
         if (!request->suppress_strongly_ordered_transaction_barrier()) {
-            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-            WaitForFast(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto barrierTags = FromProto<std::vector<std::string>>(request->barrier_tags());
+
+            YT_LOG_DEBUG("Received barrier tags (TransactionId: %v, BarrierTags: %v)",
+                FromProto<TTransactionId>(request->id()),
+                barrierTags);
+
+            WaitForFast(transactionManager->WaitUntilPreparedTransactionsFinished(std::move(barrierTags)))
                 .ThrowOnError();
         }
 
@@ -216,6 +222,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        auto barrierTags = FromProto<std::vector<std::string>>(request->barrier_tags());
 
         auto attributes = FromProto(request->attributes());
         std::string title;
@@ -252,7 +259,8 @@ private:
                 transactionId,
                 timeout,
                 title,
-                *attributes);
+                *attributes,
+                barrierTags);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Failed to start Sequoia transaction (TransactionId: %v)", transactionId);
             throw;
