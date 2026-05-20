@@ -3665,7 +3665,7 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
         }));
 }
 
-TEST(TProtobufFormatTest, TestEmbeddedSecondTableBug)
+TEST(TProtobufFormatTest, EmbeddedSecondTableBug)
 {
     auto nameTable = New<TNameTable>();
 
