@@ -1401,6 +1401,10 @@ protected:
             Controller_->SortedMergeTask_->Finalize();
             if (IsFinal()) {
                 ++Controller_->CompletedPartitionCount_;
+            } else {
+                // NB(pogorelov): In some cases (e.g. dynamic tables), simple sort jobs may produce no output.
+                // So, we should check if SortedMergeTask_ completed.
+                Controller_->SortedMergeTask_->CheckCompleted();
             }
         }
 
