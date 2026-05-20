@@ -198,6 +198,7 @@ DEFINE_ENUM(EMasterReign,
     ((MakeVectorizedSubbatchSizeDynamiclyConfigurable)              (3244))  // danilalexeev
     ((KulenovClockPart2)                                            (3245))  // aleksandra-zh
     ((StrongOrderingTags)                                           (3246))  // h0pless
+    ((NativeClientUnfoldedIndexPartialBackCompat)                   (3247))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
