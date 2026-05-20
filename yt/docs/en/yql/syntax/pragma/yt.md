@@ -1,16 +1,62 @@
 # YT pragmas {#yt}
 
-YT pragmas may be defined as static or dynamic based on their lifetimes. Static pragmas are initialized one time at the earliest query processing step. If a static pragma is specified multiple times in a query, it accepts the latest value set for it. Dynamic pragma values are initialized at the query execution step after its optimization and execution plan preparation. The specified value is valid until the next identical pragma is found or until the query is completed. For dynamic pragmas only, you can reset their values to the default by assigning a `default`.
+YT pragmas are a namespace for pragmas that configure {{product-name}}‑specific parameters of YQL queries.
 
-All pragmas that affect query optimizers are static because dynamic pragma values are not yet calculated at this step.
+## Syntax
 
-## Settings {#settings}
+YT pragma names include the `yt` prefix:
 
-All dynamic and some static pragmas allow per-cluster configurations using the syntax `PRAGMA <cluster_name>.<pragma_name>`. This is useful if you need to apply a pragma only to a specific cluster. For example, with `PRAGMA foo.TmpFolder`, you can set the path to the temporary directory individually for the `foo` YT cluster.
+```yql
+PRAGMA yt.<pragma_name> = <value>;
+```
+
+## Scope and features
+
+Based on their scope, YT pragmas can be divided into static and dynamic.
+
+**Static pragmas**:
+
+- Are initialized once at the earliest stage of query processing.
+- Apply to all expressions in the current module where they are declared.
+- If a static pragma is specified multiple times in a query with different values, only its last assigned value is applied.
+
+**Dynamic pragmas**:
+
+- Are initialized at the query execution stage, after optimization and execution plan generation.
+- Remain in effect until the next occurrence of the same pragma or until the end of the query.
+- Allow you to reset their value to the default using the `default` assignment.
 
 {% note info %}
 
-Per-cluster settings use pragma names without the `yt` prefix. Example: `PRAGMA foo.TmpFolder`, not `PRAGMA foo.yt.TmpFolder`.
+All pragmas that affect query optimizers are static, since dynamic pragma values have not yet been computed at this stage.
+
+{% endnote %}
+
+## Per‑cluster support {#settings}
+
+Some pragmas support a special operating mode — _per‑cluster_. This mode lets you specify different pragma values for different clusters within a single query. For example, you can specify: “Run the query with settings X on cluster A and with settings Y on cluster B”. This is useful for distributed queries where different clusters require different execution conditions.
+
+The _per‑cluster_ mode is available for all dynamic pragmas and for some static ones — such pragmas are explicitly marked with the “per‑cluster” label in the documentation below.
+
+### How to use
+
+By default, YT pragmas use the `yt` prefix, meaning the setting applies to the current cluster where the query is executed. To apply the same pragma with a different value to another cluster, replace `yt` with the cluster’s name. For example, let’s specify different temporary directories for two clusters in a query:
+
+
+```yql
+PRAGMA yt.TmpFolder = "//tmp/my_folder";            -- current cluster
+PRAGMA cluster_2.TmpFolder = "//tmp/other_folder";  -- cluster_2
+
+... -- query body
+```
+
+As a result, when the query runs, temporary files will be saved to `//tmp/my_folder` on the current cluster and to `//tmp/other_folder` on the `cluster_2` cluster.
+
+{% note warning %}
+
+You cannot use the `yt` prefix and a cluster name simultaneously.
+
+Entries like `PRAGMA cluster_2.yt.TmpFolder` or `PRAGMA yt.cluster_2.TmpFolder` are invalid and will cause an error.
 
 {% endnote %}
 
