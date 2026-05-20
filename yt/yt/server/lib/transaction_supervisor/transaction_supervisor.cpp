@@ -3078,7 +3078,7 @@ private:
 
         // COMPAT(h0pless): Remove after 26.2.
         if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) < ETransactionSupervisorReign::StrongOrderingTags) {
-            int nextStronglyOrderedTransactionSequenceNumber;
+            i64 nextStronglyOrderedTransactionSequenceNumber;
             std::map<TTimestamp, int> preparedTransactionsTimestamps;
             std::set<i64> uncommittedTransactionSequenceNumbers;
             THashMap<TTransactionId, i64> transactionIdToSequenceNumber;
