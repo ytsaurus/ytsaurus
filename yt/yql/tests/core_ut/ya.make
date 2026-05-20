@@ -19,6 +19,7 @@ PEERDIR(
     yql/essentials/core/services/mounts
     yql/essentials/core/file_storage
     yql/essentials/core/qplayer/storage/memory
+    yql/essentials/minikql/runtime_settings
     yql/essentials/providers/common/udf_resolve
     yql/essentials/public/udf
     yql/essentials/public/udf/service/exception_policy
