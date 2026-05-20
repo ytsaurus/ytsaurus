@@ -1781,22 +1781,51 @@ def operation_id_args(parser, **kwargs):
     add_hybrid_argument(parser, "operation", help="operation id", **kwargs)
 
 
+def _make_operation_id_or_alias_action(alias_dest):
+    """Create argparse Action that routes positional values starting with '*' to operation_alias."""
+    class _Action(Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if values and isinstance(values, str) and values.startswith("*"):
+                target_dest = alias_dest
+            else:
+                target_dest = self.dest
+            if not getattr(namespace, target_dest, None):
+                setattr(namespace, target_dest, values)
+    return _Action
+
+
+def operation_id_or_alias_args(parser, dest="operation_id", alias_dest="operation_alias"):
+    """Add mutually exclusive --operation-id and --operation-alias args.
+
+    A positional value starting with '*' is treated as an alias and stored in alias_dest;
+    otherwise it is stored in dest.
+    """
+    group = parser.add_mutually_exclusive_group(required=True)
+    action = _make_operation_id_or_alias_action(alias_dest)
+    add_argument(parser=group, name=dest, help="operation id or alias", nargs="?", action=action)
+    opt_kwargs = {}
+    if dest != "operation":
+        opt_kwargs["dest"] = dest
+    add_argument(parser=group, name="--operation", help="operation id", **opt_kwargs)
+    group.add_argument("--operation-alias", dest=alias_dest, help="operation alias (e.g. *my_alias)")
+
+
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)
     parser.add_argument("--message", "--reason", dest="message", help="abort reason message")
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
 
 
 def add_suspend_op_parser(add_parser):
     parser = add_parser("suspend-op", yt.suspend_operation)
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
     parser.add_argument("--abort-running-jobs", help="abort running jobs", action="store_true")
     parser.add_argument("--reason", help="suspend reason")
 
 
 def add_resume_op_parser(add_parser):
     parser = add_parser("resume-op", yt.resume_operation)
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
 
 
 @copy_docstring_from(yt.Operation.wait)
@@ -1813,18 +1842,18 @@ def add_track_op_parser(add_parser):
 
 def add_complete_op_parser(add_parser):
     parser = add_parser("complete-op", yt.complete_operation)
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
 
 
 def add_update_op_parameters_parser(add_parser):
     parser = add_parser("update-op-parameters", yt.update_operation_parameters)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_structured_argument(parser, "parameters")
 
 
 def add_patch_op_spec_parser(add_parser):
     parser = add_parser("patch-op-spec", yt.patch_operation_spec)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_structured_argument(parser, "patches")
 
 
@@ -1840,7 +1869,7 @@ def add_get_operation_parser(add_parser):
     parser = add_parser("get-operation", get_operation)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     parser.add_argument("--include-runtime", action="store_true", help="request runtime operation information")
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_structured_format_argument(parser)
 
 
@@ -1901,7 +1930,7 @@ def list_operation_events(**kwargs):
 @copy_docstring_from(yt.list_operations)
 def add_list_operation_events_parser(add_parser):
     parser = add_parser("list-operation-events", list_operation_events)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--event-type", help="filter events by type")
     add_structured_format_argument(parser)
 
@@ -2102,7 +2131,7 @@ def get_job_stderr(**kwargs):
 def add_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--stderr-type", choices=("user_job_stderr", "gpu_check_stderr"), help="return stderr of specified type")
 
 
@@ -2116,7 +2145,7 @@ def list_job_traces(**kwargs):
 
 def add_list_job_traces_parser(add_parser):
     parser = add_parser("list-job-traces", list_job_traces)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
     parser.add_argument("--per-process", action="store_true", help="get traces info about each process")
     parser.add_argument("--limit", type=int, help="maximum number of traces to return")
@@ -2133,7 +2162,7 @@ def check_operation_permission(**kwargs):
 
 def add_check_operation_permission_parser(add_parser):
     parser = add_parser("check-operation-permission", check_operation_permission)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--user", required=True, help="user name")
     parser.add_argument("--permission", required=True, help="permission name (e.g. read, manage)")
     add_structured_format_argument(parser)
@@ -2146,7 +2175,7 @@ def get_job_trace(**kwargs):
 
 def add_get_job_trace_parser(add_parser):
     parser = add_parser("get-job-trace", get_job_trace)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
 
     parser.add_argument("--trace-id", help="trace id")
@@ -2259,7 +2288,7 @@ def get_job(**kwargs):
 def add_get_job_parser(add_parser):
     parser = add_parser("get-job", get_job)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    operation_id_or_alias_args(parser)
     add_structured_format_argument(parser)
 
 
@@ -2273,7 +2302,7 @@ def list_jobs(**kwargs):
 
 def add_list_jobs_parser(add_parser):
     parser = add_parser("list-jobs", list_jobs)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--job-type", help="filter jobs by job type")
     parser.add_argument("--job-state", help="filter jobs by job state")
     parser.add_argument("--address", help="filter jobs by node address")
