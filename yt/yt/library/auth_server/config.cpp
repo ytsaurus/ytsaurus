@@ -336,7 +336,7 @@ void TCypressPasswordAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string TLdapServiceConfig::GetAdminPassword() const
+TString TLdapServiceConfig::GetAdminPassword() const
 {
     auto read = [&] () -> std::string {
         if (AdminPasswordPath) {
