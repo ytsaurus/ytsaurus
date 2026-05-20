@@ -85,7 +85,7 @@ def filter_commits(commits, commits_prev_release):
         for prev_commit in commits_prev_release:
             if commit.name in prev_commit.name:
                 removed_commits += [(commit, prev_commit)]
-                remove = False
+                remove = True
                 break
         if not remove:
             result_commits += [commit]
@@ -134,10 +134,31 @@ class ReleaseNotes:
 
         if self.removed_commits and self.args.print_removed:
             formatted_notes.append("### REMOVED")
+            formatted_notes.append(f"COUNT: {len(self.removed_commits)}")
             for commit, prev_commit in self.removed_commits:
                 formatted_notes.append(commit.get_formatted(add_name=True))
                 formatted_notes.append(prev_commit.get_formatted(add_name=True))
                 formatted_notes.append("")
+
+            formatted_notes.append("### REMOVED WITH CHANGELOG")
+            formatted_notes.append(f"COUNT: {len([c for [c, _] in self.removed_commits if c.changelog_entry])}")
+            hashes = []
+            for commit, prev_commit in self.removed_commits:
+                if commit.changelog_entry:
+                    hashes += [commit.hash]
+                    formatted_notes.append(commit.get_formatted(add_name=True))
+                    formatted_notes.append("")
+
+            formatted_notes.append("### REMOVED WITH CHANGELOG AND HAS CHANGELOG BEFORE")
+            formatted_notes.append(f"COUNT: {len([c for [c, cp] in self.removed_commits if c.changelog_entry and cp.changelog_entry])}")
+            hashes = []
+            for commit, prev_commit in self.removed_commits:
+                if commit.changelog_entry and prev_commit.changelog_entry:
+                    hashes += [commit.hash]
+                    formatted_notes.append(commit.get_formatted(add_name=True))
+                    formatted_notes.append("")
+
+            formatted_notes.append(" ".join(hashes))
 
         return '\n'.join(formatted_notes)
 
