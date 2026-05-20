@@ -21,10 +21,11 @@ import (
 var errYtWriterClosed = errors.New("yt: writer is closed")
 
 const (
-	defaultRetryBackoff    = 3 * time.Second
-	chunkErrorRetryBackoff = 60 * time.Second
-	rateLimitRetryBackoff  = 60 * time.Second
-	defaultBatchSize       = 512 * 1024 * 1024
+	defaultRetryBackoff        = 3 * time.Second
+	chunkErrorRetryBackoff     = 60 * time.Second
+	rateLimitRetryBackoff      = 60 * time.Second
+	defaultBatchSize           = 512 * 1024 * 1024
+	writeTableAttemptTxTimeout = 60 * time.Second
 )
 
 // WithBatchSize sets batch size (in bytes) for WriteTable.
@@ -246,7 +247,9 @@ func (w *tableWriter) sendBatchWithRetries() error {
 	var retries uint64
 
 	for {
-		attemptTx, err := w.yc.BeginTx(w.ctx, nil)
+		attemptTx, err := w.yc.BeginTx(w.ctx, &StartTxOptions{
+			Timeout: ptr.T(yson.Duration(writeTableAttemptTxTimeout)),
+		})
 		if err != nil {
 			return xerrors.Errorf("yt: failed to start attempt transaction: %w", err)
 		}
