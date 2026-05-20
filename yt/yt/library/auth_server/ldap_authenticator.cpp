@@ -45,6 +45,22 @@ timeval MakeTimeval(TDuration duration)
         ldap_err2string(rc));
 }
 
+//! Returns the server-supplied diagnostic message for the last LDAP operation,
+//! or an empty string if none. Active Directory uses this field to convey the
+//! actual reason behind a generic LDAP_OPERATIONS_ERROR — e.g. "data 52e" for
+//! invalid credentials, "532" for expired password, "533" for disabled
+//! account, "775" for locked account. We log it at DEBUG rather than
+//! propagating it to TError to avoid leaking account state to the caller.
+std::string GetLdapDiagnostic(LDAP* ld)
+{
+    char* diag = nullptr;
+    if (ldap_get_option(ld, LDAP_OPT_DIAGNOSTIC_MESSAGE, &diag) != LDAP_SUCCESS || !diag) {
+        return {};
+    }
+    auto guard = Finally([diag] { ldap_memfree(diag); });
+    return std::string(diag);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +210,12 @@ private:
         });
 
         if (rc != LDAP_SUCCESS) {
+            YT_LOG_DEBUG("LDAP search failed (User: %v, Rc: %v, Error: %v, Diagnostic: %v)",
+                user,
+                rc,
+                ldap_err2string(rc),
+                GetLdapDiagnostic(ld));
+
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "LDAP search failed for user %Qv: %v",
                 user,
@@ -218,6 +240,11 @@ private:
         if (!rawDn) {
             int err = 0;
             ldap_get_option(ld, LDAP_OPT_RESULT_CODE, &err);
+            YT_LOG_DEBUG("LDAP failed to retrieve DN (User: %v, Rc: %v, Error: %v, Diagnostic: %v)",
+                user,
+                err,
+                ldap_err2string(err),
+                GetLdapDiagnostic(ld));
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "LDAP failed to retrieve DN for user %Qv: %v",
                 user,
@@ -240,6 +267,12 @@ private:
         if (int rc = SimpleBind(ld, Config_->AdminDn, AdminPassword_);
             rc != LDAP_SUCCESS)
         {
+            YT_LOG_DEBUG("LDAP admin bind failed (Url: %v, AdminDn: %v, Rc: %v, Error: %v, Diagnostic: %v)",
+                Url_,
+                Config_->AdminDn,
+                rc,
+                ldap_err2string(rc),
+                GetLdapDiagnostic(ld));
             THROW_ERROR_EXCEPTION("LDAP admin bind failed for %v as %Qv: %v",
                 Url_,
                 Config_->AdminDn,
@@ -252,6 +285,12 @@ private:
         if (int rc = SimpleBind(ld, userDn, password);
             rc != LDAP_SUCCESS)
         {
+            YT_LOG_DEBUG("LDAP user bind failed (User: %v, UserDn: %v, Rc: %v, Error: %v, Diagnostic: %v)",
+                user,
+                userDn,
+                rc,
+                ldap_err2string(rc),
+                GetLdapDiagnostic(ld));
             // Map all user-bind failures (including LDAP_INVALID_CREDENTIALS)
             // to InvalidCredentials — this is user-facing input.
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
