@@ -1,0 +1,13 @@
+#pragma once
+
+#include <yt/yt/core/logging/log.h>
+
+namespace NYT::NPushBasedShuffleClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, PushBasedShuffleLogger, "PushBasedShuffleClient");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NPushBasedShuffleClient
