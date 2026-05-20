@@ -484,7 +484,6 @@ private:
             Request_->mutable_removed_chunks()->erase(removedChunksEndIt, Request_->mutable_removed_chunks()->end());
         }
 
-
         Transaction_->AddTransactionAction(
             Bootstrap_->GetCellTag(),
             NTransactionClient::MakeTransactionActionData(*Request_));
