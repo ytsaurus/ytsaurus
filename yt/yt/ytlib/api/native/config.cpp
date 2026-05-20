@@ -250,6 +250,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("node_directory_synchronizer", &TThis::NodeDirectorySynchronizer)
         .DefaultNew();
+    registrar.Parameter("enable_node_directory_synchronization_on_table_read", &TThis::EnableNodeDirectorySynchronizationOnTableRead)
+        .Default(false);
+    registrar.Parameter("node_directory_synchronization_on_table_read_staleness_threshold", &TThis::NodeDirectorySynchronizationOnTableReadStalenessThreshold)
+        .Default(TDuration::Minutes(15));
     registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
     registrar.Parameter("discovery_connection", &TThis::DiscoveryConnection)
