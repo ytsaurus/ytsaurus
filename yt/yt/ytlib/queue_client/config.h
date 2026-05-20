@@ -37,7 +37,7 @@ namespace NDetail {
 struct TLookupSessionConfig
     : public virtual TRefCounted
 {
-    TString User;
+    std::string User;
     NYPath::TRichYPath Table;
     NClient::NFederated::TFederationConfigPtr FederationConfig;
 

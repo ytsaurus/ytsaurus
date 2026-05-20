@@ -24,7 +24,7 @@ types:
         column_type: Uint64
 
       - cpp_name: ObjectType
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: object_type
         column_type: String
 

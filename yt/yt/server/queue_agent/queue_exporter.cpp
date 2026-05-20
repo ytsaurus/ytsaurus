@@ -372,7 +372,7 @@ private:
             ExportConfig_->ExportDirectory,
             ELockMode::Shared,
             TLockNodeOptions{
-                .AttributeKey = TString(ExporterAttributeName_),
+                .AttributeKey = std::string(ExporterAttributeName_),
             }))
             .ThrowOnError();
 
@@ -784,7 +784,7 @@ private:
         YT_LOG_DEBUG("Finished fetching chunk specs (Count: %v)", ChunkSpecs_.size());
     }
 
-    TString GetOutputTableName(ui64 unixTs)
+    std::string GetOutputTableName(ui64 unixTs)
     {
         auto periodInSeconds = GetLastExportPeriod(unixTs, ExportConfig_);
 
@@ -796,7 +796,7 @@ private:
 
         auto outputTableName = ExportConfig_->OutputTableNamePattern;
 
-        std::vector<std::pair<TString, TString>> variables = {
+        std::vector<std::pair<std::string, std::string>> variables = {
             {"%UNIX_TS", ToString(unixTs)},
             {"%PERIOD", ToString(periodInSeconds)},
             {"%ISO", instant.ToStringUpToSeconds()},
@@ -804,7 +804,7 @@ private:
 
         // Replace all occurrences of variables with their values.
         for (const auto& [variable, value] : variables) {
-            for (size_t position = 0; (position = outputTableName.find(variable, position)) != TString::npos; ) {
+            for (size_t position = 0; (position = outputTableName.find(variable, position)) != std::string::npos; ) {
                 outputTableName.replace(position, variable.length(), value);
             }
         }
@@ -1137,7 +1137,7 @@ class TQueueExporter
 {
 public:
     TQueueExporter(
-        TString exportName,
+        std::string exportName,
         TTablePath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
@@ -1262,7 +1262,7 @@ private:
 
     std::atomic<ui64> LastSuccessfulExportUnixTs_ = 0;
 
-    const TString ExportName_;
+    const std::string ExportName_;
     const TTablePath Queue_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
@@ -1446,7 +1446,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueExporter)
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueExporterPtr CreateQueueExporter(
-    TString exportName,
+    std::string exportName,
     TTablePath queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,

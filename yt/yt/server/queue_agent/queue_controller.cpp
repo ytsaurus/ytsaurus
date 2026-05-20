@@ -197,7 +197,7 @@ private:
             } else {
                 tabletIndexes.push_back(index);
                 const auto& cellId = tabletInfo->CellId;
-                std::optional<TString> host;
+                std::optional<std::string> host;
                 if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(cellId)) {
                     for (const auto& peer : cellDescriptor->Peers) {
                         if (peer.GetVoting()) {
@@ -510,7 +510,7 @@ private:
 
     const IQueueExportManagerPtr QueueExportManager_;
 
-    using TQueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
+    using TQueueExportsMappingOrError = TErrorOr<THashMap<std::string, IQueueExporterPtr>>;
     TQueueExportsMappingOrError QueueExports_;
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, QueueExportsLock_);
 
@@ -652,7 +652,7 @@ private:
 
         // COMPAT(apachee): Create queue exporter depending on implementation set in config.
         // NB(apachee): We re-create exporters here and not in OnDynamicConfigChanged for simplicity.
-        auto createQueueExporter = [&] (TString name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
+        auto createQueueExporter = [&] (std::string name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
             auto exporterProfileManager = CreateQueueExporterProfileManager(BaseProfiler_, name, Logger, QueueRow_.Load(), Leading_);
             switch (queueExporterConfig.Implementation) {
                 case EQueueExporterImplementation::New:
@@ -726,7 +726,7 @@ private:
         }
 
         // Remove unused exports.
-        std::vector<TString> unusedExportNames;
+        std::vector<std::string> unusedExportNames;
         for (const auto& [exportName, _] : queueExports) {
             if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
                 unusedExportNames.push_back(exportName);
@@ -746,7 +746,7 @@ private:
     }
 
     TError CheckStaticExportConfig(
-        const THashMap<TString, TQueueStaticExportConfigPtr>& configs,
+        const THashMap<std::string, TQueueStaticExportConfigPtr>& configs,
         std::optional<EObjectType> objectType,
         EQueueExporterImplementation queueExporterImplementation) const
     {
@@ -1129,7 +1129,7 @@ private:
 
     TAggregatedQueueExportsProgress AggregateReplicasQueueExportsProgress(const std::vector<TRichYPath>& replicas) const
     {
-        std::vector<TFuture<THashMap<TString, TQueueExportProgressPtr>>> asyncReplicasProgress;
+        std::vector<TFuture<THashMap<std::string, TQueueExportProgressPtr>>> asyncReplicasProgress;
         asyncReplicasProgress.reserve(replicas.size());
 
         for (const auto& replica : replicas) {
@@ -1173,7 +1173,7 @@ private:
         return AggregateReplicasQueueExportsProgress(replicas);
     }
 
-    TErrorOr<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportsProgressOrError() const
+    TErrorOr<THashMap<std::string, TQueueExportProgressPtr>> GetQueueExportsProgressOrError() const
     {
         if (!Leading_) {
             return TError("Following queue controller can't track exports progress");
@@ -1181,7 +1181,7 @@ private:
 
         auto guard = ReaderGuard(QueueExportsLock_);
 
-        THashMap<TString, TQueueExportProgressPtr> queueExportsProgress;
+        THashMap<std::string, TQueueExportProgressPtr> queueExportsProgress;
 
         if (!QueueExports_.IsOK()) {
             return TError("Incorrect queue exports")

@@ -44,7 +44,7 @@ public:
         NQueueClient::TDynamicStatePtr dynamicState,
         NCypressElection::ICypressElectionManagerPtr electionManager,
         NAlertManager::IAlertCollectorPtr alertCollector,
-        TString agentId);
+        std::string agentId);
 
     void Start();
 
@@ -78,7 +78,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
     const TPassProfiler PassProfiler_;
 
-    const TString AgentId_;
+    const std::string AgentId_;
 
     THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
 
@@ -101,7 +101,7 @@ private:
     //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
     TEnumIndexedArray<EObjectKind, i64> LeadingObjectCount_;
     //! Mapping of objects to their corresponding queue agent host.
-    THashMap<NQueueClient::TGenericObjectReference, TString> ObjectToHost_;
+    THashMap<NQueueClient::TGenericObjectReference, std::string> ObjectToHost_;
 
     //! Current pass error if any.
     TError PassError_;
@@ -117,7 +117,7 @@ private:
 
     IQueueExportManagerPtr QueueExportManager_;
 
-    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const;
+    NYTree::IYPathServicePtr RedirectYPathRequest(const std::string& host, TStringBuf remoteRoot) const;
 
     NYTree::INodePtr GetControllerInfoNode() const;
 

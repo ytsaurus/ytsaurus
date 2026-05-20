@@ -85,7 +85,7 @@ public:
     TQueueExporterOld() = default;
 
     TQueueExporterOld(
-        TString exportName,
+        std::string exportName,
         NQueueClient::TTablePath queue,
         const NQueueClient::TQueueStaticExportConfigPtr& exportConfig,
         const TQueueExporterDynamicConfig& dynamicConfig,
@@ -107,7 +107,7 @@ public:
     EQueueExporterImplementation GetImplementationType() const override;
 
 private:
-    const TString ExportName_;
+    const std::string ExportName_;
     const NQueueClient::TTablePath Queue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);

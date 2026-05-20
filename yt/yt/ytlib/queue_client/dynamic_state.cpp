@@ -49,7 +49,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::optional<TString> MapEnumToString(const std::optional<T>& optionalValue)
+std::optional<std::string> MapEnumToString(const std::optional<T>& optionalValue)
 {
     if (optionalValue) {
         return FormatEnum(*optionalValue);
@@ -96,7 +96,7 @@ TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
         .Dynamic = record.Dynamic,
         .Sorted = record.Sorted,
         .AutoTrimConfig = FromOptionalYsonString<TQueueAutoTrimConfig>(record.AutoTrimConfig).value_or(TQueueAutoTrimConfig()),
-        .StaticExportConfig = FromOptionalYsonString<THashMap<TString, TQueueStaticExportConfigPtr>>(record.StaticExportConfig),
+        .StaticExportConfig = FromOptionalYsonString<THashMap<std::string, TQueueStaticExportConfigPtr>>(record.StaticExportConfig),
         .QueueAgentStage = record.QueueAgentStage,
         .ObjectId = record.ObjectId,
         .QueueAgentBanned = record.QueueAgentBanned,
@@ -219,7 +219,7 @@ NRecords::TConsumerRegistration RecordFromRow(const TConsumerRegistrationTableRo
 TQueueAgentObjectMappingTableRow RowFromRecord(const NRecords::TQueueAgentObjectMapping& record)
 {
     return TQueueAgentObjectMappingTableRow{
-        .Object = TGenericObjectReference(record.Key.Object),
+        .Object = TGenericObjectReference(TYPath(record.Key.Object)),
         .QueueAgentHost = record.QueueAgentHost,
     };
 }
@@ -390,7 +390,7 @@ TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(
     TStringBuf where,
     const TSelectRowsOptions& options) const
 {
-    TString query = Format("* from [%v] where %v", Path_, where);
+    std::string query = Format("* from [%v] where %v", Path_, where);
 
     YT_LOG_DEBUG(
         "Invoking select query (Query: %v)",
@@ -452,7 +452,7 @@ std::optional<std::string> TQueueTableRow::GetProfilingTag() const
     return QueueProfilingTag;
 }
 
-std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
+std::vector<std::string> TQueueTableRow::GetCypressAttributeNames()
 {
     return {
         "attribute_revision",
@@ -486,7 +486,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
         .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config").value_or(TQueueAutoTrimConfig()),
-        .StaticExportConfig = cypressAttributes->Find<THashMap<TString, TQueueStaticExportConfigPtr>>("static_export_config"),
+        .StaticExportConfig = cypressAttributes->Find<THashMap<std::string, TQueueStaticExportConfigPtr>>("static_export_config"),
         .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
@@ -530,7 +530,7 @@ std::optional<std::string> TConsumerTableRow::GetProfilingTag() const
     return QueueConsumerProfilingTag;
 }
 
-std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
+std::vector<std::string> TConsumerTableRow::GetCypressAttributeNames()
 {
     return {
         "attribute_revision",
@@ -598,10 +598,10 @@ TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TGenericObjectReference, TString> TQueueAgentObjectMappingTable::ToMapping(
+THashMap<TGenericObjectReference, std::string> TQueueAgentObjectMappingTable::ToMapping(
     const std::vector<TQueueAgentObjectMappingTableRow>& rows)
 {
-    THashMap<TGenericObjectReference, TString> objectMapping;
+    THashMap<TGenericObjectReference, std::string> objectMapping;
     for (const auto& row : rows) {
         objectMapping[row.Object] = row.QueueAgentHost;
     }

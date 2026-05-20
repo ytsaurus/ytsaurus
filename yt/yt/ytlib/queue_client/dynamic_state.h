@@ -83,7 +83,7 @@ struct TQueueTableRow
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
     TQueueAutoTrimConfig AutoTrimConfig;
-    std::optional<THashMap<TString, TQueueStaticExportConfigPtr>> StaticExportConfig;
+    std::optional<THashMap<std::string, TQueueStaticExportConfigPtr>> StaticExportConfig;
     std::optional<std::string> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
     std::optional<bool> QueueAgentBanned;
@@ -93,7 +93,7 @@ struct TQueueTableRow
 
     std::optional<std::string> GetProfilingTag() const;
 
-    static std::vector<TString> GetCypressAttributeNames();
+    static std::vector<std::string> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
         const TTablePath& queue,
@@ -135,7 +135,7 @@ struct TConsumerTableRow
 
     std::optional<std::string> GetProfilingTag() const;
 
-    static std::vector<TString> GetCypressAttributeNames();
+    static std::vector<std::string> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
         const TTablePath& consumer,
@@ -175,7 +175,7 @@ class TQueueAgentObjectMappingTable
 public:
     TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
 
-    static THashMap<TGenericObjectReference, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
+    static THashMap<TGenericObjectReference, std::string> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)

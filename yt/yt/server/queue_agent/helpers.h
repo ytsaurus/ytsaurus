@@ -122,7 +122,7 @@ std::optional<T> MinOrValue(std::optional<T> lhs, std::optional<T> rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromObjectService(
+TFuture<THashMap<std::string, TQueueExportProgressPtr>> GetQueueExportProgressFromObjectService(
     const NYTree::IYPathServicePtr& queueService,
     const NYPath::TRichYPath& queuePath,
     const IInvokerPtr& invoker = GetCurrentInvoker());
@@ -148,7 +148,7 @@ struct TAggregatedQueueExportsProgress
     bool operator==(const TAggregatedQueueExportsProgress& rhs) const = default;
 };
 
-TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress);
+TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<std::string, TQueueExportProgressPtr>& queueExportsProgress);
 
 ////////////////////////////////////////////////////////////////////////////////
 
