@@ -28,10 +28,12 @@
 #include <yql/essentials/utils/log/log_component.h>
 
 #include <library/cpp/getopt/small/last_getopt.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <util/folder/dirut.h>
 #include <util/generic/guid.h>
 #include <util/generic/size_literals.h>
+#include <util/stream/file.h>
 #include <util/system/env.h>
 #include <util/system/fs.h>
 #include <util/system/mlock.h>
@@ -106,11 +108,14 @@ class TVanillaServiceJob : public IVanillaJob<> {
 public:
     TVanillaServiceJob() = default;
 
-    TVanillaServiceJob(TString cluster, ui64 jobCount, TString fmrJobBinaryPath, int verbosity)
+    TVanillaServiceJob(TString cluster, ui64 jobCount, TString fmrJobBinaryPath, int verbosity,
+                       TString fmrOperationYson, TString workerYson)
         : Cluster_(std::move(cluster))
         , JobCount_(jobCount)
         , FmrJobBinaryPath_(std::move(fmrJobBinaryPath))
         , Verbosity_(verbosity)
+        , FmrOperationYson_(std::move(fmrOperationYson))
+        , WorkerYson_(std::move(workerYson))
     {
         YQL_ENSURE(JobCount_ > 1);
     }
@@ -161,14 +166,26 @@ public:
             TVanillaHttpMonSettings{.Host = selfIp, .Port = 8003});
         httpMon->Start();
 
+        TMaybe<NYT::TNode> fmrOperationSpec;
+        if (!FmrOperationYson_.empty()) {
+            fmrOperationSpec = NYT::NodeFromYsonString(FmrOperationYson_);
+        }
+
+        TMaybe<NYT::TNode> workerConfig;
+        if (!WorkerYson_.empty()) {
+            workerConfig = NYT::NodeFromYsonString(WorkerYson_);
+        }
+
         // Coordinator server on cookie=0 only.
         IFmrServer::TPtr coordServer;
         if (selfIndex == 0) {
             auto gcService = MakeGcService(tableDataServiceClient);
-            auto coordinator = MakeFmrCoordinator(
-                [&] { TFmrCoordinatorSettings s; s.WorkersNum = static_cast<ui32>(JobCount_) - 1; return s; }(),
-                MakeYtCoordinatorService(),
-                gcService);
+            TFmrCoordinatorSettings coordSettings;
+            coordSettings.WorkersNum = static_cast<ui32>(JobCount_) - 1;
+            if (fmrOperationSpec.Defined()) {
+                coordSettings.DefaultFmrOperationSpec = *fmrOperationSpec;
+            }
+            auto coordinator = MakeFmrCoordinator(coordSettings, MakeYtCoordinatorService(), gcService);
             coordServer = MakeFmrCoordinatorServer(
                 coordinator,
                 TFmrCoordinatorServerSettings{.Port = 8001, .Host = selfIp});
@@ -200,7 +217,7 @@ public:
                 .GatewayType = "native",
             });
 
-            auto jobFactorySettings = GetDefaultJobFactorySettings();
+            auto jobFactorySettings = GetDefaultJobFactorySettings(fmrOperationSpec);
             TVanillaInfo vanillaInfo{
                 .Tracker = {
                     .OperationId = operationId,
@@ -216,11 +233,9 @@ public:
             jobFactory = MakeFmrJobFactory(jobFactorySettings);
             jobFactory->Start();
 
-            worker = MakeFmrWorker(
-                coordClient,
-                jobFactory,
-                jobPreparer,
-                TFmrWorkerSettings{.WorkerId = static_cast<ui32>(selfIndex) - 1});
+            auto workerSettings = GetDefaultWorkerSettings(workerConfig);
+            workerSettings.WorkerId = static_cast<ui32>(selfIndex) - 1;
+            worker = MakeFmrWorker(coordClient, jobFactory, jobPreparer, workerSettings);
             worker->Start();
         }
 
@@ -246,13 +261,15 @@ public:
         }
     }
 
-    Y_SAVELOAD_JOB(Cluster_, JobCount_, FmrJobBinaryPath_, Verbosity_);
+    Y_SAVELOAD_JOB(Cluster_, JobCount_, FmrJobBinaryPath_, Verbosity_, FmrOperationYson_, WorkerYson_);
 
 private:
     TString Cluster_;
     ui64 JobCount_ = 1;
     TString FmrJobBinaryPath_;
     int Verbosity_ = static_cast<int>(TLOG_ERR);
+    TString FmrOperationYson_;
+    TString WorkerYson_;
 };
 
 REGISTER_VANILLA_JOB(TVanillaServiceJob);
@@ -278,6 +295,8 @@ int main(int argc, const char* argv[]) {
     TString networkProject;
     TString fmrJobBinaryPath;
     TString alias;
+    TString fmrOperationYsonPath;
+    TString workerYsonPath;
     ui64 jobCount = 0;
     int verbosity = static_cast<int>(TLOG_ERR);
 
@@ -287,11 +306,23 @@ int main(int argc, const char* argv[]) {
     opts.AddLongOption("network-project", "Network project name").Required().StoreResult(&networkProject);
     opts.AddLongOption("job-count", "Number of service jobs (>1)").Required().StoreResult(&jobCount);
     opts.AddLongOption("fmr-job-bin", "Cypress path to the FMR job binary").Optional().StoreResult(&fmrJobBinaryPath);
+    opts.AddLongOption("fmr-operation-yson", "Path to YSON file with FMR operation settings").Optional().StoreResult(&fmrOperationYsonPath);
+    opts.AddLongOption("worker-yson", "Path to YSON file with FMR worker settings").Optional().StoreResult(&workerYsonPath);
     opts.AddLongOption('v', "verbosity", "Logging verbosity level").Optional().StoreResult(&verbosity).DefaultValue(verbosity);
 
     TOptsParseResult parseResult(&opts, argc, argv);
 
     YQL_ENSURE(jobCount > 1);
+
+    TString fmrOperationYson;
+    if (!fmrOperationYsonPath.empty()) {
+        fmrOperationYson = TFileInput(fmrOperationYsonPath).ReadAll();
+    }
+
+    TString workerYson;
+    if (!workerYsonPath.empty()) {
+        workerYson = TFileInput(workerYsonPath).ReadAll();
+    }
 
     NYql::NLog::YqlLoggerScope logger(&Cerr, NYql::NLog::LegacyFormat);
     {
@@ -316,7 +347,7 @@ int main(int argc, const char* argv[]) {
     auto task = TVanillaTask()
         .Name("main")
         .JobCount(jobCount)
-        .Job(new TVanillaServiceJob(cluster, jobCount, fmrJobBinaryPath, verbosity))
+        .Job(new TVanillaServiceJob(cluster, jobCount, fmrJobBinaryPath, verbosity, fmrOperationYson, workerYson))
         .NetworkProject(networkProject)
         .Spec(userJobSpec);
 
