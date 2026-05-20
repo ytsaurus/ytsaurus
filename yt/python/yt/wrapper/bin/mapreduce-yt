@@ -34,11 +34,6 @@ import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json_wrapper as json
 
-try:
-    from yt.packages.six.moves import map as imap, zip as izip, filter as ifilter
-except ImportError:
-    from six.moves import map as imap, zip as izip, filter as ifilter
-
 import yt.wrapper as yt
 
 import os
@@ -138,7 +133,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
                             object_filter=object_filter,
                             attributes=attributes,
                             follow_links=follow_links)
-        objects = list(ifilter(lambda obj: obj.startswith(prefix), objects))
+        objects = list(filter(lambda obj: obj.startswith(prefix), objects))
 
     if jsonoutput:
         result = []
@@ -166,7 +161,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
         result.sort(key=lambda item: item["name"])
         return [json.dumps(result, indent=4)]
     else:
-        return sorted(imap(remove_prefix, imap(str, objects)))
+        return sorted(map(remove_prefix, map(str, objects)))
 
 def add_eoln(str):
     return str + "\n"
@@ -663,7 +658,7 @@ Examples:
         if vars(args)[option] is not None:
             vars(args)[option] = yt.create_format((vars(args)[option]))
 
-    inputformat = first_not_none(imap(calculate_if_function,
+    inputformat = first_not_none(map(calculate_if_function,
         [args.format,
          args.inputformat,
          args.dsv,
@@ -672,7 +667,7 @@ Examples:
          format]))
 
     write_tables = args.write if not isinstance(args.write, MissingValue) else None
-    outputformat = first_not_none(imap(calculate_if_function,
+    outputformat = first_not_none(map(calculate_if_function,
         [args.format,
          args.outputformat,
          args.dsv,
@@ -717,10 +712,10 @@ Examples:
 
 
     if args.list:
-        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact,
+        write_silently(map(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact,
             jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
     if args.listfiles:
-        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact,
+        write_silently(map(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact,
             jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
     if args.read is not None:
         stream = yt.read_table(
@@ -813,7 +808,7 @@ Examples:
                 exit("Number of source and destination tables must be the same "
                      "in case of multiple destination tables in copy or move")
             with yt.Transaction(attributes={"title": "Python wrapper: mapreduce-yt copying/moving multiple tables"}):
-                for source_table, destination_table in izip(args.src, dst):
+                for source_table, destination_table in zip(args.src, dst):
                     method(source_table, destination_table)
         else:
             method(args.src, unlist_destination_tables(dst))
