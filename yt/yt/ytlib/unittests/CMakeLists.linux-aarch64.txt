@@ -83,6 +83,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/parallel_reader_memory_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/partitioner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/permission_cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/push_based_shuffle_record_format_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/secondary_index_ut.cpp
