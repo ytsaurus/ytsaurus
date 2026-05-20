@@ -42,7 +42,7 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
     builder->AppendString(attrString);
 }
 
-TString ConvertToString(const TGenericObjectReference& ref)
+std::string ConvertToString(const TGenericObjectReference& ref)
 {
     TStringBuilder builder;
     AppendAttributes(&builder, ref.Attributes());

@@ -208,7 +208,7 @@ std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjectService(
+THashMap<std::string, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjectService(
     const IYPathServicePtr& queueService,
     const TRichYPath& queuePath)
 {
@@ -223,14 +223,14 @@ THashMap<TString, TQueueExportProgressPtr> DoGetQueueExportProgressFromObjectSer
         THROW_ERROR_EXCEPTION(*error);
     }
 
-    auto progress = queueExportsNode->FindChildValue<THashMap<TString, TQueueExportProgressPtr>>("progress");
+    auto progress = queueExportsNode->FindChildValue<THashMap<std::string, TQueueExportProgressPtr>>("progress");
     if (!progress) {
         THROW_ERROR_EXCEPTION("Field \"progress\" of queue status is not present");
     }
     return *progress;
 }
 
-TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromObjectService(
+TFuture<THashMap<std::string, TQueueExportProgressPtr>> GetQueueExportProgressFromObjectService(
     const IYPathServicePtr& queueService,
     const TRichYPath& queuePath,
     const IInvokerPtr& invoker)
@@ -240,7 +240,7 @@ TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromOb
         queuePath)
         .AsyncVia(invoker)
         .Run()
-        .AsUnique().Apply(BIND([queuePath] (TErrorOr<THashMap<TString, TQueueExportProgressPtr>>&& result) -> TErrorOr<THashMap<TString, TQueueExportProgressPtr>> {
+        .AsUnique().Apply(BIND([queuePath] (TErrorOr<THashMap<std::string, TQueueExportProgressPtr>>&& result) -> TErrorOr<THashMap<std::string, TQueueExportProgressPtr>> {
             if (!result.IsOK()) {
                 return TError("Failed to get queue exports progress for %v", queuePath) << TError(result);
             }
@@ -317,7 +317,7 @@ void TAggregatedQueueExportsProgress::MergeWith(const TAggregatedQueueExportsPro
     }
 }
 
-TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress)
+TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<std::string, TQueueExportProgressPtr>& queueExportsProgress)
 {
     TAggregatedQueueExportsProgress result{};
     for (const auto& [_, exportProgress] : queueExportsProgress) {

@@ -38,7 +38,7 @@ constinit const auto Logger = QueueAgentShardingManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString BannedAttributeName = "banned";
+inline const std::string BannedAttributeName = "banned";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,7 +241,7 @@ private:
             const auto& attributes = instance->Attributes();
             try {
                 if (attributes.Get<bool>(BannedAttributeName)) {
-                    BannedQueueAgentInstances_.insert(instance->GetValue<TString>());
+                    BannedQueueAgentInstances_.insert(instance->GetValue<std::string>());
                 }
             } catch (const std::exception&) {
                 // NB(apachee): Ignore if attribute is missing, or if its value is not bool.

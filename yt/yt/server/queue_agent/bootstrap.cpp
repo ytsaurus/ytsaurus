@@ -139,8 +139,8 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TQueueAgentComponentDynamicConfigPtr DynamicConfig_;
 
-    TString AgentId_;
-    TString GroupId_;
+    std::string AgentId_;
+    std::string GroupId_;
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NYT::NBus::IBusServerPtr BusServer_;
@@ -223,7 +223,7 @@ private:
             NativeConnection_->GetChannelFactory(),
             ControlInvoker_,
             AgentId_,
-            GroupId_);
+            TString(GroupId_));
         DiscoveryClient_ = NativeConnection_->CreateDiscoveryClient(
             DynamicConfig_->DiscoveryClient,
             NativeConnection_->GetChannelFactory());

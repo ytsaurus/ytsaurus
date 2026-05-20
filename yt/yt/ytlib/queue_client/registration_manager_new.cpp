@@ -568,7 +568,7 @@ private:
             QueuePathColumnName_,
             QueuesPlaceholderValueName_);
 
-        std::vector<std::pair<TString, TString>> queues;
+        std::vector<std::pair<std::string, std::string>> queues;
         for (const auto& key : Keys_) {
             if (auto queue = key.Queue; queue.has_value()) {
                 queues.emplace_back(queue->GetCluster().value(), queue->GetPath());
@@ -597,7 +597,7 @@ private:
             ConsumerNameColumnName_,
             ConsumersPlaceholderValueName_);
 
-        std::vector<std::tuple<TString, TString, std::optional<std::string>>> consumers;
+        std::vector<std::tuple<std::string, std::string, std::optional<std::string>>> consumers;
         for (const auto& key : Keys_) {
             if (auto consumer = key.Consumer; consumer.has_value()) {
                 consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath(), consumer->GetQueueConsumerName());
@@ -1225,7 +1225,7 @@ auto CreateCache(
     IInvokerPtr invoker,
     const TQueueConsumerRegistrationManagerConfigPtr& config)
 {
-    static const TString CacheKindTag = Format("%lv", TCache::CacheKind);
+    static const std::string CacheKindTag = Format("%lv", TCache::CacheKind);
 
     // With prefix we get these names:
     // - QueueConsumerRegistrationLookup,

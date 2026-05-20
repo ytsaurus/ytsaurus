@@ -209,7 +209,7 @@ private:
     struct TProxyConfig
     {
         bool Enable = false;
-        TString RemoteQueryRoot;
+        std::string RemoteQueryRoot;
     };
     const TProxyConfig ProxyConfig_;
 };
@@ -408,7 +408,7 @@ TQueueAgent::TQueueAgent(
     TDynamicStatePtr dynamicState,
     ICypressElectionManagerPtr electionManager,
     IAlertCollectorPtr alertCollector,
-    TString agentId)
+    std::string agentId)
     : Config_(std::move(config))
     , DynamicConfig_(New<TQueueAgentDynamicConfig>())
     , ClientDirectory_(std::move(clientDirectory))
@@ -951,7 +951,7 @@ void TQueueAgent::Profile()
     }
 }
 
-NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, TStringBuf remoteRoot) const
+NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const std::string& host, TStringBuf remoteRoot) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -959,7 +959,7 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, 
     auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);
     return CreateOrchidYPathService({
         .Channel = std::move(leaderChannel),
-        .RemoteRoot = TString(remoteRoot),
+        .RemoteRoot = std::string(remoteRoot),
     });
 }
 

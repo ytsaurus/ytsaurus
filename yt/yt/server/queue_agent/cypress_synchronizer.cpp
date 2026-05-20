@@ -771,7 +771,7 @@ private:
         }
     }
 
-    static std::vector<TString> GetCypressAttributeNames(const TObject& object)
+    static std::vector<std::string> GetCypressAttributeNames(const TObject& object)
     {
         switch (object.Kind) {
             case ECypressSyncObjectKind::Consumer:
