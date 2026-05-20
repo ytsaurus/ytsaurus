@@ -1,4 +1,6 @@
 #include "client_impl.h"
+#include "config.h"
+#include "connection.h"
 #include "table_reader.h"
 #include "partition_tables.h"
 #include "skynet.h"
@@ -11,6 +13,7 @@
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -43,25 +46,47 @@ namespace NYT::NApi::NNative {
 using namespace NYPath;
 using namespace NYson;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NConcurrency;
 using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+//! Runs a one-off NodeDirectory sync.
+//! Does not start periodic node directory synchronizer.
+//! Used as a safe-guard for read requests where NodeDirectorySynchronizer is not active by default (RPC-in-job-proxy).
+TFuture<void> MaybeSynchronizeNodeDirectoryForTableRead(const IConnectionPtr& connection)
+{
+    const auto& dynamicConfig = connection->GetConfig();
+    const auto& nodeDirectorySynchronizer = connection->GetNodeDirectorySynchronizer();
+    // NB: Do not synchronize if periodic synchronizer is active.
+    if (!dynamicConfig->EnableNodeDirectorySynchronizationOnTableRead || (nodeDirectorySynchronizer && nodeDirectorySynchronizer->IsStarted())) {
+        return OKFuture;
+    }
+    return nodeDirectorySynchronizer->SyncOnce(dynamicConfig->NodeDirectorySynchronizationOnTableReadStalenessThreshold);
+}
+
+} // namespace
+
 TFuture<ITableReaderPtr> TClient::CreateTableReader(
     const TRichYPath& path,
     const TTableReaderOptions& options)
 {
-    return NNative::CreateTableReader(
-        this,
-        path,
-        options,
-        New<TNameTable>(),
-        /*columnFilter*/ {},
-        /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-        /*rpsThrottler*/ nullptr,
-        HeavyRequestMemoryUsageTracker_);
+    return MaybeSynchronizeNodeDirectoryForTableRead(GetNativeConnection())
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
+            return NNative::CreateTableReader(
+                this,
+                path,
+                options,
+                New<TNameTable>(),
+                /*columnFilter*/ {},
+                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+                /*rpsThrottler*/ nullptr,
+                HeavyRequestMemoryUsageTracker_);
+        }));
 }
 
 TFuture<TSkynetSharePartsLocationsPtr> TClient::LocateSkynetShare(
@@ -202,71 +227,74 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
     const TTablePartitionCookiePtr& cookie,
     const TReadTablePartitionOptions& options)
 {
-    NTableClient::NProto::TTablePartitionCookie cookieProto;
-    if (!cookieProto.ParseFromString(cookie.Underlying()->Payload())) {
-        THROW_ERROR_EXCEPTION("Failed to parse table partition cookie");
-    }
+    return MaybeSynchronizeNodeDirectoryForTableRead(GetNativeConnection())
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
+            NTableClient::NProto::TTablePartitionCookie cookieProto;
+            if (!cookieProto.ParseFromString(cookie.Underlying()->Payload())) {
+                THROW_ERROR_EXCEPTION("Failed to parse table partition cookie");
+            }
 
-    if (cookieProto.user() != Options_.GetAuthenticatedUser()) {
-        THROW_ERROR_EXCEPTION("Partition must be read by the same user who created it")
-            << TErrorAttribute("read_partition_user", Options_.GetAuthenticatedUser())
-            << TErrorAttribute("partition_tables_user", cookieProto.user());
-    }
+            if (cookieProto.user() != Options_.GetAuthenticatedUser()) {
+                THROW_ERROR_EXCEPTION("Partition must be read by the same user who created it")
+                    << TErrorAttribute("read_partition_user", Options_.GetAuthenticatedUser())
+                    << TErrorAttribute("partition_tables_user", cookieProto.user());
+            }
 
-    auto dataSliceDescriptors = UnpackDataSliceDescriptors(cookieProto.table_input_specs());
-    auto dataSourceDirectory = FromProto<NChunkClient::TDataSourceDirectoryPtr>(cookieProto.data_source_directory());
+            auto dataSliceDescriptors = UnpackDataSliceDescriptors(cookieProto.table_input_specs());
+            auto dataSourceDirectory = FromProto<NChunkClient::TDataSourceDirectoryPtr>(cookieProto.data_source_directory());
 
-    auto nameTable = New<TNameTable>();
+            auto nameTable = New<TNameTable>();
 
-    auto baseHost = New<TChunkReaderHost>(MakeStrong(this));
-    if (cookieProto.has_node_directory()) {
-        const auto& nodeDirectory = baseHost->Client->GetNativeConnection()->GetNodeDirectory();
-        nodeDirectory->MergeFrom(cookieProto.node_directory());
-    }
+            auto baseHost = New<TChunkReaderHost>(MakeStrong(this));
+            if (cookieProto.has_node_directory()) {
+                const auto& nodeDirectory = baseHost->Client->GetNativeConnection()->GetNodeDirectory();
+                nodeDirectory->MergeFrom(cookieProto.node_directory());
+            }
 
-    auto chunkReaderHost = New<TMultiChunkReaderHost>(std::move(baseHost));
+            auto chunkReaderHost = New<TMultiChunkReaderHost>(std::move(baseHost));
 
-    auto columnFilter = TColumnFilter{};
-    auto tableReaderOptions = ToInternalTableReaderOptions(options);
-    auto tableReaderConfig = options.Config ? options.Config : New<TTableReaderConfig>();
-    TClientChunkReadOptions chunkReadOptions;
+            auto columnFilter = TColumnFilter{};
+            auto tableReaderOptions = ToInternalTableReaderOptions(options);
+            auto tableReaderConfig = options.Config ? options.Config : New<TTableReaderConfig>();
+            TClientChunkReadOptions chunkReadOptions;
 
-    bool isParallel = false;
-    if (cookieProto.has_partition_mode()) {
-        auto partitionMode = CheckedEnumCast<ETablePartitionMode>(cookieProto.partition_mode());
-        switch (partitionMode) {
-            case NTableClient::ETablePartitionMode::Sorted:
-                THROW_ERROR_EXCEPTION("%Qlv partition mode is not supported by read_table_partition",
-                    partitionMode);
-            case NTableClient::ETablePartitionMode::Ordered:
-                isParallel = false;
-                break;
-            case NTableClient::ETablePartitionMode::Unordered:
-                isParallel = true;
-                break;
-        }
-    }
+            bool isParallel = false;
+            if (cookieProto.has_partition_mode()) {
+                auto partitionMode = CheckedEnumCast<ETablePartitionMode>(cookieProto.partition_mode());
+                switch (partitionMode) {
+                    case NTableClient::ETablePartitionMode::Sorted:
+                        THROW_ERROR_EXCEPTION("%Qlv partition mode is not supported by read_table_partition",
+                            partitionMode);
+                    case NTableClient::ETablePartitionMode::Ordered:
+                        isParallel = false;
+                        break;
+                    case NTableClient::ETablePartitionMode::Unordered:
+                        isParallel = true;
+                        break;
+                }
+            }
 
-    auto result = CreateMapJobReader(
-        isParallel,
-        dataSliceDescriptors,
-        dataSourceDirectory,
-        tableReaderOptions,
-        tableReaderConfig,
-        chunkReadOptions,
-        chunkReaderHost,
-        nameTable,
-        columnFilter);
-    auto reader = ToApiRowBatchReader(result.Reader);
+            auto result = CreateMapJobReader(
+                isParallel,
+                dataSliceDescriptors,
+                dataSourceDirectory,
+                tableReaderOptions,
+                tableReaderConfig,
+                chunkReadOptions,
+                chunkReaderHost,
+                nameTable,
+                columnFilter);
+            auto reader = ToApiRowBatchReader(result.Reader);
 
-    std::vector<TTableSchemaPtr> schemas;
-    std::vector<TColumnNameFilter> columnFilters;
-    for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-        schemas.push_back(dataSource->Schema());
-        columnFilters.push_back(dataSource->Columns());
-    }
+            std::vector<TTableSchemaPtr> schemas;
+            std::vector<TColumnNameFilter> columnFilters;
+            for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+                schemas.push_back(dataSource->Schema());
+                columnFilters.push_back(dataSource->Columns());
+            }
 
-    return MakeFuture(NApi::CreateTablePartitionReader(reader, schemas, columnFilters));
+            return NApi::CreateTablePartitionReader(reader, schemas, columnFilters);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

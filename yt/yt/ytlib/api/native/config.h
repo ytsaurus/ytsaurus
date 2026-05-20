@@ -265,6 +265,12 @@ struct TConnectionDynamicConfig
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
     NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
 
+    //! If set, every CreateTableReader / CreateTablePartitionReader call
+    //! runs a one-off NodeDirectory sync via INodeDirectorySynchronizer::SyncOnce if periodic synchronizer is not active.
+    bool EnableNodeDirectorySynchronizationOnTableRead;
+    //! Minimum interval between successful one-off syncs triggered by EnableNodeDirectorySynchronizationOnTableRead.
+    TDuration NodeDirectorySynchronizationOnTableReadStalenessThreshold;
+
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     NQueryClient::TExpressionEvaluatorCacheConfigPtr ExpressionEvaluatorCache;
