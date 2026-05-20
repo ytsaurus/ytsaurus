@@ -18,9 +18,9 @@ void TAuthCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("cache_ttl", &TThis::CacheTtl)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
-        .Default(TDuration::Hours(1));
-    registrar.Parameter("error_ttl", &TThis::ErrorTtl)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Minutes(60));
+    registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
+         .Default(TDuration::Hours(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -334,21 +334,42 @@ void TCypressPasswordAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TLdapServiceConfig::GetAdminPassword() const
+std::string TLdapServiceConfig::GetAdminPassword() const
 {
-    if (AdminPasswordPath) {
-        TFileInput input(*AdminPasswordPath);
-        return input.ReadAll();
-    }
-    if (AdminPasswordEnvVar) {
-        if (auto value = TryGetEnv(TString(*AdminPasswordEnvVar))) {
-            return *value;
+    auto read = [&] () -> std::string {
+        if (AdminPasswordPath) {
+            TFileInput input(*AdminPasswordPath);
+            return input.ReadAll();
         }
-        THROW_ERROR_EXCEPTION(
-            "Environment variable %Qv specified in \"admin_password_env_var\" is not set",
-            *AdminPasswordEnvVar);
+        if (AdminPasswordEnvVar) {
+            // TODO(babenko): migrate to std::string
+            if (auto value = TryGetEnv(TString(*AdminPasswordEnvVar))) {
+                return std::string(*value);
+            }
+            THROW_ERROR_EXCEPTION(
+                "Environment variable %Qv specified in \"admin_password_env_var\" is not set",
+                *AdminPasswordEnvVar);
+        }
+        YT_VERIFY(false, "One of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+    };
+
+    auto password = read();
+    // Strip trailing whitespace (almost always a trailing newline from an editor
+    // or `echo`). Empty password would be sent as an unauthenticated simple bind
+    // per RFC 4513 §5.1.2 — Active Directory accepts that with LDAP_SUCCESS but
+    // keeps the session anonymous, then rejects the subsequent search with
+    // "successful bind must be completed on the connection". Fail loudly instead.
+    while (!password.empty() && std::isspace(static_cast<unsigned char>(password.back()))) {
+        password.pop_back();
     }
-    YT_VERIFY(false, "One of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+    if (password.empty()) {
+        THROW_ERROR_EXCEPTION("LDAP admin password is empty")
+            << TErrorAttribute("source",
+                AdminPasswordPath
+                    ? Format("file %Qv", *AdminPasswordPath)
+                    : Format("env var %Qv", *AdminPasswordEnvVar));
+    }
+    return password;
 }
 
 void TLdapServiceConfig::Register(TRegistrar registrar)
@@ -478,7 +499,7 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TAuthenticationManagerConfig::GetCsrfSecret() const
+std::string TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
         BlackboxCookieAuthenticator->CsrfSecret)
@@ -486,7 +507,7 @@ TString TAuthenticationManagerConfig::GetCsrfSecret() const
         return *BlackboxCookieAuthenticator->CsrfSecret;
     }
 
-    return TString();
+    return std::string();
 }
 
 TInstant TAuthenticationManagerConfig::GetCsrfTokenExpirationTime() const

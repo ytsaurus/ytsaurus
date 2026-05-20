@@ -61,6 +61,40 @@ std::string GetLdapDiagnostic(LDAP* ld)
     return std::string(diag);
 }
 
+//! Result of an LDAP whoami (RFC 4532) check after a bind.
+struct TWhoamiResult
+{
+    //! True if ldap_whoami_s succeeded with a non-empty authzid.
+    //! False on empty authzid (server treats the session as anonymous despite
+    //! a successful bind — RFC 4513 §5.1.2). On a server-side whoami failure
+    //! we also return true, since some LDAP servers don't support the extop
+    //! and we don't want to break those setups.
+    bool Authenticated = true;
+    //! The returned authzid (e.g. "dn:CN=...") if any. Only set on success.
+    std::string Authzid;
+};
+
+TWhoamiResult LdapWhoami(LDAP* ld)
+{
+    berval* authzid = nullptr;
+    int rc = ldap_whoami_s(ld, &authzid, nullptr, nullptr);
+    auto guard = Finally([&] {
+        if (authzid) {
+            ber_bvfree(authzid);
+        }
+    });
+    if (rc != LDAP_SUCCESS) {
+        return {.Authenticated = true};
+    }
+    if (!authzid || !authzid->bv_val || authzid->bv_len == 0) {
+        return {.Authenticated = false};
+    }
+    return {
+        .Authenticated = true,
+        .Authzid = std::string(authzid->bv_val, authzid->bv_len),
+    };
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,8 +125,8 @@ public:
 private:
     const TLdapServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
-    const TString Url_;
-    const TString AdminPassword_;
+    const std::string Url_;
+    const std::string AdminPassword_;
 
     //! RAII wrapper that unbinds the connection on destruction.
     class TLdapConnection
@@ -148,6 +182,13 @@ private:
         int version = LDAP_VERSION3;
         ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &version);
 
+        // Active Directory frequently returns referrals to other domain
+        // controllers for cross-domain or forest-root searches. libldap chases
+        // them with a new anonymous bind by default, which AD rejects with
+        // LDAP_OPERATIONS_ERROR — failing the whole search even when the user
+        // was already found on the original DC. We don't follow referrals.
+        ldap_set_option(ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
+
         auto timeout = MakeTimeval(Config_->RequestTimeout);
         ldap_set_option(ld, LDAP_OPT_TIMEOUT, &timeout);
         ldap_set_option(ld, LDAP_OPT_NETWORK_TIMEOUT, &timeout);
@@ -181,7 +222,7 @@ private:
     }
 
     //! Resolves user DN via admin-bound search.
-    TString ResolveUserDn(LDAP* ld, const TString& user) const
+    std::string ResolveUserDn(LDAP* ld, const std::string& user) const
     {
         auto filter = BuildSearchFilter(Config_->SearchFilter, user);
 
@@ -215,7 +256,6 @@ private:
                 rc,
                 ldap_err2string(rc),
                 GetLdapDiagnostic(ld));
-
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "LDAP search failed for user %Qv: %v",
                 user,
@@ -251,7 +291,7 @@ private:
                 ldap_err2string(err));
         }
         auto dnGuard = Finally([rawDn] { ldap_memfree(rawDn); });
-        return TString(rawDn);
+        return std::string(rawDn);
     }
 
     TLoginResult DoAuthenticate(const TLoginCredentials& credentials)
@@ -279,6 +319,27 @@ private:
                 ldap_err2string(rc));
         }
 
+        // AD may answer LDAP_SUCCESS for a simple bind yet keep the session
+        // anonymous (unauthenticated bind per RFC 4513 §5.1.2, or when
+        // LDAPServerIntegrity policy demands signing/TLS). The next search
+        // then fails with "successful bind must be completed on the
+        // connection". Detect this up front via whoami so the failure mode
+        // is explicit.
+        if (auto whoami = LdapWhoami(ld); !whoami.Authenticated) {
+            YT_LOG_DEBUG("LDAP admin bind succeeded but session is anonymous "
+                "(Url: %v, AdminDn: %v, Diagnostic: %v)",
+                Url_, Config_->AdminDn, GetLdapDiagnostic(ld));
+            THROW_ERROR_EXCEPTION(
+                "LDAP admin bind for %v as %Qv returned success but the "
+                "session is anonymous; verify the admin password and the "
+                "server's LDAPServerIntegrity / signing policy",
+                Url_,
+                Config_->AdminDn);
+        } else {
+            YT_LOG_DEBUG("LDAP admin bind authenticated (AdminDn: %v, Authzid: %v)",
+                Config_->AdminDn, whoami.Authzid);
+        }
+
         auto userDn = ResolveUserDn(ld, user);
         YT_LOG_DEBUG("Found user DN in LDAP (User: %v, UserDn: %v)", user, userDn);
 
@@ -297,6 +358,24 @@ private:
                 "Invalid LDAP credentials for user %Qv: %v",
                 user,
                 ldap_err2string(rc));
+        }
+
+        // Mirror of the admin-bind whoami check. Critically, a user-supplied
+        // empty password would simple-bind to a non-empty DN as
+        // "unauthenticated" (RFC 4513 §5.1.2) and AD would return success —
+        // without this check we'd issue a TLoginResult for a user that was
+        // not actually authenticated.
+        if (auto whoami = LdapWhoami(ld); !whoami.Authenticated) {
+            YT_LOG_DEBUG("LDAP user bind succeeded but session is anonymous "
+                "(User: %v, UserDn: %v, Diagnostic: %v)",
+                user, userDn, GetLdapDiagnostic(ld));
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
+                "Invalid LDAP credentials for user %Qv: bind returned success "
+                "but the session is anonymous (likely empty password)",
+                user);
+        } else {
+            YT_LOG_DEBUG("LDAP user bind authenticated (User: %v, Authzid: %v)",
+                user, whoami.Authzid);
         }
 
         YT_LOG_DEBUG("LDAP authentication succeeded (User: %v)", user);
