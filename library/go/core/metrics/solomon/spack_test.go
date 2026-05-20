@@ -3,6 +3,7 @@ package solomon
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -99,7 +100,7 @@ func Test_metrics_encode(t *testing.T) {
 					0x0, // indexes of name labels
 					0x0, // indexes of value labels
 
-					0x8c, 0xa7, 0xce, 0x62, //metric ts
+					0x8c, 0xa7, 0xce, 0x62, // metric ts
 					0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x45, 0x40, // 43  // metrics value
 
 				},
@@ -136,7 +137,7 @@ func Test_metrics_encode(t *testing.T) {
 					0x0, // indexes of name labels
 					0x0, // indexes of value labels
 
-					0x8c, 0xa7, 0xce, 0x62, //metric ts
+					0x8c, 0xa7, 0xce, 0x62, // metric ts
 					0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x45, 0x40, // 43  // metrics value
 
 				},
@@ -179,7 +180,7 @@ func Test_metrics_encode(t *testing.T) {
 					0x0, // indexes of name labels
 					0x0, // indexes of value labels
 
-					0x8c, 0xa7, 0xce, 0x62, //metric ts
+					0x8c, 0xa7, 0xce, 0x62, // metric ts
 					0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x45, 0x40, // 43  // metrics value
 
 				},
@@ -266,7 +267,7 @@ func Test_metrics_encode(t *testing.T) {
 			[]byte{
 				0x53, 0x50, // magic
 				0x01, 0x01, // version
-				0x18, 0x00, //header size
+				0x18, 0x00, // header size
 				0x0,                 // time precision
 				0x0,                 // compression algorithm
 				0x0f, 0x0, 0x0, 0x0, // label names size (15 bytes: "host\0sensor\0dc\0")
@@ -330,7 +331,8 @@ func Test_metrics_encode(t *testing.T) {
 							WithUseNameTag(),
 							WithTags(map[string]string{
 								"name": "custom_name_value",
-							}))
+							}),
+						)
 						return &g
 					}(),
 				},
@@ -380,7 +382,8 @@ func Test_metrics_encode(t *testing.T) {
 							WithUseNameTag(),
 							WithTags(map[string]string{
 								"name": "custom_name_value",
-							}))
+							}),
+						)
 						return &g
 					}(),
 				},
@@ -429,7 +432,8 @@ func Test_metrics_encode(t *testing.T) {
 							42,
 							WithTags(map[string]string{
 								"name": "custom_name_value",
-							}))
+							}),
+						)
 						return &g
 					}(),
 				},
@@ -528,8 +532,27 @@ func Test_metrics_encode(t *testing.T) {
 			body := buf.Bytes()
 			setMetricsCount(tc.expectHeader, len(tc.metrics.metrics))
 
-			require.True(t, bytes.HasPrefix(body, tc.expectHeader))
-			body = body[len(tc.expectHeader):]
+			require.True(t, bytes.HasPrefix(body, tc.expectHeader[:HeaderSize]))
+			body = body[HeaderSize:]
+
+			nameSize := int(binary.LittleEndian.Uint32(tc.expectHeader[8:12]))
+			valueSize := int(binary.LittleEndian.Uint32(tc.expectHeader[12:16]))
+			expectPools := tc.expectHeader[HeaderSize:]
+			require.Len(t, expectPools, nameSize+valueSize)
+
+			require.ElementsMatch(
+				t,
+				bytes.Split(expectPools[:nameSize], []byte{0}),
+				bytes.Split(body[:nameSize], []byte{0}),
+				"label name pool mismatch",
+			)
+			require.ElementsMatch(
+				t,
+				bytes.Split(expectPools[nameSize:], []byte{0}),
+				bytes.Split(body[nameSize:nameSize+valueSize], []byte{0}),
+				"label value pool mismatch",
+			)
+			body = body[nameSize+valueSize:]
 
 			require.True(t, bytes.HasPrefix(body, tc.expectCommonTime))
 			body = body[len(tc.expectCommonTime):]
