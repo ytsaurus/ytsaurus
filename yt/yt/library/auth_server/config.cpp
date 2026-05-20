@@ -20,7 +20,9 @@ void TAuthCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
         .Default(TDuration::Minutes(60));
     registrar.Parameter("optimistic_cache_ttl", &TThis::OptimisticCacheTtl)
-         .Default(TDuration::Hours(1));
+        .Default(TDuration::Hours(1));
+    registrar.Parameter("error_ttl", &TThis::ErrorTtl)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -499,7 +501,7 @@ void TYCAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string TAuthenticationManagerConfig::GetCsrfSecret() const
+TString TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
         BlackboxCookieAuthenticator->CsrfSecret)
@@ -507,7 +509,7 @@ std::string TAuthenticationManagerConfig::GetCsrfSecret() const
         return *BlackboxCookieAuthenticator->CsrfSecret;
     }
 
-    return std::string();
+    return TString();
 }
 
 TInstant TAuthenticationManagerConfig::GetCsrfTokenExpirationTime() const
