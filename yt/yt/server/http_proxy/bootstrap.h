@@ -122,7 +122,7 @@ private:
 
     TProxyHeapUsageProfilerPtr HttpProxyHeapUsageProfiler_;
 
-    NBus::IBusServerPtr BusServer_;
+    NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr ApiHttpServer_;

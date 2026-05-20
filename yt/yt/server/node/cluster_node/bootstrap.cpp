@@ -693,7 +693,7 @@ private:
 
     IMonitoringManagerPtr MonitoringManager_;
 
-    NYT::NBus::IBusServerPtr BusServer_;
+    NYT::NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
 
