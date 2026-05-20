@@ -1,16 +1,15 @@
 #pragma once
 
 #include "datashard.h"
-#include <contrib/ydb/core/tx/locks/locks.h>
 
 #include <contrib/ydb/core/base/row_version.h>
+#include <contrib/ydb/core/kqp/runtime/scheduler/fwd.h>
 #include <contrib/ydb/core/tablet_flat/flat_row_eggs.h>
+#include <contrib/ydb/core/tx/locks/locks.h>
 
 #include <util/digest/multi.h>
 
 #include <memory>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace NKikimr::NDataShard {
@@ -127,12 +126,13 @@ public:
     TReadIteratorState(
             const TReadIteratorId& readId, ui64 localReadId, const TPathId& pathId,
             const TActorId& sessionId, const TRowVersion& readVersion, bool isHeadRead,
-            TMonotonic ts)
+            TMonotonic ts, NKqp::NScheduler::TSchedulableReadPtr schedulableRead)
         : ReadId(readId)
         , LocalReadId(localReadId)
         , PathId(pathId)
         , ReadVersion(readVersion)
         , IsHeadRead(isHeadRead)
+        , SchedulableRead(std::move(schedulableRead))
         , SessionId(sessionId)
         , StartTs(ts)
     {}
@@ -200,6 +200,7 @@ public:
     // State itself //
 
     TQuota Quota;
+    NKqp::NScheduler::TSchedulableReadPtr SchedulableRead;
 
     // Number of rows processed so far
     ui64 TotalRows = 0;

@@ -5,11 +5,16 @@
 #include <contrib/ydb/core/nbs/cloud/blockstore/config/config.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/common/block_range.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/common/constants.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/context.h>
 
+#include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/scheduler.h>
 #include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/timer.h>
+#include <contrib/ydb/core/nbs/cloud/storage/core/libs/coroutine/executor.h>
 #include <contrib/ydb/core/nbs/cloud/storage/core/protos/media.pb.h>
 
 #include <contrib/ydb/core/base/counters.h>
+
+#include <contrib/ydb/library/wilson_ids/wilson.h>
 
 #include <utility>
 
@@ -61,7 +66,8 @@ TVector<std::shared_ptr<TRegion>> CreateRegions(
             directBlockGroups,
             storageConfig.GetSyncRequestsBatchSize(),
             storageConfig.GetVChunkSize(),
-            storageConfig.GetWriteHandoffDelay(),
+            storageConfig.GetWriteHedgingDelay(),
+            storageConfig.GetWriteRequestTimeout(),
             storageConfig.GetTraceSamplePeriod(),
             regionCounters);
     }

@@ -8,7 +8,6 @@
 #include "mirror_describer_factory.h"
 
 #include <contrib/ydb/core/base/feature_flags.h>
-#include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/core/protos/counters_pq.pb.h>
 #include <contrib/ydb/core/tablet/tablet_exception.h>
 

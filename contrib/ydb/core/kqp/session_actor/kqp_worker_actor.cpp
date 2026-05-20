@@ -12,6 +12,7 @@
 #include <contrib/ydb/core/kqp/host/kqp_host.h>
 #include <contrib/ydb/core/sys_view/service/sysview_service.h>
 #include <contrib/ydb/library/aclib/aclib.h>
+#include <contrib/ydb/library/security/util.h>
 #include <contrib/ydb/library/ydb_issue/issue_helpers.h>
 
 #include <contrib/ydb/library/yql/utils/actor_log/log.h>
@@ -912,7 +913,7 @@ private:
             case NKikimrKqp::QUERY_TYPE_SQL_SCRIPT:
             case NKikimrKqp::QUERY_TYPE_SQL_SCRIPT_STREAMING: {
                 TString text = ExtractQueryText();
-                if (IsQueryAllowedToLog(text)) {
+                if (!NKikimr::IsQueryWithSensitiveInfo(text)) {
                     auto userSID = QueryState->RequestEv->GetUserToken()->GetUserSID();
                     CollectQueryStats(ctx, stats, queryDuration, text,
                         userSID, QueryState->RequestEv->GetParametersSize(), database, type, requestUnits);

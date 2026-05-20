@@ -1,11 +1,11 @@
 #pragma once
 
+#include "direct_block_group.h"
+#include "part_counters.h"
+
 #include <contrib/ydb/core/nbs/cloud/blockstore/config/public.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/api/service.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/core/tablet.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/direct_block_group.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/part_counters.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/region.h>
 
 #include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/error.h>
 #include <contrib/ydb/core/nbs/cloud/storage/core/libs/coroutine/executor_pool.h>

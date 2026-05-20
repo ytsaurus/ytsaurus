@@ -2,6 +2,8 @@
 
 #include "direct_block_group.h"
 
+#include <contrib/ydb/core/mind/bscontroller/types.h>
+
 #include <contrib/ydb/library/pdisk_io/sector_map.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {

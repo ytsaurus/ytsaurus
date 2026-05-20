@@ -37,6 +37,7 @@ RECURSE_FOR_TESTS(
     ut_index_build_reboots
     ut_login
     ut_login_large
+    ut_metrics
     ut_move
     ut_move_reboots
     ut_olap
@@ -370,7 +371,7 @@ PEERDIR(
     contrib/ydb/core/wrappers
     contrib/ydb/core/ydb_convert
     contrib/ydb/library/aclib
-    contrib/ydb/library/aclib/protos
+    contrib/ydb/library/aclib/protos/identity
     contrib/ydb/library/login
     contrib/ydb/library/login/protos
     contrib/ydb/library/protobuf_printer

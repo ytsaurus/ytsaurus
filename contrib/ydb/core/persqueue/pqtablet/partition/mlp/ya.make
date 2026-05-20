@@ -13,6 +13,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/iterator
     contrib/ydb/core/persqueue/common
     contrib/ydb/core/persqueue/common/proxy
     contrib/ydb/core/persqueue/events

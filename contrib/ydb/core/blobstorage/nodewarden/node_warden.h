@@ -5,7 +5,7 @@
 #include <contrib/ydb/core/blobstorage/vdisk/common/vdisk_config.h>
 #include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_drivemodel_db.h>
 #include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_factory.h>
-#include <contrib/ydb/core/nbs/cloud/blockstore/config/protos/storage.pb.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/config/protos/ddisk_config.pb.h>
 #include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/library/pdisk_io/sector_map.h>
 

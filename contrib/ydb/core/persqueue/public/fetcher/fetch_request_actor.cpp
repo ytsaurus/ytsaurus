@@ -6,7 +6,6 @@
 #include <contrib/ydb/core/persqueue/events/global.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/core/persqueue/public/describer/describer.h>
-#include <contrib/ydb/core/persqueue/public/pq_rl_helpers.h>
 #include <contrib/ydb/core/persqueue/public/write_meta/write_meta.h>
 #include <contrib/ydb/core/tx/replication/ydb_proxy/ydb_proxy.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>

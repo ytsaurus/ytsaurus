@@ -30,6 +30,7 @@ PEERDIR(
     yql/essentials/minikql/comp_nodes
     yql/essentials/public/issue
     contrib/ydb/core/quoter/public
+    library/cpp/html/escape
 )
 
 YQL_LAST_ABI_VERSION()

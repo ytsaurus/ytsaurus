@@ -23,6 +23,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/data_sharing/protos
     contrib/ydb/core/tx/columnshard/blobs_action/events
     contrib/ydb/core/tx/columnshard/blobs_action/protos
+    contrib/ydb/core/tx/columnshard/blobs_action/counters
 )
 
 END()
