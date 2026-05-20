@@ -1165,11 +1165,6 @@ private:
         const TTimeoutOptions& options,
         TCallback<T()> callback);
 
-    template <class T>
-    auto CallAndRetryIfMetadataCacheIsInconsistent(
-        const TDetailedProfilingInfoPtr& profilingInfo,
-        T&& callback) -> decltype(callback());
-
     void SetMutationId(
         const NRpc::IClientRequestPtr& request,
         const TMutatingOptions& options);
