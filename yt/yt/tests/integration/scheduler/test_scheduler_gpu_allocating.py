@@ -18,8 +18,6 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path
 )
 
-from yt_helpers import profiler_factory
-
 from yt.test_helpers import are_almost_equal
 
 from yt_gpu_scheduler_helpers import (
@@ -1493,10 +1491,6 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
 
     @authors("severovv")
     def test_preemptive_planning_limits(self):
-        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu"})
-        prefix = "scheduler/gpu_policy"
-        preempted_assignments_counter = profiler.counter(prefix + "/preempted_assignments_count")
-
         create_pool("limited", pool_tree="gpu", attributes={"strong_guarantee_resources": {"gpu": 8}, "resource_limits": {"gpu": 8}})
         create_pool("guaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 8}})
         create_pool("unguaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 0}}, wait_for_orchid=True)
@@ -1506,7 +1500,6 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
             job_count=1,
             pool="guaranteed",
         )
-
         preemptive_runner = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
             job_count=1,
@@ -1515,6 +1508,7 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
 
         wait(lambda: len(bg_runner.get_running_jobs()) == 1)
         wait(lambda: len(preemptive_runner.get_running_jobs()) == 1)
+        bg_runner_allocation_id = get_allocation_id_from_job_id(list(bg_runner.get_running_jobs())[0])
 
         will_replace = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
@@ -1526,7 +1520,9 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
         wait(lambda: len(will_replace.get_running_jobs()) == 1)
         wait(lambda: len(preemptive_runner.get_running_jobs()) == 0)
 
-        wait(lambda: preempted_assignments_counter.get() == 1)
+        # check that bg runner allocation was never preempted during the test
+        assert bg_runner_allocation_id == get_allocation_id_from_job_id(list(bg_runner.get_running_jobs())[0])
+        wait(lambda: get(preemptive_runner.get_path() + "/@brief_progress/jobs")["aborted"] == 1)
 
     @authors("severovv")
     def test_controller_returns_more_than_pool_limit(self):
