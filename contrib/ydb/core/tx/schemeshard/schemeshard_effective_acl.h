@@ -1,7 +1,10 @@
 #pragma once
 
 #include <contrib/ydb/library/aclib/aclib.h>
-#include <contrib/ydb/library/aclib/protos/aclib.pb.h>
+
+namespace NACLibProto {
+    class TSecurityObject;
+}
 
 namespace NKikimr {
 namespace NSchemeShard {

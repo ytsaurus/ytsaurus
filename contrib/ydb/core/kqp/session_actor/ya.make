@@ -15,6 +15,7 @@ PEERDIR(
     contrib/ydb/core/docapi
     contrib/ydb/core/kqp/common
     contrib/ydb/core/kqp/federated_query
+    contrib/ydb/library/security
     contrib/ydb/public/sdk/cpp/src/library/operation_id
     contrib/ydb/core/tx/schemeshard
 )

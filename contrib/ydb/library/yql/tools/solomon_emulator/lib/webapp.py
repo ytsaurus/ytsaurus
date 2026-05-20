@@ -65,10 +65,6 @@ class SolomonEmulator(object):
     async def api_v2_push(self, request):
         self._api_calls += 1
 
-        if (self.next_response_code and self.next_response_code != 200):
-            logger.debug("trying to write, sending response code {}".format(self.next_response_code))
-            return web.Response(status=self.next_response_code)
-
         logger.debug("push: {}".format(await request.read()))
         self._handle_auth(request)
 
@@ -92,10 +88,6 @@ class SolomonEmulator(object):
 
     async def data_write(self, request):
         self._api_calls += 1
-
-        if (self.next_response_code and self.next_response_code != 200):
-            logger.debug("trying to write, sending response code {}".format(self.next_response_code))
-            return web.Response(status=self.next_response_code)
 
         logger.debug("write: {}".format(await request.read()))
         self._handle_auth(request)
@@ -217,18 +209,11 @@ class SolomonEmulator(object):
         cluster = request.rel_url.query.get('cluster', None) or request.rel_url.query.get('folderId', None)
         project = request.rel_url.query.get('project', cluster)
         service = request.rel_url.query.get('service', None)
-        self.next_response_code = None
 
         if project is None and cluster is None and service is None:
             self._data.clear()
         else:
             self._data.delete(project, cluster, service)
-        return web.Response(status=200)
-
-    async def config(self, request):
-        config_json = json.loads(await request.read())
-        if "response_code" in config_json:
-            self.next_response_code = config_json["response_code"]
         return web.Response(status=200)
 
     async def cleanup_api_calls(self, request):
@@ -356,7 +341,6 @@ def create_web_app(emulator):
         web.post("/monitoring/v2/data/write", emulator.data_write),
         web.post("/metrics/post", emulator.metrics_post),
         web.post("/cleanup", emulator.cleanup),
-        web.post("/config", emulator.config),
         web.post("/cleanup/api/calls", emulator.cleanup_api_calls)
     ])
 

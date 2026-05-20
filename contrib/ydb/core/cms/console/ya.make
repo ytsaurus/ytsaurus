@@ -100,6 +100,7 @@ PEERDIR(
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/util
     contrib/ydb/library/aclib
+    contrib/ydb/library/protobuf_printer
     contrib/ydb/library/yaml_config
     contrib/ydb/public/api/protos
     contrib/ydb/public/sdk/cpp/src/library/operation_id

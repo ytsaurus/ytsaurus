@@ -36,15 +36,11 @@ TVector<TExprNode::TPtr> TPhysicalQueryBuilder::BuildPhysicalStageGraph() {
             }
             processedInputsIds.insert(inputStageId);
 
-            auto inputStage = finalizedStages.at(inputStageId);
+            const auto inputStage = finalizedStages.at(inputStageId);
             const auto connections = Graph.GetConnections(inputStageId, id);
             for (const auto& connection : connections) {
                 YQL_CLOG(TRACE, CoreDq) << "Building connection: " << inputStageId << "->" << id << ", " << connection->Type;
-                TExprNode::TPtr newStage;
-                auto dqConnection = connection->BuildConnection(inputStage, StagePos.at(inputStageId), newStage, ctx);
-                if (newStage) {
-                    phyStages.emplace_back(newStage);
-                }
+                auto dqConnection = connection->BuildConnection(inputStage, StagePos.at(inputStageId), ctx);
                 YQL_CLOG(TRACE, CoreDq) << "Built connection: " << inputStageId << "->" << id << ", " << connection->Type;
                 inputConnections.push_back(dqConnection);
             }
@@ -61,8 +57,8 @@ TVector<TExprNode::TPtr> TPhysicalQueryBuilder::BuildPhysicalStageGraph() {
                 stageInputArgs = StageArgs.at(id);
             }
 
-            stage = BuildDqPhyStage(stageInputConnections, stageInputArgs, Stages.at(id), NYql::NDq::TDqStageSettings().BuildNode(ctx, StagePos.at(id)), ctx,
-                                    StagePos.at(id));
+            stage = BuildDqPhyStage(stageInputConnections, stageInputArgs, Stages.at(id), NYql::NDq::TDqStageSettings().New().BuildNode(ctx, StagePos.at(id)),
+                                    ctx, StagePos.at(id));
             phyStages.emplace_back(stage);
             YQL_CLOG(TRACE, CoreDq) << "Added stage " << stage->UniqueId();
         }
@@ -72,11 +68,11 @@ TVector<TExprNode::TPtr> TPhysicalQueryBuilder::BuildPhysicalStageGraph() {
             if (readPtr) {
                 auto read = TExprBase(readPtr).Cast<TKqpBlockReadOlapTableRanges>();
                 if (!read.Ranges().Maybe<TCoVoid>()) {
-                    auto precomputeResult = BuildMaterialize(read.Ranges().Ptr());
+                    const auto materializeResult = BuildMaterialize(read.Ranges().Ptr());
                     // clang-fomrat off
-                    auto newRead = Build<TKqpBlockReadOlapTableRanges>(ctx, readPtr->Pos())
+                    const auto newRead = Build<TKqpBlockReadOlapTableRanges>(ctx, readPtr->Pos())
                         .Table(read.Table())
-                        .Ranges(precomputeResult)
+                        .Ranges(materializeResult)
                         .Columns(read.Columns())
                         .Settings(read.Settings())
                         .ExplainPrompt(read.ExplainPrompt())
@@ -108,7 +104,7 @@ TExprNode::TPtr TPhysicalQueryBuilder::BuildMaterialize(TExprNode::TPtr node) {
     auto status =
         ::PeepHoleOptimize(TExprBase(node), afterPeephole, ctx, RBOCtx.PeepholeTypeAnnTransformer, RBOCtx.TypeCtx, RBOCtx.KqpCtx.Config, false, true, {});
     if (status != IGraphTransformer::TStatus::Ok) {
-        ctx.AddError(TIssue(ctx.GetPosition(node->Pos()), "Peephole optimization failed for precompute in NEW RBO"));
+        ctx.AddError(TIssue(ctx.GetPosition(node->Pos()), "Peephole optimization failed for materialize in NEW RBO"));
         return nullptr;
     }
 
@@ -122,7 +118,8 @@ TExprNode::TPtr TPhysicalQueryBuilder::BuildMaterialize(TExprNode::TPtr node) {
     .Done().Ptr();
     // clang-format on
 
-    auto phyStage = BuildDqPhyStage({}, {}, rangesProgram, NYql::NDq::TDqStageSettings().BuildNode(ctx, node->Pos()), ctx, node->Pos());
+    auto stageSettings = NYql::NDq::TDqStageSettings().New().SetPartitionMode(NYql::NDq::TDqStageSettings::EPartitionMode::Single).BuildNode(ctx, node->Pos());
+    auto phyStage = BuildDqPhyStage({}, {}, rangesProgram, std::move(stageSettings), ctx, node->Pos());
 
     // clang-format off
     auto result = Build<TDqCnValue>(ctx, node->Pos())
@@ -149,13 +146,17 @@ TExprNode::TPtr TPhysicalQueryBuilder::BuildMaterialize(TExprNode::TPtr node) {
     return param;
 }
 
+bool TPhysicalQueryBuilder::IsSingleTaskConnection(const TExprBase& input) const {
+    return input.Maybe<TDqCnUnionAll>() || input.Maybe<TDqCnMerge>();
+}
+
 TExprNode::TPtr TPhysicalQueryBuilder::GetFinalStage(const TExprNode::TPtr& stage) const {
     auto& ctx = RBOCtx.ExprCtx;
     TExprNode::TPtr finalStage;
     bool needFinalUnionStage = false;
     // Final stage, which is input for DqCnResult, should have only one 1 task.
     for (const auto& input : TDqPhyStage(stage).Inputs()) {
-        if (!input.Maybe<TDqCnUnionAll>()) {
+        if (!IsSingleTaskConnection(input)) {
             needFinalUnionStage = true;
             break;
         }

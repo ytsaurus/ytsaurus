@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/ydb/core/io_formats/json
     contrib/ydb/core/scheme
     contrib/ydb/core/scheme_types
     yql/essentials/types/binary_json

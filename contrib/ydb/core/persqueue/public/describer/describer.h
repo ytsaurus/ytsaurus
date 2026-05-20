@@ -3,7 +3,6 @@
 #include <contrib/ydb/core/persqueue/events/events.h>
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
-#include <contrib/ydb/library/actors/core/event_local.h>
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>
 
 namespace NKikimr::NPQ::NDescriber {
@@ -51,6 +50,7 @@ struct TEvDescribeTopicsResponse : public NActors::TEventLocal<TEvDescribeTopics
 struct TDescribeSettings {
     TIntrusiveConstPtr<NACLib::TUserToken> UserToken;
     NACLib::EAccessRights AccessRights;
+    bool ForceSyncVersion = false;
 };
 
 NActors::IActor* CreateDescriberActor(const NActors::TActorId& parent,

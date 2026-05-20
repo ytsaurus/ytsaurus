@@ -19,6 +19,7 @@ SRCS(
     actors/kafka_read_session_utils.cpp
     actors/kafka_offset_fetch_actor.cpp
     actors/kafka_offset_commit_actor.cpp
+    actors/kafka_offset_commit_actor_sql.cpp
     actors/kafka_create_topics_actor.cpp
     actors/kafka_create_partitions_actor.cpp
     actors/kafka_alter_configs_actor.cpp
@@ -64,6 +65,7 @@ PEERDIR(
     contrib/ydb/core/base
     contrib/ydb/core/persqueue/public/describer
     contrib/ydb/core/persqueue/public/fetcher
+    contrib/ydb/core/persqueue/public/schema
     contrib/ydb/core/persqueue/public/write_meta
     contrib/ydb/core/protos
     contrib/ydb/core/raw_socket
