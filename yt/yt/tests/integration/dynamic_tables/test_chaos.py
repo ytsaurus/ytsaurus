@@ -6369,7 +6369,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         _alter("sync")
         _check(2)
 
-    @authors("ponasenko-rs")
+    @authors("ponasenko-rs", "osidorkin")
     @pytest.mark.parametrize("action", ["migration", "write"])
     def test_client_keeps_connection_to_chaos_cell(self, action):
         [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
@@ -6383,20 +6383,26 @@ class TestChaosMetaCluster(ChaosTestBase):
         set(f"//sys/chaos_nodes/{nodes[0]}/@user_tags", ["custom"], driver=remote_driver2)
         set(f"#{beta_area_id}/@node_tag_filter", "custom", driver=remote_driver2)
 
-        def cell_located_on_node(cell, node, driver=None):
-            def get_peer():
-                peers = get(f"//sys/chaos_cells/{cell}/@peers", driver=driver)
-                assert len(peers) == 1
-                peer = peers[0]
-                assert "alien" not in peer
-                return peer
+        def wait_for_cell_is_good_on_node(cell: str, node: str):
+            def cell_located_on_node(cell, node, alien=False, driver=None):
+                def get_peer():
+                    peers = get(f"//sys/chaos_cells/{cell}/@peers", driver=driver)
+                    assert len(peers) == 1
+                    peer = peers[0]
+                    assert ("alien" in peer) == alien
+                    return peer
 
-            def checkable():
-                peer = get_peer()
-                return "address" in peer and peer["address"] == node
-            return checkable
+                def checkable():
+                    peer = get_peer()
+                    return "address" in peer and peer["address"] == node
+                return checkable
 
-        wait(cell_located_on_node(beta_cell, nodes[0], driver=remote_driver2))
+            wait(cell_located_on_node(cell, node, driver=remote_driver2))
+            wait(lambda: get(f"#{cell}/@health", driver=remote_driver2) == "good")
+            wait(cell_located_on_node(cell, node, alien=True))
+            wait(lambda: get(f"#{cell}/@health") == "good")
+
+        wait_for_cell_is_good_on_node(beta_cell, nodes[0])
 
         card_id1 = create_replication_card(chaos_cell_id=beta_cell)
 
@@ -6421,7 +6427,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             insert_rows("//tmp/t", values(0))
 
         set(f"#{beta_area_id}/@node_tag_filter", "!custom", driver=remote_driver2)
-        wait(cell_located_on_node(beta_cell, nodes[1], driver=remote_driver2))
+        wait_for_cell_is_good_on_node(beta_cell, nodes[1])
 
         assert exists(f"#{card_id1}")
 
