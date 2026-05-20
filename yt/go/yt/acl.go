@@ -7,6 +7,7 @@ type Permission = string
 
 const (
 	PermissionRead                  Permission = "read"
+	PermissionFullRead              Permission = "full_read"
 	PermissionWrite                 Permission = "write"
 	PermissionUse                   Permission = "use"
 	PermissionAdminister            Permission = "administer"
