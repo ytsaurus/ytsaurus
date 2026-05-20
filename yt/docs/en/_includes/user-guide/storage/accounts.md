@@ -85,7 +85,7 @@ my_subaccount2
 
 The maximum allowable account tree height is 10.
 
-You can create a topmost account in the {{product-name}} web interface by clicking **Create account** on the **Accounts** page. You can create nested accounts using the command line or the {{product-name}} web interface.
+You can create nested accounts using the command line or the {{product-name}} web interface.
 
 {% cut "In the {{product-name}} web interface" %}
 
