@@ -786,6 +786,24 @@ class TestBundleController(TestBundleControllerBase):
         set(f"//sys/tablet_cell_bundles/{BUNDLE}/@options/changelog_pirmary_medium", "invalid")
         self._wait_for_bundle_controller_iterations((3, 1))
 
+    @authors("navasardianna")
+    def test_invalid_bundle_config(self):
+        self._initialize_zone_default()
+
+        self._create_bundle(
+            "chaplin",
+            bundle_controller_target_config={
+                "tablet_node_count": 1,
+            },
+        )
+
+        self._wait_for_bundle_controller_iterations((5, 0), fail_on_error=True)
+
+        set("//sys/tablet_cell_bundles/chaplin/@bundle_controller_target_config/enable_drills_mode",
+            "incorrect_value")
+
+        self._wait_for_bundle_controller_iterations((5, 0), fail_on_error=True)
+
     @authors("grachevkirill")
     def DISABLED_test_cms_requests_are_processed(self):
         self._initialize_zone_default()
