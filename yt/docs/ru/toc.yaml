@@ -256,6 +256,9 @@ items:
         - name: Рекомендации
           when: audience == "public"
           href: user-guide/data-processing/operations/recommendations.md
+        - name: Квотирование межкластерной сетевой полосы
+          when: audience == "public"
+          href: user-guide/data-processing/operations/cluster-throttlers.md
         - name: Образы ФС
           when: audience == "public"
           href: user-guide/data-processing/layers/layer-paths.md
@@ -583,6 +586,8 @@ items:
         href: admin-guide/yql-query-isolation.md
       - name: Шифрование в нативном протоколе
         href: admin-guide/native-encryption.md
+      - name: Квотирование межкластерной сетевой полосы
+        href: admin-guide/cluster-throttlers.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
