@@ -224,7 +224,7 @@ private:
             queue->ConfigureWeightThrottler(newConfig);
             queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
-            // We utilize the fact that #GetOrCreateThrottle keeps #TWrappedThrottler pointers valid,
+            // We utilize the fact that #GetOrCreateThrottler keeps #TWrappedThrottler pointers valid,
             // including the one inside the request queue.
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
