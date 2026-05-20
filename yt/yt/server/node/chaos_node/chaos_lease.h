@@ -32,7 +32,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChaosLeaseId>, NestedLeaseIds);
 
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(EChaosLeaseState, State);
 
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, RemovePromise);
 
@@ -42,8 +41,14 @@ public:
     bool IsNormalState() const override;
     bool IsRoot() const;
 
+    void SetState(EChaosLeaseState newState);
+    EChaosLeaseState GetState() const;
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+private:
+    EChaosLeaseState State_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

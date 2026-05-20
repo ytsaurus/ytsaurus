@@ -16,6 +16,22 @@ bool TChaosLease::IsNormalState() const
     return State_ == EChaosLeaseState::Normal;
 }
 
+void TChaosLease::SetState(EChaosLeaseState newState)
+{
+    State_ = newState;
+
+    if (State_ == EChaosLeaseState::RevokingShortcutsForRemoval) {
+        if (!RemovePromise_) {
+            RemovePromise_ = NewPromise<void>();
+        }
+    }
+}
+
+EChaosLeaseState TChaosLease::GetState() const
+{
+    return State_;
+}
+
 void TChaosLease::Save(TSaveContext& context) const
 {
     TChaosObjectBase::Save(context);
@@ -44,7 +60,9 @@ void TChaosLease::Load(TLoadContext& context)
     Load(context, ParentId_);
     Load(context, NestedLeaseIds_);
     Load(context, Timeout_);
-    Load(context, State_);
+
+    auto state = Load<EChaosLeaseState>(context);
+    SetState(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
