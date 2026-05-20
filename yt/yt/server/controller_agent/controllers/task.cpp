@@ -803,6 +803,20 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         estimatedResourceUsage,
         *joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor);
+
+    if (auto cpuLimitMultiplier = TaskHost_->GetSpec()->TestingOperationOptions->ScheduleAllocationCpuMultiplier;
+        cpuLimitMultiplier && *cpuLimitMultiplier != 1.0)
+    {
+        auto originalNeededResources = neededResources;
+        neededResources.SetCpu(neededResources.GetCpu() * *cpuLimitMultiplier);
+
+        YT_LOG_DEBUG(
+            "Adjusted schedule allocation CPU for testing (CpuLimitMultiplier: %v, OriginalNeededResources: %v, AdjustedNeededResources: %v)",
+            *cpuLimitMultiplier,
+            FormatResources(originalNeededResources),
+            FormatResources(neededResources));
+    }
+
     joblet->ResourceLimits = neededResources.ToJobResources();
 
     auto userJobSpec = GetUserJobSpec();

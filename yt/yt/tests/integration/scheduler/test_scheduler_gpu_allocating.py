@@ -10,13 +10,15 @@ from yt_env_setup import (
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
-    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla,
+    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
 )
 
 from yt_scheduler_helpers import (
     scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_path,
     scheduler_orchid_operation_path
 )
+
+from yt_helpers import profiler_factory
 
 from yt.test_helpers import are_almost_equal
 
@@ -1428,3 +1430,125 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(YTEnvSetup):
 
 
 ##################################################################
+
+class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
+    @authors("severovv")
+    def test_pool_limits_change(self):
+        create_pool("limited", pool_tree="gpu", attributes={"resource_limits": {"gpu": 10}}, wait_for_orchid=True)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+        )
+        wait(lambda: len(op.get_running_jobs()) == 2)
+
+        set("//sys/pool_trees/gpu/limited/@resource_limits", {"gpu": 5})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        set("//sys/pool_trees/gpu/limited/@resource_limits", {"gpu": 13})
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+    @authors("severovv")
+    def test_operation_limits_change(self):
+
+        def set_operation_limit(op, limit):
+            update_op_parameters(
+                op.id,
+                parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": limit}}}},
+            )
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+        )
+        set_operation_limit(op, 10)
+        wait(lambda: len(op.get_running_jobs()) == 2)
+
+        set_operation_limit(op, 5)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        set_operation_limit(op, 13)
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+    @authors("severovv")
+    def test_over_fs_planning_limits(self):
+        create_pool("limited", pool_tree="gpu", attributes={"resource_limits": {"gpu": 12}}, wait_for_orchid=True)
+
+        _ = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+            spec={"scheduling_tag_filter": "unschedulable"}
+        )
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=4,
+            pool="limited",
+        )
+
+        # one job over fair share but still within the limits
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+    @authors("severovv")
+    def test_preemptive_planning_limits(self):
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu"})
+        prefix = "scheduler/gpu_policy"
+        preempted_assignments_counter = profiler.counter(prefix + "/preempted_assignments_count")
+
+        create_pool("limited", pool_tree="gpu", attributes={"strong_guarantee_resources": {"gpu": 8}, "resource_limits": {"gpu": 8}})
+        create_pool("guaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 8}})
+        create_pool("unguaranteed", pool_tree="gpu", parent_name="limited", attributes={"strong_guarantee_resources": {"gpu": 0}}, wait_for_orchid=True)
+
+        bg_runner = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="guaranteed",
+        )
+
+        preemptive_runner = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="unguaranteed",
+        )
+
+        wait(lambda: len(bg_runner.get_running_jobs()) == 1)
+        wait(lambda: len(preemptive_runner.get_running_jobs()) == 1)
+
+        will_replace = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            pool="guaranteed",
+        )
+
+        wait(lambda: len(bg_runner.get_running_jobs()) == 1)
+        wait(lambda: len(will_replace.get_running_jobs()) == 1)
+        wait(lambda: len(preemptive_runner.get_running_jobs()) == 0)
+
+        wait(lambda: preempted_assignments_counter.get() == 1)
+
+    @authors("severovv")
+    def test_controller_returns_more_than_pool_limit(self):
+        create_pool("strict_pool", pool_tree="gpu", attributes={"resource_limits": {"cpu": 3.0}}, wait_for_orchid=True)
+
+        # Two full-host jobs are assigned to different nodes
+        # Both of them are scheduled, first gets 3.0 cpu limit, second 2.0
+        # After returning from CA one of them will be aborted because of limit violation
+        op = run_sleeping_vanilla(
+            task_patch={"cpu_limit": 1.0, "gpu_limit": 8, "enable_gpu_layers": False},
+            pool="strict_pool",
+            job_count=2,
+            spec={
+                "testing": {
+                    "schedule_allocation_cpu_multiplier": 2.0,
+                    "inside_schedule_job_delay": {
+                        "duration": 1000,
+                    },
+                },
+            },
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=2, exactly=True)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: get(op.get_path() + "/controller_orchid/progress/jobs/aborted/non_scheduled/scheduling_resource_overcommit", 0) == 1)

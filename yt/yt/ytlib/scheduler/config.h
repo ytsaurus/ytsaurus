@@ -667,6 +667,8 @@ struct TTestingOperationOptions
 
     TDelayConfigPtr SettleJobDelay;
 
+    std::optional<double> ScheduleAllocationCpuMultiplier;
+
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
     std::optional<TDuration> FailOperationDelay;
