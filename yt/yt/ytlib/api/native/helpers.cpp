@@ -285,14 +285,14 @@ TSelectRowsOptions GetDefaultSelectRowsOptions(
 ////////////////////////////////////////////////////////////////////////////////
 
 TDuration InvalidateMountCacheAndGetRetryDelay(
-    const IClientPtr& client,
+    const IConnectionPtr& connection,
     const TDetailedProfilingInfoPtr& profilingInfo,
     const TLogger& Logger,
     const TError& error,
     int* retryCount)
 {
-    const auto& config = client->GetNativeConnection()->GetStaticConfig();
-    const auto& tableMountCache = client->GetNativeConnection()->GetTableMountCache();
+    const auto& config = connection->GetStaticConfig();
+    const auto& tableMountCache = connection->GetTableMountCache();
 
     auto invalidationResult = tableMountCache->InvalidateOnError(
         error,
