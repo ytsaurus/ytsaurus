@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/google/tink/go/keyset"
+	"github.com/tink-crypto/tink-go/v2/keyset"
 	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/core/buildinfo"
