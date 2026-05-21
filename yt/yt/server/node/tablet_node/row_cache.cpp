@@ -276,6 +276,32 @@ i64 TRowCache::GetUsedBytesCount() const
     return MemoryTracker_->GetUsedBytesCount();
 }
 
+TRowCache::TAliveRowsStatistics TRowCache::GetPreciseAliveRowsStatistics()
+{
+    TAliveRowsStatistics stats;
+
+    auto onItem = [&] (auto itemRef) {
+        auto head = itemRef.Get();
+        if (!head) {
+            return;
+        }
+
+        auto item = GetLatestRow(std::move(head));
+        if (item->Outdated.load(std::memory_order::acquire)) {
+            return;
+        }
+
+        stats.ByteSize += sizeof(TCachedRow) + item->Space;
+        ++stats.RowCount;
+    };
+
+    auto lookuper = Cache_.GetLookuper();
+    auto* primary = lookuper.GetPrimary();
+    primary->ForEach(onItem);
+
+    return stats;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
