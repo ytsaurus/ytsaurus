@@ -596,7 +596,7 @@ void TOperationControllerBase::InitializeInputTransactions()
             filesAndTables.push_back(path);
         }
 
-        auto layerPaths = GetLayerPaths(userJobSpec);
+        auto layerPaths = GetAllUniqueLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
             filesAndTables.push_back(path);
         }
@@ -958,7 +958,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add layer files.
-        for (const auto& path : GetLayerPaths(userJobSpec)) {
+        for (const auto& path : GetAllUniqueLayerPaths(userJobSpec)) {
             files.emplace_back(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
@@ -11812,75 +11812,17 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(TTask& task
     }
 }
 
-std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
+THashSet<TRichYPath> TOperationControllerBase::GetAllUniqueLayerPaths(
     const NYT::NScheduler::TUserJobSpecPtr& userJobSpec) const
 {
-    if (!Config_->TestingOptions->RootfsTestLayers.empty()) {
-        return Config_->TestingOptions->RootfsTestLayers;
-    }
-    std::vector<TRichYPath> layerPaths;
-    if (userJobSpec->DockerImage) {
-        TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config_->DockerRegistry);
-
-        // External docker images are not compatible with any additional layers.
-        if (!dockerImage.IsInternal || !Config_->DockerRegistry->TranslateInternalImagesIntoLayers) {
-            return {};
-        }
-
-        // Resolve internal docker image into base layers.
-        layerPaths = GetLayerPathsFromDockerImage(Host_->GetClient(), dockerImage);
-    }
-
-    {
-        // User can order several identical layers.
-        THashSet<TRichYPath> allLayersFromJobSpec;
-        for (const auto& [_, volume] : userJobSpec->Volumes) {
-            for (const auto& layer : volume->Layers) {
-                if (allLayersFromJobSpec.insert(layer->Path).second) {
-                    layerPaths.push_back(layer->Path);
-                }
-            }
+    // User can order several identical layers.
+    THashSet<TRichYPath> allLayersFromJobSpec;
+    for (const auto& [_, volume] : userJobSpec->Volumes) {
+        for (const auto& layer : volume->Layers) {
+            allLayersFromJobSpec.insert(layer->Path);
         }
     }
-
-    if (layerPaths.empty() && Spec_->DefaultBaseLayerPath) {
-        layerPaths.insert(layerPaths.begin(), *Spec_->DefaultBaseLayerPath);
-    }
-    if (Config_->DefaultLayerPath && layerPaths.empty()) {
-        // If no layers were specified, we insert the default one.
-        layerPaths.insert(layerPaths.begin(), *Config_->DefaultLayerPath);
-    }
-    if (Config_->CudaToolkitLayerDirectoryPath &&
-        !layerPaths.empty() &&
-        userJobSpec->CudaToolkitVersion &&
-        userJobSpec->EnableGpuLayers)
-    {
-        // If cuda toolkit is requested, add the layer as the topmost user layer.
-        auto path = *Config_->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
-        layerPaths.insert(layerPaths.begin(), path);
-    }
-    if (userJobSpec->Profilers) {
-        for (const auto& profilerSpec : *userJobSpec->Profilers) {
-            auto cudaProfilerLayerPath = Spec_->CudaProfilerLayerPath
-                ? Spec_->CudaProfilerLayerPath
-                : Config_->CudaProfilerLayerPath;
-
-            if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
-                layerPaths.insert(layerPaths.begin(), *cudaProfilerLayerPath);
-                break;
-            }
-        }
-    }
-    if (!layerPaths.empty()) {
-        auto systemLayerPath = userJobSpec->SystemLayerPath
-            ? userJobSpec->SystemLayerPath
-            : Config_->SystemLayerPath;
-        if (systemLayerPath) {
-            // This must be the top layer, so insert in the beginning.
-            layerPaths.insert(layerPaths.begin(), *systemLayerPath);
-        }
-    }
-    return layerPaths;
+    return allLayersFromJobSpec;
 }
 
 const TThrottlerManagerPtr& TOperationControllerBase::GetChunkLocationThrottlerManager() const
