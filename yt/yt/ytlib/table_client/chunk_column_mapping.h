@@ -23,9 +23,13 @@ private:
     const int TableKeyColumnCount_;
     const int ChunkKeyColumnCount_;
     const int ChunkColumnCount_;
-    // Mapping from table schema value index to chunk schema value id.
-    // Schema value index is value id minus key column count.
-    std::vector<int> ValueIdMapping_;
+
+    // For each value (aka non-key) column of the table, store its index
+    // in the chunk schema. Note that this vector is indexed by relative
+    // index of the value column, so 0 for the first non-key column, 1 for
+    // the second, etc.
+    // TODO(s-berdnikov): Consider changing -1 as a sentinel to std::nullopt.
+    const std::vector<int> TableValueIndexToChunkIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping)

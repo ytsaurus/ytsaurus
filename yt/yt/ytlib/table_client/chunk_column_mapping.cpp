@@ -24,7 +24,7 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
         throwIncompatibleKeyColumns();
     }
 
-    for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
+    for (auto readerIndex : std::views::iota(0, readerSchema.GetKeyColumnCount())) {
         auto& column = readerSchema.Columns()[readerIndex];
         YT_VERIFY (column.SortOrder());
 
@@ -38,19 +38,15 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
             {
                 throwIncompatibleKeyColumns();
             }
-        } else {
-            auto* chunkColumn = chunkSchema.FindColumnByStableName(column.StableName());
-            if (chunkColumn) {
-                THROW_ERROR_EXCEPTION(
-                    "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
-                    column.GetDiagnosticNameString(),
-                    ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf());
-            }
+        } else if (chunkSchema.FindColumnByStableName(column.StableName())) {
+            THROW_ERROR_EXCEPTION(
+                "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
+                column.GetDiagnosticNameString(),
+                ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf());
         }
     }
 
-    for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < std::ssize(readerSchema.Columns()); ++readerIndex) {
-        auto& readerColumn = readerSchema.Columns()[readerIndex];
+    for (const auto& readerColumn : readerSchema.Columns() | std::views::drop(readerSchema.GetKeyColumnCount())) {
         auto* chunkColumn = chunkSchema.FindColumnByStableName(readerColumn.StableName());
         if (!chunkColumn) {
             // This is a valid case, simply skip the column.
@@ -88,107 +84,94 @@ TChunkColumnMapping::TChunkColumnMapping(
     : TableKeyColumnCount_(tableSchema->GetKeyColumnCount())
     , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())
-{
-    ValidateSchema(*chunkSchema, *tableSchema);
+    , TableValueIndexToChunkIndex_(std::invoke([&] {
+        ValidateSchema(*chunkSchema, *tableSchema);
 
-    ValueIdMapping_.resize(tableSchema->GetColumnCount() - TableKeyColumnCount_, -1);
+        std::vector<int> result(tableSchema->GetColumnCount() - TableKeyColumnCount_, -1);
+        for (auto index : std::views::iota(TableKeyColumnCount_, tableSchema->GetColumnCount())) {
+            const auto& column = tableSchema->Columns()[index];
 
-    for (int index = TableKeyColumnCount_; index < tableSchema->GetColumnCount(); ++index) {
-        auto& column = tableSchema->Columns()[index];
-
-        auto* chunkColumn = chunkSchema->FindColumnByStableName(column.StableName());
-        if (!chunkColumn) {
-            // This is a valid case, simply skip the column.
-            continue;
+            // NB: Column might be absent in chunk.
+            if (auto* chunkColumn = chunkSchema->FindColumnByStableName(column.StableName())) {
+                result[index - TableKeyColumnCount_] = chunkSchema->GetColumnIndex(*chunkColumn);
+            }
         }
-
-        auto chunkIndex = chunkSchema->GetColumnIndex(*chunkColumn);
-        ValueIdMapping_[index - TableKeyColumnCount_] = chunkIndex;
-    }
-}
+        return result;
+    }))
+{ }
 
 std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdMapping(
     const TColumnFilter& columnFilter) const
 {
-    std::vector<TColumnIdMapping> valueIdMapping;
-
     if (columnFilter.IsUniversal()) {
-        valueIdMapping.reserve(std::ssize(ValueIdMapping_));
+        auto resultRange = std::views::iota(0, std::ssize(TableValueIndexToChunkIndex_))
+            | std::views::filter([&] (auto tableValueIndex) {
+                return TableValueIndexToChunkIndex_[tableValueIndex] >= 0;
+            })
+            | std::views::transform([&] (auto tableValueIndex) {
+                return TColumnIdMapping{
+                    .ChunkSchemaIndex = TableValueIndexToChunkIndex_[tableValueIndex],
+                    .ReaderSchemaIndex = TableKeyColumnCount_ + tableValueIndex,
+                };
+            })
+            | std::views::common;
 
-        for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(ValueIdMapping_); ++schemaValueIndex) {
-            auto chunkIndex = ValueIdMapping_[schemaValueIndex];
-            if (chunkIndex == -1) {
-                continue;
-            }
-
-            valueIdMapping.push_back({
-                .ChunkSchemaIndex = chunkIndex,
-                .ReaderSchemaIndex = TableKeyColumnCount_ + schemaValueIndex,
-            });
-        }
-    } else {
-        auto indexes = TRange(columnFilter.GetIndexes());
-        valueIdMapping.reserve(std::ssize(indexes));
-
-        for (auto index : indexes) {
-            if (index < TableKeyColumnCount_) {
-                continue;
-            }
-
-            auto chunkIndex = ValueIdMapping_[index - TableKeyColumnCount_];
-            if (chunkIndex == -1) {
-                continue;
-            }
-
-            valueIdMapping.push_back({
-                .ChunkSchemaIndex = chunkIndex,
-                .ReaderSchemaIndex = index,
-            });
-        }
+        // TODO(s-berdnikov): Use std::ranges::to once C++23 is avaliable.
+        return {resultRange.begin(), resultRange.end()};
     }
 
-    return valueIdMapping;
+    auto resultRange = columnFilter.GetIndexes()
+        | std::views::filter([&] (auto index) {
+            return index >= TableKeyColumnCount_ &&
+                TableValueIndexToChunkIndex_[index - TableKeyColumnCount_] >= 0;
+        })
+        | std::views::transform([&] (auto index) {
+            return TColumnIdMapping{
+                .ChunkSchemaIndex = TableValueIndexToChunkIndex_[index - TableKeyColumnCount_],
+                .ReaderSchemaIndex = index,
+            };
+        })
+        | std::views::common;
+
+    // TODO(s-berdnikov): Use std::ranges::to once C++23 is avaliable.
+    return {resultRange.begin(), resultRange.end()};
 }
 
 std::vector<int> TChunkColumnMapping::BuildSchemalessHorizontalSchemaIdMapping(
     const TColumnFilter& columnFilter) const
 {
-    std::vector<int> chunkToReaderIdMapping(ChunkColumnCount_, -1);
-
-    int chunkKeyColumnCount = ChunkKeyColumnCount_;
-    for (int index = 0; index < chunkKeyColumnCount; ++index) {
-        chunkToReaderIdMapping[index] = index;
-    }
+    std::vector<int> result(ChunkColumnCount_, -1);
+    std::iota(result.begin(), result.begin() + ChunkKeyColumnCount_, 0);
 
     if (columnFilter.IsUniversal()) {
-        for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(ValueIdMapping_); ++schemaValueIndex) {
-            auto chunkIndex = ValueIdMapping_[schemaValueIndex];
-            if (chunkIndex == -1) {
+        for (auto tableValueIndex : std::views::iota(0, std::ssize(TableValueIndexToChunkIndex_))) {
+            auto chunkIndex = TableValueIndexToChunkIndex_[tableValueIndex];
+            if (chunkIndex < 0) {
                 continue;
             }
 
-            YT_VERIFY(chunkIndex < std::ssize(chunkToReaderIdMapping));
-            YT_VERIFY(chunkIndex >= chunkKeyColumnCount);
-            chunkToReaderIdMapping[chunkIndex] = schemaValueIndex + TableKeyColumnCount_;
+            YT_VERIFY(chunkIndex < std::ssize(result));
+            YT_VERIFY(chunkIndex >= ChunkKeyColumnCount_);
+            result[chunkIndex] = TableKeyColumnCount_ + tableValueIndex;
         }
-    } else {
-        for (auto index : columnFilter.GetIndexes()) {
-            if (index < TableKeyColumnCount_) {
-                continue;
-            }
-
-            auto chunkIndex = ValueIdMapping_[index - TableKeyColumnCount_];
-            if (chunkIndex == -1) {
-                continue;
-            }
-
-            YT_VERIFY(chunkIndex < std::ssize(chunkToReaderIdMapping));
-            YT_VERIFY(chunkIndex >= chunkKeyColumnCount);
-            chunkToReaderIdMapping[chunkIndex] = index;
-        }
+        return result;
     }
 
-    return chunkToReaderIdMapping;
+    for (auto index : columnFilter.GetIndexes()) {
+        if (index < TableKeyColumnCount_) {
+            continue;
+        }
+
+        auto chunkIndex = TableValueIndexToChunkIndex_[index - TableKeyColumnCount_];
+        if (chunkIndex < 0) {
+            continue;
+        }
+
+        YT_VERIFY(chunkIndex < std::ssize(result));
+        YT_VERIFY(chunkIndex >= ChunkKeyColumnCount_);
+        result[chunkIndex] = index;
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
