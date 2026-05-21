@@ -55,6 +55,9 @@ bool HasArgument(const Py::Tuple& args, const Py::Dict& kwargs, const std::strin
 void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
 bool AreArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
 
+//! Returns the mapping value at #key if it is present and not None.
+std::optional<Py::Object> GetOptional(const Py::Mapping& mapping, const std::string& key);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGilGuard
