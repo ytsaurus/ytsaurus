@@ -21,7 +21,7 @@ from yt_commands import (
     create_access_control_object_namespace, create_access_control_object,
     print_debug, decommission_node, write_table, add_maintenance, remove_maintenance, get_singular_chunk_id,
     reset_dynamically_propagated_master_cells, create_tablet_cell, wait_true_for_all_cells,
-    create_tablet_cell_bundle,
+    create_tablet_cell_bundle, gc_collect
 )
 
 from yt_helpers import master_exit_read_only_sync, wait_no_peers_in_read_only
@@ -554,6 +554,14 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
 
+        # COMPAT(theevilbird): Remove after 25.4.
+        if after_first_checkers_lambda is not None:
+            if "check_accounts" in checker_names:
+                checker_names.remove("check_accounts")
+        else:
+            if "check_accounts_25_4" in checker_names:
+                checker_names.remove("check_accounts_25_4")
+
         print_debug("Checkers: ", checker_names)
 
         checkers = [getattr(self, attr) for attr in checker_names]
@@ -624,7 +632,8 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
             lambda driver: get("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd", driver=driver)) == 42
         assert get("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd") == 42
 
-    def check_accounts(self):
+    # COMPAT(theevilbird): remove after 25.4.
+    def check_accounts_25_4(self):
         create_account("acc_sync_create")
 
         create_account("acc_async_remove")
@@ -687,6 +696,86 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
         remove("//tmp/t")
 
+        wait(lambda: not exists("//sys/accounts/acc_async_remove"))
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: not exists("//sys/accounts/acc_async_remove", driver=driver),
+        )
+
+    def check_accounts(self):
+        create_account("acc_sync_create")
+
+        create_account("acc_async_remove")
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"account": "acc_async_remove", "external_cell_tag": 11},
+        )
+
+        create_account("acc_sync_remove")
+        remove_account("acc_sync_remove")
+
+        create_account("acc_async_create", sync=False)
+        wait(
+            lambda: get("//sys/accounts/acc_async_remove/@resource_usage/master_memory/total") > 0
+            and get("//sys/accounts/acc_async_remove/@resource_usage/node_count") > 0
+        )
+        with raises_yt_error("Cannot remove an account \"acc_async_remove\" because its usage is not zero"):
+            remove_account("acc_async_remove", sync=False)
+
+        yield
+
+        wait(lambda: len(ls("//sys/accounts/acc_sync_create/@multicell_statistics")) == self.NUM_SECONDARY_MASTER_CELLS + 1)
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: not exists("//sys/accounts/acc_sync_remove", driver=driver),
+        )
+        assert not exists("//sys/accounts/acc_sync_remove")
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/accounts/acc_sync_create/@life_stage", driver=driver) == "creation_committed",
+        )
+        assert get("//sys/accounts/acc_sync_create/@life_stage") == "creation_committed"
+
+        wait(lambda: get("//sys/accounts/acc_async_create/@life_stage") == "creation_committed")
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/accounts/acc_async_create/@life_stage", driver=driver) == "creation_committed",
+        )
+
+        assert get("//sys/accounts/acc_async_remove/@life_stage") == "creation_committed"
+        wait(
+            lambda: self._do_for_cell(
+                1,
+                lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver),
+            )
+            == "creation_committed"
+        )
+        wait(
+            lambda: self._do_for_cell(
+                2,
+                lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver),
+            )
+            == "creation_committed"
+        )
+        wait(
+            lambda: self._do_for_cell(
+                3,
+                lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver),
+            )
+            == "creation_committed"
+        )
+
+        remove("//tmp/t")
+        gc_collect()
+        wait(lambda: not exists("//tmp/t"))
+        wait(
+            lambda: get("//sys/accounts/acc_async_remove/@resource_usage/master_memory/total") == 0
+            and get("//sys/accounts/acc_async_remove/@resource_usage/node_count") == 0
+        )
+        remove_account("acc_async_remove", sync=False)
         wait(lambda: not exists("//sys/accounts/acc_async_remove"))
         assert_true_for_secondary_cells(
             self.Env,

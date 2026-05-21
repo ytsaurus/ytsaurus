@@ -8,7 +8,7 @@ from yt_commands import (
     read_file, write_file, read_table, write_table, map, sync_create_cells,
     create_dynamic_table, insert_rows, lookup_rows, sync_mount_table, sync_unmount_table,
     sync_freeze_table, get_singular_chunk_id, cluster_resources_equal, get_driver,
-    generate_uuid, abort_all_transactions)
+    generate_uuid, abort_all_transactions, gc_collect)
 
 import yt_error_codes
 
@@ -282,7 +282,7 @@ class TestPortals(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/p/m/f")
         assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/p/m/f"]
 
-    @authors("babenko")
+    @authors("babenko", "theevilbird")
     def test_account_lifetime(self):
         create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
@@ -297,14 +297,17 @@ class TestPortals(YTEnvSetup):
             "//tmp/p2/t",
             attributes={"account": "a", "external": True, "external_cell_tag": 12},
         )
-        remove("//sys/accounts/a")
-        assert get("//sys/accounts/a/@life_stage") == "removal_pre_committed"
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_started")
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started")
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
+        with raises_yt_error("Cannot remove an account \"a\" because its usage is not zero"):
+            remove("//sys/accounts/a")
+        assert get("//sys/accounts/a/@life_stage") == "creation_committed"
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "creation_committed")
+        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "creation_committed")
         remove("//tmp/p1/t")
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_pre_committed")
-        assert get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started"
         remove("//tmp/p2/t")
+        gc_collect()
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") == 0)
+        remove("//sys/accounts/a")
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")
@@ -2354,25 +2357,29 @@ class TestCrossCellCopy(YTEnvSetup):
             sleep_backoff=0.5,
             timeout=5)
 
-    @authors("babenko")
+    @authors("babenko", "theevilbird")
     def test_removed_account(self):
         src_path = f"{self.SRC}/file"
-        dst_parent_path = self.DST
         dst_path = f"{self.DST}/file"
 
         self.create_file(src_path)
         account = get(f"{src_path}/@account")
+        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/master_memory/total") > 0)
+        with raises_yt_error(f"Cannot remove an account \"{account}\" because its usage is not zero"):
+            remove(f"//sys/accounts/{account}")
+        assert get(f"//sys/accounts/{account}/@life_stage") == "creation_committed"
 
-        remove(f"//sys/accounts/{account}")
-        wait(lambda: get(f"//sys/accounts/{account}/@life_stage") in ["removal_started", "removal_pre_committed"])
-
-        with raises_yt_error("cannot be used since it is in \"removal_pre_committed\" life stage"):
-            self.execute_command(src_path, dst_path, preserve_account=True)
-
-        self.execute_command(src_path, dst_path)
-        assert get(f"{dst_parent_path}/@account") == get(f"{dst_path}/@account")
+        self.execute_command(src_path, dst_path, preserve_account=True)
+        assert get(f"{dst_path}/@account") == account
 
         remove(src_path, force=True)
+        remove(dst_path, force=True)
+        gc_collect()
+        wait(lambda: not exists(src_path))
+        wait(lambda: not exists(dst_path))
+        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/master_memory/total") == 0)
+        get(f"//sys/accounts/{account}/@resource_usage")
+        remove(f"//sys/accounts/{account}")
         wait(lambda: not exists(f"//sys/accounts/{account}"))
 
     # SYMLINK SHENANIGANS
