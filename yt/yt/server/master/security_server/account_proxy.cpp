@@ -143,6 +143,12 @@ private:
                 account->GetName());
         }
 
+        if (account->ClusterStatistics() != TAccountStatistics::Empty) {
+            THROW_ERROR_EXCEPTION("Cannot remove an account %Qv because its usage is not zero (AccountUsage: %v)",
+                account->GetName(),
+                account->ClusterStatistics());
+        }
+
         TBase::ValidateRemoval();
     }
 

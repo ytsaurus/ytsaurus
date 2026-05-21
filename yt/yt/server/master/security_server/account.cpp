@@ -70,6 +70,17 @@ void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, co
         .EndMap();
 }
 
+void FormatValue(TStringBuilderBase* builder, const TAccountStatistics& statistics, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{ResourceUsage: %v, CommittedResourceUsage: %v}",
+        statistics.ResourceUsage,
+        statistics.CommittedResourceUsage);
+}
+
+const TAccountStatistics TAccountStatistics::Empty = TAccountStatistics();
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
     lhs.ResourceUsage += rhs.ResourceUsage;

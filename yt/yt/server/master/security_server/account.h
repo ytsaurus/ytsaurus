@@ -29,6 +29,8 @@ struct TAccountStatistics
     void Persist(const NCellMaster::TPersistenceContext& context);
 
     bool operator==(const TAccountStatistics&) const = default;
+
+    static const TAccountStatistics Empty;
 };
 
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics);
@@ -38,6 +40,8 @@ void Serialize(
     const TAccountStatistics& statistics,
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TBootstrap* bootstrap);
+
+void FormatValue(TStringBuilderBase* builder, const TAccountStatistics& statistics, TStringBuf /*spec*/);
 
 TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
