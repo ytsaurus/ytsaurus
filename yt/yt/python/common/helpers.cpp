@@ -183,6 +183,18 @@ bool HasArgument(const Py::Tuple& args, const Py::Dict& kwargs, const std::strin
     }
 }
 
+std::optional<Py::Object> GetOptional(const Py::Mapping& mapping, const std::string& key)
+{
+    if (!mapping.hasKey(key)) {
+        return std::nullopt;
+    }
+    auto value = mapping.getItem(key);
+    if (value.isNone()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
 void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
 {
     if (args.length() > 0) {
