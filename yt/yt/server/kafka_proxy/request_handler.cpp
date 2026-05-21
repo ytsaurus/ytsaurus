@@ -802,7 +802,7 @@ private:
         YT_VERIFY(NativeConnection_->GetClusterName());
 
         auto path = TRichYPath::Parse(TYPath(request.GroupId));
-        auto consumerClient = CreateConsumerClient(client, path.GetPath());
+        auto consumerClient = CreateConsumerClient(client, path);
 
         for (const auto& topic : request.Topics) {
             TRspOffsetFetchTopic topicResponse{

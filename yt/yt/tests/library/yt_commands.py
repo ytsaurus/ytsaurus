@@ -1010,7 +1010,7 @@ def pull_queue(queue_path, offset, partition_index, **kwargs):
     return execute_command_with_output_format("pull_queue", kwargs)
 
 
-def pull_consumer(consumer_path, queue_path, offset, partition_index, **kwargs):
+def pull_consumer(consumer_path, queue_path, offset: int | None = None, partition_index: int = 0, **kwargs):
     kwargs["consumer_path"] = consumer_path
     kwargs["queue_path"] = queue_path
     kwargs["offset"] = offset

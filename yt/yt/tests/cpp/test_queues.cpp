@@ -505,6 +505,7 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
 
 class TConsumerApiTest
     : public TQueueTestBase
+    , public ::testing::WithParamInterface<std::tuple<bool, TString, TString>>
 {
 public:
     static void TearDownTestCase();
@@ -512,13 +513,17 @@ public:
     static void SetUpTestCase();
 
 protected:
-    void CreateConsumer(const TRichYPath& path)
+    void CreateConsumer(const TRichYPath& path, bool isMultiConsumer = false)
     {
         TCreateNodeOptions options;
         options.Force = true;
         options.Attributes = CreateEphemeralAttributes();
         options.Attributes->Set("dynamic", true);
-        options.Attributes->Set("schema", GetConsumerSchema());
+        if (isMultiConsumer) {
+            options.Attributes->Set("schema", GetMultiConsumerSchema());
+        } else {
+            options.Attributes->Set("schema", GetConsumerSchema());
+        }
 
         WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table, options))
             .ThrowOnError();
@@ -569,24 +574,29 @@ void TConsumerApiTest::SetUpTestCase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
+TEST_P(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
 {
+    auto [isMultiConsumer, consumerName, queueName] = GetParam();
+
     TRichYPath consumerPath;
-    consumerPath.SetPath("//tmp/test_consumer");
+    consumerPath.SetPath(consumerName);
+    if (isMultiConsumer) {
+        consumerPath.SetQueueConsumerName("consumer_name_1");
+    }
 
     TRichYPath queuePath;
-    queuePath.SetPath("//tmp/test_queue");
+    queuePath.SetPath(queueName);
 
-    CreateConsumer(consumerPath);
+    CreateConsumer(consumerPath, isMultiConsumer);
     CreateQueue(queuePath);
 
     TRichYPath queueLinkPath;
-    queueLinkPath.SetPath("//tmp/test_queue_link");
+    queueLinkPath.SetPath(Format("%v_link", queueName));
 
     WaitFor(Client_->LinkNode(queuePath.GetPath(), queueLinkPath.GetPath()))
         .ValueOrThrow();
 
-    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, Client_, consumerPath.GetPath(), queuePath);
+    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, Client_, consumerPath, queuePath);
 
     auto partitions = WaitFor(consumerClient->CollectPartitions(1))
         .ValueOrThrow();
@@ -626,6 +636,13 @@ TEST_F(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
     EXPECT_EQ(partitions[0].PartitionIndex, 0);
     EXPECT_EQ(partitions[0].NextRowIndex, 10);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TConsumerApiTest,
+    TConsumerApiTest,
+    ::testing::Values(
+        std::tuple(true, "//tmp/test_multi_consumer", "//tmp/test_queue_with_multi_consumer"),
+        std::tuple(false, "//tmp/test_consumer", "//tmp/test_queue")));
 
 ////////////////////////////////////////////////////////////////////////////////
 
