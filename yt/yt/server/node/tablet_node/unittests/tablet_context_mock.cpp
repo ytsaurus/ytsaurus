@@ -159,6 +159,11 @@ INodeMemoryTrackerPtr TTabletContextMock::GetNodeMemoryUsageTracker() const
     return nullptr;
 }
 
+TRowCacheControllerPtr TTabletContextMock::GetRowCacheController() const
+{
+    return nullptr;
+}
+
 NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache() const
 {
     return nullptr;

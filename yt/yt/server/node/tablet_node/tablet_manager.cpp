@@ -544,6 +544,45 @@ public:
         return results;
     }
 
+    TRowCacheControllerContext GetRowCacheControllerContext() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TRowCacheControllerContext context;
+
+        for (const auto& [tabletId, tablet] : Tablets()) {
+            if (!tablet->IsPhysicallySorted()) {
+                continue;
+            }
+
+            if (tablet->GetSettings().MountConfig->LookupCacheRowsRatio <= 0) {
+                continue;
+            }
+
+            i64 unmergedRowCount = tablet->GetNonActiveStoresUnmergedRowCount();
+            if (const auto& store = tablet->GetActiveStore()) {
+                unmergedRowCount += store->GetRowCount();
+            }
+
+            const auto& rowCache = tablet->GetRowCache();
+
+            auto preciseStats = rowCache ? rowCache->GetPreciseAliveRowsStatistics() : TRowCache::TAliveRowsStatistics{};
+
+            context.Tablets[tabletId] = {
+                .TabletDataWeight = tablet->GetTotalDataWeight(),
+                .TabletRowCount = unmergedRowCount,
+                .RowCacheDataWeight = rowCache ? rowCache->GetUsedBytesCount() : 0,
+                .RowCacheCapacityRowCount = rowCache ? static_cast<i64>(rowCache->GetCache()->GetCapacity()) : 0,
+                .RowCacheSizeRowCount = rowCache ? static_cast<i64>(rowCache->GetCache()->GetSize()) : 0,
+                .LookupCacheRowsRatio = tablet->GetSettings().MountConfig->LookupCacheRowsRatio,
+                .RowCachePreciseAliveByteSize = preciseStats.ByteSize,
+                .RowCachePreciseAliveRowCount = preciseStats.RowCount,
+            };
+        }
+
+        return context;
+    }
+
     TFuture<void> Trim(
         const TTabletSnapshotPtr& tabletSnapshot,
         i64 trimmedRowCount) override
@@ -950,6 +989,11 @@ private:
         INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const final
         {
             return Owner_->Bootstrap_->GetNodeMemoryUsageTracker();
+        }
+
+        TRowCacheControllerPtr GetRowCacheController() const final
+        {
+            return Owner_->Bootstrap_->GetRowCacheController();
         }
 
         NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const final

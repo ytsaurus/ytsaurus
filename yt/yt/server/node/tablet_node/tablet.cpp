@@ -10,6 +10,7 @@
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
 #include "partition.h"
+#include "row_cache_controller.h"
 #include "serialize.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
@@ -2357,12 +2358,17 @@ void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
     double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
 
     if (lookupCacheRowsRatio > 0) {
+        double scaleFactor = 1.0;
+        if (auto controller = Context_->GetRowCacheController()) {
+            scaleFactor = controller->GetCategoryMemoryLimitScaleFactor();
+        }
+
         i64 unmergedRowCount = NonActiveStoresUnmergedRowCount_;
         if (ActiveStore_) {
             unmergedRowCount += ActiveStore_->GetRowCount();
         }
 
-        lookupCacheCapacity = std::max<i64>(lookupCacheRowsRatio * unmergedRowCount, 1);
+        lookupCacheCapacity = std::max<i64>(lookupCacheRowsRatio * scaleFactor * unmergedRowCount, 1);
     }
 
     if (lookupCacheCapacity == 0) {
@@ -3230,12 +3236,17 @@ void TTablet::UpdateUnmergedRowCount()
         double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
 
         if (lookupCacheRowsRatio > 0) {
+            double scaleFactor = 1.0;
+            if (auto controller = Context_->GetRowCacheController()) {
+                scaleFactor = controller->GetCategoryMemoryLimitScaleFactor();
+            }
+
             i64 unmergedRowCount = NonActiveStoresUnmergedRowCount_;
             if (ActiveStore_) {
                 unmergedRowCount += ActiveStore_->GetRowCount();
             }
 
-            i64 lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
+            i64 lookupCacheCapacity = lookupCacheRowsRatio * scaleFactor * unmergedRowCount;
             RowCache_->GetCache()->SetCapacity(std::max<i64>(lookupCacheCapacity, 1));
         }
     }
