@@ -2,6 +2,7 @@ Timeout = 3
 NoSuchMethod = 103
 Unavailable = 105
 RequestQueueSizeLimitExceeded = 108
+TransientFailure = 116
 TooManyOperations = 202
 MaxFailedJobsLimitExceeded = 215
 OperationFailedToPrepare = 216
