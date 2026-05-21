@@ -19,14 +19,14 @@ PEERDIR(
 )
 
 ALL_RESOURCE_FILES(
-    PREFIX yt/benchmarks/run/
+    PREFIX yt/benchmarks/yql/run/
     sql
     queries
     queries_optimized
 )
 
 ALL_RESOURCE_FILES(
-    PREFIX yt/benchmarks/run/pragmas STRIP public_pragmas
+    PREFIX yt/benchmarks/yql/run/pragmas STRIP public_pragmas
     sql
     public_pragmas
 )
@@ -41,7 +41,7 @@ IF (NOT OPENSOURCE)
     )
 
     ALL_RESOURCE_FILES(
-        PREFIX yt/benchmarks/run/pragmas STRIP private_pragmas
+        PREFIX yt/benchmarks/yql/run/pragmas STRIP private_pragmas
         sql
         private_pragmas
     )
