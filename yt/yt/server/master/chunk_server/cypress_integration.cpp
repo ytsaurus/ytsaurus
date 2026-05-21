@@ -331,7 +331,7 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
+        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ false)
             .ValueOrThrow();
 
         // The above call is involves context switch, chunk may have died.
