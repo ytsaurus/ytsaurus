@@ -360,7 +360,7 @@ struct TDynamicCellMasterConfig
     //! Messages with these prefixes will will not be included into master alerts.
     std::vector<std::string> SuppressedAlerts;
 
-    THashMap<TString, double> AutomatonThreadBucketWeights;
+    THashMap<std::string, double> AutomatonThreadBucketWeights;
 
     TDuration ExpectedMutationCommitDuration;
 
