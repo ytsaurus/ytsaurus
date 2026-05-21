@@ -10,7 +10,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
 
-#include <CXX/Objects.hxx> // pycxx
+#include <CXX/Objects.hxx>
 
 #include <optional>
 
@@ -105,7 +105,14 @@ PyObject* FindYsonTypeClass(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WaitForSettingFuture(TFuture<void> future);
+//! Blocks the current thread until #future is set, periodically polling
+//! Python's signal queue so that signals raised in the interpreter
+//! (e.g. KeyboardInterrupt from Ctrl+C) are not silently swallowed while
+//! the GIL is released. Returns the future's value on success; if a
+//! Python signal handler requested termination, cancels #future and
+//! returns a Canceled error.
+template <CFuture TFuture>
+TErrorOr<typename TFuture::TValueType> SignalFriendlyWaitFor(TFuture future);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,3 +131,7 @@ using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NPython
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

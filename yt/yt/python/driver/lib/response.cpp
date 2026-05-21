@@ -188,10 +188,7 @@ Py::Object TDriverResponse::Wait(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     {
         TReleaseAcquireGilGuard guard;
-        auto result = WaitForSettingFuture(ResponseFuture_);
-        if (!result) {
-            ResponseFuture_.Cancel(TError(NYT::EErrorCode::Canceled, "Wait canceled"));
-        }
+        Y_UNUSED(SignalFriendlyWaitFor(ResponseFuture_));
         UnregisterFuture(ResponseCookie_);
     }
 

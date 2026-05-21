@@ -301,23 +301,4 @@ PyObject* GetYsonTypeClass(const std::string& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WaitForSettingFuture(TFuture<void> future)
-{
-    while (true) {
-        if (future.BlockingWait(TDuration::MilliSeconds(100))) {
-            return true;
-        }
-
-        {
-            TGilGuard guard;
-            auto signals = PyErr_CheckSignals();
-            if (signals == -1) {
-                return false;
-            }
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NPython
