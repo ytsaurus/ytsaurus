@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/yt/go
 
-go 1.23.8
+go 1.24.0
 
 require (
 	github.com/andybalholm/brotli v1.1.1
@@ -10,13 +10,13 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v1.0.0
-	github.com/google/tink/go v1.7.0
 	github.com/klauspost/compress v1.18.0
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.33.0
+	github.com/tink-crypto/tink-go/v2 v2.6.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	go.opentelemetry.io/otel/bridge/opentracing v1.28.0
 	go.opentelemetry.io/otel/sdk v1.36.0
@@ -33,7 +33,7 @@ require (
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
 	golang.org/x/sync v0.15.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.8
 )
 
 require (
