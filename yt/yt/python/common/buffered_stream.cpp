@@ -160,7 +160,7 @@ void TBufferedStream::Move(char* dest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TBufferedStreamWrap::TypeName_;
+std::string TBufferedStreamWrap::TypeName_;
 
 TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
@@ -220,7 +220,7 @@ TBufferedStreamPtr TBufferedStreamWrap::GetStream()
 TBufferedStreamWrap::~TBufferedStreamWrap()
 { }
 
-void TBufferedStreamWrap::InitType(const TString& moduleName)
+void TBufferedStreamWrap::InitType(const std::string& moduleName)
 {
     static std::once_flag flag;
     std::call_once(flag, [&] {

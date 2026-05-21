@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/python/common/cache.h>
+#include <yt/yt/python/common/string_cache.h>
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/pull_parser.h>

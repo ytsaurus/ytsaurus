@@ -91,12 +91,12 @@ public:
 
     virtual ~TBufferedStreamWrap();
 
-    static void InitType(const TString& moduleName);
+    static void InitType(const std::string& moduleName);
 
 private:
     TBufferedStreamPtr Stream_;
 
-    static TString TypeName_;
+    static std::string TypeName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,13 +30,13 @@ TStringBuf ConvertToStringBuf(const Bytes& pyString);
 Bytes ConvertToPythonString(TStringBuf string);
 #endif
 
-TString ConvertStringObjectToString(const Object& obj);
+std::string ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 std::optional<Object> FindAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 bool ConvertToBoolean(const Object& obj);
 std::string Repr(const Object& obj);
-TString Str(const Object& obj);
+std::string Str(const Object& obj);
 
 Object CreateIterator(const Object& object);
 
@@ -98,8 +98,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* FindModuleAttribute(const TString& moduleName, const TString& attributeName);
-PyObject* GetModuleAttribute(const TString& moduleName, const TString& attributeName);
+PyObject* FindModuleAttribute(const std::string& moduleName, const std::string& attributeName);
+PyObject* GetModuleAttribute(const std::string& moduleName, const std::string& attributeName);
 PyObject* GetYsonTypeClass(const std::string& name);
 PyObject* FindYsonTypeClass(const std::string& name);
 
