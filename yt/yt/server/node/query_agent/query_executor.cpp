@@ -25,6 +25,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -54,6 +55,8 @@
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
+
+#include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -164,6 +167,24 @@ using NTabletNode::TTabletSnapshotPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+void MarkMountCacheInvalidationExhausted(TError* error)
+{
+    auto isMountCacheRetryableCode = [] (TErrorCode code) {
+        return std::find(
+            TableMountCacheRetryableCodes.begin(),
+            TableMountCacheRetryableCodes.end(),
+            code) != TableMountCacheRetryableCodes.end();
+    };
+
+    if (error->Attributes().Contains("tablet_id") && isMountCacheRetryableCode(error->GetCode())) {
+        (*error) <<= TErrorAttribute("mount_cache_invalidation_exhausted", true);
+    }
+
+    for (auto& innerError : *error->MutableInnerErrors()) {
+        MarkMountCacheInvalidationExhausted(&innerError);
+    }
+}
 
 std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
     const NTableClient::TTableSchema& desiredSchema,
@@ -993,18 +1014,32 @@ private:
             options = GetJoinSubqueryOptions(queryOptions),
             this,
             this_ = MakeStrong(this),
+            connection = client->GetNativeConnection(),
             remoteExecutor
         ] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
-            return BIND(
-                &IExecutor::Execute,
-                remoteExecutor,
-                fragment,
-                ExternalCGInfo_,
-                writer,
-                options,
-                RequestFeatureFlags_)
-                .AsyncVia(Invoker_)
-                .Run();
+            try {
+                return NApi::NNative::CallAndRetryIfMetadataCacheIsInconsistent(
+                    connection,
+                    /*profilingInfo*/ nullptr,
+                    Logger,
+                    [=, this] {
+                        return BIND(
+                            &IExecutor::Execute,
+                            remoteExecutor,
+                            fragment,
+                            ExternalCGInfo_,
+                            writer,
+                            options,
+                            RequestFeatureFlags_)
+                            .AsyncVia(Invoker_)
+                            .Run();
+                    });
+            } catch (const TErrorException& ex) {
+                auto error = ex.Error();
+                // Avoid cascading retries on upper levels of execution.
+                MarkMountCacheInvalidationExhausted(&error);
+                return MakeFuture<TQueryStatistics>(error);
+            }
         };
     }
 

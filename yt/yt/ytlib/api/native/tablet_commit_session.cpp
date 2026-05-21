@@ -326,7 +326,7 @@ private:
         try {
             // May throw if retry count limit is exceeded.
             auto delay = InvalidateMountCacheAndGetRetryDelay(
-                Client_,
+                Client_->GetNativeConnection(),
                 /*profilingInfo*/ nullptr,
                 Logger,
                 firstBatchError,

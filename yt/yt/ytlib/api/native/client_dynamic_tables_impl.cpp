@@ -592,7 +592,9 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
     const TGetTabletInfosOptions& options)
 {
     return CallAndRetryIfMetadataCacheIsInconsistent(
+        GetNativeConnection(),
         /*profilingInfo*/ nullptr,
+        Logger,
         [&] {
             return DoGetTabletInfosImpl(tableInfo, tabletIndexes, options);
         });
@@ -877,7 +879,9 @@ TUnversionedLookupRowsResult TClient::DoLookupRows(
     };
 
     return CallAndRetryIfMetadataCacheIsInconsistent(
+        GetNativeConnection(),
         options.DetailedProfilingInfo,
+        Logger,
         [&] {
             return DoLookupRowsOnce<IUnversionedRowset, TUnversionedRow>(
                 path,
@@ -952,7 +956,9 @@ TVersionedLookupRowsResult TClient::DoVersionedLookupRows(
     }
 
     return CallAndRetryIfMetadataCacheIsInconsistent(
+        GetNativeConnection(),
         options.DetailedProfilingInfo,
+        Logger,
         [&] {
             return DoLookupRowsOnce<IVersionedRowset, TVersionedRow>(
                 path,
@@ -1001,7 +1007,9 @@ std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookupRows(
                 };
 
                 return CallAndRetryIfMetadataCacheIsInconsistent(
+                    GetNativeConnection(),
                     lookupRowsOptions.DetailedProfilingInfo,
+                    Logger,
                     [&] {
                         return DoLookupRowsOnce<IUnversionedRowset, TUnversionedRow>(
                             subrequest.Path,
@@ -1580,7 +1588,9 @@ TSelectRowsResult TClient::DoSelectRows(
     const TSelectRowsOptions& options)
 {
     return CallAndRetryIfMetadataCacheIsInconsistent(
+        GetNativeConnection(),
         options.DetailedProfilingInfo,
+        Logger,
         [&] {
             return DoSelectRowsOnce(queryString, options);
         });
@@ -2138,34 +2148,6 @@ NYson::TYsonString TClient::DoExplainQuery(
         options,
         memoryChunkProvider,
         allowUnorderedGroupByWithLimit);
-}
-
-template <class T>
-auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
-    const TDetailedProfilingInfoPtr& profilingInfo,
-    T&& callback) -> decltype(callback())
-{
-    int retryCount = 0;
-    while (true) {
-        TError error;
-
-        try {
-            return callback();
-        } catch (const NYT::TErrorException& ex) {
-            error = ex.Error();
-        }
-
-        auto delay = InvalidateMountCacheAndGetRetryDelay(
-            MakeStrong(this),
-            profilingInfo,
-            Logger,
-            error,
-            &retryCount);
-
-        if (delay) {
-            TDelayedExecutor::WaitForDuration(delay);
-        }
-    }
 }
 
 template <class TReq>
@@ -2810,7 +2792,9 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
     bool checkPermissions)
 {
     return CallAndRetryIfMetadataCacheIsInconsistent(
+        GetNativeConnection(),
         options.DetailedProfilingInfo,
+        Logger,
         [&] {
             return DoPullQueueImplOnce(
                 queuePath,
