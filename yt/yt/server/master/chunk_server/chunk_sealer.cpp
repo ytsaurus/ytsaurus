@@ -109,7 +109,7 @@ public:
 
         // This is context switch, so we should check that chunk is still alive.
         // TODO(grphil): Do not fetch replicas here (they should be already fetched in chunk sealer).
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK() || !IsObjectAlive(Chunk_)) {
             return false;
         }
@@ -333,7 +333,7 @@ public:
         }
 
         const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas, /*includeUnapproved*/ true);
 
         for (const auto& scheduleJobContext : scheduleJobContexts) {
             if (resourceUsage.seal_slots() >= resourceLimits.seal_slots()) {
@@ -606,7 +606,7 @@ private:
         }
 
         const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas, /*includeUnapproved*/ true);
 
         for (auto sealContext : pendingSeals) {
             auto chunk = sealContext->Chunk.Get();

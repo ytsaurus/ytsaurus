@@ -559,7 +559,7 @@ bool TReincarnationJob::FillJobSpec(
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
     if (auto* oldChunk = chunkManager->FindChunk(OldChunkId_)) {
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK() || !IsObjectAlive(ephemeralChunk)) {
             return false;
         }
@@ -1397,7 +1397,7 @@ private:
         auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
         TNodePtrWithReplicaAndMediumIndexList sourceReplicas;
         // This is context switch, chunk may die.
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return;
         }
