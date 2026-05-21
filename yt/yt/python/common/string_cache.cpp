@@ -1,4 +1,4 @@
-#include "cache.h"
+#include "string_cache.h"
 #include "helpers.h"
 
 namespace NYT::NPython {
@@ -15,7 +15,7 @@ TPythonStringCache::TItem::TItem(const TItem& other)
     EncodedKey = PyObjectPtr(other.EncodedKey.get());
 }
 
-TPythonStringCache::TPythonStringCache(bool enableCache, const std::optional<TString>& encoding)
+TPythonStringCache::TPythonStringCache(bool enableCache, const std::optional<std::string>& encoding)
     : CacheEnabled_(enableCache)
     , Encoding_(encoding)
     , YsonUnicode_(GetYsonTypeClass("YsonUnicode"), /* owned */ true)

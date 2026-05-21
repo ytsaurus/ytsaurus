@@ -319,7 +319,7 @@ public:
                         fieldDescription,
                         GetAttr(field, PySchemaFieldName),
                         validateOptionalOnRuntime));
-                FieldNames_.push_back(fieldName);
+                FieldNames_.emplace_back(fieldName);
             } else if (PyObject_IsInstance(field.ptr(), FieldMissingFromSchemaClass.get())) {
                 FieldsMissingFromSchema_.emplace_back(GetAttr(field, NameFieldName).as_string());
             }

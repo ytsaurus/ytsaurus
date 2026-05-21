@@ -364,7 +364,7 @@ public:
                         fieldDescription,
                         GetAttr(field, PySchemaFieldName),
                         validateOptionalOnRuntime));
-                FieldNames_.push_back(fieldName);
+                FieldNames_.emplace_back(fieldName);
             }
         }
     }

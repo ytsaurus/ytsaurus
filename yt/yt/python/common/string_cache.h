@@ -13,8 +13,12 @@ namespace NYT::NPython {
 class TPythonStringCache
 {
 public:
-    TPythonStringCache(bool enableCache = false, const std::optional<TString>& encoding = {});
+    explicit TPythonStringCache(
+        bool enableCache = false,
+        const std::optional<std::string>& encoding = {});
+
     TPythonStringCache& operator=(const TPythonStringCache& other) = default;
+
     PyObjectPtr GetPythonString(TStringBuf string);
 
 private:
@@ -27,8 +31,9 @@ private:
         TItem(const TItem& other);
     };
 
-    bool CacheEnabled_ = false;
-    std::optional<TString> Encoding_;
+    const bool CacheEnabled_;
+    const std::optional<std::string> Encoding_;
+
     using TCache = TSimpleLruCache<TStringBuf, TItem>;
     TCache Cache_ = TCache(1_MB);
     Py::Callable YsonUnicode_;
