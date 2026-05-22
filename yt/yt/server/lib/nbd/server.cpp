@@ -531,6 +531,16 @@ private:
                     TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
                     "/device/read_time"));
 
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/read_count")
+                .Increment(1);
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/read_bytes")
+                .Increment(length);
+
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
                     BIND([=, readTimeGuard = std::move(readTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) mutable {
@@ -644,6 +654,16 @@ private:
                 TNbdProfilerCounters::Get()->GetTimer(
                     TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
                     "/device/write_time"));
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/write_count")
+                .Increment(1);
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/write_bytes")
+                .Increment(length);
 
             Device_->Write(offset, payload, options)
                 .Subscribe(
