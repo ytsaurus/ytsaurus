@@ -61,6 +61,10 @@ void FormatValue(TStringBuilderBase* builder, const NQueueClient::TTablePath& pa
 //! Stable format for TGenericObjectReference.
 void FormatValue(TStringBuilderBase* builder, const NQueueClient::TGenericObjectReference& ref, TStringBuf spec);
 
+void Serialize(const TTablePath& path, NYson::IYsonConsumer* consumer);
+
+void Serialize(const TGenericObjectReference& ref, NYson::IYsonConsumer* consumer);
+
 NYTree::IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster);
 
 NYTree::IAttributeDictionaryPtr MakeConsumerAttributes(const std::string& cluster, const std::optional<std::string>& queueConsumerName);

@@ -121,6 +121,20 @@ void FormatValue(TStringBuilderBase* builder, const TGenericObjectReference& ref
     FormatValue(builder, ToCrossClusterReference(ref), spec);
 }
 
+void Serialize(const TTablePath& path, NYson::IYsonConsumer* consumer)
+{
+    Serialize(ToCrossClusterReference(path), consumer);
+}
+
+void Serialize(const TGenericObjectReference& ref, NYson::IYsonConsumer* consumer)
+{
+    if (ref.GetQueueConsumerName().has_value()) {
+        Serialize(TRichYPath(ref), consumer);
+        return;
+    }
+    Serialize(ToCrossClusterReference(ref), consumer);
+}
+
 IAttributeDictionaryPtr MakeAttributesWithCluster(const std::string& cluster)
 {
     auto attributes = CreateEphemeralAttributes();
