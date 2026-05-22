@@ -179,7 +179,7 @@ public:
             return it->second;
         } else {
             auto client = GetYtClient(clusterName, user, token);
-            auto wrapper = CreateYtWrapper(client);
+            auto wrapper = CreateYtWrapper(client, clusterName);
             auto actorId = Register(actorSystem, wrapper);
             Yt.emplace(key, actorId);
             return actorId;

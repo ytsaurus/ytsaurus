@@ -221,9 +221,10 @@ namespace NYql {
     public:
         static constexpr char ActorName[] = "YT_WRAPPER";
 
-        TYtWrapper(const IClientPtr& client)
+        TYtWrapper(const IClientPtr& client, const TString& clusterName)
             : TActor(&TYtWrapper::Handler)
             , Client(client)
+            , ClusterName(clusterName)
         { }
 
     private:
@@ -266,6 +267,7 @@ namespace NYql {
         }
 
         void OnFileWrite(TEvWriteFile::TPtr& ev, const TActorContext& ctx) {
+            YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
             TFile file = std::move(std::get<0>(*ev->Get()));
             NYPath::TRichYPath remotePath = std::get<1>(*ev->Get());
             THashMap<TString, NYT::TNode> attributes = std::get<2>(*ev->Get());
@@ -288,12 +290,16 @@ namespace NYql {
                     char buf[32768];
                     MD5 md5;
                     i64 size, offset = 0;
+                    auto md5Start = TInstant::Now();
                     while ((size = file.Pread(buf, sizeof(buf), offset)) > 0) {
                         md5.Update(buf, size);
                         offset += size;
                     }
                     digest.ReserveAndResize(32);
                     md5.End(digest.begin());
+                    YQL_CLOG(DEBUG, ProviderDq) << "Local MD5 for " << nodePath << ": " << digest
+                        << " elapsed=" << (TInstant::Now() - md5Start).Seconds() << " sec"
+                        << " size=" << offset;
                 }
 
                 if (auto req = request.Lock()) {
@@ -305,14 +311,16 @@ namespace NYql {
                     req->Digest = digest;
                 }
 
+                auto logCtx = NYql::NLog::CurrentLogContextPath();
                 YT_UNUSED_FUTURE(Client->GetNode(nodePath + "/@md5")
-                    .Apply(BIND([request, attributes, digest](const TErrorOr<NYT::NYson::TYsonString>& err) mutable {
+                    .Apply(BIND([request, attributes, digest, logCtx](const TErrorOr<NYT::NYson::TYsonString>& err) mutable {
+                        YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
                         auto req = request.Lock();
                         if (!req) {
                             return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                         }
                         if (err.IsOK() && digest == NYTree::ConvertTo<TString>(err.Value())) {
-                            YQL_CLOG(INFO, ProviderDq) << "File already uploaded";
+                            YQL_CLOG(INFO, ProviderDq) << "File already uploaded: " << req->NodePath;
                             try {
                                 YT_UNUSED_FUTURE(req->Client->SetNode(req->NodePath + "/@yql_last_update",
                                     NYT::NYson::TYsonString(
@@ -326,9 +334,12 @@ namespace NYql {
                             options.IgnoreExisting = true;
 
                             if (err.IsOK()) {
-                                YQL_CLOG(INFO, ProviderDq) << digest << "!=" << NYTree::ConvertTo<TString>(err.Value());
+                                YQL_CLOG(INFO, ProviderDq) << "MD5 mismatch for " << req->NodePath
+                                    << ": local=" << digest
+                                    << " remote=" << NYTree::ConvertTo<TString>(err.Value());
                             } else {
-                                YQL_CLOG(ERROR, ProviderDq) << ToString(err);
+                                YQL_CLOG(INFO, ProviderDq) << "Node not found, will upload: " << req->NodePath
+                                    << " (" << ToString(err) << ")";
                             }
 
                             return req->Client->CreateNode(req->NodePathTmp, NObjectClient::EObjectType::File, options).As<void>()
@@ -628,19 +639,23 @@ namespace NYql {
         }
 
         void OnPrintJobStderr(TEvPrintJobStderr::TPtr& ev, const TActorContext& ctx) {
+            YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
             Y_UNUSED(ctx);
             auto operationId = std::get<0>(*ev->Get());
 
             YQL_CLOG(DEBUG, ProviderDq) << "Printing stderr of operation " << ToString(operationId);
 
+            auto logCtx = NYql::NLog::CurrentLogContextPath();
             YT_UNUSED_FUTURE(Client->ListJobs(operationId)
-                .Apply(BIND([operationId, client = MakeWeak(Client)](const TListJobsResult& result) {
+                .Apply(BIND([operationId, client = MakeWeak(Client), logCtx](const TListJobsResult& result) {
+                    YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
                     if (auto cli = client.Lock()) {
                         for (const auto& job : result.Jobs) {
                             YQL_CLOG(DEBUG, ProviderDq) << "Printing stderr (" << ToString(operationId) << "," << ToString(job.Id) << ")";
 
                             YT_UNUSED_FUTURE(cli->GetJobStderr(operationId, job.Id)
-                                .Apply(BIND([jobId = job.Id, operationId](const TGetJobStderrResponse& response) {
+                                .Apply(BIND([jobId = job.Id, operationId, logCtx](const TGetJobStderrResponse& response) {
+                                    YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
                                     YQL_CLOG(DEBUG, ProviderDq)
                                         << "Stderr ("
                                         << ToString(operationId) << ","
@@ -653,9 +668,10 @@ namespace NYql {
         }
 
         IClientPtr Client;
+        TString ClusterName;
     };
 
-    IActor* CreateYtWrapper(const IClientPtr& client) {
-        return new TYtWrapper(client);
+    IActor* CreateYtWrapper(const IClientPtr& client, const TString& clusterName) {
+        return new TYtWrapper(client, clusterName);
     }
 }

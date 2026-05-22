@@ -83,6 +83,6 @@ namespace NYql {
 
     using TEvPrintJobStderr = TGenericYtCommand<TYtEvents::ES_PRINT_JOB_STDERR, NYT::NScheduler::TOperationId>;
 
-    NActors::IActor* CreateYtWrapper(const NYT::NApi::IClientPtr& client);
+    NActors::IActor* CreateYtWrapper(const NYT::NApi::IClientPtr& client, const TString& clusterName);
 
 } // namespace NYql

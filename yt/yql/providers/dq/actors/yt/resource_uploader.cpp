@@ -32,7 +32,13 @@ public:
         , Options(options)
         , Coordinator(coordinator)
         , Config(Coordinator->GetConfig())
+        , ClusterName(Options.YtBackend.GetClusterName())
     {
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
+        YQL_CLOG(INFO, ProviderDq) << "ResourceUploader created:"
+            << " files=" << Options.Files.size()
+            << " prefix=" << Options.UploadPrefix
+            << " lock=" << (Options.LockName.empty() ? "(per-file)" : Options.LockName);
         if (Options.Counters) {
             FileSize = Options.Counters->GetHistogram("FileSize", ExponentialHistogram(10, 4, 10));
             FileUploadTime = Options.Counters->GetHistogram("UploadTime", ExponentialHistogram(10, 3, 1));
@@ -44,27 +50,27 @@ private:
     // States: Follower -> Upload
 
     void StartFollower(TEvBecomeFollower::TPtr& ev, const TActorContext& ctx) {
-        YQL_LOG_CTX_ROOT_SCOPE(CurrentLockName);
-        YQL_CLOG(DEBUG, ProviderDq) << "Current lock '" << CurrentLockName << "'";
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName, CurrentLockName);
         Y_UNUSED(ctx);
         auto leaderAttributes = NYT::NodeFromYsonString(ev->Get()->Attributes).AsMap();
 
         if (leaderAttributes.contains(NCommonAttrs::ACTOR_NODEID_ATTR)) {
-            YQL_CLOG(INFO, ProviderDq) << " Following leader: "
+            YQL_CLOG(INFO, ProviderDq) << "Following leader: "
                 << leaderAttributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64();
         }
         if (leaderAttributes.contains(NCommonAttrs::HOSTNAME_ATTR)) {
-            YQL_CLOG(INFO, ProviderDq) << " Leader hostname: "
+            YQL_CLOG(INFO, ProviderDq) << "Leader hostname: "
                 << leaderAttributes.at(NCommonAttrs::HOSTNAME_ATTR).AsString();
         }
         Become(&TYtResourceUploader::Follower);
     }
 
     void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx) {
-        YQL_LOG_CTX_ROOT_SCOPE(CurrentLockName);
-        YQL_CLOG(DEBUG, ProviderDq) << "Current lock '" << CurrentLockName << "'";
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName, CurrentLockName);
         Y_UNUSED(ctx);
-        YQL_CLOG(INFO, ProviderDq) << "Become leader, epoch=" << ev->Get()->LeaderEpoch;
+        YQL_CLOG(INFO, ProviderDq) << "Become leader, epoch=" << ev->Get()->LeaderEpoch
+            << " file=" << CurrentFileId + 1 << "/" << Options.Files.size()
+            << " name=" << Options.Files[CurrentFileId].GetRemoteFileName();
         Become(&TYtResourceUploader::UploadState);
         UploadFile();
     }
@@ -136,6 +142,11 @@ private:
             Options.YtBackend.GetClusterName(),
             Options.YtBackend.GetUser(),
             Options.YtBackend.GetToken());
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
+        YQL_CLOG(INFO, ProviderDq) << "ResourceUploader start:"
+            << " files=" << Options.Files.size()
+            << " prefix=" << Options.UploadPrefix
+            << " lock=" << (Options.LockName.empty() ? "(per-file)" : Options.LockName);
         Lock();
     }
 
@@ -168,28 +179,34 @@ private:
     }
 
     void OnFileUploaded(TEvWriteFileResponse::TPtr& ev, const NActors::TActorContext& ctx) {
-        YQL_LOG_CTX_ROOT_SCOPE(CurrentLockName);
-        YQL_CLOG(DEBUG, ProviderDq) << "Current lock '" << CurrentLockName << "'";
+        YQL_LOG_CTX_ROOT_SCOPE(ClusterName, CurrentLockName);
         auto result = std::get<0>(*ev->Get());
         if (result.IsOK()) {
             if (FileUploadTime) {
                 FileUploadTime->Collect((TInstant::Now() - UploadStart).Seconds());
             }
+            YQL_CLOG(INFO, ProviderDq) << "File processed"
+                << " " << CurrentFileId + 1 << "/" << Options.Files.size()
+                << " name=" << Options.Files[CurrentFileId].GetRemoteFileName()
+                << " elapsed=" << (TInstant::Now() - UploadStart).Seconds() << "s";
             CurrentFileId++;
             if (CurrentFileId == Options.Files.size()) {
-                YQL_CLOG(DEBUG, ProviderDq) << "Upload complete";
+                YQL_CLOG(INFO, ProviderDq) << "All " << Options.Files.size() << " files uploaded";
                 PassAway();
             } else {
                 if (Options.LockName.empty()) {
                     Lock();
-                    YQL_CLOG(DEBUG, ProviderDq) << "Lock next " << CurrentFileId << "/" << Options.Files.size();
+                    YQL_CLOG(DEBUG, ProviderDq) << "Lock next " << CurrentFileId + 1 << "/" << Options.Files.size()
+                        << " name=" << Options.Files[CurrentFileId].GetRemoteFileName();
                 } else {
                     UploadFile();
-                    YQL_CLOG(DEBUG, ProviderDq) << "Upload next " << CurrentFileId << "/" << Options.Files.size();
+                    YQL_CLOG(DEBUG, ProviderDq) << "Upload next " << CurrentFileId + 1 << "/" << Options.Files.size()
+                        << " name=" << Options.Files[CurrentFileId].GetRemoteFileName();
                 }
             }
         } else {
-            YQL_CLOG(DEBUG, ProviderDq) << "Retry " << ToString(result);
+            YQL_CLOG(WARN, ProviderDq) << "Upload error for "
+                << Options.Files[CurrentFileId].GetRemoteFileName() << ": " << ToString(result) << ", retrying...";
 
             if (Errors) {
                 *Errors += 1;
@@ -206,6 +223,7 @@ private:
     const ICoordinationHelper::TPtr Coordinator;
 
     const NProto::TDqConfig::TYtCoordinator Config;
+    const TString ClusterName;
 
     TActorId YtWrapper;
 

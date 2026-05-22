@@ -440,16 +440,16 @@ private:
         for (const auto& file : files) {
             if (file.GetObjectType() == Yql::DqsProto::TFile::EEXE_FILE) {
                 if (file.GetName().empty()) {
-                    return std::make_pair(false, "Unnamed exe file " + file.SerializeAsString());
+                    return std::make_pair(false, "Unnamed exe file " + file.ShortDebugString());
                 }
             } else {
                 if (!NFs::Exists(file.GetLocalPath())) {
-                    return std::make_pair(false, "Unknown file " + file.SerializeAsString());
+                    return std::make_pair(false, "Unknown file " + file.ShortDebugString());
                 }
             }
 
             if (file.GetObjectId().empty()) {
-                return std::make_pair(false, "Empty objectId (md5, revision) for " + file.SerializeAsString());
+                return std::make_pair(false, "Empty objectId (md5, revision) for " + file.ShortDebugString());
             }
         }
 
@@ -472,7 +472,7 @@ private:
         TVector<TString> preparedFilesIds;
         TVector<TResourceFile> preparedExeFiles;
         auto now = TInstant::Now();
-        auto cacheTimeout = TDuration::Minutes(5);
+        auto cacheTimeout = TDuration::Hours(1);
 
         if (useCache) {
             THashSet<TString> toremove;
@@ -518,7 +518,8 @@ private:
             preparedFiles.push_back(preparedFile);
             preparedFilesIds.push_back(objectId);
 
-            YQL_CLOG(DEBUG, ProviderDq) << "Start upload: " << fileName << "," << objectId << "," << size;
+            YQL_CLOG(DEBUG, ProviderDq) << "Start upload: " << fileName << " objectId=" << objectId << " size=" << size
+                << " clusters=" << ResourceUploaderOptions.size();
 
             int uploadProcesses = static_cast<int>(ResourceUploaderOptions.size());
 
@@ -541,6 +542,18 @@ private:
         }
 
         Shuffle(preparedFiles.begin(), preparedFiles.end(), TReallyFastRng32(TInstant::Now().NanoSeconds()));
+
+        if (!preparedFiles.empty()) {
+            TStringStream clusterList;
+            for (size_t i = 0; i < ResourceUploaderOptions.size(); ++i) {
+                if (i > 0) {
+                    clusterList << ", ";
+                }
+                clusterList << ResourceUploaderOptions[i].YtBackend.GetClusterName();
+            }
+            YQL_CLOG(DEBUG, ProviderDq) << "Starting UDF upload: files=" << preparedFiles.size()
+                << " clusters=" << ResourceUploaderOptions.size() << " [" << clusterList.Str() << "]";
+        }
 
         for (auto options : ResourceUploaderOptions) {
             options.Counters = UploaderMetrics;
@@ -598,6 +611,9 @@ private:
             Y_ABORT_UNLESS(jt != Uploading.end());
             Workers.AddResource(objectId, jt->second.ObjectType, jt->second.ObjectName, jt->second.Size);
             if (--jt->second.Clusters <= 0) {
+                // Refresh cache timestamp on completion so the TTL starts from upload finish,
+                // not from when the upload was initiated (which may have been long ago).
+                LastUploadCache[objectId] = TInstant::Now();
                 Uploading.erase(jt);
             }
         }
@@ -1230,8 +1246,10 @@ private:
 
         // any cluster has at least 50% of workers with actual vanilla job ready
         bool isReady = false;
+        ui32 totalWorkers = Workers.GetList().size();
         for (const auto& [cluster,pair] : clusterMap) {
-            YQL_CLOG(DEBUG, ProviderDq) << cluster << " ready: " << pair.second << "/" << pair.first << " workers ready";
+            YQL_CLOG(DEBUG, ProviderDq) << cluster << " ready: " << pair.second << "/" << pair.first
+                << " workers ready (total_workers=" << totalWorkers << ", required_files=" << resources.size() << ")";
             isReady |= pair.second * 2 >= pair.first;
         }
 
