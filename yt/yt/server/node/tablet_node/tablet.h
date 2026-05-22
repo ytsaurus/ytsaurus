@@ -398,7 +398,6 @@ struct ITabletContext
     virtual std::string GetLocalHostName() const = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
     virtual INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const = 0;
-    virtual TRowCacheControllerPtr GetRowCacheController() const = 0;
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const = 0;
     virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const = 0;
     virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const = 0;
