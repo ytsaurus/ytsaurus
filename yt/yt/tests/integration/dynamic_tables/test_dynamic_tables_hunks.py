@@ -45,7 +45,6 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 7
@@ -3325,7 +3324,6 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
     ENABLE_MULTIDAEMON = True
 
@@ -4347,7 +4345,6 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4800,7 +4797,6 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4907,7 +4903,6 @@ class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
             concatenate(["//tmp/t"], "//tmp/t_out")
 
 
-@pytest.mark.enabled_multidaemon
 class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
     ENABLE_TMP_PORTAL = True
 
@@ -4962,7 +4957,6 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
         remove("//p")
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

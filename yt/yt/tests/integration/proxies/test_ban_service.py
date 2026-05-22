@@ -4,14 +4,11 @@ from yt_commands import (
     set, create, get_driver, wait,
 )
 
-import pytest
-
 from time import sleep
 
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestBanService(YTEnvSetup):
     NUM_MASTERS = 1
 

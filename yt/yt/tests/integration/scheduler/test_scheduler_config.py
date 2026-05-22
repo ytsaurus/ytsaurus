@@ -6,13 +6,10 @@ from yt_commands import (
     ls, get,
     set, exists, write_table, map)
 
-import pytest
-
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

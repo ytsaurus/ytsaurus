@@ -26,7 +26,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -3312,7 +3311,6 @@ for line in sys.stdin:
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3382,7 +3380,6 @@ class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3393,7 +3390,6 @@ class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
     ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
@@ -3416,7 +3412,6 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestReduceJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -18,7 +18,6 @@ import math
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataCentersBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -186,7 +185,6 @@ class TestDataCentersBase(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataCenters(TestDataCentersBase):
     ENABLE_MULTIDAEMON = True
 
@@ -498,7 +496,6 @@ class TestDataCenters(TestDataCentersBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFaultyDataCenters(TestDataCentersBase):
     ENABLE_MULTIDAEMON = True
 
@@ -692,7 +689,6 @@ class TestFaultyDataCenters(TestDataCentersBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataCentersMulticell(TestDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -705,7 +701,6 @@ class TestDataCentersMulticell(TestDataCenters):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

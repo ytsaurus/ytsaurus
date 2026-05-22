@@ -99,7 +99,6 @@ def prepend_hash(schema):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -216,7 +215,6 @@ class TestSecondaryIndexBase(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
@@ -305,7 +303,6 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
 
@@ -538,7 +535,6 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 # This test suite is not iterated over with replicated tables, because:
 # 1) Collocations beyond portals are not supported yet;
 # 2) Replicated tables cannot be moved.
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexPortal(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
 
@@ -602,7 +598,6 @@ class TestSecondaryIndexPortal(TestSecondaryIndexBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
 
@@ -836,7 +831,6 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1439,7 +1433,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestSecondaryIndexMaster):
     ENABLE_MULTIDAEMON = True
 
@@ -1467,7 +1460,6 @@ class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestS
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestSecondaryIndexSelect):
     ENABLE_MULTIDAEMON = True
 
@@ -1567,7 +1559,6 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexReplicatedModifications(TestSecondaryIndexReplicatedBase, TestSecondaryIndexModifications):
     ENABLE_MULTIDAEMON = True
 
@@ -1575,7 +1566,6 @@ class TestSecondaryIndexReplicatedModifications(TestSecondaryIndexReplicatedBase
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecondaryIndexModificationsOverRpc(TestSecondaryIndexModifications):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
