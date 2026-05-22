@@ -35,7 +35,7 @@ from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, update, update_inplace
+from yt.common import YtError, WaitFailed, update, update_inplace
 import yt.yson as yson
 
 import pytest
@@ -3933,6 +3933,27 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         link(f"//sys/cluster_nodes/{leader_address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}", "//tmp/tablet", force=True)
         assert get("//tmp/tablet/state") == "mounted"
+
+    @authors("danilalexeev")
+    def test_chunk_count_limit_reached_yt27645(self):
+        create_account("account")
+        set("//sys/accounts/account/@resource_limits/chunk_count", 0)
+        set("//sys/accounts/account/@resource_limits/node_count", 10000)
+
+        create_tablet_cell_bundle(
+            "custom",
+            attributes={"options": {"changelog_account": "account"}})
+
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "custom"})
+        wait(lambda: exists(f"#{cell_id}/changelogs"))
+
+        with pytest.raises(WaitFailed):
+            wait(lambda: get(f"#{cell_id}/changelogs/@count") > 5, timeout=5)
+
+        assert get(f"#{cell_id}/@health") == "failed"
+
+        set("//sys/accounts/account/@resource_limits/chunk_count", 10000)
+        wait_for_cells([cell_id])
 
 
 ##################################################################
