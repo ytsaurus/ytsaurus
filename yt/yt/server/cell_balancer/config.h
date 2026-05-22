@@ -136,6 +136,10 @@ struct TBundleControllerDynamicConfig
 
     int MaxConcurrentCypressWriteRequests;
 
+    // Limits the number of nodes which are released via decommission.
+    // Used to throttle tablet cell restart rate.
+    int MaxReleasedNodesPerIteration;
+
     // For unittests.
     bool FlushLogAfterMutations;
 
