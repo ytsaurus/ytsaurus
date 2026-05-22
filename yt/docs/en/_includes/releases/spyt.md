@@ -8,6 +8,21 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.9.2**" %}
+
+**Release date:** 2026-05-22
+
+Maintenance release with minor enhancements
+
+- Support runtime filters functionality (dynamic partition pruning) for dataframe API
+- Fix stacktrace for disabled metrics
+- Move wait_for_spark_connect_endpoint method to spyt.connect
+- Propagate nullable in pushStructMetadata during column pruning
+- Fix writing nullable values of composite columns in dynamic tables
+- Other minor fixes and improvements
+
+{% endcut %}
+
 {% cut "**2.9.1**" %}
 
 **Release date:** 2026-05-08
