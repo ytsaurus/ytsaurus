@@ -3,6 +3,7 @@
 #include "private.h"
 #include "decorated_automaton.h"
 #include "changelog_acquisition.h"
+#include "changelog_store_helpers.h"
 #include "lease_tracker.h"
 #include "helpers.h"
 #include "changelog.h"
@@ -1292,8 +1293,6 @@ TFollowerCommitter::TFollowerCommitter(
 
 i64 TFollowerCommitter::GetLoggedSequenceNumber() const
 {
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
     return LastLoggedSequenceNumber_;
 }
 
@@ -1316,7 +1315,7 @@ void TFollowerCommitter::BuildMonitoring(TFluentMap fluent)
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     fluent
-        .Item("last _logged_sequence_number").Value(LastLoggedSequenceNumber_)
+        .Item("last_logged_sequence_number").Value(LastLoggedSequenceNumber_)
         .Item("last_accepted_sequence_number").Value(LastAcceptedSequenceNumber_)
         .Item("committed_sequence_number").Value(CommittedSequenceNumber_)
         .Item("follower_recovery_complete").Value(RecoveryComplete_);
@@ -1416,8 +1415,6 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
     request.Data = std::move(mutationData);
     request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
 
-    YT_VERIFY(!EpochContext_->Discombobulated || IsSystemMutationType(request.Type));
-
     AcceptedMutations_.push(
         New<TPendingMutation>(
             TPhysicalVersion(MutationHeader_.segment_id(), MutationHeader_.record_id()),
@@ -1439,6 +1436,11 @@ i64 TFollowerCommitter::GetExpectedSequenceNumber() const
 
     return LastAcceptedSequenceNumber_ + 1;
 }
+
+i64 TFollowerCommitter::GetCommittedSequenceNumber() const
+{
+    return CommittedSequenceNumber_;
+};
 
 void TFollowerCommitter::LogMutations()
 {
@@ -1578,6 +1580,55 @@ TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMu
 
     return ScheduleApplyMutations(std::move(mutations))
         .Apply(BIND([=] { return result; }));
+}
+
+TFuture<void> TFollowerCommitter::TruncateChangelog(i64 lastSequenceNumber)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    if (LoggingMutations_) {
+        THROW_ERROR_EXCEPTION("Cannot truncate changelog while logging mutations");
+    }
+
+    if (CommittedSequenceNumber_ > lastSequenceNumber) {
+        THROW_ERROR_EXCEPTION("Cannot truncate committed mutations records")
+            << TErrorAttribute("committed_sequence_number", CommittedSequenceNumber_)
+            << TErrorAttribute("last_sequence_number", lastSequenceNumber);
+    }
+
+    if (!Changelog_) {
+        return OKFuture;
+    }
+
+    if (lastSequenceNumber >= LastLoggedSequenceNumber_) {
+        return OKFuture;
+    }
+
+    auto header = WaitFor(ReadFirstMutationFromChangelog(Changelog_))
+        .ValueOrThrow()
+        .first;
+    auto firstSequenceNumber = header.sequence_number();
+    auto recordCount = Changelog_->GetRecordCount();
+
+    if (firstSequenceNumber + recordCount != LastLoggedSequenceNumber_ + 1) {
+        YT_LOG_ALERT_AND_THROW(
+            "Follower committer state is inconsistent with changelog "
+            "(ChangelogId: %v, FirstSequenceNumber: %v, RecordCount: %v, LastLoggedSequenceNumber: %v)",
+            Changelog_->GetId(),
+            firstSequenceNumber,
+            recordCount,
+            LastLoggedSequenceNumber_);
+    }
+
+    if (lastSequenceNumber + 1 < firstSequenceNumber) {
+        THROW_ERROR_EXCEPTION("Last sequence number is out of current changelog range")
+            << TErrorAttribute("changelog_id", Changelog_->GetId())
+            << TErrorAttribute("last_sequence_number", lastSequenceNumber)
+            << TErrorAttribute("first_sequence_number", firstSequenceNumber);
+    }
+
+    auto adjustedRecordCount = lastSequenceNumber + 1 - firstSequenceNumber;
+    return Changelog_->Truncate(adjustedRecordCount);
 }
 
 void TFollowerCommitter::Stop()

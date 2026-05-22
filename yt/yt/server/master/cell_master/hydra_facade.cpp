@@ -106,7 +106,8 @@ public:
 
         TDistributedHydraManagerOptions hydraManagerOptions{
             .UseFork = true,
-            .ResponseKeeper = ResponseKeeper_
+            .ResponseKeeper = ResponseKeeper_,
+            .Testing = Bootstrap_->GetConfig()->ExposeTestingFacilities,
         };
         if (Config_->DryRun->EnableDryRun) {
             hydraManagerOptions.UseFork = false;

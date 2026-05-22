@@ -263,11 +263,15 @@ public:
 
     i64 GetLoggedSequenceNumber() const;
     i64 GetExpectedSequenceNumber() const;
+    i64 GetCommittedSequenceNumber() const;
     void SetSequenceNumber(i64 number);
 
     void BuildMonitoring(NYTree::TFluentMap fluent);
 
     void CatchUp();
+
+    //! Drops uncommitted mutations before restart. Unsafe!
+    TFuture<void> TruncateChangelog(i64 lastSequenceNumber);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();

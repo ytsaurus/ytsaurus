@@ -370,6 +370,66 @@ void TClient::DoMasterExitReadOnly(
     }
 }
 
+void TClient::DoFreezeHydraPeer(
+    TCellId cellId,
+    const std::string& address,
+    const TFreezeHydraPeerOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.Freeze();
+    req->set_term(options.Term);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoTruncateChangelog(
+    TCellId cellId,
+    const std::string& address,
+    const TTruncateChangelogOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.TruncateChangelog();
+    req->set_last_sequence_number(options.LastSequenceNumber);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoScheduleRestart(
+    TCellId cellId,
+    const std::string& address,
+    const TScheduleRestartOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.ForceRestart();
+
+    auto restartReason = TError("Schedule restart command");
+    ToProto(req->mutable_reason(), restartReason);
+    req->set_arm_priority_boost(false);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
 void TClient::DoResetDynamicallyPropagatedMasterCells(const TResetDynamicallyPropagatedMasterCellsOptions& options)
 {
     ValidatePermissionsWithAcn(
