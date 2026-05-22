@@ -377,7 +377,10 @@ SRCS(
     offshore_data_gateway/config.cpp
     offshore_data_gateway/offshore_data_gateway_channel.cpp
 
+    push_based_shuffle_client/config.cpp
     push_based_shuffle_client/record_format.cpp
+    push_based_shuffle_client/session_provider.cpp
+    push_based_shuffle_client/shuffle_writer.cpp
 
     query_client/executor.cpp
     query_client/explain.cpp
