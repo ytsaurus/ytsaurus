@@ -337,7 +337,7 @@ public:
                 auto mutation = CreateMutation(HydraManager_, hydraRequest);
                 mutation->SetHandler(BIND_NO_PROPAGATE(
                     &TTabletCellWriteManager::HydraLeaderWriteRows,
-                    MakeStrong(this),
+                    MakeWeak(this),
                     params.TransactionId,
                     tablet->GetMountRevision(),
                     mutationPrepareSignature,
