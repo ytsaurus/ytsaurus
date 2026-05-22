@@ -3737,26 +3737,6 @@ private:
             return future;
         };
 
-        auto now = GetInstant();
-        {
-            auto guard = Guard(BarrierProfilingLock_);
-            BarrierTimestampStartMap_[now] += 1;
-        }
-
-        auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] {
-            auto guard = Guard(BarrierProfilingLock_);
-            auto& counter = BarrierTimestampStartMap_[start];
-            --counter;
-
-            YT_LOG_ALERT_IF(counter < 0,
-                "Barrier wait time metrics have negative counter (StartTime: %v)",
-                start);
-
-            if (counter == 0) {
-                BarrierTimestampStartMap_.erase(start);
-            }
-        });
-
         // Only for logging.
         std::vector<std::string> tagsAssociatedWithPresentBarriers;
 
@@ -3800,9 +3780,29 @@ private:
             return delayed(OKFuture);
         }
 
+        auto now = GetInstant();
+        {
+            auto guard = Guard(BarrierProfilingLock_);
+            BarrierTimestampStartMap_[now] += 1;
+        }
+
         YT_LOG_DEBUG("Waiting for barriers (BarrierCount: %v, TagsAssociatedWithPresentBarriers: %v)",
             std::ssize(barriers),
             tagsAssociatedWithPresentBarriers);
+
+        auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] {
+            auto guard = Guard(BarrierProfilingLock_);
+            auto& counter = BarrierTimestampStartMap_[start];
+            --counter;
+
+            YT_LOG_ALERT_IF(counter < 0,
+                "Barrier wait time metrics have negative counter (StartTime: %v)",
+                start);
+
+            if (counter == 0) {
+                BarrierTimestampStartMap_.erase(start);
+            }
+        });
 
         auto newBarriers = AllSucceeded(barriers)
             .Apply(updateMetrics);
