@@ -4014,6 +4014,7 @@ class TestDynamicTablesAvailability(DynamicTablesBase):
         bundle_name = "b"
         create_tablet_cell_bundle(bundle_name)
         sync_create_cells(1, tablet_cell_bundle=bundle_name)
+        wait(lambda : get("//sys/tablet_cell_bundles/{0}/@health".format(bundle_name)) == "good")
 
         check_cluster_liveness(check_tablet_cell_bundle=bundle_name)
 
