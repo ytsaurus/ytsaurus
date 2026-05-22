@@ -46,6 +46,7 @@ import functools
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestQuery(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -2904,6 +2905,7 @@ class TestQuery(DynamicTablesBase):
         assert select_rows(f"* from `{table_path}`") == [{'k': 42, 'v': ['a', 'b', 42]}]
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -3576,6 +3578,7 @@ class TestQueryRpcProxy(TestQuery):
                 select_rows("sum(0) as s from [//tmp/t] group by key % 5 as gk having (1 / s) = 0")
 
 
+@pytest.mark.enabled_multidaemon
 class TestSelectWithRowCache(TestLookupCache):
     ENABLE_MULTIDAEMON = True
     COUNTER_NAME = "select"
@@ -3591,6 +3594,7 @@ class TestSelectWithRowCache(TestLookupCache):
             **kwargs)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQuerySequoia(TestQuery):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True

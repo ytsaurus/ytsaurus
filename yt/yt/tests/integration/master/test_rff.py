@@ -13,6 +13,7 @@ import os
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRff(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 5
@@ -93,6 +94,7 @@ class TestRff(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRffMulticell(TestRff):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -7,6 +7,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTimestampProvider(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -28,6 +29,7 @@ class TestTimestampProvider(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTimestampProviderClocks(TestTimestampProvider):
     ENABLE_MULTIDAEMON = True
     NUM_CLOCKS = 1

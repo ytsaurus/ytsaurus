@@ -46,6 +46,7 @@ def _apply_constraints(schema, constraints):
             try_apply_constraint(column, "stable_name")
 
 
+@pytest.mark.enabled_multidaemon
 class TestConstraintsRestrictions(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -197,6 +198,7 @@ class TestConstraintsRestrictions(ChaosTestBase):
                 alter_table("//tmp/crt", constrained_schema=schema)
 
 
+@pytest.mark.enabled_multidaemon
 class TestConstraints(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 10
@@ -718,6 +720,7 @@ class TestConstraints(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestConstraintsMulticell(TestConstraints):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -731,6 +734,7 @@ class TestConstraintsMulticell(TestConstraints):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestConstraintsPortal(TestConstraintsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -744,6 +748,7 @@ class TestConstraintsPortal(TestConstraintsMulticell):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestConstraintsRpcProxy(TestConstraints):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

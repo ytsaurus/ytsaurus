@@ -24,6 +24,7 @@ from yt.xdelta_aggregate_column.bindings import XDeltaCodec
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAggregateColumns(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -628,6 +629,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAggregateColumnsMulticell(TestAggregateColumns):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -638,6 +640,7 @@ class TestAggregateColumnsMulticell(TestAggregateColumns):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestAggregateColumnsRpcProxy(TestAggregateColumns):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

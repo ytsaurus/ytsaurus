@@ -35,6 +35,7 @@ class BackupKnowinglyFailedException(Exception):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestBackups(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
@@ -957,6 +958,7 @@ class TestBackups(DynamicTablesBase):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -1470,6 +1472,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestBackupsMulticell(TestBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1481,6 +1484,7 @@ class TestBackupsMulticell(TestBackups):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestBackupsShardedTx(TestBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1510,6 +1514,7 @@ class TestBackupsShardedTx(TestBackups):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestBackupsMirroredTx(TestBackupsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1518,6 +1523,7 @@ class TestBackupsMirroredTx(TestBackupsShardedTx):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1529,6 +1535,7 @@ class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1541,6 +1548,7 @@ class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1548,6 +1556,7 @@ class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
 
 
 @authors("dave11ar")
+@pytest.mark.enabled_multidaemon
 class TestBackupsRpcProxy(TestBackups):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

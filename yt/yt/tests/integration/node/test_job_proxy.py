@@ -602,6 +602,7 @@ class TestJobProxyProfiling(YTEnvSetup):
         wait(lambda: profiler.get_all("resource_tracker/thread_count") == [])
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobProxySignatures(YTEnvSetup):
     OWNERS_PATH = "//sys/public_keys/by_owner"
     DELTA_NODE_CONFIG = {
@@ -809,6 +810,7 @@ class TestJobProxyJobApi(YTEnvSetup):
         wait(lambda: self.try_get_last_save_time(job_id) == self.get_preemptible_progress_time(job_id))
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobProxyMemoryProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3

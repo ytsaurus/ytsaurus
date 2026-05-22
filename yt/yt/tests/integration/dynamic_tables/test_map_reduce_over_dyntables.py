@@ -30,6 +30,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTables(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -1066,6 +1067,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1076,6 +1078,7 @@ class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1086,6 +1089,7 @@ class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesSequoia(TestMapOnDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1207,6 +1211,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
         write_file(b"//tmp/script.py", str.encode(script))
 
 
+@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1512,6 +1517,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrderedWithTabletIndex):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1522,6 +1528,7 @@ class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrdere
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWithTabletIndexMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1532,6 +1539,7 @@ class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWi
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexSequoia(TestInputOutputForOrderedWithTabletIndexMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1548,6 +1556,7 @@ class TestInputOutputForOrderedWithTabletIndexSequoia(TestInputOutputForOrderedW
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1765,6 +1774,7 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicMulticell(TestSchedulerMapReduceDynamic):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1775,6 +1785,7 @@ class TestSchedulerMapReduceDynamicMulticell(TestSchedulerMapReduceDynamic):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1785,6 +1796,7 @@ class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicSequoia(TestSchedulerMapReduceDynamicMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

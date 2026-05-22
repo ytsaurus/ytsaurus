@@ -18,6 +18,7 @@ from datetime import datetime
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMaintenanceTracker(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3
@@ -324,6 +325,7 @@ class TestMaintenanceTracker(YTEnvSetup):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -356,6 +358,7 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMaintenanceTrackerWithRpc(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

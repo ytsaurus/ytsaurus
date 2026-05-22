@@ -13,6 +13,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMountConfig(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -396,6 +397,7 @@ class TestMountConfig(DynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMountConfigMulticell(TestMountConfig):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

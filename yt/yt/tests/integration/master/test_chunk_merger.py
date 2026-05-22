@@ -1607,6 +1607,7 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
         _wait_for_merge("//home/t2", None)
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkMergerSequoia(TestChunkMergerMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1621,6 +1622,7 @@ class TestChunkMergerSequoia(TestChunkMergerMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestTableDataStatisticsConsistency(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

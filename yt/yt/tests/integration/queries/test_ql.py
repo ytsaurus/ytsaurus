@@ -22,6 +22,7 @@ from yt.wrapper import yson
 import pytest
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueriesQL(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -176,6 +177,7 @@ class TestQueriesQL(YTEnvSetup):
 
 
 @authors("apollo1321")
+@pytest.mark.enabled_multidaemon
 class TestQueriesQLRpcProxy(TestQueriesQL):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

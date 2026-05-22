@@ -1980,6 +1980,7 @@ class TestDeclare(TestQueriesYqlBase):
 
 
 @authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithMaxYqlVersion):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -1989,6 +1990,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWi
 
 
 @authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -1998,6 +2000,7 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInf
 
 
 @authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -2007,6 +2010,7 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTracke
 
 
 @authors("lucius")
+@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithVisibleYqlVersionStaticRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionStatic):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -2016,6 +2020,7 @@ class TestGetQueryTrackerInfoWithVisibleYqlVersionStaticRpcProxy(TestGetQueryTra
 
 
 @authors("lucius")
+@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithVisibleYqlVersionDynamicRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionDynamic):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -2025,6 +2030,7 @@ class TestGetQueryTrackerInfoWithVisibleYqlVersionDynamicRpcProxy(TestGetQueryTr
 
 
 @authors("lucius")
+@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithVisibleYqlVersionBothRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionBoth):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -2034,6 +2040,7 @@ class TestGetQueryTrackerInfoWithVisibleYqlVersionBothRpcProxy(TestGetQueryTrack
 
 
 @authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
 class TestDeclareRpcProxy(TestDeclare):
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True

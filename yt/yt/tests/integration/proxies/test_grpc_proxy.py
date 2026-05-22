@@ -50,6 +50,7 @@ def uuid_to_dict(guid):
 
 
 @pytest.mark.skipif(not pb2_imported, reason="Some of pb2 modules could not be imported")
+@pytest.mark.enabled_multidaemon
 class TestGrpcProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     USE_DYNAMIC_TABLES = True

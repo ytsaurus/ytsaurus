@@ -65,6 +65,7 @@ def auth_config(port):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestOAuthBase(YTEnvSetup):
     NUM_MASTERS = 1
 
@@ -170,6 +171,7 @@ class TestOAuthBase(YTEnvSetup):
             return mock_server.make_response(json={"login": user, "sub": "42"})
 
 
+@pytest.mark.enabled_multidaemon
 class TestOAuth(TestOAuthBase):
     ENABLE_MULTIDAEMON = True
 
@@ -242,6 +244,7 @@ class TestOAuth(TestOAuthBase):
         wait(lambda: self._check_deny(cookie="good_then_bad_token"))
 
 
+@pytest.mark.enabled_multidaemon
 class TestOAuthWithDisabledUserCreation(TestOAuthBase):
     ENABLE_MULTIDAEMON = True
 

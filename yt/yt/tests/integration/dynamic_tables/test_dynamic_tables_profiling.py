@@ -422,6 +422,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         wait(lambda: max_block_size_summary.get_max() == 312.0)
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}

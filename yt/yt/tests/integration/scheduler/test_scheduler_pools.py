@@ -1104,6 +1104,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolAcls(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1309,6 +1310,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestTransferPoolResourcesCommand(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1825,6 +1827,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
 
 
 @authors("ignat")
+@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolConfigPresets(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

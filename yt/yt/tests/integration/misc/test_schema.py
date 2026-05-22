@@ -206,6 +206,7 @@ def type_v3_to_type_v1(type_v3):
 
 @authors("ermolovd")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+@pytest.mark.enabled_multidaemon
 class TestComplexTypes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -645,6 +646,7 @@ class TestComplexTypes(YTEnvSetup):
 
 
 @authors("ermolovd")
+@pytest.mark.enabled_multidaemon
 class TestComplexTypesMisc(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -1076,6 +1078,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
 
+@pytest.mark.enabled_multidaemon
 class TestLogicalType(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1333,6 +1336,7 @@ class TestLogicalType(YTEnvSetup):
             )
 
 
+@pytest.mark.enabled_multidaemon
 class TestRequiredOption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1607,6 +1611,7 @@ class TestRequiredOption(YTEnvSetup):
         alter_table("//tmp/t", schema=good_schema)
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchemaDeduplication(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -1647,11 +1652,13 @@ class TestSchemaDeduplication(YTEnvSetup):
         assert get("//tmp/table/@schema") == get("//tmp/schema_holder/@schema")
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchemaDeduplicationRpcProxy(TestSchemaDeduplication):
     ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchemaObjects(TestSchemaDeduplication):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1862,6 +1869,7 @@ class TestSchemaObjects(TestSchemaDeduplication):
         wait(lambda: get("#{}/@export_ref_counter".format(schema_id)) == {})
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchemaValidation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -1969,6 +1977,7 @@ class TestSchemaValidation(YTEnvSetup):
 
 
 @authors("ermolovd")
+@pytest.mark.enabled_multidaemon
 class TestErrorCodes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -2120,6 +2129,7 @@ class AlterTableSetup(YTEnvSetup):
 
 
 @authors("ermolovd")
+@pytest.mark.enabled_multidaemon
 class TestAlterTable(AlterTableSetup):
     USE_DYNAMIC_TABLES = True
 
@@ -2389,6 +2399,7 @@ class TestAlterTable(AlterTableSetup):
             dynamic=dynamic)
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchemaDepthLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     YSON_DEPTH_LIMIT = 256
@@ -2471,26 +2482,31 @@ class DisableStructFieldRemovalSetup(DisabledStructFieldManipulationSetup):
         )
 
 
+@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRenaminglStatic(DisableStructFieldRenamingSetup):
     USE_DYNAMIC_TABLES = False
     ENABLE_STATIC_STRUCT_FIELD_RENAMING = False
 
 
+@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRenamingDynamic(DisableStructFieldRenamingSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING = False
 
 
+@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRemovalStatic(DisableStructFieldRemovalSetup):
     USE_DYNAMIC_TABLES = False
     ENABLE_STATIC_STRUCT_FIELD_REMOVAL = False
 
 
+@pytest.mark.enabled_multidaemon
 class TestDisableStructFieldRemovalDynamic(DisableStructFieldRemovalSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL = False
 
 
+@pytest.mark.enabled_multidaemon
 class TestRenameColumnsStatic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -2715,6 +2731,7 @@ class TestRenameColumnsStatic(YTEnvSetup):
             alter_table(self._TABLE_PATH, dynamic=True)
 
 
+@pytest.mark.enabled_multidaemon
 class TestRenameColumnsDynamic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     _TABLE_PATH = "//tmp/test-alter-table"
@@ -2960,6 +2977,7 @@ class TestRenameColumnsDynamic(YTEnvSetup):
         assert read_table(self._TABLE_PATH) == rows4
 
 
+@pytest.mark.enabled_multidaemon
 class TestDeleteColumnsDisabledStatic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -2993,6 +3011,7 @@ class TestDeleteColumnsDisabledStatic(YTEnvSetup):
             alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
 
 
+@pytest.mark.enabled_multidaemon
 class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True

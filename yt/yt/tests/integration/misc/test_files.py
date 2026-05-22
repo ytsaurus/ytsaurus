@@ -17,6 +17,7 @@ from io import TextIOBase
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestFiles(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -282,6 +283,7 @@ class TestFiles(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestFilesMulticell(TestFiles):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -292,6 +294,7 @@ class TestFilesMulticell(TestFiles):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestFilesPortal(TestFilesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -302,6 +305,7 @@ class TestFilesPortal(TestFilesMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestFilesRpcProxy(TestFiles):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -309,6 +313,7 @@ class TestFilesRpcProxy(TestFiles):
     ENABLE_HTTP_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestFilesSequoia(TestFiles):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -327,6 +332,7 @@ class TestFilesSequoia(TestFiles):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestFileErrorsRpcProxy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -394,6 +400,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestBigFilesRpcProxy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -418,6 +425,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         assert contents == data
 
 
+@pytest.mark.enabled_multidaemon
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_DRIVER_CONFIG = {

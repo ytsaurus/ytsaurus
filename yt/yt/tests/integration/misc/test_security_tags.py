@@ -15,6 +15,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSecurityTags(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -331,6 +332,7 @@ class TestSecurityTags(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSecurityTagsMulticell(TestSecurityTags):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -340,6 +342,7 @@ class TestSecurityTagsMulticell(TestSecurityTags):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSecurityTagsSequoia(TestSecurityTagsMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

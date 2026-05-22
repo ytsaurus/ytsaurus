@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestErasureBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -116,6 +117,7 @@ class TestErasureBase(YTEnvSetup):
         return has_failed
 
 
+@pytest.mark.enabled_multidaemon
 class TestErasure(TestErasureBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -616,6 +618,7 @@ class TestErasure(TestErasureBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestErasureMulticell(TestErasure):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -630,6 +633,7 @@ class TestErasureMulticell(TestErasure):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesErasure(TestErasureBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True

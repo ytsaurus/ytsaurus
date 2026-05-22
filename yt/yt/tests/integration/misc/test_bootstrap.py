@@ -9,6 +9,7 @@ from time import sleep
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestClusterConnectionDynamicConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_HTTP_PROXY = True

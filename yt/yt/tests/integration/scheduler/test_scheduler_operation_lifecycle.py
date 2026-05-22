@@ -762,6 +762,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
 
 # See: YT-22656.
+@pytest.mark.enabled_multidaemon
 class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -812,6 +813,7 @@ class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) == 2)
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1211,6 +1213,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOperationOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1252,6 +1255,7 @@ class TestOperationOrchid(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1323,6 +1327,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerErrorTruncate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1994,6 +1999,7 @@ class TestAsyncControllerActions(YTEnvSetup):
         op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2043,6 +2049,7 @@ class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
         op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2123,6 +2130,7 @@ class TestControllerAgentScheduleOperationInEmptyTree(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSuccessfulScheduleJobDurationEstimate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2146,6 +2154,7 @@ class TestSuccessfulScheduleJobDurationEstimate(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolManageAcls(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

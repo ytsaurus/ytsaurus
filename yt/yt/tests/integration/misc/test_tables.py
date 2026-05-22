@@ -33,6 +33,7 @@ import random
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTables(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 10
@@ -2973,6 +2974,7 @@ class TestTables(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTablesChunkFormats(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3014,6 +3016,7 @@ def check_multicell_statistics(path, chunk_count_map):
         assert statistics[cell_tag]["chunk_count"] == chunk_count_map[cell_tag]
 
 
+@pytest.mark.enabled_multidaemon
 class TestTablesMulticell(TestTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -3357,6 +3360,7 @@ class TestTablesMulticell(TestTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTablesPortal(TestTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -3368,6 +3372,7 @@ class TestTablesPortal(TestTablesMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestTablesShardedTx(TestTablesPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -3381,6 +3386,7 @@ class TestTablesShardedTx(TestTablesPortal):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestTablesSequoia(TestTablesShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -3434,6 +3440,7 @@ class TestTablesSequoia(TestTablesShardedTx):
             check_path(f"#{m_id}/t2")
 
 
+@pytest.mark.enabled_multidaemon
 class TestTablesRpcProxy(TestTables):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

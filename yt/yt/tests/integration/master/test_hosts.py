@@ -57,6 +57,7 @@ class TestHostsBase(YTEnvSetup):
         return get("//sys/racks/{}/@hosts".format(rack))
 
 
+@pytest.mark.enabled_multidaemon
 class TestHosts(TestHostsBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -274,6 +275,7 @@ class TestHostAwareReplication(TestHostsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestHostsMulticell(TestHosts):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
