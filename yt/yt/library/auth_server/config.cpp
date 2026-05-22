@@ -380,6 +380,8 @@ void TLdapServiceConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("encryption", &TThis::Encryption)
         .Default(ELdapEncryption::None);
+    registrar.Parameter("enable_referrals", &TThis::EnableReferrals)
+        .Default(false);
     registrar.Parameter("ca", &TThis::CertificateAuthority)
         .Optional();
     registrar.Parameter("admin_dn", &TThis::AdminDn)

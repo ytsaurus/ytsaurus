@@ -182,12 +182,10 @@ private:
         int version = LDAP_VERSION3;
         ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &version);
 
-        // Active Directory frequently returns referrals to other domain
-        // controllers for cross-domain or forest-root searches. libldap chases
-        // them with a new anonymous bind by default, which AD rejects with
-        // LDAP_OPERATIONS_ERROR — failing the whole search even when the user
-        // was already found on the original DC. We don't follow referrals.
-        ldap_set_option(ld, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
+        int referrals = Config_->EnableReferrals
+            ? LDAP_OPT_ON
+            : LDAP_OPT_OFF;
+        ldap_set_option(ld, LDAP_OPT_REFERRALS, &referrals);
 
         auto timeout = MakeTimeval(Config_->RequestTimeout);
         ldap_set_option(ld, LDAP_OPT_TIMEOUT, &timeout);
