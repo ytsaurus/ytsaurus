@@ -99,9 +99,6 @@ public:
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
-
         return Reader_->Read(offset, length, options)
             .Apply(BIND([this, this_ = MakeStrong(this), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
                 auto statistics = Reader_->GetStatistics();
