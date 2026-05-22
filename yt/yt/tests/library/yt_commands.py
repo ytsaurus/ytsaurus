@@ -1342,6 +1342,10 @@ def get_supported_features(**kwargs):
     return execute_command("get_supported_features", kwargs, parse_yson=True)
 
 
+def check_cluster_liveness(**kwargs):
+    execute_command("check_cluster_liveness", kwargs)
+
+
 def start_shuffle(account, partition_count, parent_transaction_id, **kwargs):
     kwargs["account"] = account
     kwargs["partition_count"] = partition_count

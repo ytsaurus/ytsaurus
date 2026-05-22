@@ -28,7 +28,8 @@ from yt_commands import (
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_domestic_medium, raises_yt_error, get_tablet_errors,
     suspend_tablet_cells, resume_tablet_cells, update_nodes_dynamic_config, externalize,
-    set_node_banned, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
+    set_node_banned, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
+    check_cluster_liveness)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
@@ -3961,7 +3962,7 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
 
 
 @pytest.mark.enabled_multidaemon
-class TestDynamicTablesSafeMode(DynamicTablesBase):
+class TestDynamicTablesAvailability(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
 
@@ -3986,6 +3987,18 @@ class TestDynamicTablesSafeMode(DynamicTablesBase):
         trim_rows("//tmp/t", 0, 1, authenticated_user="u")
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}], authenticated_user="u")
         assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 1, "value": "1"}]
+
+    @authors("savrus")
+    def test_check_cluster_liveness(self):
+        bundle_name = "b"
+        create_tablet_cell_bundle(bundle_name)
+        sync_create_cells(1, tablet_cell_bundle=bundle_name)
+
+        check_cluster_liveness(check_tablet_cell_bundle=bundle_name)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[bundle_name]):
+            with raises_yt_error("Tablet cell bundle health subrequest failed"):
+                check_cluster_liveness(check_tablet_cell_bundle=bundle_name)
 
 
 ##################################################################
