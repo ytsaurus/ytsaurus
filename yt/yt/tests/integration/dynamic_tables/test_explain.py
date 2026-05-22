@@ -7,7 +7,6 @@ from yt_type_helpers import make_schema
 import pytest
 
 
-@pytest.mark.enabled_multidaemon
 class TestExplainQuery(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True

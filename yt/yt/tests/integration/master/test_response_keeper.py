@@ -14,7 +14,6 @@ import time
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestResponseKeeper(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -93,7 +92,6 @@ class TestResponseKeeper(YTEnvSetup):
             create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaResponseKeeper(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

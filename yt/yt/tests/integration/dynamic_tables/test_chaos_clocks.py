@@ -99,7 +99,6 @@ class ChaosClockBase(ChaosTestBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChaosClock(ChaosClockBase):
     ENABLE_MULTIDAEMON = True
 
@@ -205,7 +204,6 @@ class TestChaosClock(ChaosClockBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestChaosClockRpcProxy(ChaosClockBase):
     ENABLE_MULTIDAEMON = True
 

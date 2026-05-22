@@ -840,7 +840,6 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
 
-@pytest.mark.enabled_multidaemon
 class TestCustomRegistrationManagerConfig(TestQueueConsumerApiBase, TestQueueAgentBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1010,7 +1009,6 @@ class TestDataApiBase(TestQueueConsumerApiBase, TestQueueAgentBase):
         TestDataApiBase._assert_rows_contain(actual_rows, expected_rows)
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataApiSingleCluster(TestDataApiBase):
     NUM_TEST_PARTITIONS = 2
 
@@ -1212,7 +1210,6 @@ class TestDataApiSingleCluster(TestDataApiBase):
         assert get_offset("//tmp/q4") == 1543
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataApiMultiCluster(TestDataApiBase):
     NUM_TEST_PARTITIONS = 2
 
@@ -1492,12 +1489,10 @@ class TestConsumerRegistrationsOldImpl(TestLegacyRegistrationManagerMixin, TestC
     ENABLE_MULTIDAEMON = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataApiSingleClusterOldImpl(TestLegacyRegistrationManagerMixin, TestDataApiSingleCluster):
     ENABLE_MULTIDAEMON = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestDataApiMultiClusterOldImpl(TestLegacyRegistrationManagerMixin, TestDataApiMultiCluster):
     ENABLE_MULTIDAEMON = True
 

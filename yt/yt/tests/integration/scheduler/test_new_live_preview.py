@@ -17,7 +17,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNewLivePreview(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -371,7 +370,6 @@ class TestNewLivePreview(YTEnvSetup):
         op.track()
 
 
-@pytest.mark.enabled_multidaemon
 class TestNewLivePreviewMulticell(TestNewLivePreview):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

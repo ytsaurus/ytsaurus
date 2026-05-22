@@ -9,7 +9,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestErrorCodes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

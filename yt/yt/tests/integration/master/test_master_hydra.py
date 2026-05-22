@@ -17,7 +17,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterLeaderSwitch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 7
@@ -65,7 +64,6 @@ class TestMasterLeaderSwitch(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestMasterResetStateHash(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -157,7 +155,6 @@ class TestDiscombobulate(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestLamportClock(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -181,7 +178,6 @@ class TestLamportClock(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestHydraLogicalTime(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
@@ -221,7 +217,6 @@ class TestHydraLogicalTime(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestLocalJanitor(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     DELTA_MASTER_CONFIG = {

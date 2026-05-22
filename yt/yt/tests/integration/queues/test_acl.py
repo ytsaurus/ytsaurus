@@ -9,7 +9,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRegisterQueueConsumerPermission(QueueConsumerRegistrationManagerBase, YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -49,7 +48,6 @@ class TestRegisterQueueConsumerPermission(QueueConsumerRegistrationManagerBase, 
         assert check_permission("u_vital", "register_queue_consumer", "//tmp/t", vital=True)["action"] == "allow"
 
 
-@pytest.mark.enabled_multidaemon
 class TestRegisterQueueConsumerPermissionRpcProxy(TestRegisterQueueConsumerPermission):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

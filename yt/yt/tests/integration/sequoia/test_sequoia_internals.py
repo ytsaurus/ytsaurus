@@ -48,7 +48,6 @@ except ImportError:
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaEnvSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -73,7 +72,6 @@ class TestSequoiaEnvSetup(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaInternals(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -854,7 +852,6 @@ class TestSequoiaInternals(YTEnvSetup):
         assert not ls("//tmp")
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):
     ENABLE_MULTIDAEMON = True
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
@@ -867,7 +864,6 @@ class TestSequoiaResolve(TestSequoiaInternals):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1385,7 +1381,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1440,7 +1435,6 @@ class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2391,7 +2385,6 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
@@ -2441,7 +2434,6 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -3066,7 +3058,6 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

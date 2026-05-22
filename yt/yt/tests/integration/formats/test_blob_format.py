@@ -7,7 +7,6 @@ import pytest
 import yt.yson as yson
 
 
-@pytest.mark.enabled_multidaemon
 class TestBlobFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

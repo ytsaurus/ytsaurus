@@ -311,7 +311,6 @@ pools_config = yson.to_yson_type(
 
 
 @authors("antonkikh")
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -535,7 +534,6 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
 
 @authors("ignat")
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
     ENABLE_MULTIDAEMON = True
     # We are going to remove remote event log in scheduler simulator anyway. This is the only

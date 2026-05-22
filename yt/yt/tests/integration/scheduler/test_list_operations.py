@@ -202,7 +202,6 @@ class ListOperationsSetup(YTEnvSetup):
         self._create_operations()
 
 
-@pytest.mark.enabled_multidaemon
 class _TestListOperationsBase(ListOperationsSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -958,7 +957,6 @@ class _TestListOperationsBase(ListOperationsSetup):
             )
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsCypressOnly(_TestListOperationsBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
@@ -1051,7 +1049,6 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         ]
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsCypressArchive(_TestListOperationsBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1075,7 +1072,6 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
             list_operations(include_archive=True, from_time=self.op1.before_start_time)
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsArchiveOnly(_TestListOperationsBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1133,7 +1129,6 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
         clean_operations()
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsArchiveHacks(ListOperationsSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1193,7 +1188,6 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsCypressOnlyRpcProxy(TestListOperationsCypressOnly):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1202,7 +1196,6 @@ class TestListOperationsCypressOnlyRpcProxy(TestListOperationsCypressOnly):
     ENABLE_HTTP_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsCypressArchiveRpcProxy(TestListOperationsCypressArchive):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1211,7 +1204,6 @@ class TestListOperationsCypressArchiveRpcProxy(TestListOperationsCypressArchive)
     ENABLE_HTTP_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1220,7 +1212,6 @@ class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
     ENABLE_HTTP_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestListOperationsCypressArchiveHeavyRuntimeParameters(TestListOperationsCypressArchive):
     ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
@@ -1233,7 +1224,6 @@ class TestListOperationsCypressArchiveHeavyRuntimeParameters(TestListOperationsC
 
 
 @authors("renadeen")
-@pytest.mark.enabled_multidaemon
 class TestArchiveVersion(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

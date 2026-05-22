@@ -48,7 +48,6 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -1459,7 +1458,6 @@ class TestSchedulerRemoteCopyCommandsSequoia(TestSchedulerRemoteCopyCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1613,7 +1611,6 @@ class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -1655,7 +1652,6 @@ class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBa
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1940,7 +1936,6 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2262,7 +2257,6 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 12
@@ -2394,7 +2388,6 @@ class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamic
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2432,7 +2425,6 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemoteCopyDynamicTablesWithHunks):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

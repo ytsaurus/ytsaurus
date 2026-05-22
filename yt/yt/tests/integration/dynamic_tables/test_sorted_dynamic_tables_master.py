@@ -26,7 +26,6 @@ import builtins
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -429,7 +428,6 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert actual_cell_ids == cell_ids
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -440,14 +438,12 @@ class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTables
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesMountUnmountFreeze):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -458,7 +454,6 @@ class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMou
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeSequoia(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -475,7 +470,6 @@ class TestSortedDynamicTablesMountUnmountFreezeSequoia(TestSortedDynamicTablesMo
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1072,7 +1066,6 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             alter_table("//tmp/t", schema=old_schema)
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyReshard):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1083,14 +1076,12 @@ class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyRes
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyReshard):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshardMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1101,7 +1092,6 @@ class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshar
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardSequoia(TestSortedDynamicTablesCopyReshardMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

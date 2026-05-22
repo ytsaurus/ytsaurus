@@ -421,7 +421,6 @@ class TestRemoveClusterNodes(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -486,7 +485,6 @@ class TestReregisterNode(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRackDataCenter(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -508,7 +506,6 @@ class TestRackDataCenter(YTEnvSetup):
             assert self.DATA_CENTER_SET == data_center_get
 
 
-@pytest.mark.enabled_multidaemon
 class TestRack(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -526,13 +523,11 @@ class TestRack(YTEnvSetup):
             assert self.RACK_SET == rack_get
 
 
-@pytest.mark.enabled_multidaemon
 class TestRackCells(TestRack):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-@pytest.mark.enabled_multidaemon
 class TestRackDataCenterCells(TestRackDataCenter):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
