@@ -68,12 +68,15 @@ TNodeTagManager::TNodeTagManager(
     const TSchedulerInputState& input,
     TSpareInstanceAllocator<TSpareNodesInfo>* spareNodeAllocator,
     TSchedulerMutations* mutations,
-    INodeTrackerPtr nodeTracker)
-    : BundleName_(std::move(bundleName))
+    INodeTrackerPtr nodeTracker,
+    int nodeReleasementBudget)
+    : NodeReleasementBudget_(nodeReleasementBudget)
+    , BundleName_(std::move(bundleName))
     , Input_(input)
     , SpareNodeAllocator_(spareNodeAllocator)
     , Mutations_(mutations)
     , NodeTracker_(std::move(nodeTracker))
+
     , Logger(BundleControllerLogger().WithTag("Bundle: %v", BundleName_))
 { }
 
@@ -165,9 +168,19 @@ bool TNodeTagManager::ProcessNodeReleasement(
     if (nodeInfo->UserTags.contains(nodeTagFilter)) {
         if (Input_.Config->DecommissionReleasedNodes) {
             if (!nodeInfo->Decommissioned) {
+                if (NodeReleasementBudget_ <= 0) {
+                    return false;
+                }
+
                 Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(true);
-                YT_LOG_DEBUG("Releasing node: setting decommissioned flag (NodeAddress: %v)",
-                    nodeAddress);
+                YT_LOG_DEBUG("Releasing node: setting decommissioned flag (NodeAddress: %v, ReleasementBudget: %v)",
+                    nodeAddress,
+                    NodeReleasementBudget_);
+
+                if (--NodeReleasementBudget_ == 0) {
+                    YT_LOG_DEBUG("Node releasement budget is exhausted, will not release any more nodes at this iteration");
+                }
+
                 return false;
             }
 
@@ -1015,6 +1028,8 @@ void ManageNodeTags(
     TSchedulerMutations* mutations,
     const INodeTrackerPtr& nodeTracker)
 {
+    int nodeReleasementBudget = input.DynamicConfig->MaxReleasedNodesPerIteration;
+
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
 
@@ -1033,9 +1048,12 @@ void ManageNodeTags(
             input,
             &spareNodesAllocator,
             mutations,
-            nodeTracker);
+            nodeTracker,
+            nodeReleasementBudget);
 
         nodeTagManager.SetNodeTags();
+
+        nodeReleasementBudget = nodeTagManager.GetNodeReleasementBudget();
     }
 }
 
