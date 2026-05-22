@@ -1453,7 +1453,6 @@ class TestCoreTable(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@pytest.mark.enabled_multidaemon
 class TestCoreTablePorto(TestCoreTable):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -1486,7 +1485,6 @@ class TestCoreTablePorto(TestCoreTable):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@pytest.mark.enabled_multidaemon
 class TestCoreTablePortoRootfs(TestCoreTablePorto):
     ENABLE_MULTIDAEMON = True
     USE_CUSTOM_ROOTFS = True
@@ -1504,7 +1502,6 @@ def get_profiles_from_table(operation_id):
     )
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1654,7 +1651,6 @@ class TestJobProfiling(YTEnvSetup):
         )
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobTraceEvents(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2193,7 +2189,6 @@ class TestJobTraceEvents(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobReporterInProgressLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

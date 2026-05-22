@@ -13,7 +13,6 @@ import yt.wrapper
 import pytest
 
 
-@pytest.mark.enabled_multidaemon
 class TestPartitionTablesBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -114,7 +113,6 @@ class TestPartitionTablesBase(YTEnvSetup):
             assert sorted_dicts(rows) == sorted_dicts(partitioned_rows_by_cookie)
 
 
-@pytest.mark.enabled_multidaemon
 class TestPartitionTablesCommand(TestPartitionTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

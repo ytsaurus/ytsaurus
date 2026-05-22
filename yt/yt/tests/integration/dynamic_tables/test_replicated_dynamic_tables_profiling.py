@@ -18,7 +18,6 @@ from time import sleep, time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -262,7 +261,6 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesProfilingMulticell(TestReplicatedDynamicTablesProfiling):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

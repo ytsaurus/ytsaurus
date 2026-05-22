@@ -11,7 +11,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerEraseCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -195,7 +194,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerEraseCommandsMulticell(TestSchedulerEraseCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

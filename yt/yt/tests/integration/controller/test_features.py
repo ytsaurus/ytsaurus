@@ -59,7 +59,6 @@ class ControllerFeatures(object):
         assert self.operation is not None
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerFeatures(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -230,7 +229,6 @@ class TestControllerFeatures(YTEnvSetup):
         assert features.operation.tags["total_job_count"] == 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobStatisticFeatures(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1

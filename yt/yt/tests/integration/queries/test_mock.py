@@ -37,7 +37,6 @@ def expect_queries(queries, list_result, incomplete=False):
         raise
 
 
-@pytest.mark.enabled_multidaemon
 class TestMetrics(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -83,7 +82,6 @@ class TestMetrics(YTEnvSetup):
         wait(lambda: state_time_metric.get({"state": "Completing"}) is not None)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueriesMock(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -317,7 +315,6 @@ class TestQueriesMock(YTEnvSetup):
         assert str(get_query(q.id)["is_indexed"]) == "false"
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueryTrackerBan(YTEnvSetup):
     NUM_QUERY_TRACKER = 1
     DELTA_DRIVER_CONFIG = {
@@ -364,7 +361,6 @@ class TestQueryTrackerBan(YTEnvSetup):
         wait(lambda: query.get_state() == "running", ignore_exceptions=True)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueryTrackerResults(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -437,7 +433,6 @@ class TestQueryTrackerResults(YTEnvSetup):
         assert query.get_result(0)["full_result"] == yson.YsonEntity()
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueryTrackerQueryRestart(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -506,7 +501,6 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
         query.track()
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccessControl(YTEnvSetup):
     NUM_TEST_PARTITIONS = 16
 
@@ -785,7 +779,6 @@ class TestAccessControl(YTEnvSetup):
         expect_queries([q1, q2], list_queries(filter="asd"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfo(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -905,7 +898,6 @@ class TestGetQueryTrackerInfo(YTEnvSetup):
             stage='testing')
 
 
-@pytest.mark.enabled_multidaemon
 class TestShare(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -924,7 +916,6 @@ class TestShare(YTEnvSetup):
         expect_queries([], list_queries(authenticated_user="u2"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestSecrets(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -947,7 +938,6 @@ class TestSecrets(YTEnvSetup):
         assert q2_info["secrets"] == secrets
 
 
-@pytest.mark.enabled_multidaemon
 class TestIndexTables(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -992,7 +982,6 @@ class TestIndexTables(YTEnvSetup):
         expect_queries([q2, q1], list_queries(authenticated_user="u1", limit=2))
 
 
-@pytest.mark.enabled_multidaemon
 class TestMultipleAccessControl(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -1074,7 +1063,6 @@ class TestMultipleAccessControl(YTEnvSetup):
         expect_queries([q2], list_queries(authenticated_user="u2"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestTutorials(YTEnvSetup):
     @authors("kirsiv40")
     def test_tutorials_are_not_listed_with_standart_queries(self, query_tracker):
@@ -1239,7 +1227,6 @@ class TestTutorials(YTEnvSetup):
 
 
 # Separate list to fit 480 seconds limit for a test class.
-@pytest.mark.enabled_multidaemon
 class TestAccessControlList(YTEnvSetup):
     NUM_TEST_PARTITIONS = 16
 
@@ -1435,7 +1422,6 @@ class TestAccessControlList(YTEnvSetup):
         expect_queries([], list_queries(cursor_direction="future", attributes=["id"], user="u1\") OR ([user]=\"u2"))
 
 
-@pytest.mark.enabled_multidaemon
 class TestSearch(YTEnvSetup):
     @authors("kirsiv40")
     @pytest.mark.timeout(900)
@@ -1531,7 +1517,6 @@ class TestSearch(YTEnvSetup):
                         expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="\"aco:some-aco'$%^'\" 'aco:everyone'", search_by_token_prefix=True, **params_map)
 
 
-@pytest.mark.enabled_multidaemon
 class TestTTL(YTEnvSetup):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"not_indexed_queries_ttl": 1000}
 
@@ -1564,7 +1549,6 @@ class TestTTL(YTEnvSetup):
 
 
 @authors("apollo1321")
-@pytest.mark.enabled_multidaemon
 class TestQueriesMockRpcProxy(TestQueriesMock):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1573,7 +1557,6 @@ class TestQueriesMockRpcProxy(TestQueriesMock):
 
 
 @authors("mpereskokova")
-@pytest.mark.enabled_multidaemon
 class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1582,7 +1565,6 @@ class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
 
 
 @authors("lucius")
-@pytest.mark.enabled_multidaemon
 class TestQueryTrackerResultsRpcProxy(TestQueryTrackerResults):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1591,7 +1573,6 @@ class TestQueryTrackerResultsRpcProxy(TestQueryTrackerResults):
 
 
 @authors("apollo1321")
-@pytest.mark.enabled_multidaemon
 class TestAccessControlRpcProxy(TestAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1600,7 +1581,6 @@ class TestAccessControlRpcProxy(TestAccessControl):
 
 
 @authors("mpereskokova")
-@pytest.mark.enabled_multidaemon
 class TestShareRpcProxy(TestShare):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1609,7 +1589,6 @@ class TestShareRpcProxy(TestShare):
 
 
 @authors("mpereskokova")
-@pytest.mark.enabled_multidaemon
 class TestSecretsRpcProxy(TestSecrets):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1618,7 +1597,6 @@ class TestSecretsRpcProxy(TestSecrets):
 
 
 @authors("apollo1321")
-@pytest.mark.enabled_multidaemon
 class TestAccessControlListRpcProxy(TestAccessControlList):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1627,7 +1605,6 @@ class TestAccessControlListRpcProxy(TestAccessControlList):
 
 
 @authors("mpereskokova")
-@pytest.mark.enabled_multidaemon
 class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1636,7 +1613,6 @@ class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
 
 
 @authors("mpereskokova")
-@pytest.mark.enabled_multidaemon
 class TestTutorialsRpcProxy(TestTutorials):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1645,7 +1621,6 @@ class TestTutorialsRpcProxy(TestTutorials):
 
 
 @authors("mpereskokova")
-@pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1662,7 +1637,6 @@ class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
 
 
 @authors("kirsiv40")
-@pytest.mark.enabled_multidaemon
 class TestSearchRpcProxy(TestSearch):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

@@ -18,10 +18,7 @@ from yt_helpers import wait_and_get_controller_incarnation
 
 from time import sleep
 
-import pytest
 
-
-@pytest.mark.enabled_multidaemon
 class TestControllerTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3

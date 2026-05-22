@@ -49,7 +49,6 @@ def create_memory_script(memory, before_action=""):
 ###############################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMemoryLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -107,13 +106,11 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
         )
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMemoryLimitsPorto(TestSchedulerMemoryLimits):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestDisabledMemoryLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -483,7 +480,6 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
 @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
-@pytest.mark.enabled_multidaemon
 class TestResourceOverdraftAbort(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -910,7 +906,6 @@ class TestUpdateInstanceLimits(YTEnvSetup):
 ###############################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerGpu(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1048,7 +1043,6 @@ class TestSchedulerGpu(YTEnvSetup):
 ###############################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestPorts(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1

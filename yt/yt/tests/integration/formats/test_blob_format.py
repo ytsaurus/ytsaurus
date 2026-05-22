@@ -2,12 +2,9 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, create, read_table, write_table, raises_yt_error
 
-import pytest
-
 import yt.yson as yson
 
 
-@pytest.mark.enabled_multidaemon
 class TestBlobFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

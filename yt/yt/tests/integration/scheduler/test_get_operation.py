@@ -52,7 +52,6 @@ def get_running_job_count(op_id):
     return result["brief_progress"]["jobs"]["running"]
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetOperation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
@@ -615,7 +614,6 @@ class TestGetOperation(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetOperationRpcProxy(TestGetOperation):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -631,7 +629,6 @@ class TestGetOperationRpcProxy(TestGetOperation):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
     ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
@@ -655,7 +652,6 @@ class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationAliases(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -807,7 +803,6 @@ class TestOperationAliases(YTEnvSetup):
         assert info["type"] == "vanilla"
 
 
-@pytest.mark.enabled_multidaemon
 class TestOperationAliasesRpcProxy(TestOperationAliases):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
