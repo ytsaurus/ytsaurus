@@ -14,7 +14,6 @@ class TClockTestBase(YTEnvSetup):
     USE_PRIMARY_CLOCKS = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestAlienTsProviders(TClockTestBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -51,7 +50,6 @@ class TestAlienTsProviders(TClockTestBase):
             generate_timestamp(clock_cluster_tag=3, driver=driver)
 
 
-@pytest.mark.enabled_multidaemon
 class TestClockWithClusterTag(TestAlienTsProviders):
     ENABLE_MULTIDAEMON = True
 
@@ -60,7 +58,6 @@ class TestClockWithClusterTag(TestAlienTsProviders):
         config["clock_cluster_tag"] = int(master_cell_tag)
 
 
-@pytest.mark.enabled_multidaemon
 class TestClockMisconfiguration(TClockTestBase):
     ENABLE_MULTIDAEMON = True
 

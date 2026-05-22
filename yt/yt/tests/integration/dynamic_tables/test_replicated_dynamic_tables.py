@@ -104,7 +104,6 @@ EXPRESSION_SCHEMA_MISMATCHING = [
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -251,7 +250,6 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -3582,7 +3580,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
@@ -3693,7 +3690,6 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3734,7 +3730,6 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -3907,7 +3902,6 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 

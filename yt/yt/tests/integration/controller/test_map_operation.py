@@ -36,7 +36,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -3066,7 +3065,6 @@ class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 15
@@ -3098,7 +3096,6 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -3109,7 +3106,6 @@ class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -3123,7 +3119,6 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -3143,7 +3138,6 @@ class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsSha
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRootstock):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
@@ -3152,7 +3146,6 @@ class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRoots
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestWriteBufferEstimation(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -3523,7 +3516,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputFormats(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3828,7 +3820,6 @@ print('{hello=world}')
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3842,7 +3833,6 @@ class TestInputOutputFormatsMulticell(TestInputOutputFormats):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNestingLevelLimitOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3901,7 +3891,6 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3961,7 +3950,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") == 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestEnvironment(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

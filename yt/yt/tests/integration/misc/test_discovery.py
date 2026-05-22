@@ -9,7 +9,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDiscovery(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -21,7 +20,6 @@ class TestDiscovery(YTEnvSetup):
         assert exists("//sys/primary_masters/{0}/orchid/discovery_server".format(master))
 
 
-@pytest.mark.enabled_multidaemon
 class TestDiscoveryServers(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_DISCOVERY_SERVERS = 5

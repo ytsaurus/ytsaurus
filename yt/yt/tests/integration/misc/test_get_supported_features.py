@@ -11,7 +11,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetFeaturesBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -21,7 +20,6 @@ class TestGetFeaturesBase(YTEnvSetup):
     SKIP_STATISTICS_DESCRIPTIONS = False
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetFeatures(TestGetFeaturesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -139,7 +137,6 @@ class TestGetFeatures(TestGetFeaturesBase):
         assert features["require_password_in_authentication_commands"] == yson.YsonBoolean(True)
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetFeaturesWithConfigs(TestGetFeaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {

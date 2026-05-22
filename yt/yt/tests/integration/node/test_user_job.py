@@ -5125,7 +5125,6 @@ class TestClosingStdoutCri(TestClosingStdoutSimple):
     JOB_ENVIRONMENT_TYPE = "cri"
 
 
-@pytest.mark.enabled_multidaemon
 class TestDeletingConfigFile(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1

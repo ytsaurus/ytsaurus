@@ -47,7 +47,6 @@ SKYNET_TABLE_SCHEMA = make_schema(
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSkynetIntegration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

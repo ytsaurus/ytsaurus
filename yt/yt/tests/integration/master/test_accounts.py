@@ -351,7 +351,6 @@ class AccountsTestSuiteBase(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccounts(AccountsTestSuiteBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2361,7 +2360,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//sys/accounts/parent/@resource_limits") == limits
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountTree(AccountsTestSuiteBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -4358,7 +4356,6 @@ class TestAccountTree(AccountsTestSuiteBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountsMulticell(TestAccounts):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4643,7 +4640,6 @@ class TestAccountsMulticell(TestAccounts):
         assert len(ls("//sys/accounts/a/@multicell_statistics", driver=get_driver(2))) == 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountsStatisticsUpdatesGossip(TestAccountsMulticell):
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "security_manager": {
@@ -4717,7 +4713,6 @@ class TestAccountsStatisticsUpdatesGossip(TestAccountsMulticell):
         wait(lambda: self._get_account_chunk_count("max_1") == 1 and self._get_account_chunk_count("max_2") == 1)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountTreeMulticell(TestAccountTree):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4767,7 +4762,6 @@ class TestAccountTreeMulticell(TestAccountTree):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountsSequoia(TestAccountsMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

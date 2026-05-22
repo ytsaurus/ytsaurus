@@ -17,7 +17,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -792,7 +791,6 @@ class TestConcatenate(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateMulticell(TestConcatenate):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -846,7 +844,6 @@ class TestConcatenateMulticell(TestConcatenate):
         assert read_table("//tmp/t") == [{"a": "b"}]
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenatePortal(TestConcatenateMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -891,7 +888,6 @@ class TestConcatenatePortal(TestConcatenateMulticell):
         assert read_table("//portals/p/dst") == [{"a": "b"}, {"c": "d"}]
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateShardedTx(TestConcatenatePortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -905,7 +901,6 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateSequoia(TestConcatenateMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -922,7 +917,6 @@ class TestConcatenateSequoia(TestConcatenateMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestConcatenateRpcProxy(TestConcatenate):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

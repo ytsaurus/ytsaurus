@@ -14,7 +14,6 @@ from copy import deepcopy
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestClockServer(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -91,7 +90,6 @@ class TestClockServer(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestClockServerMulticell(TestClockServer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

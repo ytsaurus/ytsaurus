@@ -19,12 +19,10 @@ class MasterCacheTestBase(YTEnvSetup):
         assert get(f"//tmp/{key}", read_from="cache") == 123
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterCacheWithoutMasterCacheService(MasterCacheTestBase):
     pass
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterCacheWithMasterCacheService(MasterCacheTestBase):
     NUM_MASTER_CACHES = 1
     USE_MASTER_CACHE = True
@@ -54,13 +52,11 @@ class TestMasterCacheWithMasterCacheService(MasterCacheTestBase):
         assert get(f"//sys/master_caches/{address}/orchid/service/name") == "master_cache"
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterCacheWithMasterCacheServiceMulticell(TestMasterCacheWithMasterCacheService):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterCacheWithoutMasterCacheServiceSequoia(TestMasterCacheWithoutMasterCacheService):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
@@ -75,7 +71,6 @@ class TestMasterCacheWithoutMasterCacheServiceSequoia(TestMasterCacheWithoutMast
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterCacheWithMasterCacheServiceSequoia(TestMasterCacheWithMasterCacheService):
     NUM_MASTER_CACHES = 1
     USE_MASTER_CACHE = True

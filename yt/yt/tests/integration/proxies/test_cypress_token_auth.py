@@ -15,7 +15,6 @@ import hashlib
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthBase(YTEnvSetup):
     NUM_MASTERS = 1
 
@@ -51,7 +50,6 @@ class TestCypressTokenAuthBase(YTEnvSetup):
         remove("//sys/cypress_tokens/*")
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuth(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -157,7 +155,6 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         wait(lambda: self._check_deny(token=token))
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -185,7 +182,6 @@ class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
         self._check_allow(token=t)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommands(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
@@ -220,7 +216,6 @@ class TestAuthenticationCommands(TestCypressTokenAuthBase):
         self._make_request(f"/api/v4/list_user_tokens?user=u3&password_sha256={p2_sha256}", t).raise_for_status()
 
 
-@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "driver": {

@@ -6,7 +6,6 @@ import pytest
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestObjectServiceCache(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -29,7 +29,6 @@ import itertools
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMergeCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 6
@@ -2864,7 +2863,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestInferSchemaInMerge(TestSchedulerMergeCommands):
     ENABLE_MULTIDAEMON = True
 
@@ -3508,7 +3506,6 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -3573,7 +3570,6 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3889,7 +3885,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert read_table("//tmp/out") == [{"a": 1}, {"a": 2}]
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
     ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
@@ -3935,7 +3930,6 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
         assert read_table("//tmp/t_out") == [{"k": 0}] * 2 + [{"k": 2}] * 8 + [{"k": 4}] * 2
 
 
-@pytest.mark.enabled_multidaemon
 class TestMergeJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

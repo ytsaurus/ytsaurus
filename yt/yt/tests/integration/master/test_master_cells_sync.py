@@ -16,7 +16,6 @@ from yt.common import YtError
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterCellsSync(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
@@ -334,7 +333,6 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestMasterHiveProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
