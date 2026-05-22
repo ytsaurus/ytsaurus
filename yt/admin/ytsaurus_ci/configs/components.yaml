@@ -45,7 +45,7 @@ strawberry:
     stable:
       repo: ytsaurus
       container: strawberry
-      image_tag: "(?P<version>{{ version }})-relwithdebinfo"
+      image_tag: "^(?P<version>{{ version }})(?:-relwithdebinfo)?$"
     dev:
       repo: ytsaurus
       container: strawberry-nightly
