@@ -151,7 +151,8 @@ enum ECascadingRemovalPolicy
     // When all descendants become removed, foreign object itself may be removed.
     // The system may try to remove it with last removed descendant.
     CRP_AWAIT_FOREIGN = 3;
-    // Clear links to descendants upon removal. Inapplicable to parent-child references.
+    // Clear links to descendants upon finalization (or removal, if finalizers are disabled).
+    // Inapplicable to parent-child references.
     CRP_CLEAR = 4;
 }
 
@@ -367,6 +368,9 @@ message TIndexOption
     optional string predicate = 8;
     optional string custom_table_name = 9;
     optional bool native = 12; // Native-index support is under development. Do not use it in your ORM.
+    // Drop the index entry when the owner enters finalizing state
+    // (meta.finalization_time set) rather than at full removal.
+    optional bool exclude_finalizing_objects = 13;
 }
 
 enum EHistoryCommitTime
@@ -460,7 +464,7 @@ message TEtcOptions
     optional uint64 max_inline_hunk_size = 3;
 }
 
-// Next field 30058.
+// Next field 30059.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -539,6 +543,7 @@ extend google.protobuf.FileOptions
     optional bool keep_removal_time = 30049;
 
     optional bool enable_finalizers = 30030;
+    optional bool exclude_finalizing_objects_from_indexes = 30058;
 
     // Correctness of new type is checked in codegen (must be one of "int64" or "string").
     optional string default_enum_storage_type = 30028;
