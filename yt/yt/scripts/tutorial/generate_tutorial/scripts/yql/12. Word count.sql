@@ -5,9 +5,9 @@ SELECT
 FROM (
     -- Splits the provided text into a list of individual words based on whitespace and lower them
     SELECT
-        Unicode::SplitToList(Unicode::ToLower('Het is beter ham zonder mosterd dan mosterd zonder ham'), ' ') AS word
+        Unicode::SplitToList(Unicode::ToLower('Het is beter ham zonder mosterd dan mosterd zonder ham'), ' ') AS words
 )
-    FLATTEN LIST BY word -- Expanding the list into separate rows
+    FLATTEN LIST BY words AS word -- Expanding the list into separate rows
 GROUP BY
     word
 ORDER BY

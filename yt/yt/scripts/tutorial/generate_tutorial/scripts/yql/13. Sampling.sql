@@ -13,8 +13,7 @@ TABLESAMPLE BERNOULLI(50.0) REPEATABLE(1); -- this syntax is SQL compliant and
 
 SELECT *
 FROM `$nomenclature`
-WHERE
-    Digest::MurMurHash(name) % 100 < 50;   -- allows to keep only the rows
+WHERE Digest::MurMurHash(name) % 100 < 50; -- allows to keep only the rows
                                            -- with half of values of "name" column;
                                            -- result is stable as it is based on hash;
 
@@ -37,6 +36,6 @@ WHERE RANDOM(TableRecordIndex()) < 0.5; -- This basically does the same as SAMPL
                                    -- it should be supplied with some non-constant
                                    -- argument. The argument's value is ignored.
                                    --
-                                   -- TableRecord() builtin returns current
+                                   -- TableRecordIndex() builtin returns current
                                    -- row number in source table (starting with 1)
                                    -- if it is provided by backend or 0 otherwise.
