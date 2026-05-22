@@ -24,6 +24,18 @@ namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExpectedTransactionSignatureInfo
+{
+    TTransactionSignature Coordinator = FinalTransactionSignature;
+    std::vector<TTransactionSignature> Participants;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void Serialize(const TExpectedTransactionSignatureInfo& signatureInfo, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ECommitState,
     ((Start)                     (0))
     ((Prepare)                   (1))
@@ -44,6 +56,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceId, TraceId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
+    DEFINE_BYREF_RO_PROPERTY(TExpectedTransactionSignatureInfo, ExpectedPrepareSignatures);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, PrepareOnlyParticipantCellIds);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, CellIdsToSyncWithBeforePrepare);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
@@ -71,7 +84,8 @@ public:
         TTransactionId transactionId,
         NRpc::TMutationId mutationId,
         std::vector<TCellId> participantCellIds,
-        std::vector<TCellId> prepareOnlyPrticipantCellIds,
+        TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+        std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
         bool generatePrepareTimestamp,
@@ -103,3 +117,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionSupervisor
+
+#define COMMIT_INL_H_
+#include "commit-inl.h"
+#undef COMMIT_INL_H_

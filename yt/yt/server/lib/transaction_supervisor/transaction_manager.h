@@ -24,12 +24,14 @@ struct TTransactionPrepareOptions
     NApi::TClusterTag PrepareTimestampClusterTag = NObjectClient::InvalidCellTag;
 
     std::vector<TTransactionId> PrerequisiteTransactionIds;
+    NTransactionClient::TTransactionSignature ExpectedPrepareSignature = NTransactionClient::FinalTransactionSignature;
 };
 
 struct TTransactionCommitOptions
 {
     TTimestamp CommitTimestamp = NHiveClient::NullTimestamp;
     NApi::TClusterTag CommitTimestampClusterTag = NObjectClient::InvalidCellTag;
+    NTransactionClient::TTransactionSignature ExpectedPrepareSignature = NTransactionClient::FinalTransactionSignature;
 
     void Persist(const TStreamPersistenceContext& context);
 };

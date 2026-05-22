@@ -668,7 +668,8 @@ private:
         CellCommitSessionProvider_ = CreateCellCommitSessionProvider(
             CreateRegisterTransactionActionsRequestFactory(GroundClient_, Logger),
             MakeWeak(Transaction_),
-            Logger);
+            Logger,
+            /*useUniformPrepareSignatures*/ false);
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
