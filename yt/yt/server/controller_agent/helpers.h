@@ -17,6 +17,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,6 +186,14 @@ TFuture<std::optional<T>> WithSoftTimeout(
 NScheduler::TDiskQuota CreateDiskQuota(
     const NScheduler::TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnrichLayers(
+    const TControllerAgentConfigPtr& config,
+    const TOperationSpecBasePtr& operationSpec,
+    const IOperationControllerHostPtr& host,
+    TNonNullPtr<NScheduler::TUserJobSpec> spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

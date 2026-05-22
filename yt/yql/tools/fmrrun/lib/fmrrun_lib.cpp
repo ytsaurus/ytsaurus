@@ -26,6 +26,12 @@ TFmrRunTool::TFmrRunTool()
         opts.AddLongOption( "fmrjob-bin", "Path to fmrjob binary")
             .Optional()
             .StoreResult(&FmrJobBin_);
+        opts.AddLongOption("fmr-coordinator-yson-path", "Path to YSON file with coordinator settings")
+            .Optional()
+            .StoreResult(&CoordinatorYsonPath_);
+        opts.AddLongOption("fmr-worker-yson-path", "Path to YSON file with worker settings")
+            .Optional()
+            .StoreResult(&WorkerYsonPath_);
     });
 }
 
@@ -48,6 +54,8 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
     fmrServices->CoordinatorServerUrl = FmrCoordinatorServerUrl_;
     fmrServices->DisableLocalFmrWorker = DisableLocalFmrWorker_;
+    fmrServices->CoordinatorYsonPath = CoordinatorYsonPath_;
+    fmrServices->WorkerYsonPath = WorkerYsonPath_;
     fmrServices->NeedToTransformTmpTablePaths = false;
 
     fmrServices->FileStorage = GetFileStorage();

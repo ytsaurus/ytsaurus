@@ -430,6 +430,22 @@ public:
         };
     }
 
+    TFuture<TRowCacheControllerContext> GetRowCacheControllerContext() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return BIND(&TTabletSlot::DoGetRowCacheControllerContext, MakeStrong(this))
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    TRowCacheControllerContext DoGetRowCacheControllerContext()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        return TabletManager_->GetRowCacheControllerContext();
+    }
+
     TTimestamp GetLatestTimestamp() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

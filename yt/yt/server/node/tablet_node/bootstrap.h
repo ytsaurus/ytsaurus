@@ -87,6 +87,8 @@ struct IBootstrap
 
     virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
 
+    virtual const TRowCacheControllerPtr& GetRowCacheController() const = 0;
+
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
     virtual const NChaosClient::IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const = 0;

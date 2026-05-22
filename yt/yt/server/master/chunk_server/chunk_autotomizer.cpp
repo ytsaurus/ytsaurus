@@ -156,7 +156,7 @@ public:
         // This is context switch, so we should check that chunk is still alive
         TEphemeralObjectPtr<TChunk> bodyChunkPtr(bodyChunk);
 
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(bodyChunkPtr);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(bodyChunkPtr, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK() || !IsObjectAlive(bodyChunkPtr)) {
             return false;
         }

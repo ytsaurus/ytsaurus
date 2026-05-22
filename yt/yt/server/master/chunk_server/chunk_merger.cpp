@@ -150,7 +150,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return false;
         }

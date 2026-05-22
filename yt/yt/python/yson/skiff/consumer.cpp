@@ -121,7 +121,8 @@ void TPythonSkiffRecordBuilder::OnOtherColumns(TStringBuf value)
         auto value = Py::Object(PyTuple_GetItem(item, 1), false);
 
         auto mapKey = ConvertStringObjectToString(key);
-        CurrentRecord_->SetOtherField(mapKey, value);
+        // TODO(babenko): migrate to std::string
+        CurrentRecord_->SetOtherField(TString(mapKey), value);
     }
 }
 

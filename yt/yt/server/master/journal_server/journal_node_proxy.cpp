@@ -84,7 +84,9 @@ public:
             }
 
             const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-            return chunkReplicaFetcher->GetChunkReplicasAsync(std::move(chunksToFetchReplicas))
+            return chunkReplicaFetcher->GetChunkReplicasAsync(
+                std::move(chunksToFetchReplicas),
+                /*includeUnapproved*/ true)
                 .Apply(BIND([
                     chunks = std::move(chunks),
                     chunkReplicaFetcher,
@@ -119,7 +121,7 @@ public:
             TEphemeralObjectPtr<TChunk> chunkPtr(firstUnsealedChunk);
 
             const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-            return chunkReplicaFetcher->GetChunkReplicasAsync(chunkPtr.Clone())
+            return chunkReplicaFetcher->GetChunkReplicasAsync(chunkPtr.Clone(), /*includeUnapproved*/ true)
                 .Apply(BIND([
                     chunkPtr = std::move(chunkPtr),
                     chunkManager,

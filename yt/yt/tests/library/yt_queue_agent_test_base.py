@@ -1287,7 +1287,7 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     @staticmethod
     def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, **kwargs):
-        if without_meta or not mount:
+        if without_meta or not mount or multi_consumer:
             if multi_consumer:
                 schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
             elif without_meta:

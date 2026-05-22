@@ -744,10 +744,9 @@ private:
 
         auto serializedFileDescriptor = ConvertStringObjectToString(GetAttr(fileDescriptor, "serialized_pb"));
         ::google::protobuf::FileDescriptorProto fileDescriptorProto;
-        Y_UNUSED(fileDescriptorProto.ParseFromArray(serializedFileDescriptor.begin(), serializedFileDescriptor.size()));
+        Y_UNUSED(fileDescriptorProto.ParseFromArray(serializedFileDescriptor.data(), serializedFileDescriptor.size()));
 
-        auto result = GetDescriptorPool()->BuildFile(fileDescriptorProto);
-        YT_VERIFY(result);
+        YT_VERIFY(GetDescriptorPool()->BuildFile(fileDescriptorProto));
     }
 
     Py::Object DumpsProtoImpl(Py::Object protoObject, std::optional<bool> skipUnknownFields, NYson::EYsonFormat ysonFormat, std::optional<i64> outputLimit)

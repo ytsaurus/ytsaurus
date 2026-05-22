@@ -271,7 +271,8 @@ Py::Object TSkiffRecordPython::mapping_subscript(const Py::Object& key)
         return Record_->GetField(index);
     }
     auto fieldName = Py::ConvertStringObjectToString(key);
-    return Record_->GetField(fieldName);
+    // TODO(babenko): migrate to std::string
+    return Record_->GetField(TString(fieldName));
 }
 
 int TSkiffRecordPython::mapping_ass_subscript(const Py::Object& key, const Py::Object& value)
@@ -281,7 +282,8 @@ int TSkiffRecordPython::mapping_ass_subscript(const Py::Object& key, const Py::O
         Record_->SetField(index, value);
     } else {
         auto fieldName = Py::ConvertStringObjectToString(key);
-        Record_->SetField(fieldName, value);
+        // TODO(babenko): migrate to std::string
+        Record_->SetField(TString(fieldName), value);
     }
     return 0;
 }

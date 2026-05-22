@@ -2085,6 +2085,10 @@ IOperationControllerPtr CreateVanillaController(
         UpdateSpec(options->SpecTemplate, operation->GetSpec()));
 
     for (const auto& [taskName, taskSpec] : spec->Tasks) {
+        EnrichLayers(config, spec, host, taskSpec.Get());
+    }
+
+    for (const auto& [taskName, taskSpec] : spec->Tasks) {
         if (taskSpec->GangOptions) {
             return New<TGangOperationController>(
                 std::move(spec),

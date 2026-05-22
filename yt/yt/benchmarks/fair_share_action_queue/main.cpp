@@ -244,7 +244,7 @@ void BenchmarkFSActionQueue(size_t iterations, size_t poolCount, TDuration spinD
 {
     YT_VERIFY(poolCount > 0);
 
-    std::vector<TString> poolNames;
+    std::vector<std::string> poolNames;
     for (size_t index = 0; index < poolCount; ++index) {
         poolNames.push_back(Format("Pool: %v", index));
     }
