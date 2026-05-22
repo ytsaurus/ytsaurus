@@ -217,8 +217,8 @@ TFuture<TVolumeMeta> TLayerLocation::CreateOverlayVolume(
     TEventTimerGuard volumeCreateTimeGuard,
     int userId,
     const std::optional<std::string>& placePath,
-    std::optional<int> diskSpaceLimit,
-    std::optional<int> inodeLimit,
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit,
     const std::vector<TOverlayData>& overlayDataArray,
     bool placeInUserSlot)
 {
@@ -1118,8 +1118,8 @@ TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
     TEventTimerGuard volumeCreateTimeGuard,
     int userId,
     const std::optional<std::string>& placePath,
-    std::optional<int> diskSpaceLimit,
-    std::optional<int> inodeLimit,
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit,
     const std::vector<TOverlayData>& overlayDataArray,
     bool placeInUserSlot)
 {
