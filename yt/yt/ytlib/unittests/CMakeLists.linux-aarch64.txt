@@ -88,6 +88,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/secondary_index_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/serialize_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/shuffle_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/striped_erasure_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp

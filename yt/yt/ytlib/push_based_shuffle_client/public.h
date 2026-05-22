@@ -2,7 +2,15 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <library/cpp/yt/memory/ref_counted.h>
+
 namespace NYT::NPushBasedShuffleClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IPushBasedShuffleWriter)
+DECLARE_REFCOUNTED_STRUCT(IPartitionWriteSessionProvider)
+DECLARE_REFCOUNTED_STRUCT(TShuffleWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

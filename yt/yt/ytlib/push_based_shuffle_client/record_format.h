@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/ytlib/table_client/schemaless_block_writer.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>

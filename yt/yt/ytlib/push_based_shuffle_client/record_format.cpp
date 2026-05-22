@@ -6,7 +6,6 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/serialize.h>
 
@@ -16,8 +15,8 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NCompression;
-using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

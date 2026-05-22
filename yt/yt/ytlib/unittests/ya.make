@@ -25,6 +25,7 @@ SRCS(
     replication_writer_ut.cpp
     secondary_index_ut.cpp
     serialize_ut.cpp
+    shuffle_writer_ut.cpp
     sorted_merging_reader_ut.cpp
     striped_erasure_ut.cpp
     tablet_request_batcher_ut.cpp
