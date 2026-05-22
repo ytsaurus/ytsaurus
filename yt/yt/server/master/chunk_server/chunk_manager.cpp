@@ -2503,7 +2503,7 @@ public:
     TFuture<TChunkQuorumInfo> GetChunkQuorumInfoWithReplicaFetch(TChunk* chunk) override
     {
         TEphemeralObjectPtr<TChunk> chunkPtr(chunk);
-        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(chunkPtr);
+        auto replicasOrError = ChunkReplicaFetcher_->GetChunkReplicas(chunkPtr, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return MakeFuture<TChunkQuorumInfo>(TError(replicasOrError));
         }

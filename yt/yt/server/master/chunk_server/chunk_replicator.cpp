@@ -274,7 +274,7 @@ public:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // This is context switch, but Chunk_ is ephemeral pointer.
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_, /*includeUnapproved*/ false);
         if (!replicasOrError.IsOK()) {
             return false;
         }
@@ -1964,7 +1964,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
         }
     }
 
-    auto pullReplicas = chunkReplicaFetcher->GetChunkReplicas(pullChunks);
+    auto pullReplicas = chunkReplicaFetcher->GetChunkReplicas(pullChunks, /*includeUnapproved*/ false);
 
     // Move CRP-enabled chunks from pull to push queues.
     for (const auto& [chunkId, replicasOrError] : pullReplicas) {
@@ -2068,7 +2068,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     }
 
     // TODO(aleksandra-zh): maybe unite this with getting pull chunk replicas.
-    auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(chunksToReplicate);
+    auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(chunksToReplicate, /*includeUnapproved*/ false);
 
     // Schedule replication jobs. Iterate chunks to preserve order.
     for (const auto& chunk : chunksToReplicate) {
@@ -2374,7 +2374,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
         }
     }
 
-    auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunks);
+    auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunks, /*includeUnapproved*/ false);
 
     // Schedule repair jobs.
     for (const auto& chunk : chunks) {
@@ -3009,7 +3009,7 @@ void TChunkReplicator::OnRefresh()
             chunkIdToErrorCount[chunk->GetId()] = errorCount;
         }
 
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToRefresh);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToRefresh, /*includeUnapproved*/ false);
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
         for (const auto& chunk : chunksToRefresh) {
             if (!IsObjectAlive(chunk)) {

@@ -1031,7 +1031,10 @@ private:
                     break;
                 }
 
-                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                TEphemeralObjectPtr<TChunk> chunkPtr(chunk);
+                return chunkReplicaFetcher->GetChunkReplicasAsync(
+                    chunkPtr.Clone(),
+                    /*includeUnapproved*/ false)
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, aliveReplicas);
@@ -1136,7 +1139,9 @@ private:
                 }
 
                 auto chunkId = chunk->GetId();
-                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                return chunkReplicaFetcher->GetChunkReplicasAsync(
+                    TEphemeralObjectPtr<TChunk>(chunk),
+                    /*includeUnapproved*/ true)
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         return BuildYsonStringFluently()
