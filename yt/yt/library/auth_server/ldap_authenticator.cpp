@@ -182,10 +182,9 @@ private:
         int version = LDAP_VERSION3;
         ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &version);
 
-        int referrals = Config_->EnableReferrals
+        ldap_set_option(ld, LDAP_OPT_REFERRALS, Config_->EnableReferrals
             ? LDAP_OPT_ON
-            : LDAP_OPT_OFF;
-        ldap_set_option(ld, LDAP_OPT_REFERRALS, &referrals);
+            : LDAP_OPT_OFF);
 
         auto timeout = MakeTimeval(Config_->RequestTimeout);
         ldap_set_option(ld, LDAP_OPT_TIMEOUT, &timeout);
