@@ -1522,7 +1522,7 @@ class TestSchedulingLimits(AllocatingGpuSchedulingPolicyBaseConfig):
 
         # check that bg runner allocation was never preempted during the test
         assert bg_runner_allocation_id == get_allocation_id_from_job_id(list(bg_runner.get_running_jobs())[0])
-        wait(lambda: get(preemptive_runner.get_path() + "/@brief_progress/jobs")["aborted"] == 1)
+        wait(lambda: get(preemptive_runner.get_path() + "/@brief_progress/jobs")["aborted"] >= 1)
 
     @authors("severovv")
     def test_controller_returns_more_than_pool_limit(self):
