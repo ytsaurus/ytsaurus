@@ -40,7 +40,6 @@ public:
     NRpc::IServerPtr GetLocalRpcServer() const override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
     INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override;
-    TRowCacheControllerPtr GetRowCacheController() const override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override;
     std::string GetLocalHostName() const override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;

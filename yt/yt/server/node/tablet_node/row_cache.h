@@ -54,14 +54,6 @@ public:
 
     i64 GetUsedBytesCount() const;
 
-    struct TAliveRowsStatistics
-    {
-        i64 ByteSize = 0;
-        i64 RowCount = 0;
-    };
-
-    TAliveRowsStatistics GetPreciseAliveRowsStatistics();
-
 private:
     const TIntrusivePtr<TRowCacheMemoryTracker> MemoryTracker_;
 
