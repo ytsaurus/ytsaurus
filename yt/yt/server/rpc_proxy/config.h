@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/library/auth_server/config.h>
 

@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

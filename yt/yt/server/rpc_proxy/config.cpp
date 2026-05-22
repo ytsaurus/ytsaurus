@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/components/config.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 

@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

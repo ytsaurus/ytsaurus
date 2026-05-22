@@ -37,7 +37,7 @@ target_link_libraries(cpp-integration-test-ban-service PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
-  server-lib-signature
+  lib-signature-components
   server-lib-cross_cluster_replicated_state
 )
 

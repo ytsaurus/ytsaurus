@@ -34,7 +34,7 @@ PEERDIR(
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/logging
     yt/yt/server/lib/security_server
-    yt/yt/server/lib/signature
+    yt/yt/server/lib/signature/components
 
     yt/yt/ytlib
 

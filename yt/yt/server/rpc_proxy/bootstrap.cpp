@@ -12,7 +12,7 @@
 #include <yt/yt/server/lib/rpc_proxy/private.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/components.h>
+#include <yt/yt/server/lib/signature/components/components.h>
 
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 

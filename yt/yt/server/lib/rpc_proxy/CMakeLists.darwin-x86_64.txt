@@ -37,7 +37,7 @@ target_link_libraries(server-lib-rpc_proxy PUBLIC
   library-tracing-jaeger
   server-lib-transaction_server
   server-lib-security_server
-  server-lib-signature
+  lib-signature-components
   yt-yt-core
 )
 
