@@ -145,6 +145,7 @@ class TestStandaloneTabletBalancerBase:
 
 
 @authors("alexelexa")
+@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -508,6 +509,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
 
 @authors("alexelexa")
+@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletActionsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -567,6 +569,7 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
 
 
 @authors("alexelexa")
+@pytest.mark.enabled_multidaemon
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1078,6 +1081,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1088,6 +1092,7 @@ class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1098,6 +1103,7 @@ class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

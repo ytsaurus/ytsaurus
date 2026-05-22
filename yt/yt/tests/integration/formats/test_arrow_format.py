@@ -46,6 +46,7 @@ def parse_arrow_stream(data):
 
 @authors("nadya02")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+@pytest.mark.enabled_multidaemon
 class TestArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -572,6 +573,7 @@ class TestArrowFormat(YTEnvSetup):
 
 @authors("nadya02")
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+@pytest.mark.enabled_multidaemon
 class TestMapArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1021,6 +1023,7 @@ class TestMapArrowFormat(YTEnvSetup):
 
 
 @authors("nadya73")
+@pytest.mark.enabled_multidaemon
 class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1064,6 +1067,7 @@ class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
 
 @authors("rp-1")
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+@pytest.mark.enabled_multidaemon
 class TestComplexTypesArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

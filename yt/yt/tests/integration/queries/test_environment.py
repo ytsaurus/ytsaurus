@@ -18,6 +18,7 @@ import yt_error_codes
 import pytest
 
 
+@pytest.mark.enabled_multidaemon
 class TestEnvironment(YTEnvSetup):
     NUM_QUERY_TRACKERS = 3
 
@@ -70,6 +71,7 @@ class TestEnvironment(YTEnvSetup):
                         "Min required state version is not met")
 
 
+@pytest.mark.enabled_multidaemon
 class TestMigration(YTEnvSetup):
     NUM_QUERY_TRACKERS = 1
     NUM_SCHEDULERS = 1

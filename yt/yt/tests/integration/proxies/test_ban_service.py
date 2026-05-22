@@ -11,6 +11,7 @@ from time import sleep
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestBanService(YTEnvSetup):
     NUM_MASTERS = 1
 

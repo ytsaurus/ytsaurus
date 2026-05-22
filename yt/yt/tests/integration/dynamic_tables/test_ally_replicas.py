@@ -14,6 +14,7 @@ import builtins
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAllyReplicas(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -185,6 +186,7 @@ class TestAllyReplicas(YTEnvSetup):
 
 
 # COMPAT(danilalexeev): YT-23781.
+@pytest.mark.enabled_multidaemon
 class TestAllyReplicasOldHeartbeats(TestAllyReplicas):
     ENABLE_MULTIDAEMON = True
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -200,6 +202,7 @@ class TestAllyReplicasOldHeartbeats(TestAllyReplicas):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAllyReplicasMulticell(TestAllyReplicas):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

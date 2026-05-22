@@ -55,6 +55,7 @@ class DynamicTablesResourceLimitsBase(DynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -570,6 +571,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         assert get("//sys/tablet_cell_bundles/b/@changelog_account_violated_resource_limits/disk_space_per_medium/default")
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -580,6 +582,7 @@ class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -590,6 +593,7 @@ class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulti
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -602,6 +606,7 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsSequoia(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -619,6 +624,7 @@ class TestDynamicTablesResourceLimitsSequoia(TestDynamicTablesResourceLimitsShar
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1128,6 +1134,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             transfer_bundle_resources("b", "b", {"tablet_count": 200})
 
 
+@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1138,12 +1145,14 @@ class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingRpcProxy(TestPerBundleAccounting):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1154,6 +1163,7 @@ class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -1166,6 +1176,7 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingSequoia(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

@@ -549,6 +549,7 @@ class TestRuntimeParametersWithHeavyRuntimeParameters(TestRuntimeParameters):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

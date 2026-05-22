@@ -44,6 +44,7 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueAgent(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -113,6 +114,7 @@ class TestQueueAgent(TestQueueAgentBase):
             assert "error" not in consumer_queues[registration["queue"]]
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -300,6 +302,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert orchid.get_consumer_orchid(f"primary:{consumer_path}").get_pass_index() > pass_index
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueController(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -543,6 +546,7 @@ class TestQueueController(TestQueueAgentBase):
         assert partitions[0]["next_row_index"] == 0
 
 
+@pytest.mark.enabled_multidaemon
 class TestRates(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -646,6 +650,7 @@ class TestRates(TestQueueAgentBase):
                    3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
 
+@pytest.mark.enabled_multidaemon
 class TestAutomaticTrimming(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -1596,6 +1601,7 @@ class TestMultipleAgents(TestQueueAgentBase):
         assert mapping == get_mapping()
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrchid(TestMultipleAgents):
     NUM_QUEUE_AGENTS = 2
 
@@ -1672,6 +1678,7 @@ class TestOrchid(TestMultipleAgents):
                         owned_consumer_orchid.get()
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterIntegration(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
@@ -1866,6 +1873,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         self._set_and_assert_revision_change("//tmp/p", "queue_agent_stage", "testing")
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterIntegrationFixes(TestQueueAgentBase):
     DELTA_MASTER_CONFIG = {
         "cluster_connection": {
@@ -2008,6 +2016,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
         self.LAST_REVISIONS[row["path"]] = row["row_revision"]
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2108,6 +2117,7 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 # TODO(achulkov2): eliminate copy & paste between watching and polling versions below.
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2265,6 +2275,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
             self._assert_increased_revision(consumer)
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -2695,6 +2706,7 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
         }])
 
 
+@pytest.mark.enabled_multidaemon
 class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObjectsBase):
     NUM_TEST_PARTITIONS = 2
 
@@ -2903,6 +2915,7 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         assert "Chaos cell directory synchronizer is stopped" not in str(get(f"{chaos_queue}/@queue_status")["alerts"])
 
 
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -3129,6 +3142,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         self._assert_internal_consumers_are({replicated_consumer})
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicConfig(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -3192,6 +3206,7 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         super().teardown_method(method)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -3385,6 +3400,7 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
 
 
 # XXX(apachee): Maybe split TestQueueStaticExport in TestQueueStaticExportCommon and TestQueueStaticExportNoPortals.
+@pytest.mark.enabled_multidaemon
 class TestQueueStaticExport(TestQueueStaticExportBase):
     NUM_TEST_PARTITIONS = 3
 
@@ -4366,6 +4382,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
 class TestQueueStaticExportOldImpl(TestQueueStaticExport):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
@@ -4535,6 +4552,7 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
 
 # COMPAT(apachee): Checking compatability for swithcing between queue exporter implementations
+@pytest.mark.enabled_multidaemon
 class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4641,6 +4659,7 @@ class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
         wait(lambda: len(queue_orchid.get_alerts()) == 0, timeout=10)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExporterRetries(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4800,6 +4819,7 @@ class TestQueueExporterRetries(TestQueueStaticExportBase):
         assert abs(exporter_orchid_value["retry_index"] - exporter_orchid_value["export_task_invocation_index"]) <= 1
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExportTaskConfig(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4868,6 +4888,7 @@ class TestQueueExportTaskConfig(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExportManager(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4994,6 +5015,7 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         self.remove_export_destinations(export_dirs)
 
 
+@pytest.mark.enabled_multidaemon
 class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -5185,12 +5207,14 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
 class TestAutomaticTrimmingWithExportsOldImpl(TestAutomaticTrimmingWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
     ENABLE_MULTIDAEMON = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
@@ -5227,12 +5251,14 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueueStaticExportPortals):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
     ENABLE_MULTIDAEMON = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestObjectAlertCollection(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -5319,6 +5345,7 @@ def _with_create_cells(f):
     return g
 
 
+@pytest.mark.enabled_multidaemon
 class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterReplicatedTableObjectsBase, QueueStaticExportHelpers):
     NUM_TEST_PARTITIONS = 3
 
@@ -5761,12 +5788,14 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
+@pytest.mark.enabled_multidaemon
 class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClusterReplicatedTableObjectsTrimWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
     ENABLE_MULTIDAEMON = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerInfo(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -6053,6 +6082,7 @@ class TestControllerInfo(TestQueueAgentBase):
         })
 
 
+@pytest.mark.enabled_multidaemon
 class TestMigration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -6216,6 +6246,7 @@ class TestMigration(YTEnvSetup):
         self._check_table_schema(f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", self.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA)
 
 
+@pytest.mark.enabled_multidaemon
 class TestExportWithHunkStorage(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -6496,6 +6527,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         self.remove_export_destinations([export_dir])
 
 
+@pytest.mark.enabled_multidaemon
 class TestExportWithHunkStoragePortals(TestExportWithHunkStorage):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True

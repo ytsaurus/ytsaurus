@@ -9,6 +9,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueAgentStages(TestQueueAgentBase):
     NUM_REMOTE_CLUSTERS = 1
     CLUSTERS = ["primary", "remote_0"]

@@ -226,6 +226,7 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
     return op
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 18
@@ -2719,6 +2720,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2729,6 +2731,7 @@ class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {

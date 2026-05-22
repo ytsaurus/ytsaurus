@@ -30,6 +30,7 @@ from textwrap import dedent
 
 
 @authors("coteeq")
+@pytest.mark.enabled_multidaemon
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
 class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True

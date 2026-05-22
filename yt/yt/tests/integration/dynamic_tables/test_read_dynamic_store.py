@@ -568,6 +568,7 @@ class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1

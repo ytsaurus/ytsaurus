@@ -8,6 +8,7 @@ from yt_commands import (
 import pytest
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobSplitter(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3

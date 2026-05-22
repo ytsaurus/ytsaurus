@@ -23,6 +23,7 @@ import builtins
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerAutoMergeBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -952,6 +953,7 @@ class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):
     ENABLE_SHALLOW_MERGE = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
     ENABLE_MULTIDAEMON = True
     ENABLE_SHALLOW_MERGE = True

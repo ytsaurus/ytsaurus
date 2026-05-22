@@ -46,6 +46,7 @@ from itertools import zip_longest, product
 import builtins
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaos(ChaosTestBase):
     # TODO(nadya73): split this test suite.
     ENABLE_MULTIDAEMON = True
@@ -5185,6 +5186,7 @@ class TestChaosSpecialRpcProxy(TestChaosSpecial):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosRpcProxy(TestChaos):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -5264,6 +5266,7 @@ class TestChaosRpcProxy(TestChaos):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosNativeProxy(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 0
@@ -5472,6 +5475,7 @@ class TestChaosNativeProxy(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
@@ -5678,6 +5682,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMulticell(TestChaos):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -5691,6 +5696,7 @@ class TestChaosMulticell(TestChaos):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaCluster(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 3
@@ -6467,6 +6473,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
     @authors("osidorkin")
     def test_forsake_revoking_coordinator(self):
@@ -6704,6 +6711,7 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaClusterNativeProxyWithAlerts(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 3
@@ -6811,6 +6819,7 @@ class TestChaosMetaClusterNativeProxyWithAlerts(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -6819,6 +6828,7 @@ class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosSingleCluster(ChaosTestBase):
     SETUP_DEFAULT_BUNDLE_CLOCK_CLUSTER_TAG = False
 
@@ -6863,6 +6873,7 @@ class TestChaosSingleCluster(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 0

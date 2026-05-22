@@ -12,6 +12,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

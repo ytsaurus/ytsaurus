@@ -24,6 +24,7 @@ import math
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerExperiments(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -315,6 +316,7 @@ class TestSchedulerExperiments(YTEnvSetup):
                   spec={"experiment_overrides": ["exp_b2.treatment"]})
 
 
+@pytest.mark.enabled_multidaemon
 class TestExperimentAssignmentError(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -386,6 +388,7 @@ class TestExperimentAssignmentError(YTEnvSetup):
         assert (alert_switched_off - start) >= self.EXPERIMENT_ASSIGNMENT_ALERT_DURATION
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerExperimentsArchivation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -456,6 +459,7 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
         assert cypress_info == archive_info
 
 
+@pytest.mark.enabled_multidaemon
 class TestUserJobAndJobIOExperiments(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -733,6 +737,7 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
         assert spec["tasks"]["task_b"]["environment"]["YT_RPC_PROXY_ROLE"] == "ml"
 
 
+@pytest.mark.enabled_multidaemon
 class TestListOperationFilterExperiments(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -794,6 +799,7 @@ class TestListOperationFilterExperiments(YTEnvSetup):
         assert {op["id"] for op in res["operations"]} == {op1.id, op2.id, op3.id}
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerOperationOptionsPatch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

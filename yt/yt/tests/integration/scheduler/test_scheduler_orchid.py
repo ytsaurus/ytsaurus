@@ -23,6 +23,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolTreeOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

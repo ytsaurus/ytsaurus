@@ -42,6 +42,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressRootCreationTime(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -57,6 +58,7 @@ class TestCypressRootCreationTime(YTEnvSetup):
         assert creation_time == get("//@creation_time")
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypress(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -4871,6 +4873,7 @@ class TestCypress(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressMulticell(TestCypress):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4947,6 +4950,7 @@ class TestCypressMulticell(TestCypress):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressPortal(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -5113,6 +5117,7 @@ class TestCypressPortal(TestCypressMulticell):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressShardedTx(TestCypressPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -5125,6 +5130,7 @@ class TestCypressShardedTx(TestCypressPortal):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressMirroredTx(TestCypressShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -5135,12 +5141,14 @@ class TestCypressMirroredTx(TestCypressShardedTx):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressRpcProxy(TestCypress):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
     ENABLE_MULTIDAEMON = True
 
@@ -5153,6 +5161,7 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLeaderSwitch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -5239,6 +5248,7 @@ class TestCypressLeaderSwitch(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestCypressForbidSet(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -5295,6 +5305,7 @@ class TestCypressForbidSet(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressApiVersion4(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -5354,6 +5365,7 @@ class TestCypressApiVersion4(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressNestingLevelLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -5429,6 +5441,7 @@ class TestCypressNestingLevelLimit(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
     ENABLE_MULTIDAEMON = True
     ENABLE_RPC_PROXY = True
@@ -5445,6 +5458,7 @@ class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
     ENABLE_MULTIDAEMON = True
     ENABLE_HTTP_PROXY = True
@@ -5498,6 +5512,7 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
         self._execute_command("PUT", "multiset_attributes", kwargs, input_stream=BytesIO(subrequests))
 
 
+@pytest.mark.enabled_multidaemon
 class TestBuiltinAttributesRevision(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -5531,6 +5546,7 @@ class TestBuiltinAttributesRevision(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAccessControlObjects(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -5727,6 +5743,7 @@ class TestAccessControlObjects(YTEnvSetup):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressSequoia(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 5

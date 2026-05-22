@@ -12,6 +12,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestProxyRoles(YTEnvSetup):
     NUM_MASTERS = 1
     ENABLE_MULTIDAEMON = True

@@ -17,6 +17,7 @@ import pytest
 
 
 @authors("max42")
+@pytest.mark.enabled_multidaemon
 class TestYamlFormat(YTEnvSetup):
     # We use operation archive table as a source of both complex structured data
     # and complex tabular data by retrieving its attributes and rows respectively.

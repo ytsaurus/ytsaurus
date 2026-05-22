@@ -26,6 +26,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkStorage(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -744,6 +745,7 @@ class TestHunkStorage(DynamicTablesBase):
             unlock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkStorageMulticell(TestHunkStorage):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -781,6 +783,7 @@ class TestHunkStorageMulticell(TestHunkStorage):
         assert get(f"#{table_id}/@hunk_storage_id", driver=get_driver(1)) == hunk_storage_id
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkStoragePortal(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3

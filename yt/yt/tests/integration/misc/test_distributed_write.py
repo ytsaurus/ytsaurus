@@ -15,6 +15,7 @@ import pytest
 import time
 
 
+@pytest.mark.enabled_multidaemon
 class TestDistributedWrite(YTEnvSetup):
     TABLE_PATH = "//tmp/distributed_table_test"
     TABLE_SCHEMA = [{"name": "v1", "type": "int64", "sort_order": "ascending"}]
@@ -54,6 +55,7 @@ class TestDistributedWrite(YTEnvSetup):
                 raise e
 
 
+@pytest.mark.enabled_multidaemon
 class TestDistributedWriteRpcProxy(TestDistributedWrite):
     ENABLE_RPC_PROXY = True
     DELTA_RPC_DRIVER_CONFIG = {

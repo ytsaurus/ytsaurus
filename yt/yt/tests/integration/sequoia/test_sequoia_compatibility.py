@@ -13,6 +13,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaCompatibility(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
