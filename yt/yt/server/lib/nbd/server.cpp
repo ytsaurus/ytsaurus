@@ -536,11 +536,6 @@ private:
                 "/device/read_count")
                 .Increment(1);
 
-            TNbdProfilerCounters::Get()->GetCounter(
-                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
-                "/device/read_bytes")
-                .Increment(length);
-
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
                     BIND([=, readTimeGuard = std::move(readTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) mutable {
@@ -565,6 +560,11 @@ private:
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+
+                        TNbdProfilerCounters::Get()->GetCounter(
+                            TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                            "/device/read_bytes")
+                            .Increment(length);
 
                         const auto& response = result.Value();
                         if (response.ShouldStopUsingDevice) {
@@ -660,11 +660,6 @@ private:
                 "/device/write_count")
                 .Increment(1);
 
-            TNbdProfilerCounters::Get()->GetCounter(
-                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
-                "/device/write_bytes")
-                .Increment(length);
-
             Device_->Write(offset, payload, options)
                 .Subscribe(
                     BIND([=, writeTimeGuard = std::move(writeTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) mutable {
@@ -689,6 +684,11 @@ private:
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+
+                        TNbdProfilerCounters::Get()->GetCounter(
+                            TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                            "/device/write_bytes")
+                            .Increment(length);
 
                         const auto& response = result.Value();
                         if (response.ShouldStopUsingDevice) {
