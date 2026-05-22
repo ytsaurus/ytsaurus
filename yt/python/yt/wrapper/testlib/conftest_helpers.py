@@ -308,6 +308,22 @@ def test_environment_chaos(request):
     return environment
 
 
+@pytest.fixture(scope="class", params=["native_v4"])
+def test_environment_hydra(request):
+    def patch_master_config(configs: dict) -> None:
+        tag = configs["master"]["primary_cell_tag"]
+        for peer_config in configs["master"][tag]:
+            peer_config["logging"]["abort_on_alert"] = False
+
+    environment = init_environment_for_test_session(
+        request,
+        request.param,
+        env_options={"master_count": 3},
+        modify_configs_func=patch_master_config,
+    )
+    return environment
+
+
 @pytest.fixture(scope="class")
 def test_environment_additional_media(request):
     def apply_config_patches(configs):
@@ -497,6 +513,11 @@ def yt_env_with_authentication_rpc(request, test_environment_with_authentication
 @pytest.fixture(scope="function")
 def yt_env_chaos(request, test_environment_chaos):
     return _yt_env(request, test_environment_chaos)
+
+
+@pytest.fixture(scope="function")
+def yt_env_hydra(request, test_environment_hydra):
+    return _yt_env(request, test_environment_hydra)
 
 
 @pytest.fixture(scope="function")

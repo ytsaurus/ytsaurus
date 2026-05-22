@@ -196,21 +196,24 @@ class YtTestEnvironment(object):
             os.environ["HOME"] = tempfile.gettempdir()
             os.environ["YT_TOKEN"] = ""
 
-        yt_config = LocalYtConfig(
-            master_count=1,
-            node_count=3,
-            scheduler_count=1,
-            http_proxy_count=1 if has_http_proxy else 0,
-            rpc_proxy_count=1,
-            fqdn="localhost",
-            allow_chunk_storage_in_tmpfs=True,
-            enable_log_compression=True,
-            log_compression_method="zstd",
-            cluster_name=cluster_name,
-            native_client_supported=native_client_supported,
-            default_abort_on_alert=default_abort_on_alert,
-            **env_options
-        )
+        base_options = {
+            "master_count": 1,
+            "node_count": 3,
+            "scheduler_count": 1,
+            "http_proxy_count": 1 if has_http_proxy else 0,
+            "rpc_proxy_count": 1,
+            "fqdn": "localhost",
+            "allow_chunk_storage_in_tmpfs": True,
+            "enable_log_compression": True,
+            "log_compression_method": "zstd",
+            "cluster_name": cluster_name,
+            "native_client_supported": native_client_supported,
+            "default_abort_on_alert": default_abort_on_alert,
+        }
+
+        options = {**base_options, **env_options}
+
+        yt_config = LocalYtConfig(**options)
 
         self.env = YTInstance(self.sandbox_dir, yt_config,
                               modify_configs_func=modify_configs,

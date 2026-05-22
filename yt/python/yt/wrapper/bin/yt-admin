@@ -39,6 +39,18 @@ def discombobulate_nonvoting_peers(*args, **kwargs):
     get_driver_instance(None).discombobulate_nonvoting_peers(*args, **kwargs)
 
 
+def freeze_hydra_peer(*args, **kwargs):
+    get_driver_instance(None).freeze_hydra_peer(*args, **kwargs)
+
+
+def truncate_changelog(*args, **kwargs):
+    get_driver_instance(None).truncate_changelog(*args, **kwargs)
+
+
+def schedule_restart(*args, **kwargs):
+    get_driver_instance(None).schedule_restart(*args, **kwargs)
+
+
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
 
@@ -120,6 +132,29 @@ def main():
                                                             help="Discombobulate nonvoting peers at given cell")
     discombobulate_nonvoting_peers_parser.set_defaults(func=discombobulate_nonvoting_peers)
     discombobulate_nonvoting_peers_parser.add_argument("--cell-id", required=True)
+
+    freeze_hydra_peer_parser = subparsers.add_parser(
+        "freeze-hydra-peer",
+        help="Freeze hydra peer at a given address for a given term")
+    freeze_hydra_peer_parser.add_argument("address")
+    freeze_hydra_peer_parser.add_argument("--cell-id", required=True)
+    freeze_hydra_peer_parser.add_argument("--term", required=True, type=int)
+    freeze_hydra_peer_parser.set_defaults(func=freeze_hydra_peer)
+
+    truncate_changelog_parser = subparsers.add_parser(
+        "truncate-changelog",
+        help="Drop uncommitted mutation records at a given address")
+    truncate_changelog_parser.add_argument("address")
+    truncate_changelog_parser.add_argument("--cell-id", required=True)
+    truncate_changelog_parser.add_argument("--last-sequence-number", required=True, type=int)
+    truncate_changelog_parser.set_defaults(func=truncate_changelog)
+
+    schedule_restart_parser = subparsers.add_parser(
+        "schedule-restart",
+        help="Schedule restart of a hydra peer at a given address")
+    schedule_restart_parser.add_argument("address")
+    schedule_restart_parser.add_argument("--cell-id", required=True)
+    schedule_restart_parser.set_defaults(func=schedule_restart)
 
     add_switch_leader_parser(subparsers)
 
