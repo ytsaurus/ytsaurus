@@ -1886,6 +1886,18 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
     TTransactionCommitOptions options;
     SetMutatingOptions(&options, request, context.Get());
     options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+    options.ExpectedPrepareSignatures = FromProto<std::vector<TTransactionSignature>>(request->expected_prepare_signatures());
+    // COMPAT(atalmenev): old clients don't send expected_prepare_signatures.
+    if (options.ExpectedPrepareSignatures.empty()) {
+        options.ExpectedPrepareSignatures.assign(
+            options.AdditionalParticipantCellIds.size(),
+            FinalTransactionSignature);
+    }
+    if (options.ExpectedPrepareSignatures.size() != options.AdditionalParticipantCellIds.size()) {
+        THROW_ERROR_EXCEPTION("Expected prepare signatures count mismatch")
+            << TErrorAttribute("additional_participant_cell_ids_size", options.AdditionalParticipantCellIds.size())
+            << TErrorAttribute("expected_prepare_signatures_size", options.ExpectedPrepareSignatures.size());
+    }
     if (request->has_max_allowed_commit_timestamp()) {
         options.MaxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
     }
@@ -1946,6 +1958,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
         [&] (const auto& context, const TTransactionFlushResult& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_participant_cell_ids(), result.ParticipantCellIds);
+            ToProto(response->mutable_expected_prepare_signatures(), result.ExpectedPrepareSignatures);
 
             context->SetResponseInfo("ParticipantCellIds: %v",
                 result.ParticipantCellIds);

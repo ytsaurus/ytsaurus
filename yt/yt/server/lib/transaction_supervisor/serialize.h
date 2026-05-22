@@ -22,6 +22,7 @@ DEFINE_ENUM(ETransactionSupervisorReign,
     ((SequencerFixes)                                               (15))  // aleksandra-zh
     ((SaveLastCoordinatorCommitTimestamp)                           (16))  // aleksandra-zh
     ((StrongOrderingTags)                                           (17))  // h0pless
+    ((ExpectedPrepareSignature)                                     (18))  // atalmenev
 );
 
 static_assert(

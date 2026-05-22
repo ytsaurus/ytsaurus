@@ -159,7 +159,8 @@ struct ITransactionManager
         TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
-        TTransactionSignature signature,
+        TTransactionSignature prepareSignature,
+        TTransactionSignature commitSignature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
     virtual void RegisterTransactionActionHandlers(

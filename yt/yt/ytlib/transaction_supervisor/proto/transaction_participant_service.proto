@@ -13,6 +13,7 @@ message TReqPrepareTransaction
     // Safe to use after 26.3.
     reserved 5;
     repeated string strong_ordering_tags = 6;
+    optional uint32 expected_prepare_signature = 7;
 }
 
 message TRspPrepareTransaction
@@ -55,4 +56,3 @@ message TRspAbortTransaction
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-

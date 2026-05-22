@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/serialize.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -16,6 +18,25 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExpectedTransactionSignatureInfo::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Coordinator);
+    Persist(context, Participants);
+}
+
+void Serialize(const TExpectedTransactionSignatureInfo& signatureInfo, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("coordinator").Value(signatureInfo.Coordinator)
+            .Item("participants").Value(signatureInfo.Participants)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCommit::TCommit(TTransactionId transactionId)
     : TransactionId_(transactionId)
     , Persistent_(false)
@@ -25,6 +46,7 @@ TCommit::TCommit(
     TTransactionId transactionId,
     TMutationId mutationId,
     std::vector<TCellId> participantCellIds,
+    TExpectedTransactionSignatureInfo expectedPrepareSignatures,
     std::vector<TCellId> prepareOnlyParticipantCellIds,
     std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
     bool distributed,
@@ -39,6 +61,7 @@ TCommit::TCommit(
     : TransactionId_(transactionId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
+    , ExpectedPrepareSignatures_(std::move(expectedPrepareSignatures))
     , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))
     , CellIdsToSyncWithBeforePrepare_(std::move(cellIdsToSyncWithBeforePrepare))
     , Distributed_(distributed)
@@ -77,6 +100,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
+    Save(context, ExpectedPrepareSignatures_);
     Save(context, PrepareOnlyParticipantCellIds_);
     Save(context, CellIdsToSyncWithBeforePrepare_);
     Save(context, Distributed_);
@@ -102,6 +126,14 @@ void TCommit::Load(TLoadContext& context)
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
+    // COMPAT(atalmenev) old changelog entries don't carry per-participant signatures.
+    if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::ExpectedPrepareSignature) {
+        Load(context, ExpectedPrepareSignatures_);
+    } else {
+        ExpectedPrepareSignatures_.Participants.assign(
+            ParticipantCellIds_.size(),
+            FinalTransactionSignature);
+    }
     Load(context, PrepareOnlyParticipantCellIds_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 10) {
@@ -184,6 +216,7 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
                 [] (auto fluent, const auto& item) {
                     fluent.Item(ToString(item.first)).Value(item.second);
                 })
+            .Item("expected_prepare_signatures").Value(ExpectedPrepareSignatures_)
             .DoIf(!PrerequisiteTransactionIds_.empty(), [&] (auto fluent) {
                 fluent
                     .Item("prerequisite_transaction_ids")

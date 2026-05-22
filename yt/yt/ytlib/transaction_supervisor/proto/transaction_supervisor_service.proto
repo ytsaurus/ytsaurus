@@ -28,6 +28,8 @@ message TReqCommitTransaction
     optional bool strongly_ordered = 12 [default = false];
     optional bool dynamic_tables_locked = 13 [default = false];
     repeated TStrongOrderingTags strong_ordering_tags_map = 14;
+    repeated uint32 expected_prepare_signatures = 15;
+    optional uint32 coordinator_expected_prepare_signature = 16;
 }
 
 message TRspCommitTransaction

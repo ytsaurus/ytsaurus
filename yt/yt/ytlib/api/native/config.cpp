@@ -590,6 +590,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_base_aco_name", &TThis::OperationBaseAcoName)
         .Default("base_aco");
 
+    // COMPAT(atalmenev)
+    registrar.Parameter("use_uniform_prepare_signatures", &TThis::UseUniformPrepareSignatures)
+        .Default(false);
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 4;
