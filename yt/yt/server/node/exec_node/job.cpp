@@ -46,7 +46,7 @@
 #include <yt/yt/server/lib/misc/cluster_throttlers_config.h>
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/components/config.h>
 
 #include <yt/yt/server/lib/nbd/block_device.h>
 #include <yt/yt/server/lib/nbd/image_reader.h>

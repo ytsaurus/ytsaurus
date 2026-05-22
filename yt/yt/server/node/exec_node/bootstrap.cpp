@@ -32,8 +32,8 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/components/components.h>
+#include <yt/yt/server/lib/signature/components/config.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>

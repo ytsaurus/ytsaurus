@@ -14,7 +14,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/core/test_framework
     yt/yt/library/named_value
-    yt/yt/server/lib/signature
+    yt/yt/server/lib/signature/components
     yt/yt/server/lib/cross_cluster_replicated_state
 )
 

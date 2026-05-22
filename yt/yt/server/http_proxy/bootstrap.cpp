@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/components.h>
+#include <yt/yt/server/lib/signature/components/components.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 

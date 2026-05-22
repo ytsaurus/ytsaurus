@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/lib/nbd/config.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
