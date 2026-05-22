@@ -52,11 +52,27 @@ message THistoryTimeIndex
     repeated string included_attributes = 7;
 }
 
+enum EMigrationState
+{
+    MS_INITIAL = 0;
+    MS_WRITE_BOTH = 1;
+    MS_READ_NEW = 2;
+    MS_TARGET = 3;
+}
+
+message TPerObjectTypeHistoryTable
+{
+    // Optional custom name. Default value is going to be used if not specified or empty.
+    optional string name = 1;
+    optional EMigrationState table_mode = 2;
+}
+
 message THistoryOptions
 {
     repeated THistoryAttribute attributes = 1;
     optional string filter = 2;
     repeated THistoryTimeIndex time_indexes = 3;
+    optional TPerObjectTypeHistoryTable per_object_type_history_table = 4;
 }
 
 message TCustomOption
@@ -415,6 +431,10 @@ message THistoryTableOptions
 
     // Specifies `max_inline_hunk_size` attribute for `value` column in history table.
     optional uint64 value_column_max_inline_hunk_size = 11;
+
+    // True by default. Exactly one history table needs to be actual.
+    // Per object type history events table will have settings taken from the actual table.
+    optional bool actual = 12;
 }
 
 message TLockGroup
