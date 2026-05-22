@@ -3,7 +3,7 @@ default:
     yt-server-version: 25.3.1
     k8s-operator-version: 0.31.0
     chyt-version: 2.18.2
-    spyt-version: 2.9.1
+    spyt-version: 2.9.2
     strawberry-version: 0.0.17
     qt-version: 0.1.2
     yt-stable-branch: 25.3
