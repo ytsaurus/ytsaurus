@@ -653,10 +653,14 @@ private:
                 throttlingTimes.RelativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
-            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
-            RelativeThrottler_->OnReplicationBatchProcessed(
-                currentBatchFirstTimestamp,
-                newReplicationTimestamp);
+
+            // Do not throttle on first iteration of the new table.
+            if (currentBatchFirstTimestamp != MinTimestamp) {
+                auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
+                RelativeThrottler_->OnReplicationBatchProcessed(
+                    currentBatchFirstTimestamp,
+                    newReplicationTimestamp);
+                }
 
             // TODO(savrus) Remove this sanity check when pull rows is mature enough.
             if (result.Versioned) {
