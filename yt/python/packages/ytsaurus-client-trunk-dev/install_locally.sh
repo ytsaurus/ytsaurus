@@ -26,21 +26,21 @@ cd $ARC_ROOT/yt/python/packages
 python3 -m yt_setup.prepare_python_modules --source-root $ARC_ROOT --output-path $BUILD_DIR --build-root $ARC_ROOT --use-modules-from-contrib
 
 cd $BUILD_DIR
-python3 -c 'import yt.wrapper' && echo "import yt.wraper - ok"
+python3 -c 'import yt.wrapper' && echo "import yt.wrapper - ok"
 
 # make links
 for d in clickhouse entry skiff type_info wrapper yson cli cpp_wrapper environment wire_format ypath; do
 	rm -rf $BUILD_DIR/yt/$d
 	ln -sf $ARC_ROOT/yt/python/yt/$d $BUILD_DIR/yt/$d
 done
-python3 -c 'import yt.wrapper' && echo "import linked yt.wraper - ok"
+python3 -c 'import yt.wrapper' && echo "import linked yt.wrapper - ok"
 
 rm -rf $ARC_ROOT/yt/python/packages/ytsaurus-client-trunk-dev/build/*
 mv ./* $ARC_ROOT/yt/python/packages/ytsaurus-client-trunk-dev/build/
 cp $ARC_ROOT/yt/python/packages/ytsaurus-client-trunk-dev/build_setup.py $ARC_ROOT/yt/python/packages/ytsaurus-client-trunk-dev/build/setup.py
 
 cd $ARC_ROOT/yt/python/packages/ytsaurus-client-trunk-dev/build
-python3 -c 'import yt.wrapper' && echo "import build yt.wraper - ok"
+python3 -c 'import yt.wrapper' && echo "import build yt.wrapper - ok"
 
 pip3 uninstall -y ytsaurus-yson ytsaurus-client || true
 pip3 install ytsaurus-yson --no-deps
@@ -51,6 +51,6 @@ pip3 list | grep ytsaurus
 rm -rf $BUILD_DIR
 
 cd $HOME
-python3 -c 'import yt.wrapper; print("yt.wrapper version - {}".format(yt.wrapper.VERSION))' && echo "yt.wraper - ok"
+python3 -c 'import yt.wrapper; print("yt.wrapper version - {}".format(yt.wrapper.VERSION))' && echo "yt.wrapper - ok"
 
 echo -e "\n\nAll ok"

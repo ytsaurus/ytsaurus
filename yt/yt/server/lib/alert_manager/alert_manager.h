@@ -10,7 +10,7 @@ namespace NYT::NAlertManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! NB: Please read the comments below to get a picture of when error attribtutes should be specified in tags vs. the error itself.
+//! NB: Please read the comments below to get a picture of when error attributes should be specified in tags vs. the error itself.
 struct TAlert
 {
     //! Numeric error code corresponding to a YT error enum declaration.

@@ -15,8 +15,8 @@ DEFINE_ENUM(ETableBackupState,
     ((BackupCompleted)             (1))
 );
 
-//! Backup state of individual tables. Stored at the external cell. Also aggregate value
-//! for all tables of the table is stored.
+//! Backup state of individual tablets. Stored at the external cell. Also aggregate value
+//! for all tablets of the table is stored.
 //!
 //! Aggregation rules:
 //!  - if there is at least one |BackupFailed|/|RestoreFailed| state, so is aggregate;
