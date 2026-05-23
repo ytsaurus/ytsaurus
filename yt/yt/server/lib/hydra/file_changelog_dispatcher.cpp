@@ -395,11 +395,12 @@ public:
         int id,
         const std::string& path,
         const TChangelogMeta& meta,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TFileChangelogConfigPtr& config) override
     {
         return BIND(&TFileChangelogDispatcher::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(id, path, meta, config)
+            .Run(id, path, meta, workloadDescriptor, config)
             .ToUncancelable();
     }
 
@@ -601,9 +602,15 @@ private:
         int id,
         const std::string& path,
         const TChangelogMeta& meta,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TFileChangelogConfigPtr& config)
     {
-        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(
+            IOEngine_,
+            MemoryUsageTracker_,
+            path,
+            workloadDescriptor,
+            config);
         unbufferedChangelog->Create(meta);
         return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
@@ -613,7 +620,14 @@ private:
         const std::string& path,
         const TFileChangelogConfigPtr& config)
     {
-        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(
+            IOEngine_,
+            MemoryUsageTracker_,
+            path,
+            // TODO(krock21): Propagate the actual open-path workload descriptor
+            // instead of falling back to UserBatch here.
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+            config);
         unbufferedChangelog->Open();
         return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
@@ -789,4 +803,3 @@ IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
-

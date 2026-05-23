@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -38,7 +40,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         std::string fileName,
         TFileChangelogConfigPtr config,
-        EWorkloadCategory workloadCategory);
+        const TWorkloadDescriptor& workloadDescriptor);
 
     EFileChangelogIndexOpenResult Open();
     void Create();
@@ -112,7 +114,7 @@ private:
     const NIO::IIOEnginePtr IOEngine_;
     const std::string FileName_;
     const TFileChangelogConfigPtr Config_;
-    EWorkloadCategory WorkloadCategory_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     const NLogging::TLogger Logger;
 

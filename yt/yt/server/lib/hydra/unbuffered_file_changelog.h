@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
@@ -119,6 +121,7 @@ IUnbufferedFileChangelogPtr CreateUnbufferedFileChangelog(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     std::string fileName,
+    const TWorkloadDescriptor& workloadDescriptor,
     TFileChangelogConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
