@@ -576,24 +576,31 @@ private:
         const auto& fsSecretary = Context_.FSSecretary;
 
         THashSet<TArtifactKey> uniqueLayers;
+        auto tryInsertLayerKey = [&] (const TArtifactKey& key) {
+            if (!fsSecretary->HasPreparedLayer(key)) {
+                uniqueLayers.insert(key);
+            }
+        };
 
         if (!fsSecretary->GetRootVolume()) {
             for (const auto& key : fsSecretary->GetRootVolumeLayerArtifactKeys()) {
-                uniqueLayers.insert(key);
+                tryInsertLayerKey(key);
             }
         }
         for (const auto& key : fsSecretary->GetGpuCheckVolumeLayerArtifactKeys()) {
-            uniqueLayers.insert(key);
+            tryInsertLayerKey(key);
         }
         for (const auto& params : fsSecretary->GetNonRootVolumesToPrepare()) {
             for (const auto& key : params->LayerArtifactKeys) {
-                uniqueLayers.insert(key);
+                tryInsertLayerKey(key);
             }
         }
 
         const TVirtualSandboxData* virtualSandboxData = nullptr;
         if (!fsSecretary->GetRootVolume()) {
-            if (const auto& data = fsSecretary->GetVirtualSandboxData()) {
+            if (const auto& data = fsSecretary->GetVirtualSandboxData();
+                data && !fsSecretary->HasPreparedLayer(data->ArtifactKey))
+            {
                 virtualSandboxData = &*data;
             }
         }
@@ -645,7 +652,7 @@ private:
                         std::move(layerOptions[i].ArtifactKey),
                         std::move(overlayDataArray[i]));
                 }
-                Context_.FSSecretary->SetPreparedLayers(std::move(preparedLayers));
+                Context_.FSSecretary->AddPreparedLayers(std::move(preparedLayers));
 
                 YT_LOG_INFO("All layers prepared");
                 SetNowTime(TimePoints_.PrepareLayersFinishTime);

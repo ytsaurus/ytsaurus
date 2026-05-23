@@ -112,7 +112,11 @@ public:
 
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
 
-    void SetPreparedLayers(TPreparedLayers layers);
+    //! Adds prepared overlay layers to the allocation-scoped cache.
+    //! Crashes if any of the keys is already present.
+    void AddPreparedLayers(TPreparedLayers layers);
+
+    bool HasPreparedLayer(const TArtifactKey& key) const;
 
     std::vector<TOverlayData> GetPreparedRootVolumeOverlayData() const;
     std::vector<TOverlayData> GetPreparedGpuCheckVolumeOverlayData() const;
