@@ -5,6 +5,7 @@
 #include "preparation_options.h"
 #include "private.h"
 #include "public.h"
+#include "volume.h"
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -18,6 +19,12 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+//! Prepared overlay layer data, indexed by artifact key.
+struct TPreparedLayers
+{
+    THashMap<TArtifactKey, TOverlayData> ArtifactKeyToOverlayData;
+};
 
 struct TJobFSDescription
 {
@@ -105,6 +112,14 @@ public:
 
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
 
+    void SetPreparedLayers(TPreparedLayers layers);
+
+    std::vector<TOverlayData> GetPreparedRootVolumeOverlayData() const;
+    std::vector<TOverlayData> GetPreparedGpuCheckVolumeOverlayData() const;
+    std::vector<TOverlayData> GetPreparedNonRootVolumeOverlayData(const TBaseVolumeParams& params) const;
+
+    void ReleasePreparedLayers();
+
     //! Returns artifact descriptions that need to be cached
     //! (excludes artifacts that bypass cache or are accessed via virtual sandbox).
     std::vector<TArtifactDescription> GetArtifactsToCache() const;
@@ -144,6 +159,8 @@ private:
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
 
+    TPreparedLayers PreparedLayers_;
+
     void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureLayerArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureDockerImage(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
@@ -162,6 +179,8 @@ private:
     void OnNewJobStarted(TJobId jobId);
 
     void AddGpuToppingLayersIfNeeded(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+
+    std::vector<TOverlayData> GetPreparedOverlayData(const std::vector<TArtifactKey>& artifactKeys) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobFSSecretary)

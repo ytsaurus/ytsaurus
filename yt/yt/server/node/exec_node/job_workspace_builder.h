@@ -76,6 +76,9 @@ struct TJobWorkspaceBuildingResult
 
 struct TJobWorkspaceBuilderTimePoints
 {
+    std::optional<TInstant> PrepareLayersStartTime;
+    std::optional<TInstant> PrepareLayersFinishTime;
+
     std::optional<TInstant> PrepareRootVolumeStartTime;
     std::optional<TInstant> PrepareRootVolumeFinishTime;
 
@@ -128,6 +131,8 @@ protected:
     TJobWorkspaceBuilderTimePoints TimePoints_;
 
     const NLogging::TLogger& Logger;
+
+    virtual TFuture<void> DoPrepareLayers() = 0;
 
     virtual TFuture<void> DoPrepareRootVolume() = 0;
 

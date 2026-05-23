@@ -86,6 +86,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
         return "DoPrepareRootVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareNonRootVolumes) {
         return "DoPrepareNonRootVolumes";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareLayers) {
+        return "DoPrepareLayers";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
         return "DoPrepareGpuCheckVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoBindRootVolume) {
@@ -258,8 +260,9 @@ TFuture<void> TJobWorkspaceBuilder::Run()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>()
+    auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareLayers>()
         .Run()
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareNonRootVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoBindRootVolume>())
@@ -336,13 +339,25 @@ private:
         };
     }
 
+    TFuture<void> DoPrepareLayers() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Layer preparation is not needed");
+
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        SetJobPhase(EJobPhase::PreparingLayers);
+
+        return OKFuture;
+    }
+
     TFuture<void> DoPrepareRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("Root volume preparation is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        ValidateJobPhase(EJobPhase::PreparingLayers);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         if (!Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
@@ -373,12 +388,19 @@ private:
         }
 
         const auto& slot = Context_.Slot;
+
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData;
+        perVolumeOverlayData.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            perVolumeOverlayData.push_back(Context_.FSSecretary->GetPreparedNonRootVolumeOverlayData(*volume));
+        }
+
         return slot->PrepareNonRootVolumes(
             Context_.Job->GetId(),
             ResultHolder_.RootVolume,
             volumes,
+            std::move(perVolumeOverlayData),
             Context_.UserSandboxOptions.JobVolumeMounts,
-            Context_.ArtifactDownloadOptions,
             Context_.TestRootFS)
             .AsUnique().Apply(BIND([
                 jobId = Context_.Job->GetId(),
@@ -543,11 +565,98 @@ public:
 private:
     const TGpuManagerPtr GpuManager_;
 
-    TFuture<void> DoPrepareRootVolume() override
+    TFuture<void> DoPrepareLayers() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::CachingArtifacts);
+        SetJobPhase(EJobPhase::PreparingLayers);
+
+        const auto& slot = Context_.Slot;
+        const auto& fsSecretary = Context_.FSSecretary;
+
+        THashSet<TArtifactKey> uniqueLayers;
+
+        if (!fsSecretary->GetRootVolume()) {
+            for (const auto& key : fsSecretary->GetRootVolumeLayerArtifactKeys()) {
+                uniqueLayers.insert(key);
+            }
+        }
+        for (const auto& key : fsSecretary->GetGpuCheckVolumeLayerArtifactKeys()) {
+            uniqueLayers.insert(key);
+        }
+        for (const auto& params : fsSecretary->GetNonRootVolumesToPrepare()) {
+            for (const auto& key : params->LayerArtifactKeys) {
+                uniqueLayers.insert(key);
+            }
+        }
+
+        const TVirtualSandboxData* virtualSandboxData = nullptr;
+        if (!fsSecretary->GetRootVolume()) {
+            if (const auto& data = fsSecretary->GetVirtualSandboxData()) {
+                virtualSandboxData = &*data;
+            }
+        }
+
+        if (uniqueLayers.empty() && !virtualSandboxData) {
+            YT_LOG_DEBUG("Layer preparation is not needed");
+            return OKFuture;
+        }
+
+        SetNowTime(TimePoints_.PrepareLayersStartTime);
+
+        auto totalLayerCount = uniqueLayers.size() + (virtualSandboxData ? 1 : 0);
+        YT_LOG_INFO("Preparing layers (LayerCount: %v)", totalLayerCount);
+
+        std::vector<TOverlayLayerPreparationOptions> layerOptions;
+        layerOptions.reserve(totalLayerCount);
+        for (const auto& key : uniqueLayers) {
+            UpdateArtifactStatistics(key.GetCompressedDataSize(), slot->IsLayerCached(key));
+            layerOptions.push_back(TOverlayLayerPreparationOptions{
+                .ArtifactKey = key,
+            });
+        }
+        if (virtualSandboxData) {
+            layerOptions.push_back(TOverlayLayerPreparationOptions{
+                .ArtifactKey = virtualSandboxData->ArtifactKey,
+                .ImageReader = virtualSandboxData->Reader,
+            });
+        }
+
+        auto layerFutures = slot->PrepareLayers(
+            Context_.Job->GetId(),
+            layerOptions,
+            Context_.ArtifactDownloadOptions);
+        YT_VERIFY(layerFutures.size() == layerOptions.size());
+
+        return AllSucceeded(std::move(layerFutures))
+            .ToImmediatelyCancelable()
+            .AsUnique()
+            .Apply(BIND([
+                this,
+                this_ = MakeStrong(this),
+                layerOptions = std::move(layerOptions)
+            ] (std::vector<TOverlayData>&& overlayDataArray) mutable {
+                YT_VERIFY(overlayDataArray.size() == layerOptions.size());
+                TPreparedLayers preparedLayers;
+                for (int i = 0; i < std::ssize(layerOptions); ++i) {
+                    EmplaceOrCrash(
+                        preparedLayers.ArtifactKeyToOverlayData,
+                        std::move(layerOptions[i].ArtifactKey),
+                        std::move(overlayDataArray[i]));
+                }
+                Context_.FSSecretary->SetPreparedLayers(std::move(preparedLayers));
+
+                YT_LOG_INFO("All layers prepared");
+                SetNowTime(TimePoints_.PrepareLayersFinishTime);
+            }).AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoPrepareRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingLayers);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         const auto& slot = Context_.Slot;
@@ -581,11 +690,6 @@ private:
                 layerArtifactKeys.size(),
                 Context_.UserSandboxOptions.VirtualSandboxData.has_value());
 
-            for (const auto& layer : layerArtifactKeys) {
-                i64 layerSize = layer.GetCompressedDataSize();
-                UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
-            }
-
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
             options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
@@ -593,7 +697,7 @@ private:
             options.SandboxNbdRootVolumeData = Context_.FSSecretary->GetSandboxNbdRootVolumeData();
 
             return slot->PrepareRootVolume(
-                layerArtifactKeys,
+                Context_.FSSecretary->GetPreparedRootVolumeOverlayData(),
                 options)
                     .Apply(
                         BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
@@ -637,12 +741,19 @@ private:
         }
 
         const auto& slot = Context_.Slot;
+
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData;
+        perVolumeOverlayData.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            perVolumeOverlayData.push_back(Context_.FSSecretary->GetPreparedNonRootVolumeOverlayData(*volume));
+        }
+
         return slot->PrepareNonRootVolumes(
             Context_.Job->GetId(),
             ResultHolder_.RootVolume,
             volumes,
+            std::move(perVolumeOverlayData),
             Context_.UserSandboxOptions.JobVolumeMounts,
-            Context_.ArtifactDownloadOptions,
             Context_.TestRootFS)
             .AsUnique()
             .Apply(
@@ -687,17 +798,12 @@ private:
                 "Preparing GPU check volume (LayerCount: %v)",
                 layerArtifactKeys.size());
 
-            for (const auto& layer : layerArtifactKeys) {
-                i64 layerSize = layer.GetCompressedDataSize();
-                UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
-            }
-
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
             options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
 
             return slot->PrepareGpuCheckVolume(
-                layerArtifactKeys,
+                Context_.FSSecretary->GetPreparedGpuCheckVolumeOverlayData(),
                 options)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
@@ -1041,11 +1147,23 @@ public:
     { }
 
 private:
+    TFuture<void> DoPrepareLayers() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Layer preparation is not needed in CRI job environment");
+
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        SetJobPhase(EJobPhase::PreparingLayers);
+
+        return OKFuture;
+    }
+
     TFuture<void> DoPrepareRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        ValidateJobPhase(EJobPhase::PreparingLayers);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         const auto& dockerImage = Context_.FSSecretary->GetDockerImage();
@@ -1053,7 +1171,7 @@ private:
         if (!dockerImage && !Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
-                "Porto layers are not supported in CRI job environment"));
+                "Layers are not supported in CRI job environment"));
         }
 
         if (dockerImage) {
@@ -1110,12 +1228,19 @@ private:
         }
 
         const auto& slot = Context_.Slot;
+
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData;
+        perVolumeOverlayData.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            perVolumeOverlayData.push_back(Context_.FSSecretary->GetPreparedNonRootVolumeOverlayData(*volume));
+        }
+
         return slot->PrepareNonRootVolumes(
             Context_.Job->GetId(),
             ResultHolder_.RootVolume,
             volumes,
+            std::move(perVolumeOverlayData),
             Context_.UserSandboxOptions.JobVolumeMounts,
-            Context_.ArtifactDownloadOptions,
             Context_.TestRootFS)
             .AsUnique()
             .Apply(BIND([

@@ -37,6 +37,7 @@ DEFINE_ENUM(EJobMetricName,
     (ExecTime)
     (PrepareTime)
     (PrepareRootFSTime)
+    (PrepareLayersTime)
     (ArtifactsCachingTime)
 
     (TotalTimeCompleted)

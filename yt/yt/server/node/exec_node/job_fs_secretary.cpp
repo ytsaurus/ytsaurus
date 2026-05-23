@@ -842,6 +842,50 @@ void TJobFSSecretary::SetCachedArtifacts(std::vector<TArtifactPtr> artifacts)
     ArtifactsCached_ = true;
 }
 
+void TJobFSSecretary::SetPreparedLayers(TPreparedLayers layers)
+{
+    PreparedLayers_ = std::move(layers);
+}
+
+std::vector<TOverlayData> TJobFSSecretary::GetPreparedRootVolumeOverlayData() const
+{
+    auto overlayDataArray = GetPreparedOverlayData(RootVolumeLayerArtifactKeys_);
+    if (VirtualSandboxData_) {
+        overlayDataArray.push_back(GetOrCrash(
+            PreparedLayers_.ArtifactKeyToOverlayData,
+            VirtualSandboxData_->ArtifactKey));
+    }
+    return overlayDataArray;
+}
+
+std::vector<TOverlayData> TJobFSSecretary::GetPreparedGpuCheckVolumeOverlayData() const
+{
+    return GetPreparedOverlayData(GpuCheckVolumeLayerArtifactKeys_);
+}
+
+std::vector<TOverlayData> TJobFSSecretary::GetPreparedNonRootVolumeOverlayData(const TBaseVolumeParams& params) const
+{
+    return GetPreparedOverlayData(params.LayerArtifactKeys);
+}
+
+std::vector<TOverlayData> TJobFSSecretary::GetPreparedOverlayData(const std::vector<TArtifactKey>& artifactKeys) const
+{
+    std::vector<TOverlayData> overlayDataArray;
+    overlayDataArray.reserve(size(artifactKeys));
+    for (const auto& key : artifactKeys) {
+        overlayDataArray.push_back(GetOrCrash(PreparedLayers_.ArtifactKeyToOverlayData, key));
+    }
+    return overlayDataArray;
+}
+
+void TJobFSSecretary::ReleasePreparedLayers()
+{
+    YT_LOG_DEBUG(
+        "Releasing prepared layers (LayerCount: %v)",
+        size(PreparedLayers_.ArtifactKeyToOverlayData));
+    PreparedLayers_ = {};
+}
+
 void TJobFSSecretary::ReleaseArtifacts()
 {
     YT_LOG_DEBUG("Releasing artifacts");
@@ -878,6 +922,8 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
 
     VirtualSandboxData_.reset();
     HasVirtualSandboxArtifacts_ = false;
+    // TODO(pogorelov): Avoid clearing this map for every job in an allocation.
+    ReleasePreparedLayers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
