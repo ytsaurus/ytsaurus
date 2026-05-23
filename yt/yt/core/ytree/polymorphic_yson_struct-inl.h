@@ -245,15 +245,41 @@ template <class T>
     requires NMpl::IsSpecialization<T, NYT::NYTree::TPolymorphicYsonStruct>
 void WriteSchema(NYson::IYsonConsumer* consumer, const TYsonStructWriteSchemaOptions& options)
 {
+    using TKey = typename T::TKey;
+    using TMapping = typename T::TMappingType;
+    static constexpr auto enumValues = TEnumTraits<TKey>::GetDomainValues();
+    static constexpr auto defaultType = TMapping::DefaultEnumValue;
+
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("type_name").Value("optional")
+            .Item("type_name").Value("tagged")
+            .Item("tag").Value(Format("polymorphic/%v", TEnumTraits<TKey>::GetTypeName()))
             .DoIf(options.AddCppTypeNames, [] (auto fluent) {
                 fluent.Item("cpp_type_name").Value(TypeName<T>());
             })
-            .Item("item").Do([&] (auto fluent) {
-                fluent.Value("yson");
-            })
+            .Item("item").Value("yson")
+            .Item("polymorphic").BeginMap()
+                .Item("type_enum").Do([&] (auto fluent) {
+                    WriteSchema<TKey>(fluent.GetConsumer(), options);
+                })
+                .DoIf(defaultType.has_value(), [&] (auto fluent) {
+                    fluent.Item("default_type").Value(FormatEnum(*defaultType, options.UseLowerCaseForEnumValues));
+                })
+                .Item("variants").BeginList()
+                    .Do([&] (auto listFluent) {
+                        [&]<auto... Is> (std::index_sequence<Is...>) {
+                            (listFluent
+                                .Item().BeginMap()
+                                    .Item("name").Value(FormatEnum(enumValues[Is], options.UseLowerCaseForEnumValues))
+                                    .Item("item").Do([&] (auto itemFluent) {
+                                        WriteSchema<typename T::template TEnumToDerived<enumValues[Is]>>(itemFluent.GetConsumer(), options);
+                                    })
+                                .EndMap()
+                            , ...);
+                        } (std::make_index_sequence<std::size(enumValues)>());
+                    })
+                .EndList()
+            .EndMap()
         .EndMap();
 }
 
