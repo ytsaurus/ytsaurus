@@ -650,7 +650,7 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
             for table_name in tables:
                 yw = yt.YtClient(proxy=self.Env.get_proxy_address(), config={"write_retries": {"enable": False}})
 
-                def writer():
+                def writer(table_name=table_name, yw=yw):
                     try:
                         yw.write_table(table_name, gen(), raw=True, format=yt.YsonFormat())
                     except Exception as e:
@@ -677,53 +677,34 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
                     chunk_id = get_singular_chunk_id(table_name)
                     wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "session_count_limit": 10,
+        def set_session_count_limit(limit):
+            update_nodes_dynamic_config({
+                "data_node": {
+                    "store_location_config_per_medium": {
+                        "default": {
+                            "session_count_limit": limit,
+                        }
                     }
                 }
-            }
-        })
+            })
+            wait(lambda: all(
+                get(f"//sys/cluster_nodes/{node}/@statistics/media/default/max_write_sessions_per_location",
+                    default=None) == limit
+                for node in ls("//sys/cluster_nodes")))
 
-        sleep(1)
+        set_session_count_limit(10)
 
         write_tables("//tmp/t1{}", False)
 
         set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.1)
 
-        sleep(1)
-
         write_tables("//tmp/t2{}", True)
 
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "session_count_limit": 100,
-                    }
-                }
-            }
-        })
-
-        sleep(1)
+        set_session_count_limit(100)
 
         write_tables("//tmp/t3{}", False)
 
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "session_count_limit": 100000,
-                    }
-                }
-            }
-        })
-
         set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.001)
-
-        sleep(1)
 
         write_tables("//tmp/t4{}", True)
 
