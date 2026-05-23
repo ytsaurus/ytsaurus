@@ -842,9 +842,24 @@ void TJobFSSecretary::SetCachedArtifacts(std::vector<TArtifactPtr> artifacts)
     ArtifactsCached_ = true;
 }
 
-void TJobFSSecretary::SetPreparedLayers(TPreparedLayers layers)
+void TJobFSSecretary::AddPreparedLayers(TPreparedLayers layers)
 {
-    PreparedLayers_ = std::move(layers);
+    YT_LOG_DEBUG(
+        "Adding prepared layers (NewLayerCount: %v, ExistingLayerCount: %v)",
+        size(layers.ArtifactKeyToOverlayData),
+        size(PreparedLayers_.ArtifactKeyToOverlayData));
+
+    for (auto& [key, overlayData] : layers.ArtifactKeyToOverlayData) {
+        EmplaceOrCrash(
+            PreparedLayers_.ArtifactKeyToOverlayData,
+            std::move(key),
+            std::move(overlayData));
+    }
+}
+
+bool TJobFSSecretary::HasPreparedLayer(const TArtifactKey& key) const
+{
+    return PreparedLayers_.ArtifactKeyToOverlayData.contains(key);
 }
 
 std::vector<TOverlayData> TJobFSSecretary::GetPreparedRootVolumeOverlayData() const
@@ -922,8 +937,6 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
 
     VirtualSandboxData_.reset();
     HasVirtualSandboxArtifacts_ = false;
-    // TODO(pogorelov): Avoid clearing this map for every job in an allocation.
-    ReleasePreparedLayers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
