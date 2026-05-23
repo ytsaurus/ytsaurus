@@ -21,6 +21,10 @@ void DumpBacktrace(
 //! Captures the current backtrace and symbolizes it into a string.
 std::string DumpBacktrace();
 
+//! Disables backtrace symbolization. When symbolization is disabled,
+//! DumpBacktrace may report that symbolization is disabled instead of symbolizing.
+void DisableBacktraceSymbolizing();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

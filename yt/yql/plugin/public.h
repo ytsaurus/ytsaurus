@@ -14,6 +14,7 @@ DECLARE_REFCOUNTED_STRUCT(TDQManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TAdditionalSystemLib)
 DECLARE_REFCOUNTED_STRUCT(TProcessYqlPluginConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlPluginConfig)
+DECLARE_REFCOUNTED_STRUCT(TRuntimeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
