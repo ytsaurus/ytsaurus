@@ -175,7 +175,14 @@ public:
 
     TString AdjustLogPath(TJobId jobId, const TString& logFilePath) final
     {
-        return NFS::CombinePaths(GetJobLogDirectoryPath(jobId), NFS::GetFileName(logFilePath));
+        try {
+            return NFS::CombinePaths(GetJobLogDirectoryPath(jobId), NFS::GetFileName(logFilePath));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to adjust job log file path")
+                << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
+                << TErrorAttribute("log_file", logFilePath)
+                << std::move(ex);
+        }
     }
 
     TFuture<void> DumpJobProxyLog(
@@ -346,8 +353,6 @@ private:
 
     int PickLogStorageIndexFromLocationList(TJobId jobId, const std::vector<bool>& locationIndices) const
     {
-        YT_VERIFY(!locationIndices.empty());
-
         if (std::find(locationIndices.begin(), locationIndices.end(), true) == locationIndices.end()) {
             THROW_ERROR_EXCEPTION("No healthy job proxy log locations available");
         }
@@ -360,7 +365,6 @@ private:
                 break;
             }
         }
-        YT_VERIFY(bestIndex >= 0);
 
         auto bestScore = jobHash;
         HashCombine(bestScore, THash<std::string>()(Config_->Locations[bestIndex]->Path));
@@ -404,14 +408,23 @@ private:
     {
         auto shardingKey = GetShardingKey(jobId);
 
-        const auto targetJobLogPath = GetJobLogDirectoryPath(jobId);
         const auto symlinkPath = NFS::CombinePaths({Config_->JobProxyLogSymlinksPath, shardingKey, ToString(jobId)});
         if (!NFS::Exists(symlinkPath)) {
-            NFS::MakeSymbolicLink(targetJobLogPath, symlinkPath);
-            YT_LOG_INFO(
-                "Created symlink for job directory (SymlinkPath: %v, Target: %v)",
-                symlinkPath,
-                targetJobLogPath);
+            try {
+                const auto targetJobLogPath = GetJobLogDirectoryPath(jobId);
+
+                NFS::MakeSymbolicLink(targetJobLogPath, symlinkPath);
+
+                YT_LOG_INFO(
+                    "Created symlink for job directory (SymlinkPath: %v, Target: %v)",
+                    symlinkPath,
+                    targetJobLogPath);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to bind job log directory")
+                    << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
+                    << TErrorAttribute("symlink_path", symlinkPath)
+                    << std::move(ex);
+            }
         }
     }
 
