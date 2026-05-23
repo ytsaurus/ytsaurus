@@ -416,7 +416,7 @@ private:
                     return false;
                 }
                 tableDesc.Views.insert({TString{view->Child(1)->Content()}, {}});
-                intents = TYtTableIntent::View; // Override Read intent
+                intents |= TYtTableIntent::View;
             }
             if (NYql::HasSetting(tableInfo.Settings.Cast().Ref(), EYtSettingType::XLock)) {
                 intents |= TYtTableIntent::Override;
