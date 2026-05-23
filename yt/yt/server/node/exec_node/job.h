@@ -364,6 +364,9 @@ private:
     std::optional<TInstant> FinishTime_;
     std::optional<TInstant> ResultReceivedTime_;
 
+    std::optional<TInstant> PrepareLayersStartTime_;
+    std::optional<TInstant> PrepareLayersFinishTime_;
+
     std::optional<TInstant> PrepareRootVolumeStartTime_;
     std::optional<TInstant> PrepareRootVolumeFinishTime_;
 

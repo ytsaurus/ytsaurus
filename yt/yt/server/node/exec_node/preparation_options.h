@@ -26,6 +26,14 @@ struct TVirtualSandboxData
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOverlayLayerPreparationOptions
+{
+    TArtifactKey ArtifactKey;
+    NNbd::IImageReaderPtr ImageReader;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Data necessary to create NBD root volume.
 struct TSandboxNbdRootVolumeData
 {

@@ -79,7 +79,7 @@ public:
 
     //! Prepare root overlayfs volume.
     TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<TArtifactKey>&,
+        std::vector<TOverlayData>,
         const TVolumePreparationOptions&) override
     {
         YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
@@ -89,8 +89,8 @@ public:
         const std::optional<std::string>& sandboxPath,
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions&) override
+        std::vector<std::vector<TOverlayData>> /*perVolumeOverlayData*/,
+        const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) override
     {
         YT_VERIFY(sandboxPath);
         // Create debug tag.
@@ -207,6 +207,14 @@ public:
     bool IsEnabled() const override
     {
         return true;
+    }
+
+    std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
+        TJobId /*jobId*/,
+        std::vector<TOverlayLayerPreparationOptions> /*layerOptions*/,
+        const TArtifactDownloadOptions& /*artifactDownloadOptions*/) override
+    {
+        YT_UNIMPLEMENTED("PrepareOverlayLayers is not implemented for SimpleVolumeManager");
     }
 
     void OnDynamicConfigChanged(
@@ -459,29 +467,37 @@ public:
     }
 
     std::vector<TFuture<TOverlayData>> PrepareOverlayLayers(
-        TGuid tag,
         TJobId jobId,
-        const std::vector<TArtifactKey>& artifactKeys,
-        const TArtifactDownloadOptions& artifactDownloadOptions)
+        std::vector<TOverlayLayerPreparationOptions> layerOptions,
+        const TArtifactDownloadOptions& artifactDownloadOptions) override
     {
-        std::vector<TFuture<TOverlayData>> overlayDataFutures;
-        overlayDataFutures.reserve(artifactKeys.size());
+        auto tag = TGuid::Create();
 
-        for (const auto& artifactKey : artifactKeys) {
+        YT_LOG_DEBUG(
+            "Preparing layers (Tag: %v, JobId: %v, LayerCount: %v)",
+            tag,
+            jobId,
+            layerOptions.size());
+
+        std::vector<TFuture<TOverlayData>> overlayDataFutures;
+        overlayDataFutures.reserve(layerOptions.size());
+
+        for (auto& layerOption : layerOptions) {
+            const auto& artifactKey = layerOption.ArtifactKey;
             if (FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Nbd) {
                 overlayDataFutures.push_back(GetOrCreateRONbdVolume(
                     tag,
                     TPrepareRONbdVolumeOptions{
                         .JobId = jobId,
-                        .ArtifactKey = artifactKey,
-                        .ImageReader = nullptr, // Create image reader if necessary.
+                        .ArtifactKey = std::move(layerOption.ArtifactKey),
+                        .ImageReader = std::move(layerOption.ImageReader),
                     }));
             } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
                 overlayDataFutures.push_back(GetOrCreateSquashFSVolume(
                     tag,
                     TPrepareSquashFSVolumeOptions{
                         .JobId = jobId,
-                        .ArtifactKey = artifactKey,
+                        .ArtifactKey = std::move(layerOption.ArtifactKey),
                         .ArtifactDownloadOptions = artifactDownloadOptions,
                     }));
             } else {
@@ -489,7 +505,7 @@ public:
                     tag,
                     TPrepareLayerOptions{
                         .JobId = jobId,
-                        .ArtifactKey = artifactKey,
+                        .ArtifactKey = std::move(layerOption.ArtifactKey),
                         .ArtifactDownloadOptions = artifactDownloadOptions,
                     }));
             }
@@ -498,22 +514,20 @@ public:
         return overlayDataFutures;
     }
 
-    //! Prepare rootfs volume.
+    //! Create overlayfs volume from pre-prepared overlay layer data.
     TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<TArtifactKey>& artifactKeys,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) override
     {
-        YT_VERIFY(!artifactKeys.empty());
-
         auto tag = TGuid::Create();
 
-        const auto& userSandboxOptions = options.UserSandboxOptions;
+        auto userSandboxOptions = options.UserSandboxOptions;
 
         auto Logger = ExecNodeLogger()
-            .WithTag("Tag: %v, JobId: %v, ArtifactCount: %v",
+            .WithTag("Tag: %v, JobId: %v, LayerCount: %v",
                 tag,
                 options.JobId,
-                artifactKeys.size());
+                overlayDataArray.size());
 
         YT_LOG_DEBUG("Preparing root volume");
 
@@ -525,173 +539,130 @@ public:
             THROW_ERROR(error);
         }
 
-        auto overlayDataFutures = PrepareOverlayLayers(tag, options.JobId, artifactKeys, options.ArtifactDownloadOptions);
+        auto jobId = options.JobId;
+        const auto& sandboxNbdRootVolumeData = options.SandboxNbdRootVolumeData;
 
-        if (auto data = userSandboxOptions.VirtualSandboxData) {
-            overlayDataFutures.push_back(GetOrCreateRONbdVolume(
+        if (sandboxNbdRootVolumeData) {
+            // Create NBD root volume separately and use it as the upper layer,
+            // the same way tmpfs/disk upper layers are handled in PrepareNonRootVolumes().
+            return CreateRWNbdVolume(
                 tag,
-                TPrepareRONbdVolumeOptions{
-                    .JobId = options.JobId,
-                    .ArtifactKey = data->ArtifactKey,
-                    .ImageReader = data->Reader,
-                }));
-        }
-
-        auto sandboxNbdRootVolumeData = options.SandboxNbdRootVolumeData;
-
-        // ToDo(psushin): choose proper invoker.
-        // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
-        return AllSucceeded(std::move(overlayDataFutures))
-            .ToImmediatelyCancelable()
-            .AsUnique()
-            .Apply(BIND(
-                [
-                    tag,
-                    jobId = options.JobId,
-                    Logger,
-                    userSandboxOptions,
-                    sandboxNbdRootVolumeData,
-                    this,
-                    this_ = MakeStrong(this)
-                ] (std::vector<TOverlayData>&& overlayDataArray) mutable -> TFuture<IVolumePtr> {
-                    if (sandboxNbdRootVolumeData) {
-                        // Create NBD root volume separately and use it as the upper layer,
-                        // the same way tmpfs/disk upper layers are handled in PrepareNonRootVolumes().
-                        return CreateRWNbdVolume(
-                            tag,
-                            TPrepareRWNbdVolumeOptions{
-                                .JobId = jobId,
-                                .Size = sandboxNbdRootVolumeData->Size,
-                                .MediumIndex = sandboxNbdRootVolumeData->MediumIndex,
-                                .Filesystem = sandboxNbdRootVolumeData->FsType,
-                                .DeviceId = sandboxNbdRootVolumeData->DeviceId,
-                                .DataNodeChannel = {/*Channel will be filled later on.*/},
-                                .SessionId = {/*SessionId will be filled later on.*/},
-                                .DataNodeRpcTimeout = sandboxNbdRootVolumeData->DataNodeRpcTimeout,
-                                .DataNodeAddress = sandboxNbdRootVolumeData->DataNodeAddress,
-                                .DataNodeNbdServiceRpcTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceRpcTimeout,
-                                .DataNodeNbdServiceMakeTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceMakeTimeout,
-                                .MasterRpcTimeout = sandboxNbdRootVolumeData->MasterRpcTimeout,
-                                .MinDataNodeCount = sandboxNbdRootVolumeData->MinDataNodeCount,
-                                .MaxDataNodeCount = sandboxNbdRootVolumeData->MaxDataNodeCount,
-                            })
-                            .AsUnique()
-                            .Apply(BIND(
-                                [
-                                    tag,
-                                    jobId,
-                                    Logger,
-                                    userSandboxOptions = std::move(userSandboxOptions),
-                                    overlayDataArray = std::move(overlayDataArray),
-                                    this,
-                                    this_ = MakeStrong(this)
-                                ] (IVolumePtr&& nbdVolume) mutable -> TFuture<TOverlayVolumePtr> {
-                                    // See PORTO-460 for "//" prefix.
-                                    TString placePath = "//" + nbdVolume->GetPath();
-                                    YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)", placePath);
-                                    return DoCreateOverlayVolume(
-                                        tag,
-                                        jobId,
-                                        userSandboxOptions.UserId,
-                                        placePath,
-                                        std::move(overlayDataArray),
-                                        /* volumeForUpperLayer */ std::move(nbdVolume))
-                                        .ToUncancelable();
-                                })
-                                .AsyncVia(GetCurrentInvoker()))
-                            .As<IVolumePtr>();
-                    } else {
-                        // Now we are ready to create overlay volume. It is a light
-                        // operation so we are allowed to make it uncancelable.
-                        return CreateRootOverlayVolume(
-                            tag,
-                            TPrepareOverlayVolumeOptions{
-                                .JobId = jobId,
-                                .UserSandboxOptions = std::move(userSandboxOptions),
-                                .OverlayDataArray = std::move(overlayDataArray)
-                            })
-                            .ToUncancelable()
-                            .As<IVolumePtr>();
-                    }
+                TPrepareRWNbdVolumeOptions{
+                    .JobId = jobId,
+                    .Size = sandboxNbdRootVolumeData->Size,
+                    .MediumIndex = sandboxNbdRootVolumeData->MediumIndex,
+                    .Filesystem = sandboxNbdRootVolumeData->FsType,
+                    .DeviceId = sandboxNbdRootVolumeData->DeviceId,
+                    .DataNodeChannel = {/*Channel will be filled later on.*/},
+                    .SessionId = {/*SessionId will be filled later on.*/},
+                    .DataNodeRpcTimeout = sandboxNbdRootVolumeData->DataNodeRpcTimeout,
+                    .DataNodeAddress = sandboxNbdRootVolumeData->DataNodeAddress,
+                    .DataNodeNbdServiceRpcTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceRpcTimeout,
+                    .DataNodeNbdServiceMakeTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceMakeTimeout,
+                    .MasterRpcTimeout = sandboxNbdRootVolumeData->MasterRpcTimeout,
+                    .MinDataNodeCount = sandboxNbdRootVolumeData->MinDataNodeCount,
+                    .MaxDataNodeCount = sandboxNbdRootVolumeData->MaxDataNodeCount,
                 })
-                .AsyncVia(GetCurrentInvoker()));
+                .AsUnique()
+                .Apply(BIND(
+                    [
+                        tag,
+                        jobId,
+                        Logger,
+                        userSandboxOptions = std::move(userSandboxOptions),
+                        overlayDataArray = std::move(overlayDataArray),
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (IVolumePtr&& nbdVolume) mutable -> TFuture<TOverlayVolumePtr> {
+                        // See PORTO-460 for "//" prefix.
+                        TString placePath = "//" + nbdVolume->GetPath();
+                        YT_LOG_DEBUG("Place overlay volume in NBD volume (PortoPlace: %v)", placePath);
+                        return DoCreateOverlayVolume(
+                            tag,
+                            jobId,
+                            userSandboxOptions.UserId,
+                            placePath,
+                            std::move(overlayDataArray),
+                            /*volumeForUpperLayer*/ std::move(nbdVolume))
+                            .ToUncancelable();
+                    })
+                    .AsyncVia(GetCurrentInvoker()))
+                .As<IVolumePtr>();
+        } else {
+            // Now we are ready to create overlay volume. It is a light
+            // operation so we are allowed to make it uncancelable.
+            return CreateRootOverlayVolume(
+                tag,
+                TPrepareOverlayVolumeOptions{
+                    .JobId = jobId,
+                    .UserSandboxOptions = std::move(userSandboxOptions),
+                    .OverlayDataArray = std::move(overlayDataArray)
+                })
+                .ToUncancelable()
+                .As<IVolumePtr>();
+        }
     }
 
     TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         const std::optional<std::string>&,
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
-        const std::vector<NScheduler::TVolumeMountPtr>&,
-        const TArtifactDownloadOptions& artifactDownloadOptions) override
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
+        const std::vector<NScheduler::TVolumeMountPtr>&) override
     {
+        YT_VERIFY(volumes.size() == perVolumeOverlayData.size());
+
         // Create debug tag.
         auto tag = TGuid::Create();
 
         std::vector<TFuture<TVolumeResultPtr>> futures;
         futures.reserve(volumes.size());
-        for (const auto& volume : volumes) {
-            // TODO: Remove call PrepareOverlayLayers (YT-27698)
-            futures.push_back(AllSucceeded(PrepareOverlayLayers(
-                    tag,
-                    jobId,
-                    volume->LayerArtifactKeys,
-                    artifactDownloadOptions))
+        for (int i = 0; i < std::ssize(volumes); ++i) {
+            const auto& volume = volumes[i];
+            auto overlayDataArray = std::move(perVolumeOverlayData[i]);
+
+            auto volumeFuture = [&] {
+                switch (volume->VolumeType) {
+                    case EVolumeType::Tmpfs:
+                        return CreateTmpfsVolume(tag, StaticPointerCast<TTmpfsVolumeParams>(volume));
+                    case EVolumeType::LocalDisk:
+                        return CreateLoopVolume(tag, StaticPointerCast<TLocalDiskVolumeParams>(volume));
+                    default:
+                        YT_ABORT();
+                }
+            }();
+
+            futures.push_back(volumeFuture
                 .AsUnique()
                 .Apply(BIND(
                     [
                         tag,
                         jobId,
-                        volume,
+                        overlayDataArray = std::move(overlayDataArray),
+                        volumeParams = volume,
                         this,
                         this_ = MakeStrong(this)
-                    ] (std::vector<TOverlayData>&& overlayDataArray) mutable {
-                        auto volumeFuture = [&] {
-                            switch (volume->VolumeType) {
-                                case EVolumeType::Tmpfs:
-                                    return CreateTmpfsVolume(tag, StaticPointerCast<TTmpfsVolumeParams>(volume));
-                                case EVolumeType::LocalDisk:
-                                    return CreateLoopVolume(tag, StaticPointerCast<TLocalDiskVolumeParams>(volume));
-                                default:
-                                    YT_ABORT();
-                            }
-                        }();
+                    ] (TVolumeResultPtr&& result) {
+                        if (overlayDataArray.empty()) {
+                            return MakeFuture(result);
+                        }
 
-                        return volumeFuture
+                        auto placePath = NFS::JoinPaths(result->Volume->GetPath(), "place");
+                        // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
+                        return DoCreateOverlayVolume(
+                            tag,
+                            jobId,
+                            volumeParams->UserId,
+                            placePath,
+                            overlayDataArray,
+                            /*volumeForUpperLayer*/ std::move(result->Volume))
                             .AsUnique()
-                            .Apply(BIND(
-                                [
-                                    tag,
-                                    jobId,
-                                    overlayDataArray = std::move(overlayDataArray),
-                                    volumeParams = std::move(volume),
-                                    this,
-                                    this_ = MakeStrong(this)
-                                ] (TVolumeResultPtr&& result) {
-                                    if (overlayDataArray.empty()) {
-                                        return MakeFuture(result);
-                                    }
-
-                                    auto placePath = NFS::JoinPaths(result->Volume->GetPath(), "place");
-                                    // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
-                                    return DoCreateOverlayVolume(
-                                        tag,
-                                        jobId,
-                                        volumeParams->UserId,
-                                        placePath,
-                                        overlayDataArray,
-                                        /* volumeForUpperLayer */ std::move(result->Volume)
-                                    )
-                                        .AsUnique()
-                                        .Apply(BIND([result = std::move(result)] (TOverlayVolumePtr&& volume) mutable -> TVolumeResultPtr {
-                                            result->Volume = StaticPointerCast<IVolume>(std::move(volume));
-                                            return result;
-                                        }))
-                                        .ToUncancelable();
-                                })
-                            )
+                            .Apply(BIND([result = std::move(result)] (TOverlayVolumePtr&& volume) mutable -> TVolumeResultPtr {
+                                result->Volume = StaticPointerCast<IVolume>(std::move(volume));
+                                return result;
+                            }))
                             .ToUncancelable();
-                    })
-                    .AsyncVia(GetCurrentInvoker()))
+                    }))
                 .ToUncancelable());
         }
         return AllSucceeded(std::move(futures));
@@ -1051,7 +1022,7 @@ private:
             userSandboxOptions.UserId,
             placePath,
             std::move(options.OverlayDataArray),
-            /* volumeForUpperLayer */ nullptr,
+            /*volumeForUpperLayer*/ nullptr,
             diskSpaceLimit,
             inodeLimit,
             placeInUserSlot);
