@@ -144,29 +144,43 @@ extern "C" uint64_t HyperLogLogGetFingerprint(TUnversionedValue* value);
     } \
 \
     extern "C" void hll_ ## PRECISION ## _merge_state_update( \
-        TExpressionContext* /*context*/, \
+        TExpressionContext* context, \
         TUnversionedValue* result, \
         TUnversionedValue* state, \
         TUnversionedValue* newValue) \
     { \
-        result->Type = EValueType::String; \
-        result->Length = state->Length; \
-        result->Data.String = state->Data.String; \
-\
-        HyperLogLogMergeWithValidation ## PRECISION(state->Data.String, newValue->Data.String, newValue->Length); \
+        if (newValue->Type == EValueType::Null) { \
+            *result = *state; \
+            return; \
+        } \
+        if (state->Type == EValueType::Null) { \
+            HyperLogLogAllocate ## PRECISION(context, result); \
+        } else { \
+            result->Type = EValueType::String; \
+            result->Length = state->Length; \
+            result->Data.String = state->Data.String; \
+        } \
+        HyperLogLogMergeWithValidation ## PRECISION(result->Data.String, newValue->Data.String, newValue->Length); \
     } \
 \
     extern "C" void hll_ ## PRECISION ## _merge_state_merge( \
-        TExpressionContext* /*context*/, \
+        TExpressionContext* context, \
         TUnversionedValue* result, \
         TUnversionedValue* state1, \
         TUnversionedValue* state2) \
     { \
-        result->Type = EValueType::String; \
-        result->Length = state1->Length; \
-        result->Data.String = state1->Data.String; \
-\
-        HyperLogLogMerge ## PRECISION(state1->Data.String, state2->Data.String); \
+        if (state2->Type == EValueType::Null) { \
+            *result = *state1; \
+            return; \
+        } \
+        if (state1->Type == EValueType::Null) { \
+            HyperLogLogAllocate ## PRECISION(context, result); \
+        } else { \
+            result->Type = EValueType::String; \
+            result->Length = state1->Length; \
+            result->Data.String = state1->Data.String; \
+        } \
+        HyperLogLogMerge ## PRECISION(result->Data.String, state2->Data.String); \
     } \
 \
     extern "C" void hll_ ## PRECISION ## _merge_state_finalize( \
