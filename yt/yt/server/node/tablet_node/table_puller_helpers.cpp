@@ -87,9 +87,9 @@ const T& ChooseReplica(const std::vector<T>& candidates, const TReplicaInfo& sel
 TQueueReplicaSelector::TQueueReplicaSelector(
     NLogging::TLogger logger,
     std::optional<int> replicaBanDuration,
-    bool stronglyPreferLocalQueue)
+    bool forceSameClusterQueue)
     : Logger(logger)
-    , StronglyPreferLocalQueue_(stronglyPreferLocalQueue)
+    , ForceSameClusterQueue_(forceSameClusterQueue)
     , BannedReplicaTracker_(std::move(logger), replicaBanDuration)
     , LastPulledFromReplicaId_(NullObjectId)
     , NextPermittedTimeForProgressBehindAlert_(Now())
@@ -168,7 +168,7 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
             }
 
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
-                if (StronglyPreferLocalQueue_) {
+                if (ForceSameClusterQueue_) {
                     if (isSelfReplicaInLastEra &&
                         selfReplica->ClusterName == replicaInfo.ClusterName)
                     {
