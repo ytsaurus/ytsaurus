@@ -784,20 +784,11 @@ private:
     const TMasterJobSensors Sensors_;
     const TRepairChunkJobDynamicConfigPtr DynamicConfig_;
 
-    IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
+
+    IChunkReaderAllowingRepairPtr DoCreateReader(
+        TChunkId partChunkId,
+        TChunkReplicaList partReplicas)
     {
-        TChunkReplicaList partReplicas;
-        for (auto replica : SourceReplicas_) {
-            if (replica.GetReplicaIndex() == partIndex) {
-                partReplicas.push_back(replica);
-            }
-        }
-
-        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
-        if (partReplicas.empty()) {
-            return CreateUnavailablePartReader(partChunkId);
-        }
-
         auto options = New<TRemoteReaderOptions>();
         options->AllowFetchingSeedsFromMaster = false;
 
@@ -817,6 +808,40 @@ private:
             std::move(chunkReaderHost),
             partChunkId,
             std::move(partReplicas));
+    }
+
+    IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
+    {
+        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+
+        TChunkReplicaList partReplicas;
+        for (auto replica : SourceReplicas_) {
+            if (replica.GetReplicaIndex() == partIndex) {
+                partReplicas.push_back(replica);
+            }
+        }
+
+        return partReplicas.empty()
+            ? CreateUnavailablePartReader(partChunkId)
+            : DoCreateReader(partChunkId, std::move(partReplicas));
+    }
+
+    std::vector<IChunkReaderAllowingRepairPtr> CreateReaders(int partIndex)
+    {
+        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+
+        std::vector<IChunkReaderAllowingRepairPtr> partReaders;
+        for (auto replica : SourceReplicas_) {
+            if (replica.GetReplicaIndex() == partIndex) {
+                partReaders.push_back(DoCreateReader(partChunkId, {replica}));
+            }
+        }
+
+        if (partReaders.empty()) {
+            return std::vector<IChunkReaderAllowingRepairPtr>{CreateUnavailablePartReader(partChunkId)};
+        }
+
+        return partReaders;
     }
 
     IChunkWriterPtr CreateWriter(int partIndex)
@@ -1019,7 +1044,9 @@ private:
                 case EObjectType::ErasureJournalChunk: {
                     std::vector<IChunkReaderPtr> readers;
                     for (int partIndex : sourcePartIndexes) {
-                        readers.push_back(CreateReader(partIndex));
+                        // NB: We separate readers of each part because its replicas are not necessarily identical.
+                        auto partReaders = CreateReaders(partIndex);
+                        std::move(partReaders.begin(), partReaders.end(), std::back_inserter(readers));
                     }
 
                     future = NJournalClient::RepairErasedParts(
