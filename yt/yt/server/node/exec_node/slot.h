@@ -3,6 +3,7 @@
 #include "artifact.h"
 #include "artifact_cache.h"
 #include "job_workspace_builder.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
@@ -88,20 +89,27 @@ struct IUserSlot
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
+    //! Prepare overlay layers for a set of artifact keys.
+    //! Returns one future per layer (parallel index).
+    virtual std::vector<TFuture<TOverlayData>> PrepareLayers(
+        TJobId jobId,
+        const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
+        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
+
     virtual TFuture<IVolumePtr> PrepareRootVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         TJobId jobId,
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(

@@ -320,8 +320,24 @@ public:
         return VolumeManager_->IsLayerCached(artifactKey);
     }
 
+    std::vector<TFuture<TOverlayData>> PrepareLayers(
+        TJobId jobId,
+        const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
+        const TArtifactDownloadOptions& artifactDownloadOptions) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        if (!VolumeManager_) {
+            return {};
+        }
+
+        return VolumeManager_->PrepareOverlayLayers(jobId, layerOptions, artifactDownloadOptions);
+    }
+
     TFuture<IVolumePtr> PrepareRootVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -336,7 +352,9 @@ public:
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, options);
+                return VolumeManager_->PrepareVolume(
+                    std::move(overlayDataArray),
+                    options);
             });
     }
 
@@ -361,7 +379,7 @@ public:
     }
 
     TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -376,7 +394,9 @@ public:
             /*actionName*/ "PrepareGpuCheckVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, options);
+                return VolumeManager_->PrepareVolume(
+                    std::move(overlayDataArray),
+                    options);
             });
     }
 
@@ -384,8 +404,8 @@ public:
         TJobId jobId,
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumeParams,
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
         const std::vector<TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -410,17 +430,8 @@ public:
         return RunPreparationAction(
             /*actionName*/ "PrepareNonRootVolumes",
             /*uncancelable*/ false,
-            [
-                jobId,
-                userSandboxPath = std::move(userSandboxPath),
-                rootVolume,
-                volumeParams,
-                volumeMounts,
-                artifactDownloadOptions,
-                this,
-                this_ = MakeStrong(this)
-            ] {
-                return VolumeManager_->PrepareNonRootVolumes(userSandboxPath, jobId, volumeParams, volumeMounts, artifactDownloadOptions)
+            [&] {
+                return VolumeManager_->PrepareNonRootVolumes(userSandboxPath, jobId, volumeParams, std::move(perVolumeOverlayData), volumeMounts)
                     .AsUnique()
                     .Apply(
                         BIND(

@@ -799,6 +799,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::CachingArtifacts:
+        case EJobPhase::PreparingLayers:
         case EJobPhase::PreparingVolumes:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::LinkingVolumes:
@@ -1189,7 +1190,7 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), PreparationStartTime_),
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsCachingDuration = getDuration(ArtifactsDownloadStartTime_, ArtifactsDownloadedTime_),
-        .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
+        .PrepareLayersDuration = getDuration(PrepareLayersStartTime_, PrepareLayersFinishTime_),
         .PrepareNonRootVolumesDuration = getDuration(PrepareNonRootVolumesStartTime_, PrepareNonRootVolumesFinishTime_),
         .LinkVolumesDuration = getDuration(LinkVolumesStartTime_, LinkVolumesFinishTime_),
         .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
@@ -2560,6 +2561,9 @@ void TJob::PrepareWorkspace()
                 return;
             }
 
+            PrepareLayersStartTime_ = timePoints.PrepareLayersStartTime;
+            PrepareLayersFinishTime_ = timePoints.PrepareLayersFinishTime;
+
             PrepareRootVolumeStartTime_ = timePoints.PrepareRootVolumeStartTime;
             PrepareRootVolumeFinishTime_ = timePoints.PrepareRootVolumeFinishTime;
 
@@ -2965,6 +2969,9 @@ void TJob::Cleanup()
 
     // Unsubscribe job prior to volume removal.
     UnsubscribeJobFromNbdDevices();
+
+    // TODO(pogorelov): Avoid clearing this map for every job in an allocation.
+    FSSecretary_->ReleasePreparedLayers();
 
     auto removeVolume = [this] (IVolumePtr volume) {
         if (volume) {

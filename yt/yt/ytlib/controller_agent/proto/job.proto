@@ -74,6 +74,7 @@ message TTimeStatistics
     optional int64 prepare_non_root_volumes_duration = 8;
     optional int64 validate_root_fs_duration = 9;
     optional int64 link_volumes_duration = 10;
+    optional int64 prepare_layers_duration = 11;
 }
 
 // Describes the current job status.
