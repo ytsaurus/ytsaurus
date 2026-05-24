@@ -164,7 +164,7 @@ TEST(TQueueReplicaSelectorTest, PreferLocal)
     EXPECT_EQ(NullTimestamp, std::get<2>(value));
 }
 
-TEST(TQueueReplicaSelectorTest, StronglyPreferLocal)
+TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
 {
     TLogger logger;
     TQueueReplicaSelector queueReplicaSelector(logger, 1, true);
