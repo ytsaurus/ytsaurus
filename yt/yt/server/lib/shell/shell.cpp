@@ -202,7 +202,7 @@ protected:
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
-    std::optional<TString> Command_;
+    std::optional<std::string> Command_;
 
     NLogging::TLogger Logger = ShellLogger();
 
@@ -254,7 +254,7 @@ public:
             Command_);
 
         Pty_ = std::make_unique<TPty>(CurrentHeight_, CurrentWidth_);
-        const TString tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
+        const auto tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
 
         launcher->SetStdIn(tty);
         launcher->SetStdOut(tty);
@@ -293,7 +293,7 @@ public:
         for (const auto& var : Options_->Environment) {
             TStringBuf name, value;
             TStringBuf(var).TrySplit('=', name, value);
-            env[std::string(name)] = value;
+            env.emplace(name, value);
         }
 
         if (Options_->MessageOfTheDay && !IsSubcontainer_) {

@@ -23,7 +23,7 @@ struct IVolumeManager
 
     //! Prepare non-root volumes.
     virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
-        const std::optional<TString>& sandboxPath,
+        const std::optional<std::string>& sandboxPath,
         const TJobId& jobId,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
@@ -32,19 +32,19 @@ struct IVolumeManager
     //! TODO(yuryalekeev): Remove this method after we get rid of rbind volume.
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath) = 0;
+        const std::string& slotPath) = 0;
 
     //! Link volumes into destination directory.
     virtual TFuture<void> LinkVolumes(
-        const TString& destinationDirectory,
+        const std::string& destinationDirectory,
         const std::vector<TVolumeResultPtr>& volumes,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts) = 0;
 
     //! Remove volumes planted at a given place.
-    virtual TFuture<void> RemoveVolumes(const TString& place, TDuration timeout) = 0;
+    virtual TFuture<void> RemoveVolumes(const std::string& place, TDuration timeout) = 0;
 
     //! Remove layers planted at a given place.
-    virtual TFuture<void> RemoveLayers(const TString& place, TDuration timeout) = 0;
+    virtual TFuture<void> RemoveLayers(const std::string& place, TDuration timeout) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
