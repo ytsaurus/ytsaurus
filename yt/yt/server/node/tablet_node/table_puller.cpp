@@ -172,7 +172,7 @@ public:
         , QueueReplicaSelector_(
             Logger,
             MountConfig_->Testing.TablePullerReplicaBanIterationCount,
-            MountConfig_->TablePullerStronglyPreferLocalQueue)
+            MountConfig_->TablePullerForceSameClusterQueue)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }

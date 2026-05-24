@@ -53,7 +53,7 @@ public:
     TQueueReplicaSelector(
         NLogging::TLogger logger,
         std::optional<int> replicaBanDuration,
-        bool stronglyPreferLocalQueue);
+        bool forceSameClusterQueue);
 
     TReplicaOrError PickQueueReplica(
         NChaosClient::TReplicaId selfUpstreamReplicaId,
@@ -66,7 +66,7 @@ public:
 
 private:
     const NLogging::TLogger Logger;
-    const bool StronglyPreferLocalQueue_;
+    const bool ForceSameClusterQueue_;
 
     TBannedReplicaTracker BannedReplicaTracker_;
     NChaosClient::TReplicaId LastPulledFromReplicaId_;
