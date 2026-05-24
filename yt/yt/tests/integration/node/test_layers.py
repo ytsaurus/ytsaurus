@@ -3,8 +3,8 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job, poll_job_shell,
-    raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
-    sort, wait_for_nodes, update_nodes_dynamic_config,
+    raises_yt_error, read_table, run_test_vanilla, vanilla, map, map_reduce,
+    sort, wait_for_nodes, update_nodes_dynamic_config, update_controller_agent_config,
     wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
     make_random_string, sync_create_cells, get_allocation_id_from_job_id,
 )
@@ -3596,3 +3596,227 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
         # before the abort (abort happened during artifact caching delay)
         reused_job_stderr = op.read_stderr(new_job_ids_in_reused_alloc[0]).decode("utf-8")
         assert "FRESH" in reused_job_stderr
+
+
+class TestLayerReuseInAllocationBase(TestPortoLayersBase):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "enable_layers_cache": True,
+                "cache_capacity_fraction": 1.0,
+                "layer_locations": [
+                    {
+                        # Size of unpacked layer layers/static-bin.tar is 3207704 bytes.
+                        # Quota below the layer size forces SLRU eviction after the
+                        # first job; the layer must remain alive via the TLayerPtr
+                        # stored in TJobFSSecretary::PreparedLayers_.
+                        "quota": 1 * 1024 * 1024,
+                    },
+                ],
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestLayerReuseInAllocationBase, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    def _get_node_debug_logs(self, filter_string):
+        # Inlined copy of TestLayerCacheBase._get_node_debug_logs because we
+        # don't inherit from it directly (TestLayerCacheBase has its own
+        # DELTA_NODE_CONFIG that we override here).
+        writers = self.Env.configs["node"][0]["logging"]["writers"]
+        node_debug_logs_filename = None
+        for writer_name in writers:
+            if "debug" in writer_name:
+                node_debug_logs_filename = writers[writer_name]["file_name"]
+                break
+        assert node_debug_logs_filename is not None
+
+        if node_debug_logs_filename.endswith(".zst"):
+            compressed_file = open(node_debug_logs_filename, "rb")
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
+            logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
+        elif node_debug_logs_filename.endswith(".gz"):
+            logfile = gzip.open(node_debug_logs_filename, "b")
+        else:
+            logfile = open(node_debug_logs_filename, "b")
+
+        def _filter(line):
+            return filter_string in line
+
+        return [line for line in logfile if _filter(line)]
+
+
+class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
+    @authors("pogorelov")
+    def test_layer_not_reimported_on_allocation_reuse(self):
+        self.setup_files()
+
+        # The node debug log is shared with sibling test methods in this
+        # class because YTEnvSetup keeps a single cluster per test class,
+        # so we must measure the delta of "Layer added to cache" entries,
+        # not the absolute count.
+        initial_imports = len(self._get_node_debug_logs("Layer added to cache"))
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "layer_paths": ["//tmp/layer1"],
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        job_id1, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+
+        assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
+
+        release_breakpoint(job_id=job_id2)
+
+        op.track()
+
+        # The layer must be imported exactly once for the entire allocation:
+        # the second job sees its key already in TJobFSSecretary::PreparedLayers_
+        # and the layer-preparation phase is skipped via the existing
+        # "Layer preparation is not needed" early exit, even though the SLRU
+        # cache evicted the layer due to quota (the TLayerPtr stored in
+        # PreparedLayers_ pins the on-disk layer for the whole allocation).
+        logs = self._get_node_debug_logs("Layer added to cache")
+        new_imports = len(logs) - initial_imports
+        assert new_imports == 1, \
+            "Layer should be imported exactly once for the whole allocation; " \
+            "new imports during this test: {}, all logs: {}".format(new_imports, logs)
+
+    @authors("pogorelov")
+    def test_layer_evicted_when_allocation_not_reused(self):
+        self.setup_files()
+
+        update_controller_agent_config("allocation_job_count_limit", 1)
+
+        # Capture the baseline before this test runs an operation; sibling
+        # test methods in the same class share the node debug log because
+        # YTEnvSetup keeps a single cluster per test class.
+        initial_imports = len(self._get_node_debug_logs("Layer added to cache"))
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "layer_paths": ["//tmp/layer1"],
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 2000,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        job_id1, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id2)
+
+        op.track()
+
+        # With allocation_job_count_limit=1 the allocation is not reused.
+        # The first allocation finishes (PreparedLayers_ is released, the
+        # SLRU cache evicts the layer due to small quota), so the second
+        # job in a fresh allocation must re-import the layer from scratch.
+        assert get_allocation_id_from_job_id(job_id1) != get_allocation_id_from_job_id(job_id2)
+
+        logs = self._get_node_debug_logs("Layer added to cache")
+
+        # Each fresh allocation must re-import the layer exactly once: with
+        # job_count=2 and allocation_job_count_limit=1 we get exactly two
+        # fresh allocations (asserted via different allocation ids above),
+        # so the delta of "Layer added to cache" entries must be exactly 2.
+        # We measure delta because the node debug log is shared with other
+        # test methods in this class.
+        new_imports = len(logs) - initial_imports
+        assert new_imports == 2, \
+            "Each fresh allocation should re-import the layer exactly once; " \
+            "expected 2 new imports, got {} (initial: {}, total: {}); all logs: {}".format(
+                new_imports, initial_imports, len(logs), logs)

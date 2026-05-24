@@ -2970,9 +2970,6 @@ void TJob::Cleanup()
     // Unsubscribe job prior to volume removal.
     UnsubscribeJobFromNbdDevices();
 
-    // TODO(pogorelov): Avoid clearing this map for every job in an allocation.
-    FSSecretary_->ReleasePreparedLayers();
-
     auto removeVolume = [this] (IVolumePtr volume) {
         if (volume) {
             auto removeResult = WaitFor(volume->Remove());

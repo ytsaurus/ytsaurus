@@ -771,10 +771,12 @@ void TAllocation::OnAllocationFinished(
     if (lastJob) {
         lastJob->GetCleanupFinishedEvent().Subscribe(
             BIND_NO_PROPAGATE([fsSecretary] (const TError& /*error*/) {
+                fsSecretary->ReleasePreparedLayers();
                 fsSecretary->ReleaseArtifacts();
             })
                 .Via(Bootstrap_->GetJobInvoker()));
     } else {
+        fsSecretary->ReleasePreparedLayers();
         fsSecretary->ReleaseArtifacts();
     }
 
