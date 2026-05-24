@@ -3624,7 +3624,6 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
 class TestLayerReuseInAllocationBase(TestPortoLayersBase):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
 
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
@@ -3634,30 +3633,6 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
                         "enable_multiple_jobs": True,
                     },
                 },
-                "job_reporter": {
-                    "reporting_period": 10,
-                    "min_repeat_delay": 10,
-                    "max_repeat_delay": 10,
-                },
-            },
-        },
-    }
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "enable_job_reporter": True,
-            "enable_job_spec_reporter": True,
-            "enable_job_stderr_reporter": True,
-        },
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
             },
         },
     }
@@ -3697,21 +3672,17 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
     }
 
     def setup_method(self, method):
-        super(TestLayerReuseInAllocationBase, self).setup_method(method)
-        sync_create_cells(1)
-        init_operations_archive.create_tables_latest_version(
-            self.Env.create_native_client(), override_tablet_cell_bundle="default"
-        )
+        super().setup_method(method)
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
         write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
 
-    def _get_node_debug_logs(self, filter_string):
+    def _get_node_debug_logs(self, filter_string, node_index=0):
         # Inlined copy of TestLayerCacheBase._get_node_debug_logs because we
         # don't inherit from it directly (TestLayerCacheBase has its own
         # DELTA_NODE_CONFIG that we override here).
-        writers = self.Env.configs["node"][0]["logging"]["writers"]
+        writers = self.Env.configs["node"][node_index]["logging"]["writers"]
         node_debug_logs_filename = None
         for writer_name in writers:
             if "debug" in writer_name:
@@ -3843,3 +3814,69 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
             "Each fresh allocation should re-import the layer exactly once; " \
             "expected 2 new imports, got {} (initial: {}, total: {}); all logs: {}".format(
                 new_imports, initial_imports, len(logs), logs)
+
+
+class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
+    NUM_NODES = 2
+
+    @authors("pogorelov")
+    def test_layer_not_reimported_in_gang_operation(self):
+        self.setup_files()
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+                "layer_paths": ["//tmp/layer1"],
+            },
+            spec={
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+            track=False,
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        first_job_id = job_ids[0]
+
+        first_incarnation_reused_job_id = next(jid for jid in job_ids if jid != first_job_id)
+        reused_allocation_id = get_allocation_id_from_job_id(first_incarnation_reused_job_id)
+
+        reused_job_address = get_job(op.id, first_incarnation_reused_job_id)["address"]
+        reused_node_index = self.Env.get_node_index_by_address(reused_job_address)
+
+        reused_node_initial_imports = len(
+            self._get_node_debug_logs("Layer added to cache", node_index=reused_node_index)
+        )
+
+        current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
+
+        abort_job(first_job_id)
+
+        wait(lambda: get(op.get_orchid_path() + "/controller/operation_incarnation") != current_incarnation)
+
+        for jid in job_ids:
+            release_breakpoint(job_id=jid)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint()
+
+        op.track()
+
+        new_job_ids_in_reused_alloc = [
+            jid for jid in new_job_ids
+            if get_allocation_id_from_job_id(jid) == reused_allocation_id
+        ]
+        assert len(new_job_ids_in_reused_alloc) == 1
+
+        reused_node_final_imports = len(
+            self._get_node_debug_logs("Layer added to cache", node_index=reused_node_index)
+        )
+
+        delta = reused_node_final_imports - reused_node_initial_imports
+        assert delta == 0, \
+            "the reused allocation's reincarnation job must reuse PreparedLayers_ on the same node " \
+            "and skip layer import; new imports on this node: {}, total: {}".format(
+                delta, reused_node_final_imports)
