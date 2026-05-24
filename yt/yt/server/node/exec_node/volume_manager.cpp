@@ -945,8 +945,8 @@ private:
         std::optional<std::string> placePath,
         std::vector<TOverlayData> overlayDataArray,
         IVolumePtr volumeForUpperLayer = nullptr,
-        std::optional<int> diskSpaceLimit = std::nullopt,
-        std::optional<int> inodeLimit = std::nullopt,
+        std::optional<i64> diskSpaceLimit = std::nullopt,
+        std::optional<i64> inodeLimit = std::nullopt,
         bool placeInUserSlot = false)
     {
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(
@@ -1032,8 +1032,8 @@ private:
             placeInUserSlot = true;
         }
 
-        std::optional<int> diskSpaceLimit;
-        std::optional<int> inodeLimit;
+        std::optional<i64> diskSpaceLimit;
+        std::optional<i64> inodeLimit;
 
         if (userSandboxOptions.EnableDiskQuota && userSandboxOptions.EnableRootVolumeDiskQuota) {
             if (userSandboxOptions.DiskSpaceLimit) {
