@@ -1002,11 +1002,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             location->GetIndex());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
-        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
+        YT_LOG_DEBUG("Random location is chosen for chunk "
+            "(ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumIndex: %v, MediumName: %v)",
             sessionId,
             location->GetId(),
             location->GetUuid(),
-            location->GetIndex());
+            location->GetIndex(),
+            location->GetMediumDescriptor()->GetIndex(),
+            location->GetMediumName());
     }
 
     auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);
