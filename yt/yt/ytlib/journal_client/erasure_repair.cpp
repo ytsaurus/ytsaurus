@@ -29,7 +29,7 @@ void DoRepairErasedParts(
     ICodec* codec,
     i64 rowCount,
     const TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderPtr>& readers,
+    std::vector<IChunkReaderPtr> readers,
     const std::vector<IChunkWriterPtr>& writers,
     TClientChunkReadOptions chunkReadOptions,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
@@ -43,7 +43,7 @@ void DoRepairErasedParts(
     auto partsReader = New<TErasurePartsReader>(
         std::move(config),
         codec,
-        readers,
+        std::move(readers),
         erasedIndices,
         logger);
 
