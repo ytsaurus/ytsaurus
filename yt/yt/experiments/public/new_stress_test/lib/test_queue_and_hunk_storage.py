@@ -767,10 +767,6 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     yt.config["dynamic_table_retries"]["total_timeout"] = 180000
     yt.config["tablets_ready_timeout"] = 4 * 60 * 1000
 
-    # Enable dynamic→static alter for queues with hunks; required by
-    # Queue.alter_to_static which uses alter_table(dynamic=False) directly.
-    yt.set("//sys/@config/tablet_manager/enable_alter_to_static_with_hunks", True)
-
     queues = {}
     hunk_storages = {}
     tables = {}
