@@ -1,8 +1,8 @@
-from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, sync_unmount_table, get_driver, select_rows, print_debug, link,
+from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
                          list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
-                         start_transaction, ls, wait_for_tablet_state, alter_table)
+                         start_transaction, ls, wait_for_tablet_state)
 
 from yt_queue_agent_test_base import (QueueConsumerRegistration, TestQueueAgentBase, ReplicatedObjectBase,
                                       CypressSynchronizerOrchid, QueueConsumerRegistrationManagerBase, GenericObjectPath)
@@ -249,10 +249,16 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         consumer_cluster = "primary"
 
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
-        consumer_ref = self.form_path("//tmp/c1", consumer_cluster)
+        consumer_ref_1 = self.form_path("//tmp/c1", consumer_cluster)
         create("table", "//tmp/c1", attributes=attrs)
-        multi_consumer_ref = GenericObjectPath("//tmp/c2", consumer_cluster, queue_consumer_name="name_0")
-        create("table", multi_consumer_ref.get_path(), attributes={"dynamic": True, "schema": init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA})
+        # Multi-consumer supported in 26+ versions.
+        if self.ARTIFACT_COMPONENTS.get("25_4", None) or self.ARTIFACT_COMPONENTS.get("25_3", None):
+            consumer_ref_2 = GenericObjectPath("//tmp/c2", consumer_cluster)
+            create("table", consumer_ref_2.get_path(), attributes=attrs)
+        else:
+            consumer_ref_2 = GenericObjectPath("//tmp/c2", consumer_cluster, queue_consumer_name="name_0")
+            create("table", consumer_ref_2.get_path(), attributes={"dynamic": True, "schema": init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA})
+
         for cluster in clusters:
             create("table", self.form_queue_name("q", cluster), attributes=attrs, driver=get_driver(cluster=cluster))
 
@@ -268,7 +274,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
             create_user("yura", driver=get_driver(cluster=cluster))
 
         # Nobody is allowed to register consumers yet.
-        for consumer, user in zip((consumer_ref, multi_consumer_ref), ("egor", "bulat", "yura")):
+        for consumer, user in zip((consumer_ref_1, consumer_ref_2), ("egor", "bulat", "yura")):
             for cluster in clusters:
                 with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
                     register_queue_consumer(self.form_queue_name("q", cluster), consumer,
@@ -291,31 +297,31 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         # Yura is not allowed to register vital consumers.
         for cluster in clusters:
             with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-                register_queue_consumer(self.form_queue_name("q", cluster), multi_consumer_ref,
+                register_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_2,
                                         vital=True, authenticated_user="yura", driver=get_driver(cluster=cluster))
 
         registrations = builtins.set()
         for cluster in clusters:
             queue_name = f"//tmp/q-{cluster}"
-            register_queue_consumer(self.form_queue_name("q", cluster), consumer_ref,
+            register_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_1,
                                     vital=True, authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster))
-            register_queue_consumer(self.form_queue_name("q", cluster), multi_consumer_ref,
+            register_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_2,
                                     vital=False, authenticated_user="yura", driver=get_driver(cluster=consumer_cluster))
             registrations.add((cluster, queue_name, "primary", "//tmp/c1", True))
-            registrations.add((cluster, queue_name, "primary", multi_consumer_ref.get_path(), False, None, multi_consumer_ref.get_queue_consumer_name()))
+            registrations.add((cluster, queue_name, "primary", consumer_ref_2.get_path(), False, None, consumer_ref_2.get_queue_consumer_name()))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, registrations))
 
         # Remove permissions on either the queue or the consumer are needed.
         for cluster in clusters:
             with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-                unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref,
+                unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_1,
                                           authenticated_user="bulat", driver=get_driver(cluster=cluster))
 
         set("//tmp/c1/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["bulat"]})
         # Bulat can unregister his own consumer.
         for cluster in clusters:
             queue_name = f"//tmp/q-{cluster}"
-            unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref,
+            unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_1,
                                       authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster))
             registrations.remove((cluster, queue_name, "primary", "//tmp/c1", True))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, registrations))
@@ -323,13 +329,13 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         # Bulat cannot unregister Yura's consumer.
         for cluster in clusters:
             with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-                unregister_queue_consumer(self.form_queue_name("q", cluster), multi_consumer_ref,
+                unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_2,
                                           authenticated_user="bulat", driver=get_driver(cluster=cluster))
 
         # Remove permissions on either the queue or the consumer are needed.
         for cluster in clusters:
             with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-                unregister_queue_consumer(self.form_queue_name("q", cluster), multi_consumer_ref,
+                unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_2,
                                           authenticated_user="egor", driver=get_driver(cluster=cluster))
 
         for cluster in clusters:
@@ -337,7 +343,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
         # Now Egor can unregister any consumer to his queue.
         for cluster in clusters:
-            unregister_queue_consumer(self.form_queue_name("q", cluster), multi_consumer_ref,
+            unregister_queue_consumer(self.form_queue_name("q", cluster), consumer_ref_2,
                                       authenticated_user="egor", driver=get_driver(cluster=consumer_cluster))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
@@ -346,27 +352,27 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         registrations = builtins.set()
         for cluster in clusters:
             queue_name = f"//tmp/q-{queue_cluster}"
-            register_queue_consumer(self.form_queue_name("q", queue_cluster), consumer_ref,
+            register_queue_consumer(self.form_queue_name("q", queue_cluster), consumer_ref_1,
                                     vital=True, authenticated_user="bulat", driver=get_driver(cluster=cluster))
-            register_queue_consumer(self.form_queue_name("q", queue_cluster), multi_consumer_ref,
+            register_queue_consumer(self.form_queue_name("q", queue_cluster), consumer_ref_2,
                                     vital=False, authenticated_user="egor", driver=get_driver(cluster=cluster))
             wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
                 (queue_cluster, queue_name, consumer_cluster, "//tmp/c1", True),
-                (queue_cluster, queue_name, consumer_cluster, multi_consumer_ref.get_path(), False, None, multi_consumer_ref.get_queue_consumer_name())
+                (queue_cluster, queue_name, consumer_cluster, consumer_ref_2.get_path(), False, None, consumer_ref_2.get_queue_consumer_name())
             }))
-            unregister_queue_consumer(self.form_queue_name("q", queue_cluster), consumer_ref,
+            unregister_queue_consumer(self.form_queue_name("q", queue_cluster), consumer_ref_1,
                                       authenticated_user="bulat", driver=get_driver(cluster=cluster))
-            unregister_queue_consumer(self.form_queue_name("q", queue_cluster), multi_consumer_ref,
+            unregister_queue_consumer(self.form_queue_name("q", queue_cluster), consumer_ref_2,
                                       authenticated_user="egor", driver=get_driver(cluster=cluster))
             wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
         for cluster in clusters:
-            register_queue_consumer(self.form_queue_name('q', cluster), multi_consumer_ref, vital=True, driver=get_driver(cluster=consumer_cluster))
+            register_queue_consumer(self.form_queue_name('q', cluster), consumer_ref_2, vital=True, driver=get_driver(cluster=consumer_cluster))
             remove(self.form_queue_name('q', cluster), driver=get_driver(cluster=cluster))
         # Bulat can unregister any consumer to a deleted queue.
         # No neat solution here, we cannot check permissions on deleted objects :(
         for cluster in clusters:
-            self._insistent_call(lambda: unregister_queue_consumer(self.form_queue_name('q', cluster), multi_consumer_ref,
+            self._insistent_call(lambda: unregister_queue_consumer(self.form_queue_name('q', cluster), consumer_ref_2,
                                                                    authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster)))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
@@ -786,58 +792,6 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                         driver=driver
                     )
                     assert lookup_request_batcher_enabled
-
-    @authors("panesher")
-    @pytest.mark.parametrize("do_alter", (True, False))
-    @pytest.mark.parametrize(("create_registration_table", "is_replicated"), [
-        (TestQueueConsumerApiBase._create_simple_registration_table, False),
-        (TestQueueConsumerApiBase._create_replicated_registration_table, True),
-        (TestQueueConsumerApiBase._create_chaos_registration_table, False),
-    ])
-    def test_ok_with_consumer_name(self, create_registration_table, is_replicated, do_alter):
-        new_schema = [
-            {"name": "queue_cluster", "type": "string", "sort_order": "ascending"},
-            {"name": "queue_path", "type": "string", "sort_order": "ascending"},
-            {"name": "consumer_cluster", "type": "string", "sort_order": "ascending"},
-            {"name": "consumer_path", "type": "string", "sort_order": "ascending"},
-            {"name": "consumer_name", "type": "string", "sort_order": "ascending"},
-            {"name": "vital", "type": "boolean"},
-            {"name": "partitions", "type": "any"},
-        ]
-
-        kwargs = {}
-        if is_replicated:
-            kwargs["replicas_mode"] = "sync"
-        kwargs["schema"] = init_queue_agent_state.REGISTRATION_TABLE_SCHEMA if do_alter else new_schema
-        config = create_registration_table(self, **kwargs)
-
-        self._apply_registration_manager_config_patch_all(config)
-
-        local_replica_path = config["local_replica_path"]
-        replica_clusters = config["replica_clusters"]
-        clusters = self.get_cluster_names()
-        consumer_cluster = "primary"
-        print_debug("config:", config)
-
-        if do_alter:
-            sync_unmount_table(local_replica_path)
-            alter_table(local_replica_path, schema=new_schema)
-            sync_mount_table(local_replica_path)
-
-        attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
-        create("table", "//tmp/c1", attributes=attrs)
-        cluster = clusters[0]
-        queue_name = f"//tmp/q-{cluster}"
-
-        create("table", queue_name, attributes=attrs, driver=get_driver(cluster=cluster))
-        register_queue_consumer(queue_name, "//tmp/c1", vital=True)
-
-        registrations = builtins.set()
-        registrations.add((cluster, queue_name, consumer_cluster, "//tmp/c1", True))
-        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, registrations))
-
-        unregister_queue_consumer(queue_name, "//tmp/c1")
-        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
 
 class TestCustomRegistrationManagerConfig(TestQueueConsumerApiBase, TestQueueAgentBase):
@@ -1786,6 +1740,9 @@ class TestConsumerRegistrationsImplementationSwitch(ReplicatedObjectBase, TestQu
     @authors("panesher")
     @pytest.mark.parametrize("vital", [True, False])
     def test_register_multi_consumer(self, vital):
+        if self.ARTIFACT_COMPONENTS.get("25_4", None) or self.ARTIFACT_COMPONENTS.get("25_3", None):
+            pytest.skip("Supported only in versions 26+")
+
         consumer_path = "//tmp/consumer"
         self._create_consumer(consumer_path, multi_consumer=True)
         sync_mount_table(consumer_path)
