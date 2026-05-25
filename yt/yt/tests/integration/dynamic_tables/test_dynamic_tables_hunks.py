@@ -2763,6 +2763,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key, value, [$tablet_index] from [//tmp/t]"), rows)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="YT-28311")
     def test_unmount_after_aborted_write_tx(self):
         update_nodes_dynamic_config({
             "tablet_node": {
@@ -2787,7 +2788,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 self._insert_rows_with_hunk_storage("//tmp/t", rows)
             except Exception:
                 pass
+
         sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = list(hunk_chunk_ids)[0]
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
 
     @authors("akozhikhov")
     def test_remove_cell_with_mounted_hunk_storage_1(self):
