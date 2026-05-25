@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.h>
 
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/versioned_block_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 

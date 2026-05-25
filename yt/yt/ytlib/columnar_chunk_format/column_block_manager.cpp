@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/config.h>

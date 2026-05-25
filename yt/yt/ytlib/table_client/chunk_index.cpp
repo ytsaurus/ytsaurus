@@ -1,5 +1,7 @@
 #include "chunk_index.h"
 
+#include "chunk_column_mapping.h"
+
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 
