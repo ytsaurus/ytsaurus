@@ -9,7 +9,7 @@ import yatest.common
 
 import library.python.ydb.federated_topic_client as federated_topic_client
 
-import contrib.ydb.library.yql.tools.solomon_emulator.client.client as solomon_emulator_client
+from yt.yt.experiments.private.flow.yandex.extensions.monium.python.mock import _MoniumServerMock
 
 import logbroker.tools.lib.recipe_helpers.cm_requests as cm_requests
 from logbroker.public.api.admin import config_manager_admin_pb2
@@ -38,10 +38,6 @@ from yt_queue_agent_test_base import TestQueueAgentBase
 
 LOGBROKER_FEDERATION_RECIPE_BINARY = yatest.common.binary_path(
     "kikimr/public/tools/federation_recipe/federation_recipe"
-)
-
-SOLOMON_EMULATOR_RECIPE_BINARY = yatest.common.binary_path(
-    "contrib/ydb/library/yql/tools/solomon_emulator/recipe/solomon_recipe"
 )
 
 ENV_FILE = yatest.common.work_path("env.json.txt")
@@ -202,99 +198,73 @@ def logbroker_client(request, logbroker_federation):
         yield client
 
 
-def has_solomon_emulator():
-    return os.getenv("SOLOMON_HTTP_PORT") is not None
-
-
-def get_solomon_endpoint():
-    return f"localhost:{os.getenv("SOLOMON_HTTP_PORT")}"
-
-
-class SolomonClient:
-    SOLOMON_PROJECT = "project"
-    SOLOMON_SERVICE = "service"
-    SOLOMON_CLUSTER = "cluster"
-
-    def __init__(self, endpoint, test_id):
-        self._endpoint = endpoint
-        self._test_id = test_id
-
-        solomon_emulator_client.config_solomon(response_code=200)
-
-        self._created_shards = []
-        self._shard_index_generator = itertools.count()
-
-    @property
-    def endpoint(self):
-        return self._endpoint
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    def create_shard(self):
-        shard_index = next(self._shard_index_generator)
-        shard_name = "/".join([
-            self.SOLOMON_PROJECT,
-            self.SOLOMON_CLUSTER,
-            self._test_id + "." + self.SOLOMON_SERVICE + str(shard_index),
-        ])
-
-        self._created_shards.append(shard_name)
-
-        return shard_name
-
-    def get_metrics(self, shard_name):
-        project, cluster, shard = shard_name.split("/")
-        return solomon_emulator_client.get_solomon_metrics(project, cluster, shard)
-
-    def cleanup(self, shard_name):
-        project, cluster, shard = shard_name.split("/")
-        solomon_emulator_client.cleanup_solomon(project, cluster, shard)
-
-    def close(self):
-        for shard_name in self._created_shards:
-            self.cleanup(shard_name)
-
-        self._created_shards = []
+# Module-level singleton holding the in-process gRPC mock server for the
+# duration of the test session.  Populated by the session-scoped
+# ``solomon_emulator`` fixture and consumed by the function-scoped
+# ``solomon_client`` fixture.
+_monium_mock_singleton = None
 
 
 @pytest.fixture(scope="session")
 def solomon_emulator():
-    common_args = [
-        "--build-root", yatest.common.build_path(),
-        "--source-root", yatest.common.source_path(),
-        "--output-dir", yatest.common.output_path(),
-        "--env-file", ENV_FILE,
-    ]
+    """Session-scoped fixture that starts the in-process Monium gRPC mock.
 
-    yatest.common.process.execute(
-        command=[SOLOMON_EMULATOR_RECIPE_BINARY, "start"] + common_args + [
-            "--shard", "my_project/my_cluster/my_service",
-        ]
-    )
+    Replaces the old external solomon_emulator_recipe process.  Sets the env
+    vars that ``modify_yql_agent_config`` reads (SOLOMON_MOCK_ENDPOINT) and
+    that the TMoniumDriver uses for OAuth auth (MONIUM_TOKEN).
+    """
+    global _monium_mock_singleton
 
-    load_env()
+    mock = _MoniumServerMock()
+    mock.start()
+    _monium_mock_singleton = mock
 
-    yield
+    os.environ["MONIUM_TOKEN"] = "test-token"
+    os.environ["SOLOMON_MOCK_ENDPOINT"] = mock.endpoint
 
-    yatest.common.process.execute(
-        command=[SOLOMON_EMULATOR_RECIPE_BINARY, "stop"] + common_args,
-    )
+    try:
+        yield
+    finally:
+        os.environ.pop("MONIUM_TOKEN", None)
+        os.environ.pop("SOLOMON_MOCK_ENDPOINT", None)
+        mock.stop()
+        _monium_mock_singleton = None
 
 
 @pytest.fixture
-def solomon_client(request, solomon_emulator):
-    if not has_solomon_emulator():
-        pytest.skip("Solomon emulator is not available")
+def solomon_client(solomon_emulator):
+    """Per-test fixture that wraps the session Monium mock with shard tracking.
 
-    solomon_endpoint = get_solomon_endpoint()
-    test_id = get_test_id(request)
+    Provides the same ``create_shard`` / ``get_metrics`` / ``cleanup`` API that
+    the old SolomonClient had, so no test-body changes are needed.  All shards
+    created during a test are cleaned up in the fixture teardown.
+    """
+    mock = _monium_mock_singleton
+    created_shards = []
 
-    with SolomonClient(endpoint=solomon_endpoint, test_id=test_id) as client:
+    class _Client:
+        @property
+        def endpoint(self):
+            return mock.endpoint
+
+        def create_shard(self):
+            shard_path = mock.create_shard()
+            created_shards.append(shard_path)
+            return shard_path
+
+        def get_metrics(self, shard_name):
+            return mock.get_metrics(shard_name)
+
+        def cleanup(self, shard_name):
+            parts = shard_name.split("/", 2)
+            mock.cleanup_solomon(*parts)
+
+    client = _Client()
+    try:
         yield client
+    finally:
+        for shard_path in created_shards:
+            client.cleanup(shard_path)
 
 
 class TestYtflowBase(TestQueueAgentBase):
@@ -391,7 +361,7 @@ class TestYtflowBase(TestQueueAgentBase):
         config['yql_agent']['solomon_gateway_config'] = dict(
             cluster_mapping=[dict(
                 name='solomon',
-                cluster=get_solomon_endpoint(),
+                cluster=os.getenv("SOLOMON_MOCK_ENDPOINT", "localhost:0"),
                 token="dummy_token",
             )]
         )
@@ -520,6 +490,9 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
 pragma Ytflow.LogbrokerConsumerPath = "{self.LOGBROKER_CONSUMER}";
 pragma Ytflow.LogbrokerWriteCompressionCodec = "{self.LOGBROKER_COMPRESSION_CODEC}";
 pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVEL}";
+
+pragma Ytflow.SolomonAuthMode = "OAuthEnv";
+pragma Ytflow.SolomonSecure = "false";
 """
 
                 query_text = '\n'.join([query_text_header, query_text])
