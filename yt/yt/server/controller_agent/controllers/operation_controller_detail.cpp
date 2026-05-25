@@ -1965,6 +1965,25 @@ void TOperationControllerBase::InitChunkListPools()
         CellTagToRequiredOutputChunkListCount_.clear();
         for (const auto& table : OutputTables_) {
             ++CellTagToRequiredOutputChunkListCount_[table->ExternalCellTag];
+
+            if (table->Dynamic &&
+                OperationType_ == EOperationType::RemoteCopy &&
+                table->TableUploadOptions.TableSchema->HasHunkColumns())
+            {
+                if (!OutputHunkChunkListPool_) {
+                    OutputHunkChunkListPool_ = New<TChunkListPool>(
+                        Config_,
+                        OutputClient_,
+                        CancelableInvokerPool_,
+                        OperationId_,
+                        OutputTransaction_->GetId(),
+                        /*isHunk*/ true);
+
+                    CellTagToRequiredOutputHunkChunkListCount_.clear();
+                }
+
+                ++CellTagToRequiredOutputHunkChunkListCount_[table->ExternalCellTag];
+            }
         }
 
         for (auto cellTag : IntermediateOutputCellTagList_) {
@@ -1992,6 +2011,9 @@ void TOperationControllerBase::InitChunkListPools()
     YT_LOG_DEBUG("Preallocating chunk lists");
     for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
         Y_UNUSED(OutputChunkListPool_->HasEnough(cellTag, count));
+    }
+    for (const auto& [cellTag, count] : CellTagToRequiredOutputHunkChunkListCount_) {
+        Y_UNUSED(OutputHunkChunkListPool_->HasEnough(cellTag, count));
     }
     for (const auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         YT_VERIFY(DebugChunkListPool_);
@@ -9400,6 +9422,11 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
             result = false;
         }
     }
+    for (auto [cellTag, count] : CellTagToRequiredOutputHunkChunkListCount_) {
+        if (count > 0 && !OutputHunkChunkListPool_->HasEnough(cellTag, count)) {
+            result = false;
+        }
+    }
     for (auto [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->ExternalCellTag == cellTag) {
             --count;
@@ -9418,6 +9445,12 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
 TChunkListId TOperationControllerBase::ExtractOutputChunkList(TCellTag cellTag)
 {
     return OutputChunkListPool_->Extract(cellTag);
+}
+
+TChunkListId TOperationControllerBase::ExtractOutputHunkChunkList(TCellTag cellTag)
+{
+    YT_VERIFY(OutputHunkChunkListPool_);
+    return OutputHunkChunkListPool_->Extract(cellTag);
 }
 
 TChunkListId TOperationControllerBase::ExtractDebugChunkList(TCellTag cellTag)
@@ -10384,6 +10417,12 @@ const TChunkListPoolPtr& TOperationControllerBase::GetOutputChunkListPool() cons
     return OutputChunkListPool_;
 }
 
+const TChunkListPoolPtr& TOperationControllerBase::GetOutputHunkChunkListPool() const
+{
+    YT_VERIFY(OutputHunkChunkListPool_);
+    return OutputHunkChunkListPool_;
+}
+
 const TControllerAgentConfigPtr& TOperationControllerBase::GetConfig() const
 {
     return Config_;
@@ -11312,6 +11351,7 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(20, Tasks_);
     PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList_);
     PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
+    PHOENIX_REGISTER_FIELD(82, CellTagToRequiredOutputHunkChunkListCount_);
     PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
     registrar.template VirtualField<25>("PendingJobCount_", [] (TThis* this_, auto& context) {
         auto pendingJobCount = Load<TCompositePendingJobCount>(context);

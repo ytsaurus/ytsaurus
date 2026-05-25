@@ -738,6 +738,12 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
         return false;
     }
 
+    if (trunkChunkOwner->GetHunkChunkList()) {
+        YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk chunk tree (ChunkOwnerId: %v)",
+            trunkChunkOwner->GetId());
+        return false;
+    }
+
     auto schema = table->GetSchema()->AsCompactTableSchema();
     if (schema->HasHunkColumns()) {
         YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk columns (ChunkOwnerId: %v)",
@@ -2264,6 +2270,8 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     chunkOwner->SetChunkList(newRootChunkList);
 
     auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
+    // NB: Just for extra confidence. This is guaranteed by the checks above.
+    YT_VERIFY(!chunkOwner->GetHunkChunkList());
     ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
     chunkOwner->SnapshotStatistics() = std::move(newStatistics);
 
@@ -2332,6 +2340,14 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
                 "merge session finalization, ignored (TableId: %v, AccountId: %v)",
                 table->GetId(),
                 accountId);
+            continue;
+        }
+
+        if (chunkOwner->GetHunkChunkList()) {
+            YT_LOG_DEBUG(
+                "Table got hunk chunk tree between chunk replacement and "
+                "merge session finalization, ignored (TableId: %v)",
+                table->GetId());
             continue;
         }
 

@@ -119,6 +119,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTableServer::TMasterTableSchemaPtr, Schema);
 
     //! Some TMiscExt fields extracted for effective access.
+    // NB: For hunk chunks UncompressedDataSize and DataWeight are updated via regular chunks
+    // that are referencing it and correspond to currently referenced part of data stored in hunks.
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
     DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
     DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
@@ -146,7 +148,9 @@ public:
 
     TChunkDynamicData* GetDynamicData() const;
 
-    TChunkTreeStatistics GetStatistics() const;
+    TChunkTreeStatistics GetStatistics(bool includeReferencedHunkData = true) const;
+
+    THunkChunkTreeStatistics GetHunkStatistics() const;
 
     //! Get disk size of a single part of the chunk.
     /*!
@@ -377,6 +381,8 @@ public:
 
     int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
     int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+
+    void AccumulateNewlyReferencedHunkStatistics(i64 dataWeightDelta, i64 dataSizeDelta);
 
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.

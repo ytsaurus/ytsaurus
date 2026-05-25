@@ -311,14 +311,16 @@ i64 TTabletBase::GetTabletStaticMemorySize(EInMemoryMode mode) const
 {
     // TODO(savrus) consider lookup hash table.
 
-    const auto& statistics = GetChunkList()->Statistics();
     switch (mode) {
         case EInMemoryMode::Compressed:
-            return statistics.CompressedDataSize;
+            return GetChunkList()->Statistics().CompressedDataSize;
+
         case EInMemoryMode::Uncompressed:
-            return statistics.UncompressedDataSize;
+            return GetChunkList()->Statistics().UncompressedDataSize;
+
         case EInMemoryMode::None:
             return 0;
+
         default:
             YT_ABORT();
     }

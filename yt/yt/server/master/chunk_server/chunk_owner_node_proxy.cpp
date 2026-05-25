@@ -535,7 +535,7 @@ private:
                 auto relativeUpperLimit = upperLimit;
 
                 i64 chunkStartRowIndex = dynamicStore->GetTableRowIndex();
-                i64 chunkRowCount = chunk->GetStatistics().RowCount;
+                i64 chunkRowCount = chunk->GetRowCount();
 
                 if (relativeLowerLimit.GetRowIndex()) {
                     i64 relativeLowerRowIndex = *relativeLowerLimit.GetRowIndex() - chunkStartRowIndex;
@@ -2014,7 +2014,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                             if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                                 for (int tabletIndex = 0; tabletIndex < ssize(oldMainChunkList->Children()); ++tabletIndex) {
                                     auto* newTabletChunkList = chunkManager->CreateChunkList(appendChunkListKind);
-                                    newTabletChunkList->SetPivotKey(oldMainChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
+                                    if (!IsHunkRelatedChunkList(newTabletChunkList)) {
+                                        newTabletChunkList->SetPivotKey(
+                                            oldMainChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
+                                    }
 
                                     chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
                                 }

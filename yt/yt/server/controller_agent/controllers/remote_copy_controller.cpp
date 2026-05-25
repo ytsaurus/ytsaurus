@@ -370,6 +370,16 @@ protected:
             Controller_->ValidateHunkChunksConsistency();
         }
 
+        const TChunkListPoolPtr& GetOutputChunkListPool() const override
+        {
+            return TaskHost_->GetOutputHunkChunkListPool();
+        }
+
+        NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override
+        {
+            return TaskHost_->ExtractOutputHunkChunkList(cellTag);
+        }
+
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyHunkTask, 0xaba78386);
     };
 
@@ -401,6 +411,16 @@ protected:
         void ValidateAllDataHaveBeenCopied() override
         {
             Controller_->ValidateCompressionDictionariesConsistency();
+        }
+
+        const TChunkListPoolPtr& GetOutputChunkListPool() const override
+        {
+            return TaskHost_->GetOutputHunkChunkListPool();
+        }
+
+        NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override
+        {
+            return TaskHost_->ExtractOutputHunkChunkList(cellTag);
         }
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyCompressionDictionaryTask, 0xaba78387);
@@ -768,6 +788,12 @@ private:
     {
         for (const auto& table : InputManager_->GetInputTables()) {
             CollectHunkChunkIdsByType(table, GetPtr(HunkChunkIds_), GetPtr(CompressionDictionaryIds_));
+        }
+
+        for (auto chunkId : Concatenate(HunkChunkIds_, CompressionDictionaryIds_)) {
+            if (IsJournalChunkId(chunkId)) {
+                THROW_ERROR_EXCEPTION("Cannot run remote copy of a table that contains journal hunk chunks");
+            }
         }
 
         MainTask_ = CreateTask<TRemoteCopyTask>();
