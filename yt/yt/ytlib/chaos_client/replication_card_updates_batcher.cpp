@@ -291,7 +291,7 @@ public:
         matchedEntries.reserve(replicationCardProgressUpdates.size());
 
         std::vector<TReplicationCardProgressUpdate> missingEntries;
-        matchedEntries.reserve(replicationCardProgressUpdates.size());
+        missingEntries.reserve(replicationCardProgressUpdates.size());
 
         {
             auto readerGuard = ReaderGuard(UpdatesLock_);
@@ -316,7 +316,7 @@ public:
         }
 
         TBulkUpdateResult result;
-        result.resize(replicationCardProgressUpdateBatch.ReplicationCardProgressUpdates.size());
+        result.reserve(replicationCardProgressUpdateBatch.ReplicationCardProgressUpdates.size());
         for (auto& [batchingEntry, replicationCardProgressUpdate] : matchedEntries) {
             auto replicationCardId = replicationCardProgressUpdate.ReplicationCardId;
             result.emplace_back(
@@ -497,7 +497,7 @@ private:
 
         auto connection = Connection_.Lock();
         if (!connection) {
-            YT_LOG_DEBUG("Connections is not available");
+            YT_LOG_DEBUG("Connection is not available");
             return;
         }
 
@@ -539,7 +539,7 @@ public:
             connection,
             replicationCardProgressUpdatesEntries);
 
-        YT_LOG_DEBUG("Updates grouping finishe (BatchSize: %v, ChaosCellsCount: %v, ResolvingErrorCount: %v)",
+        YT_LOG_DEBUG("Updates grouping finished (BatchSize: %v, ChaosCellsCount: %v, ResolvingErrorCount: %v)",
             replicationCardProgressUpdatesEntries.size(),
             replicationCardUpdateByChaosCells.ReplicationCardIdsByChaosCells.size(),
             replicationCardUpdateByChaosCells.ResolvingErrors.size());
@@ -563,7 +563,7 @@ public:
     }
 
 private:
-    struct TRepicationCardUpdatesByChaosCells
+    struct TReplicationCardUpdatesByChaosCells
     {
         THashMap<TCellTag, std::vector<TReplicationCardId>> ReplicationCardIdsByChaosCells;
         THashMap<TReplicationCardId, TError> ResolvingErrors;
@@ -634,7 +634,7 @@ private:
                 }));
     }
 
-    TRepicationCardUpdatesByChaosCells GroupRepicationCardUpdatesByChaosCells(
+    TReplicationCardUpdatesByChaosCells GroupRepicationCardUpdatesByChaosCells(
         const IConnectionPtr& connection,
         const TMultipleReplicationCardProgressesUpdates& batch) const
     {
@@ -654,7 +654,7 @@ private:
         WaitForFast(AllSet(std::move(futures)))
             .ThrowOnError();
 
-        TRepicationCardUpdatesByChaosCells result;
+        TReplicationCardUpdatesByChaosCells result;
         for (const auto& [replicationCardId, future] : futureTagById) {
             if (auto cellTagOrError = future.GetOrCrash(); !cellTagOrError.IsOK()) {
                 YT_LOG_DEBUG(cellTagOrError,
@@ -695,7 +695,7 @@ public:
             update.ReplicaProgressUpdates = entry.ExtractProgressByReplicaId();
             update.FetchOptions = entry.ExtractFetchOptions();
 
-            YT_LOG_DEBUG("Sending update for replication card (ReplicationCardId: %v, ProgressUpdates: %v",
+            YT_LOG_DEBUG("Sending update for replication card (ReplicationCardId: %v, ProgressUpdates: %v)",
                 replicationCardId,
                 update.ReplicaProgressUpdates);
 
