@@ -73,7 +73,7 @@ public:
 
     void ApplyDynamicConfigOverride(const TCellDirectorySynchronizerOverrideDynamicConfigPtr& overrideDynamicConfig) override
     {
-        auto config = Config_.Acquire();
+        auto config = CloneYsonStruct(Config_.Acquire());
         if (overrideDynamicConfig->SyncPeriod) {
             config->SyncPeriod = overrideDynamicConfig->SyncPeriod;
         }
