@@ -16,9 +16,9 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_;
-NThreading::TSpinLock TDriverResponseHolder::DestructionSpinLock_;
+YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TDriverResponseHolder::DestructionSpinLock_);
 
-NThreading::TSpinLock AliveDriverResponseHoldersLock;
+YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AliveDriverResponseHoldersLock);
 THashSet<TDriverResponseHolder*> AliveDriverResponseHolders;
 
 TDriverResponseHolder::TDriverResponseHolder()
@@ -188,10 +188,7 @@ Py::Object TDriverResponse::Wait(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     {
         TReleaseAcquireGilGuard guard;
-        auto result = WaitForSettingFuture(ResponseFuture_);
-        if (!result) {
-            ResponseFuture_.Cancel(TError(NYT::EErrorCode::Canceled, "Wait canceled"));
-        }
+        Y_UNUSED(SignalFriendlyWaitFor(ResponseFuture_));
         UnregisterFuture(ResponseCookie_);
     }
 

@@ -248,6 +248,34 @@ bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::st
     return true;
 }
 
+bool CanReverseScanForOrderBy(TRange<TOrderItem> orderItems, TRange<std::string> keyColumns)
+{
+    if (orderItems.Empty()) {
+        return false;
+    }
+
+    int expectedKeyIndex = 0;
+    for (const auto& item : orderItems) {
+        if (!item.Descending) {
+            return false;
+        }
+
+        const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
+        if (!referenceExpr) {
+            return false;
+        }
+
+        auto columnIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+        if (columnIndex != expectedKeyIndex) {
+            return false;
+        }
+
+        ++expectedKeyIndex;
+    }
+
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string ToLower(TStringBuf original)

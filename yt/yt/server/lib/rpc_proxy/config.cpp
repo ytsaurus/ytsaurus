@@ -155,6 +155,10 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("multiproxy", &TThis::Multiproxy)
         .DefaultNew();
+    registrar.Parameter("truncated_query_length_for_request_info", &TThis::TruncatedQueryLengthForRequestInfo)
+        .Optional()
+        .GreaterThan(0);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,7 @@
 #include <contrib/ydb/core/persqueue/common/percentiles.h>
 #include <contrib/ydb/core/persqueue/pqtablet/common/logging.h>
 #include <contrib/ydb/core/persqueue/pqtablet/common/constants.h>
+#include <contrib/ydb/core/protos/pqdata_mlp.pb.h>
 
 #include <memory>
 

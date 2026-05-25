@@ -117,6 +117,10 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AccessControlRule)                     (302210))
     ((LinkVolumes)                           (302211))
     ((HighThreadCountJobPerTask)             (302212))
+    ((PrepareLayersDuration)                 (302213))
+    ((HunkStatistics)                        (302214))
+    // 26.2 starts here
+    ((BumpTo_26_2)                           (302300))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,7 @@ constinit const auto Logger = QueueAgentShardingManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString BannedAttributeName = "banned";
+inline const std::string BannedAttributeName = "banned";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,7 +190,7 @@ private:
 
     //! Picks host using rendezvous hashing.
     //! The probability of host reassignment in case of any small host set changes is low.
-    static std::string PickHost(const TGenericObjectPath& object, const std::vector<TMemberInfo>& queueAgents)
+    static std::string PickHost(const TGenericObjectReference& object, const std::vector<TMemberInfo>& queueAgents)
     {
         YT_VERIFY(!queueAgents.empty());
 
@@ -241,7 +241,7 @@ private:
             const auto& attributes = instance->Attributes();
             try {
                 if (attributes.Get<bool>(BannedAttributeName)) {
-                    BannedQueueAgentInstances_.insert(instance->GetValue<TString>());
+                    BannedQueueAgentInstances_.insert(instance->GetValue<std::string>());
                 }
             } catch (const std::exception&) {
                 // NB(apachee): Ignore if attribute is missing, or if its value is not bool.
@@ -338,12 +338,12 @@ private:
 
         // Map all objects to their responsible queue agents via rendezvous hashing.
 
-        THashSet<TGenericObjectPath> allObjects;
+        THashSet<TGenericObjectReference> allObjects;
         for (const auto& queueRow : queueRows) {
             allObjects.emplace(queueRow.Path);
         }
         for (const auto& consumerRow : consumerRows) {
-            allObjects.insert(consumerRow.Path);
+            allObjects.emplace(consumerRow.Path);
         }
 
         auto currentMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);

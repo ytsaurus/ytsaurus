@@ -12,7 +12,7 @@
 #include <yt/yt/server/lib/rpc_proxy/private.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/components.h>
+#include <yt/yt/server/lib/signature/components/components.h>
 
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
@@ -96,6 +96,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NMonitoring;
@@ -242,9 +243,9 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-        TCertProfiler{
-            RpcProxyProfiler().WithPrefix("/bus_server"),
-            GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+        NCrypto::TCertProfiler{
+            .Profiler = RpcProxyProfiler().WithPrefix("/bus_server"),
+            .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
         });
 
     if (Config_->PublicRpcPort) {
@@ -252,9 +253,9 @@ void TBootstrap::DoInitialize()
             Config_->PublicBusServer,
             GetYTPacketTranscoderFactory(),
             MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/public_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/public_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -265,9 +266,9 @@ void TBootstrap::DoInitialize()
             busConfigCopy,
             GetYTPacketTranscoderFactory(),
             GetNullMemoryUsageTracker(),
-            TCertProfiler{
-                RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
-                GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
+            NCrypto::TCertProfiler{
+                .Profiler = RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
+                .Invoker = GetWorkerInvoker(DefaultApiExecutionPoolName, DefaultExecutionTag),
             });
     }
 
@@ -558,7 +559,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
-    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+    BusServer_->Reconfigure(newConfig->BusServer);
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
     QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);
@@ -572,8 +573,7 @@ void TBootstrap::OnDynamicConfigChanged(
         YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
     }
 
-    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
-        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
 
     WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
 

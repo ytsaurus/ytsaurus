@@ -182,8 +182,6 @@ TEST_P(TTestReassignInMemoryTablets, SimpleWithSameTablets)
 
     auto descriptors = ReassignInMemoryTablets(
         bundle,
-        /*movableTables*/ std::nullopt,
-        /*ignoreTableWiseConfig*/ false,
         Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
@@ -252,7 +250,6 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
 
     auto descriptors = ReassignOrdinaryTablets(
         bundle,
-        /*movableTables*/ std::nullopt,
         Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
@@ -422,8 +419,6 @@ TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
 
     auto descriptors = ReassignInMemoryTablets(
         bundle,
-        /*movableTables*/ std::nullopt,
-        /*ignoreTableWiseConfig*/ false,
         Logger());
 
     i64 totalSize = 0;
@@ -494,7 +489,6 @@ TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
 
     auto descriptors = ReassignOrdinaryTablets(
         bundle,
-        /*movableTables*/ std::nullopt,
         Logger());
 
     i64 totalSize = 0;

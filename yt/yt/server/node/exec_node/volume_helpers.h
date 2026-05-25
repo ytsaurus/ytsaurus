@@ -19,6 +19,9 @@ public:
     i64 Size = 0;
     std::vector<TArtifactKey> LayerArtifactKeys;
 
+    //! If true, the volume can be reused between sequential jobs within the same allocation.
+    bool AllowReusing = false;
+
     TBaseVolumeParams(std::string volumeId, EVolumeType volumeType, int userId);
 
     bool operator==(const TBaseVolumeParams& other) const;
@@ -45,7 +48,11 @@ public:
     TTmpfsVolumeParams(std::string volumeId, int userId);
 
     void Format(TStringBuilderBase* builder) const override;
-    auto operator<=>(const TTmpfsVolumeParams& other) const = default;
+
+    // NB: We explicitly compare only derived class members here.
+    // Base class comparison is handled by TBaseVolumeParams::operator==
+    // which dispatches to this method. Using = default would cause infinite recursion.
+    bool operator==(const TTmpfsVolumeParams& other) const;
 };
 
 DECLARE_REFCOUNTED_CLASS(TTmpfsVolumeParams)
@@ -62,7 +69,11 @@ public:
     TLocalDiskVolumeParams(std::string volumeId, int userId);
 
     void Format(TStringBuilderBase* builder) const override;
-    auto operator<=>(const TLocalDiskVolumeParams& other) const = default;
+
+    // NB: We explicitly compare only derived class members here.
+    // Base class comparison is handled by TBaseVolumeParams::operator==
+    // which dispatches to this method. Using = default would cause infinite recursion.
+    bool operator==(const TLocalDiskVolumeParams& other) const;
 };
 
 DECLARE_REFCOUNTED_CLASS(TLocalDiskVolumeParams)

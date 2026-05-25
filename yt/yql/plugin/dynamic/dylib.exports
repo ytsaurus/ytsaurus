@@ -13,6 +13,8 @@ BridgeFreeAbortResult
 BridgeOnDynamicConfigChanged
 BridgeGetDeclaredParametersInfo
 BridgeFreeGetDeclaredParametersInfoResult
+BridgeRegisterQuery
+BridgeUnregisterQuery
 
 # YQL <-> YQL UDFs interface.
 UdfAllocateWithSize

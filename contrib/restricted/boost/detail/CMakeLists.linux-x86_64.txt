@@ -31,7 +31,6 @@ target_link_libraries(restricted-boost-detail INTERFACE
   restricted-boost-config
   restricted-boost-core
   restricted-boost-preprocessor
-  restricted-boost-static_assert
   restricted-boost-type_traits
 )
 

@@ -256,6 +256,9 @@ items:
         - name: Рекомендации
           when: audience == "public"
           href: user-guide/data-processing/operations/recommendations.md
+        - name: Квотирование межкластерной сетевой полосы
+          when: audience == "public"
+          href: user-guide/data-processing/operations/cluster-throttlers.md
         - name: Образы ФС
           when: audience == "public"
           href: user-guide/data-processing/layers/layer-paths.md
@@ -320,6 +323,8 @@ items:
               href: user-guide/data-processing/spyt/overview.md
             - name: Запуск Spark задач на выполнение
               href: user-guide/data-processing/spyt/launch.md
+            - name: Определения в SPYT
+              href: user-guide/data-processing/spyt/glossary.md
             - name: Прямой сабмит
               items:
                 - name: Описание
@@ -581,13 +586,17 @@ items:
         href: admin-guide/yql-query-isolation.md
       - name: Шифрование в нативном протоколе
         href: admin-guide/native-encryption.md
+      - name: Квотирование межкластерной сетевой полосы
+        href: admin-guide/cluster-throttlers.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
             href: admin-guide/multiproxy.md
   - name: Release notes
+    when: audience == "public"
     href: admin-guide/releases.md
-  - name: Compatibility of cluster components
+  - name: Совместимость компонент кластера
+    when: audience == "public"
     href: admin-guide/compatibility.md
   - name: FAQ
     href: faq/index.md

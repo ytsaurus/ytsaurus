@@ -121,7 +121,6 @@ class _TestGetJobBase(YTEnvSetup):
             wait_no_assert(check_has_spec)
 
 
-@pytest.mark.enabled_multidaemon
 class _TestGetJobCommon(_TestGetJobBase):
     ENABLE_MULTIDAEMON = True
 
@@ -609,8 +608,31 @@ class TestGetJob(_TestGetJobCommon):
 
         wait_no_assert(lambda: check_job_ranks())
 
+    @authors("bystrovserg")
+    def test_controller_error(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id, ) = wait_breakpoint()
 
-@pytest.mark.enabled_multidaemon
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait_for_cells()
+
+        release_breakpoint()
+        op.track()
+
+        @wait_no_assert
+        def check_error():
+            job = get_job(op.id, job_id)
+            assert job["state"] == "aborted"
+            assert job.get("abort_reason") == "node_offline"
+            error = job.get("error")
+            assert error is not None
+            assert error["message"] == "Job aborted by controller agent"
+
+
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
     ENABLE_MULTIDAEMON = True
 
@@ -618,7 +640,6 @@ class TestGetJobStatisticsLz4(_TestGetJobCommon):
     DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobMonitoring(_TestGetJobBase):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True
@@ -766,7 +787,6 @@ class TestGetJobRpcProxy(TestGetJob):
     ENABLE_HTTP_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True

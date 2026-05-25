@@ -224,7 +224,7 @@ public:
     TYPath GetRootPath(const TAccount* rootAccount) const override;
 
 protected:
-    TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
+    TCellTagSet DoGetReplicationCellTags(const TAccount* /*account*/) override
     {
         return TNonversionedMapObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
     }
@@ -313,7 +313,7 @@ public:
             ETypeFlags::TwoPhaseRemoval;
     }
 
-    TCellTagList DoGetReplicationCellTags(const TUser* /*object*/) override
+    TCellTagSet DoGetReplicationCellTags(const TUser* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -375,7 +375,7 @@ public:
 private:
     TSecurityManager* const Owner_;
 
-    TCellTagList DoGetReplicationCellTags(const TGroup* /*group*/) override
+    TCellTagSet DoGetReplicationCellTags(const TGroup* /*group*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -2930,7 +2930,7 @@ public:
 
     void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) override
     {
-        if (delta == TAccountStatistics()) {
+        if (delta == TAccountStatistics::Empty) {
             return;
         }
         account->IncreaseStatistics(delta);
@@ -4292,9 +4292,8 @@ private:
         multicellStatistics.emplace(selfCellTag, account->ClusterStatistics());
 
         if (multicellManager->IsPrimaryMaster()) {
-            const auto& registeredSecondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-            for (auto secondaryCellTag : registeredSecondaryCellTags) {
-                multicellStatistics[secondaryCellTag];
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                multicellStatistics[cellTag];
             }
 
             const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();

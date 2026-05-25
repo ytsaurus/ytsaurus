@@ -354,9 +354,7 @@ double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory cate
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
-    return config->FairShareWorkloadCategoryWeights[category]
-        ? config->FairShareWorkloadCategoryWeights[category].value()
-        : DefaultFairShareWorkloadCategoryWeights[category];
+    return config->FairShareWorkloadCategoryWeights[category].value_or(DefaultFairShareWorkloadCategoryWeights[category]);
 }
 
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
@@ -471,6 +469,11 @@ bool TChunkLocation::Resurrect()
 std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobSessionBlockFree() const
 {
     return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobSessionBlockFree;
+}
+
+std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobChunkRead() const
+{
+    return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobChunkRead;
 }
 
 const IMemoryUsageTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
@@ -1372,12 +1375,17 @@ double TStoreLocation::GetIOWeight() const
 TErrorOr<double> TStoreLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
-    auto value = evaluator->Evaluate(
-        BuildYsonStringFluently().BeginMap()
-            .Item("available_space").Value(GetAvailableSpace())
-            .Item("used_space").Value(GetUsedSpace())
-        .EndMap(),
-        rowBuffer);
+    auto value = evaluator->Evaluate({
+            // stat
+            BuildYsonStringFluently().BeginMap()
+                .Item("available_space").Value(GetAvailableSpace())
+                .Item("used_space").Value(GetUsedSpace())
+            .EndMap(),
+            // location
+            BuildYsonStringFluently().BeginMap()
+                .Item("id").Value(GetId())
+            .EndMap(),
+        }, rowBuffer);
 
     if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
         return value.Value().Data.Double;
@@ -1393,7 +1401,7 @@ void TStoreLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& f
     if (formula) {
         auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(
             NQueryClient::ParseSource(*formula, NQueryClient::EParseMode::Expression),
-            {"/stat"});
+            {"/stat", "/location"});
         EvaluateIOWeight(evaluator).ThrowOnError();
 
         IOWeightEvaluator_ = std::move(evaluator);

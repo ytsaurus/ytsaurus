@@ -1,5 +1,4 @@
 #include "partition.h"
-#include "partition_compactification.h"
 #include <contrib/ydb/core/persqueue/pqtablet/common/logging.h>
 #include <contrib/ydb/core/persqueue/public/write_meta/write_meta.h>
 #include "partition_util.h"

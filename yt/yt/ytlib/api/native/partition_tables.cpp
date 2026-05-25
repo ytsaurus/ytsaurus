@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/chunk_pools/chunk_pool_factory.h>
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+
 #include <yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -20,6 +22,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -47,7 +51,28 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NYPath;
 
-static NTableClient::NProto::TTablePartitionCookie GetTablePartitionCookie(const TDataSourceDirectoryPtr& dataSourceDirectory, const std::vector<std::vector<TDataSliceDescriptor>>& slicesByTable)
+//! Filter connection node directory leaving node descriptors only for this partition chunks.
+//! Used to minimize size of NodeDirectory that will be serialized in cookie.
+static void FillPartitionNodeDirectory(
+    const NNodeTrackerClient::TNodeDirectoryPtr& connectionNodeDirectory,
+    const std::vector<std::vector<TDataSliceDescriptor>>& slicesByTable,
+    NNodeTrackerClient::NProto::TNodeDirectory* protoPartitionDirectory)
+{
+    NNodeTrackerClient::TNodeDirectoryBuilder nodeDirectoryBuilder(connectionNodeDirectory, protoPartitionDirectory);
+    for (const auto& slices : slicesByTable) {
+        for (const auto& slice : slices) {
+            for (const auto& chunkSpec : slice.ChunkSpecs) {
+                auto replicas = NChunkClient::GetReplicasFromChunkSpec(chunkSpec);
+                nodeDirectoryBuilder.Add(replicas);
+            }
+        }
+    }
+}
+
+static NTableClient::NProto::TTablePartitionCookie GetTablePartitionCookie(
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    const NNodeTrackerClient::TNodeDirectoryPtr& connectionNodeDirectory,
+    const std::vector<std::vector<TDataSliceDescriptor>>& slicesByTable)
 {
     NTableClient::NProto::TTablePartitionCookie protoCookie;
     ToProto(protoCookie.mutable_data_source_directory(), dataSourceDirectory);
@@ -59,6 +84,10 @@ static NTableClient::NProto::TTablePartitionCookie GetTablePartitionCookie(const
             tableInputSpec->mutable_chunk_spec_count_per_data_slice(),
             tableInputSpec->mutable_virtual_row_index_per_data_slice(),
             slices);
+    }
+
+    if (connectionNodeDirectory) {
+        FillPartitionNodeDirectory(connectionNodeDirectory, slicesByTable, protoCookie.mutable_node_directory());
     }
 
     return protoCookie;
@@ -128,6 +157,12 @@ void TMultiTablePartitioner::CollectInput()
             .Logger = Logger,
         });
 
+    NNodeTrackerClient::TNodeDirectoryPtr inputTableNodeDirectory = nullptr;
+    if (Options_.EnableCookies && Options_.FetchCookieNodeDescriptors) {
+        // Populate connection node directory with partition node descriptors.
+        inputTableNodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+    }
+
     for (const auto& [tableIndex, path] : Enumerate(Paths_)) {
         auto transactionId = path.GetTransactionId();
 
@@ -135,7 +170,7 @@ void TMultiTablePartitioner::CollectInput()
         auto inputTableInfo = CollectInputTableInfo(
             path,
             Client_,
-            /*nodeDirectory*/ nullptr,
+            inputTableNodeDirectory,
             Options_.FetchChunkSpecConfig,
             transactionId
                 ? *transactionId
@@ -240,7 +275,11 @@ void TMultiTablePartitioner::BuildPartitions()
             .AggregateStatistics = chunkStripeList->GetAggregateStatistics()});
         if (Options_.EnableCookies) {
             const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
-            auto cookie = GetTablePartitionCookie(DataSourceDirectory_, slicesByTable);
+            NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr;
+            if (Options_.FetchCookieNodeDescriptors) {
+                nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+            }
+            auto cookie = GetTablePartitionCookie(DataSourceDirectory_, nodeDirectory, slicesByTable);
             cookie.set_user(User_);
             cookie.set_partition_mode(static_cast<int>(Options_.PartitionMode));
             auto cookieBytes = SerializeProtoToString(cookie);

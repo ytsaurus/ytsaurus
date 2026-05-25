@@ -33,12 +33,9 @@ target_link_libraries(restricted-boost-iterator INTERFACE
   restricted-boost-config
   restricted-boost-core
   restricted-boost-detail
-  restricted-boost-function_types
   restricted-boost-fusion
   restricted-boost-mpl
   restricted-boost-optional
-  restricted-boost-smart_ptr
-  restricted-boost-static_assert
   restricted-boost-type_traits
   restricted-boost-utility
 )

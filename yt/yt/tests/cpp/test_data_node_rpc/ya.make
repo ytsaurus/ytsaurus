@@ -29,7 +29,7 @@ TAG(
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 REQUIREMENTS(ram:20)
 

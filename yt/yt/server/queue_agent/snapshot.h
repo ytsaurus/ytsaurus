@@ -95,7 +95,7 @@ struct TConsumerSnapshot
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
-    THashMap<NQueueClient::TQueuePath, TSubConsumerSnapshotPtr> SubSnapshots;
+    THashMap<NQueueClient::TTablePath, TSubConsumerSnapshotPtr> SubSnapshots;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot)

@@ -190,7 +190,7 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        if (RowCount_.load(std::memory_order_relaxed) == 0) {
+        if (RowCount_.load(std::memory_order::relaxed) == 0) {
             // Empty chunk.
             return OKFuture;
         }
@@ -234,7 +234,7 @@ public:
     TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
-        dataStatistics.set_row_count(RowCount_.load(std::memory_order_relaxed));
+        dataStatistics.set_row_count(RowCount_.load(std::memory_order::relaxed));
         return dataStatistics;
     }
 
@@ -255,7 +255,7 @@ public:
 
     i64 GetDataWeight() const override
     {
-        return DataWeight_.load(std::memory_order_relaxed);
+        return DataWeight_.load(std::memory_order::relaxed);
     }
 
     std::optional<TRowsDigest> GetDigest() const override
@@ -339,8 +339,8 @@ protected:
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
         miscExt.set_unique_keys(Schema_->IsUniqueKeys());
-        miscExt.set_row_count(RowCount_.load(std::memory_order_relaxed));
-        miscExt.set_data_weight(DataWeight_.load(std::memory_order_relaxed));
+        miscExt.set_row_count(RowCount_.load(std::memory_order::relaxed));
+        miscExt.set_data_weight(DataWeight_.load(std::memory_order::relaxed));
         miscExt.set_is_compatible_with_dynamic_table_constraints(IsCompatibleWithDynamicTableConstraints_);
 
         if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
@@ -460,7 +460,7 @@ protected:
         }
 
         ValidateRowWeight(weight, Config_, Options_);
-        DataWeight_.fetch_add(weight, std::memory_order_relaxed);
+        DataWeight_.fetch_add(weight, std::memory_order::relaxed);
         DataWeightSinceLastBlockFlush_ += weight;
 
         return weight;
@@ -598,7 +598,7 @@ public:
 
         for (auto row : rows) {
             UpdateDataWeight(row);
-            i64 rowCount = RowCount_.fetch_add(1, std::memory_order_relaxed) + 1;
+            i64 rowCount = RowCount_.fetch_add(1, std::memory_order::relaxed) + 1;
             BlockWriter_->WriteRow(row);
 
             if (BlockWriter_->GetBlockSize() >= BlockSize_ ||
@@ -633,7 +633,7 @@ private:
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
-            block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order_relaxed));
+            block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order::relaxed));
             RegisterBlock(block, LastKey_.Get());
         }
 
@@ -739,7 +739,7 @@ public:
                 columnWriter->WriteUnversionedValues(range);
             }
 
-            RowCount_.fetch_add(range.Size(), std::memory_order_relaxed);
+            RowCount_.fetch_add(range.Size(), std::memory_order::relaxed);
 
             startRowIndex = rowIndex;
 
@@ -822,8 +822,8 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         DataWeightSinceLastBlockFlush_ = 0;
-        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_.load(std::memory_order_relaxed));
-        block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order_relaxed));
+        auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_.load(std::memory_order::relaxed));
+        block.Meta.set_chunk_row_count(RowCount_.load(std::memory_order::relaxed));
         RegisterBlock(block, lastRow);
     }
 
@@ -942,11 +942,11 @@ public:
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
         i64 blockRowCount = block.Meta.row_count();
-        i64 rowCount = RowCount_.fetch_add(blockRowCount, std::memory_order_relaxed) + blockRowCount;
+        i64 rowCount = RowCount_.fetch_add(blockRowCount, std::memory_order::relaxed) + blockRowCount;
         block.Meta.set_chunk_row_count(rowCount);
 
         // For partition chunks we may assume that data weight is equal to uncompressed data size.
-        DataWeight_.fetch_add(block.Meta.uncompressed_size(), std::memory_order_relaxed);
+        DataWeight_.fetch_add(block.Meta.uncompressed_size(), std::memory_order::relaxed);
 
         PartitionsExt_.set_row_counts(
             block.Meta.partition_index(),
@@ -1918,7 +1918,7 @@ public:
             std::move(createChunkWriter),
             std::move(nameTable),
             schema->ToUnversionedUpdate(),
-            std::move(schema),
+            schema,
             std::move(lastKey),
             std::move(trafficMeter),
             std::move(throttler),
@@ -2127,7 +2127,7 @@ public:
             std::move(createChunkWriter),
             std::move(nameTable),
             ToLatestTimestampSchema(schema),
-            std::move(schema),
+            schema,
             std::move(lastKey),
             std::move(trafficMeter),
             std::move(throttler),

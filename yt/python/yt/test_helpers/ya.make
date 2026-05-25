@@ -10,6 +10,7 @@ ELSE()
 
         __init__.py
         authors.py
+        multidaemon.py
         cleanup.py
         filter_by_category.py
         fork_class.py

@@ -13,7 +13,8 @@ DEFINE_ENUM(ESlowdownType,
     (HW)
     (HWPowerBrake)
     (HWThermal)
-    (SWThermal));
+    (SWThermal)
+);
 
 struct TGpuInfo
 {
@@ -72,6 +73,8 @@ struct IGpuInfoProvider
     virtual std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration timeout) const = 0;
 
     virtual void ApplyNetworkServiceLevel(const std::vector<TString>& deviceIds, TNetworkPriority networkServiceLevel, TDuration timeout) = 0;
+
+    virtual std::vector<std::string> GetRequiredHostPaths() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)

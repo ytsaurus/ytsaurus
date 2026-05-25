@@ -71,13 +71,13 @@ void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TString
     // Format optional part.
     bool isFirst = true;
 
-    auto append = [&] (auto format, auto value) {
+    auto append = [&] <class TValue> (TFormatString<TValue> format, TValue&& value) {
         if (!value) {
             return;
         }
         builder->AppendString(isFirst ? ":{" : ", ");
         isFirst = false;
-        builder->AppendFormat(format, value);
+        builder->AppendFormat(format, std::forward<TValue>(value));
     };
 
     append("Columns: %v", key.Columns);

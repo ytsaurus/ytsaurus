@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/query/base/query_common.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -22,8 +24,6 @@ using TExecutePlan = std::function<TFuture<TQueryStatistics>(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IJoinRowsProducer)
-
 struct IJoinRowsProducer
     : public virtual TRefCounted
 {
@@ -35,8 +35,6 @@ struct IJoinRowsProducer
 DEFINE_REFCOUNTED_TYPE(IJoinRowsProducer)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IJoinProfiler)
 
 struct IJoinProfiler
     : public virtual TRefCounted
@@ -55,6 +53,16 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
     bool useOrderByInJoinSubqueries,
+    bool allowHeavyRangeInferenceInJoins,
+    std::optional<i64> cacheSize,
+    NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinProfilerPtr CreateJoinRowsetProfiler(
+    TSharedRange<TRow> rowset,
+    int foreignKeyPrefix,
+    int joinKeySize,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

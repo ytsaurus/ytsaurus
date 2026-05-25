@@ -402,7 +402,8 @@ void TLsmCounters::DoProfileCompaction(
         counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
         counters->HunkChunks.InStoreCount.Increment(inHunkChunkCount);
     }
-    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
+    // TODO(akozhikhov): Rename hunk counter from data weight to data size here?
+    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.compressed_data_size());
     counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
@@ -475,7 +476,14 @@ void TWriterProfiler::Update(
     const IHunkChunkWriterStatisticsPtr& hunkChunkWriterStatistics)
 {
     if (hunkChunkWriter) {
-        HunkChunkDataStatistics_ += hunkChunkWriter->GetDataStatistics();
+        const auto& dataStatistics = hunkChunkWriter->GetDataStatistics();
+        HunkChunkDataStatistics_ += dataStatistics;
+        // COMPAT(akozhikhov)
+        if (dataStatistics.data_weight() == 0) {
+            HunkChunkDataStatistics_.set_data_weight(
+                HunkChunkDataStatistics_.data_weight() +
+                dataStatistics.compressed_data_size());
+        }
     }
     HunkChunkWriterStatistics_ = hunkChunkWriterStatistics;
 }

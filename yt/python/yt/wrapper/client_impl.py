@@ -9,7 +9,7 @@ from . import client_api
 
 from typing import ForwardRef
 
-from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, BinaryIO, Callable, Dict, Generator, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedReadTablePartitionType, DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
@@ -18,7 +18,7 @@ from .operation_commands import CheckOperationPermissionResultType, GetOperation
 from .query_commands import Query
 from .schema.table_schema import TableSchema
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
-from .ypath import TablePath as TablePath_, YPath
+from .ypath import TablePath as TablePath_, FilePath, YPath
 
 
 class YtClient(ClientState):
@@ -163,9 +163,7 @@ class YtClient(ClientState):
 
     def abort_operation(
         self,
-        operation: str,
-        message: str = None,
-        reason: str = None
+        operation: str = None, message: str = None, reason: str = None, operation_alias: str = None
     ):
         """
         Aborts operation.
@@ -173,13 +171,13 @@ class YtClient(ClientState):
         Do nothing if operation is in final state.
 
         :param str operation: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         :param str message: custom message for abort error.
         :param str reason: alias for message (deprecated).
         """
         return client_api.abort_operation(
-            operation,
             client=self,
-            message=message, reason=reason
+            operation=operation, message=message, reason=reason, operation_alias=operation_alias
         )
 
     def abort_query(
@@ -442,18 +440,21 @@ class YtClient(ClientState):
 
     def check_operation_permission(
         self,
-        operation_id: str = None, user: str = None, permission: str = None, format: Union[str, Format, None] = None
+        operation_id: str = None, user: str = None, permission: str = None, operation_alias: str = None,
+        format: Union[str, Format, None] = None
     ) -> CheckOperationPermissionResultType:
         """
         Check if user has permission for operation.
 
         :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         :param str user: user name.
         :param str permission: permission name (e.g., "read", "manage").
         """
         return client_api.check_operation_permission(
             client=self,
-            operation_id=operation_id, user=user, permission=permission, format=format
+            operation_id=operation_id, user=user, permission=permission, operation_alias=operation_alias,
+            format=format
         )
 
     def check_permission(
@@ -495,7 +496,7 @@ class YtClient(ClientState):
 
     def complete_operation(
         self,
-        operation: str
+        operation: str = None, operation_alias: str = None
     ):
         """
         Completes operation.
@@ -505,10 +506,11 @@ class YtClient(ClientState):
         Does nothing if operation is in final state.
 
         :param str operation: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.complete_operation(
-            operation,
-            client=self
+            client=self,
+            operation=operation, operation_alias=operation_alias
         )
 
     def concatenate(
@@ -746,6 +748,44 @@ class YtClient(ClientState):
             table, input_stream,
             client=self,
             atomicity=atomicity, durability=durability, format=format, raw=raw, require_sync_replica=require_sync_replica
+        )
+
+    def delete_states(
+        self,
+        pipeline_path: str,
+        computation_id=None,
+        partition_id=None,
+        key=None,
+        name=None,
+        target=None,
+        force=False,
+        commit=False,
+        output_format=None
+    ):
+        """
+        Delete state rows matching the supplied filters; pipeline must be stopped/completed.
+
+        Modes match ``read_states``: computation_id only / computation_id + key / partition_id.
+
+        Dry-run by default: without ``commit`` the call counts matching rows and returns a compact
+        summary without touching the tables. Pass ``commit=True`` once the preview matches the intent.
+        The deletion runs in chunks (List + Erase loop) to avoid blowing through the per-transaction
+        row limit and to keep individual erases responsive.
+
+        :param pipeline_path: path to pipeline.
+        :param computation_id: filter by computation id; mutually exclusive with partition_id.
+        :param partition_id: filter by partition id; mutually exclusive with computation_id.
+        :param key: TKey value (list or map form, see ``read_states``). Requires computation_id.
+        :param name: optional state name filter.
+        :param target: which table(s) to delete from: ``"all"`` (default), ``"key_state"``, or ``"partition_state"``.
+        :param force: delete states even if the pipeline is only paused, not stopped.
+        :param commit: actually delete; without it the call is a preview.
+        """
+        return client_api.delete_states(
+            pipeline_path,
+            client=self,
+            computation_id=computation_id, partition_id=partition_id, key=key, name=name, target=target,
+            force=force, commit=commit, output_format=output_format
         )
 
     def destroy_chunk_locations(
@@ -1178,20 +1218,18 @@ class YtClient(ClientState):
 
     def get_job(
         self,
-        operation_id: str,
-        job_id: str,
-        format=None
+        operation_id: str = None, job_id: str = None, operation_alias: str = None, format=None
     ) -> GetJobJobType:
         """
         Get job of operation.
 
         :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         :param str job_id: job id.
         """
         return client_api.get_job(
-            operation_id, job_id,
             client=self,
-            format=format
+            operation_id=operation_id, job_id=job_id, operation_alias=operation_alias, format=format
         )
 
     def get_job_input(
@@ -1247,38 +1285,36 @@ class YtClient(ClientState):
 
     def get_job_stderr(
         self,
-        operation_id: str,
-        job_id: str,
-        stderr_type: Optional[str] = None
+        operation_id: str = None, job_id: str = None, stderr_type: Optional[str] = None, operation_alias: str = None
     ) -> bytes:
         """
         Gets stderr of the specified job.
 
         :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         :param str job_id: job id.
         :param str type: stderr type.
         """
         return client_api.get_job_stderr(
-            operation_id, job_id,
             client=self,
-            stderr_type=stderr_type
+            operation_id=operation_id, job_id=job_id, stderr_type=stderr_type, operation_alias=operation_alias
         )
 
     def get_job_trace(
         self,
-        operation_id: str,
-        job_id: str,
-        trace_id: Optional[str] = None,
-        from_time=None,
-        to_time=None
+        operation_id: str = None, job_id: str = None, trace_id: Optional[str] = None, from_time=None,
+        to_time=None, operation_alias: str = None
     ):
         """
         Get traces of the specified job.
+
+        :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.get_job_trace(
-            operation_id, job_id,
             client=self,
-            trace_id=trace_id, from_time=from_time, to_time=to_time
+            operation_id=operation_id, job_id=job_id, trace_id=trace_id, from_time=from_time, to_time=to_time,
+            operation_alias=operation_alias
         )
 
     def get_operation(
@@ -1297,36 +1333,36 @@ class YtClient(ClientState):
 
     def get_operation_attributes(
         self,
-        operation: str,
-        fields: Optional[List[str]] = None
+        operation: str = None, fields: Optional[List[str]] = None, operation_alias: str = None
     ):
         """
         Returns dict with operation attributes.
 
         :param str operation: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         :return: operation description.
         :rtype: dict
         """
         return client_api.get_operation_attributes(
-            operation,
             client=self,
-            fields=fields
+            operation=operation, fields=fields, operation_alias=operation_alias
         )
 
     def get_operation_state(
         self,
-        operation: str
+        operation: str = None, operation_alias: str = None
     ) -> OperationState:
         """
         Returns current state of operation.
 
         :param str operation: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
 
         Raises :class:`YtError <yt.common.YtError>` if operation does not exists.
         """
         return client_api.get_operation_state(
-            operation,
-            client=self
+            client=self,
+            operation=operation, operation_alias=operation_alias
         )
 
     def get_pipeline_dynamic_spec(
@@ -1770,78 +1806,60 @@ class YtClient(ClientState):
 
     def list_job_traces(
         self,
-        operation_id: str,
-        job_id: str,
-        per_process: Optional[bool] = None,
-        limit: Optional[int] = None,
-        format=None
+        operation_id: str = None, job_id: str = None, per_process: Optional[bool] = None, limit: Optional[int] = None,
+        operation_alias: str = None, format=None
     ) -> ListJobTracesType:
         """
         List traces of the specified job.
+
+        :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.list_job_traces(
-            operation_id, job_id,
             client=self,
-            per_process=per_process, limit=limit, format=format
+            operation_id=operation_id, job_id=job_id, per_process=per_process, limit=limit, operation_alias=operation_alias,
+            format=format
         )
 
     def list_jobs(
         self,
-        operation_id: str,
-        job_type=None,
-        job_state=None,
-        address=None,
-        job_competition_id=None,
-        with_competitors=None,
-        sort_field=None,
-        sort_order=None,
-        limit=None,
-        offset=None,
-        with_stderr=None,
-        with_spec=None,
-        with_fail_context=None,
-        with_monitoring_descriptor=None,
-        with_interruption_info=None,
-        include_cypress=None,
-        include_runtime=None,
-        include_archive=None,
-        data_source=None,
-        attributes=None,
-        operation_incarnation=None,
-        monitoring_descriptor=None,
-        format=None
+        operation_id: str = None, job_type=None, job_state=None, address=None, job_competition_id=None,
+        with_competitors=None, sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None,
+        with_spec=None, with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
+        include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
+        operation_incarnation=None, monitoring_descriptor=None, operation_alias: str = None, format=None
     ) -> ListJobsType:
         """
         List jobs of operation.
+
+        :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.list_jobs(
-            operation_id,
             client=self,
-            job_type=job_type, job_state=job_state, address=address, job_competition_id=job_competition_id,
-            with_competitors=with_competitors, sort_field=sort_field, sort_order=sort_order, limit=limit,
-            offset=offset, with_stderr=with_stderr, with_spec=with_spec, with_fail_context=with_fail_context,
-            with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
-            include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
-            data_source=data_source, attributes=attributes, operation_incarnation=operation_incarnation,
-            monitoring_descriptor=monitoring_descriptor, format=format
+            operation_id=operation_id, job_type=job_type, job_state=job_state, address=address,
+            job_competition_id=job_competition_id, with_competitors=with_competitors, sort_field=sort_field,
+            sort_order=sort_order, limit=limit, offset=offset, with_stderr=with_stderr, with_spec=with_spec,
+            with_fail_context=with_fail_context, with_monitoring_descriptor=with_monitoring_descriptor,
+            with_interruption_info=with_interruption_info, include_cypress=include_cypress, include_runtime=include_runtime,
+            include_archive=include_archive, data_source=data_source, attributes=attributes, operation_incarnation=operation_incarnation,  # noqa
+            monitoring_descriptor=monitoring_descriptor, operation_alias=operation_alias, format=format
         )
 
     def list_operation_events(
         self,
-        operation_id: str,
-        event_type: str = None,
-        format: Union[str, Format, None] = None
+        operation_id: str = None, event_type: str = None, operation_alias: str = None, format: Union[str, Format, None] = None
     ):
         """
         List events of given operation.
 
         :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         :param str event_type: event type.
         """
         return client_api.list_operation_events(
-            operation_id,
             client=self,
-            event_type=event_type, format=format
+            operation_id=operation_id, event_type=event_type, operation_alias=operation_alias, format=format
         )
 
     def list_operations(
@@ -2114,15 +2132,17 @@ class YtClient(ClientState):
 
     def patch_operation_spec(
         self,
-        operation_id: str,
-        patches: List[Mapping[str, Any]]
+        operation_id: str = None, patches: List[Mapping[str, Any]] = None, operation_alias: str = None
     ):
         """
         Patches operation spec.
+
+        :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.patch_operation_spec(
-            operation_id, patches,
-            client=self
+            client=self,
+            operation_id=operation_id, patches=patches, operation_alias=operation_alias
         )
 
     def pause_pipeline(
@@ -2363,8 +2383,11 @@ class YtClient(ClientState):
 
     def read_file(
         self,
-        path,
-        file_reader=None, offset=None, length=None, enable_read_parallel=None
+        path: Union[str, FilePath],
+        file_reader: Optional[Dict[str, Any]] = None,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+        enable_read_parallel: Optional[bool] = None
     ):
         """
         Downloads file from path in Cypress to local machine.
@@ -2401,6 +2424,44 @@ class YtClient(ClientState):
             query_id,
             client=self,
             result_index=result_index, stage=stage, format=format, raw=raw
+        )
+
+    def read_states(
+        self,
+        pipeline_path: str,
+        computation_id=None,
+        partition_id=None,
+        key=None,
+        name=None,
+        target=None,
+        limit=None,
+        output_format=None
+    ):
+        """
+        Read state rows matching the supplied filters.
+
+        Three access modes are derived from the argument combination:
+        1. computation_id only          → all tables for every partition of the computation
+        2. computation_id + key         → key_states only (target=partition_state is rejected)
+        3. partition_id                 → partition_states + key_states under the partition's
+        SourceKey (when the partition has one)
+
+        Returns a map with two arrays: "key_states" (list of {computation_id, key, entries}) and
+        "partition_states" (list of {partition_id, entries}); each "entries" is a {name: state} map.
+
+        :param pipeline_path: path to pipeline.
+        :param computation_id: filter by computation id.
+        :param partition_id: filter by partition id; mutually exclusive with computation_id.
+        :param key: TKey value as either a positional list ``[v0, v1, ...]`` or a named map ``{"col": value, ...}``; expression columns are computed via the column evaluator. Requires computation_id.
+        :param name: optional state name filter.
+        :param target: which table(s) to read: ``"all"`` (default), ``"key_state"``, or ``"partition_state"``.
+        :param limit: upper bound on rows scanned per table; defaults to 10 server-side.
+        """
+        return client_api.read_states(
+            pipeline_path,
+            client=self,
+            computation_id=computation_id, partition_id=partition_id, key=key, name=name, target=target,
+            limit=limit, output_format=output_format
         )
 
     def read_table(
@@ -2732,16 +2793,17 @@ class YtClient(ClientState):
 
     def resume_operation(
         self,
-        operation: str
+        operation: str = None, operation_alias: str = None
     ):
         """
         Continues operation after suspending.
 
         :param str operation: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.resume_operation(
-            operation,
-            client=self
+            client=self,
+            operation=operation, operation_alias=operation_alias
         )
 
     def resurrect_chunk_locations(
@@ -3376,7 +3438,7 @@ class YtClient(ClientState):
         Set YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec: new pipeline spec.
+        :param value: new pipeline dynamic spec.
         :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
         """
@@ -3395,7 +3457,7 @@ class YtClient(ClientState):
         Set YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec: new pipeline spec.
+        :param value: new pipeline spec.
         :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, update spec even if pipeline is paused.
@@ -3582,19 +3644,17 @@ class YtClient(ClientState):
 
     def suspend_operation(
         self,
-        operation: str,
-        abort_running_jobs: bool = False,
-        reason: str = None
+        operation: str = None, abort_running_jobs: bool = False, reason: str = None, operation_alias: str = None
     ):
         """
         Suspends operation.
 
         :param str operation: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.suspend_operation(
-            operation,
             client=self,
-            abort_running_jobs=abort_running_jobs, reason=reason
+            operation=operation, abort_running_jobs=abort_running_jobs, reason=reason, operation_alias=operation_alias
         )
 
     def transfer_account_resources(
@@ -3768,15 +3828,17 @@ class YtClient(ClientState):
 
     def update_operation_parameters(
         self,
-        operation_id: str,
-        parameters: Mapping[str, Any]
+        operation_id: str = None, parameters: Mapping[str, Any] = None, operation_alias: str = None
     ):
         """
         Updates operation runtime parameters.
+
+        :param str operation_id: operation id.
+        :param str operation_alias: operation alias (alternative to operation id).
         """
         return client_api.update_operation_parameters(
-            operation_id, parameters,
-            client=self
+            client=self,
+            operation_id=operation_id, parameters=parameters, operation_alias=operation_alias
         )
 
     def upload_orc(
@@ -3815,9 +3877,15 @@ class YtClient(ClientState):
 
     def write_file(
         self,
-        destination, stream,
-        file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, size_hint=None,
-        filename_hint=None, progress_monitor=None
+        destination: Union[str, FilePath],
+        stream: Union[bytes, BinaryIO, Generator[bytes, None, None]],
+        file_writer: Optional[Dict[str, Any]] = None,
+        is_stream_compressed: bool = False,
+        force_create: Optional[bool] = None,
+        compute_md5: bool = False,
+        size_hint: Optional[int] = None,
+        filename_hint: Optional[str] = None,
+        progress_monitor=None
     ):
         """
         Uploads file to destination path from stream on local machine.

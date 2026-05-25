@@ -1,5 +1,7 @@
 package NYT.NTransactionSupervisor.NProto;
 
+import "yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 
@@ -14,6 +16,7 @@ message TReqCoordinatorCommitSimpleTransaction
     required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 3;
     required string user = 4;
     optional string user_tag = 5;
+    optional uint32 expected_prepare_signature = 6;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseOne
@@ -27,12 +30,17 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     required bool inherit_commit_timestamp = 5;
     optional int32 coordinator_prepare_mode = 14; // ETransactionCoordinatorPrepareMode
     optional int32 coordinator_commit_mode = 6; // ETransactionCoordinatorCommitMode
-    optional bool strongly_ordered = 15 [default = false];
     required uint64 prepare_timestamp = 4;
     optional uint32 prepare_timestamp_cluster_tag = 12 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
     optional uint64 max_allowed_commit_timestamp = 13;
     required string user = 8;
     optional string user_tag = 10;
+    repeated NTransactionSupervisor.TStrongOrderingTags strong_ordering_tags_map = 16;
+    repeated uint32 expected_prepare_signatures = 17;
+    optional uint32 coordinator_expected_prepare_signature = 18;
+
+    // Safe to use after 26.3.
+    reserved 15;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseTwo
@@ -68,7 +76,11 @@ message TReqParticipantPrepareTransaction
     optional uint32 prepare_timestamp_cluster_tag = 5 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
     required string user = 3;
     required string user_tag = 4;
-    optional bool strongly_ordered = 6 [default = false];
+    repeated string strong_ordering_tags = 7;
+    optional uint32 expected_prepare_signature = 8;
+
+    // Safe to use after 26.3.
+    reserved 6;
 }
 
 message TReqParticipantMakeTransactionReadyToCommit

@@ -41,12 +41,12 @@ protected:
     }
 };
 
-TString GetUniqueName()
+std::string GetUniqueName()
 {
     return "yt_porto_ut_" + ToString(TGuid::Create());
 }
 
-TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const TString& name)
+TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const std::string& name)
 {
     return New<TPortoResourceTracker>(
         GetPortoInstance(Executor, name),
@@ -54,7 +54,7 @@ TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const
         false);
 }
 
-TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, const TString& name)
+TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, const std::string& name)
 {
     auto instance = GetPortoInstance(executor, name);
     auto portoResourceTracker = New<TPortoResourceTracker>(

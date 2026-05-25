@@ -775,7 +775,8 @@ private:
 
     void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)
     {
-        static const int MaxVectorizedReadRequestSize = 100;
+        const auto& config = Bootstrap_->GetDynamicConfig()->ObjectService;
+
         static const THashSet<std::string> VectorizedReadMethodWhitelist = {
             "Get",
             "SerializeNode",
@@ -786,10 +787,10 @@ private:
             "Method %Qv is not supported as a template for \"VectorizedRead\"",
             templateMethod);
 
-        if (objectIds.size() > MaxVectorizedReadRequestSize) {
+        if (std::ssize(objectIds) > config->MaxVectorizedReadRequestSize) {
             THROW_ERROR_EXCEPTION("Too many objects in vectorized request: %v > %v",
                 objectIds.size(),
-                MaxVectorizedReadRequestSize);
+                config->MaxVectorizedReadRequestSize);
         }
     }
 

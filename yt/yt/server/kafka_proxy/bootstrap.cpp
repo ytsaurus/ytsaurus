@@ -65,6 +65,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NKafka;
 using namespace NMonitoring;

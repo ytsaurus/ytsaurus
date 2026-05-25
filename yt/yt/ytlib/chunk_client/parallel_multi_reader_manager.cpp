@@ -123,7 +123,11 @@ void TParallelMultiReaderManager::OnSessionReady(const TErrorOr<TMultiReaderMana
     if (errorOrSession.IsOK()) {
         CurrentSession_ = errorOrSession.Value();
         ReaderSwitched_.Fire();
-    } else if (errorOrSession.FindMatching(NYT::EErrorCode::Canceled)) {
+    } else if (errorOrSession.GetCode() == NYT::EErrorCode::Canceled) {
+        // NB(coteeq): We specifically only check the topmost error for EErrorCode::Canceled.
+        // If we were to use FindMatching, we could suppress ligitimate errors that happened
+        // because of some cancelation.
+
         // Do nothing, this is normal reader termination, e.g. during interrupt.
     } else {
         THROW_ERROR errorOrSession;

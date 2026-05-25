@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/ytlib/api/public.h>
 
@@ -122,7 +122,7 @@ private:
 
     TProxyHeapUsageProfilerPtr HttpProxyHeapUsageProfiler_;
 
-    NBus::IBusServerPtr BusServer_;
+    NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
 
     NHttp::IServerPtr ApiHttpServer_;

@@ -675,28 +675,26 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     response->set_dynamic(true);
     ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
 
+    auto setResponseInfo = [] (auto& context) {
+        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+            context->Response().tablets_size(),
+            context->Response().tablet_cells_size(),
+            context->Response().replicas_size(),
+            context->Response().indices_size());
+    };
+
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
             GetReplicationCard({.IncludeHistory = true}),
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
-            [context, response] (int&& result) {
+            [context, response, setResponseInfo] (int&& result) {
                 response->set_tablet_count(result);
-
-                context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-                    response->tablets_size(),
-                    response->tablet_cells_size(),
-                    response->replicas_size(),
-                    response->indices_size());
+                setResponseInfo(context);
             })));
     } else {
-        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-            response->tablets_size(),
-            response->tablet_cells_size(),
-            response->replicas_size(),
-            response->indices_size());
-
+        setResponseInfo(context);
         context->Reply();
     }
 }

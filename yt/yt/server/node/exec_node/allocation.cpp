@@ -379,15 +379,16 @@ void TAllocation::Abort(TError error)
 
     FinishError_ = std::move(error);
 
+    TJobPtr lastJob;
     if (Job_) {
         TransferResourcesToJob();
-        auto job = EvictJob();
-        job->Abort(FinishError_);
+        lastJob = EvictJob();
+        lastJob->Abort(FinishError_);
     } else {
         YT_LOG_DEBUG("Empty allocation aborted");
     }
 
-    OnAllocationFinished(EAllocationFinishReason::Aborted);
+    OnAllocationFinished(EAllocationFinishReason::Aborted, std::move(lastJob));
 }
 
 void TAllocation::Complete(EAllocationFinishReason finishReason)
@@ -403,14 +404,15 @@ void TAllocation::Complete(EAllocationFinishReason finishReason)
 
     State_ = EAllocationState::Finished;
 
+    TJobPtr lastJob;
     if (Job_) {
         TransferResourcesToJob();
-        EvictJob();
+        lastJob = EvictJob();
     } else {
         YT_LOG_DEBUG("Empty allocation completed");
     }
 
-    OnAllocationFinished(finishReason);
+    OnAllocationFinished(finishReason, std::move(lastJob));
 }
 
 void TAllocation::Preempt(
@@ -749,7 +751,9 @@ void TAllocation::InterruptJob(NScheduler::EInterruptionReason interruptionReaso
         /*preemptedFor*/ std::nullopt);
 }
 
-void TAllocation::OnAllocationFinished(EAllocationFinishReason finishReason)
+void TAllocation::OnAllocationFinished(
+    EAllocationFinishReason finishReason,
+    TJobPtr lastJob)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -763,7 +767,19 @@ void TAllocation::OnAllocationFinished(EAllocationFinishReason finishReason)
 
     ResourceHolder_.Reset();
 
-    FSSecretary_->ReleaseArtifacts();
+    auto fsSecretary = FSSecretary_;
+    if (lastJob) {
+        lastJob->GetCleanupFinishedEvent().Subscribe(
+            BIND_NO_PROPAGATE([fsSecretary] (const TError& /*error*/) {
+                fsSecretary->ReleasePreparedLayers();
+                fsSecretary->ReleaseArtifacts();
+            })
+                .Via(Bootstrap_->GetJobInvoker()));
+    } else {
+        fsSecretary->ReleasePreparedLayers();
+        fsSecretary->ReleaseArtifacts();
+    }
+
     FSSecretary_.Reset();
 
     AllocationProfiler->OnAllocationFinished(TotalJobCount_, finishReason);
@@ -790,6 +806,14 @@ void TAllocation::OnJobFinished(TJobPtr job)
                 "Job finished and allocation is preempted, completing allocation (JobId: %v)",
                 job->GetId());
             finishReason = EAllocationFinishReason::Preempted;
+            return false;
+        }
+
+        if (Bootstrap_->GetJobController()->AreJobsDisabled()) {
+            YT_LOG_INFO(
+                "Jobs disabled on node, completing allocation without settling new job (JobId: %v)",
+                job->GetId());
+            finishReason = EAllocationFinishReason::JobsDisabledOnNode;
             return false;
         }
 
@@ -876,6 +900,16 @@ void TAllocation::OnJobFinished(TJobPtr job)
                         Complete(EAllocationFinishReason::UserSlotDisabled);
                         return;
                     }
+                }
+
+                if (Bootstrap_->GetJobController()->AreJobsDisabled()) {
+                    YT_LOG_INFO(
+                        "Jobs disabled on node, skip new job settlement (JobId: %v)",
+                        jobId);
+
+                    Complete(EAllocationFinishReason::JobsDisabledOnNode);
+
+                    return;
                 }
 
                 YT_LOG_INFO(

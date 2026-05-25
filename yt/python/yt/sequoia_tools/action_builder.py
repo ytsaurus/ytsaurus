@@ -11,10 +11,20 @@ from yt.environment import migrationlib
 import yt.sequoia_tools as yt_sequoia
 import yt.wrapper as yt
 
-from . import actions, app as sequoia_app, config as cfg, helpers, utils
+from . import actions, app as sequoia_app, config as cfg, descriptors, helpers, utils
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _get_sequoia_table_descriptors(
+    scope: cfg.Scope,
+    version: int,
+) -> dict[str, descriptors.TableDescriptor]:
+    """Return table descriptors from the parsed versioned registry."""
+    group_names = cfg.SCOPE_GROUPS[scope]
+    tds = descriptors.get_table_descriptors(version).as_dict()
+    return {k: v for k, v in tds.items() if v.group in group_names}
 
 
 class ComponentContext:
@@ -32,7 +42,7 @@ class ComponentContext:
 
     def get_table_attributes(self, table_descriptor: yt_sequoia.TableDescriptor) -> dict[str, Any]:
         """Build standard table attributes for this component."""
-        attributes = self.config.get_table_group_attributes(table_descriptor.group)
+        attributes = self.config.get_table_attributes(table_descriptor.name)
         attributes.update(
             account=self.ground_config.account,
             tablet_cell_bundle=self.config.tablet_cell_bundle)
@@ -138,8 +148,7 @@ class ActionBuilder:
             component_context = ComponentContext(scope, component_config, self._ground_config)
             root_dir = self._ground_config.sequoia_root_cypress_path
 
-            group_names = [d.name for d in component_config.table_groups]
-            table_descriptors = helpers.get_sequoia_table_descriptors(group_names, self._version)
+            table_descriptors = _get_sequoia_table_descriptors(scope, self._version)
 
             for descriptor in table_descriptors.values():
                 attributes = component_context.get_table_attributes(descriptor)
@@ -205,20 +214,6 @@ class ActionBuilder:
         self._actions.append(action)
         return self
 
-    def promote_reign(
-        self,
-        initialize: bool = False,
-    ) -> ActionBuilder:
-        """Add reign promotion action."""
-        path = helpers.make_ground_reign_path(
-            self._ground_config.sequoia_root_cypress_path)
-        old_reign = (self._version - 1 if not initialize
-                     else actions.SetAttributeAction.NON_EXISTING_KEY)
-
-        action = actions.SetAttributeAction(path, self._version, old_reign)
-        self._actions.append(action)
-        return self
-
     def build(self) -> actions.ActionPlan:
         """Build the final action plan."""
         return actions.ActionPlan(self._actions, self._name)
@@ -248,20 +243,28 @@ class ConversionAction(actions.Action):
 
     @override
     def execute(self, app: sequoia_app.SequoiaTool) -> None:
-        def convert_to_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
+        # TODO(danilalexeev): Use dict in `migrationlib.TableInfo`.
+        def convert_to_key_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
             return (
                 column["name"],
                 column["type"],
-                column.get("expression"))
+                column.get("expression"),
+                column)
+
+        def convert_to_value_tuple(column: dict[str, Any]) -> tuple[Any, ...]:
+            return (
+                column["name"],
+                column["type"],
+                column)
 
         table_info = migrationlib.TableInfo(
             key_columns=[
-                convert_to_tuple(c)
+                convert_to_key_tuple(c)
                 for c in self._table_context.descriptor.schema
                 if c.get("sort_order") is not None
             ],
             value_columns=[
-                convert_to_tuple(c)
+                convert_to_value_tuple(c)
                 for c in self._table_context.descriptor.schema
                 if c.get("sort_order") is None
             ],

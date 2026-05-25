@@ -9,4 +9,4 @@ location), as a part of `PEP 615 <https://www.python.org/dev/peps/pep-0615/>`_
 This repository generates a ``pip``-installable package, published on PyPI as
 `tzdata <https://pypi.org/project/tzdata>`_.
 
-For more information, see `the documentation <https://tzdata.readthedocs.io>`_.
+For more information, see `the documentation <https://tzdata.python.org>`_.

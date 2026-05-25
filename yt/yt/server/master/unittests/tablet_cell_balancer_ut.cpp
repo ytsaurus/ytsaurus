@@ -221,6 +221,11 @@ public:
         return true;
     }
 
+    bool IsTabletCellSmoothingEnabled() override
+    {
+        return true;
+    }
+
 private:
     TEntityMap<TCellBundle> CellBundleMap_;
     TEntityMap<TCellBase> CellMap_;

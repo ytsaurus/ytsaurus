@@ -16,7 +16,7 @@
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_backup.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_build_index.h>
+#include <contrib/ydb/core/tx/schemeshard/index/build_index.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_export.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_forced_compaction.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_import.h>

@@ -1,17 +1,12 @@
 from ..errors import YtError
 from ..skiff import check_skiff_bindings
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 import sys
 
 
-def _get_availability_error(py3=True, skiff=True):
+def _get_availability_error(skiff=True):
     errors = []
-    if py3 and (not PY3 or sys.version_info < (3, 7)):
+    if sys.version_info < (3, 7):
         errors.append(YtError("This functionality works only in Python 3.7+"))
     if skiff:
         try:

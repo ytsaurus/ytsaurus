@@ -53,6 +53,7 @@ target_link_libraries(server-lib-scheduler PUBLIC
   yutil
   library-query-heavy
   yt-yt-ytlib
+  server-lib-job_agent
   server-lib-node_tracker_server
   yt_proto-yt-client
   contrib-libs-protobuf

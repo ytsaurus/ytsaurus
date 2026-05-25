@@ -119,6 +119,8 @@ DECLARE_REFCOUNTED_STRUCT(TLauncherConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog)
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings)
+DECLARE_REFCOUNTED_CLASS(TLowCardinalitySettings)
+DECLARE_REFCOUNTED_CLASS(TConversionSettings)
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings)
 DECLARE_REFCOUNTED_CLASS(TTestingSettings)
 DECLARE_REFCOUNTED_CLASS(TExecutionSettings)
@@ -141,7 +143,7 @@ DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
-DECLARE_REFCOUNTED_CLASS(IDictionaryAccessControl)
+DECLARE_REFCOUNTED_STRUCT(IDictionaryAccessControl)
 
 struct TValue;
 struct TSubquerySpec;
@@ -259,9 +261,9 @@ DEFINE_ENUM(ETableReadLockMode,
 );
 
 DEFINE_ENUM(EStorageConflictResolveMode,
-    ((Throw) (0))
-    ((Clique) (1))
-    ((Yt) (2))
+    ((Throw)    (0))
+    ((Clique)   (1))
+    ((YT)       (2) ("yt"))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

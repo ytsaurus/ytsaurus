@@ -202,12 +202,6 @@ public:
     void Commit() noexcept override
     {
         TTransactionalNodeFactoryBase::Commit();
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        if (Transaction_) {
-            for (auto* node : CreatedNodes_) {
-                transactionManager->StageNode(Transaction_, node);
-            }
-        }
 
         const auto& portalManager = Bootstrap_->GetPortalManager();
         for (const auto& entrance : CreatedPortalEntrances_) {
@@ -260,7 +254,13 @@ public:
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
+        // It's OK to unref nodes here, because nodes also have ref from the parent node or
+        // from the branched node in case of transactions and MaterializeNode.
         ReleaseStagedObjects();
+
+        for (auto* node : CreatedNodes_) {
+            YT_VERIFY(IsObjectAlive(node));
+        }
     }
 
     void Rollback() noexcept override
@@ -855,10 +855,10 @@ private:
     TCypressManager* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
 
-    TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
+    TCellTagSet DoGetReplicationCellTags(const TCypressNode* node) override
     {
         auto externalCellTag = node->GetExternalCellTag();
-        return externalCellTag == NotReplicatedCellTagSentinel ? TCellTagList() : TCellTagList{externalCellTag};
+        return externalCellTag == NotReplicatedCellTagSentinel ? EmptyCellTags() : TCellTagSet{externalCellTag};
     }
 
     std::string DoGetName(const TCypressNode* node) override;
@@ -2717,7 +2717,7 @@ public:
         return FromObjectId(portalExit->GetId()) + *optionalSuffix;
     }
 
-    void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<TCellTag>& removedMasterCellTags) const override
+    void ValidateNoExternalizedNodesOnRemovedMasters(const TCellTagSet& removedMasterCellTags) const override
     {
         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
 
@@ -2765,6 +2765,9 @@ public:
                     nodeId,
                     sequenceNumber);
             }
+            YT_LOG_DEBUG("Ground update queue manager sequence number inserted (NodeId: %v, SequenceNumber: %v)",
+                nodeId,
+                sequenceNumber);
         } else {
             auto oldSequenceNumber = nodeIt->second;
             if (oldSequenceNumber < sequenceNumber) {
@@ -2799,6 +2802,9 @@ public:
                 }
 
                 nodeIt->second = sequenceNumber;
+                YT_LOG_DEBUG("Ground update queue manager sequence number updated (NodeId: %v, SequenceNumber: %v)",
+                    nodeId,
+                    sequenceNumber);
             } else {
                 YT_LOG_DEBUG("Node has a greater sequence number than a new one, keeping the old one "
                     "(NodeId: %v, OldSequenceNumber: %v, NewSequenceNumber: %v)",
@@ -2847,7 +2853,7 @@ public:
         }
     }
 
-    i64 GetGroundUpdateQueueManagerSequenceNumber(TCypressNode* node) const override
+    i64 GetGroundUpdateQueueManagerSequenceNumber(const TCypressNode* node) const override
     {
         auto it = NodeIdToGroundUpdateQueueManagerSequenceNumbers_.find(node->GetVersionedId());
         if (it == NodeIdToGroundUpdateQueueManagerSequenceNumbers_.end()) {
@@ -3260,7 +3266,6 @@ private:
                 }
             }
         }
-
     }
 
     void CheckInvariants() override

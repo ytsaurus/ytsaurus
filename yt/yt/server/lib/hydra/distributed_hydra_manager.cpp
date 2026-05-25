@@ -3,6 +3,7 @@
 #include "changelog.h"
 #include "changelog_acquisition.h"
 #include "changelog_discovery.h"
+#include "changelog_store_helpers.h"
 #include "config.h"
 #include "decorated_automaton.h"
 #include "epoch.h"
@@ -120,14 +121,6 @@ public:
                 &TDistributedHydraManager::OnElectionStopVoting,
                 Owner_,
                 error));
-        }
-
-        void OnDiscombobulate(i64 leaderSequenceNumber) override
-        {
-            CancelableControlInvoker_->Invoke(BIND(
-                &TDistributedHydraManager::OnDiscombobulate,
-                Owner_,
-                leaderSequenceNumber));
         }
 
         TPeerPriority GetPriority() override
@@ -498,7 +491,13 @@ public:
                             .Item("catching_up").Value(epochContext->CatchingUp)
                             .Item("leader_switch_started").Value(epochContext->LeaderSwitchStarted)
                             .Item("leader_lease_expired").Value(epochContext->LeaderLeaseExpired)
-                            .Item("acquiring_changelog").Value(epochContext->AcquiringChangelog);
+                            .Item("acquiring_changelog").Value(epochContext->AcquiringChangelog)
+                            .Item("frozen").Value(epochContext->Frozen)
+                            .DoIf(epochContext->Frozen && Options_.Testing, [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("logged_sequence_number").Value(epochContext->FollowerCommitter->GetLoggedSequenceNumber())
+                                    .Item("committed_sequence_number").Value(epochContext->FollowerCommitter->GetCommittedSequenceNumber());
+                            });
                             // TODO(aleksandra-zh): add stuff.
                     })
                     .Item("state").Value(DecoratedAutomaton_->GetState())
@@ -584,9 +583,15 @@ public:
         return req->Invoke().Apply(BIND([] (const TInternalHydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
             const auto& rsp = rspOrError.Value();
+            // Don't use response keeper for that in case mutation does not have mutation id.
+            // (Could probably also generate it here, but let's not).
+            auto groundUpdateQueueSequenceNumber = rsp->has_ground_update_queue_sequence_number()
+                ? std::make_optional(rsp->ground_update_queue_sequence_number())
+                : std::nullopt;
             return TMutationResponse{
                 EMutationResponseOrigin::LeaderForwarding,
-                TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{})
+                TSharedRefArray(rsp->Attachments(), TSharedRefArray::TMoveParts{}),
+                groundUpdateQueueSequenceNumber
             };
         }));
     }
@@ -813,6 +818,8 @@ private:
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ResetStateHash));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(Freeze));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(TruncateChangelog));
         }
 
     private:
@@ -939,6 +946,30 @@ private:
 
             context->Reply();
         }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Freeze)
+        {
+            auto term = request->term();
+            context->SetRequestInfo("Term: %v",
+                term);
+
+            auto owner = GetOwnerOrThrow();
+            owner->Freeze(term);
+
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, TruncateChangelog)
+        {
+            auto lastSequenceNumber = request->last_sequence_number();
+            context->SetRequestInfo("LastSequenceNumber: %v",
+                lastSequenceNumber);
+
+            auto owner = GetOwnerOrThrow();
+            owner->TruncateChangelog(lastSequenceNumber);
+
+            context->Reply();
+        }
     };
     const TIntrusivePtr<THydraService> HydraService_;
 
@@ -973,6 +1004,7 @@ private:
             RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonLeaderLease));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ReportMutationsStateHashes));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(Discombobulate));
         }
 
     private:
@@ -1178,6 +1210,9 @@ private:
                     }
 
                     const auto& mutationResponse = result.Value();
+                    if (mutationResponse.GroundUpdateQueueSequenceNumber) {
+                        response->set_ground_update_queue_sequence_number(*mutationResponse.GroundUpdateQueueSequenceNumber);
+                    }
                     response->Attachments() = mutationResponse.Data.ToVector();
                     context->Reply();
                 }));
@@ -1217,6 +1252,18 @@ private:
 
             context->Reply();
         }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, Discombobulate)
+        {
+            auto sequenceNumber = request->sequence_number();
+            context->SetRequestInfo("SequenceNumber: %v",
+                sequenceNumber);
+
+            auto owner = GetOwnerOrThrow();
+            owner->Discombobulate(sequenceNumber);
+
+            context->Reply();
+        }
     };
     const TIntrusivePtr<TInternalHydraService> InternalHydraService_;
 
@@ -1233,21 +1280,9 @@ private:
             return {recordCount, std::nullopt};
         }
 
-        // TODO(aleksandra-zh): extract.
-        auto asyncRecordsData = changelog->Read(
-            0,
-            1,
-            std::numeric_limits<i64>::max());
-        auto recordsData = WaitFor(asyncRecordsData)
-            .ValueOrThrow();
-
-        if (recordsData.empty()) {
-            THROW_ERROR_EXCEPTION("Read zero records in changelog %v", changelogId);
-        }
-
-        TMutationHeader header;
-        TSharedRef requestData;
-        DeserializeMutationRecord(recordsData[0], &header, &requestData);
+        auto header = WaitFor(ReadFirstMutationFromChangelog(changelog))
+            .ValueOrThrow()
+            .first;
 
         return {recordCount, header.sequence_number()};
     }
@@ -1342,6 +1377,12 @@ private:
                 "Cannot accept mutations before initial ping with OK version is received");
         }
 
+        if (epochContext->Frozen && !Options_.Testing) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot accept mutations while being frozen");
+        }
+
         // We can not verify term before CheckForInitialPing because term may change on initial ping.
         // However, we should verify our term is not greater than leader's before CheckForInitialPing to
         // prevent term changing to a lower value.
@@ -1425,6 +1466,12 @@ private:
         if (controlState == EPeerState::Following || epochContext->CatchingUp) {
             epochContext->FollowerCommitter->LogMutations();
             CommitMutationsAtFollower(committedSequenceNumber);
+        }
+
+        if (epochContext->Frozen && Options_.Testing) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot accept mutations while being frozen; breakpoint for testing purposes");
         }
 
         // LoggedSequenceNumber in committer should already be initialized.
@@ -1770,6 +1817,12 @@ private:
             THROW_ERROR_EXCEPTION("Election priority is not available");
         }
 
+        if (ControlEpochContext_ && ControlEpochContext_->Frozen) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot participate in elections while being frozen");
+        }
+
         auto controlState = GetControlState();
         auto getElectionPriority = [&] () -> std::pair<int, i64> {
             switch (controlState) {
@@ -1794,7 +1847,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CancelableControlInvoker_->Invoke(
-            BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
     void ProfileRestart(const std::string& reason)
@@ -1842,7 +1895,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // NB: Leader lease remains active after restart and is transfered to
+        // NB: Leader lease remains active after restart and is transferred to
         // a newly selected leader without delay.
 
         ScheduleRestart(epochContext, error);
@@ -2624,11 +2677,24 @@ private:
         Participate();
     }
 
-    void OnDiscombobulate(i64 leaderSequenceNumber)
+    void Discombobulate(i64 leaderSequenceNumber)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Entering discombobulated state");
+        auto cellManager = ElectionManager_->GetCellManager();
+        if (cellManager->GetSelfConfig()->Voting) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot discombobulate voting peer");
+        }
+
+        auto controlState = GetControlState();
+        if (controlState != EPeerState::Following) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot discombobulate peer in %Qlv state",
+                controlState);
+        }
 
         WaitFor(SyncWithLeader())
             .ThrowOnError();
@@ -2637,13 +2703,15 @@ private:
         if (sequenceNumber < leaderSequenceNumber) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Couldn`t sync to required sequence number (expected: %v, actual: %v)",
+                "Could not synchronize to sequence number (Expected: %v, Actual: %v)",
                 leaderSequenceNumber,
                 sequenceNumber);
         }
 
-        YT_VERIFY(ControlState_ == EPeerState::Following && ControlEpochContext_);
+        ElectionManager_->Discombobulate();
         ControlEpochContext_->Discombobulated = true;
+
+        YT_LOG_INFO("Peer is discombobulated");
     }
 
     bool CheckForInitialPing(TReachableState committedState, int term)
@@ -3120,7 +3188,7 @@ private:
                 "Must be in read-only mode to discombobulate"));
         }
 
-        std::vector<TFuture<TElectionServiceProxy::TRspDiscombobulatePtr>> futures;
+        std::vector<TFuture<TInternalHydraServiceProxy::TRspDiscombobulatePtr>> futures;
         const auto& cellManager = epochContext->CellManager;
         for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
             if (cellManager->GetPeerConfig(peerId)->Voting) {
@@ -3135,17 +3203,81 @@ private:
             YT_LOG_INFO("Discombobulating observer (PeerId: %v)",
                 peerId);
 
-            TElectionServiceProxy proxy(std::move(peerChannel));
+            TInternalHydraServiceProxy proxy(std::move(peerChannel));
             auto req = proxy.Discombobulate();
             req->SetTimeout(Config_->Get()->ControlRpcTimeout);
             req->set_sequence_number(DecoratedAutomaton_->GetSequenceNumber());
             futures.push_back(req->Invoke());
         }
 
-        // TODO(babenko): consider replacing with WaitFor
-        AllSucceeded(std::move(futures))
-            .BlockingGet()
+        WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
+    }
+
+    void Freeze(int term)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto controlState = GetControlState();
+        if (controlState != EPeerState::Following) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot freeze peer in %Qlv state",
+                controlState);
+        }
+
+        auto epochContext = ControlEpochContext_;
+        if (epochContext->Term != term) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Term mismatch: expected %v, got %v",
+                epochContext->Term,
+                term);
+        }
+
+        ElectionManager_->Discombobulate();
+        epochContext->Discombobulated = true; // Keep proxies registered.
+        epochContext->Frozen = true;
+
+        auto loggedSequenceNumber = epochContext->FollowerCommitter->GetLoggedSequenceNumber();
+        auto expectedSequenceNumber = epochContext->FollowerCommitter->GetExpectedSequenceNumber();
+
+        YT_LOG_ALERT("Peer is frozen (LoggedSequenceNumber: %v, ExpectedSequenceNumber: %v, EpochId: %v, Term: %v)",
+            loggedSequenceNumber,
+            expectedSequenceNumber,
+            epochContext->EpochId,
+            epochContext->Term);
+    }
+
+    void TruncateChangelog(i64 lastSequenceNumber)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto controlState = GetControlState();
+        if (controlState != EPeerState::Following) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot manipulate peer's changelog in %Qlv state",
+                controlState);
+        }
+
+        auto epochContext = ControlEpochContext_;
+        if (!epochContext->Frozen) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Peer is not frozen");
+        }
+
+        WaitFor(epochContext->FollowerCommitter->TruncateChangelog(lastSequenceNumber))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Changelog truncated (LastSequenceNumber: %v, EpochId: %v, Term: %v)",
+            lastSequenceNumber,
+            epochContext->EpochId,
+            epochContext->Term);
+
+        auto error = TError("Changelog truncated");
+        ScheduleRestart(ControlEpochContext_, error);
     }
 
     std::pair<int, int> ComputeQuorumLatestSnapshotId()

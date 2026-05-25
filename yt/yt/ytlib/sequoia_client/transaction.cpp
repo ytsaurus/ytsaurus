@@ -41,6 +41,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/random.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -60,6 +61,8 @@ using namespace NTransactionClient;
 using namespace NYPath;
 
 using NNative::IClientPtr;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,6 +213,42 @@ public:
         return cellTags;
     }
 
+    void AddBarrierTags(const std::vector<std::string>& tags) override
+    {
+        auto guard = Guard(Lock_);
+
+        UniversalBarrierTags_.insert(
+            UniversalBarrierTags_.end(),
+            tags.begin(),
+            tags.end());
+    }
+
+    void AddBarrierTags(TCellTag cellTag, const std::vector<std::string>& tags) override
+    {
+        auto guard = Guard(Lock_);
+
+        auto& existingTags = GetOrCreateMasterCellCommitSession(cellTag)->BarrierTags;
+        existingTags.insert(existingTags.end(), tags.begin(), tags.end());
+    }
+
+    void AddStrongOrderingTags(const std::vector<std::string>& tags) override
+    {
+        auto guard = Guard(Lock_);
+
+        UniversalStrongOrderingTags_.insert(
+            UniversalStrongOrderingTags_.end(),
+            tags.begin(),
+            tags.end());
+    }
+
+    void AddStrongOrderingTags(TCellTag cellTag, const std::vector<std::string>& tags) override
+    {
+        auto guard = Guard(Lock_);
+
+        auto& existingTags = GetOrCreateMasterCellCommitSession(cellTag)->StrongOrderingTags;
+        existingTags.insert(existingTags.end(), tags.begin(), tags.end());
+    }
+
     bool CouldGenerateId(NObjectClient::TObjectId id) const noexcept override
     {
         return IsSequoiaId(id) && GetStartTimestamp() == TimestampFromId(id);
@@ -232,13 +271,22 @@ public:
                 .AsyncVia(SerializedInvoker_));
     }
 
-    TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) override
+    TFuture<void> Commit(NApi::TTransactionCommitOptions options) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(!CommitStarted_.exchange(true));
 
         SortRequests();
+
+        YT_LOG_ALERT_AND_THROW_UNLESS(
+            options.StrongOrderingTags.empty(),
+            "Commit options have non-empty strong ordering tags "
+            "(TransactiondId: %v, StrongOrderingTags: %v)",
+            Transaction_->GetId(),
+            options.StrongOrderingTags);
+
+        options.StrongOrderingTags = ComputeStrongOrderingTags();
 
         return
             BIND(&TSequoiaTransaction::ResolveRequests, MakeStrong(this))
@@ -470,6 +518,10 @@ private:
 
     TTransactionStartOptions StartOptions_;
 
+    // Used to send tags to all participants.
+    std::vector<std::string> UniversalBarrierTags_ = {};
+    std::vector<std::string> UniversalStrongOrderingTags_ = {};
+
     std::unique_ptr<TRandomGenerator> RandomGenerator_;
 
     struct TSequoiaTransactionTag
@@ -490,6 +542,9 @@ private:
         THashSet<TTabletCellId> TabletCellIds;
 
         TWriteSet WriteSet;
+
+        std::vector<std::string> BarrierTags = {};
+        std::vector<std::string> StrongOrderingTags = {};
     };
     using TMasterCellCommitSessionPtr = TIntrusivePtr<TMasterCellCommitSession>;
 
@@ -519,6 +574,30 @@ private:
     THashMap<std::pair<TTabletId, bool>, ITabletCommitSessionPtr> TabletCommitSessions_;
 
     ICellCommitSessionProviderPtr CellCommitSessionProvider_;
+
+    TStrongOrderingTagsMap ComputeStrongOrderingTags()
+    {
+        TStrongOrderingTagsMap resultingMap;
+        const auto& authenticatedNativeConnection = AuthenticatedLocalClient_->GetNativeConnection();
+        // This is a bit of a hack, but there is no easier way to get
+        // the full list of transaction participants.
+        for (const auto& [cellTag, commitSession] : MasterCellCommitSessions_) {
+            auto cellId = authenticatedNativeConnection->GetMasterCellId(cellTag);
+            if (!commitSession->StrongOrderingTags.empty()) {
+                resultingMap[cellId] = commitSession->StrongOrderingTags;
+            }
+
+            if (!UniversalBarrierTags_.empty()) {
+                auto& existingTags = resultingMap[cellId];
+                existingTags.insert(
+                    existingTags.end(),
+                    UniversalStrongOrderingTags_.begin(),
+                    UniversalStrongOrderingTags_.end());
+            }
+        }
+
+        return resultingMap;
+    }
 
     TMasterCellCommitSessionPtr GetOrCreateMasterCellCommitSession(TCellTag cellTag)
     {
@@ -589,7 +668,8 @@ private:
         CellCommitSessionProvider_ = CreateCellCommitSessionProvider(
             CreateRegisterTransactionActionsRequestFactory(GroundClient_, Logger),
             MakeWeak(Transaction_),
-            Logger);
+            Logger,
+            /*useUniformPrepareSignatures*/ false);
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
@@ -907,6 +987,18 @@ private:
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
             ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
             req->set_suppress_strongly_ordered_transaction_barrier(SequoiaTransactionOptions_.SuppressStronglyOrderedTransactionBarrier);
+
+            if (!UniversalBarrierTags_.empty()) {
+                auto& existingTags = session->BarrierTags;
+                existingTags.insert(
+                    existingTags.end(),
+                    UniversalBarrierTags_.begin(),
+                    UniversalBarrierTags_.end());
+            }
+
+            if (!session->BarrierTags.empty()) {
+                ToProto(req->mutable_barrier_tags(), session->BarrierTags);
+            }
 
             futures.push_back(req->Invoke().AsVoid());
         }

@@ -52,11 +52,13 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ExecNodeLogger;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
+namespace {
+
+i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
     i64 result = 0;
     for (const auto& location : layerLocations) {
@@ -65,9 +67,11 @@ static i64 GetCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
     return result;
 }
 
+} // namespace anonymous
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TLayerLocationPtr DoPickLocation(
+TLayerLocationPtr PickLocation(
     const std::vector<TLayerLocationPtr>& locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter)
 {
@@ -313,7 +317,6 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
         .As<IVolumePtr>();
 }
 
-//! This method creates RW NBD volumes.
 TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
@@ -410,6 +413,26 @@ void TNbdVolumeFactory::ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVol
 void TNbdVolumeFactory::ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions&)
 { }
 
+template <typename TNbdVolume>
+static TNbdVolumeFactory::TVolumeFactory MakeVolumeFactory()
+{
+    return BIND(
+        [] (
+            NProfiling::TTagSet tagSet,
+            TVolumeMeta volumeMeta,
+            TLayerLocationPtr layerLocation,
+            TString nbdDeviceId,
+            INbdServerPtr nbdServer) -> IVolumePtr {
+
+        return New<TNbdVolume>(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(layerLocation),
+            std::move(nbdDeviceId),
+            std::move(nbdServer));
+    });
+}
+
 TNbdVolumeFactory::TInsertCookie TNbdVolumeFactory::GetInsertCookie(const TString& deviceId, const INbdServerPtr& nbdServer)
 {
     auto guard = TGuard(InsertLock_);
@@ -496,10 +519,9 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::InitializeNbdDevice(
                     YT_UNUSED_FUTURE(device->Finalize());
                     THROW_ERROR_EXCEPTION("Failed to initialize NBD device")
                         << error;
-                } else {
-                    YT_LOG_DEBUG("Initialized NBD device");
-                    return device;
                 }
+                YT_LOG_DEBUG("Initialized NBD device");
+                return device;
             })
             .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()))
         .ToUncancelable();
@@ -744,6 +766,17 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
             options.MediumIndex,
             options.Filesystem);
 
+    auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
+    if (!nbdConfig || !nbdConfig->Enabled || !nbdConfig->ReadWriteEnabled) {
+        auto error = TError("RW Nbd disks are disabled")
+            << TErrorAttribute("device_id", options.DeviceId)
+            << TErrorAttribute("job_id", options.JobId)
+            << TErrorAttribute("size", options.Size);
+
+        YT_LOG_ERROR(error, "Failed to create RW NBD volume");
+        return MakeFuture<IBlockDevicePtr>(std::move(error));
+    }
+
     auto config = New<TChunkBlockDeviceConfig>();
     config->Size = options.Size;
     config->MediumIndex = options.MediumIndex;
@@ -925,34 +958,34 @@ TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionI
         options.Filesystem,
         options.DeviceId);
 
-        return FindDataNodesWithMedium(sessionId, options)
-            .Apply(BIND(
-                [
-                    this,
-                    this_ = MakeStrong(this),
+    return FindDataNodesWithMedium(sessionId, options)
+        .Apply(BIND(
+            [
+                this,
+                this_ = MakeStrong(this),
+                sessionId,
+                options
+            ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+                auto dataNodeAddresses = rspOrError.Value();
+                if (dataNodeAddresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
+                        << TErrorAttribute("medium_index", options.MediumIndex)
+                        << TErrorAttribute("size", options.Size)
+                        << TErrorAttribute("fs_type", options.Filesystem);
+                }
+
+                return BIND(
+                    &TNbdVolumeFactory::TryOpenNbdSession,
+                    MakeStrong(this),
                     sessionId,
-                    options
-                ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-
-                    auto dataNodeAddresses = rspOrError.Value();
-                    if (dataNodeAddresses.empty()) {
-                        THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
-                            << TErrorAttribute("medium_index", options.MediumIndex)
-                            << TErrorAttribute("size", options.Size)
-                            << TErrorAttribute("fs_type", options.Filesystem);
-                    }
-
-                    return BIND(
-                        &TNbdVolumeFactory::TryOpenNbdSession,
-                        MakeStrong(this),
-                        sessionId,
-                        Passed(std::move(dataNodeAddresses)),
-                        options)
-                    .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker())
-                    .Run();
-                })
-                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()));
+                    Passed(std::move(dataNodeAddresses)),
+                    options)
+                .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker())
+                .Run();
+            })
+            .AsyncVia(Bootstrap_->GetNbdServer()->GetInvoker()));
 }
 
 DEFINE_REFCOUNTED_TYPE(TNbdVolumeFactory)
@@ -1064,14 +1097,14 @@ bool TLayerCache::IsEnabled() const
 
 TLayerLocationPtr TLayerCache::PickVolumeLocation() const
 {
-    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+    return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         return candidate->GetVolumeCount() < current->GetVolumeCount();
     });
 }
 
 TLayerLocationPtr TLayerCache::PickRandomLocation() const
 {
-    // Separate locations into non-importing and importing
+    // Separate locations into non-importing and importing.
     std::vector<TLayerLocationPtr> nonImportingLocations;
     std::vector<TLayerLocationPtr> importingLocations;
 
@@ -1087,13 +1120,13 @@ TLayerLocationPtr TLayerCache::PickRandomLocation() const
         }
     }
 
-    // Prefer non-importing locations, pick randomly from them
+    // Prefer non-importing locations, pick randomly from them.
     if (!nonImportingLocations.empty()) {
         auto index = RandomNumber<size_t>(nonImportingLocations.size());
         return nonImportingLocations[index];
     }
 
-    // If all are importing, pick randomly from importing locations
+    // If all are importing, pick randomly from importing locations.
     if (!importingLocations.empty()) {
         auto index = RandomNumber<size_t>(importingLocations.size());
         return importingLocations[index];
@@ -1391,7 +1424,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
 
 TLayerLocationPtr TLayerCache::PickLayerLocation() const
 {
-    return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+    return PickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
         if (!candidate->IsLayerImportInProgress() && current->IsLayerImportInProgress()) {
             // Always prefer candidate which is not doing import right now.
             return true;
@@ -1417,8 +1450,6 @@ void TLayerCache::OnProfiling()
         ProfileLocation(location);
     }
 }
-
-DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

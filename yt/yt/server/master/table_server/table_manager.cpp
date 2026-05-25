@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -229,6 +230,9 @@ public:
                 chunkOwner->GetId(),
                 request);
 
+            // NB: Mixing statistics update requests with and without CAS might
+            // lead to some unexpected results, because the resulting request
+            // will use CAS.
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
             statistics |= request;
 

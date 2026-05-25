@@ -14,14 +14,17 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/core/tx/columnshard/engines/scheme
     contrib/ydb/core/formats/arrow/accessor/dictionary
     contrib/ydb/core/formats/arrow/accessor/plain
     contrib/ydb/core/formats/arrow/accessor/sub_columns
-    yql/essentials/minikql
+    contrib/ydb/core/tx/columnshard/engines/reader/tracing
+    contrib/ydb/core/tx/columnshard/engines/scheme
+    contrib/ydb/core/tx/columnshard/engines/storage/indexes/skip_index
     contrib/ydb/core/util/evlog
+    yql/essentials/minikql
 )
 
 GENERATE_ENUM_SERIALIZATION(source.h)
+YQL_LAST_ABI_VERSION()
 
 END()

@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, generate_uuid, link)
+    raises_yt_error, generate_uuid, link, make_ace)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -45,7 +45,6 @@ def with_portals_dir(func):
 
 # NB: CheckInvariants() complexity is at least O(|Cypress nodes|) which is too
 # slow in this case.
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -73,7 +72,6 @@ class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
         assert not exists(f"#{tx1}")
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -348,11 +346,6 @@ class TestMasterTransactions(YTEnvSetup):
             assert len(locked_node_ids) == 2
             assert_items_equal(locked_node_ids["13"], [table_id, portal_exit_id])
             assert locked_node_ids[tx_cell_tag] == []
-
-            staged_node_ids = get("#" + tx + "/@staged_node_ids")
-            assert len(staged_node_ids) == 2
-            assert_items_equal(staged_node_ids["13"], [table_id])
-            assert staged_node_ids[tx_cell_tag] == []
 
             assert len(get("#" + tx + "/@lock_ids/13")) == 2
 
@@ -699,7 +692,6 @@ class TestMasterTransactions(YTEnvSetup):
         sleep(3.0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -784,7 +776,6 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
         self._assert_native_content_revision_matches("//portals/p/t_copy_tx")
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -798,6 +789,16 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         "14": {"roles": ["transaction_coordinator"]},
         "15": {"roles": ["transaction_coordinator"]},
     }
+
+    @authors("kvk1920")
+    def test_transaction_permission_on_participant(self):
+        create_user("cannot_abort_tx")
+        tx = start_transaction(replicate_to_master_cell_tags=[11], authenticated_user="cannot_abort_tx")
+        set(
+            f"//sys/foreign_transactions/{tx}/@acl",
+            [make_ace("deny", "cannot_abort_tx", "write")],
+            driver=get_driver(1))
+        abort_transaction(tx, authenticated_user="cannot_abort_tx")
 
     @authors("kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
@@ -985,7 +986,6 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1078,7 +1078,6 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1088,7 +1087,6 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressTransactionExternalization(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = False
@@ -1210,7 +1208,6 @@ class TestCypressTransactionExternalization(YTEnvSetup):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestCypressTransactionExternalizationMirroredTx(TestCypressTransactionExternalization):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

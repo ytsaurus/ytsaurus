@@ -28,6 +28,7 @@ add_subdirectory(url_lister)
 add_subdirectory(credentials)
 add_subdirectory(url_preprocessing)
 add_subdirectory(cbo)
+add_subdirectory(qplayer)
 add_subdirectory(file_storage)
 add_subdirectory(layers)
 add_subdirectory(minsketch)
@@ -74,6 +75,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   essentials-utils-log
   essentials-core-expr_nodes
   providers-common-proto
+  essentials-minikql-runtime_settings
   tools-enum_parser-enum_serialization_runtime
 )
 
@@ -118,6 +120,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frame_settings_pg.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_sqlselect.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_callable_transform.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_data_provider.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_default_valid_value.h

@@ -586,7 +586,7 @@ TError CheckOperationAccessByAco(
         operationId,
         jobId,
         permissionSet,
-        acl,
+        std::move(acl),
         client,
         logger);
 }
@@ -596,7 +596,7 @@ TError CheckOperationAccessByAcl(
     TOperationId operationId,
     TJobId jobId,
     EPermissionSet permissionSet,
-    const TSerializableAccessControlList& acl,
+    TSerializableAccessControlList acl,
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {
@@ -611,19 +611,15 @@ TError CheckOperationAccessByAcl(
         Logger.AddTag("JobId: %v", jobId);
     }
 
-    INodePtr aclNode;
-
     if (checkBaseAco) {
         const auto& baseAcoPrincipalAcl = GetAclFromAcoName(client, client->GetNativeConnection()->GetConfig()->OperationBaseAcoName);
-        auto finalAcl = acl;
-        finalAcl.Entries.insert(
-            finalAcl.Entries.end(),
+        acl.Entries.insert(
+            acl.Entries.end(),
             baseAcoPrincipalAcl.Entries.begin(),
             baseAcoPrincipalAcl.Entries.end());
-        aclNode = ConvertToNode(std::move(finalAcl));
-    } else {
-        aclNode = ConvertToNode(acl);
     }
+
+    auto aclNode = ConvertToNode(acl);
 
     TCheckPermissionByAclOptions options;
     options.IgnoreMissingSubjects = true;
@@ -650,7 +646,7 @@ TError CheckOperationAccessByAcl(
         jobId,
         permissionSet,
         results,
-        TAccessControlRule(acl),
+        TAccessControlRule(std::move(acl)),
         logger);
 }
 
@@ -986,6 +982,7 @@ void ToProto(NControllerAgent::NProto::TVolume* volumeProto, const TVolume& volu
             YT_ABORT();
         }
     }
+    volumeProto->set_allow_reusing(volume.AllowReusing);
 }
 
 void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeProto)
@@ -993,7 +990,7 @@ void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeP
     using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
     switch (volumeProto.disk_request_case()) {
         case TProtoMessage::kLocalDiskRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
+            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
             FromProto(
                 &(*volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()),
                 volumeProto.local_disk_request());
@@ -1013,6 +1010,7 @@ void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeP
         case TProtoMessage::DISK_REQUEST_NOT_SET:
             YT_ABORT();
     }
+    volume->AllowReusing = volumeProto.allow_reusing();
 }
 
 void FromProto(
@@ -1054,8 +1052,8 @@ void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TDeprecat
             *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
             FromProto(&(*diskRequestConfig->TryGetConcrete<TNbdDiskRequest>()), protoDiskRequestConfig);
             break;
-        case NExecNode::EVolumeType::Local:
-            *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::Local);
+        case NExecNode::EVolumeType::LocalDisk:
+            *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
             FromProto(&(*diskRequestConfig->TryGetConcrete<TLocalDiskRequest>()), protoDiskRequestConfig);
             break;
         case NExecNode::EVolumeType::Tmpfs:
@@ -1069,7 +1067,7 @@ void ToProto(NProto::TDeprecatedDiskRequest* protoDiskRequest, const TStorageReq
         protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Nbd));
         ToProto(protoDiskRequest, *nbdDiskRequest);
     } else if (auto localDiskRequest = diskRequestConfig.TryGetConcrete<TLocalDiskRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Local));
+        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::LocalDisk));
         ToProto(protoDiskRequest, *localDiskRequest);
     } else if (auto tmpfsDiskRequest = diskRequestConfig.TryGetConcrete<TTmpfsStorageRequest>()) {
         protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Tmpfs));

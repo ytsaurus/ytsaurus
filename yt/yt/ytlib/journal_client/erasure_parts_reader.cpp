@@ -63,29 +63,36 @@ public:
             Reader_->PartIndices_);
 
         const auto& chunkReaders = Reader_->ChunkReaders_;
-        Replicas_.reserve(chunkReaders.size());
         for (const auto& reader : chunkReaders) {
-            int replicaIndex = DecodeChunkId(reader->GetChunkId()).ReplicaIndex;
-            EmplaceOrCrash(
-                Replicas_,
-                replicaIndex,
-                TReplica{.Reader = reader,});
-        }
+            int partIndex = DecodeChunkId(reader->GetChunkId()).ReplicaIndex;
 
-        for (auto& [partIndex, replica] : Replicas_) {
-            YT_LOG_DEBUG("Requesting replica meta (PartIndex: %v)",
-                partIndex);
-            ++OutstandingReplicaCount_;
-            replica.MetaFuture = replica.Reader->GetMeta(IChunkReader::TGetMetaOptions{
-                .ClientOptions = Options_,
+            auto& partSession = PartSessions_[partIndex];
+            partSession.PartIndex = partIndex;
+            partSession.ReplicaSessions.push_back(TPartReadingSession::TReplicaSession{
+                .Reader = reader,
             });
         }
 
-        // NB: Only subscribe to futures once all data members are ready.
-        for (const auto& [partIndex, replica] : Replicas_) {
-            replica.MetaFuture.Subscribe(
-                BIND(&TReadRowsSession::OnGotReplicaMeta, MakeStrong(this), partIndex)
-                    .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        for (auto& [partIndex, partSession] : PartSessions_) {
+            YT_LOG_DEBUG("Requesting part meta (PartIndex: %v, ReplicaCount: %v)",
+                partIndex,
+                partSession.ReplicaSessions.size());
+
+            for (auto& replicaSession : partSession.ReplicaSessions) {
+                replicaSession.MetaFuture = replicaSession.Reader->GetMeta(IChunkReader::TGetMetaOptions{
+                    .ClientOptions = Options_,
+                });
+            }
+        }
+
+        // NB: Only subscribe to futures once all meta requests are initialized.
+        for (auto& [partIndex, partSession] : PartSessions_) {
+            for (int replicaIndex = 0; replicaIndex < std::ssize(partSession.ReplicaSessions); ++replicaIndex) {
+                auto& replicaSession = partSession.ReplicaSessions[replicaIndex];
+                replicaSession.MetaFuture.Subscribe(
+                    BIND(&TReadRowsSession::OnGotMetaFromReplica, MakeStrong(this), partIndex, replicaIndex)
+                        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
         }
 
         Promise_.OnCanceled(
@@ -104,24 +111,123 @@ private:
 
     const TPromise<std::vector<std::vector<TSharedRef>>> Promise_ = NewPromise<std::vector<std::vector<TSharedRef>>>();
 
-    int OutstandingReplicaCount_ = 0;
     bool Finished_ = false;
 
-    struct TReplica
+    struct TPartReadingSession
     {
-        IChunkReaderPtr Reader;
-        TFuture<TRefCountedChunkMetaPtr> MetaFuture;
-        TFuture<std::vector<TBlock>> DataFuture;
+        struct TReplicaSession
+        {
+            const IChunkReaderPtr Reader;
+
+            TFuture<TRefCountedChunkMetaPtr> MetaFuture;
+            bool GotMetaResponse = false;
+
+            int RowCount = 0;
+            bool Sealed = false;
+            i64 DataSize = 0;
+            int ReplicaReadRowCount = 0;
+
+            TFuture<std::vector<TBlock>> DataFuture;
+
+
+            bool IsEligibleForRequestingData() const
+            {
+                if (DataFuture) {
+                    return false;
+                }
+
+                if (!GotMetaResponse) {
+                    return false;
+                }
+
+                if (ReplicaReadRowCount <= 0) {
+                    return false;
+                }
+
+                return true;
+            }
+        };
+
+        int PartIndex = -1;
+
+        bool Finished = false;
+
+        // NB: We distinguish replica readers of each part because replicas are not necessarily identical.
+        // It may happen e.g. due to repair job being stuck or failed, leaving an (unsealed) unfinished replica.
+        std::vector<TReplicaSession> ReplicaSessions;
+
+        bool HasPendingDataRequest = false;
         std::optional<std::vector<TBlock>> Data;
-        int RowCount = 0;
-        i64 DataSize = 0;
+
+
+        std::optional<int> GetReplicaToReadDataFrom() const
+        {
+            // NB: No need to do more reads - even partial data is enough.
+            if (Data) {
+                return std::nullopt;
+            }
+
+            // NB: Do not run simultaneous data requests to part replicas.
+            if (HasPendingDataRequest) {
+                return std::nullopt;
+            }
+
+            for (int replicaIndex = 0; replicaIndex < std::ssize(ReplicaSessions); ++replicaIndex) {
+                const auto& replicaSession = ReplicaSessions[replicaIndex];
+                if (replicaSession.IsEligibleForRequestingData()) {
+                    return replicaIndex;
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        bool IsFinished() const
+        {
+            if (Data) {
+                return true;
+            }
+
+            if (HasPendingDataRequest) {
+                return false;
+            }
+
+            for (int replicaIndex = 0; replicaIndex < std::ssize(ReplicaSessions); ++replicaIndex) {
+                const auto& replicaSession = ReplicaSessions[replicaIndex];
+
+                YT_VERIFY(replicaSession.MetaFuture);
+                if (!replicaSession.MetaFuture.IsSet()) {
+                    return false;
+                }
+
+                if (replicaSession.IsEligibleForRequestingData()) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     };
 
-    std::unordered_map<int, TReplica> Replicas_;
+    std::unordered_map<int, TPartReadingSession> PartSessions_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    void OnGotReplicaMeta(int partIndex, const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+
+    void TryScheduleNextRead(TGuard<NThreading::TSpinLock>&& guard, int partIndex)
+    {
+        const auto& partSession = GetOrCrash(PartSessions_, partIndex);
+        if (partSession.IsFinished()) {
+            OnPartSessionFinished(partIndex, std::move(guard));
+        } else if (auto replicaIndex = partSession.GetReplicaToReadDataFrom()) {
+            ReadDataFromReplica(partIndex, *replicaIndex);
+        }
+
+        // NB: In case none of the branches above is true we will just keep waiting
+        // for some other inflight (meta or data) requests to finish.
+    }
+
+    void OnGotMetaFromReplica(int partIndex, int replicaIndex, const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto guard = Guard(Lock_);
 
@@ -129,52 +235,101 @@ private:
             return;
         }
 
+        ProcceesReplicaMetaResult(
+            partIndex,
+            replicaIndex,
+            metaOrError);
+
+        TryScheduleNextRead(std::move(guard), partIndex);
+    }
+
+    void ProcceesReplicaMetaResult(
+        int partIndex,
+        int replicaIndex,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        auto& partSession = GetOrCrash(PartSessions_, partIndex);
+        auto& replicaSession = partSession.ReplicaSessions[replicaIndex];
+
+        replicaSession.GotMetaResponse = true;
+
         if (!metaOrError.IsOK()) {
-            YT_LOG_WARNING(metaOrError, "Error requesting replica meta (PartIndex: %v)",
-                partIndex);
-            OnReplicaFinished(std::move(guard));
+            YT_LOG_WARNING(metaOrError, "Error requesting replica meta (PartIndex: %v, ReplicaIndex: %v)",
+                partIndex,
+                replicaIndex);
             return;
         }
 
         const auto& meta = metaOrError.Value();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
 
-        auto& replica = GetOrCrash(Replicas_, partIndex);
-        replica.RowCount = miscExt.row_count();
-        replica.DataSize = miscExt.uncompressed_data_size();
+        replicaSession.RowCount = miscExt.row_count();
+        replicaSession.Sealed = miscExt.sealed();
+        replicaSession.DataSize = miscExt.uncompressed_data_size();
+        replicaSession.ReplicaReadRowCount = std::min(ReadRowCount_, replicaSession.RowCount - FirstRowIndex_);
 
-        YT_LOG_DEBUG("Got replica meta (PartIndex: %v, RowCount: %v, DataSize: %v)",
+        YT_LOG_DEBUG("Got replica meta "
+            "(PartIndex: %v, ReplicaIndex: %v, RowCount: %v, DataSize: %v, ReplicaReadRowCount: %v, Sealed: %v)",
             partIndex,
-            replica.RowCount,
-            replica.DataSize);
+            replicaIndex,
+            replicaSession.RowCount,
+            replicaSession.DataSize,
+            replicaSession.ReplicaReadRowCount,
+            replicaSession.Sealed);
 
-        auto replicaReadRowCount = std::min(ReadRowCount_, replica.RowCount - FirstRowIndex_);
-        if (replicaReadRowCount <= 0) {
-            YT_LOG_DEBUG("Replica has no relevant rows (PartIndex: %v)",
-                partIndex);
-            OnReplicaFinished(std::move(guard));
+        if (replicaSession.ReplicaReadRowCount <= 0) {
+            YT_LOG_DEBUG("Replica has no relevant rows (PartIndex: %v, ReplicaIndex: %v)",
+                partIndex,
+                replicaIndex);
             return;
         }
 
-        i64 estimatedReplicaReadSize = static_cast<i64>(replicaReadRowCount * replica.DataSize / replica.RowCount + 1);
-        YT_LOG_DEBUG("Requesting data from replica (PartIndex: %v, FirstRowIndex: %v, ReadRowCount: %v, EstimatedReadSize: %v)",
+        if (!replicaSession.Sealed) {
+            YT_LOG_DEBUG("Replica has not been sealed yet (PartIndex: %v, ReplicaIndex: %v)",
+                partIndex,
+                replicaIndex);
+            return;
+        }
+    }
+
+    void ReadDataFromReplica(
+        int partIndex,
+        int replicaIndex)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        auto& partSession = GetOrCrash(PartSessions_, partIndex);
+        auto& replicaSession = partSession.ReplicaSessions[replicaIndex];
+
+        i64 estimatedReplicaReadSize = static_cast<i64>(
+            replicaSession.ReplicaReadRowCount * replicaSession.DataSize / replicaSession.RowCount + 1);
+
+        YT_LOG_DEBUG("Requesting data from replica "
+            "(PartIndex: %v, ReplicaIndex: %v, FirstRowIndex: %v, ReadRowCount: %v, EstimatedReadSize: %v)",
             partIndex,
+            replicaIndex,
             FirstRowIndex_,
-            replicaReadRowCount,
+            replicaSession.ReplicaReadRowCount,
             estimatedReplicaReadSize);
-        replica.DataFuture = replica.Reader->ReadBlocks(
+
+        YT_VERIFY(!std::exchange(partSession.HasPendingDataRequest, true));
+
+        replicaSession.DataFuture = replicaSession.Reader->ReadBlocks(
             IChunkReader::TReadBlocksOptions{
                 .ClientOptions = Options_,
                 .EstimatedSize = estimatedReplicaReadSize,
             },
             FirstRowIndex_,
-            replicaReadRowCount);
-        replica.DataFuture.AsUnique().Subscribe(
-            BIND(&TReadRowsSession::OnGotReplicaData, MakeStrong(this), partIndex)
+            replicaSession.ReplicaReadRowCount);
+
+        replicaSession.DataFuture.Subscribe(
+            BIND(&TReadRowsSession::OnGotDataFromReplica, MakeStrong(this), partIndex, replicaIndex)
                 .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    void OnGotReplicaData(int partIndex, TErrorOr<std::vector<TBlock>>&& dataOrError)
+    void OnGotDataFromReplica(int partIndex, int replicaIndex, const TErrorOr<std::vector<TBlock>>& dataOrError)
     {
         auto guard = Guard(Lock_);
 
@@ -182,100 +337,125 @@ private:
             return;
         }
 
-        if (!dataOrError.IsOK()) {
-            YT_LOG_WARNING(dataOrError, "Error requesting replica data (PartIndex: %v)",
-                partIndex);
-            OnReplicaFinished(std::move(guard));
-            return;
-        }
-
-        const auto& data = dataOrError.Value();
-        int readRowCount = data.size();
-        auto& replica = GetOrCrash(Replicas_, partIndex);
-
-        YT_LOG_DEBUG("Got replica data (PartIndex: %v, ReadRowCount: %v)",
+        ProcceesReplicaDataResult(
             partIndex,
-            readRowCount);
+            replicaIndex,
+            dataOrError);
 
-        replica.Data = std::move(data);
-
-        if (CanComplete(ReadRowCount_)) {
-            YT_LOG_DEBUG("Erasure rows read session will complete with full read");
-            Complete(std::move(guard), ReadRowCount_);
+        if (auto completedRowCount = ComputeCompletedRowCount()) {
+            Complete(std::move(guard), *completedRowCount);
             return;
         }
 
-        // NB: Assume that incomplete response is caused by some read limits on data node and is still significant enough.
-        // Throttling is accounted by comparing with null.
-        if (readRowCount > 0 && readRowCount < replica.RowCount && CanComplete(readRowCount)) {
-            YT_LOG_DEBUG("Erasure rows read session will early complete with partial read (RowCount: %v)",
-                readRowCount);
-            Complete(std::move(guard), readRowCount);
-            return;
-        }
-
-        OnReplicaFinished(std::move(guard));
+        TryScheduleNextRead(std::move(guard), partIndex);
     }
 
+    void ProcceesReplicaDataResult(int partIndex, int replicaIndex, const TErrorOr<std::vector<TBlock>>& dataOrError)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
-    std::vector<i64> GetCandidateReadRowCounts()
+        auto& partSession = GetOrCrash(PartSessions_, partIndex);
+
+        YT_VERIFY(std::exchange(partSession.HasPendingDataRequest, false));
+
+        if (!dataOrError.IsOK()) {
+            YT_LOG_WARNING(dataOrError, "Error requesting replica data (PartIndex: %v, ReplicaIndex: %v)",
+                partIndex,
+                replicaIndex);
+            return;
+        }
+
+        auto data = dataOrError.Value();
+        int readRowCount = data.size();
+
+        YT_LOG_DEBUG("Got replica data (PartIndex: %v, ReplicaIndex: %v, ReadRowCount: %v)",
+            partIndex,
+            replicaIndex,
+            readRowCount);
+
+        YT_VERIFY(!partSession.Data);
+        YT_VERIFY(readRowCount > 0);
+
+        partSession.Data = std::move(data);
+    }
+
+    void OnPartSessionFinished(int partIndex, TGuard<NThreading::TSpinLock>&& guard)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        auto& partSession = GetOrCrash(PartSessions_, partIndex);
+        partSession.Finished = true;
+
+        if (auto completedRowCount = ComputeCompletedRowCount()) {
+            Complete(std::move(guard), *completedRowCount);
+            return;
+        }
+
+        auto finishedPartCount = std::ranges::count_if(
+            PartSessions_,
+            [] (const auto& it) { return it.second.Finished; });
+        if (finishedPartCount == std::ssize(PartSessions_)) {
+            Fail(std::move(guard));
+        }
+    }
+
+    std::optional<int> ComputeCompletedRowCount() const
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+        if (CanComplete(ReadRowCount_)) {
+            return ReadRowCount_;
+        }
+
+        // Try candidates in decreasing order.
+        for (auto rowCount : GetCandidateReadRowCounts()) {
+            if (CanComplete(rowCount)) {
+                return rowCount;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    std::vector<i64> GetCandidateReadRowCounts() const
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         std::vector<i64> result;
-        for (const auto& [_, replica] : Replicas_) {
-            if (replica.Data) {
-                result.push_back(std::ssize(*replica.Data));
+        for (const auto& [_, partSession] : PartSessions_) {
+            if (partSession.Data && !partSession.Data->empty()) {
+                result.push_back(std::ssize(*partSession.Data));
             }
         }
         SortUnique(result, std::greater<>());
         return result;
     }
 
-    void OnReplicaFinished(TGuard<NThreading::TSpinLock>&& guard)
-    {
-        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
-
-        if (--OutstandingReplicaCount_ > 0) {
-            return;
-        }
-
-        // Try candidates in decreasing order.
-        for (auto rowCount : GetCandidateReadRowCounts()) {
-            if (CanComplete(rowCount)) {
-                YT_LOG_DEBUG("Erasure rows read session will complete with partial read (RowCount: %v)",
-                    rowCount);
-                Complete(std::move(guard), rowCount);
-                return;
-            }
-        }
-
-        Fail(std::move(guard));
-    }
-
-
     std::vector<TSharedRef> GetDataFromReplica(int partIndex, i64 rowCount)
     {
         // NB: No need to hold the lock since the session is already finished.
         YT_VERIFY(Finished_);
 
-        const auto& replica = GetOrCrash(Replicas_, partIndex);
-        YT_VERIFY(replica.Data && std::ssize(*replica.Data) >= rowCount);
+        const auto& partSession = GetOrCrash(PartSessions_, partIndex);
+        YT_VERIFY(partSession.Data && std::ssize(*partSession.Data) >= rowCount);
 
         std::vector<TSharedRef> result;
         result.reserve(rowCount);
         for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            result.push_back((*replica.Data)[rowIndex].Data);
+            result.push_back((*partSession.Data)[rowIndex].Data);
         }
         return result;
     }
-
 
     void Complete(TGuard<NThreading::TSpinLock>&& guard, i64 rowCount)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_VERIFY(!std::exchange(Finished_, true));
+
+        YT_LOG_DEBUG("Erasure rows read session will complete (ReadRowCount: %v, RequestedRowCount: %v)",
+            rowCount,
+            ReadRowCount_);
 
         std::vector<std::vector<TSharedRef>> requestedRowLists;
         if (CanCompleteWithFastPath(rowCount)) {
@@ -288,15 +468,17 @@ private:
             auto availableIndices = GetAvailableIndices(rowCount);
             auto erasedIndices = GetErasedIndices(availableIndices);
             auto repairIndices = GetRepairIndices(erasedIndices);
-            auto fetchIndices = GetFetchIndices(erasedIndices, repairIndices);
 
             DoCancelFutures(std::move(guard));
 
-            YT_LOG_DEBUG("Started repairing rows");
+            YT_LOG_DEBUG("Started repairing rows "
+                "(AvailableIndices: %v, ErasedIndices: %v, RepairIndices: %v)",
+                availableIndices,
+                erasedIndices,
+                repairIndices);
 
             std::vector<std::vector<TSharedRef>> repairRowLists(repairIndices.size());
             for (int index = 0; index < std::ssize(repairIndices); ++index) {
-                YT_VERIFY(repairIndices[index] == fetchIndices[index]);
                 repairRowLists[index] = GetDataFromReplica(repairIndices[index], rowCount);
             }
 
@@ -337,7 +519,7 @@ private:
             << TErrorAttribute("chunk_id", Reader_->ChunkId_)
             << TErrorAttribute("required_indices", Reader_->PartIndices_)
             << TErrorAttribute("erased_indices", erasedIndices)
-            << TErrorAttribute("available_indices", GetAvailableIndices(0));
+            << TErrorAttribute("available_indices", availableIndices);
 
         DoCancelFutures(std::move(guard));
 
@@ -345,14 +527,13 @@ private:
         Promise_.Set(error);
     }
 
-
-    TPartIndexList GetAvailableIndices(i64 desiredRowCount)
+    TPartIndexList GetAvailableIndices(i64 desiredRowCount) const
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         NErasure::TPartIndexList result;
-        for (const auto& [partIndex, replica] : Replicas_) {
-            if (replica.Data && std::ssize(*replica.Data) >= desiredRowCount) {
+        for (const auto& [partIndex, partSession] : PartSessions_) {
+            if (partSession.Data && std::ssize(*partSession.Data) >= desiredRowCount) {
                 result.push_back(partIndex);
             }
         }
@@ -360,7 +541,7 @@ private:
         return result;
     }
 
-    TPartIndexList GetErasedIndices(const TPartIndexList& availableIndices)
+    TPartIndexList GetErasedIndices(const TPartIndexList& availableIndices) const
     {
         TPartIndexSet set;
         for (int index = 0; index < Reader_->Codec_->GetTotalPartCount(); ++index) {
@@ -381,53 +562,36 @@ private:
         return *repairIndices;
     }
 
-    TPartIndexList GetFetchIndices(const TPartIndexList& erasedIndices, const TPartIndexList& repairIndices)
-    {
-        TPartIndexList list;
-        // Repair indices must come first.
-        for (int index : repairIndices) {
-            list.push_back(index);
-        }
-        // The rest is parts requested by the client but not needed for repair.
-        for (int index : Reader_->PartIndices_) {
-            if (Find(list, index) == list.end() && Find(erasedIndices, index) == erasedIndices.end()) {
-                list.push_back(index);
-            }
-        }
-        return list;
-    }
-
-    bool CanCompleteWithFastPath(i64 desiredRowCount)
+    bool CanCompleteWithFastPath(i64 desiredRowCount) const
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         for (int partIndex : Reader_->PartIndices_) {
-            auto it = Replicas_.find(partIndex);
-            if (it == Replicas_.end()) {
+            auto it = PartSessions_.find(partIndex);
+            if (it == PartSessions_.end()) {
                 return false;
             }
-            const auto& replica = it->second;
-            if (!replica.Data || std::ssize(*replica.Data) < desiredRowCount) {
+            const auto& partSession = it->second;
+            if (!partSession.Data || std::ssize(*partSession.Data) < desiredRowCount) {
                 return false;
             }
         }
         return true;
     }
 
-    bool CanCompleteWithSlowPath(i64 desiredRowCount)
+    bool CanCompleteWithSlowPath(i64 desiredRowCount) const
     {
         auto availableIndices = GetAvailableIndices(desiredRowCount);
         auto erasedIndices = GetErasedIndices(availableIndices);
         return Reader_->Codec_->CanRepair(erasedIndices);
     }
 
-    bool CanComplete(i64 desiredRowCount)
+    bool CanComplete(i64 desiredRowCount) const
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         return CanCompleteWithFastPath(desiredRowCount) || CanCompleteWithSlowPath(desiredRowCount);
     }
-
 
     void OnSessionCanceled(const TError& error)
     {
@@ -445,12 +609,14 @@ private:
     void DoCancelFutures(TGuard<NThreading::TSpinLock>&& guard)
     {
         std::vector<TFuture<void>> futuresToCancel;
-        for (const auto& [_, replica] : Replicas_) {
-            if (replica.MetaFuture) {
-                futuresToCancel.push_back(replica.MetaFuture.AsVoid());
-            }
-            if (replica.DataFuture) {
-                futuresToCancel.push_back(replica.DataFuture.AsVoid());
+        for (const auto& [_, partSession] : PartSessions_) {
+            for (const auto& replicaSession : partSession.ReplicaSessions) {
+                if (replicaSession.MetaFuture) {
+                    futuresToCancel.push_back(replicaSession.MetaFuture.AsVoid());
+                }
+                if (replicaSession.DataFuture) {
+                    futuresToCancel.push_back(replicaSession.DataFuture.AsVoid());
+                }
             }
         }
 
@@ -495,4 +661,3 @@ TFuture<std::vector<std::vector<TSharedRef>>> TErasurePartsReader::ReadRows(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJournalClient
-

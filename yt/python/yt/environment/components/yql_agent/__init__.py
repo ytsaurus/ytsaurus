@@ -23,6 +23,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.subprocesses_count = None
         self.env = None
         self.remote_envs = []
+        self.enable_dq = False
 
     def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
@@ -34,6 +35,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self.config = config
         self.env = env
         self.remote_envs = remote_envs
+        self.enable_dq = config.get("enable_dq", False)
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
@@ -179,6 +181,45 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "libraries": self.libraries,
             },
         }
+
+        # Add DQ configuration if enabled
+        if self.enable_dq:
+            dq_vanilla_job = self._get_artifact_path("dq_vanilla_job")
+            dq_vanilla_job_lite = self._get_artifact_path("dq_vanilla_job.lite")
+
+            config["yql_agent"]["enable_dq"] = True
+            config["yql_agent"]["dq_gateway_config"] = {
+                "default_settings": [
+                    {"name": "EnableComputeActor", "value": "1"},
+                    {"name": "MemoryLimit", "value": "3G"},
+                ]
+            }
+            config["yql_agent"]["dq_manager_config"] = {
+                "interconnect_port": 31002,
+                "grpc_port": 31001,
+                "yt_backends": [
+                    {
+                        "cluster_name": self.env.get_http_proxy_address(),
+                        "vanilla_job_lite": dq_vanilla_job_lite,
+                        "vanilla_job_file": [
+                            {
+                                "name": "dq_vanilla_job",
+                                "local_path": dq_vanilla_job,
+                            }
+                        ],
+                        "token_file": self.token_path,
+                        "user": self.USER_NAME,
+                        "max_jobs": 1,
+                        "jobs_per_operation": 1,
+                    },
+                ],
+                "yt_coordinator": {
+                    "cluster_name": self.env.get_http_proxy_address(),
+                    "prefix": "//sys/yql_agent/dq_coord",
+                    "token_file": self.token_path,
+                    "user": self.USER_NAME,
+                },
+            }
 
         modify_yql_agent_config = self.config.get('modify_yql_agent_config')
         if modify_yql_agent_config is not None:

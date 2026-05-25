@@ -142,10 +142,10 @@ public:
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
         TableAttributesToFetch_ = TableAttributesToFetch;
-        auto schemeAttribute = Config_->EnableSchemaIdFetching
+        auto schemaAttribute = Config_->EnableSchemaIdFetching
             ? TableSchemaIdAttribute
             : TableSchemaAttribute;
-        TableAttributesToFetch_.push_back(schemeAttribute);
+        TableAttributesToFetch_.push_back(schemaAttribute);
 
         InitializeClients();
         InitializeCaches();
@@ -912,7 +912,7 @@ private:
             Config_->TableAttributeCache,
             TableAttributesToFetch_,
             Connection_,
-            ControlInvoker_,
+            FetcherInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/object_attribute_cache"));
 

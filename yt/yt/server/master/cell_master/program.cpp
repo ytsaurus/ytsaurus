@@ -233,7 +233,7 @@ private:
         DoNotOptimizeAway(bootstrap);
 
         if (IsDryRunMode()) {
-            NBus::TTcpDispatcher::Get()->DisableNetworking();
+            NBus::NTcp::TDispatcher::Get()->DisableNetworking();
 
             bootstrap->Initialize();
 

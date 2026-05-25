@@ -76,6 +76,35 @@ class TestP2P(YTEnvSetup):
     def peer_counter(self, peer, path):
         return profiler_factory().at_node(peer).counter(path)
 
+    @authors("achains")
+    def test_per_request_disable_p2p_prevents_peer_reads(self):
+        throttled = self.seed_counter("data_node/p2p/throttled_bytes")
+        distributed = self.seed_counter("data_node/p2p/distributed_bytes")
+        peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]
+
+        def read_with_p2p_disabled():
+            return read_table(
+                "//tmp/t",
+                table_reader={
+                    "fetch_from_peers": False,
+                })
+
+        for _ in range(10):
+            assert read_with_p2p_disabled() == [{"a": 1}]
+
+        time.sleep(2)
+
+        disabled_peer_hit = sum(c.get_delta() for c in peer_hit)
+        assert disabled_peer_hit == 0
+
+        for _ in range(6):
+            self.access_table()
+
+        wait(lambda: throttled.get_delta() > 0)
+        wait(lambda: distributed.get_delta() > 0)
+
+        wait(lambda: sum(c.get_delta() for c in peer_hit) > disabled_peer_hit)
+
     @authors("prime")
     def test_no_distribution(self):
         throttled = self.seed_counter("data_node/p2p/throttled_bytes")
@@ -95,12 +124,11 @@ class TestP2P(YTEnvSetup):
 
         for _ in range(6):
             self.access_table()
-        time.sleep(2)
 
         wait(lambda: throttled.get_delta() > 0)
         wait(lambda: distributed.get_delta() > 0)
 
-        assert sum(c.get_delta() for c in peer_hit) > 0
+        wait(lambda: sum(c.get_delta() for c in peer_hit) > 0)
 
     @authors("prime")
     def test_node_filter_tags(self):
@@ -248,23 +276,107 @@ class TestP2PWithoutNodeDirectorySynchronizer(YTEnvSetup):
         return profiler_factory().at_node(peer).counter(path)
 
     @authors("achains")
-    def test_p2p_distribution_without_node_directory_synchronizer(self):
+    def test_peer_reads_without_node_directory_synchronizer(self):
         throttled = self.seed_counter("data_node/p2p/throttled_bytes")
         distributed = self.seed_counter("data_node/p2p/distributed_bytes")
         peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]
 
-        # Reach hot_block_threshold, no P2P envolved yet
+        def check_distribution_started():
+            assert self.access_table() == [{"a": 1}]
+            return throttled.get_delta() > 0 and distributed.get_delta() > 0
+
+        wait(check_distribution_started)
+
+        def check_peer_hit():
+            assert self.access_table() == [{"a": 1}]
+            return sum(c.get_delta() for c in peer_hit) > 0
+
+        wait(check_peer_hit)
+
+
+class TestNodeDirectorySynchronizationOnTableRead(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 4
+    NUM_SCHEDULERS = 0
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "p2p_block_distributor": {
+                "enabled": False,
+            },
+            "p2p": {
+                "enabled": True,
+                "node_refresh_period": 1000,
+                "chunk_cooldown_timeout": 10000,
+                "hot_block_threshold": 3,
+                "second_hot_block_threshold": 3,
+                "node_tag_filter": "!tag42",
+                "snooper_cache_override": {},
+                "max_block_size": 128 * 1024 * 1024,
+            }
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "enable_node_directory_synchronization_on_table_read": True,
+    }
+
+    def setup_method(self):
+        self.write_table()
+
+        eligible_nodes = profiler_factory().at_node(self.seed).gauge("data_node/p2p/eligible_nodes")
+
+        def check():
+            count = eligible_nodes.get()
+            return count is not None and count > 0
+        wait(check)
+
+        # NB(achains): Do not create sync node directory unlike the TestP2P::setup_method
+        return
+
+    def teardown_method(self):
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{0}/@user_tags".format(node), [])
+
+    def write_table(self):
+        create("table", "//tmp/t", force=True)
+        set("//tmp/t/@replication_factor", 1)
+        write_table("//tmp/t", [{"a": 1}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        # Node that is the seed for the only existing chunk.
+        self.seed = str(get("#{0}/@stored_replicas/0".format(chunk_id)))
+        self.nodes = ls("//sys/cluster_nodes")
+        self.non_seeds = ls("//sys/cluster_nodes")
+        self.non_seeds.remove(self.seed)
+        assert len(self.non_seeds) == 3
+
+    def access_table(self):
+        return read_table("//tmp/t")
+
+    def seed_counter(self, path):
+        return profiler_factory().at_node(self.seed).counter(path)
+
+    def peer_counter(self, peer, path):
+        return profiler_factory().at_node(peer).counter(path)
+
+    @authors("achains")
+    def test_p2p_distribution_with_sync_on_table_read(self):
+        # Flag enable_node_directory_synchronization_on_table_read forces RecentSync on the first read, populating NodeDirectory
+        # so peer descriptors resolve. peer_hit is therefore expected to be > 0.
+        throttled = self.seed_counter("data_node/p2p/throttled_bytes")
+        distributed = self.seed_counter("data_node/p2p/distributed_bytes")
+        peer_hit = [self.peer_counter(peer, "data_node/p2p/hit_bytes") for peer in self.non_seeds]
+
+        # Reach hot_block_threshold, no P2P yet.
         for _ in range(3):
             assert self.access_table() == [{"a": 1}]
 
-        # Now we will receive blocks from peers but shouldn't be able to resolve them
-        # Here force fetch node descriptors must kick in
+        # Now we should hit peers
         for _ in range(6):
-            self.access_table() == [{"a": 1}]
-        time.sleep(2)
+            assert self.access_table() == [{"a": 1}]
 
         wait(lambda: throttled.get_delta() > 0)
         wait(lambda: distributed.get_delta() > 0)
 
-        # ChunkClient shouldn't resolve peer descriptors here, peer_hit is expected to be 0
-        assert sum(c.get_delta() for c in peer_hit) == 0
+        assert sum(c.get_delta() for c in peer_hit) > 0

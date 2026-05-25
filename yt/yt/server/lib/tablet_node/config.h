@@ -399,7 +399,7 @@ struct TCustomTableMountConfig
 
     TTestingTableMountConfig Testing;
 
-    bool TablePullerStronglyPreferLocalQueue;
+    bool TablePullerForceSameClusterQueue;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 

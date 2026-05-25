@@ -596,7 +596,7 @@ void TOperationControllerBase::InitializeInputTransactions()
             filesAndTables.push_back(path);
         }
 
-        auto layerPaths = GetLayerPaths(userJobSpec);
+        auto layerPaths = GetAllUniqueLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
             filesAndTables.push_back(path);
         }
@@ -834,7 +834,7 @@ void TOperationControllerBase::ValidateOutputTablePaths() const
 {
     for (const auto& path : GetOutputTablePaths()) {
         if (auto clusterName = ClusterResolver_->GetClusterName(path); !IsLocal(clusterName)) {
-            auto localClusterName = ClusterResolver_->GetLocalClusterName().value_or("unknown");
+            auto localClusterName = ClusterResolver_->GetLocalClusterName();
             THROW_ERROR_EXCEPTION("Output table must be on the same cluster as operation")
                 << TErrorAttribute("table_cluster_name", path.GetCluster())
                 << TErrorAttribute("operation_cluster_name", localClusterName);
@@ -958,7 +958,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add layer files.
-        for (const auto& path : GetLayerPaths(userJobSpec)) {
+        for (const auto& path : GetAllUniqueLayerPaths(userJobSpec)) {
             files.emplace_back(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
@@ -1178,7 +1178,7 @@ void TOperationControllerBase::SleepInPrepare()
 }
 
 void TOperationControllerBase::CreateOutputTables(
-    const NApi::NNative::IClientPtr& client,
+    const NNative::IClientPtr& client,
     const std::vector<TUserObject*>& tables,
     TTransactionId defaultTransactionId,
     EOutputTableType outputTableType,
@@ -1670,21 +1670,27 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
         }
         const auto& joblet = allocation.Joblet;
 
-        auto jobSummary = TAbortedJobSummary(joblet->JobId, abortReason);
-        jobSummary.FinishTime = now;
-        UpdateJobletFromSummary(jobSummary, joblet);
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
-            .Item("reason").Value(abortReason);
-        UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
+        auto jobSummary = CreateAbortedJobSummary(joblet->JobId, abortReason);
 
-        GetJobProfiler()->ProfileAbortedJob(*joblet, jobSummary);
+        jobSummary->FinishTime = now;
+
+        UpdateJobletFromSummary(*jobSummary, joblet);
+        LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
+            .Item("reason").Value(abortReason)
+            .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
+                fluent.Item("error").Value(jobSummary->Error);
+            });
+        UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
+
+        GetJobProfiler()->ProfileAbortedJob(*joblet, *jobSummary);
 
         if (honestly) {
-            joblet->Task->OnJobAborted(joblet, jobSummary);
+            joblet->Task->OnJobAborted(joblet, *jobSummary);
         }
 
         ReportControllerStateToArchive(joblet, EJobState::Aborted);
         ReportFinishTimeToArchive(joblet);
+        ReportErrorToArchive(joblet, jobSummary->Error);
 
         Host_->AbortJob(
             joblet->JobId,
@@ -1959,6 +1965,25 @@ void TOperationControllerBase::InitChunkListPools()
         CellTagToRequiredOutputChunkListCount_.clear();
         for (const auto& table : OutputTables_) {
             ++CellTagToRequiredOutputChunkListCount_[table->ExternalCellTag];
+
+            if (table->Dynamic &&
+                OperationType_ == EOperationType::RemoteCopy &&
+                table->TableUploadOptions.TableSchema->HasHunkColumns())
+            {
+                if (!OutputHunkChunkListPool_) {
+                    OutputHunkChunkListPool_ = New<TChunkListPool>(
+                        Config_,
+                        OutputClient_,
+                        CancelableInvokerPool_,
+                        OperationId_,
+                        OutputTransaction_->GetId(),
+                        /*isHunk*/ true);
+
+                    CellTagToRequiredOutputHunkChunkListCount_.clear();
+                }
+
+                ++CellTagToRequiredOutputHunkChunkListCount_[table->ExternalCellTag];
+            }
         }
 
         for (auto cellTag : IntermediateOutputCellTagList_) {
@@ -1986,6 +2011,9 @@ void TOperationControllerBase::InitChunkListPools()
     YT_LOG_DEBUG("Preallocating chunk lists");
     for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
         Y_UNUSED(OutputChunkListPool_->HasEnough(cellTag, count));
+    }
+    for (const auto& [cellTag, count] : CellTagToRequiredOutputHunkChunkListCount_) {
+        Y_UNUSED(OutputHunkChunkListPool_->HasEnough(cellTag, count));
     }
     for (const auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         YT_VERIFY(DebugChunkListPool_);
@@ -2402,7 +2430,12 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
     try {
         auto targetCellTag = CellTagFromId(nodeId);
 
-        if (auto coordinatorCellTag = CellTagFromId(transactionId); coordinatorCellTag != targetCellTag) {
+        auto coordinatorCellTag = CellTagFromId(transactionId);
+        auto coordinatorCellId = Client_->GetNativeConnection()->GetMasterCellId(coordinatorCellTag);
+        auto targetCellId = Client_->GetNativeConnection()->GetMasterCellId(targetCellTag);
+
+        TStrongOrderingTagsMap strongOrderingTags{{coordinatorCellId, {NNative::SequoiaCypressOrderingTag}}};
+        if (coordinatorCellTag != targetCellTag) {
             // Output completion transaction should become committed on node's
             // native cell.
             auto channel = Host_->GetClient()->GetMasterChannelOrThrow(
@@ -2412,9 +2445,11 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
             auto request = proxy.SyncWithOthers();
             ToProto(
                 request->add_src_cell_ids(),
-                Client_->GetNativeConnection()->GetMasterCellId(coordinatorCellTag));
+                coordinatorCellId);
             WaitFor(request->Invoke())
                 .ThrowOnError();
+
+            strongOrderingTags[targetCellId] = {NNative::SequoiaCypressOrderingTag};
         }
 
         // It is just a way to run custom logic at master.
@@ -2431,17 +2466,16 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         NNative::NProto::TReqMergeToTrunkAndUnlockNode reqCommitBranchNode;
         ToProto(reqCommitBranchNode.mutable_transaction_id(), transactionId);
         ToProto(reqCommitBranchNode.mutable_node_id(), nodeId);
+
         helperTransaction->AddAction(
-            Client_->GetNativeConnection()->GetMasterCellId(targetCellTag),
+            targetCellId,
             MakeTransactionActionData(reqCommitBranchNode));
 
         TTransactionCommitOptions options;
         // In case of Cypress tx mirroring this system tx have to be committed
         // after all nested Cypress transactions are finished.
         if (IsCypressTransactionMirroredToSequoia(transactionId)) {
-            options.StronglyOrdered = true;
-            // NB: |StronglyOrdered| is ignored for 1PC transactions.
-            options.Force2PC = true;
+            options.StrongOrderingTags = strongOrderingTags;
         }
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
@@ -3064,7 +3098,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     *req->mutable_statistics() = table->DataStatistics;
 
                     if (!table->IsFile()) {
+                        // COMPAT(h0pless): HandleOptimizeForInBeginUpload. Remove in 26.3.
                         req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
+
                         if (table->TableUploadOptions.ChunkFormat) {
                             req->set_chunk_format(ToProto(*table->TableUploadOptions.ChunkFormat));
                         }
@@ -3366,7 +3402,7 @@ bool TOperationControllerBase::OnJobCompleted(
     // Controller should abort job if its competitor has already completed.
     if (auto maybeAbortReason = joblet->Task->ShouldAbortCompletingJob(joblet)) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
-        return OnJobAborted(std::move(joblet), std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason));
+        return OnJobAborted(std::move(joblet), CreateAbortedJobSummary(*jobSummary, *maybeAbortReason));
     }
 
     TJobFinishedResult taskJobResult;
@@ -3494,7 +3530,10 @@ bool TOperationControllerBase::OnJobFailed(
             "(JobId: %v, Address: %v)",
             jobId,
             NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
-        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
+        auto abortedJobSummary = CreateAbortedJobSummary(
+            *jobSummary,
+            EAbortReason::NodeBanned,
+            TError("Job failed at a banned node"));
         return OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
     }
 
@@ -3502,7 +3541,10 @@ bool TOperationControllerBase::OnJobFailed(
         YT_LOG_DEBUG("Failed layer probing job is considered aborted "
             "(JobId: %v)",
             jobId);
-        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::JobTreatmentFailed);
+        auto abortedJobSummary = CreateAbortedJobSummary(
+            *jobSummary,
+            EAbortReason::JobTreatmentFailed,
+            TError("Failed layer probing job is considered aborted"));
         return OnJobAborted(std::move(joblet), std::move(abortedJobSummary));
     }
 
@@ -3647,7 +3689,11 @@ bool TOperationControllerBase::OnJobAborted(
         abortReason,
         joblet->JobType);
 
-    auto error = jobSummary->Error;
+    const auto& error = jobSummary->Error;
+
+    if (!error) {
+        YT_LOG_ERROR("No job error provided for aborted job (JobId: %v)", jobId);
+    }
 
     if (joblet->JobSpecProtoFuture) {
         joblet->JobSpecProtoFuture.Cancel(error ? *error : TError("Job aborted"));
@@ -3673,8 +3719,8 @@ bool TOperationControllerBase::OnJobAborted(
             if (joblet->ShouldLogFinishedEvent()) {
                 LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
                     .Item("reason").Value(abortReason)
-                    .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
-                        fluent.Item("error").Value(jobSummary->Error);
+                    .DoIf(error.has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("error").Value(error);
                     })
                     .DoIf(jobSummary->PreemptedFor.has_value(), [&] (TFluentMap fluent) {
                         fluent.Item("preempted_for").Value(jobSummary->PreemptedFor);
@@ -4394,7 +4440,7 @@ void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransact
 
 TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
 {
-    auto getId = [] (const NApi::ITransactionPtr& transaction) {
+    auto getId = [] (const ITransactionPtr& transaction) {
         return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
     };
 
@@ -4964,6 +5010,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
                 YT_ABORT();
             }
         });
+
+    jobSpecExt->set_estimated_job_proxy_memory(
+        joblet->EstimatedResourceUsage.GetFootprintMemory() + joblet->EstimatedResourceUsage.GetJobProxyMemory());
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -5093,6 +5142,10 @@ void TOperationControllerBase::TryScheduleFirstJob(
             break;
         }
 
+        if (context.GetRequestedTaskName() && task->GetVertexDescriptor() != *context.GetRequestedTaskName()) {
+            continue;
+        }
+
         if (auto failReason = TryScheduleJob(allocation, *task, context, scheduleLocalJob, std::nullopt)) {
             if (*failReason == EScheduleFailReason::NoPendingJobs) {
                 continue;
@@ -5110,8 +5163,7 @@ void TOperationControllerBase::TryScheduleFirstJob(
                 allocation.TreeId,
                 task->GetJobType(),
                 /*isJobFirst*/ true,
-                /*isLocal*/ scheduleLocalJob
-            );
+                /*isLocal*/ scheduleLocalJob);
 
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
@@ -5185,8 +5237,7 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
         allocation.TreeId,
         allocation.Task->GetJobType(),
         /*isJobFirst*/ false,
-        /*isLocal*/ scheduleLocalJob
-    );
+        /*isLocal*/ scheduleLocalJob);
 
     return std::nullopt;
 }
@@ -5955,6 +6006,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 
     ReportControllerStateToArchive(joblet, summary->State);
     ReportFinishTimeToArchive(joblet);
+    ReportErrorToArchive(joblet, summary->Error);
 
     bool shouldRetainJob =
         (retainJob && RetainedJobCount_ < Config_->MaxRetainedJobsPerOperation) ||
@@ -7191,6 +7243,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 req->Tag() = table;
 
                 if (!table->IsFile()) {
+                    req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
+
                     // Schema revision should be equal to 1 iff schema does not change
                     // between being fetched from master while preparing output tables
                     // and sent to master during begin upload.
@@ -8188,6 +8242,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 }
                 if (diskRequest->Account) {
                     accounts.insert(*diskRequest->Account);
+                }
+
+                if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Nbd) {
+                    // Allow only NBD media.
+                    if (!Config_->NbdMedia.contains(mediumName)) {
+                        THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
+                            << TErrorAttribute("medium_name", mediumName);
+                    }
                 }
             }
         }
@@ -9309,12 +9371,12 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.Progress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildProgress, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildProgress, this))
         .Finish();
 
     result.BriefProgress =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildBriefProgress, this))
         .Finish();
 
     result.Alerts =
@@ -9330,7 +9392,7 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
+            .Do(std::bind_front(&TOperationControllerBase::BuildJobsYson, this))
         .Finish();
 
     result.MemoryUsage = GetMemoryUsage();
@@ -9360,6 +9422,11 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
             result = false;
         }
     }
+    for (auto [cellTag, count] : CellTagToRequiredOutputHunkChunkListCount_) {
+        if (count > 0 && !OutputHunkChunkListPool_->HasEnough(cellTag, count)) {
+            result = false;
+        }
+    }
     for (auto [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->ExternalCellTag == cellTag) {
             --count;
@@ -9378,6 +9445,12 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
 TChunkListId TOperationControllerBase::ExtractOutputChunkList(TCellTag cellTag)
 {
     return OutputChunkListPool_->Extract(cellTag);
+}
+
+TChunkListId TOperationControllerBase::ExtractOutputHunkChunkList(TCellTag cellTag)
+{
+    YT_VERIFY(OutputHunkChunkListPool_);
+    return OutputHunkChunkListPool_->Extract(cellTag);
 }
 
 TChunkListId TOperationControllerBase::ExtractDebugChunkList(TCellTag cellTag)
@@ -10344,6 +10417,12 @@ const TChunkListPoolPtr& TOperationControllerBase::GetOutputChunkListPool() cons
     return OutputChunkListPool_;
 }
 
+const TChunkListPoolPtr& TOperationControllerBase::GetOutputHunkChunkListPool() const
+{
+    YT_VERIFY(OutputHunkChunkListPool_);
+    return OutputHunkChunkListPool_;
+}
+
 const TControllerAgentConfigPtr& TOperationControllerBase::GetConfig() const
 {
     return Config_;
@@ -11272,6 +11351,7 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(20, Tasks_);
     PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList_);
     PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
+    PHOENIX_REGISTER_FIELD(82, CellTagToRequiredOutputHunkChunkListCount_);
     PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
     registrar.template VirtualField<25>("PendingJobCount_", [] (TThis* this_, auto& context) {
         auto pendingJobCount = Load<TCompositePendingJobCount>(context);
@@ -11306,11 +11386,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .template Serializer<TUniquePtrSerializer<>>());
     PHOENIX_REGISTER_FIELD(45, DataFlowGraph_);
     // COMPAT(galtsev)
-    registrar.template VirtualField<46>("LivePreviews_", [] (TThis* this_, auto& context) {
-        NYT::Load(context, *this_->LivePreviews_);
-    }, [] (const TThis* this_, auto& context) {
-        NYT::Save(context, *this_->LivePreviews_);
-    })();
+    PHOENIX_REGISTER_FIELD(46, LivePreviews_,
+        .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_);
     PHOENIX_REGISTER_FIELD(48, BannedNodeIds_);
     PHOENIX_REGISTER_FIELD(49, PathToOutputTable_);
@@ -11685,7 +11762,7 @@ void TOperationControllerBase::DoAbortJob(
         Host_->AbortJob(joblet->JobId, abortReason, /*requestNewJob*/ false);
     }
 
-    OnJobAborted(std::move(joblet), std::make_unique<TAbortedJobSummary>(jobId, abortReason));
+    OnJobAborted(std::move(joblet), CreateAbortedJobSummary(jobId, abortReason));
 }
 
 void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
@@ -11775,75 +11852,17 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(TTask& task
     }
 }
 
-std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
+THashSet<TRichYPath> TOperationControllerBase::GetAllUniqueLayerPaths(
     const NYT::NScheduler::TUserJobSpecPtr& userJobSpec) const
 {
-    if (!Config_->TestingOptions->RootfsTestLayers.empty()) {
-        return Config_->TestingOptions->RootfsTestLayers;
-    }
-    std::vector<TRichYPath> layerPaths;
-    if (userJobSpec->DockerImage) {
-        TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config_->DockerRegistry);
-
-        // External docker images are not compatible with any additional layers.
-        if (!dockerImage.IsInternal || !Config_->DockerRegistry->TranslateInternalImagesIntoLayers) {
-            return {};
-        }
-
-        // Resolve internal docker image into base layers.
-        layerPaths = GetLayerPathsFromDockerImage(Host_->GetClient(), dockerImage);
-    }
-
-    {
-        // User can order several identical layers.
-        THashSet<TRichYPath> allLayersFromJobSpec;
-        for (const auto& [_, volume] : userJobSpec->Volumes) {
-            for (const auto& layer : volume->Layers) {
-                if (allLayersFromJobSpec.insert(layer->Path).second) {
-                    layerPaths.push_back(layer->Path);
-                }
-            }
+    // User can order several identical layers.
+    THashSet<TRichYPath> allLayersFromJobSpec;
+    for (const auto& [_, volume] : userJobSpec->Volumes) {
+        for (const auto& layer : volume->Layers) {
+            allLayersFromJobSpec.insert(layer->Path);
         }
     }
-
-    if (layerPaths.empty() && Spec_->DefaultBaseLayerPath) {
-        layerPaths.insert(layerPaths.begin(), *Spec_->DefaultBaseLayerPath);
-    }
-    if (Config_->DefaultLayerPath && layerPaths.empty()) {
-        // If no layers were specified, we insert the default one.
-        layerPaths.insert(layerPaths.begin(), *Config_->DefaultLayerPath);
-    }
-    if (Config_->CudaToolkitLayerDirectoryPath &&
-        !layerPaths.empty() &&
-        userJobSpec->CudaToolkitVersion &&
-        userJobSpec->EnableGpuLayers)
-    {
-        // If cuda toolkit is requested, add the layer as the topmost user layer.
-        auto path = *Config_->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
-        layerPaths.insert(layerPaths.begin(), path);
-    }
-    if (userJobSpec->Profilers) {
-        for (const auto& profilerSpec : *userJobSpec->Profilers) {
-            auto cudaProfilerLayerPath = Spec_->CudaProfilerLayerPath
-                ? Spec_->CudaProfilerLayerPath
-                : Config_->CudaProfilerLayerPath;
-
-            if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
-                layerPaths.insert(layerPaths.begin(), *cudaProfilerLayerPath);
-                break;
-            }
-        }
-    }
-    if (!layerPaths.empty()) {
-        auto systemLayerPath = userJobSpec->SystemLayerPath
-            ? userJobSpec->SystemLayerPath
-            : Config_->SystemLayerPath;
-        if (systemLayerPath) {
-            // This must be the top layer, so insert in the beginning.
-            layerPaths.insert(layerPaths.begin(), *systemLayerPath);
-        }
-    }
-    return layerPaths;
+    return allLayersFromJobSpec;
 }
 
 const TThrottlerManagerPtr& TOperationControllerBase::GetChunkLocationThrottlerManager() const
@@ -12043,6 +12062,14 @@ void TOperationControllerBase::ReportFinishTimeToArchive(const TJobletPtr& joble
         .FinishTime(joblet->FinishTime));
 }
 
+void TOperationControllerBase::ReportErrorToArchive(const TJobletPtr& joblet, const std::optional<TError>& error) const
+{
+    if (error) {
+        HandleJobReport(joblet, TControllerJobReport()
+            .Error(*error));
+    }
+}
+
 void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(EOperationControllerQueue::JobEvents));
@@ -12195,7 +12222,11 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
                 "(JobId: %v, NodeId: %v)",
                 jobSummary.Id,
                 nodeId);
-            return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::UnresolvedNodeId);
+            return CreateAbortedJobSummary(
+                jobSummary,
+                EAbortReason::UnresolvedNodeId,
+                TError("Job output contains unresolved node id")
+                    << TErrorAttribute("node_id", nodeId));
         }
 
         OutputNodeDirectory_->AddDescriptor(nodeId, *descriptor);

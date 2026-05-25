@@ -158,6 +158,9 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
         PYCXX_ADD_KEYWORDS_METHOD(collect_coverage, CollectCoverage, "Collects coverage at host");
+        PYCXX_ADD_KEYWORDS_METHOD(freeze_hydra_peer, FreezeHydraPeer, "Freeze follower on leader crash");
+        PYCXX_ADD_KEYWORDS_METHOD(truncate_changelog, TruncateChangelog, "Drop uncommited mutation records");
+        PYCXX_ADD_KEYWORDS_METHOD(schedule_restart, ScheduleRestart, "Schedule restart of a peer");
 
         behaviors().readyType();
     }
@@ -446,6 +449,62 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to collect coverage");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, CollectCoverage)
+
+    Py::Object FreezeHydraPeer(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TFreezeHydraPeerOptions();
+
+        auto cellId = NHydra::TCellId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "cell_id")));
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
+        options.Term = static_cast<int>(Py::Int(ExtractArgument(args, kwargs, "term")));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->FreezeHydraPeer(cellId, address, options))
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to freeze follower");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, FreezeHydraPeer)
+
+    Py::Object TruncateChangelog(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TTruncateChangelogOptions();
+
+        auto cellId = NHydra::TCellId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "cell_id")));
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
+        options.LastSequenceNumber = static_cast<i64>(Py::Int(ExtractArgument(args, kwargs, "last_sequence_number")));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->TruncateChangelog(cellId, address, options))
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to drop uncommitted mutation records");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, TruncateChangelog)
+
+    Py::Object ScheduleRestart(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TScheduleRestartOptions();
+
+        auto cellId = NHydra::TCellId::FromString(ConvertStringObjectToString(ExtractArgument(args, kwargs, "cell_id")));
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->ScheduleRestart(cellId, address, options))
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to schedule restart");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, ScheduleRestart)
 
     PYCXX_DECLARE_DRIVER_METHODS(TDriver)
 

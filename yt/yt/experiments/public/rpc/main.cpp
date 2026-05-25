@@ -47,6 +47,7 @@ namespace NYT {
 
 using namespace NRpc;
 using namespace NYT::NBus;
+using namespace NYT::NBus::NTcp;
 using namespace NConcurrency;
 using namespace NAdmin;
 
@@ -185,8 +186,8 @@ void OnSent(TString str, const TError& error)
 
 void RunBusClient(const TString& address)
 {
-    IBusClientPtr client = CreateBusClient(TBusClientConfig::CreateTcp(address));
-    IBusPtr bus = client->CreateBus(New<TBusHandler>());
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(address));
+    auto bus = client->CreateBus(New<TBusHandler>());
 
     Cout << "Running client bus, type 'done' to terminate" << Endl;
 
@@ -280,7 +281,7 @@ public:
 
 void RunRpsSendTestMultiThreadClient(const TString& address, i32 numIter, i32 messageSize, i32 numThreads)
 {
-    IBusClientPtr client = CreateBusClient(TBusClientConfig::CreateTcp(address));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(address));
 
     Cout << "Running " << numIter << " iterations of test with size " << messageSize << " in " << numThreads << " threads" << Endl;
 
@@ -408,10 +409,10 @@ private:
 
 void RunRpsReplyTestClient(const TString& address, i32 numIter)
 {
-    IBusClientPtr client = CreateBusClient(TBusClientConfig::CreateTcp(address));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(address));
 
-    TRpsReplyClient::TPtr handler = New<TRpsReplyClient>(numIter);
-    IBusPtr bus = client->CreateBus(handler);
+    auto handler = New<TRpsReplyClient>(numIter);
+    auto bus = client->CreateBus(handler);
 
     Cout << "Running " << numIter << " replies" << Endl;
     TString str = "Go!";

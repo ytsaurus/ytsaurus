@@ -253,9 +253,10 @@ private:
             case ENodeType::Boolean:
                 return node->AsBoolean()->GetValue() ? "1" : "0";
             case ENodeType::String:
-                return node->AsString()->GetValue();
+                // TODO(babenko): migrate to std::string
+                return TString(node->AsString()->GetValue());
             default:
-                THROW_ERROR_EXCEPTION("Can't convert non-scalar data to string (Type: %v)", node->GetType());
+                THROW_ERROR_EXCEPTION("Cannot convert non-scalar data of type %Qlv to string", node->GetType());
         }
     }
 

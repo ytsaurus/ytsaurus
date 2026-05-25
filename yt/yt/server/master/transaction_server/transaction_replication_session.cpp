@@ -397,12 +397,16 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
             }),
         mirroredTransactionsToReplicate.end());
 
+    YT_ASSERT(MirroringToSequoiaEnabled_ || mirroredTransactionsToReplicate.empty());
+
     return {
         .NonMirrored = asyncResults,
-        .Mirrored = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
-            Bootstrap_,
-            std::move(mirroredTransactionsToReplicate),
-            std::move(MirroredBoomerang_)),
+        .Mirrored = MirroringToSequoiaEnabled_
+            ? ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
+                Bootstrap_,
+                std::move(mirroredTransactionsToReplicate),
+                std::move(MirroredBoomerang_))
+            : OKFuture,
     };
 }
 
@@ -641,8 +645,14 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     if (keptResult) {
         // Highly unlikely, considering that just a few moments ago some of request transactions were remote.
         auto result = keptResult
-            .Apply(BIND([] (const TSharedRefArray& data) {
-                return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TSharedRefArray& data) {
+                const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+                auto mutationId = Mutation_->GetMutationId();
+                auto groundUpdateQueueSequenceNumber = responseKeeper->GetGroundUpdateQueueSequenceNumber(mutationId);
+                return TMutationResponse{
+                    EMutationResponseOrigin::ResponseKeeper,
+                    data,
+                    groundUpdateQueueSequenceNumber};
             }));
         return timeout
             ? result.WithTimeout(*timeout)
@@ -692,15 +702,16 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     // on the other hand, is crucial.
     auto result = AllSucceeded(std::vector{AllSucceeded(std::move(asyncResults.NonMirrored)).AsVoid(), asyncResults.Mirrored})
         .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
+            auto mutationId = Mutation_->GetMutationId();
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (MutationId: %v)",
-                    Mutation_->GetMutationId());
+                    mutationId);
 
                 EndRequestInResponseKeeper(error);
 
                 auto wrappedError = WrapError(
                     error.Wrap("Failed to replicate necessary remote transactions")
-                        << TErrorAttribute("mutation_id", Mutation_->GetMutationId()));
+                        << TErrorAttribute("mutation_id", mutationId));
                 return MakeFuture<TSharedRefArray>(std::move(wrappedError));
             }
 
@@ -708,8 +719,14 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
             return keptResult;
         })
         .AsyncVia(GetCurrentInvoker()))
-        .Apply(BIND([] (const TSharedRefArray& data) {
-            return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TSharedRefArray& data) {
+            auto mutationId = Mutation_->GetMutationId();
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            auto groundUpdateQueueSequenceNumber = responseKeeper->GetGroundUpdateQueueSequenceNumber(mutationId);
+            return TMutationResponse{
+                EMutationResponseOrigin::ResponseKeeper,
+                data,
+                groundUpdateQueueSequenceNumber};
         }));
     return timeout
         ? result.WithTimeout(*timeout)

@@ -100,7 +100,17 @@ def get_dynamic_master_config():
                 "validation_full_heartbeat_period": 1000,
                 "validation_full_heartbeat_splay": 200,
                 "validate_sequoia_replicas": True,
+                "ignore_replicas_with_changed_state_during_validation": False,
             },
+
+            "sequoia_chunk_replicas": {
+                "sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_sequoia_chunk_refresh_iterations": 1000,
+                "global_sequoia_chunk_refresh_period": 100,
+                "max_unsuccessful_global_sequoia_chunk_refresh_iterations": 1000,
+                "enable_location_refresh": True,
+                "location_refresh_period": 100,
+            }
         },
 
         "node_tracker": {
@@ -116,8 +126,6 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
-            "return_master_cells_connection_configs_on_node_registration": True,
-            "return_master_cells_connection_configs_on_node_heartbeat": True,
         },
 
         "object_manager": {
@@ -948,6 +956,14 @@ def get_dynamic_rpc_proxy_config():
 
 
 def get_replicated_table_tracker_config():
+    return {
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
+    }
+
+
+def get_offshore_data_gateway_config():
     return {
         "dynamic_config_manager": {
             "update_period": 100,

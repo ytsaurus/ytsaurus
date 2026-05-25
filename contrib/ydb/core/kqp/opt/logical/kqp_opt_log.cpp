@@ -8,10 +8,10 @@
 
 #include <yql/essentials/core/yql_opt_match_recognize.h>
 #include <yql/essentials/core/yql_opt_utils.h>
-#include <contrib/ydb/library/yql/dq/opt/dq_opt_join.h>
+#include <contrib/ydb/core/kqp/opt/cbo/solver/kqp_opt_join.h>
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_log.h>
 #include <contrib/ydb/library/yql/dq/opt/dq_opt_hopping.h>
-#include <contrib/ydb/library/yql/dq/opt/dq_opt_join_cost_based.h>
+#include <contrib/ydb/core/kqp/opt/cbo/solver/kqp_opt_join_cost_based.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/providers/common/transform/yql_optimize.h>
 #include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
@@ -53,8 +53,6 @@ public:
         AddHandler(0, &TKqlUpsertRowsBase::Match, HNDL(ExcessUpsertInputColumns));
         AddHandler(0, &TCoTake::Match, HNDL(DropTakeOverLookupTable));
         AddHandler(0, &TCoTopBase::Match, HNDL(PushLimitOverFullText));
-        AddHandler(0, &TCoTop::Match, HNDL(RewriteFlatMapOverFullTextMatch));
-        AddHandler(0, &TCoTopSort::Match, HNDL(RewriteFlatMapOverFullTextMatch));
 
         AddHandler(0, &TKqlReadTableBase::Match, HNDL(ApplyExtractMembersToReadTable<false>));
         AddHandler(0, &TKqlReadTableRangesBase::Match, HNDL(ApplyExtractMembersToReadTable<false>));
@@ -65,6 +63,7 @@ public:
         AddHandler(0, &TCoTopSort::Match, HNDL(TopSortOverExtend));
         AddHandler(0, &TCoUnorderedBase::Match, HNDL(UnorderedOverDqReadWrap));
         AddHandler(0, &TCoExtractMembers::Match, HNDL(ExtractMembersOverDqReadWrap));
+        AddHandler(0, &TCoExtractMembers::Match, HNDL(PushExtractMembersToDqJoin));
         AddHandler(0, &TCoCountBase::Match, HNDL(TakeOrSkipOverDqReadWrap));
         AddHandler(0, &TCoExtendBase::Match, HNDL(ExtendOverDqReadWrap));
         AddHandler(0, &TCoNarrowMap::Match, HNDL(DqReadWideWrapFieldSubset));
@@ -74,6 +73,7 @@ public:
         AddHandler(0, &TCoMatchRecognize::Match, HNDL(MatchRecognize));
 
         AddHandler(1, &TCoFlatMapBase::Match, HNDL(RewriteFlatMapOverFullTextMatch));
+        AddHandler(1, &TCoFlatMapBase::Match, HNDL(RewriteFlatMapOverJsonRead));
         AddHandler(1, &TCoTop::Match, HNDL(RewriteTopSortOverIndexRead));
         AddHandler(1, &TCoTopSort::Match, HNDL(RewriteTopSortOverIndexRead));
         AddHandler(1, &TCoTake::Match, HNDL(RewriteTakeOverIndexRead));
@@ -150,7 +150,7 @@ protected:
         return node;
     }
 
-    TMaybeNode<TExprBase> RewriteAggregate(TExprBase node, TExprContext& ctx) {
+    TMaybeNode<TExprBase> RewriteAggregate(TExprBase node, TExprContext& ctx, const TGetParents& getParents) {
         TMaybeNode<TExprBase> output;
         auto aggregate = node.Cast<TCoAggregateBase>();
         auto hopSetting = GetSetting(aggregate.Settings().Ref(), "hopping");
@@ -162,6 +162,7 @@ protected:
             output = NHopping::RewriteAsHoppingWindow(
                 node,
                 ctx,
+                getParents,
                 input.Cast(),
                 false,
                 TDuration::MilliSeconds(TDqSettings::TDefault::WatermarksLateArrivalDelayMs),
@@ -202,17 +203,19 @@ protected:
 
     TMaybeNode<TExprBase> OptimizeEquiJoinWithCosts(TExprBase node, TExprContext& ctx) {
         TCBOSettings settings{
-            .MaxDPhypDPTableSize = Config->MaxDPHypDPTableSize.Get().GetOrElse(TDqSettings::TDefault::MaxDPHypDPTableSize),
+            .CBOTimeout = Config->CBOTimeout.Get().GetOrElse(NKikimr::NKqp::TCBOSettings{}.CBOTimeout),
+            .CBOHardTimeout = Config->CBOHardTimeout.Get().GetOrElse(NKikimr::NKqp::TCBOSettings{}.CBOHardTimeout),
             .ShuffleEliminationJoinNumCutoff = Config->ShuffleEliminationJoinNumCutoff.Get().GetOrElse(TDqSettings::TDefault::ShuffleEliminationJoinNumCutoff)
         };
 
         auto optLevel = Config->CostBasedOptimizationLevel.Get().GetOrElse(Config->GetDefaultCostBasedOptimizationLevel());
+        bool useBlockJoin = Config->UseBlockHashJoin.Get().GetOrElse(false);
         bool enableShuffleElimination = KqpCtx.Config->OptShuffleElimination.Get().GetOrElse(KqpCtx.Config->GetDefaultEnableShuffleElimination());
-        auto providerCtx = TKqpProviderContext(KqpCtx, optLevel);
-        auto stats = TypesCtx.GetStats(node.Raw());
+        auto providerCtx = TKqpProviderContext(KqpCtx, optLevel, useBlockJoin);
+        auto stats = KqpCtx.KqpStats.GetStats(node.Raw());
         TTableAliasMap* tableAliases = stats? stats->TableAliases.Get(): nullptr;
-        auto opt = std::unique_ptr<IOptimizerNew>(MakeNativeOptimizerNew(providerCtx, settings, ctx, enableShuffleElimination, TypesCtx.OrderingsFSM, tableAliases));
-        TExprBase output = DqOptimizeEquiJoinWithCosts(node, ctx, TypesCtx, optLevel,
+        auto opt = std::unique_ptr<IOptimizerNew>(MakeNativeOptimizerNew(providerCtx, settings, ctx, enableShuffleElimination, KqpCtx.KqpStats.ShufflingsFSM, tableAliases));
+        TExprBase output = KqpOptimizeEquiJoinWithCosts(node, ctx, TypesCtx, KqpCtx.KqpStats, optLevel,
             *opt, [](auto& rels, auto label, auto node, auto stat) {
                 rels.emplace_back(std::make_shared<TKqpRelOptimizerNode>(TString(label), *stat, node));
             },
@@ -227,7 +230,7 @@ protected:
 
     TMaybeNode<TExprBase> RewriteEquiJoin(TExprBase node, TExprContext& ctx) {
         bool useCBO = Config->CostBasedOptimizationLevel.Get().GetOrElse(Config->GetDefaultCostBasedOptimizationLevel()) >= 2;
-        TExprBase output = DqRewriteEquiJoin(node, KqpCtx.Config->GetHashJoinMode(), useCBO, ctx, TypesCtx, KqpCtx.JoinsCount, KqpCtx.GetOptimizerHints());
+        TExprBase output = NKikimr::NKqp::KqpRewriteEquiJoin(node, KqpCtx.Config->GetHashJoinMode(), useCBO, ctx, TypesCtx, KqpCtx.KqpStats, KqpCtx.JoinsCount, KqpCtx.GetOptimizerHints());
         DumpAppliedRule("RewriteEquiJoin", node.Ptr(), output.Ptr(), ctx);
         return output;
     }
@@ -271,8 +274,18 @@ protected:
         return output;
     }
 
+    TMaybeNode<TExprBase> RewriteFlatMapOverJsonRead(TExprBase node, TExprContext& ctx) {
+        auto output = KqpRewriteFlatMapOverJsonRead(node, ctx, KqpCtx);
+        if (!output.IsValid()) {
+            return {};
+        }
+
+        DumpAppliedRule("RewriteFlatMapOverJsonRead", node.Ptr(), output.Cast().Ptr(), ctx);
+        return output;
+    }
+
     TMaybeNode<TExprBase> RewriteTopSortOverIndexRead(TExprBase node, TExprContext& ctx, const TGetParents& getParents) {
-        TExprBase output = KqpRewriteTopSortOverIndexRead(node, ctx, KqpCtx, *getParents());
+        TExprBase output = KqpRewriteTopSortOverIndexRead(node, ctx, TypesCtx, KqpCtx, *getParents());
         DumpAppliedRule("RewriteTopSortOverIndexRead", node.Ptr(), output.Ptr(), ctx);
         return output;
     }
@@ -355,6 +368,14 @@ protected:
         auto output = NDq::ExtractMembersOverDqReadWrap(node, ctx, getParents, true, TypesCtx);
         if (output) {
             DumpAppliedRule("ExtractMembersOverDqReadWrap", node.Ptr(), output.Cast().Ptr(), ctx);
+        }
+        return output;
+    }
+
+    TMaybeNode<TExprBase> PushExtractMembersToDqJoin(TExprBase node, TExprContext& ctx) {
+        auto output = NDq::DqPushExtractMembersToDqJoin(node, ctx);
+        if (output) {
+            DumpAppliedRule("PushExtractMembersToDqJoin", node.Ptr(), output.Cast().Ptr(), ctx);
         }
         return output;
     }

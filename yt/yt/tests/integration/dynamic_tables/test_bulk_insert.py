@@ -46,7 +46,6 @@ def read_table_under_transaction(path, **kwargs):
 
 
 @authors("ifsmirnov")
-@pytest.mark.enabled_multidaemon
 class TestBulkInsert(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -1439,6 +1438,55 @@ class TestBulkInsert(DynamicTablesBase):
             assert has_hunk_chunks()
             assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
+    @authors("akozhikhov")
+    def test_hunk_statistics_bulk_insert(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table(
+            "//tmp/t_output",
+            enable_dynamic_store_read=False,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ])
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            {"key": 1, "value": "1" * 10},
+            {"key": 2, "value": "2" * 10},
+        ]
+        write_table("//tmp/t_input", rows[:1])
+        insert_rows("//tmp/t_output", rows[1:])
+
+        sync_flush_table("//tmp/t_output")
+
+        map(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command="cat")
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+
+        root_chunk_list_id = get("//tmp/t_output/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t_output/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 2
+        assert statistics["hunk_data_weight"] == 10
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["referenced_regular_disk_space"] == 18
+        snapshot_statistics = get("//tmp/t_output/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 3
+
+        map(in_="//tmp/t_input", out="//tmp/t_output", command="cat")
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
+
+        root_chunk_list_id = get("//tmp/t_output/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t_output/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 1
+        assert statistics["hunk_data_weight"] == 0
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 0
+        snapshot_statistics = get("//tmp/t_output/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == 1
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("update_mode", ["append", "overwrite"])
     def test_read_range(self, update_mode):
@@ -1517,7 +1565,6 @@ class TestBulkInsert(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertLockConfirmation(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -1566,7 +1613,6 @@ class TestBulkInsertLockConfirmation(DynamicTablesBase):
 
 
 @authors("ifsmirnov")
-@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormat(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -2234,6 +2280,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows, atomicity=atomicity)
 
+        # Wait for content_revision to become stable.
+        sleep(1)
+
         merge(
             in_="//tmp/t",
             out="<schema_modification=unversioned_update;append=%true>//tmp/t",
@@ -2259,6 +2308,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             {"key": 3, "value": "baz"},
         ]
         insert_rows("//tmp/t", rows)
+
+        # Wait for content_revision to become stable.
+        sleep(1)
 
         merge(
             in_="//tmp/t",
@@ -2360,7 +2412,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertMulticell(TestBulkInsert):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2371,7 +2422,6 @@ class TestBulkInsertMulticell(TestBulkInsert):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertPortal(TestBulkInsertMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -2382,7 +2432,6 @@ class TestBulkInsertPortal(TestBulkInsertMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertShardedTx(TestBulkInsertPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -2395,7 +2444,6 @@ class TestBulkInsertShardedTx(TestBulkInsertPortal):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertMirroredTx(TestBulkInsertShardedTx):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -2404,7 +2452,6 @@ class TestBulkInsertMirroredTx(TestBulkInsertShardedTx):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertSysOperationsRootstock(TestBulkInsertMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
@@ -2417,14 +2464,12 @@ class TestBulkInsertSysOperationsRootstock(TestBulkInsertMirroredTx):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -2438,7 +2483,6 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2449,7 +2493,6 @@ class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTx
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesLockingProtocol(DynamicTablesBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -2459,7 +2502,6 @@ class TestDynamicTablesLockingProtocol(DynamicTablesBase):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsert):
     class TransactionTest:
         READ_STEP_COUNT = 2
@@ -2916,7 +2958,6 @@ class TestBulkInsertDynamicTablesLockingProtocol(TestDynamicTablesLockingProtoco
             assert_items_equal(read_table(output_table), expected_rows)
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertDynamicTablesLockingProtocolLockConfirmation(TestDynamicTablesLockingProtocol, TestBulkInsertLockConfirmation):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "cluster_connection": {
@@ -2934,17 +2975,14 @@ class TestBulkInsertDynamicTablesLockingProtocolLockConfirmation(TestDynamicTabl
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertMulticellDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertMulticell):
     pass
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertShardedTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertShardedTx):
     pass
 
 
-@pytest.mark.enabled_multidaemon
 class TestBulkInsertMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertMirroredTx):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -2954,6 +2992,5 @@ class TestBulkInsertMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLock
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestUnversionedUpdateFormat):
     pass

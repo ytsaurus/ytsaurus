@@ -435,11 +435,9 @@ void TCompositeElement::PrepareFifoPool()
     std::sort(
         begin(SortedChildren_),
         end(SortedChildren_),
-        std::bind(
+        std::bind_front(
             &TCompositeElement::HasHigherPriorityInFifoMode,
-            this,
-            std::placeholders::_1,
-            std::placeholders::_2));
+            this));
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         SortedChildren_[childIndex]->Attributes().FifoIndex = childIndex;
@@ -938,8 +936,8 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
     }
 
     auto getEnabledChildSuggestions = (GetMode() == ESchedulingMode::Fifo)
-        ? std::bind(&TCompositeElement::GetChildSuggestionsFifo, this, std::placeholders::_1)
-        : std::bind(&TCompositeElement::GetChildSuggestionsNormal, this, std::placeholders::_1);
+        ? std::bind_front(&TCompositeElement::GetChildSuggestionsFifo, this)
+        : std::bind_front(&TCompositeElement::GetChildSuggestionsNormal, this);
 
     auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
         auto childSuggestions = getEnabledChildSuggestions(fitFactor);
@@ -1046,8 +1044,8 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     }
 
     auto getEnabledChildSuggestedFairShares = (GetMode() == ESchedulingMode::Fifo)
-        ? std::bind(&TCompositeElement::GetChildSuggestionSharesFifo, this, std::placeholders::_1)
-        : std::bind(&TCompositeElement::GetChildSuggestionSharesNormal, this, std::placeholders::_1);
+        ? std::bind_front(&TCompositeElement::GetChildSuggestionSharesFifo, this)
+        : std::bind_front(&TCompositeElement::GetChildSuggestionSharesNormal, this);
 
     auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
         auto childSuggestedFairShares = getEnabledChildSuggestedFairShares(fitFactor);
@@ -1775,6 +1773,8 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         auto usedShare = TResourceVector::Min(child->Attributes().GetGuaranteeShare(), child->Attributes().DemandShare);
         availableShare -= usedShare;
     }
+    // Clamp to zero to handle guarantee overcommitment cases.
+    availableShare = TResourceVector::Max(availableShare, TResourceVector::Zero());
 
     std::vector<TPool*> relaxedPools;
     std::vector<double> weights;

@@ -1326,6 +1326,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Alias("deprecated_mediums")
         .Default();
 
+    registrar.Parameter("nbd_media", &TThis::NbdMedia)
+        .Alias("nbd_mediums")
+        .Default();
+
     registrar.Parameter("enable_master_resource_usage_accounting", &TThis::EnableMasterResourceUsageAccounting)
         .Default(true);
 
@@ -1383,6 +1387,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
 
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)

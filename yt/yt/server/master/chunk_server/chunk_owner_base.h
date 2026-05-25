@@ -110,7 +110,8 @@ public:
         NChunkClient::EUpdateMode Mode = {};
         NTableServer::TMasterTableSchema* ChunkSchema = nullptr;
         NTableServer::TMasterTableSchema* TableSchema = nullptr;
-        std::optional<NTableClient::ETableSchemaMode> SchemaMode = NTableClient::ETableSchemaMode::Weak;
+        NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
+        std::optional<NTableClient::EOptimizeFor> OptimizeFor = std::nullopt;
 
         NCellMaster::TBootstrap* const Bootstrap = nullptr;
     };

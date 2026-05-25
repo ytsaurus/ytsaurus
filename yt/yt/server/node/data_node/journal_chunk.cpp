@@ -125,7 +125,8 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
 
     auto meta = New<TRefCountedChunkMeta>();
     meta->set_type(ToProto(EChunkType::Journal));
-    meta->set_format(ToProto(EChunkFormat::JournalDefault));
+    // NB: We do not know exact format here and we do not need to know it.
+    meta->set_format(ToProto(EChunkFormat::Unknown));
     SetProtoExtension(meta->mutable_extensions(), miscExt);
 
     ProfileReadMetaLatency(session);
@@ -641,16 +642,20 @@ bool TJournalChunk::IsSealed() const
     return Sealed_.load();
 }
 
-TFuture<void> TJournalChunk::Seal()
+TFuture<void> TJournalChunk::ExecuteSeal()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return Context_->JournalDispatcher->SealJournal(this).Apply(
-        BIND([this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
-                Id_);
-            Sealed_.store(true);
-        }));
+    return Context_->JournalDispatcher->SealJournal(this);
+}
+
+void TJournalChunk::SetSealed()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
+        Id_);
+    Sealed_.store(true);
 }
 
 IFileChangelogPtr TJournalChunk::GetChangelog()

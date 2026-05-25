@@ -35,11 +35,11 @@ class TDiskLocation
 public:
     TDiskLocation(
         NServer::TDiskLocationConfigPtr config,
-        TString id,
+        std::string id,
         const NLogging::TLogger& logger);
 
     //! Returns the string id.
-    const TString& GetId() const;
+    const std::string& GetId() const;
 
     //! Returns the runtime configuration.
     NServer::TDiskLocationConfigPtr GetRuntimeConfig() const;
@@ -66,7 +66,7 @@ protected:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionsContainerLock_);
 
-    const TString Id_;
+    const std::string Id_;
     const NLogging::TLogger Logger;
 
     THashSet<TFuture<void>> Actions_;

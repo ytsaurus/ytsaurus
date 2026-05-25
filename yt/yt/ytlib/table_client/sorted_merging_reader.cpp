@@ -194,8 +194,8 @@ public:
             statistics += stream->Reader()->GetDataStatistics();
         }
 
-        statistics.set_row_count(RowCount_);
-        statistics.set_data_weight(DataWeight_);
+        statistics.set_row_count(RowCount_.load());
+        statistics.set_data_weight(DataWeight_.load());
 
         return statistics;
     }
@@ -262,7 +262,7 @@ public:
 
     i64 GetSessionRowIndex() const override
     {
-        return RowCount_;
+        return RowCount_.load();
     }
 
     i64 GetTotalRowCount() const override
@@ -735,8 +735,8 @@ public:
             stream = StreamHeap_.front();
         }
 
-        RowCount_ += std::ssize(rows);
-        DataWeight_ += dataWeight;
+        SingleWriterFetchAdd(RowCount_, std::ssize(rows));
+        SingleWriterFetchAdd(DataWeight_, dataWeight);
 
         if (lastPrimaryKey) {
             LastPrimaryKeyHolder_ = TUnversionedOwningRow({lastPrimaryKey.Begin(), lastPrimaryKey.End()});

@@ -769,7 +769,7 @@ public:
 
                     CloseWriter(currentWriter);
                     partitionWriters.push_back({std::move(currentWriter), partitionIndex});
-                    currentWriter.Reset();
+                    currentWriter = {};
                 }
 
                 currentPartitionRowCount = 0;
@@ -797,7 +797,8 @@ public:
                         currentRowIndex = 0;
 
                         auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                        task->Info->RuntimeData.ProcessedReaderStatistics = TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
+                        task->Info->RuntimeData.ProcessedReaderStatistics =
+                            TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
                     } else {
                         return TVersionedRow();
                     }

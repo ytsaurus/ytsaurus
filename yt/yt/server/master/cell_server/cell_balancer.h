@@ -66,6 +66,7 @@ struct ICellBalancerProvider
     virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TArea* area) = 0;
     virtual bool IsVerboseLoggingEnabled() = 0;
     virtual bool IsBalancingRequired() = 0;
+    virtual bool IsTabletCellSmoothingEnabled() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellBalancerProvider)

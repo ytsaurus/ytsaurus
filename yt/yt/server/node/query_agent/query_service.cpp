@@ -121,7 +121,7 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
 
-static const std::string DefaultPullRowsPoolName = "$ChaosPullRows";
+static const std::string DefaultPullRowsPoolName = "$chaos_pull_rows";
 static const std::string DefaultPullRowsTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,11 +426,14 @@ private:
 
         auto dataSources = FromProto<std::vector<NQueryClient::TDataSource>>(request->data_sources(), memoryChunkProvider);
 
+        auto attachments = std::move(request->Attachments()); // TODO: capture in MemoryTracker_;
+
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSessionId: %v, MemoryLimitPerNode: %v, "
             "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
-            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qv)",
+            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qv, "
+            "AttachmentCount: %v)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -445,7 +448,8 @@ private:
             queryOptions.MaxJoinBatchSize,
             dataSources.size(),
             dataSources.begin()->ObjectId,
-            queryOptions.StatisticsAggregation);
+            queryOptions.StatisticsAggregation,
+            attachments.size());
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
@@ -487,6 +491,7 @@ private:
                     query,
                     externalCGInfo,
                     dataSources,
+                    attachments,
                     writer,
                     memoryChunkProvider,
                     invoker,

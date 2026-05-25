@@ -2,8 +2,8 @@
 
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
-#include <yt/yt/server/lib/cypress_election/config.h>
+#include <yt/yt/library/cypress_election/election_manager.h>
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/client/api/transaction.h>
 

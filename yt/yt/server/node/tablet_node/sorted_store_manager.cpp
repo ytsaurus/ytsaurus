@@ -1192,9 +1192,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto rowsInStore = 0;
         TUpdateCacheStatistics cacheUpdateStatistics;
 
+        // TODO(akozhikhov): Add hunk statistics too?
         auto updateWriterStatistics = [&] {
             auto guard = Guard(task->RuntimeData.SpinLock);
-            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(storeWriter->GetDataStatistics());
+            task->RuntimeData.ProcessedWriterStatistics =
+                TBackgroundActivityTaskInfoBase::TWriterStatistics(storeWriter->GetDataStatistics());
         };
 
         THazardPtrReclaimOnContextSwitchGuard reclaimGuard;

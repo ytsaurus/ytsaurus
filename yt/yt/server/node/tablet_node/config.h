@@ -132,6 +132,8 @@ struct TTabletManagerDynamicConfig
     //! snapshots with redirection hint may be evicted.
     std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
 
+    bool YieldBeforeBuildingLsmActions;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -144,11 +146,11 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
 struct TTabletCellWriteManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    //! Testing option.
-    //! If set, write request will fail with this probability.
-    //! In case of failure write request will be equiprobably
-    //! applied or not applied.
-    std::optional<double> WriteFailureProbability;
+    //! Testing options.
+    //! If set, the write fails with this probability and is not applied.
+    std::optional<double> FailureProbabilityBeforeWrite;
+    //! If set, the write fails with this probability and is applied.
+    std::optional<double> FailureProbabilityAfterWrite;
 
     //! Compat. See comment in TTabletWriteManager::OnTransactionTransientReset.
     bool DetectTransientTransactionsPerTablet;

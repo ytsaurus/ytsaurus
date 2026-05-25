@@ -667,6 +667,8 @@ struct TTestingOperationOptions
 
     TDelayConfigPtr SettleJobDelay;
 
+    std::optional<double> ScheduleAllocationCpuMultiplier;
+
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
     std::optional<TDuration> FailOperationDelay;
@@ -1521,9 +1523,9 @@ struct TNbdDiskRequest
 DEFINE_REFCOUNTED_TYPE(TNbdDiskRequest)
 
 DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(StorageRequestConfig, NExecNode::EVolumeType, TStorageRequestBase,
-    ((Local)    (TLocalDiskRequest))
-    ((Nbd)      (TNbdDiskRequest))
-    ((Tmpfs)    (TTmpfsStorageRequest))
+    ((LocalDisk)    (TLocalDiskRequest))
+    ((Nbd)          (TNbdDiskRequest))
+    ((Tmpfs)        (TTmpfsStorageRequest))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1534,6 +1536,10 @@ struct TVolume
     std::optional<TStorageRequestConfig> DiskRequest;
 
     std::vector<TLayerPtr> Layers;
+
+    //! If true, the volume can be reused between sequential jobs within the same allocation.
+    //! This avoids re-creating the volume for each job.
+    bool AllowReusing;
 
     REGISTER_YSON_STRUCT(TVolume);
 

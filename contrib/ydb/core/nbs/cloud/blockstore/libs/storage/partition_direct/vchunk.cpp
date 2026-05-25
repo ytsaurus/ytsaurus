@@ -1,40 +1,56 @@
 #include "vchunk.h"
 
 #include "flush_request.h"
-#include "read_request.h"
-#include "write_request.h"
+#include "range_translate.h"
+#include "read_request_executor.h"
+#include "write_with_direct_replication_request.h"
+#include "write_with_pb_replication_request.h"
 
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/common/constants.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/diagnostics/trace_helpers.h>
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/service/partition_direct_service.h>
 
+#include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/error.h>
 #include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/future_helper.h>
+#include <contrib/ydb/core/nbs/cloud/storage/core/libs/coroutine/executor.h>
+
+#include <contrib/ydb/library/actors/core/log.h>
+#include <contrib/ydb/library/services/services.pb.h>
 
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 using namespace NKikimr;
 using namespace NThreading;
 
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-}   // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TVChunk::TVChunk(
     NActors::TActorSystem* actorSystem,
+    IPartitionDirectService* partitionDirectService,
     const TVChunkConfig& vChunkConfig,
     IDirectBlockGroupPtr directBlockGroup,
     ui32 syncRequestsBatchSize,
-    TDuration traceSamplePeriod)
+    ui64 vChunkSize,
+    TDuration writeHedgingDelay,
+    TDuration writeRequestTimeout,
+    TDuration traceSamplePeriod,
+    NMonitoring::TDynamicCounterPtr counters)
     : ActorSystem(actorSystem)
+    , PartitionDirectService(partitionDirectService)
     , Executor(directBlockGroup->GetExecutor())
     , DirectBlockGroup(std::move(directBlockGroup))
     , VChunkConfig(vChunkConfig)
-    , BlocksCount(VChunkSize / DefaultBlockSize)
+    , BlockSize(DefaultBlockSize)
+    , BlocksCount(vChunkSize / BlockSize)
     , SyncRequestsBatchSize(syncRequestsBatchSize)
+    , WriteHedgingDelay(writeHedgingDelay)
+    , WriteRequestTimeout(writeRequestTimeout)
     , TraceSamplePeriod(traceSamplePeriod)
-{}
+    , Counters(counters)
+{
+    Y_ABORT_UNLESS(vChunkSize % BlockSize == 0);
+    // ActorSystem thread
+}
 
 TVChunk::~TVChunk() = default;
 
@@ -52,36 +68,63 @@ void TVChunk::Start()
         });
 }
 
-NThreading::TFuture<TReadBlocksLocalResponse> TVChunk::ReadBlocksLocal(
+TFuture<TReadBlocksLocalResponse> TVChunk::ReadBlocksLocal(
     TCallContextPtr callContext,
     std::shared_ptr<TReadBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    const NWilson::TTraceId& traceId)
 {
     // VHost thread
 
-    if (request->Range.Start >= BlocksCount) {
+    auto span = std::make_shared<NWilson::TSpan>(NWilson::TSpan(
+        NKikimr::TWilsonNbs::NbsBasic,
+        traceId.Clone(),
+        "TVChunk.Read",
+        NWilson::EFlags::AUTO_END,
+        ActorSystem));
+    span->Attribute("VChunkIndex", VChunkConfig.VChunkIndex);
+
+    const TBlockRange64 regionRange = TranslateToRegion(
+        *request->Headers.VolumeConfig,
+        request->Headers.Range);
+    const TBlockRange64 vchunkRange =
+        TranslateToVChunk(*request->Headers.VolumeConfig, regionRange);
+
+    LOG_DEBUG(
+        *ActorSystem,
+        NKikimrServices::NBS_PARTITION,
+        "ReadBlocksLocal. Range %s, Region range %s, VChunk range %s",
+        request->Headers.Range.Print().c_str(),
+        regionRange.Print().c_str(),
+        vchunkRange.Print().c_str());
+
+    if (vchunkRange.Start >= BlocksCount) {
         return MakeFuture<TReadBlocksLocalResponse>(TReadBlocksLocalResponse{
             .Error = MakeError(E_ARGUMENT, "out of range")});
     }
 
-    auto promise = NThreading::NewPromise<TReadBlocksLocalResponse>();
+    auto promise = TTracedPromise<TReadBlocksLocalResponse>(
+        span,
+        NKikimr::TWilsonNbs::NbsBasic);
     auto future = promise.GetFuture();
 
     Executor->ExecuteSimple(
         [weakSelf = weak_from_this(),
          promise = std::move(promise),
+         vchunkRange,
          callContext = std::move(callContext),
          request = std::move(request),
-         traceId = std::move(traceId)]() mutable
+         span = std::move(span)]() mutable
         {
             // Executor thread
+            span->Event("ExecutorTread");
 
             if (auto self = weakSelf.lock()) {
                 self->DoReadBlocksLocal(
                     std::move(promise),
+                    vchunkRange,
                     std::move(callContext),
                     std::move(request),
-                    std::move(traceId));
+                    std::move(span));
             } else {
                 promise.SetValue(
                     TReadBlocksLocalResponse{.Error = MakeError(E_CANCELLED)});
@@ -91,34 +134,72 @@ NThreading::TFuture<TReadBlocksLocalResponse> TVChunk::ReadBlocksLocal(
     return future;
 }
 
-NThreading::TFuture<TWriteBlocksLocalResponse> TVChunk::WriteBlocksLocal(
+TFuture<TWriteBlocksLocalResponse> TVChunk::WriteBlocksLocal(
     TCallContextPtr callContext,
     std::shared_ptr<TWriteBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    EWriteMode writeMode,
+    TDuration pbufferReplyTimeout,
+    ui64 lsn,
+    const NWilson::TTraceId& traceId)
 {
     // VHost thread
 
-    if (request->Range.Start >= BlocksCount) {
+    auto span = std::make_shared<NWilson::TSpan>(NWilson::TSpan(
+        NKikimr::TWilsonNbs::NbsBasic,
+        traceId.Clone(),
+        "TVChunk.Write",
+        NWilson::EFlags::AUTO_END,
+        ActorSystem));
+    span->Attribute("VChunkIndex", VChunkConfig.VChunkIndex);
+
+    const TBlockRange64 regionRange = TranslateToRegion(
+        *request->Headers.VolumeConfig,
+        request->Headers.Range);
+    const TBlockRange64 vchunkRange =
+        TranslateToVChunk(*request->Headers.VolumeConfig, regionRange);
+
+    LOG_DEBUG(
+        *ActorSystem,
+        NKikimrServices::NBS_PARTITION,
+        "WriteBlocksLocal. Range %s, Region range %s, VChunk range %s",
+        request->Headers.Range.Print().c_str(),
+        regionRange.Print().c_str(),
+        vchunkRange.Print().c_str());
+
+    if (vchunkRange.Start >= BlocksCount) {
         return MakeFuture<TWriteBlocksLocalResponse>(TWriteBlocksLocalResponse{
             .Error = MakeError(E_ARGUMENT, "out of range")});
     }
 
-    auto promise = NThreading::NewPromise<TWriteBlocksLocalResponse>();
+    auto promise = TTracedPromise<TWriteBlocksLocalResponse>(
+        span,
+        NKikimr::TWilsonNbs::NbsBasic);
     auto future = promise.GetFuture();
 
     Executor->ExecuteSimple(
         [weakSelf = weak_from_this(),
          promise = std::move(promise),
+         vchunkRange,
          callContext = std::move(callContext),
          request = std::move(request),
-         traceId = std::move(traceId)]() mutable
+         writeMode,
+         pbufferReplyTimeout,
+         lsn,
+         span = std::move(span)]() mutable
         {
+            // Executor thread
+            span->Event("ExecutorTread");
+
             if (auto self = weakSelf.lock()) {
                 self->DoWriteBlocksLocal(
                     std::move(promise),
+                    vchunkRange,
                     std::move(callContext),
                     std::move(request),
-                    std::move(traceId));
+                    writeMode,
+                    pbufferReplyTimeout,
+                    lsn,
+                    std::move(span));
             } else {
                 promise.SetValue(
                     TWriteBlocksLocalResponse{.Error = MakeError(E_CANCELLED)});
@@ -128,18 +209,15 @@ NThreading::TFuture<TWriteBlocksLocalResponse> TVChunk::WriteBlocksLocal(
     return future;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-NWilson::TTraceId TVChunk::SpanTrace()
+ui64 TVChunk::GetPBufferUsedSize(ui8 hostIndex) const
 {
-    return NWilson::TTraceId::NewTraceIdThrottled(
-        15,                           // verbosity
-        4095,                         // timeToLive
-        LastTraceTs,                  // atomic counter for throttling
-        NActors::TMonotonic::Now(),   // current monotonic time
-        TraceSamplePeriod             // 100ms between samples
-    );
+    Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
+    auto location = VChunkConfig.GetPBufferLocation(hostIndex);
+    auto counters = BlocksDirtyMap.GetPBufferCounters(location);
+    return counters.TotalBytesCount;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TVChunk::UpdateDirtyMap(const TDBGRestoreResponse& response)
 {
@@ -152,7 +230,6 @@ void TVChunk::UpdateDirtyMap(const TDBGRestoreResponse& response)
             meta.Range,
             pbuffersMap[meta.HostIndex]);
     }
-    BlocksDirtyMap.PrepareReadyItems();
     DirtyMapRestored = true;
 
     DoFlush();
@@ -162,6 +239,8 @@ void TVChunk::UpdateDirtyMap(const TDBGRestoreResponse& response)
 void TVChunk::DoStart()
 {
     Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
+
+    DirectBlockGroup->Register(weak_from_this());
 
     auto future =
         DirectBlockGroup->RestoreDBGPBuffers(VChunkConfig.VChunkIndex);
@@ -176,69 +255,160 @@ void TVChunk::DoStart()
 }
 
 void TVChunk::DoReadBlocksLocal(
-    TPromise<TReadBlocksLocalResponse> promise,
+    TTracedPromise<TReadBlocksLocalResponse> promise,
+    TBlockRange64 vchunkRange,
     TCallContextPtr callContext,
     std::shared_ptr<TReadBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    std::shared_ptr<NWilson::TSpan> span)
 {
     Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
 
     if (!DirtyMapRestored) {
-        promise.SetValue(TReadBlocksLocalResponse{
-            .Error = MakeError(E_REJECTED, "dirty map not restored")});
+        auto error = MakeError(E_REJECTED, "dirty map not restored");
+        auto ender = TEndSpanWithError(span, error);
+        promise.SetValue(TReadBlocksLocalResponse{.Error = std::move(error)});
         return;
     }
 
-    auto hints = BlocksDirtyMap.MakeReadHint(request->Range);
-    auto requestExecutor = std::make_shared<TReadRequestExecutor>(
+    TReadHint readHint;
+    {
+        auto dirtyMapSpan = span->CreateChild(
+            NKikimr::TWilsonNbs::NbsBasic,
+            "TVChunk.DirtyMap.ReadHint",
+            NWilson::EFlags::AUTO_END);
+
+        readHint = BlocksDirtyMap.MakeReadHint(vchunkRange);
+        LOG_DEBUG(
+            *ActorSystem,
+            NKikimrServices::NBS_PARTITION,
+            "Read hint: %s",
+            readHint.DebugPrint().c_str());
+    }
+
+    if (readHint.RangeHints.empty()) {
+        // Will try to repeat the request when the data is ready.
+        span->Event("WaitDataReady");
+
+        Executor->ExecuteSimple(
+            [weakSelf = weak_from_this(),
+             executor = Executor,
+             waitReady = readHint.WaitReady,
+             promise = std::move(promise),
+             vchunkRange,
+             callContext = std::move(callContext),
+             request = std::move(request),
+             span = std::move(span)]() mutable
+            {
+                executor->WaitFor(waitReady);
+                if (auto self = weakSelf.lock()) {
+                    span->Event("DataReady");
+
+                    self->DoReadBlocksLocal(
+                        std::move(promise),
+                        vchunkRange,
+                        std::move(callContext),
+                        std::move(request),
+                        std::move(span));
+                } else {
+                    promise.SetValue(TReadBlocksLocalResponse{
+                        .Error = MakeError(E_CANCELLED)});
+                }
+            });
+        return;
+    }
+
+    span->Event("ReadRequestExecutor");
+    span->Attribute(
+        "SourceCount",
+        static_cast<i64>(readHint.RangeHints.size()));
+
+    auto requestExecutor = CreateReadRequestExecutor(
         ActorSystem,
         VChunkConfig,
         DirectBlockGroup,
-        std::move(hints),
+        std::move(readHint),
         std::move(callContext),
         std::move(request),
-        std::move(traceId));
+        span->GetTraceId());
 
     auto future = requestExecutor->GetFuture();
     future.Subscribe(
-        [promise = std::move(promise),
+        [weakSelf = weak_from_this(),
+         promise = std::move(promise),
+         span,
          threadChecker = ExecutorThreadChecker.CreateDelegate()]   //
-        (const NThreading::TFuture<TReadRequestExecutor::TResponse>& f) mutable
+        (const TFuture<IReadRequestExecutor::TResponse>& f) mutable
         {
             Y_ABORT_UNLESS(threadChecker.Check());
 
             auto value = UnsafeExtractValue(f);
+
+            if (auto self = weakSelf.lock()) {
+                bool ok = !HasError(value.Error);
+                self->Counters.RequestFinished(EVChunkOperation::Read, ok);
+            }
+
             promise.SetValue(
                 TReadBlocksLocalResponse{.Error = std::move(value.Error)});
         });
 
+    span->Event("Run ReadRequestExecutor");
     requestExecutor->Run();
 }
 
 void TVChunk::DoWriteBlocksLocal(
-    TPromise<TWriteBlocksLocalResponse> promise,
+    TTracedPromise<TWriteBlocksLocalResponse> promise,
+    TBlockRange64 vchunkRange,
     TCallContextPtr callContext,
     std::shared_ptr<TWriteBlocksLocalRequest> request,
-    NWilson::TTraceId traceId)
+    EWriteMode writeMode,
+    TDuration pbufferReplyTimeout,
+    ui64 lsn,
+    std::shared_ptr<NWilson::TSpan> span)
 {
     Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
 
-    auto range = request->Range;
-    auto writeExecutor = std::make_shared<TWriteRequestExecutor>(
-        ActorSystem,
-        VChunkConfig,
-        DirectBlockGroup,
-        std::move(callContext),
-        std::move(request),
-        std::move(traceId));
+    std::shared_ptr<TBaseWriteRequestExecutor> writeExecutor;
+    switch (writeMode) {
+        case EWriteMode::PBufferReplication:
+            writeExecutor =
+                std::make_shared<TWriteWithPbReplicationRequestExecutor>(
+                    ActorSystem,
+                    VChunkConfig,
+                    DirectBlockGroup,
+                    vchunkRange,
+                    std::move(callContext),
+                    std::move(request),
+                    lsn,
+                    span->GetTraceId(),
+                    WriteHedgingDelay,
+                    WriteRequestTimeout,
+                    pbufferReplyTimeout);
+            break;
+        case EWriteMode::DirectPBuffersFilling:
+            writeExecutor =
+                std::make_shared<TWriteWithDirectReplicationRequestExecutor>(
+                    ActorSystem,
+                    VChunkConfig,
+                    DirectBlockGroup,
+                    vchunkRange,
+                    std::move(callContext),
+                    std::move(request),
+                    lsn,
+                    span->GetTraceId(),
+                    WriteHedgingDelay,
+                    WriteRequestTimeout);
+            break;
+    }
+
     auto future = writeExecutor->GetFuture();
     future.Subscribe(
         [weakSelf = weak_from_this(),
-         range,
-         promise = std::move(promise)]   //
-        (const NThreading::TFuture<TWriteRequestExecutor::TResponse>& f) mutable
+         vchunkRange,
+         promise = std::move(promise),
+         span]   //
+        (const TFuture<TBaseWriteRequestExecutor::TResponse>& f) mutable
         {
-            // Executor thread
             auto self = weakSelf.lock();
             if (!self) {
                 promise.SetValue(
@@ -247,28 +417,44 @@ void TVChunk::DoWriteBlocksLocal(
             }
             self->OnWriteBlocksResponse(
                 std::move(promise),
-                range,
-                f.GetValue());
+                vchunkRange,
+                f.GetValue(),
+                std::move(span));
         });
 
+    span->Event("Run");
     writeExecutor->Run();
 }
 
 void TVChunk::OnWriteBlocksResponse(
-    NThreading::TPromise<TWriteBlocksLocalResponse> promise,
+    TTracedPromise<TWriteBlocksLocalResponse> promise,
     TBlockRange64 range,
-    const TWriteRequestExecutor::TResponse& response)
+    const TBaseWriteRequestExecutor::TResponse& response,
+    std::shared_ptr<NWilson::TSpan> span)
 {
     Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
 
+    {
+        auto dirtyMapSpan = span->CreateChild(
+            NKikimr::TWilsonNbs::NbsBasic,
+            "TVChunk.UpdateDirtyMap",
+            NWilson::EFlags::AUTO_END);
+
+        BlocksDirtyMap.WriteFinished(
+            response.Lsn,
+            range,
+            response.RequestedWrites,
+            response.CompletedWrites);
+    }
+
+    bool ok = !HasError(response.Error);
+    Counters.RequestFinished(EVChunkOperation::Write, ok);
+
     promise.SetValue(TWriteBlocksLocalResponse{.Error = response.Error});
 
-    BlocksDirtyMap.WriteFinished(
-        response.Lsn,
-        range,
-        response.RequestedWrites,
-        response.CompletedWrites);
+    span->EndOk();
 
+    UpdatePendingCounters();
     DoFlush();
 }
 
@@ -276,24 +462,21 @@ void TVChunk::DoFlush()
 {
     Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
 
-    auto hints = BlocksDirtyMap.MakeFlushHint(SyncRequestsBatchSize);
+    auto flushBatch = BlocksDirtyMap.MakeFlushHint(SyncRequestsBatchSize);
 
-    for (auto& [location, hint]: hints) {
-        Y_ABORT_UNLESS(IsPBuffer(location));
-
+    for (auto& [route, hint]: flushBatch.TakeAllHints()) {
         auto flushExecutor = std::make_shared<TFlushRequestExecutor>(
             ActorSystem,
             VChunkConfig,
             DirectBlockGroup,
-            location,
+            route,
             std::move(hint),
-            SpanTrace());
+            PartitionDirectService->CreteRootSpan("Flush"));
 
         auto future = flushExecutor->GetFuture();
         future.Subscribe(
             [weakSelf = weak_from_this()]   //
-            (const NThreading::TFuture<TFlushRequestExecutor::TResponse>&
-                 f) mutable
+            (const TFuture<TFlushRequestExecutor::TResponse>& f) mutable
             {
                 // Executor thread
                 if (auto self = weakSelf.lock()) {
@@ -310,10 +493,18 @@ void TVChunk::OnFlushResponse(const TFlushRequestExecutor::TResponse& response)
     Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
 
     BlocksDirtyMap.FlushFinished(
-        response.Location,
+        response.Route,
         response.FlushOk,
         response.FlushFailed);
 
+    for (size_t i = 0; i < response.FlushOk.size(); ++i) {
+        Counters.RequestFinished(EVChunkOperation::Flush, true);
+    }
+    for (size_t i = 0; i < response.FlushFailed.size(); ++i) {
+        Counters.RequestFinished(EVChunkOperation::Flush, false);
+    }
+
+    UpdatePendingCounters();
     DoErase();
 }
 
@@ -323,7 +514,7 @@ void TVChunk::DoErase()
 
     auto hints = BlocksDirtyMap.MakeEraseHint(SyncRequestsBatchSize);
 
-    for (auto& [location, hint]: hints) {
+    for (auto& [location, hint]: hints.TakeAllHints()) {
         Y_ABORT_UNLESS(IsPBuffer(location));
 
         auto eraseExecutor = std::make_shared<TEraseRequestExecutor>(
@@ -332,13 +523,12 @@ void TVChunk::DoErase()
             DirectBlockGroup,
             location,
             std::move(hint),
-            SpanTrace());
+            PartitionDirectService->CreteRootSpan("Erase"));
 
         auto future = eraseExecutor->GetFuture();
         future.Subscribe(
             [weakSelf = weak_from_this()]   //
-            (const NThreading::TFuture<TEraseRequestExecutor::TResponse>&
-                 f) mutable
+            (const TFuture<TEraseRequestExecutor::TResponse>& f) mutable
             {
                 // Executor thread
                 if (auto self = weakSelf.lock()) {
@@ -358,6 +548,33 @@ void TVChunk::OnEraseResponse(const TEraseRequestExecutor::TResponse& response)
         response.Location,
         response.EraseOk,
         response.EraseFailed);
+
+    for (size_t i = 0; i < response.EraseOk.size(); ++i) {
+        Counters.RequestFinished(EVChunkOperation::Erase, true);
+    }
+    for (size_t i = 0; i < response.EraseFailed.size(); ++i) {
+        Counters.RequestFinished(EVChunkOperation::Erase, false);
+    }
+
+    UpdatePendingCounters();
+}
+
+void TVChunk::UpdatePendingCounters()
+{
+    Y_ABORT_UNLESS(ExecutorThreadChecker.Check());
+
+    Counters.UpdatePending(
+        EVChunkOperation::Flush,
+        BlocksDirtyMap.GetFlushPendingCount());
+    Counters.UpdatePending(
+        EVChunkOperation::Erase,
+        BlocksDirtyMap.GetErasePendingCount());
+    Counters.UpdateMinLsn(
+        EVChunkOperation::Flush,
+        BlocksDirtyMap.GetMinFlushPendingLsn());
+    Counters.UpdateMinLsn(
+        EVChunkOperation::Erase,
+        BlocksDirtyMap.GetMinErasePendingLsn());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

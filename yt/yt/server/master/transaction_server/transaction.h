@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/core/concurrency/async_barrier.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
@@ -124,8 +126,8 @@ class TTransaction
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, Title);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ExternalizedToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagSet, ReplicatedToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagSet, ExternalizedToCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransactionRawPtr>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionRawPtr, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
@@ -159,6 +161,7 @@ public:
     using TLockSet = THashSet<NCypressServer::TLockRawPtr>;
     DEFINE_BYREF_RO_PROPERTY(TLockSet, Locks);
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeSet, BranchedNodes);
+    // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
     using TStagedNodeList = std::vector<NCypressServer::TCypressNodeRawPtr>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
     DEFINE_BYREF_RW_PROPERTY(TBulkInsertState, BulkInsertState, this);
@@ -234,8 +237,19 @@ public:
     void SetSuccessorTransactionLeaseCount(int newLeaseCount);
     int GetSuccessorTransactionLeaseCount() const;
 
+    bool IsNativeTxExternalizationEnabled() const;
+
     //! Can be confused with IsSequiaTransaction().
     bool IsSequoia() const = delete;
+
+    //! Saves a barrier tag and its corresponding cookie. Passing #InvalidAsyncBarrierCookie
+    //! as cookie indicates that an actual cookie is not known yet and will be delivered later,
+    //! but attaches the tag to the transaction permanently.
+    void RegisterBarrierCookie(
+        const std::string& tag,
+        NConcurrency::TAsyncBarrierCookie cookie);
+
+    const THashMap<std::string, NConcurrency::TAsyncBarrierCookie>& GetBarrierCookies() const;
 
 protected:
     IActionStateFactory* GetActionStateFactory() override;
@@ -245,7 +259,12 @@ private:
 
     int SuccessorTransactionLeaseCount_ = 0;
 
+    // COMPAT(h0pless): AbortStuckTransactions.
+    bool NativeTxExternalizationEnabled_ = true;
+
     ETransactionLeasesState LeasesState_ = ETransactionLeasesState::Active;
+
+    THashMap<std::string, NConcurrency::TAsyncBarrierCookie> BarrierTagToCookie_;
 
     void IncrementRecursiveLockCount();
     void DecrementRecursiveLockCount();

@@ -370,6 +370,66 @@ void TClient::DoMasterExitReadOnly(
     }
 }
 
+void TClient::DoFreezeHydraPeer(
+    TCellId cellId,
+    const std::string& address,
+    const TFreezeHydraPeerOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.Freeze();
+    req->set_term(options.Term);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoTruncateChangelog(
+    TCellId cellId,
+    const std::string& address,
+    const TTruncateChangelogOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.TruncateChangelog();
+    req->set_last_sequence_number(options.LastSequenceNumber);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoScheduleRestart(
+    TCellId cellId,
+    const std::string& address,
+    const TScheduleRestartOptions& options)
+{
+    auto channel = CreateRealmChannel(
+        Connection_->GetChannelFactory()->CreateChannel(address),
+        cellId);
+
+    auto proxy = THydraServiceProxy(channel);
+    auto req = proxy.ForceRestart();
+
+    auto restartReason = TError("Schedule restart command");
+    ToProto(req->mutable_reason(), restartReason);
+    req->set_arm_priority_boost(false);
+
+    static const auto ControlRpcTimeout = TDuration::Seconds(5);
+    req->SetTimeout(options.Timeout.value_or(ControlRpcTimeout));
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
 void TClient::DoResetDynamicallyPropagatedMasterCells(const TResetDynamicallyPropagatedMasterCellsOptions& options)
 {
     ValidatePermissionsWithAcn(
@@ -654,13 +714,14 @@ void TClient::DoSuspendChaosCells(
     SyncCellsIfNeeded(cellIds);
 
     std::vector<TFuture<void>> futures;
-    futures.reserve(cellIds.size());
+    futures.reserve(2 * cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto chaosCellId : cellIds) {
+        auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
         {
             // Migrate replication cards.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
-            auto proxy = TChaosNodeServiceProxy(std::move(channel));
+            auto proxy = TChaosNodeServiceProxy(channel);
 
             auto siblingCellTag = GetSiblingChaosCellTag(CellTagFromId(chaosCellId));
             const auto& cellDirectory = Connection_->GetCellDirectory();
@@ -676,19 +737,18 @@ void TClient::DoSuspendChaosCells(
             ToProto(req->mutable_migrate_to_cell_id(), descriptor->CellId);
             req->set_migrate_all_replication_cards(true);
             req->set_suspend_chaos_cell(true);
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
 
             futures.push_back(req->Invoke().AsVoid());
         }
 
         {
             // Suspend coordination.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
             auto proxy = TCoordinatorServiceProxy(std::move(channel));
 
             auto req = proxy.SuspendCoordinator();
             SetMutationId(req, options);
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -705,27 +765,27 @@ void TClient::DoResumeChaosCells(
     SyncCellsIfNeeded(cellIds);
 
     std::vector<TFuture<void>> futures;
-    futures.reserve(cellIds.size());
+    futures.reserve(2 * cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto chaosCellId : cellIds) {
+        auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
         {
             // Resume replication card creation.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
-            auto proxy = TChaosNodeServiceProxy(std::move(channel));
+            auto proxy = TChaosNodeServiceProxy(channel);
 
             auto req = proxy.ResumeChaosCell();
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
             futures.push_back(req->Invoke().AsVoid());
         }
 
         {
             // Resume coordination.
-            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
             auto proxy = TCoordinatorServiceProxy(std::move(channel));
 
             auto req = proxy.ResumeCoordinator();
             SetMutationId(req, options);
-            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+            req->SetTimeout(methodTimeout);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -744,12 +804,13 @@ void TClient::DoSuspendTabletCells(
     std::vector<TFuture<void>> futures;
     futures.reserve(cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto cellId : cellIds) {
         auto channel = GetCellChannelOrThrow(cellId);
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.SuspendTabletCell();
-        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+        req->SetTimeout(methodTimeout);
         futures.push_back(req->Invoke().AsVoid());
     }
 
@@ -766,12 +827,13 @@ void TClient::DoResumeTabletCells(
     std::vector<TFuture<void>> futures;
     futures.reserve(cellIds.size());
 
+    auto methodTimeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
     for (auto cellId : cellIds) {
         auto channel = GetCellChannelOrThrow(cellId);
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.ResumeTabletCell();
-        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+        req->SetTimeout(methodTimeout);
         futures.push_back(req->Invoke().AsVoid());
     }
 

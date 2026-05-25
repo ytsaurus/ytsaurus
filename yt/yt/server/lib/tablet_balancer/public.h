@@ -52,6 +52,7 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCell)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellBundle)
 
 struct TReshardDescriptor;
+using TReshardDescriptorPtr = TIntrusivePtr<TReshardDescriptor>;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 

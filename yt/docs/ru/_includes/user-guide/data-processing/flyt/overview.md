@@ -1,15 +1,12 @@
 # Обзор
 
-## Что такое Flink
+FLYT — это проект по интеграции [Apache Flink](https://flink.apache.org/) и {{product-name}}. С его помощью можно использовать Flink для потоковой и пакетной обработки данных, читая их из {{product-name}} и записывая обратно в реальном времени.
 
-[Apache Flink](https://flink.apache.org/) — это фреймворк и механизм распределенной обработки для вычислений с отслеживанием состояния в потоках данных с неограниченным и ограниченным объемом. Flink разработан для работы во всех распространенных кластерных средах, выполнения вычислений с использованием оперативной памяти и в любом масштабе.
+## Компоненты {#components}
 
-## Что такое FLYT?
+- [flink-connector-ytsaurus](../../../../user-guide/data-processing/flyt/flink-connector-ytsaurus.md) — коннектор Apache Flink к сортированным динамическим таблицам {{product-name}}; поддерживает запись, чтение ограниченных потоков и Lookup-операции;
+- [flink-yson](../../../../user-guide/data-processing/flyt/flink-yson.md) — форматтер для работы с [YSON](../../../../user-guide/storage/yson.md) в задачах Flink.
 
-FLYT - это проект по интеграции Apache Flink и {{product-name}}.
+## С чего начать {#getting-started}
 
-## Какие компоненты предоставляет FLYT?
-
-- [flink-connector-ytsaurus](../../../../user-guide/data-processing/flyt/flink-connector-ytsaurus.md) - Apache Flink коннектор к сортированным динамическим таблицам {{product-name}};
-
-- [flink-yson](../../../../user-guide/data-processing/flyt/flink-yson.md) - Apache Flink форматер для работы с [YSON](../../../../user-guide/storage/yson.md) форматом.
+Если вы впервые работаете с FLYT, начните с раздела [Быстрый старт](../../../../user-guide/data-processing/flyt/flink-connector-ytsaurus.md#quick-start-guide) в документации коннектора.

@@ -48,7 +48,7 @@ void TChunkReplicasVisitor::OnSuccess()
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-    chunkReplicaFetcher->GetChunkReplicasAsync(std::move(Chunks_))
+    chunkReplicaFetcher->GetChunkReplicasAsync(std::move(Chunks_), /*includeUnapproved*/ true)
         .AsUnique()
         .Subscribe(BIND([this, this_ = MakeStrong(this)] (TErrorOr<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>> replicasOrError) {
             Promise_.TrySet(std::move(replicasOrError));
@@ -121,6 +121,7 @@ private:
     i64 TotalHunkLength_ = 0;
     i64 ReferencedHunkCount_ = 0;
     i64 TotalReferencedHunkLength_ = 0;
+    i64 GarbageDiskSpace_ = 0;
 
 
     bool OnChunk(
@@ -145,14 +146,29 @@ private:
                 }
                 break;
 
-            // TODO(aleksandra-zh): add journal chunks.
-            case EChunkType::Hunk:
+            case EChunkType::Hunk: {
                 if (auto hunkChunkMiscExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkMiscExt>()) {
                     HunkChunkCount_ += 1;
                     HunkCount_ += hunkChunkMiscExt->hunk_count();
                     TotalHunkLength_ += hunkChunkMiscExt->total_hunk_length();
                 }
+
+                UpdateGarbageHunkChunkDiskSpace(chunk);
                 break;
+            }
+
+            case EChunkType::Journal: {
+                if (chunk->GetChunkFormat() == EChunkFormat::HunkJournal &&
+                    chunk->IsSealed())
+                {
+                    HunkChunkCount_ += 1;
+                    // TODO(akozhikhov): Support hunk count here too.
+                    TotalHunkLength_ += chunk->GetCompressedDataSize();
+
+                    UpdateGarbageHunkChunkDiskSpace(chunk);
+                }
+                break;
+            }
 
             default:
                 break;
@@ -187,8 +203,17 @@ private:
                 .Item("total_hunk_length").Value(TotalHunkLength_)
                 .Item("total_referenced_hunk_length").Value(TotalReferencedHunkLength_)
                 .Item("referenced_hunk_count").Value(ReferencedHunkCount_)
+                .Item("garbage_disk_space").Value(GarbageDiskSpace_)
             .EndMap();
         Promise_.Set(result);
+    }
+
+    void UpdateGarbageHunkChunkDiskSpace(TChunk* chunk)
+    {
+        auto hunkStatistics = chunk->GetHunkStatistics();
+        GarbageDiskSpace_ +=
+            hunkStatistics.RegularDiskSpace - hunkStatistics.ReferencedRegularDiskSpace +
+            hunkStatistics.ErasureDiskSpace - hunkStatistics.ReferencedErasureDiskSpace;
     }
 };
 

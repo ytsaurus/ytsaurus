@@ -70,7 +70,7 @@ private:
     const ICypressUserManagerPtr UserManager_;
 
     TAuthenticationResult OnGetUserInfo(
-        const TString& tokenHash,
+        const std::string& tokenHash,
         const TOAuthUserInfoResult& userInfo)
     {
         auto error = EnsureUserExists(
@@ -87,7 +87,7 @@ private:
 
         auto result = TAuthenticationResult{
             .Login = userInfo.Login,
-            .Realm = TString(OAuthTokenRealm),
+            .Realm = std::string(OAuthTokenRealm),
         };
         YT_LOG_DEBUG(
             "Authentication via OAuth successful (TokenHash: %v, Login: %v, Realm: %v)",

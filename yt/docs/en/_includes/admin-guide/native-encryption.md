@@ -243,7 +243,7 @@ Unlike other components, CHYT runs inside a {{product-name}} [vanilla operation]
 - Strawberry reads certificates from the files specified in its configuration.
 - The `cluster-connection` configuration with `bus_client`/`bus_server` parameters is taken from Cypress to determine the encryption mode and connection settings for cluster components.
 - The operation receives all security settings, including certificates and encryption parameters, via a [secure_vault](*secure_vault).
-- When the certificates change, Strawberry computes a hash of the updated data and, if the hash differs, automatically restarts the operation to apply the new settings.
+- When certificates change, Strawberry recalculates the hash of the updated configuration data. If either side detects that the hash has changed, Strawberry automatically restarts the operation to apply the new settings.
 
 The `secure_vault` allows you to pass certificates and keys to operations securely, without exposing them in plaintext. The `cluster-connection` configuration includes all the necessary settings for establishing secure connections between CHYT and other cluster components, including encryption modes (`encryption_mode`) and certificate verification modes (`verification_mode`).
 

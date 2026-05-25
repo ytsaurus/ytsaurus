@@ -251,6 +251,9 @@ items:
          - name: Recommendations
            when: audience == "public"
            href: user-guide/data-processing/operations/recommendations.md
+         - name: Inter-cluster network bandwidth throttling
+           when: audience == "public"
+           href: user-guide/data-processing/operations/cluster-throttlers.md
          - name: Root file system images
            when: audience == "public"
            href: user-guide/data-processing/layers/layer-paths.md
@@ -315,6 +318,8 @@ items:
                href: user-guide/data-processing/spyt/overview.md
              - name: Launching Spark tasks in {{product-name}}
                href: user-guide/data-processing/spyt/launch.md
+             - name: Definitions in SPYT
+               href: user-guide/data-processing/spyt/glossary.md
              - name: Direct submit
                items:
                - name: Description
@@ -565,6 +570,8 @@ items:
          href: admin-guide/yql-query-isolation.md
        - name: Encryption in the native protocol
          href: admin-guide/native-encryption.md
+       - name: Inter-cluster network bandwidth throttling
+         href: admin-guide/cluster-throttlers.md
        - name: Misc
          items:
            - name: Reading from remote clusters via RPC proxy

@@ -26,12 +26,12 @@ constexpr TDuration::TValue NoDurationSentinel = ::Max<TDuration::TValue>();
 
 void StoreOptionalDuration(std::atomic<TDuration::TValue>& target, std::optional<TDuration> value)
 {
-    target.store(value ? value->GetValue() : NoDurationSentinel, std::memory_order_relaxed);
+    target.store(value ? value->GetValue() : NoDurationSentinel, std::memory_order::relaxed);
 }
 
 void MaybeDelay(const std::atomic<TDuration::TValue>& delay, EDelayType delayType)
 {
-    auto raw = delay.load(std::memory_order_relaxed);
+    auto raw = delay.load(std::memory_order::relaxed);
     if (raw != NoDurationSentinel) {
         Delay(TDuration::MicroSeconds(raw), delayType);
     }
@@ -369,7 +369,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
         YT_VERIFY(element->IncreaseLocalResourceUsagePrecommitUnsafe(-delta));
         currentElement = element->Parent_.Get();
         while (currentElement != failedParent) {
-            auto raw = ResourceTreeRevertResourceUsagePrecommitRandomDelay_.load(std::memory_order_relaxed);
+            auto raw = ResourceTreeRevertResourceUsagePrecommitRandomDelay_.load(std::memory_order::relaxed);
             if (raw != NoDurationSentinel) {
                 // NB: under RWLock only synchronous sleep is allowed.
                 Delay(RandomDuration(TDuration::MicroSeconds(raw)), EDelayType::Sync);
@@ -510,7 +510,8 @@ EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreem
 
 bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
     const TResourceTreeElementPtr& element,
-    const TJobResources& resourceUsageDelta)
+    const TJobResources& resourceUsageDelta,
+    const TJobResources& precommittedResources)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -529,11 +530,12 @@ bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
     YT_VERIFY(element->Initialized_);
 
     auto commitLocalPreemptedResourceUsageUnsafe = [&] (auto* current) -> bool {
-        bool success = current->CommitLocalPreemptedResourceUsageUnsafe(resourceUsageDelta);
+        bool success = current->CommitLocalPreemptedResourceUsageUnsafe(resourceUsageDelta, precommittedResources);
         YT_LOG_DEBUG_UNLESS(
             success,
-            "Local commit of preempted usage failed (ResourceUsageDelta: %v, CurrentElement: %v, SourceElement: %v)",
+            "Local commit of preempted usage failed (ResourceUsageDelta: %v, PrecommittedResources: %v, CurrentElement: %v, SourceElement: %v)",
             resourceUsageDelta,
+            precommittedResources,
             current->GetId(),
             element->GetId());
         return success;

@@ -912,7 +912,7 @@ public:
     bool IsMaxScheduleAllocationCallsViolated() const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool HasRecentScheduleAllocationFailure(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
         const std::string& treeId,
@@ -924,9 +924,10 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const std::string& treeId);
+        const std::string& treeId,
+        std::optional<std::string> allocationGroupName = {});
     void OnScheduleAllocationFailed(
-        NProfiling::TCpuInstant now,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
     void AbortAllocation(
@@ -945,11 +946,11 @@ public:
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources);
+    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
     void ReleaseResources(bool markAsNonAlive);
 
     EResourceTreeIncreasePreemptedResult TryIncreaseHierarchicalPreemptedResourceUsagePrecommit(const TJobResources& delta, std::string* violatedIdOutput);
-    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& delta);
+    bool CommitHierarchicalPreemptedResourceUsage(const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources);
 
     //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;

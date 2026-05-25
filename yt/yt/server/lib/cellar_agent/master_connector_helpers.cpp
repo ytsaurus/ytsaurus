@@ -137,7 +137,7 @@ void UpdateCellarFromHeartbeatResponse(
             continue;
         }
 
-        YT_LOG_DEBUG("Configuruing cell (CellId: %v)",
+        YT_LOG_DEBUG("Configuring cell (CellId: %v)",
             cellId);
 
         cellar->ConfigureOccupant(slot, info);

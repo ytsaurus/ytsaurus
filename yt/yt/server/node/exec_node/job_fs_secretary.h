@@ -5,6 +5,7 @@
 #include "preparation_options.h"
 #include "private.h"
 #include "public.h"
+#include "volume.h"
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -19,6 +20,12 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 
+//! Prepared overlay layer data, indexed by artifact key.
+struct TPreparedLayers
+{
+    THashMap<TArtifactKey, TOverlayData> ArtifactKeyToOverlayData;
+};
+
 struct TJobFSDescription
 {
     std::vector<TArtifactDescription> Artifacts;
@@ -28,6 +35,7 @@ struct TJobFSDescription
     std::optional<TString> DockerImage;
     std::optional<int> RootVolumeDiskSpace;
     std::optional<int64_t> RootVolumeInodeLimit;
+    bool RootVolumeAllowReusing = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
@@ -81,9 +89,12 @@ public:
 
     const std::optional<TSandboxNbdRootVolumeData>& GetSandboxNbdRootVolumeData() const;
 
-    const std::vector<TVolumeResultPtr>& GetNonRootVolumes() const;
-    std::vector<TVolumeResultPtr> ReleaseNonRootVolumes();
+    const THashMap<std::string, TVolumeResultPtr>& GetNonRootVolumes() const;
+    THashMap<std::string, TVolumeResultPtr> ReleaseNonReusableNonRootVolumes();
     void SetNonRootVolumes(std::vector<TVolumeResultPtr> volumes);
+
+    //! Returns volume params that need preparation (excludes already prepared reusable volumes).
+    std::vector<TBaseVolumeParamsPtr> GetNonRootVolumesToPrepare() const;
 
     size_t GetTmpfsVolumeCount() const;
 
@@ -92,12 +103,26 @@ public:
 
     const std::optional<int>& GetRootVolumeDiskSpace() const;
     const std::optional<int64_t>& GetRootVolumeInodeLimit() const;
+    bool IsRootVolumeReusable() const;
+    IVolumePtr ReleaseRootVolumeIfNeeded();
 
     const std::vector<TBaseVolumeParamsPtr>& GetNonRootVolumeParams() const;
 
     const std::vector<NScheduler::TVolumeMountPtr>& GetJobVolumeMounts() const;
 
     const TArtifactDescription& GetUserArtifact(const TString& name) const;
+
+    //! Adds prepared overlay layers to the allocation-scoped cache.
+    //! Crashes if any of the keys is already present.
+    void AddPreparedLayers(TPreparedLayers layers);
+
+    bool HasPreparedLayer(const TArtifactKey& key) const;
+
+    std::vector<TOverlayData> GetPreparedRootVolumeOverlayData() const;
+    std::vector<TOverlayData> GetPreparedGpuCheckVolumeOverlayData() const;
+    std::vector<TOverlayData> GetPreparedNonRootVolumeOverlayData(const TBaseVolumeParams& params) const;
+
+    void ReleasePreparedLayers();
 
     //! Returns artifact descriptions that need to be cached
     //! (excludes artifacts that bypass cache or are accessed via virtual sandbox).
@@ -126,16 +151,19 @@ private:
     THashSet<TString> NbdDeviceIds_;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
     THashMap<TString, int> UserArtifactNameToIndex_;
-    std::vector<TVolumeResultPtr> NonRootVolumes_;
+    THashMap<std::string, TVolumeResultPtr> NonRootVolumes_;
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
     // COMPAT(krasovav)
     std::optional<int> RootVolumeDiskSpace_;
     // COMPAT(krasovav)
     std::optional<int64_t> RootVolumeInodeLimit_;
+    bool RootVolumeReusingAllowed_ = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
+
+    TPreparedLayers PreparedLayers_;
 
     void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureLayerArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
@@ -155,6 +183,8 @@ private:
     void OnNewJobStarted(TJobId jobId);
 
     void AddGpuToppingLayersIfNeeded(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+
+    std::vector<TOverlayData> GetPreparedOverlayData(const std::vector<TArtifactKey>& artifactKeys) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobFSSecretary)

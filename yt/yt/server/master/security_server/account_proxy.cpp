@@ -41,6 +41,46 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkMergerUsage
+{
+    int NodeTraversals;
+    i64 MergeJobThrottlerAvailability;
+    std::optional<double> MergeJobThrottlerLimit;
+};
+
+void Deserialize(TChunkMergerUsage& usage, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    Deserialize(usage.NodeTraversals, mapNode->GetChildOrThrow("node_traversals"));
+    Deserialize(usage.MergeJobThrottlerAvailability, mapNode->GetChildOrThrow("merge_job_throttler_availability"));
+}
+
+void Deserialize(TChunkMergerUsage& usage, TYsonPullParserCursor* cursor)
+{
+    Deserialize(usage, ExtractTo<INodePtr>(cursor));
+}
+
+void Serialize(const TChunkMergerUsage& usage, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("node_traversals").Value(usage.NodeTraversals)
+            .Item("merge_job_throttler_availability").Value(usage.MergeJobThrottlerAvailability)
+        .EndMap();
+}
+
+TChunkMergerUsage GetChunkMergerUsageFromAccount(const TAccount* account)
+{
+    const auto& mergeJobThrottler = account->MergeJobThrottler();
+    return TChunkMergerUsage{
+        .NodeTraversals = account->GetChunkMergerNodeTraversals(),
+        .MergeJobThrottlerAvailability = mergeJobThrottler->GetAvailable(),
+        .MergeJobThrottlerLimit = mergeJobThrottler->GetLimit(),
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccountProxy
     : public TNonversionedMapObjectProxyBase<TAccount>
 {
@@ -101,6 +141,12 @@ private:
         if (account->IsBuiltin()) {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in account %Qv",
                 account->GetName());
+        }
+
+        if (account->ClusterStatistics() != TAccountStatistics::Empty) {
+            THROW_ERROR_EXCEPTION("Cannot remove an account %Qv because its usage is not zero (AccountUsage: %v)",
+                account->GetName(),
+                account->ClusterStatistics());
         }
 
         TBase::ValidateRemoval();
@@ -188,6 +234,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllowUsingChunkMerger)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerUsage));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellChunkMergerUsage)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
@@ -332,6 +381,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChunkMergerUsage: {
+                BuildYsonFluently(consumer)
+                    .Value(GetChunkMergerUsageFromAccount(account));
+                return true;
+            }
+
             case EInternedAttributeKey::Abc: {
                 if (account->GetAbcConfig()) {
                     BuildYsonFluently(consumer)
@@ -370,6 +425,69 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        auto* account = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::MulticellChunkMergerUsage: {
+                if (!Bootstrap_->IsPrimaryMaster()) {
+                    break;
+                }
+
+                std::vector<TFuture<std::pair<TCellTag, TChunkMergerUsage>>> asyncResults;
+                asyncResults.push_back(MakeFuture(std::make_pair(Bootstrap_->GetPrimaryCellTag(), GetChunkMergerUsageFromAccount(account))));
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                auto secondaryCellTags = multicellManager->GetSecondaryCellTags();
+
+                for (auto cellTag : secondaryCellTags) {
+                    asyncResults.push_back(GetRemoteChunkMergerUsage(cellTag, account));
+                }
+
+                return AllSucceeded(asyncResults).Apply(
+                    BIND([] (const std::vector<std::pair<TCellTag, TChunkMergerUsage>>& results) {
+                        return BuildYsonStringFluently()
+                            .DoMapFor(results, [] (TFluentMap map, const std::pair<TCellTag, TChunkMergerUsage>& response) {
+                                map.Item(Format("%v", response.first))
+                                    .Value(response.second);
+                            });
+                    }));
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    TFuture<std::pair<TCellTag, TChunkMergerUsage>> GetRemoteChunkMergerUsage(TCellTag cellTag, const TAccount* account)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto accountId = GetId();
+
+        auto req = TYPathProxy::Get(account->GetObjectPath() + "/@chunk_merger_usage");
+        batchReq->AddRequest(req);
+
+        return batchReq->Invoke()
+            .Apply(BIND([=] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto cumulativeError = GetCumulativeError(batchRspOrError);
+
+                THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching chunk merger usage of account %v from cell %v",
+                    accountId,
+                    cellTag);
+
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                const auto& rsp = rspOrError.Value();
+                return std::pair(cellTag, ConvertTo<TChunkMergerUsage>(TYsonString(rsp->value())));
+            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override

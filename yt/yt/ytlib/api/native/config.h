@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/public.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/public.h>
+
 #include <yt/yt/ytlib/discovery_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
@@ -261,6 +263,7 @@ struct TConnectionDynamicConfig
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
     NTabletBalancerClient::TTabletBalancerChannelConfigPtr TabletBalancer;
+    NOffshoreDataGateway::TOffshoreDataGatewayChannelConfigPtr OffshoreDataGateway;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
@@ -270,6 +273,12 @@ struct TConnectionDynamicConfig
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
     NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
+
+    //! If set, every CreateTableReader / CreateTablePartitionReader call
+    //! runs a one-off NodeDirectory sync via INodeDirectorySynchronizer::SyncOnce if periodic synchronizer is not active.
+    bool EnableNodeDirectorySynchronizationOnTableRead;
+    //! Minimum interval between successful one-off syncs triggered by EnableNodeDirectorySynchronizationOnTableRead.
+    TDuration NodeDirectorySynchronizationOnTableReadStalenessThreshold;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
@@ -308,7 +317,7 @@ struct TConnectionDynamicConfig
 
     int ThreadPoolSize;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 
     TDuration DefaultGetInSyncReplicasTimeout;
@@ -400,6 +409,8 @@ struct TConnectionDynamicConfig
 
     int ReplicaFallbackRetryCount;
 
+    int LocalTabletWriteRetryCount;
+
     bool DisableNewRangeInference;
 
     bool DisableAdaptiveOrderedSchemafulReader;
@@ -433,6 +444,9 @@ struct TConnectionDynamicConfig
     //! Enable base ACO check when validating operation access.
     bool CheckOperationBaseAco;
     std::string OperationBaseAcoName;
+
+    // COMPAT(atalmenev)
+    bool UseUniformPrepareSignatures;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

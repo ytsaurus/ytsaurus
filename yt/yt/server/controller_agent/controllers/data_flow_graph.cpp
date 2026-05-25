@@ -44,12 +44,13 @@ DECLARE_REFCOUNTED_CLASS(TEdge)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStreamDescriptorBase::Persist(const TPersistenceContext &context)
+void TStreamDescriptorBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
+    PHOENIX_REGISTER_FIELD(1, StreamSchemas,
+        .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>());
 }
+
+PHOENIX_DEFINE_TYPE(TStreamDescriptorBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,10 +71,12 @@ TInputStreamDescriptorPtr TInputStreamDescriptor::Clone() const
     return New<TInputStreamDescriptor>(*this);
 }
 
-void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
+void TInputStreamDescriptor::RegisterMetadata(auto&& registrar)
 {
-    TStreamDescriptorBase::Persist(context);
+    registrar.template BaseType<TStreamDescriptorBase>();
 }
+
+PHOENIX_DEFINE_TYPE(TInputStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,27 +85,27 @@ TOutputStreamDescriptorPtr TOutputStreamDescriptor::Clone() const
     return New<TOutputStreamDescriptor>(*this);
 }
 
-void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
+void TOutputStreamDescriptor::RegisterMetadata(auto&& registrar)
 {
-    TStreamDescriptorBase::Persist(context);
+    registrar.template BaseType<TStreamDescriptorBase>();
 
-    using NYT::Persist;
-
-    Persist(context, ChunkMapping);
-    Persist(context, DestinationPool);
-    Persist(context, RequiresRecoveryInfo);
-    Persist(context, TableWriterOptions);
-    Persist(context, SlowMedium);
-    Persist(context, TableUploadOptions);
-    Persist(context, TableWriterConfig);
-    Persist(context, Timestamp);
-    Persist(context, CellTags);
-    Persist(context, ImmediatelyUnstageChunkLists);
-    Persist(context, IsOutputTableDynamic);
-    Persist(context, LivePreviewIndex);
-    Persist(context, TargetDescriptor);
-    Persist(context, StreamChunkPoolIndex);
+    PHOENIX_REGISTER_FIELD(1, ChunkMapping);
+    PHOENIX_REGISTER_FIELD(2, DestinationPool);
+    PHOENIX_REGISTER_FIELD(3, RequiresRecoveryInfo);
+    PHOENIX_REGISTER_FIELD(4, TableWriterOptions);
+    PHOENIX_REGISTER_FIELD(5, SlowMedium);
+    PHOENIX_REGISTER_FIELD(6, TableUploadOptions);
+    PHOENIX_REGISTER_FIELD(7, TableWriterConfig);
+    PHOENIX_REGISTER_FIELD(8, Timestamp);
+    PHOENIX_REGISTER_FIELD(9, CellTags);
+    PHOENIX_REGISTER_FIELD(10, ImmediatelyUnstageChunkLists);
+    PHOENIX_REGISTER_FIELD(11, IsOutputTableDynamic);
+    PHOENIX_REGISTER_FIELD(12, LivePreviewIndex);
+    PHOENIX_REGISTER_FIELD(13, TargetDescriptor);
+    PHOENIX_REGISTER_FIELD(14, StreamChunkPoolIndex);
 }
+
+PHOENIX_DEFINE_TYPE(TOutputStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,20 +128,6 @@ public:
         , TargetName_(std::move(targetName))
     {
         Initialize();
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-
-        Persist(context, SourceName_);
-        Persist(context, TargetName_);
-        Persist(context, JobDataStatistics_);
-        Persist(context, TeleportDataStatistics_);
-
-        if (context.IsLoad()) {
-            Initialize();
-        }
     }
 
     void BuildDirectionYson(TFluentMap fluent)
@@ -187,9 +176,24 @@ private:
         service->SetOpaque(false);
         Service_ = std::move(service);
     }
+
+    PHOENIX_DECLARE_TYPE(TEdge, 0x1a2b3c4d);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEdge)
+
+void TEdge::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, SourceName_);
+    PHOENIX_REGISTER_FIELD(2, TargetName_);
+    PHOENIX_REGISTER_FIELD(3, JobDataStatistics_);
+    PHOENIX_REGISTER_FIELD(4, TeleportDataStatistics_);
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->Initialize();
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TEdge);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,28 +236,6 @@ public:
             return edge;
         } else {
             return it->second;
-        }
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-
-        Persist(context, VertexDescriptor_);
-        Persist(context, JobCounter_);
-        Persist(context, JobType_);
-        Persist(context, *LivePreviews_);
-        Persist(context, *Edges_);
-        Persist(context, NodeDirectory_);
-
-        if (context.GetVersion() >= ESnapshotVersion::ValidateLivePreviewChunks) {
-            Persist(context, Logger);
-        } else {
-            Logger = ControllerLogger();
-        }
-
-        if (context.IsLoad()) {
-            Initialize();
         }
     }
 
@@ -305,9 +287,33 @@ private:
 
         Service_ = std::move(service);
     }
+
+    PHOENIX_DECLARE_TYPE(TVertex, 0x2b3c4d5e);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVertex)
+
+void TVertex::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, VertexDescriptor_);
+    PHOENIX_REGISTER_FIELD(2, JobCounter_);
+    PHOENIX_REGISTER_FIELD(3, JobType_);
+    PHOENIX_REGISTER_FIELD(4, LivePreviews_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(5, Edges_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(6, NodeDirectory_);
+    PHOENIX_REGISTER_FIELD(7, Logger,
+        .SinceVersion(ESnapshotVersion::ValidateLivePreviewChunks)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->Logger = ControllerLogger();
+        }));
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->Initialize();
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TVertex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -345,26 +351,6 @@ public:
     const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const
     {
         return TopologicalOrdering_.GetOrdering();
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-
-        Persist(context, TotalJobCounter_);
-        Persist(context, *Vertices_);
-        Persist(context, TopologicalOrdering_);
-        Persist(context, NodeDirectory_);
-
-        if (context.GetVersion() >= ESnapshotVersion::ValidateLivePreviewChunks) {
-            Persist(context, Logger);
-        } else {
-            Logger = ControllerLogger();
-        }
-
-        if (context.IsLoad()) {
-            Initialize();
-        }
     }
 
     void RegisterVertex(const TDataFlowGraph::TVertexDescriptor& vertex)
@@ -531,7 +517,28 @@ private:
         auto& vertex = GetOrRegisterVertex(from);
         return vertex->GetOrRegisterEdge(to);
     }
+
+    PHOENIX_DECLARE_TYPE(TImpl, 0x3c4d5e6f);
 };
+
+void TDataFlowGraph::TImpl::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, TotalJobCounter_);
+    PHOENIX_REGISTER_FIELD(2, Vertices_,
+        .template Serializer<TDerefSerializer<>>());
+    PHOENIX_REGISTER_FIELD(3, TopologicalOrdering_);
+    PHOENIX_REGISTER_FIELD(4, NodeDirectory_);
+    PHOENIX_REGISTER_FIELD(5, Logger,
+        .SinceVersion(ESnapshotVersion::ValidateLivePreviewChunks)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->Logger = ControllerLogger();
+        }));
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->Initialize();
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TDataFlowGraph::TImpl);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -557,7 +564,8 @@ IYPathServicePtr TDataFlowGraph::GetService() const
 
 void TDataFlowGraph::Persist(const TPersistenceContext& context)
 {
-    Impl_->Persist(context);
+    using NYT::Persist;
+    Persist(context, *Impl_);
 }
 
 void TDataFlowGraph::RegisterVertex(const TVertexDescriptor& vertex)

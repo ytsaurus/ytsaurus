@@ -28,6 +28,7 @@
 #include <contrib/ydb/core/blobstorage/backpressure/unisched.h>
 #include <contrib/ydb/core/blobstorage/nodewarden/node_warden.h>
 #include <contrib/ydb/core/blobstorage/other/mon_get_blob_page.h>
+#include <contrib/ydb/core/blobstorage/ddisk/persistent_buffer_mon.h>
 #include <contrib/ydb/core/blobstorage/vdisk/common/blobstorage_event_filter.h>
 
 #include <contrib/ydb/core/client/minikql_compile/mkql_compile_service.h>
@@ -88,6 +89,7 @@
 #include <contrib/ydb/core/kqp/finalize_script_service/kqp_finalize_script_service.h>
 #include <contrib/ydb/core/kqp/federated_query/actors/kqp_federated_query_actors.h>
 #include <contrib/ydb/core/kqp/compile_service/kqp_warmup_compile_actor.h>
+#include <contrib/ydb/core/kqp/runtime/scheduler/kqp_compute_scheduler_service.h>
 
 #include <contrib/ydb/core/load_test/service_actor.h>
 
@@ -568,6 +570,10 @@ static TInterconnectSettings GetInterconnectSettings(const NKikimrConfig::TInter
         result.RdmaChecksum = config.GetRdmaChecksum();
     }
 
+    if (config.HasCollectSubscriptionStackTrace()) {
+        result.CollectSubscriptionStackTrace = config.GetCollectSubscriptionStackTrace();
+    }
+
     return result;
 }
 
@@ -661,6 +667,7 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
 
             TChannelsConfig channels;
             auto settings = GetInterconnectSettings(icConfig, numNodes, dataCenters.size());
+            setup->InterconnectCollectSubscriptionStackTrace = settings.CollectSubscriptionStackTrace;
             ui32 interconnectPoolId = GetInterconnectThreadPoolId(appData);
 
             for (const auto& channel : icConfig.GetChannel()) {
@@ -1157,6 +1164,18 @@ void TBSNodeWardenInitializer::InitializeServices(NActors::TActorSystemSetup* se
     if (Config.HasStoredConfigYaml()) {
         nodeWardenConfig->YamlConfig.emplace(Config.GetStoredConfigYaml());
     }
+
+#if defined(OS_LINUX)
+    if (Config.HasNbsConfig() && Config.GetNbsConfig().HasNbsStorageConfig() && Config.GetNbsConfig().GetEnabled()) {
+        const auto& storageConfig = Config.GetNbsConfig().GetNbsStorageConfig();
+        if (storageConfig.HasGlobalDDiskConfig()) {
+            nodeWardenConfig->DDiskConfig = storageConfig.GetGlobalDDiskConfig();
+        }
+        if (storageConfig.HasGlobalPBufferConfig()) {
+            nodeWardenConfig->PBufferConfig = storageConfig.GetGlobalPBufferConfig();
+        }
+    }
+#endif
 
     nodeWardenConfig->StartupConfigYaml = Config.GetStartupConfigYaml();
     nodeWardenConfig->StartupStorageYaml = Config.HasStartupStorageYaml()
@@ -2142,6 +2161,18 @@ void TFailureInjectionInitializer::InitializeServices(NActors::TActorSystemSetup
     // FIXME: correct service id
 }
 
+// TMonPersistentBufferInitializer
+
+TMonPersistentBufferInitializer::TMonPersistentBufferInitializer(const TKikimrRunConfig& runConfig)
+    : IKikimrServicesInitializer(runConfig)
+{}
+
+void TMonPersistentBufferInitializer::InitializeServices(NActors::TActorSystemSetup *setup, const NKikimr::TAppData *appData) {
+    IActor *actor = CreateMonPersistentBufferActor(Config, *appData);
+    setup->LocalServices.emplace_back(MakeMonPersistentBufferID(NodeId),
+        TActorSetupCmd(actor, TMailboxType::HTSwap, appData->UserPoolId));
+}
+
 // TPersQueueL2CacheInitializer
 
 TPersQueueL2CacheInitializer::TPersQueueL2CacheInitializer(const TKikimrRunConfig& runConfig)
@@ -2386,6 +2417,24 @@ void TKqpServiceInitializer::InitializeServices(NActors::TActorSystemSetup* setu
             setup->LocalServices.push_back(std::make_pair(
                 NKqp::MakeKqpWarmupActorId(NodeId),
                 TActorSetupCmd(warmupActor, TMailboxType::HTSwap, appData->UserPoolId)));
+        }
+
+        // Create Compute Scheduler service
+        {
+            NKqp::NScheduler::TOptions schedulerOptions {
+                .DelayParams = {
+                    .MaxDelay = TDuration::MicroSeconds(Config.GetTableServiceConfig().GetComputeSchedulerSettings().GetMaxTaskDelayUs()),
+                    .MinDelay = TDuration::MicroSeconds(Config.GetTableServiceConfig().GetComputeSchedulerSettings().GetMinTaskDelayUs()),
+                    .AttemptBonus = TDuration::MicroSeconds(Config.GetTableServiceConfig().GetComputeSchedulerSettings().GetAttemptTaskBonusUs()),
+                    .MaxRandomDelay = TDuration::MicroSeconds(Config.GetTableServiceConfig().GetComputeSchedulerSettings().GetMaxTaskRandomDelayUs()),
+                },
+                .UpdateFairSharePeriod = TDuration::MilliSeconds(Config.GetTableServiceConfig().GetComputeSchedulerSettings().GetUpdateFairShareMs()),
+            };
+            auto* computeSchedulerActor = NKqp::CreateKqpComputeSchedulerService(schedulerOptions);
+            setup->LocalServices.push_back(std::make_pair(
+                NKqp::MakeKqpSchedulerServiceId(NodeId),
+                TActorSetupCmd(computeSchedulerActor, TMailboxType::HTSwap, appData->UserPoolId)
+            ));
         }
     }
 }
@@ -3180,6 +3229,7 @@ void TKafkaProxyServiceInitializer::InitializeServices(NActors::TActorSystemSetu
         TString serverCert = readFile(settings.CertificateFile);
         TString serverPrivateKey = readFile(settings.PrivateKeyFile);
         TString caCert = readFile(Config.GetKafkaProxyConfig().GetCA());
+        serverCreds->AllowSelfSignedCerts = Config.GetKafkaProxyConfig().GetEnableSelfSignedCerts();
 
         {
             TSslHolder<BIO> bio(BIO_new_mem_buf(serverCert.data(), serverCert.size()));

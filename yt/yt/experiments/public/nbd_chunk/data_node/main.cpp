@@ -75,7 +75,7 @@ protected:
         //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
 
         auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
-        auto busServer = NYT::NBus::CreateBusServer(NYT::NBus::TBusServerConfig::CreateTcp(config->Port));
+        auto busServer = NYT::NBus::NTcp::CreateBusServer(NYT::NBus::NTcp::TBusServerConfig::CreateTcp(config->Port));
         auto rpcServer = NRpc::NBus::CreateBusServer(busServer);
 
         auto queue = New<TActionQueue>("RPC");

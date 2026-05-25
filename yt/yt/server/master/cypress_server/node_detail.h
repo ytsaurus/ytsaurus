@@ -489,7 +489,7 @@ struct TCypressScalarTypeTraits
 { };
 
 template <>
-struct TCypressScalarTypeTraits<TString>
+struct TCypressScalarTypeTraits<std::string>
 {
     static constexpr NObjectClient::EObjectType ObjectType = NObjectClient::EObjectType::StringNode;
     static constexpr NYTree::ENodeType NodeType = NYTree::ENodeType::String;

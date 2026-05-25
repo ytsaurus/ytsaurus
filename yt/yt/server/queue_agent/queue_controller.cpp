@@ -197,7 +197,7 @@ private:
             } else {
                 tabletIndexes.push_back(index);
                 const auto& cellId = tabletInfo->CellId;
-                std::optional<TString> host;
+                std::optional<std::string> host;
                 if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(cellId)) {
                     for (const auto& peer : cellDescriptor->Peers) {
                         if (peer.GetVoting()) {
@@ -318,7 +318,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TConsumerSnapshotMap = THashMap<TConsumerPath, TConsumerSnapshotPtr>;
+using TConsumerSnapshotMap = THashMap<TConsumerReference, TConsumerSnapshotPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -395,9 +395,9 @@ public:
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError, _1))
-            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
-            .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
+            .Item("status").Do(std::bind_front(BuildQueueStatusYson, queueSnapshot, AlertManager_.Acquire(), queueExportsProgressOrError))
+            .Item("partitions").Do(std::bind_front(BuildQueuePartitionListYson, queueSnapshot))
+            .Item("exporters").Do(std::bind_front(&TOrderedDynamicTableController::BuildExporterMappingYson, this))
         .EndMap();
     }
 
@@ -484,7 +484,7 @@ private:
     bool Leading_;
     NThreading::TAtomicObject<TQueueTableRow> QueueRow_;
     NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
-    const TQueuePath QueuePath_;
+    const TTablePath QueuePath_;
     const IObjectStore* ObjectStore_;
 
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
@@ -510,9 +510,9 @@ private:
 
     const IQueueExportManagerPtr QueueExportManager_;
 
-    using TQueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
+    using TQueueExportsMappingOrError = TErrorOr<THashMap<std::string, IQueueExporterPtr>>;
     TQueueExportsMappingOrError QueueExports_;
-    TReaderWriterSpinLock QueueExportsLock_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, QueueExportsLock_);
 
     void UpdateProfilers()
     {
@@ -579,7 +579,7 @@ private:
             enableVerboseLogging = enableVerboseLogging && isVerboseLoggingObject;
         }
 
-        auto registrations = ObjectStore_->GetRegistrations(TGenericObjectPath(QueuePath_), EObjectKind::Queue);
+        auto registrations = ObjectStore_->GetRegistrations(TGenericObjectReference(QueuePath_), EObjectKind::Queue);
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {
             YT_LOG_DEBUG(
@@ -652,7 +652,7 @@ private:
 
         // COMPAT(apachee): Create queue exporter depending on implementation set in config.
         // NB(apachee): We re-create exporters here and not in OnDynamicConfigChanged for simplicity.
-        auto createQueueExporter = [&] (TString name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
+        auto createQueueExporter = [&] (std::string name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
             auto exporterProfileManager = CreateQueueExporterProfileManager(BaseProfiler_, name, Logger, QueueRow_.Load(), Leading_);
             switch (queueExporterConfig.Implementation) {
                 case EQueueExporterImplementation::New:
@@ -726,7 +726,7 @@ private:
         }
 
         // Remove unused exports.
-        std::vector<TString> unusedExportNames;
+        std::vector<std::string> unusedExportNames;
         for (const auto& [exportName, _] : queueExports) {
             if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
                 unusedExportNames.push_back(exportName);
@@ -746,7 +746,7 @@ private:
     }
 
     TError CheckStaticExportConfig(
-        const THashMap<TString, TQueueStaticExportConfigPtr>& configs,
+        const THashMap<std::string, TQueueStaticExportConfigPtr>& configs,
         std::optional<EObjectType> objectType,
         EQueueExporterImplementation queueExporterImplementation) const
     {
@@ -884,13 +884,13 @@ private:
 
     struct TQueueTrimContext
     {
-        TQueuePath Path;
+        TTablePath Path;
         TQueueSnapshotConstPtr ReplicaSnapshot;
         TYPath ObjectPath;
         std::vector<TPartitionTrimContext> Partitions;
         // TODO(achulkov2): Add upstream replica id field + server-side check in Trim.
 
-        TQueueTrimContext(TQueuePath ref, TQueueSnapshotConstPtr replicaSnapshot)
+        TQueueTrimContext(TTablePath ref, TQueueSnapshotConstPtr replicaSnapshot)
             : Path(std::move(ref))
             , ReplicaSnapshot(std::move(replicaSnapshot))
         {
@@ -930,7 +930,7 @@ private:
         std::vector<TQueueTrimContext> replicaContexts;
 
         for (const auto& replica : queueSnapshot->ReplicatedTableMappingRow->GetReplicas()) {
-            TQueuePath replicaPath{replica};
+            TTablePath replicaPath{replica};
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
                 THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaPath);
@@ -960,7 +960,7 @@ private:
         for (const auto& replicaInfo : GetValues(replicationCard->Replicas)) {
             auto path = TRichYPath(replicaInfo.ReplicaPath);
             path.SetCluster(replicaInfo.ClusterName);
-            TQueuePath replicaPath(std::move(path));
+            TTablePath replicaPath(std::move(path));
             auto replicaSnapshot = ObjectStore_->FindQueueSnapshot(replicaPath);
             if (!replicaSnapshot) {
                 THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaPath);
@@ -1129,7 +1129,7 @@ private:
 
     TAggregatedQueueExportsProgress AggregateReplicasQueueExportsProgress(const std::vector<TRichYPath>& replicas) const
     {
-        std::vector<TFuture<THashMap<TString, TQueueExportProgressPtr>>> asyncReplicasProgress;
+        std::vector<TFuture<THashMap<std::string, TQueueExportProgressPtr>>> asyncReplicasProgress;
         asyncReplicasProgress.reserve(replicas.size());
 
         for (const auto& replica : replicas) {
@@ -1173,7 +1173,7 @@ private:
         return AggregateReplicasQueueExportsProgress(replicas);
     }
 
-    TErrorOr<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportsProgressOrError() const
+    TErrorOr<THashMap<std::string, TQueueExportProgressPtr>> GetQueueExportsProgressOrError() const
     {
         if (!Leading_) {
             return TError("Following queue controller can't track exports progress");
@@ -1181,7 +1181,7 @@ private:
 
         auto guard = ReaderGuard(QueueExportsLock_);
 
-        THashMap<TString, TQueueExportProgressPtr> queueExportsProgress;
+        THashMap<std::string, TQueueExportProgressPtr> queueExportsProgress;
 
         if (!QueueExports_.IsOK()) {
             return TError("Incorrect queue exports")
@@ -1198,7 +1198,7 @@ private:
 
     struct TQueueTrimSession final
     {
-        const TQueuePath QueuePath;
+        const TTablePath QueuePath;
         const TQueueSnapshotPtr QueueSnapshot;
         //! NB: Modified in process of the session.
         TQueueTrimContext Context;
@@ -1209,10 +1209,10 @@ private:
         const IObjectStore* ObjectStore;
         NLogging::TLogger Logger;
 
-        THashMap<TConsumerPath, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
+        THashMap<TConsumerReference, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
 
         TQueueTrimSession(
-            TQueuePath queuePath,
+            TTablePath queuePath,
             TQueueSnapshotPtr queueSnapshot,
             TQueueTrimContext context,
             TTimestamp currentTimestamp,
@@ -1278,7 +1278,7 @@ private:
         //! Collects vital consumer snapshots from queue consumer registrations and validates error-correctness.
         void CollectVitalConsumerSubSnapshots()
         {
-            auto registrations = ObjectStore->GetRegistrations(TGenericObjectPath(QueuePath), EObjectKind::Queue);
+            auto registrations = ObjectStore->GetRegistrations(TGenericObjectReference(QueuePath), EObjectKind::Queue);
 
             VitalConsumerSubSnapshots.reserve(registrations.size());
             for (const auto& registration : registrations) {
@@ -1309,7 +1309,7 @@ private:
                         consumerSnapshot->Row.Path)
                         << consumerSubSnapshot->Error;
                 }
-                VitalConsumerSubSnapshots[consumerSnapshot->Row.Path] = consumerSubSnapshot;
+                VitalConsumerSubSnapshots[TConsumerReference(consumerSnapshot->Row.Path)] = consumerSubSnapshot;
             }
 
             if (VitalConsumerSubSnapshots.empty() && !AggregatedQueueExportsProgress.HasExports) {
@@ -1568,7 +1568,7 @@ private:
         }
 
         fluent.DoMapFor(QueueExports_.Value(), [] (TFluentMap fluent, const auto& pair) {
-            fluent.Item(pair.first).Do(std::bind(&IQueueExporter::BuildOrchidYson, pair.second.Get(), _1));
+            fluent.Item(pair.first).Do(std::bind_front(&IQueueExporter::BuildOrchidYson, pair.second.Get()));
         });
     }
 };

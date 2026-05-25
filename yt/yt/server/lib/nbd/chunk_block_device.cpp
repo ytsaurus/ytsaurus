@@ -2,6 +2,7 @@
 
 #include "chunk_handler.h"
 #include "config.h"
+#include "profiler.h"
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -20,7 +21,7 @@ class TChunkBlockDevice
 {
 public:
     TChunkBlockDevice(
-        TString exportId,
+        std::string exportId,
         TChunkBlockDeviceConfigPtr config,
         IThroughputThrottlerPtr readThrottler,
         IThroughputThrottlerPtr writeThrottler,
@@ -33,6 +34,7 @@ public:
         , ReadThrottler_(std::move(readThrottler))
         , WriteThrottler_(std::move(writeThrottler))
         , Invoker_(std::move(invoker))
+        , SensorTag_("rw")
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , ChunkHandler_(CreateChunkHandler(
             this,
@@ -41,10 +43,22 @@ public:
             std::move(channel),
             sessionId,
             Logger))
-    { }
+    {
+        TNbdProfilerCounters::Get()->GetCounter(
+            TNbdProfilerCounters::MakeTagSet(SensorTag_), "/device/created")
+                .Increment(1);
+
+        YT_LOG_INFO("Created chunk block device (Size: %v, Filesystem: %v)",
+            Config_->Size,
+            Config_->FsType);
+    }
 
     ~TChunkBlockDevice()
     {
+        TNbdProfilerCounters::Get()->GetCounter(
+            TNbdProfilerCounters::MakeTagSet(SensorTag_), "/device/removed")
+                .Increment(1);
+
         YT_LOG_INFO("Destructing chunk block device (Size: %v, Filesystem: %v)",
             Config_->Size,
             Config_->FsType);
@@ -60,14 +74,14 @@ public:
         return false;
     }
 
-    TString DebugString() const override
+    std::string DebugString() const override
     {
         return Format("{Size, %v}", GetTotalSize());
     }
 
-    TString GetProfileSensorTag() const override
+    std::string GetProfileSensorTag() const override
     {
-        return TString();
+        return SensorTag_;
     }
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
@@ -236,11 +250,12 @@ public:
     }
 
 private:
-    const TString ExportId_;
+    const std::string ExportId_;
     const TChunkBlockDeviceConfigPtr Config_;
     const IThroughputThrottlerPtr ReadThrottler_;
     const IThroughputThrottlerPtr WriteThrottler_;
     const IInvokerPtr Invoker_;
+    const std::string SensorTag_;
     const TLogger Logger;
     const IChunkHandlerPtr ChunkHandler_;
 
@@ -251,7 +266,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateChunkBlockDevice(
-    TString exportId,
+    std::string exportId,
     TChunkBlockDeviceConfigPtr config,
     IThroughputThrottlerPtr readThrottler,
     IThroughputThrottlerPtr writeThrottler,

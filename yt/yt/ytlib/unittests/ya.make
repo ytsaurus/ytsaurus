@@ -9,6 +9,7 @@ SRCS(
     chunk_fragment_read_controller_ut.cpp
     chunk_meta_cache_ut.cpp
     chunk_slice_ut.cpp
+    distributed_chunk_session_pool_ut.cpp
     downed_cell_tracker_ut.cpp
     encoding_writer_ut.cpp
     erasure_parts_reader_ut.cpp
@@ -19,10 +20,12 @@ SRCS(
     parallel_reader_memory_manager_ut.cpp
     partitioner_ut.cpp
     permission_cache_ut.cpp
+    push_based_shuffle_record_format_ut.cpp
     replication_reader_ut.cpp
     replication_writer_ut.cpp
     secondary_index_ut.cpp
     serialize_ut.cpp
+    shuffle_writer_ut.cpp
     sorted_merging_reader_ut.cpp
     striped_erasure_ut.cpp
     tablet_request_batcher_ut.cpp

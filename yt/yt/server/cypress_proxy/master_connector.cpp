@@ -3,8 +3,9 @@
 #include "private.h"
 
 #include "bootstrap.h"
-#include "config.h"
 #include "helpers.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/sequoia/cypress_proxy_tracker_service_proxy.h>
 
@@ -170,7 +171,13 @@ private:
         if (rsp->has_sequoia_transaction_features()) {
             features = NYT::FromProto<TSequoiaTransactionFeatures>(rsp->sequoia_transaction_features());
         }
-        SequoiaTransactionFeatures_.Store(std::move(features));
+
+        auto oldFeatures = SequoiaTransactionFeatures_.Exchange(features);
+        if (oldFeatures != features) {
+            YT_LOG_DEBUG("Sequoia transaction features updated (OldSequoiaTransactionFeatures: %v, NewSequoiaTransactionFeatures: %v)",
+                oldFeatures,
+                features);
+        }
 
         if (!RegistrationError_.Exchange(TError{}).IsOK()) {
             YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);

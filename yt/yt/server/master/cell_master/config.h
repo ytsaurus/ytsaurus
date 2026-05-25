@@ -312,7 +312,7 @@ struct TCellMasterBootstrapConfig
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 
-    NBus::TBusConfigPtr BusClient;
+    NBus::NTcp::TBusConfigPtr BusClient;
 
     NYTree::IMapNodePtr CypressAnnotations;
 
@@ -360,7 +360,7 @@ struct TDynamicCellMasterConfig
     //! Messages with these prefixes will will not be included into master alerts.
     std::vector<std::string> SuppressedAlerts;
 
-    THashMap<TString, double> AutomatonThreadBucketWeights;
+    THashMap<std::string, double> AutomatonThreadBucketWeights;
 
     TDuration ExpectedMutationCommitDuration;
 

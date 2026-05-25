@@ -107,6 +107,8 @@ public:
     void ScheduleNodeRefreshSequoia(TNodeId nodeId);
     void ScheduleGlobalChunkRefresh();
 
+    const ISequoiaChunkRefresherPtr& GetSequoiaChunkRefresher() const;
+
     void ScheduleRequisitionUpdate(TChunk* chunk);
     void ScheduleRequisitionUpdate(TChunkList* chunkList);
     void ScheduleGlobalRequisitionUpdate();
@@ -213,6 +215,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkRefreshScanner> BlobRefreshScanner_;
     const std::unique_ptr<TChunkRefreshScanner> JournalRefreshScanner_;
+
+    ISequoiaChunkRefresherPtr SequoiaChunkRefresher_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleChunkRequisitionUpdatesExecutor_;
     NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;

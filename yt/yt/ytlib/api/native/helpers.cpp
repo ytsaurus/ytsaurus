@@ -284,4 +284,46 @@ TSelectRowsOptions GetDefaultSelectRowsOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDuration InvalidateMountCacheAndGetRetryDelay(
+    const IConnectionPtr& connection,
+    const TDetailedProfilingInfoPtr& profilingInfo,
+    const TLogger& Logger,
+    const TError& error,
+    int* retryCount)
+{
+    const auto& config = connection->GetStaticConfig();
+    const auto& tableMountCache = connection->GetTableMountCache();
+
+    auto invalidationResult = tableMountCache->InvalidateOnError(
+        error,
+        /*forceRetry*/ false);
+
+    TDuration timeToWait;
+    if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {
+        YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
+            *retryCount,
+            config->TableMountCache->OnErrorRetryCount);
+
+        if (!invalidationResult.TableInfoUpdatedFromError) {
+            auto now = Now();
+            const auto& tabletInfo = invalidationResult.TabletInfo;
+            auto retryTime = (tabletInfo ? tabletInfo->UpdateTime : now) +
+                config->TableMountCache->OnErrorSlackPeriod;
+            if (retryTime > now) {
+                timeToWait = retryTime - now;
+            }
+        }
+
+        if (profilingInfo) {
+            profilingInfo->RetryReasons.push_back(invalidationResult.ErrorCode);
+        }
+
+        return timeToWait;
+    }
+
+    THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

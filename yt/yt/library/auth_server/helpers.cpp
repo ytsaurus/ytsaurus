@@ -29,14 +29,14 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetCryptoHash(TStringBuf secret)
+std::string GetCryptoHash(TStringBuf secret)
 {
     return NCrypto::TSha1Hasher()
         .Append(secret)
         .GetHexDigestLowerCase();
 }
 
-TString FormatUserIP(const TNetworkAddress& address)
+std::string FormatUserIP(const TNetworkAddress& address)
 {
     if (!address.IsIP()) {
         // Sometimes userIP is missing (e.g. user is connecting
@@ -53,7 +53,7 @@ TString FormatUserIP(const TNetworkAddress& address)
         });
 }
 
-TString GetBlackboxCacheKeyFactorFromUserIP(
+std::string GetBlackboxCacheKeyFactorFromUserIP(
     EBlackboxCacheKeyMode mode,
     const TNetworkAddress& address)
 {
@@ -71,7 +71,7 @@ TString GetBlackboxCacheKeyFactorFromUserIP(
     return Format("ip=%v", ToString(address));
 }
 
-TString GetLoginForTvmId(TTvmId tvmId)
+std::string GetLoginForTvmId(TTvmId tvmId)
 {
     return Format("tvm:%v", tvmId);
 }
@@ -126,12 +126,12 @@ void TSafeUrlBuilder::AppendParam(TStringBuf key, TStringBuf value)
     SafeUrl_.Advance(safeEnd - safeBegin);
 }
 
-TString TSafeUrlBuilder::FlushRealUrl()
+std::string TSafeUrlBuilder::FlushRealUrl()
 {
     return RealUrl_.Flush();
 }
 
-TString TSafeUrlBuilder::FlushSafeUrl()
+std::string TSafeUrlBuilder::FlushSafeUrl()
 {
     return SafeUrl_.Flush();
 }
@@ -157,7 +157,7 @@ void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string SignCsrfToken(const std::string& userId, const TString& key, TInstant now)
+std::string SignCsrfToken(const std::string& userId, const std::string& key, TInstant now)
 {
     auto msg = userId + ":" + ToString(now.TimeT());
     return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
@@ -166,10 +166,10 @@ std::string SignCsrfToken(const std::string& userId, const TString& key, TInstan
 TError CheckCsrfToken(
     const std::string& csrfToken,
     const std::string& userId,
-    const TString& key,
+    const std::string& key,
     TInstant expirationTime)
 {
-    std::vector<TString> parts;
+    std::vector<std::string> parts;
     StringSplitter(csrfToken).Split(':').AddTo(&parts);
     if (parts.size() != 2) {
         return TError("Malformed CSRF token");

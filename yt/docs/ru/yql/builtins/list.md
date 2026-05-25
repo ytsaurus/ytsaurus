@@ -416,6 +416,7 @@ ListIndexOf(List<T>?, T)->Uint64?
 
     * [Лямбда функция](../syntax/expressions.md#lambda);
     * `Module::Function` - С++ UDF;
+    * [Python UDF](../udf/python.md){% if audience == "internal" %}, [JavaScript UDF](../udf/javascript.md){% endif %} или любое другое вызываемое значение;
 
 Если исходный список является опциональным, то таким же является и выходной список.
 
@@ -993,3 +994,4 @@ ListTop(List<T>{Flags:AutoMap}, N, (T)->U)->List<T>
 ```
 
 Сигнатуры остальных функций совпадают с `ListTop`.
+

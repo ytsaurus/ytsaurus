@@ -118,7 +118,7 @@ private:
                 BuildYsonFluently(consumer)
                     .BeginAttributes()
                         .Item("id").Value(chunkList->GetId())
-                        .Item("rank").Value(chunkList->Statistics().Rank)
+                        .Item("rank").Value(chunkList->GetRank())
                         .Item("type").Value("chunk_list")
                     .EndAttributes()
                     .DoListFor(chunkList->Children(), [&] (TFluentList fluent, const TChunkTree* child) {
@@ -170,7 +170,11 @@ private:
                 return true;
 
             case EInternedAttributeKey::Statistics: {
-                Serialize(chunkList->Statistics(), consumer);
+                if (IsHunkRelatedChunkList(chunkList)) {
+                    Serialize(chunkList->HunkStatistics(), consumer);
+                } else {
+                    Serialize(chunkList->Statistics(), consumer);
+                }
                 return true;
             }
             case EInternedAttributeKey::CumulativeStatistics: {

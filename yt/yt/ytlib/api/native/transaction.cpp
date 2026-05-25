@@ -66,6 +66,8 @@
 
 #include <library/cpp/yt/misc/range_formatters.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
@@ -122,7 +124,8 @@ public:
         , CellCommitSessionProvider_(CreateCellCommitSessionProvider(
             CreateRegisterTransactionActionsRequestFactory(Client_, Logger),
             MakeWeak(Transaction_),
-            Logger))
+            Logger,
+            Client_->GetNativeConnection()->GetConfig()->UseUniformPrepareSignatures))
     {
         SubscribeCommitted(BIND_NO_PROPAGATE([counters = Counters_] { counters.CommittedTransactionCounter.Increment(); }));
         SubscribeAborted(BIND_NO_PROPAGATE([counters = Counters_] (const TError&) { counters.AbortedTransactionCounter.Increment(); }));
@@ -974,7 +977,7 @@ private:
             auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
             req->Attachments().reserve(payloadCount);
             for (const auto& payload : HunkPayloads_) {
-                req->Attachments().push_back(TSharedRef(payload, std::move(payloadHolder)));
+                req->Attachments().push_back(TSharedRef(payload, payloadHolder));
             }
 
             return req->Invoke().Apply(BIND([this, payloadCount]
@@ -1865,7 +1868,7 @@ private:
         auto subConsumerClient = CreateSubConsumerClient(
             GetClient(),
             queueClient,
-            consumerPath.GetPath(),
+            consumerPath,
             registrationCheckResult.ResolvedQueue);
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
     }
@@ -2380,10 +2383,17 @@ private:
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
+                    THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures;
+
                     for (const auto& result : results) {
-                        for (auto cellId : result.ParticipantCellIds) {
+                        for (auto [cellId, signature] : Zip(result.ParticipantCellIds, result.ExpectedPrepareSignatures)) {
                             Transaction_->RegisterParticipant(cellId);
+                            EmplaceOrCrash(participantExpectedPrepareSignatures, cellId, signature);
                         }
+                    }
+
+                    for (auto [cellId, signature] : Zip(options.AdditionalParticipantCellIds, options.ExpectedPrepareSignatures)) {
+                        EmplaceOrCrash(participantExpectedPrepareSignatures, cellId, signature);
                     }
 
                     if (GetType() == ETransactionType::Tablet) {
@@ -2394,6 +2404,11 @@ private:
                         CommitOptions_.PrerequisiteTransactionIds = {};
                     }
 
+                    for (const auto& [cellId, session] : CellCommitSessionProvider_->GetCellCommitSessions()) {
+                        EmplaceOrCrash(participantExpectedPrepareSignatures, cellId, session->GetPrepareSignatureGenerator()->GetFinalSignature());
+                    }
+
+                    Transaction_->SetExpectedPrepareSignatures(std::move(participantExpectedPrepareSignatures));
                     return Transaction_->Commit(CommitOptions_);
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
@@ -2405,11 +2420,9 @@ private:
                         } else if (!resultOrError.IsOK()) {
                             YT_UNUSED_FUTURE(DoAbort(&guard));
 
-                            auto error = TError(
-                                NTransactionClient::EErrorCode::NativeTransactionCommitFailure,
-                                "Error committing transaction %v",
-                                GetId())
+                            auto error = TError("Error committing transaction %v", GetId())
                                 << MakeClusterIdErrorAttribute()
+                                << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
                                 << resultOrError;
 
                             Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
@@ -2449,12 +2462,19 @@ private:
                         }
                     }
 
-                    TTransactionFlushResult result{
-                        .ParticipantCellIds = CellCommitSessionProvider_->GetParticipantCellIds(),
-                    };
+                    TTransactionFlushResult result;
+                    auto cellToCommitSession = CellCommitSessionProvider_->GetCellCommitSessions();
+                    result.ParticipantCellIds.reserve(cellToCommitSession.size());
+                    result.ExpectedPrepareSignatures.reserve(cellToCommitSession.size());
+                    for (const auto& [cellId, session] : cellToCommitSession) {
+                        result.ParticipantCellIds.push_back(cellId);
+                        result.ExpectedPrepareSignatures.push_back(
+                            session->GetPrepareSignatureGenerator()->GetFinalSignature());
+                    }
 
-                    YT_LOG_DEBUG("Transaction flushed (ParticipantCellIds: %v)",
-                        result.ParticipantCellIds);
+                    YT_LOG_DEBUG("Transaction flushed (ParticipantCellIds: %v, ExpectedPrepareSignatures: %v)",
+                        result.ParticipantCellIds,
+                        result.ExpectedPrepareSignatures);
 
                     return result;
                 }).AsyncVia(SerializedInvoker_));

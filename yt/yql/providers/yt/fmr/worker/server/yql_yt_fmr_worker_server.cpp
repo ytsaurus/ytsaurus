@@ -55,7 +55,7 @@ public:
         opts.AddBindAddress(Host_, Port_);
         HttpServer_ = MakeHolder<THttpServer>(this, opts.EnableKeepAlive(true).EnableCompression(true));
 
-        PingHandler_ = std::bind(&TFmrWorkerServer::PingHandler, this, std::placeholders::_1);
+        PingHandler_ = std::bind_front(&TFmrWorkerServer::PingHandler, this);
     }
 
     void Start() override {

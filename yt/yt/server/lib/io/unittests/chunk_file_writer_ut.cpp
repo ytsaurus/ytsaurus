@@ -78,7 +78,7 @@ protected:
 
     static std::unique_ptr<TFile> OpenTempDataFile(const TChunkFileWriterPtr& writer)
     {
-        return std::make_unique<TFile>(writer->GetFileName() + NFS::TempFileSuffix, RdOnly);
+        return std::make_unique<TFile>(TString(writer->GetFileName()) + NFS::TempFileSuffix, RdOnly);
     }
 
     static TBlock MakeRandomBlock(ssize_t size)

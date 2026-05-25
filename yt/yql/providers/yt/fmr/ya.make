@@ -1,6 +1,7 @@
 RECURSE(
     coordinator
     file
+    fmr_download
     fmr_tool_lib
     gc_service
     job
@@ -15,6 +16,7 @@ RECURSE(
     test_tools
     tvm
     utils
+    vanilla
     worker
     yt_job_service
 )

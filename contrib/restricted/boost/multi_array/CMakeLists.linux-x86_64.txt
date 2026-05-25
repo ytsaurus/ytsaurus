@@ -36,7 +36,6 @@ target_link_libraries(restricted-boost-multi_array INTERFACE
   restricted-boost-functional
   restricted-boost-iterator
   restricted-boost-mpl
-  restricted-boost-static_assert
   restricted-boost-type_traits
 )
 

@@ -474,7 +474,7 @@ private:
     void UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime);
 
     void UpdateCumulativeUnutilizedResources(
-        const EUnutilizedResourceReason reason,
+        EUnutilizedResourceReason reason,
         const TJobResources& resources,
         const TCompactVector<NProfiling::TTag, 2>& tags);
 

@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
 #include <yt/yt/server/master/sequoia_server/config.h>
 
 #include <yt/yt/server/master/transaction_server/transaction_replication_session.h>
@@ -27,6 +28,8 @@
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -101,6 +104,8 @@ using namespace NHiveServer;
 using namespace NCellMaster;
 using namespace NProfiling;
 using namespace NTracing;
+using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,6 +238,11 @@ public:
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
 
         ProcessSessionsExecutor_->Start();
+    }
+
+    IInvokerPtr GetAutomatonInvoker()
+    {
+        return AutomatonInvoker_;
     }
 
     TObjectServiceCachePtr GetCache() override
@@ -468,6 +478,7 @@ public:
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
         , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
         , LocalReadInvoker_(Owner_->CreateLocalReadInvoker(Identity_.User))
+        , AutomatonInvoker_(Owner_->GetAutomatonInvoker())
         , ReplyLockCount_(TotalSubrequestCount_)
     { }
 
@@ -622,6 +633,8 @@ private:
         TFuture<TMutationResponse> MutationResponseFuture;
 
         TReadRequestComplexityOverrides ReadRequestComplexityOverrides;
+
+        i64 GroundUpdateQueueSequenceNumber = -1;
     };
 
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
@@ -672,6 +685,7 @@ private:
     TEphemeralObjectPtr<TUser> User_;
     // NB: LocalRead invoker is user-specific and, consequently, session-specific.
     IInvokerPtr LocalReadInvoker_;
+    IInvokerPtr AutomatonInvoker_;
 
     struct TReadRequestComplexityLimits
     {
@@ -1062,8 +1076,9 @@ private:
         if (syncPhase == ESyncPhase::One &&
             !SuppressStronglyOrderedTransactionBarrier_)
         {
-            // NB: we have to wait for prepared Sequoia transactions to observe
-            // Cypress transaction replications, aborts and commits.
+            // NB: We have to wait for all currently prepared transactions
+            // with respect to barrier tags to observe side effects of
+            // Sequoia transactions.
             CellSyncSession_->ScheduleSyncWithSequoiaTransactions();
         }
 
@@ -2050,11 +2065,38 @@ private:
         const auto& context = subrequest->RpcContext;
 
         if (response.Origin != EMutationResponseOrigin::Commit) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            auto mutationId = context->GetMutationId();
+            if (mutationId != NullMutationId) {
+                auto sequenceNumber = responseKeeper->GetGroundUpdateQueueSequenceNumber(mutationId);
+                if (sequenceNumber) {
+                    // We should have patched it before.
+                    if (!response.GroundUpdateQueueSequenceNumber) {
+                        YT_LOG_ALERT("Mutation response is missing GroundUpdateQueueSequenceNumber "
+                            "(MutationId: %v: GroundUpdateQueueSequenceNumber: %v, Origin: %v)",
+                            mutationId,
+                            sequenceNumber,
+                            response.Origin);
+                        subrequest->GroundUpdateQueueSequenceNumber = *sequenceNumber;
+                    }
+                    if (response.GroundUpdateQueueSequenceNumber && response.GroundUpdateQueueSequenceNumber != sequenceNumber) {
+                        YT_LOG_ALERT("GroundUpdateQueueSequenceNumber is different in response keeper and mutation response"
+                            "(MutationId: %v: ResponserGroundUpdateQueueSequenceNumber: %v, ResponseKeeperGroundUpdateQueueSequenceNumber: %v)",
+                            mutationId,
+                            response.GroundUpdateQueueSequenceNumber,
+                            sequenceNumber);
+                        subrequest->GroundUpdateQueueSequenceNumber = std::max(*response.GroundUpdateQueueSequenceNumber, *sequenceNumber);
+                    }
+                }
+            }
+
             YT_VERIFY(!context->IsReplied());
             // Either we're answering with a kept response or this is a boomerang mutation.
             context->SetRequestInfo();
             context->SetResponseInfo("KeptResponse: %v", true);
             context->Reply(response.Data);
+        }  else if (response.GroundUpdateQueueSequenceNumber) {
+            subrequest->GroundUpdateQueueSequenceNumber = *response.GroundUpdateQueueSequenceNumber;
         }
 
         WaitForSubresponse(subrequest);
@@ -2320,6 +2362,8 @@ private:
         TCompactVector<int, 16> completedIndexes;
         TCompactVector<int, 16> uncertainIndexes;
 
+        i64 groundUpdateQueueSequenceNumber = -1;
+
         // Check for forwarding errors.
         for (auto index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
@@ -2333,9 +2377,10 @@ private:
                 if (subrequest.Started) {
                     uncertainIndexes.push_back(index);
                 }
-
                 continue;
             }
+
+            groundUpdateQueueSequenceNumber = std::max(groundUpdateQueueSequenceNumber, subrequest.GroundUpdateQueueSequenceNumber);
 
             const auto& subresponseMessage = subrequest.ResponseMessage;
             NRpc::NProto::TResponseHeader subresponseHeader;
@@ -2388,7 +2433,30 @@ private:
             response.subresponses_size(),
             response.uncertain_subrequest_indexes());
 
-        RpcContext_->Reply();
+        if (groundUpdateQueueSequenceNumber != -1) {
+            YT_LOG_DEBUG("Synchronizing with ground update queue before replying (GroundUpdateQueueSequenceNumber: %v)",
+                groundUpdateQueueSequenceNumber);
+
+            const auto& groundUpdateQueueManager = Bootstrap_->GetGroundUpdateQueueManager();
+            BIND(&IGroundUpdateQueueManager::Sync,
+                groundUpdateQueueManager,
+                EGroundUpdateQueue::Sequoia,
+                groundUpdateQueueSequenceNumber)
+            .AsyncVia(AutomatonInvoker_)
+            .Run()
+            .Subscribe(BIND([error, this, this_ = MakeStrong(this)] (const TError& syncError) {
+                if (!ReplyScheduled_.exchange(true)) {
+                    if (!syncError.IsOK()) {
+                        // Hope cypress proxies retry that.
+                        RpcContext_->Reply(error);
+                    } else {
+                        RpcContext_->Reply();
+                    }
+                }
+            }).Via(TObjectService::GetRpcInvoker()));
+        } else {
+            RpcContext_->Reply();
+        }
     }
 
     void CancelPendingCacheSubrequests()

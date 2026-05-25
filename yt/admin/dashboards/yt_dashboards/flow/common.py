@@ -42,7 +42,8 @@ def get_dashboards_meta():
         "one-worker",
         "message-transfering",
         "state-cache",
-        "companion-manager"
+        "companion-manager",
+        "distributed-throttler",
     ]:
         dashboards[short_name] = DashboardMeta(
             short_name=short_name,
@@ -59,6 +60,13 @@ def build_dashboard_links(dashboard_short_name: str):
     assert dashboard_short_name in DASHBOARDS_META, f"Unknown dashboard {dashboard_short_name}"
 
     return [
+        {
+            "link": {
+                "title": "UI YT",
+                "openInNewTab": True,
+                "url": "https://yt.yandex-team.ru/{{pipeline_cluster}}/flows/graph?path={{pipeline_path}}",
+            },
+        },
         {
             "group": {
                 "items": [

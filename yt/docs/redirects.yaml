@@ -752,7 +752,15 @@ ru:
 
     # Flow docs reorg (YTFLOW-483)
     - from: /flow/examples/lb2lb.md
-      to: /flow/cpp/examples/lb2lb.md
+      to: /flow/cpp/examples/lb_wait_click_join.md
+      type: redirect
+
+    - from: /flow/cpp/examples/lb2lb.md
+      to: /flow/cpp/examples/lb_wait_click_join.md
+      type: redirect
+
+    - from: /yandex-specific/flow/cpp/examples/lb2lb
+      to: /yandex-specific/flow/cpp/examples/lb_wait_click_join
       type: redirect
 
     - from: /flow/examples/shuffle.md

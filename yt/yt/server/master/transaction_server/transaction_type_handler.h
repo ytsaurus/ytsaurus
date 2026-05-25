@@ -23,7 +23,7 @@ private:
     NObjectServer::ETypeFlags GetFlags() const override;
     NObjectServer::EObjectType GetType() const override;
 
-    NObjectClient::TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override;
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TTransaction* transaction) override;
 
     NObjectServer::IObjectProxyPtr DoGetProxy(
         TTransaction* transaction,

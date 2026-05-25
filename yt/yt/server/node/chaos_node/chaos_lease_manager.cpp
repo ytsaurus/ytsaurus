@@ -221,13 +221,15 @@ public:
     {
         auto chaosLeaseId = chaosLeaseHolder->GetId();
         auto* chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
-        ChaosLeaseTracker_->RegisterTransaction(
-            chaosLeaseId,
-            chaosLease->GetParentId(),
-            chaosLease->GetTimeout(),
-            std::nullopt,
-            BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
-                .Via(Slot_->GetEpochAutomatonInvoker()));
+        if (IsLeader()) {
+            ChaosLeaseTracker_->RegisterTransaction(
+                chaosLeaseId,
+                chaosLease->GetParentId(),
+                chaosLease->GetTimeout(),
+                std::nullopt,
+                BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
+                    .Via(Slot_->GetEpochAutomatonInvoker()));
+        }
     }
 
     void HydraChaosNodeSetState(NChaosNode::NProto::TReqSetState* request)
@@ -271,13 +273,16 @@ public:
             }
 
             chaosLease->SetState(EChaosLeaseState::Normal);
-            ChaosLeaseTracker_->RegisterTransaction(
-                chaosLeaseId,
-                chaosLease->GetParentId(),
-                chaosLease->GetTimeout(),
-                std::nullopt,
-                BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
-                    .Via(Slot_->GetEpochAutomatonInvoker()));
+
+            if (IsLeader()) {
+                ChaosLeaseTracker_->RegisterTransaction(
+                    chaosLeaseId,
+                    chaosLease->GetParentId(),
+                    chaosLease->GetTimeout(),
+                    std::nullopt,
+                    BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
+                        .Via(Slot_->GetEpochAutomatonInvoker()));
+            }
 
             // COMPAT(osidorkin)
             if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
@@ -530,7 +535,7 @@ private:
                         : GetChaosLeaseOrThrow(chaosLease->GetRootId());
                 }
 
-                // TODO(osidorkin) Can do this more optimally if some extra data is stored inside lease object.
+                // TODO(osidorkin): Can do this more optimally if some extra data is stored inside lease object.
                 std::vector<TChaosLease*> traversedLeases;
                 TraverseLeaseSubtree(rootLease, &traversedLeases);
                 for (const auto* nestedLease : traversedLeases) {
@@ -625,6 +630,11 @@ private:
 
             auto protoChaosLease = req.add_chaos_leases();
             ToProto(protoChaosLease->mutable_chaos_lease_id(), chaosLease->GetId());
+            if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+                reign >= EChaosReign::FixParentIdDuringChaosLeaseMigration)
+            {
+                ToProto(protoChaosLease->mutable_parent_chaos_lease_id(), chaosLease->GetParentId());
+            }
             protoChaosLease->set_timeout(ToProto(chaosLease->GetTimeout()));
             ToProto(protoChaosLease->mutable_root_chaos_lease_id(), chaosLease->GetRootId());
 
@@ -767,13 +777,15 @@ private:
         chaosLeaseHolder->SetTimeout(timeout);
         auto* chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
 
-        ChaosLeaseTracker_->RegisterTransaction(
-            chaosLeaseId,
-            parentId,
-            timeout,
-            std::nullopt,
-            BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
-                .Via(Slot_->GetEpochAutomatonInvoker()));
+        if (IsLeader()) {
+            ChaosLeaseTracker_->RegisterTransaction(
+                chaosLeaseId,
+                parentId,
+                timeout,
+                std::nullopt,
+                BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
+                    .Via(Slot_->GetEpochAutomatonInvoker()));
+        }
 
         YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
             chaosLeaseId);
@@ -815,7 +827,6 @@ private:
         std::vector<TChaosLease*> chaosLeases;
         TraverseLeaseSubtree(rootChaosLease, &chaosLeases);
         for (auto* chaosLease : chaosLeases) {
-            chaosLease->RemovePromise() = NewPromise<void>();
             chaosLease->SetState(EChaosLeaseState::RevokingShortcutsForRemoval);
         }
 

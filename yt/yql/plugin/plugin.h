@@ -31,6 +31,8 @@ struct TYqlPluginOptions
     NYson::TYsonString SolomonGatewayConfig;
     NYson::TYsonString DqManagerConfig;
     NYson::TYsonString FileStorageConfig;
+    NYson::TYsonString TvmConfig;
+    NYson::TYsonString YtAccessProviderConfig;
     NYson::TYsonString OperationAttributes;
     NYson::TYsonString Libraries;
 
@@ -131,6 +133,9 @@ struct IYqlPlugin
         NYson::TYsonString credentials) = 0;
 
     virtual NYTree::IMapNodePtr GetOrchidNode() const;
+
+    virtual void RegisterQuery(TQueryId queryId) = 0;
+    virtual void UnregisterQuery(TQueryId queryId) = 0;
 
     virtual ~IYqlPlugin() = default;
 };

@@ -20,6 +20,7 @@ class TDataFlowGraph
     : public TRefCounted
 {
 public:
+    class TImpl;
     using TVertexDescriptor = TString;
 
     static const TVertexDescriptor SourceDescriptor;
@@ -80,7 +81,6 @@ public:
     void Traverse(TDataFlowGraphVisitor* visitor) const;
 
 private:
-    class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
 
@@ -92,7 +92,7 @@ struct TStreamDescriptorBase
 {
     std::vector<NTableClient::TTableSchemaPtr> StreamSchemas;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TStreamDescriptorBase, 0xa3b2c1d0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ struct TInputStreamDescriptor final
 
     TInputStreamDescriptorPtr Clone() const;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TInputStreamDescriptor, 0x5e6f7a8b);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +147,7 @@ struct TOutputStreamDescriptor final
 
     TOutputStreamDescriptorPtr Clone() const;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TOutputStreamDescriptor, 0x9c1d2e3f);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

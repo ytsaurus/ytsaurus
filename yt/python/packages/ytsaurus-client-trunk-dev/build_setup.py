@@ -9,7 +9,7 @@ def main():
     setup(
         name="ytsaurus-client",
         version="0.13.999-dev0",
-        packages=["yt", "yt.type_info", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.cli", "yt.wrapper.schema"] + recursive("yt/packages"),
+        packages=["yt", "yt.admin", "yt.cli", "yt.clickhouse", "yt.skiff", "yt.type_info", "yt.wrapper.schema", "yt.wrapper", "yt.ypath", "yt.yson"] + recursive("yt/packages"),
         package_dir={"yt.packages.requests": "yt/packages/requests"},
         package_data={"yt.packages.requests": ["*.pem"]},
         scripts=[],

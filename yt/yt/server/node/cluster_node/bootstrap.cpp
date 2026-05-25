@@ -193,6 +193,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellMasterClient;
@@ -692,7 +693,7 @@ private:
 
     IMonitoringManagerPtr MonitoringManager_;
 
-    NYT::NBus::IBusServerPtr BusServer_;
+    NYT::NBus::NTcp::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
 
@@ -1493,7 +1494,7 @@ private:
             fairShareScheduler->Reconfigure(newConfig->FairShareHierarchicalScheduler);
         }
 
-        BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
+        BusServer_->Reconfigure(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
@@ -1555,7 +1556,7 @@ private:
             Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
         }
 
-        Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
+        Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

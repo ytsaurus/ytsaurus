@@ -136,7 +136,9 @@ TMinHashAccumulator<TTimestampComparator>::TMinHashAccumulator(int capacity)
 template <class TTimestampComparator>
 void TMinHashAccumulator<TTimestampComparator>::Add(TFingerprint hash, ui32 timestamp)
 {
-    EnsureCompacted();
+    if (ssize(ItemsBuffer_) == Capacity_ * 2) {
+        CompactBuffer();
+    }
 
     ItemsBuffer_.push_back({
         .Hash = hash,
@@ -147,19 +149,15 @@ void TMinHashAccumulator<TTimestampComparator>::Add(TFingerprint hash, ui32 time
 template <class TTimestampComparator>
 TMinHash<TTimestampComparator> TMinHashAccumulator<TTimestampComparator>::Finish()
 {
-    EnsureCompacted();
+    CompactBuffer();
 
     // NB(dave11ar): shrink to fit is useless, |ItemsBuffer_| will be destroyed immediately after serializing.
     return {Capacity_, std::move(ItemsBuffer_)};
 }
 
 template <class TTimestampComparator>
-void TMinHashAccumulator<TTimestampComparator>::EnsureCompacted()
+void TMinHashAccumulator<TTimestampComparator>::CompactBuffer()
 {
-    if (ssize(ItemsBuffer_) < Capacity_ * 2) {
-        return;
-    }
-
     std::sort(ItemsBuffer_.begin(), ItemsBuffer_.end());
 
     auto uniqueIterator = std::unique(

@@ -252,7 +252,7 @@ void TTableNode::BeginUpload(const TBeginUploadContext &context)
     if (IsDynamic()) {
         auto contextMode = context.SchemaMode;
         auto* contextSchema = context.TableSchema;
-        if ((contextMode && SchemaMode_ != contextMode) ||
+        if ((SchemaMode_ != contextMode) ||
             (contextSchema && *GetSchema()->AsCompactTableSchema() != *contextSchema->AsCompactTableSchema()))
         {
             YT_LOG_ALERT("Schema of a dynamic table changed during upload (TableId: %v, TransactionId: %v, "
@@ -266,10 +266,11 @@ void TTableNode::BeginUpload(const TBeginUploadContext &context)
         }
     }
 
-    if (context.SchemaMode) {
-        SchemaMode_ = *context.SchemaMode;
+    if (context.OptimizeFor) {
+        OptimizeFor_.Set(*context.OptimizeFor);
     }
 
+    SchemaMode_ = context.SchemaMode;
     tableManager->SetTableSchema(this, context.TableSchema);
 
     TTabletOwnerBase::BeginUpload(context);

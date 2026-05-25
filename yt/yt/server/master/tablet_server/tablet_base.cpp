@@ -44,6 +44,7 @@ void TTabletServant::Clear()
     Cell_ = nullptr;
     State_ = ETabletState::Unmounted;
     MountRevision_ = {};
+    LogicalMountRevision_ = {};
     MountTime_ = {};
     MovementRole_ = ESmoothMovementRole::None;
     MovementStage_ = ESmoothMovementStage::None;
@@ -54,6 +55,7 @@ void TTabletServant::Swap(TTabletServant* other)
     std::swap(Cell_, other->Cell_);
     std::swap(State_, other->State_);
     std::swap(MountRevision_, other->MountRevision_);
+    std::swap(LogicalMountRevision_, other->LogicalMountRevision_);
     std::swap(MountTime_, other->MountTime_);
     std::swap(MovementRole_, other->MovementRole_);
     std::swap(MovementStage_, other->MovementStage_);
@@ -66,6 +68,14 @@ void TTabletServant::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, Cell_);
     Persist(context, State_);
     Persist(context, MountRevision_);
+    // COMPAT(alexelexa)
+    if (context.GetVersion() < NCellMaster::EMasterReign::IntroduceLogicalMountRevision ||
+        context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::IntroduceLogicalMountRevision_26_2)
+    {
+        LogicalMountRevision_ = MountRevision_;
+    } else {
+        Persist(context, LogicalMountRevision_);
+    }
     Persist(context, MountTime_);
     Persist(context, MovementRole_);
     Persist(context, MovementStage_);
@@ -301,14 +311,16 @@ i64 TTabletBase::GetTabletStaticMemorySize(EInMemoryMode mode) const
 {
     // TODO(savrus) consider lookup hash table.
 
-    const auto& statistics = GetChunkList()->Statistics();
     switch (mode) {
         case EInMemoryMode::Compressed:
-            return statistics.CompressedDataSize;
+            return GetChunkList()->Statistics().CompressedDataSize;
+
         case EInMemoryMode::Uncompressed:
-            return statistics.UncompressedDataSize;
+            return GetChunkList()->Statistics().UncompressedDataSize;
+
         case EInMemoryMode::None:
             return 0;
+
         default:
             YT_ABORT();
     }

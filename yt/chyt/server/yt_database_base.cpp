@@ -284,7 +284,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     auto settings = queryContext->GetContextSettings(context);
     auto invoker = queryContext->Host->GetClickHouseFetcherInvoker();
 
-    auto tableFuture = BIND(&TYtDatabaseBase::DoGetYtTable, Unretained(this),
+    auto tableFuture = BIND(&TYtDatabaseBase::DoGetYTTable, Unretained(this),
         context,
         Unretained(queryContext),
         storageId).AsyncVia(invoker).Run();
@@ -305,7 +305,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
             THROW_ERROR_EXCEPTION(
                 "CHYT failed to resolve storage object from name %Qv "
                 "because both a YT table and a clique object exist with this name. "
-                "Specify setting chyt.storage_conflict_resolve_mode = {clique,yt} to choose which one to use.",
+                "Specify setting chyt.storage_conflict_resolve_mode = {clique,yt} to choose which one to use",
                 name);
         }
         result = settings->StorageConflictResolveMode == EStorageConflictResolveMode::Clique ? dictionary : table;
@@ -320,29 +320,29 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     return result;
 }
 
-DB::StoragePtr TYtDatabaseBase::DoGetYtTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const
+DB::StoragePtr TYtDatabaseBase::DoGetYTTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const
 {
     auto timerGuard = queryContext->CreateStatisticsTimerGuard(
         SlashedStatisticPath(
             Format("/%v_database/do_get_yt_table", to_lower(TString(storageId.database_name)))).ValueOrThrow());
 
-    TYPath path = getTableDataPath(storageId.table_name);
-    TRichYPath richPath;
+    TRichYPath path;
     try {
-        richPath = TRichYPath::Parse(path);
-    } catch (const std::exception& /*ex*/) {
+        path = TRichYPath::Parse(getTableDataPath(storageId.table_name));
+    } catch (const std::exception&) {
+        // Invalid path is counted as unresolved table.
         return nullptr;
     }
 
     try {
         auto tables = FetchTablesSoft(
             queryContext,
-            {std::move(richPath)},
+            {std::move(path)},
             /*skipUnsuitableNodes*/ false,
             queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
-        return CreateStorageDistributor(context, std::move(tables), storageId);
+        return CreateStorageDistributor(context, std::move(tables), std::move(storageId));
     } catch (const TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return nullptr;

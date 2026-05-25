@@ -4,6 +4,7 @@
 #include "chunk_replica.h"
 #include "chunk_tree_statistics.h"
 #include "config.h"
+#include "cumulative_statistics.h"
 #include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cypress_server/public.h>
@@ -17,6 +18,8 @@
 #include <yt/yt/ytlib/journal_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -71,17 +74,32 @@ void SetChunkTreeParent(TChunkTree* parent, TChunkTree* child);
 void ResetChunkTreeParent(TChunkTree* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
+THunkChunkTreeStatistics GetHunkChunkTreeStatistics(TChunkTree* chunkTree);
+
+TCumulativeStatisticsEntry GetCumulativeStatisticsEntry(TChunkTree* chunkTree);
+
 void AppendChunkTreeChild(
     TChunkList* chunkList,
     TChunkTree* child,
     TChunkTreeStatistics* statistics);
 
-//! Apply statisticsDelta to all proper ancestors of |child|.
+//! Apply |statisticsDelta| to all proper ancestors of |child|.
 //! Both statistics and cumulative statistics are updated.
 //! |statisticsDelta| should have |child|'s rank.
 void AccumulateUniqueAncestorsStatistics(
     TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta);
+void AccumulateHunkStatisticsInUniqueAncestors(
+    TChunkList* parent,
+    TChunkTree* child);
+
+//! Iterates over all ancestors of |hunkChunk|, calling |functor(parent, firstOccurrence)| for all of them.
+//! All parents are expected to be of hunk-related chunk list kind. Maximum two generations are expected.
+//! First-generation parents are assumed to be encountered only once during iteration.
+//! Second-generation parents can be encountered multiple times during iteration, thus #firstOccurrence argument.
+template <class F>
+void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor);
+
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
@@ -158,7 +176,9 @@ void SerializeLocationIndexes(
     const std::vector<TChunkLocationUuid>& locationUuids,
     NChunkClient::NProto::TLocationIndexes* protoLocationIndexes);
 
-int GetChunkShardIndex(TChunkId chunkId);
+i8 GetChunkShardIndex(TChunkId chunkId);
+
+NSequoiaClient::NRecords::TChunkReplicasKey BuildChunkReplicasRecordKey(TChunkId chunkId);
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now);
 
@@ -177,6 +197,10 @@ NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
 
 void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
+EChunkReplicaState GetAddedChunkReplicaState(
+        TChunkId chunkId,
+        const NChunkClient::NProto::TChunkAddInfo& chunkAddInfo);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequoiaConfig
@@ -193,6 +217,15 @@ struct TChunkSequoiaConfig
 };
 
 TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config);
+
+bool IsHunkRelatedChunkList(const TChunkList* chunkList);
+bool IsHunkRootChunkList(const TChunkList* chunkList);
+
+bool IsHunkChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+
+i64 ComputeDiskSpaceFromDataSize(i64 dataSize, NErasure::ECodec erasureCodec);
+
+void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDelta, i64 dataSizeDelta);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,7 +54,6 @@ struct TQueueTableRow;
 struct TConsumerTableRow;
 struct TConsumerRegistrationTableRow;
 struct TReplicatedTableMappingTableRow;
-using TConsumerRowMap = THashMap<TConsumerPath, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

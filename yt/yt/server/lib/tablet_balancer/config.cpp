@@ -10,7 +10,9 @@ void TFeatureFlagConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
         .Default();
-    registrar.Parameter("enable_inplace_reshard", &TThis::EnableInplaceReshard)
+    registrar.Parameter("enable_inplace_split", &TThis::EnableInplaceSplit)
+        .Default();
+    registrar.Parameter("enable_inplace_merge", &TThis::EnableInplaceMerge)
         .Default();
 }
 

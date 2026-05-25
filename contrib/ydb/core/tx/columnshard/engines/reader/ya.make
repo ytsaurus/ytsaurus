@@ -14,6 +14,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/engines/reader/common_reader
     contrib/ydb/core/tx/columnshard/engines/reader/plain_reader
     contrib/ydb/core/tx/columnshard/engines/reader/simple_reader
+    contrib/ydb/core/tx/columnshard/engines/reader/trivial_reader
     contrib/ydb/core/tx/columnshard/engines/reader/tracing
     contrib/ydb/core/tx/columnshard/engines/reader/transaction
     contrib/ydb/core/tx/columnshard/engines/scheme

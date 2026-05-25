@@ -547,7 +547,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 
-    registrar.Parameter("table_puller_strongly_prefer_local_queue", &TThis::TablePullerStronglyPreferLocalQueue)
+    registrar.Parameter("table_puller_force_same_cluster_queue", &TThis::TablePullerForceSameClusterQueue)
         .Default(false);
 
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {

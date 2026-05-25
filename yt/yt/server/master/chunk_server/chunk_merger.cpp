@@ -150,7 +150,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK()) {
             return false;
         }
@@ -734,6 +734,12 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
     auto* table = trunkChunkOwner->As<TTableNode>();
     if (table->IsDynamic()) {
         YT_LOG_DEBUG("Chunk merging is not supported for dynamic tables (ChunkOwnerId: %v)",
+            trunkChunkOwner->GetId());
+        return false;
+    }
+
+    if (trunkChunkOwner->GetHunkChunkList()) {
+        YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk chunk tree (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
         return false;
     }
@@ -2264,20 +2270,21 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     chunkOwner->SetChunkList(newRootChunkList);
 
     auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
+    // NB: Just for extra confidence. This is guaranteed by the checks above.
+    YT_VERIFY(!chunkOwner->GetHunkChunkList());
     ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
     chunkOwner->SnapshotStatistics() = std::move(newStatistics);
 
     // TODO(aleksandra-zh): Move to HydraFinalizeChunkMergeSessions?
     if (chunkOwner->IsForeign()) {
-        const auto& config = GetDynamicConfig();
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             chunkOwner,
             TStatisticsUpdateRequest{
                 .UpdateDataStatistics = true,
                 .UpdateTabletResourceUsage = false,
-                .UpdateModificationTime = config->UpdateModificationTime,
-                .UpdateAccessTime = config->UpdateModificationTime,
+                .UpdateModificationTime = false,
+                .UpdateAccessTime = false,
                 .UseNativeContentRevisionCas = true,
             });
     }
@@ -2333,6 +2340,14 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
                 "merge session finalization, ignored (TableId: %v, AccountId: %v)",
                 table->GetId(),
                 accountId);
+            continue;
+        }
+
+        if (chunkOwner->GetHunkChunkList()) {
+            YT_LOG_DEBUG(
+                "Table got hunk chunk tree between chunk replacement and "
+                "merge session finalization, ignored (TableId: %v)",
+                table->GetId());
             continue;
         }
 
@@ -2404,8 +2419,8 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
                 TStatisticsUpdateRequest{
                     .UpdateDataStatistics = true,
                     .UpdateTabletResourceUsage = false,
-                    .UpdateModificationTime = config->UpdateModificationTime,
-                    .UpdateAccessTime = config->UpdateModificationTime,
+                    .UpdateModificationTime = false,
+                    .UpdateAccessTime = false,
                     .UseNativeContentRevisionCas = true,
                 });
         }

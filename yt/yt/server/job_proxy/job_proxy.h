@@ -65,18 +65,18 @@ public:
 
     NJobTrackerClient::TJobId GetJobId() const override;
 
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
 
     std::string GetLocalHostName() const override;
 
     NRpc::IServerPtr GetRpcServer() const override;
 
-    TString GetPreparationPath() const override;
-    TString GetSlotPath() const override;
-    TString GetJobProxyUnixDomainSocketPath() const override;
+    std::string GetPreparationPath() const override;
+    std::string GetSlotPath() const override;
+    std::string GetJobProxyUnixDomainSocketPath() const override;
     std::string GetJobProxyGrpcUnixDomainSocketPath() const override;
     std::string GetJobProxyHttpUnixDomainSocketPath() const override;
-    TString AdjustPath(const TString& path) const override;
+    std::string AdjustPath(const std::string& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
@@ -112,6 +112,7 @@ private:
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;
+    i64 JobProxyEstimatedMemory_ = 0;
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = 0;
     // Job proxy cumulative memory usage in bytes * seconds.
@@ -164,6 +165,7 @@ private:
     TDuration RefCountedTrackerLogPeriod_;
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
+    i64 LastProfiledJobProxyMaxMemoryUsage_ = 0;
 
     THashMap<NChunkClient::TChunkId, NExecNode::TRefCountedChunkSpecPtr> ChunkIdToOriginalSpec_;
 
@@ -196,6 +198,8 @@ private:
     NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
 
     std::optional<int> OomScoreAdj_;
+
+    std::optional<TFuture<TString>> JobProxyPeakMemoryProfile_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
@@ -252,12 +256,12 @@ private:
     void OnPrepared() override;
 
     void PrepareArtifact(
-        const TString& artifactName,
-        const TString& pipePath) override;
+        const std::string& artifactName,
+        const std::string& pipePath) override;
 
     void OnArtifactPreparationFailed(
-        const TString& artifactName,
-        const TString& artifactPath,
+        const std::string& artifactName,
+        const std::string& artifactPath,
         const TError& error) override;
 
     void OnJobMemoryThrashing() override;
@@ -283,6 +287,9 @@ private:
     void SetOomScoreAdj(int score);
 
     void OnMemoryReserveExceeded(i64 usage);
+    void OnMemoryEstimationExceeded(i64 usage);
+
+    TFuture<TString> ProfileJobProxyPeakMemory(bool runExternalSymbolizer) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

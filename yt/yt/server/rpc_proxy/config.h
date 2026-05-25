@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/library/auth_server/config.h>
 
@@ -130,7 +130,7 @@ struct TProxyBootstrapConfig
 
     int PublicRpcPort;
 
-    NBus::TBusServerConfigPtr PublicBusServer;
+    NBus::NTcp::TBusServerConfigPtr PublicBusServer;
 
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
@@ -194,14 +194,14 @@ struct TProxyDynamicConfig
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
-    NBus::TBusServerDynamicConfigPtr BusServer;
+    NBus::NTcp::TBusServerDynamicConfigPtr BusServer;
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     TProxyMemoryLimitsPtr MemoryLimits;
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
-    std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
+    NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 
     THashMap<std::string, double> WorkerPoolWeightOverrides;
 

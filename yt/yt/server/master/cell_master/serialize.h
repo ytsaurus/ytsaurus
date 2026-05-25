@@ -180,6 +180,44 @@ DEFINE_ENUM(EMasterReign,
     ((FixSignalingToRttAboutTableCreation)                          (3226))  // akozhikhov
     ((IntroduceHunkJournalChunkFormat)                              (3227))  // akozhikhov
     ((IntroduceDistributedJournalChunkFormat)                       (3228))  // apollo1321
+    ((InternCypressProxyConfig)                                     (3229))  // h0pless
+    ((RemoveEnableSequoiaReplicasInMedium)                          (3230))  // grphil
+    ((ValidateReshardComplexity)                                    (3231))  // sabdenovch
+    ((FixTabletCellBundleInheritance)                               (3232))  // kvk120
+    ((IncreaseVitalReplicationFactor)                               (3233))  // aleksandra-zh
+    ((RemoveStagedNodesInTransactions)                              (3234))  // theevilbird
+    ((AbortStuckTransactions)                                       (3235))  // h0pless
+    ((DontValidateTransactionPermissionsOnPartitipants_26_1)        (3236))  // kvk1920
+    ((DoNotCreateSplitActionsIfTooManyTablets)                      (3237))  // alexelexa
+    ((IntroduceLogicalMountRevision)                                (3238))  // alexelexa
+    ((SendTableTabletBalancerConfigToTablet)                        (3239))  // navasardianna
+    ((ChunkMergerUsageAttributeInAccount)                           (3240))  // cherepashka
+    ((DefaultUserClusterwideLimitToCellLimit_26_1)                  (3241))  // shakurov
+    ((DropMulticellIndex)                                           (3242))  // cherepashka
+    ((HandleOptimizeForInBeginUpload)                               (3243))  // h0pless
+    ((MakeVectorizedSubbatchSizeDynamiclyConfigurable)              (3244))  // danilalexeev
+    ((KulenovClockPart2)                                            (3245))  // aleksandra-zh
+    ((StrongOrderingTags)                                           (3246))  // h0pless
+    ((NativeClientUnfoldedIndexPartialBackCompat)                   (3247))  // sabdenovch
+    ((ExpectedPrepareSignature_26_1)                                (3248))  // atalmenev
+    ((HunkChunkTreeStatisticsOverhaul)                              (3249))  // akozhikhov
+
+    // 26.2 starts here.
+    ((Start_26_2)                                                   (3300))  // ermolovd
+    ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
+    ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
+    ((DisableModificationTimeUpdateInChunkMerger)                   (3303))  // h0pless
+    ((DontValidateTransactionPermissionsOnPartitipants)             (3304))  // kvk1920
+    ((IntroduceLogicalMountRevision_26_2)                           (3305))  // alexelexa
+    ((SendTableTabletBalancerConfigToTablet_26_2)                   (3306))  // navasardianna
+    ((ChunkMergerUsageAttributeInAccount_26_2)                      (3307))  // cherepashka
+    ((DefaultUserClusterwideLimitToCellLimit)                       (3308))  // shakurov
+    ((DropMulticellIndex_26_2)                                      (3309))  // cherepashka
+    ((HandleOptimizeForInBeginUpload_26_2)                          (3310))  // h0pless
+    ((KulenovClockPart2_26_2)                                       (3311))  // aleksandra-zh
+    ((StrongOrderingTags_26_2)                                      (3312))  // h0pless
+    ((NativeClientUnfoldedIndexPartialBackCompat_26_2)              (3313))  // sabdenovch
+    ((ExpectedPrepareSignature)                                     (3314))  // atalmenev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

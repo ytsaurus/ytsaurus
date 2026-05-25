@@ -181,7 +181,7 @@ THashMap<TClusterName, std::vector<NYPath::TYPath>> TTable::GetReplicaBalancingM
             }
 
             auto minorTablesIt = EmplaceOrCrash(clusterToMinorTables, cluster, std::vector<NYPath::TYPath>{});
-            std::copy_if(it->second.begin(), it->second.end(), minorTablesIt->second.begin(), [&] (const auto& path) {
+            std::copy_if(it->second.begin(), it->second.end(), std::back_inserter(minorTablesIt->second), [&] (const auto& path) {
                 return path != Path || cluster != selfClusterName;
             });
         } else if (cluster != selfClusterName) {
@@ -204,7 +204,6 @@ TTablePtr TTable::Clone(TTabletCellBundle* bundle, bool copyExtendedAttributes) 
         table->PivotKeys = PivotKeys;
         table->CompressedDataSize = CompressedDataSize;
         table->UncompressedDataSize = UncompressedDataSize;
-        table->InMemoryMode = InMemoryMode;
     }
 
     return table;

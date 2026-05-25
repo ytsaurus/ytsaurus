@@ -233,6 +233,42 @@ void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfig /*confi
     // do nothing
 }
 
+void TYqlExecutorProcess::RegisterQuery(TQueryId queryId)
+{
+    auto registerQueryReq = PluginProxy_.RegisterQuery();
+
+    ToProto(registerQueryReq->mutable_query_id(), queryId);
+
+    auto response = WaitFor(registerQueryReq->Invoke());
+    if (!response.IsOK()) {
+        YT_LOG_ERROR(
+            response,
+            "Failed to register query (QueryId: %v, SlotIndex: %v)",
+            queryId,
+            SlotIndex_);
+
+        THROW_ERROR response;
+    }
+}
+
+void TYqlExecutorProcess::UnregisterQuery(TQueryId queryId)
+{
+    auto unregisterQueryReq = PluginProxy_.UnregisterQuery();
+
+    ToProto(unregisterQueryReq->mutable_query_id(), queryId);
+
+    auto response = WaitFor(unregisterQueryReq->Invoke());
+    if (!response.IsOK()) {
+        YT_LOG_ERROR(
+            response,
+            "Failed to unregister query (QueryId: %v, SlotIndex: %v)",
+            queryId,
+            SlotIndex_);
+
+        THROW_ERROR response;
+    }
+}
+
 void TYqlExecutorProcess::Start()
 {
     // do nothing

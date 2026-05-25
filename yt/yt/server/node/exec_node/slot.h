@@ -3,6 +3,7 @@
 #include "artifact.h"
 #include "artifact_cache.h"
 #include "job_workspace_builder.h"
+#include "volume.h"
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
@@ -52,55 +53,63 @@ struct IUserSlot
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
+        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota = false) = 0;
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& linkPath,
+        const std::string& targetPath,
+        const std::string& linkPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& bindPath,
+        const std::string& targetPath,
+        const std::string& bindPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeCopy(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& sourcePath,
+        const std::string& sourcePath,
         const TFile& destinationFile,
         const TCacheLocationPtr& sourceLocation) = 0;
 
     virtual TFuture<void> MakeFile(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
+    //! Prepare overlay layers for a set of artifact keys.
+    //! Returns one future per layer (parallel index).
+    virtual std::vector<TFuture<TOverlayData>> PrepareLayers(
+        TJobId jobId,
+        const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
+        const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
+
     virtual TFuture<IVolumePtr> PrepareRootVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(
         TJobId jobId,
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
@@ -112,8 +121,8 @@ struct IUserSlot
         const std::vector<NScheduler::TVolumeMountPtr>& volumeMounts,
         bool testRootFs) = 0;
 
-    virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
-    virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
+    virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;
+    virtual NBus::NTcp::TBusClientConfigPtr GetBusClientConfig() const = 0;
 
     virtual NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const = 0;
 
@@ -123,13 +132,13 @@ struct IUserSlot
 
     virtual TDiskStatistics GetDiskStatistics() const = 0;
 
-    virtual TString GetSlotPath() const = 0;
+    virtual std::string GetSlotPath() const = 0;
 
-    virtual TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
+    virtual std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
 
     virtual std::string GetMediumName() const = 0;
 
-    virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
+    virtual std::string GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual TFuture<std::vector<TShellCommandResult>> RunPreparationCommands(
@@ -138,16 +147,16 @@ struct IUserSlot
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        const std::optional<TString>& hostName,
+        const std::optional<std::string>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) = 0;
 
     virtual void OnArtifactPreparationFailed(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& artifactPath,
+        const std::string& artifactPath,
         const TError& error) = 0;
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
@@ -174,7 +183,7 @@ IUserSlotPtr CreateSlot(
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
     NExecNode::IBootstrap* bootstrap,
-    const TString& nodeTag,
+    const std::string& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TDeprecatedDiskRequest diskRequest,

@@ -109,7 +109,7 @@ public:
 
         // This is context switch, so we should check that chunk is still alive.
         // TODO(grphil): Do not fetch replicas here (they should be already fetched in chunk sealer).
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_);
+        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(Chunk_, /*includeUnapproved*/ true);
         if (!replicasOrError.IsOK() || !IsObjectAlive(Chunk_)) {
             return false;
         }
@@ -333,7 +333,7 @@ public:
         }
 
         const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas, /*includeUnapproved*/ true);
 
         for (const auto& scheduleJobContext : scheduleJobContexts) {
             if (resourceUsage.seal_slots() >= resourceLimits.seal_slots()) {
@@ -554,13 +554,11 @@ private:
                 sealContext->RescheduleCount);
         }
 
-        if (IsSealNeeded(sealContext->Chunk.Get())) {
-            EnqueueChunk(
-                sealContext->Chunk.Get(),
-                sealContext->RescheduleCount,
-                sealContext->EnqueueTime,
-                delayed);
-        }
+        EnqueueChunk(
+            sealContext->Chunk.Get(),
+            sealContext->RescheduleCount + 1,
+            sealContext->EnqueueTime,
+            delayed);
     }
 
     void EnqueueChunk(TChunk* chunk, int errorCount, TCpuInstant enqueueTime, bool delayed = false)
@@ -592,7 +590,7 @@ private:
         {
             auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
             if (!guard) {
-                return;
+                break;
             }
 
             ++totalCount;
@@ -608,7 +606,7 @@ private:
         }
 
         const auto& chunkReplicaFetcher = Bootstrap_->GetChunkManager()->GetChunkReplicaFetcher();
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunksToFetchReplicas, /*includeUnapproved*/ true);
 
         for (auto sealContext : pendingSeals) {
             auto chunk = sealContext->Chunk.Get();
@@ -617,9 +615,8 @@ private:
             }
             const auto& replicasOrError = GetOrCrash(replicas, chunk->GetId());
             if (!replicasOrError.IsOK()) {
-                YT_LOG_DEBUG(replicasOrError, "Error fetching replicas to seal chunk (ChunkId: %v, Error: %v)",
-                    chunk->GetId(),
-                    replicasOrError);
+                YT_LOG_DEBUG(replicasOrError, "Error fetching replicas to seal chunk (ChunkId: %v)",
+                    chunk->GetId());
 
                 // We do not increase unsuccessful seal counter here, as it will be counted in unsuccessful replica fetching counters.
                 RescheduleSeal(sealContext, /*delayed*/ true);

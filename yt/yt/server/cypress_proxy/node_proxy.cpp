@@ -664,19 +664,38 @@ protected:
         };
     }
 
-    void GetSelf(TReqGet* request, TRspGet* /*response*/, const TCtxGetPtr& context) override
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
-        // TODO(danilalexeev): YT-26172. Support requests with special attributes.
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        context->SetRequestInfo("AttributeFilter: %v",
-            attributeFilter);
+        context->SetRequestInfo("AttributeFilter: %v", attributeFilter);
 
         ValidatePermissionForThis(EPermission::Read);
 
-        AbortSequoiaSessionForLaterForwardingToMaster();
+        // NB: For documents such request does not return attribues.
+        if (TypeFromId(Id_) == EObjectType::Document ||
+            !HasSpecialAttributes(attributeFilter))
+        {
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto node = WaitFor(FetchValueForNode(
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            ResolveResult_.NodeAncestry))
+            .ValueOrThrow();
+
+        auto value = SyncYPathGet(node, "", attributeFilter);
+        response->set_value(ToProto(value));
+
+        MaybeTouchCurrentNode(TYPathProxy::Get, context);
+        // Should not throw after this point.
+
+        context->Reply();
     }
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
@@ -756,16 +775,59 @@ protected:
     }
 
     void ExistsAttribute(
-        const TYPath& /*path*/,
+        const TYPath& path,
         TReqExists* /*request*/,
-        TRspExists* /*response*/,
+        TRspExists* response,
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo();
 
         ValidatePermissionForThis(EPermission::Read);
 
-        AbortSequoiaSessionForLaterForwardingToMaster();
+        TAttributeFilter attributeFilter;
+
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            attributeFilter = TAttributeFilter({tokenizer.GetLiteralValue()});
+        }
+
+        if (tokenizer.GetType() != NYPath::ETokenType::Literal ||
+            !HasSpecialAttributes(attributeFilter))
+        {
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto attributes = WaitFor(FetchAttributesForNode(
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            ResolveResult_.NodeAncestry))
+            .ValueOrThrow();
+
+        auto key = tokenizer.GetLiteralValue();
+        tokenizer.Advance();
+
+        auto exists = false;
+        try {
+            exists = SyncYPathExists(
+                attributes->Get<INodePtr>(key),
+                TYPath(tokenizer.GetInput()));
+        } catch (const std::exception&) {
+            exists = false;
+        }
+
+        response->set_value(exists);
+
+        context->SetResponseInfo("Result: %v", exists);
+
+        AccessTrackingOptions_.SuppressAccessTracking = true;
+
+        MaybeTouchCurrentNode(TYPathProxy::Exists, context);
+        // Should not throw after this point.
+
+        context->Reply();
     }
 
     void GetAttribute(
@@ -889,22 +951,79 @@ protected:
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
 
-    void ListAttribute(
-        const TYPath& /*path*/,
-        TReqList* request,
+    void ListSelf(
+        TReqList* /*request*/,
         TRspList* /*response*/,
+        const TCtxListPtr& context) override
+    {
+        context->SetRequestInfo();
+        ValidatePermissionForThis(EPermission::Read);
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void ListAttribute(
+        const TYPath& path,
+        TReqList* request,
+        TRspList* response,
         const TCtxListPtr& context) override
     {
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        context->SetRequestInfo("AttributeFilter: %v",
-            attributeFilter);
+        context->SetRequestInfo("AttributeFilter: %v", attributeFilter);
 
         ValidatePermissionForThis(EPermission::Read);
 
-        AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            attributeFilter = TAttributeFilter({tokenizer.GetLiteralValue()});
+        }
+
+        if (tokenizer.GetType() != NYPath::ETokenType::Literal ||
+            !HasSpecialAttributes(attributeFilter))
+        {
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto attributes = WaitFor(FetchAttributesForNode(
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            ResolveResult_.NodeAncestry))
+            .ValueOrThrow();
+
+        auto key = tokenizer.GetLiteralValue();
+        tokenizer.Advance();
+
+        if (!attributes->Contains(key)) {
+            ThrowNoSuchAttribute(key);
+        }
+
+        auto listedKeys = SyncYPathList(
+            attributes->Get<INodePtr>(key),
+            TYPath(tokenizer.GetInput()));
+
+        TStringStream stream;
+        auto writer = TBufferedBinaryYsonWriter(&stream);
+        writer.OnBeginList();
+        for (const auto& listedKey : listedKeys) {
+            writer.OnListItem();
+            writer.OnStringScalar(listedKey);
+        }
+        writer.OnEndList();
+        writer.Flush();
+
+        response->set_value(stream.Str());
+
+        AccessTrackingOptions_.SuppressAccessTracking = true;
+
+        MaybeTouchCurrentNode(TYPathProxy::Exists, context);
+        // Should not throw after this point.
+
+        context->Reply();
     }
 
     TRange<TCypressNodeDescriptor> GetNodeAncestry(bool replace) const
@@ -1922,7 +2041,14 @@ public:
 private:
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
-        if (IsRequestMutating(context->RequestHeader()) ||
+        auto tokenType = ParseUnresolvedSuffix(
+            GetRequestTargetYPath(context->GetRequestHeader()),
+            /*partLimit*/ 0)
+            .Tokenizer
+            .GetType();
+
+        if (tokenType == NYPath::ETokenType::EndOfStream ||
+            tokenType == NYPath::ETokenType::At ||
             context->GetMethod() == "CheckPermission")
         {
             return TNodeProxy::DoInvoke(context);
@@ -1932,47 +2058,13 @@ private:
 
         context->SetRequestInfo();
 
-        bool isEmptyUnresolvedSuffix = NYPath::ETokenType::EndOfStream == ParseUnresolvedSuffix(
-            GetRequestTargetYPath(context->GetRequestHeader()),
-            /*partLimit*/ 0)
-            .Tokenizer
-            .GetType();
+        auto permission = IsRequestMutating(context->RequestHeader())
+            ? EPermission::Write
+            : EPermission::Read;
+        ValidatePermissionForThis(permission);
 
-        // See #TNodeProxy::ExistsSelf.
-        if (context->GetMethod() != "Exists" || !isEmptyUnresolvedSuffix) {
-            ValidatePermissionForThis(EPermission::Read);
-        }
         AbortSequoiaSessionForLaterForwardingToMaster();
         return true;
-    }
-
-    void SetRecursive(
-        const TYPath& path,
-        TReqSet* request,
-        TRspSet* /*response*/,
-        const TCtxSetPtr& context) override
-    {
-        context->SetRequestInfo("TargetNodeId: %v, PathSuffix: %v, Force: %v",
-            Id_,
-            path,
-            request->force());
-        ValidatePermissionForThis(EPermission::Write);
-        AbortSequoiaSessionForLaterForwardingToMaster();
-    }
-
-    void RemoveRecursive(
-        const TYPath& path,
-        TReqRemove* request,
-        TRspRemove* /*response*/,
-        const TCtxRemovePtr& context) override
-    {
-        context->SetRequestInfo("TargetNodeId: %v, PathSuffix: %v, Force: %v, Recursive: %v",
-            Id_,
-            path,
-            request->force(),
-            request->recursive());
-        ValidatePermissionForThis(EPermission::Write);
-        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 };
 
@@ -2256,7 +2348,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
         auto responseSizeLimit = dynamicConfig->DefaultGetResponseSizeLimit;
 
         context->SetRequestInfo("ResponseSizeLimit: %v, AttributeFilter: %v",

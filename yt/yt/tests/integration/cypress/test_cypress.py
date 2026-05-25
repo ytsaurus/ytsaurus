@@ -42,7 +42,6 @@ import time
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressRootCreationTime(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -58,7 +57,6 @@ class TestCypressRootCreationTime(YTEnvSetup):
         assert creation_time == get("//@creation_time")
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypress(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -404,10 +402,10 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         d = create("map_node", "//tmp/d", tx=tx)
         if self.ENABLE_TMP_ROOTSTOCK:
-            assert get(f"#{d}/@ref_counter") == 2
+            assert get(f"#{d}/@ref_counter") == 1
         else:
-            # parent + branch + transaction
-            assert get(f"#{d}/@ref_counter") == 3
+            # parent + branch
+            assert get(f"#{d}/@ref_counter") == 2
         commit_transaction(tx)
         assert get(f"#{d}/@ref_counter") == 1
 
@@ -715,21 +713,26 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
             copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
-    @authors("babenko")
+    @authors("babenko", "theevilbird")
     def test_copy_removed_account(self):
         create_account("a")
         create("map_node", "//tmp/p1")
         create("map_node", "//tmp/p2")
 
         create("file", "//tmp/p1/f", attributes={"account": "a"})
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
 
-        remove("//sys/accounts/a")
-        wait(lambda: get("//sys/accounts/a/@life_stage") in ["removal_started", "removal_pre_committed"])
+        with raises_yt_error("Cannot remove an account \"a\" because its usage is not zero"):
+            remove("//sys/accounts/a")
+        assert get("//sys/accounts/a/@life_stage") == "creation_committed"
 
-        with raises_yt_error("Account \"a\" cannot be used"):
-            copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
+        copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
 
         remove("//tmp/p1/f")
+        remove("//tmp/p2/f")
+        gc_collect()
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") == 0)
+        remove("//sys/accounts/a")
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")
@@ -2166,14 +2169,11 @@ class TestCypress(YTEnvSetup):
             assert not exists("//tmp/t/@expiration_timeout_last_reset_time")
 
     @authors("koloshmet")
-    @flaky(max_runs=3)
     def test_drop_expiration_user_with_restarts(self):
-        set("//sys/@config/cypress_manager/expiration_backoff_time", 2000)
-        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 3000)
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 200)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 100)
+        set("//sys/@config/cypress_manager/expiration_attempt_limit", 1000)
         set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
-
-        time_delta = 2
-        final_sleep = 4 if type(self).__name__ == "TestCypress" else 10
 
         create_user("u1")
         create_user("u2")
@@ -2183,18 +2183,34 @@ class TestCypress(YTEnvSetup):
             "//tmp/t",
             authenticated_user="u1",
         )
-        set("//tmp/t/@expiration_time", str(get_current_time() + timedelta(seconds=time_delta)), authenticated_user="u2")
+        # The expiration time is set slightly in the future so that the ACL
+        # below is in place by the time the expiration tracker first tries to
+        # remove the node.
+        set(
+            "//tmp/t/@expiration_time",
+            str(get_current_time() + timedelta(seconds=2)),
+            authenticated_user="u2")
         set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
-        time.sleep(5)
-        risen = None
+
+        # Accumulate enough failed attempts that any plausible value not coming
+        # from the snapshot post-restart will be strictly smaller.
+        threshold = 5
+        wait(lambda: get("//tmp/t/@failed_expiration_attempts").get("u2", 0) >= threshold)
+        before = get("//tmp/t/@failed_expiration_attempts")["u2"]
+
         with Restarter(self.Env, MASTERS_SERVICE):
-            risen = time.time()
-        time.sleep(max(3 - (time.time() - risen), 0))
+            pass
+
+        # The counter cannot decrease across a restart unless persistence is
+        # broken - extra attempts may fire post-restart, but the value must not
+        # drop below what we persisted.
+        wait(lambda: get("//tmp/t/@failed_expiration_attempts").get("u2", 0) >= before)
         assert exists("//tmp/t/@expiration_time")
         assert exists("//tmp/t/@expiration_time_user")
 
-        time.sleep(final_sleep)
-        assert not exists("//tmp/t/@expiration_time")
+        # Lower the limit; the next attempt must trip it and drop the expiration.
+        set("//sys/@config/cypress_manager/expiration_attempt_limit", before)
+        wait(lambda: not exists("//tmp/t/@expiration_time"))
         assert not exists("//tmp/t/@expiration_time_user")
         assert exists("//tmp/t/@expiration_time_last_reset_time")
 
@@ -2678,8 +2694,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(3.5)
         assert not exists("//tmp/t1")
 
-    @authors("shakurov")
-    @flaky(max_runs=3)
+    @authors("kvk1920", "shakurov")
     def test_expiration_timeout5(self):
         tx = start_transaction()
 
@@ -2827,20 +2842,20 @@ class TestCypress(YTEnvSetup):
 
         create("map_node", "//tmp/m1", attributes={"expiration_time": "2044-01-01"})
         create("table", "//tmp/m1/t1")
-        assert get("//tmp/m1/t1/@effective_expiration")["time"] == {"value": "2044-01-01T00:00:00.000000Z", "path": "//tmp/m1"}
+        assert get("//tmp/m1/t1/@effective_expiration/time") == {"value": "2044-01-01T00:00:00.000000Z", "path": "//tmp/m1"}
 
         create("map_node", "//tmp/m2", attributes={"expiration_time": "2030-01-01"})
         create("map_node", "//tmp/m2/m2")
         create("table", "//tmp/m2/m2/t2", attributes={"expiration_time": "2044-01-01"})
-        assert get("//tmp/m2/m2/t2/@effective_expiration")["time"] == {"value": "2030-01-01T00:00:00.000000Z", "path": "//tmp/m2"}
+        assert get("//tmp/m2/m2/t2/@effective_expiration/time") == {"value": "2030-01-01T00:00:00.000000Z", "path": "//tmp/m2"}
 
         create("map_node", "//tmp/m3", attributes={"expiration_timeout": 10000})
         create("table", "//tmp/m3/t3", attributes={"expiration_timeout": 20000})
-        assert get("//tmp/m3/t3/@effective_expiration")["timeout"] == {"value": 10000, "path": "//tmp/m3"}
+        assert get("//tmp/m3/t3/@effective_expiration/timeout") == {"value": 10000, "path": "//tmp/m3"}
 
         create("map_node", "//tmp/m4")
         create("table", "//tmp/m4/t4", attributes={"expiration_timeout": 20000})
-        assert get("//tmp/m4/t4/@effective_expiration")["timeout"] == {"value": 20000, "path": "//tmp/m4/t4"}
+        assert get("//tmp/m4/t4/@effective_expiration/timeout") == {"value": 20000, "path": "//tmp/m4/t4"}
 
     @authors("h0pless")
     def test_effective_expiration_time_transaction(self):
@@ -3408,6 +3423,20 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t4")
         copy("//tmp/t4", "//tmp/dir1/t1", force=True)
         assert get("//tmp/dir1/t1/@chunk_merger_mode") == "deep"
+
+    @authors("kvk1920")
+    def test_effective_inheritable_attributes_bundle(self):
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+
+        create("table", "//tmp/a/b/t1", recursive=True, attributes={"tablet_cell_bundle": "b1"})
+
+        set("//tmp/a/@tablet_cell_bundle", "b2")
+
+        create("table", "//tmp/a/b/t2", attributes={"tablet_cell_bundle": "b1"})
+
+        assert get("//tmp/a/b/t1/@tablet_cell_bundle") == "b1"
+        assert get("//tmp/a/b/t2/@tablet_cell_bundle") == "b1"
 
     @authors("kvk1920", "h0pless")
     def test_effective_inheritable_attributes_attribute(self):
@@ -4621,7 +4650,7 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("is too long"):
             set("{}/sample/@folder_id".format(object_map), "abacaba" * 42)
         set("{}/sample/@folder_id".format(object_map), "b7189bb3-fcf3-46da-accf-52be0d4148f0")
-        with raises_yt_error("Cannot parse \"string\"; expected \"string_value\", actual \"int64_value\""):
+        with raises_yt_error("Cannot parse \"string\" from \"int64\""):
             set("{}/sample/@folder_id".format(object_map), 0)
 
     @authors("cookiedoth")
@@ -4657,14 +4686,19 @@ class TestCypress(YTEnvSetup):
 
     @authors("kvk1920")
     def test_cluster_connection_attribute(self):
-        with raises_yt_error("cannot be parsed"):
-            set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
-        set("//sys/@cluster_connection", {"default_input_row_limit": 1024})
-        assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
-        set("//sys/@cluster_connection", yson.YsonEntity())
-        assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
-        remove("//sys/@cluster_connection")
-        assert not exists("//sys/@cluster_connection")
+        # Cluster connection is not reset between tests.
+        initial_config = get("//sys/@cluster_connection")
+        try:
+            with raises_yt_error("cannot be parsed"):
+                set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
+            set("//sys/@cluster_connection", {"default_input_row_limit": 1024})
+            assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
+            set("//sys/@cluster_connection", yson.YsonEntity())
+            assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
+            remove("//sys/@cluster_connection")
+            assert not exists("//sys/@cluster_connection")
+        finally:
+            set("//sys/@cluster_connection", initial_config)
 
     @authors("kvk1920")
     def test_cluster_name(self):
@@ -4837,7 +4871,6 @@ class TestCypress(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressMulticell(TestCypress):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4914,7 +4947,6 @@ class TestCypressMulticell(TestCypress):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressPortal(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -5081,7 +5113,6 @@ class TestCypressPortal(TestCypressMulticell):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressShardedTx(TestCypressPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -5094,7 +5125,6 @@ class TestCypressShardedTx(TestCypressPortal):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressMirroredTx(TestCypressShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -5105,14 +5135,12 @@ class TestCypressMirroredTx(TestCypressShardedTx):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressRpcProxy(TestCypress):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
     ENABLE_MULTIDAEMON = True
 
@@ -5125,7 +5153,6 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressLeaderSwitch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -5212,7 +5239,6 @@ class TestCypressLeaderSwitch(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.enabled_multidaemon
 class TestCypressForbidSet(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -5269,7 +5295,6 @@ class TestCypressForbidSet(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressApiVersion4(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -5329,7 +5354,6 @@ class TestCypressApiVersion4(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressNestingLevelLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -5405,7 +5429,6 @@ class TestCypressNestingLevelLimit(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
     ENABLE_MULTIDAEMON = True
     ENABLE_RPC_PROXY = True
@@ -5422,7 +5445,6 @@ class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
     ENABLE_MULTIDAEMON = True
     ENABLE_HTTP_PROXY = True
@@ -5476,7 +5498,6 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
         self._execute_command("PUT", "multiset_attributes", kwargs, input_stream=BytesIO(subrequests))
 
 
-@pytest.mark.enabled_multidaemon
 class TestBuiltinAttributesRevision(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
@@ -5510,7 +5531,6 @@ class TestBuiltinAttributesRevision(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccessControlObjects(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -5707,7 +5727,6 @@ class TestAccessControlObjects(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressSequoia(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 5

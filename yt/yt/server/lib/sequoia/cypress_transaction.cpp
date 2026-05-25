@@ -968,11 +968,13 @@ protected:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        SequoiaTransaction_->AddBarrierTags({NNative::SequoiaCypressOrderingTag});
+        SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+
         // NB: |CoordinatorCellId_| may be null here but it's OK.
         return SequoiaTransaction_->Commit({
             .CoordinatorCellId = CoordinatorCellId_,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-            .StronglyOrdered = true,
         });
     }
 
@@ -1002,7 +1004,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        NApi::TTransactionStartOptions options;
+        TTransactionStartOptions options;
         options.Attributes = CreateEphemeralAttributes();
         options.Attributes->Set("title", Title_);
 
@@ -1689,11 +1691,11 @@ private:
             Invoker_)
                 ->Run()
                 .AsUnique().Apply(
-                    BIND(&TDoomCypressTransaction::MarkTrasactionSubtreeDoomed, MakeStrong(this))
+                    BIND(&TDoomCypressTransaction::MarkTransactionSubtreeDoomed, MakeStrong(this))
                         .AsyncVia(Invoker_));
     }
 
-    void MarkTrasactionSubtreeDoomed(TDependentTransactionCollector::TResult&& transactionInfos)
+    void MarkTransactionSubtreeDoomed(TDependentTransactionCollector::TResult&& transactionInfos)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 

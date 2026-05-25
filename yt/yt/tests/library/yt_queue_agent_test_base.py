@@ -60,8 +60,8 @@ class GenericObjectPath(YPath):
 
 
 class QueueConsumerRegistration:
-    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None):
-        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path)
+    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None, consumer_name=None):
+        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path, consumer_name)
         self.value = (vital, partitions)
 
     def __eq__(self, other):
@@ -77,30 +77,46 @@ class QueueConsumerRegistration:
         return hash(self.key + self.value)
 
     @staticmethod
-    def _normalize_partitions(partitions):
-        if partitions is None:
-            return partitions
-        if partitions == YsonEntity():
+    def _normalize_none(value):
+        if value == YsonEntity():
             return None
-        return tuple(partitions)
+        return value
+
+    @staticmethod
+    def _normalize_partitions(partitions):
+        partitions = QueueConsumerRegistration._normalize_none(partitions)
+        return tuple(partitions) if partitions is not None else None
 
     @classmethod
     def from_select(cls, r):
         return cls(r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"],
-                   cls._normalize_partitions(r["partitions"]))
+                   cls._normalize_partitions(r["partitions"]), cls._normalize_none(r["consumer_name"]))
 
     @classmethod
     def from_orchid(cls, r):
         queue_ypath = GenericObjectPath(r["queue"])
         consumer_ypath = GenericObjectPath(r["consumer"])
-        return cls(queue_ypath.get_cluster(), queue_ypath.get_path(), consumer_ypath.get_cluster(),
-                   consumer_ypath.get_path(), r["vital"], cls._normalize_partitions(r["partitions"]))
+        return cls(
+            queue_ypath.get_cluster(),
+            queue_ypath.get_path(),
+            consumer_ypath.get_cluster(),
+            consumer_ypath.get_path(),
+            r["vital"],
+            cls._normalize_partitions(r["partitions"]),
+            cls._normalize_none(consumer_ypath.get_queue_consumer_name()),
+        )
 
     @classmethod
     def from_list_registrations(cls, r):
-        return cls(r["queue_path"].attributes["cluster"], str(r["queue_path"]),
-                   r["consumer_path"].attributes["cluster"], str(r["consumer_path"]),
-                   r["vital"], cls._normalize_partitions(r["partitions"]))
+        return cls(
+            r["queue_path"].attributes["cluster"],
+            str(r["queue_path"]),
+            r["consumer_path"].attributes["cluster"],
+            str(r["consumer_path"]),
+            r["vital"],
+            cls._normalize_partitions(r["partitions"]),
+            cls._normalize_none(r["consumer_path"].attributes.get("queue_consumer_name", None)),
+        )
 
 
 ##################################################################
@@ -1270,11 +1286,18 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         return make_batch_request("create", type="table", path=path, attributes=attributes)
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
-        if without_meta or not mount:
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, **kwargs):
+        if without_meta or not mount or multi_consumer:
+            if multi_consumer:
+                schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+            elif without_meta:
+                schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META
+            else:
+                schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA
+
             attributes = {
                 "dynamic": True,
-                "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+                "schema": schema,
                 "treat_as_queue_consumer": True,
             }
             attributes.update(kwargs)

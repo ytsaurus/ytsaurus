@@ -12,7 +12,7 @@
 #include <contrib/ydb/core/kqp/common/kqp.h>
 #include <contrib/ydb/core/kqp/common/events/script_executions.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_backup.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_build_index.h>
+#include <contrib/ydb/core/tx/schemeshard/index/build_index.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_export.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_forced_compaction.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_import.h>

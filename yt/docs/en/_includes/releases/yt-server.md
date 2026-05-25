@@ -1,7 +1,7 @@
 ## YTsaurus server
 
 
-All main components are released as a docker image.
+All main components are released as docker images.
 
 
 
@@ -11,6 +11,12 @@ All main components are released as a docker image.
 {% cut "**25.3.1**" %}
 
 **Release date:** 2026-03-25
+
+
+**Release page:** [25.3.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.3.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.3.1](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/773248759?tag=stable-25.3.1)
 
 
 To install YTsaurus Server 25.3.1 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) the k8s-operator to version 0.27.0.
@@ -25,6 +31,12 @@ To install YTsaurus Server 25.3.1 [update](https://github.com/ytsaurus/ytsaurus-
 {% cut "**25.3.0**" %}
 
 **Release date:** 2026-03-13
+
+
+**Release page:** [25.3.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.3.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.3.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/738197686?tag=stable-25.3.0)
 
 
 #### Overview
@@ -276,6 +288,12 @@ in vanilla job's job_proxy, [667c927](https://github.com/ytsaurus/ytsaurus/commi
 **Release date:** 2025-12-09
 
 
+**Release page:** [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.2.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.2.2](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/633029914?tag=stable-25.2.2)
+
+
 To install YTsaurus Server 25.2.2 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) the k8s-operator to version 0.27.0.
 
 #### Proxy
@@ -290,6 +308,12 @@ To install YTsaurus Server 25.2.2 [update](https://github.com/ytsaurus/ytsaurus-
 {% cut "**25.2.1**" %}
 
 **Release date:** 2025-11-11
+
+
+**Release page:** [25.2.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.2.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.2.1](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/574146599?tag=stable-25.2.1)
 
 
 To install YTsaurus Server 25.2.1 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) the k8s-operator to version 0.27.0.
@@ -320,6 +344,12 @@ To install YTsaurus Server 25.2.1 [update](https://github.com/ytsaurus/ytsaurus-
 {% cut "**25.2.0**" %}
 
 **Release date:** 2025-09-23
+
+
+**Release page:** [25.2.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.2.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.2.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/524637705?tag=stable-25.2.0)
 
 
 To install YTsaurus Server 25.2.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) the k8s-operator to version 0.27.0.
@@ -539,6 +569,12 @@ To install YTsaurus Server 25.2.0 [update](https://github.com/ytsaurus/ytsaurus-
 {% cut "**25.1.0**" %}
 
 **Release date:** 2025-07-28
+
+
+**Release page:** [25.1.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.1.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.1.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/472899068?tag=stable-25.1.0)
 
 
 _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.25.0) the k8s-operator to version 0.25.0._
@@ -765,6 +801,12 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 **Release date:** 2025-07-28
 
 
+**Release page:** [24.2.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/24.2.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-24.2.1](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/472503591?tag=stable-24.2.1)
+
+
 _To install YTsaurus Server 24.2.1 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.22.0) the k8s-operator to version 0.22.0._
 
 #### Proxy
@@ -805,6 +847,12 @@ Feature:
 {% cut "**24.2.0**" %}
 
 **Release date:** 2025-03-19
+
+
+**Release page:** [24.2.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/24.2.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-24.2.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/377574644?tag=stable-24.2.0)
 
 
 _To install YTsaurus Server 24.2.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.22.0) the k8s-operator to version 0.22.0._
@@ -908,6 +956,12 @@ Fixes & Optimizations:
 {% cut "**24.1.0**" %}
 
 **Release date:** 2024-11-07
+
+
+**Release page:** [24.1.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/24.1.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-24.1.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/304107085?tag=stable-24.1.0)
 
 
 _To install YTsaurus Server 24.1.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases) the k8s-operator to version 0.17.0._
@@ -1045,6 +1099,12 @@ Features:
 **Release date:** 2024-07-31
 
 
+**Release page:** [23.2.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/23.2.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-23.2.1](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/251277095?tag=stable-23.2.1)
+
+
 #### Scheduler and GPU
 Features:
   * Disable writing `//sys/scheduler/event_log` by default.
@@ -1133,6 +1193,12 @@ Fixes:
 {% cut "**23.2.0**" %}
 
 **Release date:** 2024-02-29
+
+
+**Release page:** [23.2.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/23.2.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-23.2.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/222908760?tag=stable-23.2.0)
 
 
 #### Scheduler

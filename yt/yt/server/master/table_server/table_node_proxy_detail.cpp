@@ -304,6 +304,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkReferenceStatistics)
+        .SetExternal(isExternal && isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkStatistics)
         .SetExternal(isExternal && isDynamic)
         .SetOpaque(true));
@@ -498,7 +501,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(table->ComputeTotalStatistics().DataWeight);
+                .Value(statistics.DataWeight);
             return true;
         }
 
@@ -633,6 +636,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             })
                             .DoIf(cell, [&] (TFluentMap fluent) {
                                 fluent.Item("mount_revision").Value(tablet->Servant().GetMountRevision());
+                            })
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("logical_mount_revision").Value(tablet->Servant().GetLogicalMountRevision());
                             })
                             .Item("error_count").Value(tablet->GetTabletErrorCount())
                             .Item("replication_error_count").Value(tablet->GetReplicationErrorCount())
@@ -1197,6 +1203,36 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(Bootstrap_->GetSecurityManager()->HasRowLevelAce(Object_));
 
             return true;
+
+        case EInternedAttributeKey::HunkReferenceStatistics: {
+            if (isExternal) {
+                break;
+            }
+
+            const auto* table = GetThisImpl();
+            const auto* chunkList = table->GetChunkList();
+            const auto* hunkChunkList = table->GetHunkChunkList();
+            if (!hunkChunkList) {
+                break;
+            }
+
+            const auto& chunkListStatistics = chunkList->Statistics();
+            const auto& hunkChunkListStatistics = hunkChunkList->HunkStatistics();
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("local_referenced_data_weight").Value(chunkListStatistics.HunkDataWeight)
+                    .Item("local_referenced_data_size").Value(chunkListStatistics.HunkDataSize)
+                    .Item("local_referenced_regular_disk_space").Value(chunkListStatistics.HunkRegularDiskSpace)
+                    .Item("local_referenced_erasure_disk_space").Value(chunkListStatistics.HunkErasureDiskSpace)
+                    .Item("global_referenced_regular_disk_space").Value(hunkChunkListStatistics.ReferencedRegularDiskSpace)
+                    .Item("global_referenced_erasure_disk_space").Value(hunkChunkListStatistics.ReferencedErasureDiskSpace)
+                    .Item("regular_disk_space").Value(hunkChunkListStatistics.RegularDiskSpace)
+                    .Item("erasure_disk_space").Value(hunkChunkListStatistics.ErasureDiskSpace)
+                .EndMap();
+
+            return true;
+        }
 
         default:
             break;
@@ -2147,6 +2183,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         protoTablet->set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+        protoTablet->set_logical_mount_revision(ToProto(tablet->Servant().GetLogicalMountRevision()));
         protoTablet->set_state(ToProto(tablet->GetState()));
         protoTablet->set_in_memory_mode(ToProto(tablet->GetInMemoryMode()));
         ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
@@ -2171,6 +2208,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
             auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
             ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
             ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
+            if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
+                ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
+            }
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
         if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {
@@ -2617,7 +2657,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        TCellTagList cellTag = {externalCellTag};
+        TCellTagSet cellTag = {externalCellTag};
         auto* transaction = GetTransaction();
         auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
         SetTransactionId(replicationRequest, externalizedTransactionId);

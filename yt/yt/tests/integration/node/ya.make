@@ -25,6 +25,7 @@ TEST_SRCS(
 
 PEERDIR(
     contrib/python/httpx
+    yt/yt/library/ytprof/proto
 )
 
 END()

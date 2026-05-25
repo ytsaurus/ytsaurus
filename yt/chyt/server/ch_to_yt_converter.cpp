@@ -27,6 +27,7 @@
 #include <Columns/ColumnMap.h>
 #include <Columns/IColumn.h>
 #include <Columns/ColumnStringHelpers.h>
+#include <Common/DateLUT.h>
 #include <Common/formatIPv6.h>
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
@@ -95,14 +96,25 @@ using IConverterPtr = std::unique_ptr<IConverter>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static i64 GetTimezoneOffsetAtEpoch(const std::string& timezoneName)
+{
+    if (timezoneName.empty()) {
+        return 0;
+    }
+    return DateLUT::instance(timezoneName).getOffsetAtStartOfEpoch();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Value TypeId == Nothing is a special value that corresponds to Bool.
 template <DB::TypeIndex TypeId, ESimpleLogicalValueType LogicalType>
 class TSimpleValueConverter
     : public IConverter
 {
 public:
-    explicit TSimpleValueConverter(DB::DataTypePtr dataType)
+    explicit TSimpleValueConverter(DB::DataTypePtr dataType, bool adjustTimezoneForDateTypes = false)
         : DataType_(std::move(dataType))
+        , TimezoneAdjustmentSeconds_(ComputeTimezoneAdjustment(DataType_, adjustTimezoneForDateTypes))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -139,7 +151,7 @@ public:
                         values[index].Length = TzStringHolder_.back().size(); \
                     } else { \
                         values[index].Type = EValueType::valueType; \
-                        values[index].Data.valueType = typedData[index]; \
+                        values[index].Data.valueType = static_cast<decltype(typedData[index])>(typedData[index] + TimezoneAdjustmentSeconds_); \
                     } \
                 } else
 
@@ -175,11 +187,12 @@ public:
             } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
                 auto* typedData = reinterpret_cast<const DB::DateTime64*>(Data_);
                 if constexpr (LogicalType == ESimpleLogicalValueType::Timestamp) {
-                    if (typedData[index] < 0) {
+                    auto adjustedValue = static_cast<DB::DateTime64>(typedData[index] + TimezoneAdjustmentSeconds_);
+                    if (adjustedValue < 0) {
                         THROW_ERROR_EXCEPTION("Cannot convert value %v to YT timestamp", static_cast<i64>(typedData[index]));
                     }
                     values[index].Type = EValueType::Uint64;
-                    values[index].Data.Uint64 = typedData[index];
+                    values[index].Data.Uint64 = adjustedValue;
                 } else if constexpr (LogicalType == ESimpleLogicalValueType::TzTimestamp ||
                     LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
                     LogicalType == ESimpleLogicalValueType::TzTimestamp64) {
@@ -189,7 +202,7 @@ public:
                     values[index].Length = TzStringHolder_.back().size();
                 } else {
                     values[index].Type = EValueType::Int64;
-                    values[index].Data.Int64 = typedData[index];
+                    values[index].Data.Int64 = static_cast<i64>(typedData[index] + TimezoneAdjustmentSeconds_);
                 }
             } else {
                 THROW_ERROR_EXCEPTION(
@@ -223,7 +236,7 @@ public:
                 if constexpr (LogicalType == ESimpleLogicalValueType::Tz##tzType) { \
                     writer->WriteBinaryString(NTzTypes::MakeTzString<TTzIntegerType<LogicalType>>(typedData[CurrentValueIndex_], DateLUT::instance().getTimeZone())); \
                 } else { \
-                    writer->WriteBinary##method(typedData[CurrentValueIndex_]); \
+                    writer->WriteBinary##method(static_cast<decltype(typedData[CurrentValueIndex_])>(typedData[CurrentValueIndex_] + TimezoneAdjustmentSeconds_)); \
                 } \
             } else
 
@@ -256,17 +269,18 @@ public:
         } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
             auto* typedData = reinterpret_cast<const DB::DateTime64*>(Data_);
             if constexpr (LogicalType == ESimpleLogicalValueType::Timestamp) {
-                if (typedData[CurrentValueIndex_] < 0) {
+                auto adjustedValue = static_cast<DB::DateTime64>(typedData[CurrentValueIndex_] + TimezoneAdjustmentSeconds_);
+                if (adjustedValue < 0) {
                     THROW_ERROR_EXCEPTION("Cannot convert value %v to YT timestamp", static_cast<i64>(typedData[CurrentValueIndex_]));
                 }
-                writer->WriteBinaryUint64(typedData[CurrentValueIndex_]);
+                writer->WriteBinaryUint64(adjustedValue);
             } else if constexpr (LogicalType == ESimpleLogicalValueType::TzTimestamp ||
                 LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
                 LogicalType == ESimpleLogicalValueType::TzTimestamp64)
             {
                 writer->WriteBinaryString(NTzTypes::MakeTzString<TTzIntegerType<LogicalType>>(typedData[CurrentValueIndex_], DateLUT::instance().getTimeZone()));
             } else {
-                writer->WriteBinaryInt64(typedData[CurrentValueIndex_]);
+                writer->WriteBinaryInt64(static_cast<i64>(typedData[CurrentValueIndex_] + TimezoneAdjustmentSeconds_));
             }
         } else {
             THROW_ERROR_EXCEPTION(
@@ -294,6 +308,46 @@ private:
     std::vector<std::string> TzStringHolder_;
 
     DB::DataTypePtr DataType_;
+    //! Timezone adjustment in seconds to add to date/datetime values when
+    //! AdjustTimezoneForDateTypes is enabled. Equals (column_tz_offset - default_tz_offset).
+    i64 TimezoneAdjustmentSeconds_ = 0;
+
+    //! For DateTime/DateTime64 types with an explicit timezone that differs from the
+    //! server default, returns the difference in UTC offsets (column_tz - default_tz).
+    //! Returns 0 for all other types or when adjustment is disabled.
+    static i64 ComputeTimezoneAdjustment(const DB::DataTypePtr& dataType, bool adjustTimezoneForDateTypes)
+    {
+        if (!adjustTimezoneForDateTypes) {
+            return 0;
+        }
+
+        // Only adjust for DateTime and DateTime64 types that carry an explicit timezone.
+        std::string columnTimezone;
+        if constexpr (TypeId == DB::TypeIndex::DateTime) {
+            auto* dtType = dynamic_cast<const DB::DataTypeDateTime*>(dataType.get());
+            if (dtType && dtType->hasExplicitTimeZone()) {
+                columnTimezone = dtType->getTimeZone().getTimeZone();
+            }
+        } else if constexpr (TypeId == DB::TypeIndex::DateTime64) {
+            auto* dt64Type = dynamic_cast<const DB::DataTypeDateTime64*>(dataType.get());
+            if (dt64Type && dt64Type->hasExplicitTimeZone()) {
+                columnTimezone = dt64Type->getTimeZone().getTimeZone();
+            }
+        }
+
+        if (columnTimezone.empty()) {
+            return 0;
+        }
+
+        const auto& defaultTimezone = DateLUT::instance().getTimeZone();
+        if (columnTimezone == defaultTimezone) {
+            return 0;
+        }
+
+        i64 columnOffset = GetTimezoneOffsetAtEpoch(columnTimezone);
+        i64 defaultOffset = GetTimezoneOffsetAtEpoch(defaultTimezone);
+        return columnOffset - defaultOffset;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -904,7 +958,7 @@ private:
 class TCHToYTConverter::TImpl
 {
 public:
-    TImpl(DB::DataTypePtr dataType, TCompositeSettingsPtr settings)
+    TImpl(DB::DataTypePtr dataType, TConversionSettingsPtr settings)
         : DataType_(std::move(dataType))
         , Settings_(std::move(settings))
         , RootConverter_(CreateConverter(DataType_))
@@ -980,7 +1034,7 @@ public:
 
 private:
     const DB::DataTypePtr DataType_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
 
     const IConverterPtr RootConverter_;
 
@@ -990,10 +1044,12 @@ private:
 
     IConverterPtr CreateSimpleValueConverter(const DB::DataTypePtr& dataType)
     {
+        bool adjustTz = Settings_->AdjustTimezoneForDateTypes;
+
         switch (dataType->getTypeId()) {
             #define XX(typeId, simpleLogicalValueType) \
                 case DB::TypeIndex::typeId: \
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType, adjustTz);
 
 
             #define TZ_XX(typeId, simpleLogicalValueType) \
@@ -1002,7 +1058,7 @@ private:
                         return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::Tz##simpleLogicalValueType>>(dataType); \
                     } \
                     else { \
-                        return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType); \
+                        return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId, ESimpleLogicalValueType::simpleLogicalValueType>>(dataType, adjustTz); \
                     } \
                 }
 
@@ -1024,15 +1080,15 @@ private:
             case DB::TypeIndex::UInt8:
                 if (DB::isBool(dataType)) {
                     // Nothing is a special value standing for boolean for simplicity.
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing, ESimpleLogicalValueType::Boolean>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing, ESimpleLogicalValueType::Boolean>>(dataType, adjustTz);
                 } else {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::UInt8, ESimpleLogicalValueType::Uint8>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::UInt8, ESimpleLogicalValueType::Uint8>>(dataType, adjustTz);
                 }
             case DB::TypeIndex::DateTime64:
             {
                 int scale = DB::getDecimalScale(*dataType);
                 if (scale != 0 && scale != 6) {
-                    if (Settings_->ConvertUnsupportedTypesToString) {
+                    if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                         return CreateUnsupportedTypesToStringConverter(dataType);
                     } else {
                         THROW_ERROR_EXCEPTION("ClickHouse type %Qv with scale %v is not representable as YT type: "
@@ -1042,17 +1098,17 @@ private:
                     }
                 }
                 if (dataType->getName() == "YtTimestamp") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp>>(dataType, adjustTz);
                 } else if (dataType->getName() == "TzDateTime64") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzDatetime64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzDatetime64>>(dataType, adjustTz);
                 } else if (dataType->getName() == "TzTimestamp") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp>>(dataType, adjustTz);
                 } else if (dataType->getName() == "TzTimestamp64") {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::TzTimestamp64>>(dataType, adjustTz);
                 } else if (scale == 0) {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Datetime64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Datetime64>>(dataType, adjustTz);
                 } else {
-                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp64>>(dataType);
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::DateTime64, ESimpleLogicalValueType::Timestamp64>>(dataType, adjustTz);
                 }
             }
 
@@ -1101,7 +1157,7 @@ private:
         int scale = DB::getDecimalScale(*dataType);
 
         if (precision > MaxSupportedCHDecimalPrecision) {
-            if (Settings_->ConvertUnsupportedTypesToString) {
+            if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                 return CreateUnsupportedTypesToStringConverter(dataType);
             } else {
                 THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
@@ -1214,7 +1270,7 @@ private:
             case DB::TypeIndex::Map:
                 return CreateMapConverter(dataType);
             default:
-                if (Settings_->ConvertUnsupportedTypesToString) {
+                if (Settings_->Composite->ConvertUnsupportedTypesToString) {
                     return CreateUnsupportedTypesToStringConverter(dataType);
                 } else {
                     THROW_ERROR_EXCEPTION(
@@ -1229,7 +1285,7 @@ private:
 
 TCHToYTConverter::TCHToYTConverter(
     DB::DataTypePtr dataType,
-    TCompositeSettingsPtr settings)
+    TConversionSettingsPtr settings)
     : Impl_(std::make_unique<TImpl>(std::move(dataType), std::move(settings)))
 { }
 

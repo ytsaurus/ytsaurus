@@ -69,6 +69,7 @@ class LocalYtConfig(object):
     initialize_world = attr.ib(False)
     wait_tablet_cell_initialization = attr.ib(False)
     init_operations_archive = attr.ib(False)
+    queue_agent_state_target_version = attr.ib(None)
     local_cypress_dir = attr.ib(None)
     meta_files_suffix = attr.ib(".meta")
     cluster_name = attr.ib(None)
@@ -180,6 +181,7 @@ class LocalYtConfig(object):
     tablet_balancer_count = attr.ib(0)
     cypress_proxy_count = attr.ib(0)
     replicated_table_tracker_count = attr.ib(0)
+    offshore_data_gateway_count = attr.ib(0)
 
     """Start options"""
     defer_node_start = attr.ib(False)
@@ -201,6 +203,9 @@ class LocalYtConfig(object):
     delta_driver_config = attr.ib(None)
     delta_master_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
+
+    """Logging options"""
+    default_abort_on_alert = attr.ib(None)
 
     # COMPAT
     enable_legacy_logging_scheme = attr.ib(False)

@@ -1000,9 +1000,11 @@ private:
             *chunkSpec.mutable_chunk_meta() = masterChunkMeta;
             ToProto(chunkSpec.mutable_chunk_id(), outputSessionId.ChunkId);
             WrittenChunks_.push_back(chunkSpec);
-            if (FromProto<EChunkFormat>(masterChunkMeta.format()) == EChunkFormat::HunkDefault) {
+            auto chunkFormat = FromProto<EChunkFormat>(masterChunkMeta.format());
+            if (chunkFormat == EChunkFormat::HunkDefault) {
                 EmplaceOrCrash(ResultHunkChunkIdMapping_, inputChunkId, outputSessionId.ChunkId);
             }
+            YT_VERIFY(chunkFormat != EChunkFormat::HunkJournal);
         }
     }
 

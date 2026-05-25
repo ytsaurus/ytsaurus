@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+
 namespace NYT::NAuth {
 
 using namespace NApi;
@@ -54,7 +55,7 @@ public:
         YT_LOG_DEBUG("Stopping periodic updates in native cookie store");
     }
 
-    TFuture<TCypressCookiePtr> GetCookie(const TString& value) override
+    TFuture<TCypressCookiePtr> GetCookie(const std::string& value) override
     {
         {
             auto guard = ReaderGuard(CookiesLock_);
@@ -164,10 +165,10 @@ private:
     };
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
-    THashMap<TString, TEntryPtr> Cookies_;
+    THashMap<std::string, TEntryPtr> Cookies_;
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CookiesLock_);
 
-    THashMap<TString, TCypressCookiePtr> UserToLastCookie_;
+    THashMap<std::string, TCypressCookiePtr> UserToLastCookie_;
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, UserToLastCookieLock_);
 
     bool IsEntryActual(const TEntryPtr& entry)
@@ -183,7 +184,7 @@ private:
             entry->FetchTime + Config_->ErrorEvictionTime > TInstant::Now();
     }
 
-    TFuture<TCypressCookiePtr> DoFetchCookie(const TString& value)
+    TFuture<TCypressCookiePtr> DoFetchCookie(const std::string& value)
     {
         YT_LOG_DEBUG("Fetching cookie from Cypress (Cookie: %v)",
             value);
@@ -223,8 +224,8 @@ private:
         YT_LOG_DEBUG("Native cookies fetched from Cypress (CookieCount: %v)",
             listResult->GetChildCount());
 
-        THashMap<TString, TEntryPtr> newCookies;
-        THashMap<TString, TCypressCookiePtr> newUserToLastCookie;
+        THashMap<std::string, TEntryPtr> newCookies;
+        THashMap<std::string, TCypressCookiePtr> newUserToLastCookie;
         for (const auto& child : listResult->GetChildren()) {
             try {
                 auto cookie = child->Attributes().Get<TCypressCookiePtr>(ValueAttribute);
@@ -246,7 +247,7 @@ private:
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to parse cookie (Cookie: %v)",
-                    child->GetValue<TString>());
+                    child->GetValue<std::string>());
             }
         }
 
@@ -276,7 +277,7 @@ private:
         }
     }
 
-    static TYPath GetCookiePath(const TString& value)
+    static TYPath GetCookiePath(const std::string& value)
     {
         return Format("//sys/cypress_cookies/%v", ToYPathLiteral(value));
     }

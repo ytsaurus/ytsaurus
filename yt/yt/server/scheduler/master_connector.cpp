@@ -593,8 +593,7 @@ public:
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
-        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
-        auto rspOrError = WaitFor(proxy.Execute(req));
+        auto rspOrError = GetCumulativeError(WaitFor(batchReq->Invoke()));
         if (!rspOrError.IsOK()) {
             YT_LOG_ERROR(rspOrError, "Error storing persistent strategy state");
         } else {
@@ -950,7 +949,8 @@ private:
         {
             auto proxy = CreateObjectServiceWriteProxy(Owner_->Bootstrap_->GetClient());
             auto batchReq = proxy.ExecuteBatch();
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
+            // TODO(dgolear): Switch to std::string.
+            TString path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -1291,13 +1291,13 @@ private:
                                 << secureVaultRspOrError;
                         }
 
-                        auto atttibutesNodeStr = TYsonString(attributesRsp->value());
+                        auto attributesNodeStr = TYsonString(attributesRsp->value());
                         TYsonString secureVaultYson;
                         if (secureVaultRspOrError.IsOK()) {
                             secureVaultYson = TYsonString(secureVaultRspOrError.Value()->value());
                         }
 
-                        operationsDataToProcessBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
+                        operationsDataToProcessBatch.push_back({std::move(attributesNodeStr), std::move(secureVaultYson), operationId});
                     }
 
                     futures.push_back(BIND(

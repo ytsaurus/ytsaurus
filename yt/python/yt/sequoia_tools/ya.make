@@ -23,6 +23,9 @@ PY_SRCS(
 
     migrations/__init__.py
     migrations/m0002.py
+    migrations/m0003.py
+    migrations/m0004.py
+    migrations/m0005.py
 
     __init__.py
     action_builder.py

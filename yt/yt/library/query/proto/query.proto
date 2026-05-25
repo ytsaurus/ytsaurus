@@ -205,6 +205,9 @@ message TJoinClause
     // COMPAT(babenko): legacy clients may omit this field.
     optional NYT.NProto.TGuid foreign_cell_id = 15;
 
+    optional int32 prefetched_first_block = 19;
+    optional int32 prefetched_last_block = 20;
+
     required bool is_left = 10;
 
     optional uint64 common_key_prefix = 11 [default = 0];
@@ -313,6 +316,8 @@ message TQueryOptions
     optional int32 statistics_aggregation = 27; // EStatisticsAggregation
     optional int32 read_from = 28; // NHydra::EPeerKind
     optional int32 optimization_level = 29; // EOptimizationLevel
+    optional int64 join_cache_size = 30;
+    optional bool enable_parallelize_unordered_group_by = 31;
 }
 
 message TFeatureFlags

@@ -2,6 +2,7 @@
 #include "sql_call_expr.h"
 #include "sql_expression.h"
 #include "sql_group_by.h"
+#include "sql_select_window.h"
 #include "sql_values.h"
 #include "sql_match_recognize.h"
 
@@ -34,6 +35,8 @@ bool CollectJoinLinkSettings(TPosition pos, TJoinLinkSettings& linkSettings, TCo
             newStrategy = TJoinLinkSettings::EStrategy::ForceMap;
         } else if (canonizedName == "grace") {
             newStrategy = TJoinLinkSettings::EStrategy::ForceGrace;
+        } else if (canonizedName == "star") {
+            newStrategy = TJoinLinkSettings::EStrategy::ForceStar;
         } else if (canonizedName == "compact") {
             linkSettings.Compact = true;
             continue;
@@ -1130,7 +1133,7 @@ TSourcePtr TSqlSelect::SelectCore(const TRule_select_core& node, const TWriteSet
             Ctx_.Error() << "WINDOW is not allowed in streaming queries";
             return nullptr;
         }
-        if (!WindowClause(node.GetBlock13().GetRule_window_clause1(), windowSpec)) {
+        if (!TSqlWindow(*this).Build(node.GetBlock13().GetRule_window_clause1(), windowSpec)) {
             return nullptr;
         }
         Ctx_.IncrementMonCounter("sql_features", "WindowClause");
@@ -1200,31 +1203,72 @@ TSourcePtr TSqlSelect::SelectCore(const TRule_select_core& node, const TWriteSet
                            std::move(windowSpec), legacyHoppingWindowSpec, std::move(terms), distinct, std::move(without), forceWithout, selectStream, settings, std::move(uniqueSets), std::move(distinctSets));
 }
 
-bool TSqlSelect::WindowDefinition(const TRule_window_definition& rule, TWinSpecs& winSpecs) {
-    const TString windowName = Id(rule.GetRule_new_window_name1().GetRule_window_name1().GetRule_an_id_window1(), *this);
-    if (winSpecs.contains(windowName)) {
-        Ctx_.Error() << "Unable to declare window with same name: " << windowName;
-        return false;
-    }
-    auto windowSpec = WindowSpecification(rule.GetRule_window_specification3().GetRule_window_specification_details2());
-    if (!windowSpec) {
-        return false;
-    }
-    winSpecs.emplace(windowName, std::move(windowSpec));
-    return true;
-}
+TSourcePtr TSqlSelect::CombineCore(const TRule_combine_core& node, const TWriteSettings& settings, TPosition& selectPos) {
+    // COMBINE named_single_source (PRESORT sort_specification_list)?
+    // WITH named_single_source (PRESORT sort_specification_list)?
+    // ON expr USING using_call_expr
 
-bool TSqlSelect::WindowClause(const TRule_window_clause& rule, TWinSpecs& winSpecs) {
-    auto windowList = rule.GetRule_window_definition_list2();
-    if (!WindowDefinition(windowList.GetRule_window_definition1(), winSpecs)) {
-        return false;
+    if (!Ctx_.EnsureBackwardCompatibleFeatureAvailable(GetPos(node.GetToken1()),
+                                                       "COMBINE",
+                                                       GetMaxLangVersion()))
+    {
+        return {};
     }
-    for (auto& block : windowList.GetBlock2()) {
-        if (!WindowDefinition(block.GetRule_window_definition2(), winSpecs)) {
-            return false;
-        }
+
+    TPosition startPos(Ctx_.Pos());
+    if (!selectPos) {
+        selectPos = startPos;
     }
-    return true;
+
+    Token(node.GetToken1());
+
+    TSourcePtr leftSource(NamedSingleSource(node.GetRule_named_single_source2(), true));
+    if (!leftSource) {
+        return {};
+    }
+
+    TVector<TSortSpecificationPtr> leftPresort;
+    if (node.HasBlock3() && !SortSpecificationList(node.GetBlock3().GetRule_sort_specification_list2(), leftPresort)) {
+        return {};
+    }
+
+    Token(node.GetToken4());
+
+    TSourcePtr rightSource(NamedSingleSource(node.GetRule_named_single_source5(), true));
+    if (!rightSource) {
+        return {};
+    }
+
+    TVector<TSortSpecificationPtr> rightPresort;
+    if (node.HasBlock6() && !SortSpecificationList(node.GetBlock6().GetRule_sort_specification_list2(), rightPresort)) {
+        return {};
+    }
+
+    Token(node.GetToken7());
+
+    TColumnRefScope scope(Ctx_, EColumnRefState::Allow);
+    TSqlExpression expr(*this);
+    TNodePtr combineKeyExpr = Unwrap(expr.Build(node.GetRule_expr8()));
+
+    Token(node.GetToken9());
+
+    TSqlCallExpr call(*this);
+    bool initRet = call.Init(node.GetRule_using_call_expr10());
+    if (!initRet) {
+        return {};
+    }
+
+    auto args = call.GetArgs();
+
+    TSqlCallExpr finalCall(call, args);
+    TNodePtr udf(finalCall.BuildUdf(true));
+    if (!udf) {
+        return {};
+    }
+
+    return BuildCombine(startPos, std::move(leftSource), std::move(leftPresort),
+                        std::move(rightSource), std::move(rightPresort),
+                        std::move(combineKeyExpr), udf, std::move(args), settings);
 }
 
 bool TSqlTranslation::OrderByClause(const TRule_order_by_clause& node, TVector<TSortSpecificationPtr>& orderBy) {
@@ -1364,6 +1408,10 @@ TSqlSelect::TSelectKindResult TSqlSelect::SelectKind(const TRule_select_kind& no
         case TRule_select_kind_TBlock2::kAlt3: {
             res.Source = SelectCore(node.GetBlock2().GetAlt3().GetRule_select_core1(), settings, selectPos,
                                     placement, res.SelectOpOrderBy, res.SelectOpAssumeOrderBy);
+            break;
+        }
+        case TRule_select_kind_TBlock2::kAlt4: {
+            res.Source = CombineCore(node.GetBlock2().GetAlt4().GetRule_combine_core1(), settings, selectPos);
             break;
         }
         case TRule_select_kind_TBlock2::ALT_NOT_SET:

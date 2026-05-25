@@ -1078,6 +1078,99 @@ TEST(TReplicationReaderConfigTest, ValidateAdaptiveProbingConfig)
     EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
 }
 
+TEST(TReplicationReaderTest, FailOnUnresolvedNodeId)
+{
+    auto pool = NConcurrency::CreateThreadPool(4, "Worker");
+    auto invoker = pool->GetInvoker();
+
+    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    auto memoryTracker = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
+
+    std::vector<TIntrusivePtr<TTestDataNodeService>> services;
+    THashMap<std::string, IServicePtr> addressToService;
+
+    auto chunkId = NObjectClient::MakeRandomId(
+        NObjectClient::EObjectType::Chunk,
+        NObjectClient::TCellTag(0xf003));
+
+    TRandomGenerator generator(42);
+    auto blocks = CreateBlocks(4, &generator);
+
+    // Add descriptors only for nodes 0 and 1.
+    for (int index = 0; index < 2; ++index) {
+        auto address = std::string(Format("local:%v", index));
+        nodeDirectory->AddDescriptor(
+            NNodeTrackerClient::TNodeId(index),
+            NNodeTrackerClient::TNodeDescriptor(address));
+
+        auto service = New<TTestDataNodeService>(invoker);
+        service->SetChunkBlocks(chunkId, blocks);
+
+        services.push_back(service);
+        addressToService[address] = service;
+    }
+
+    // But include node 2 in seed replicas without adding its descriptor.
+    TChunkReplicaList replicas;
+    replicas.emplace_back(NNodeTrackerClient::TNodeId(0), 0);
+    replicas.emplace_back(NNodeTrackerClient::TNodeId(1), 1);
+    replicas.emplace_back(NNodeTrackerClient::TNodeId(2), 2);
+
+    auto options = New<TRemoteReaderOptions>();
+    options->AllowFetchingSeedsFromMaster = false;
+
+    auto channelFactory = CreateTestChannelFactory(
+        addressToService,
+        THashMap<std::string, IServicePtr>());
+
+    auto connection = CreateConnection(
+        std::move(channelFactory),
+        {"default"},
+        std::move(nodeDirectory),
+        /*nodeStatusDirectory*/ nullptr,
+        invoker,
+        memoryTracker);
+
+    EXPECT_CALL(*connection, CreateNativeClient)
+        .WillRepeatedly([&connection, &memoryTracker] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr {
+            return New<NApi::NNative::TClient>(connection, options, memoryTracker);
+        });
+    EXPECT_CALL(*connection, GetPrimaryMasterCellId).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetClusterDirectory).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, SubscribeReconfigured).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, UnsubscribeReconfigured).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
+
+    auto readerHost = CreateChunkReaderHost(connection);
+
+    auto config = New<TReplicationReaderConfig>();
+    config->FailOnUnresolvedNodeId = true;
+    config->BackoffTimeMultiplier = 1.01;
+    config->MinBackoffTime = TDuration::MilliSeconds(1);
+    config->MaxBackoffTime = TDuration::MilliSeconds(1);
+    config->RetryCount = 1;
+    config->PassCount = 1;
+    config->Postprocess();
+
+    auto reader = CreateReplicationReader(
+        std::move(config),
+        std::move(options),
+        std::move(readerHost),
+        chunkId,
+        std::move(replicas));
+
+    IChunkReader::TReadBlocksOptions readBlockOptions;
+    auto future = reader->ReadBlocks(readBlockOptions, std::vector<int>{0, 1});
+
+    auto result = WaitFor(future);
+    EXPECT_FALSE(result.IsOK());
+    EXPECT_TRUE(result.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNode).has_value());
+
+    pool->Shutdown();
+    memoryTracker->ClearTrackers();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

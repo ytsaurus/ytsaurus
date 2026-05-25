@@ -2,10 +2,6 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/ytlib/controller_agent/serialize.h>
-
-#include <yt/yt/core/misc/serialize.h>
-
 #include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -24,23 +20,20 @@ i64 TExtendedJobResources::GetMemory() const
     return JobProxyMemory_ + UserJobMemory_ + FootprintMemory_;
 }
 
-void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
+void TExtendedJobResources::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Cpu_);
-    Persist(context, Gpu_);
-    Persist(context, UserSlots_);
-    Persist(context, JobProxyMemory_);
-
-    if (context.GetVersion() >= static_cast<int>(ESnapshotVersion::TableWriteBufferEstimation)) {
-        Persist(context, JobProxyMemoryWithFixedWriteBufferSize_);
-    }
-
-    Persist(context, UserJobMemory_);
-    Persist(context, FootprintMemory_);
-    Persist(context, Network_);
+    PHOENIX_REGISTER_FIELD(1, Cpu_);
+    PHOENIX_REGISTER_FIELD(2, Gpu_);
+    PHOENIX_REGISTER_FIELD(3, UserSlots_);
+    PHOENIX_REGISTER_FIELD(4, JobProxyMemory_);
+    PHOENIX_REGISTER_FIELD(5, JobProxyMemoryWithFixedWriteBufferSize_,
+        .SinceVersion(ESnapshotVersion::TableWriteBufferEstimation));
+    PHOENIX_REGISTER_FIELD(6, UserJobMemory_);
+    PHOENIX_REGISTER_FIELD(7, FootprintMemory_);
+    PHOENIX_REGISTER_FIELD(8, Network_);
 }
+
+PHOENIX_DEFINE_TYPE(TExtendedJobResources);
 
 void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
 {

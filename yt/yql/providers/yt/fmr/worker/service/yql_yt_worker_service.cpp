@@ -1,9 +1,3 @@
-#include <library/cpp/getopt/last_getopt.h>
-#include <library/cpp/protobuf/util/pb_io.h>
-#include <library/cpp/uri/http_url.h>
-#include <util/string/strip.h>
-#include <util/system/env.h>
-#include <util/system/interrupt_signals.h>
 #include <yt/yql/providers/yt/fmr/utils/yql_yt_tvm_helpers.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
@@ -20,11 +14,21 @@
 #include <yt/yql/providers/yt/fmr/yt_job_service/file/yql_yt_file_yt_job_service.h>
 #include <yt/yql/providers/yt/fmr/worker/server/yql_yt_fmr_worker_server.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/impl/yql_yt_job_service_impl.h>
+
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
 #include <yql/essentials/core/file_storage/proto/file_storage.pb.h>
 #include <yql/essentials/protos/fmr.pb.h>
+
+#include <library/cpp/getopt/last_getopt.h>
+#include <library/cpp/protobuf/util/pb_io.h>
+#include <library/cpp/uri/http_url.h>
+#include <library/cpp/yson/node/node_io.h>
+
+#include <util/string/strip.h>
+#include <util/system/env.h>
+#include <util/system/interrupt_signals.h>
 
 using namespace NYql::NFmr;
 using namespace NYql;
@@ -43,6 +47,7 @@ struct TWorkerRunOptions {
     TString LoggerFormat;
     THolder<TFileStorageConfig> FsConfig;
     THolder<TFmrFileRemoteCache> FmrRemoteCacheConfig;
+    TString WorkerYsonPath;
     TMaybe<TString> FmrTvmConfig;
     TMaybe<ui32> FmrTvmPort;
     TMaybe<TString> FmrTvmSecretPath;
@@ -95,6 +100,7 @@ int main(int argc, const char *argv[]) {
             options.FmrRemoteCacheConfig = MakeHolder<TFmrFileRemoteCache>();
             LoadFmrRemoteCacheConfigFromFile(file, *options.FmrRemoteCacheConfig);
         });
+        opts.AddLongOption("worker-yson-path", "Path to YSON file with worker settings").Optional().StoreResult(&options.WorkerYsonPath);
         opts.AddLongOption('t', "tvm-cfg", "fmr tvm config").Optional().StoreResult(&options.FmrTvmConfig);
         opts.AddLongOption("tvm-port", "fmr tvm port").Optional().StoreResult(&options.FmrTvmPort);
         opts.AddLongOption("tvm-secret-path", "fmr tvm secret path").Optional().StoreResult(&options.FmrTvmSecretPath);
@@ -120,7 +126,12 @@ int main(int argc, const char *argv[]) {
         }
         bool isNative = underlyingGatewayType == "native";
 
-        TFmrWorkerSettings workerSettings{};
+        TMaybe<NYT::TNode> workerConfig;
+        if (!options.WorkerYsonPath.empty()) {
+            TFileInput input(options.WorkerYsonPath);
+            workerConfig = NYT::NodeFromYsonStream(&input);
+        }
+        auto workerSettings = GetDefaultWorkerSettings(workerConfig);
         workerSettings.WorkerId = options.WorkerId;
         workerSettings.MemoryLimitBytes = options.WorkerMemLimitMb * 1024 * 1024;
 
@@ -160,18 +171,18 @@ int main(int argc, const char *argv[]) {
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
             .RunInSeparateProcess = true,
             .FmrJobBinaryPath = options.FmrJobBinaryPath,
-            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath,
-            .GatewayType = underlyingGatewayType
+            .GatewayType = underlyingGatewayType,
+            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath
         });
         // TODO - add different job Settings here
         TString tableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath;
         auto func = [tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, tvmSettings] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
+            auto discovery = MakeFileTableDataServiceDiscovery({.Path = tableDataServiceDiscoveryFilePath});
+            return RunJob(task, discovery, Nothing(), fmrYtJobSerivce, jobLauncher, cancelFlag, tvmSettings);
         };
 
-        auto settings = GetDefaultJobFactorySettings();
-        settings.Function = func;
-        auto jobFactory = MakeFmrJobFactory(settings);
+        workerSettings.JobFactorySettings.Function = func;
+        auto jobFactory = MakeFmrJobFactory(workerSettings.JobFactorySettings);
         auto&& fmrCacheConfig = options.FmrRemoteCacheConfig;
 
         TString ytDownloaderServer;

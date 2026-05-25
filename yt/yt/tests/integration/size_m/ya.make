@@ -14,7 +14,12 @@ ENDIF()
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
 # Set REQUIREMENTS after INCLUDE for proper override
-IF (SANITIZER_TYPE)
+IF (SANITIZER_TYPE == "thread")
+    REQUIREMENTS(
+        cpu:50
+        ram:56
+    )
+ELSEIF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:46
         ram:56

@@ -14,7 +14,6 @@ import pytest
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
@@ -267,7 +266,6 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
             assert not omit_inaccessible_columns
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesAclMulticell(TestSortedDynamicTablesAcl):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -278,14 +276,12 @@ class TestSortedDynamicTablesAclMulticell(TestSortedDynamicTablesAcl):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesAclRpcProxy(TestSortedDynamicTablesAcl):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -296,7 +292,6 @@ class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -313,7 +308,6 @@ class TestSortedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
@@ -375,7 +369,6 @@ class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
             trim_rows("//tmp/t", 0, 1, authenticated_user="u")
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesAclMulticell(TestOrderedDynamicTablesAcl):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -386,14 +379,12 @@ class TestOrderedDynamicTablesAclMulticell(TestOrderedDynamicTablesAcl):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesAclRpcProxy(TestOrderedDynamicTablesAcl):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -404,7 +395,6 @@ class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

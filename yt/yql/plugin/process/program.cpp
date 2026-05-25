@@ -84,7 +84,7 @@ protected:
         }
 
         auto yqlPluginService = CreateYqlPluginService(controlInvoker_, std::move(yqlPlugin));
-        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
+        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::NTcp::CreateBusServer(config->BusServer));
 
         rpcServer->RegisterService(yqlPluginService);
 

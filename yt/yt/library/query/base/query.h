@@ -19,6 +19,7 @@ namespace NYT::NQueryClient {
 DEFINE_ENUM(EScanOrder,
     ((Unordered) (0))
     ((Ordered)   (1))
+    ((Reversed)  (2))
 );
 
 DEFINE_ENUM(EExpressionKind,
@@ -373,6 +374,8 @@ struct TJoinClause
 
     bool IsLeft = false;
 
+    std::optional<std::pair<int, int>> PrefetchedBlockRange;
+
     //! See #TDataSource::ObjectId.
     NObjectClient::TObjectId ForeignObjectId;
     //! See #TDataSource::CellId.
@@ -449,8 +452,9 @@ struct TBaseQuery
 {
     TGuid Id;
 
-    // Merge and Final
     bool IsFinal = true;
+    bool HasExclusiveGroupKeyView = false;
+    bool EnableCombineGroupOpWithOrderOp = true;
 
     TConstGroupClausePtr GroupClause;
     TConstExpressionPtr HavingClause;
@@ -470,6 +474,8 @@ struct TBaseQuery
     bool InferRanges = true;
 
     bool ForceLightRangeInference = false;
+
+    bool IsReverseScan = false;
 
     explicit TBaseQuery(TGuid id = TGuid::Create());
 

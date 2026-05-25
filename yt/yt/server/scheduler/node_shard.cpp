@@ -1417,7 +1417,7 @@ void TNodeShard::RemoveOutdatedScheduleAllocationEntries()
     for (auto allocationId : allocationIdsToRemove) {
         auto it = AllocationIdToScheduleEntry_.find(allocationId);
         if (it == std::end(AllocationIdToScheduleEntry_)) {
-            return;
+            continue;
         }
 
         auto& entry = it->second;
@@ -1552,7 +1552,7 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
 }
 
 void TNodeShard::UpdateCumulativeUnutilizedResources(
-    const EUnutilizedResourceReason reason,
+    EUnutilizedResourceReason reason,
     const TJobResources& resources,
     const TCompactVector<NProfiling::TTag, 2>& tags)
 {

@@ -24,6 +24,7 @@ SRCS(
 PEERDIR(
     yt/yt/orm/library/query/heavy
     yt/yt/ytlib
+    yt/yt/server/lib/job_agent
     yt/yt/server/lib/node_tracker_server
     yt/yt_proto/yt/client
 )

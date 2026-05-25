@@ -27,6 +27,7 @@
 | `spark.hadoop.yt.user` | - | Имя пользователя {{product-name}} | - |
 | `spark.hadoop.yt.token` | - | Токен пользователя {{product-name}} | - |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} | 1.72.0 |
+| `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Включить партицирование данных при чтении по значению compressed size таблицы | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Оптимизировать агрегации и джойны на сортированных входных данных | - |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Использовать партиционирование по ключам для сортированных таблиц, необходимо для оптимизации планов | - |
 | `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Максимальное количество объединений партиций при переходе от чтения по индексам к чтению по ключам | - |
@@ -61,6 +62,7 @@
 | `spark.ytsaurus.driver.annotations` | - | Аннотации для операции с драйвером | 2.2.0 |
 | `spark.ytsaurus.executors.annotations` | - | Аннотации для операции с экзекьюторами | 2.2.0 |
 | `spark.ytsaurus.driver.operation.parameters` | - | Дополнительные параметры операции драйвера в формате YSON | 2.6.0 |
+| `spark.ytsaurus.driver.operation.alias` | - | Алиас для операции с драйвером. Алиас должен начинаться с символа `*` | 2.9.0 |
 | `spark.ytsaurus.driver.task.parameters` | - | Дополнительные параметры таски в операции драйвера в формате YSON | 2.6.0 |
 | `spark.ytsaurus.executor.operation.parameters` | - | Дополнительные параметры операции экзекьюторов в формате YSON | 2.6.0 |
 | `spark.ytsaurus.executor.task.parameters` | - | Дополнительные параметры YTsaurus-таска экзекьюторов в формате YSON | 2.6.0 |

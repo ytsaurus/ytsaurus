@@ -313,9 +313,33 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.9.0 (`ghcr.io/ytsaurus/spyt:2.9.0`)
+**Current release:** 2.9.2 (`ghcr.io/ytsaurus/spyt:2.9.2`)
 
 **All releases:**
+
+{% cut "**2.9.2**" %}
+
+Maintenance release with minor enhancements
+
+- Support runtime filters functionality (dynamic partition pruning) for dataframe API
+- Fix stacktrace for disabled metrics
+- Move wait_for_spark_connect_endpoint method to spyt.connect
+- Propagate nullable in pushStructMetadata during column pruning
+- Fix writing nullable values of composite columns in dynamic tables
+- Other minor fixes and improvements
+
+{% endcut %}
+
+{% cut "**2.9.1**" %}
+
+- Boost multiple table locking under transactional reading by using asynchronous lock requests
+- Fixed pushdown filters application for Spark SQL API
+- Support for specifying custom attributes when creating table
+- Added ytPartitioning by YT table compressed size instead of data weight. May improve performance for lookup tables. Disabled by default; enable with `spark.yt.read.ytPartitioning.compressedSize.enable=true`.
+- Fixed writing nested unsigned types to dyn tables
+- Other minor fixes and improvements
+
+{% endcut %}
 
 {% cut "**2.9.0**" %}
 

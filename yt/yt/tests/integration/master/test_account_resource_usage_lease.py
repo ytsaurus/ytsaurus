@@ -19,7 +19,6 @@ def update_account_resource_usage_lease(lease_id, resources, **kwargs):
     set("#{}/@resource_usage".format(lease_id), resources, **kwargs)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAccountResourceUsageLease(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

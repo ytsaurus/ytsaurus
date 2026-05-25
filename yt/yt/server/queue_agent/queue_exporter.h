@@ -122,8 +122,8 @@ struct IQueueExporter
 DEFINE_REFCOUNTED_TYPE(IQueueExporter)
 
 IQueueExporterPtr CreateQueueExporter(
-    TString exportName,
-    NQueueClient::TQueuePath queue,
+    std::string exportName,
+    NQueueClient::TTablePath queue,
     NQueueClient::TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     NHiveClient::TClientDirectoryPtr clientDirectory,

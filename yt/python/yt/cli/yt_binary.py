@@ -33,6 +33,9 @@ try:
 except ImportError:
     HAS_IDM_CLI_HELPERS = False
 
+from yt.admin.describe import add_describe_parser
+from yt.admin.logs_k8s import add_logs_parser
+
 try:
     from yt.packages.six import PY3, iteritems
     from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
@@ -1778,22 +1781,51 @@ def operation_id_args(parser, **kwargs):
     add_hybrid_argument(parser, "operation", help="operation id", **kwargs)
 
 
+def _make_operation_id_or_alias_action(alias_dest):
+    """Create argparse Action that routes positional values starting with '*' to operation_alias."""
+    class _Action(Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if values and isinstance(values, str) and values.startswith("*"):
+                target_dest = alias_dest
+            else:
+                target_dest = self.dest
+            if not getattr(namespace, target_dest, None):
+                setattr(namespace, target_dest, values)
+    return _Action
+
+
+def operation_id_or_alias_args(parser, dest="operation_id", alias_dest="operation_alias"):
+    """Add mutually exclusive --operation-id and --operation-alias args.
+
+    A positional value starting with '*' is treated as an alias and stored in alias_dest;
+    otherwise it is stored in dest.
+    """
+    group = parser.add_mutually_exclusive_group(required=True)
+    action = _make_operation_id_or_alias_action(alias_dest)
+    add_argument(parser=group, name=dest, help="operation id or alias", nargs="?", action=action)
+    opt_kwargs = {}
+    if dest != "operation":
+        opt_kwargs["dest"] = dest
+    add_argument(parser=group, name="--operation", help="operation id", **opt_kwargs)
+    group.add_argument("--operation-alias", dest=alias_dest, help="operation alias (e.g. *my_alias)")
+
+
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)
     parser.add_argument("--message", "--reason", dest="message", help="abort reason message")
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
 
 
 def add_suspend_op_parser(add_parser):
     parser = add_parser("suspend-op", yt.suspend_operation)
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
     parser.add_argument("--abort-running-jobs", help="abort running jobs", action="store_true")
     parser.add_argument("--reason", help="suspend reason")
 
 
 def add_resume_op_parser(add_parser):
     parser = add_parser("resume-op", yt.resume_operation)
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
 
 
 @copy_docstring_from(yt.Operation.wait)
@@ -1810,18 +1842,18 @@ def add_track_op_parser(add_parser):
 
 def add_complete_op_parser(add_parser):
     parser = add_parser("complete-op", yt.complete_operation)
-    operation_id_args(parser)
+    operation_id_or_alias_args(parser, dest="operation")
 
 
 def add_update_op_parameters_parser(add_parser):
     parser = add_parser("update-op-parameters", yt.update_operation_parameters)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_structured_argument(parser, "parameters")
 
 
 def add_patch_op_spec_parser(add_parser):
     parser = add_parser("patch-op-spec", yt.patch_operation_spec)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_structured_argument(parser, "patches")
 
 
@@ -1837,7 +1869,7 @@ def add_get_operation_parser(add_parser):
     parser = add_parser("get-operation", get_operation)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     parser.add_argument("--include-runtime", action="store_true", help="request runtime operation information")
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_structured_format_argument(parser)
 
 
@@ -1898,7 +1930,7 @@ def list_operation_events(**kwargs):
 @copy_docstring_from(yt.list_operations)
 def add_list_operation_events_parser(add_parser):
     parser = add_parser("list-operation-events", list_operation_events)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--event-type", help="filter events by type")
     add_structured_format_argument(parser)
 
@@ -1991,12 +2023,14 @@ def add_remove_member_parser(add_parser):
 
 
 def execute(**kwargs):
-    command_description = get_commands_description()[kwargs["command_name"]]
+    command_description = get_commands_description().get(kwargs["command_name"])
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
 
     # command_description behaves differently in python and native implementations.
-    if callable(command_description.input_type):
+    if not command_description:
+        raise yt.YtError(f"Command \"{kwargs['command_name']}\" is not supported by cluster")
+    elif callable(command_description.input_type):
         # native implementation.
         input_type_is_null = command_description.input_type() == b'Null'
     else:
@@ -2097,7 +2131,7 @@ def get_job_stderr(**kwargs):
 def add_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--stderr-type", choices=("user_job_stderr", "gpu_check_stderr"), help="return stderr of specified type")
 
 
@@ -2111,7 +2145,7 @@ def list_job_traces(**kwargs):
 
 def add_list_job_traces_parser(add_parser):
     parser = add_parser("list-job-traces", list_job_traces)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
     parser.add_argument("--per-process", action="store_true", help="get traces info about each process")
     parser.add_argument("--limit", type=int, help="maximum number of traces to return")
@@ -2128,7 +2162,7 @@ def check_operation_permission(**kwargs):
 
 def add_check_operation_permission_parser(add_parser):
     parser = add_parser("check-operation-permission", check_operation_permission)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--user", required=True, help="user name")
     parser.add_argument("--permission", required=True, help="permission name (e.g. read, manage)")
     add_structured_format_argument(parser)
@@ -2141,7 +2175,7 @@ def get_job_trace(**kwargs):
 
 def add_get_job_trace_parser(add_parser):
     parser = add_parser("get-job-trace", get_job_trace)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
 
     parser.add_argument("--trace-id", help="trace id")
@@ -2254,7 +2288,7 @@ def get_job(**kwargs):
 def add_get_job_parser(add_parser):
     parser = add_parser("get-job", get_job)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    operation_id_or_alias_args(parser)
     add_structured_format_argument(parser)
 
 
@@ -2268,7 +2302,7 @@ def list_jobs(**kwargs):
 
 def add_list_jobs_parser(add_parser):
     parser = add_parser("list-jobs", list_jobs)
-    operation_id_args(parser, dest="operation_id")
+    operation_id_or_alias_args(parser)
     parser.add_argument("--job-type", help="filter jobs by job type")
     parser.add_argument("--job-state", help="filter jobs by job state")
     parser.add_argument("--address", help="filter jobs by node address")
@@ -2565,6 +2599,12 @@ def add_admin_parser(root_subparsers):
     # switch leader
     add_switch_leader_parser(admin_subparsers)
 
+    # describe
+    add_describe_parser(admin_subparsers)
+
+    # logs
+    add_logs_parser(admin_subparsers)
+
 
 def add_dirtable_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("dirtable", description="Upload/download to file system commands"))
@@ -2722,17 +2762,17 @@ def add_flow_parser(root_subparsers):
     add_flow_show_logs_parser(add_flow_subparser)
     add_flow_execute_parser(add_flow_subparser)
     add_flow_describe_parser(add_flow_subparser)
+    add_flow_read_states_parser(add_flow_subparser)
+    add_flow_delete_states_parser(add_flow_subparser)
 
 
 def wait_pipeline_change(operation, state):
     @copy_docstring_from(operation)
-    def wrapper(**kwargs):
-        sync = kwargs.pop("sync")
-
-        operation(**kwargs)
+    def wrapper(pipeline_path, sync, wait_timeout):
+        operation(pipeline_path=pipeline_path)
 
         if sync:
-            wait_pipeline_state(target_state=state, **kwargs)
+            wait_pipeline_state(target_state=state, pipeline_path=pipeline_path, wait_timeout=wait_timeout)
 
     return wrapper
 
@@ -2743,6 +2783,8 @@ def add_flow_start_pipeline_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--sync", action="store_true",
                         help="Wait for the pipeline to start")
+    parser.add_argument("--wait-timeout", type=int, default=600,
+                        help="Timeout in seconds to wait for the pipeline to start")
 
 
 def add_flow_stop_pipeline_parser(add_parser):
@@ -2751,6 +2793,8 @@ def add_flow_stop_pipeline_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--sync", action="store_true",
                         help="Wait for the pipeline to stop")
+    parser.add_argument("--wait-timeout", type=int, default=600,
+                        help="Timeout in seconds to wait for the pipeline to stop")
 
 
 def add_flow_pause_pipeline_parser(add_parser):
@@ -2759,6 +2803,8 @@ def add_flow_pause_pipeline_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--sync", action="store_true",
                         help="Wait for the pipeline to pause")
+    parser.add_argument("--wait-timeout", type=int, default=600,
+                        help="Timeout in seconds to wait for the pipeline to pause")
 
 
 def add_flow_get_pipeline_spec_parser(add_parser):
@@ -2916,6 +2962,78 @@ def add_flow_execute_parser(add_parser):
     add_hybrid_argument(parser, "flow_argument", group_required=False,
                         help="Argument of the command (optional)")
     add_structured_format_argument(parser, "--input-format")
+    add_structured_format_argument(parser, "--output-format")
+
+
+def _parse_flow_key_argument(value):
+    """Parse the --key flag for read-state(s): accepts a YSON list or a YSON map.
+
+    A list is the positional form ([v0, v1, ...] in schema-position order, including expression
+    columns). A map is the named form ({col: value, ...}); missing expression columns are filled
+    by the column evaluator on the controller side.
+    """
+    if value is None:
+        return None
+    return yson._loads_from_native_str(value)
+
+
+def show_flow_read_states_result(**kwargs):
+    """Read state rows matching the supplied filters."""
+    kwargs["key"] = _parse_flow_key_argument(kwargs.get("key"))
+    output_format = kwargs.pop("output_format")
+    result = yt.read_states(**kwargs, output_format=output_format)
+    if output_format is None:
+        result = dump_data(result)
+    print_to_output(result)
+
+
+def add_flow_read_states_parser(add_parser):
+    parser = add_parser("read-states", show_flow_read_states_result,
+                        help="Read state rows matching the supplied filters")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--computation-id",
+                        help="Filter by computation id; mutually exclusive with --partition-id")
+    parser.add_argument("--partition-id",
+                        help="Filter by partition id; mutually exclusive with --computation-id")
+    parser.add_argument("--key",
+                        help="TKey value as a YSON list ([v0, v1, ...]) or a named map ({col: value, ...}); requires --computation-id")
+    parser.add_argument("--name",
+                        help="Optional state name filter")
+    parser.add_argument("--target", choices=["all", "key_state", "partition_state"],
+                        help="Which table(s) to read (default all)")
+    parser.add_argument("--limit", type=int, default=10,
+                        help="Upper bound on rows scanned per table")
+    add_structured_format_argument(parser, "--output-format")
+
+
+def show_flow_delete_states_result(**kwargs):
+    """Delete state rows matching the supplied filters."""
+    kwargs["key"] = _parse_flow_key_argument(kwargs.get("key"))
+    output_format = kwargs.pop("output_format")
+    result = yt.delete_states(**kwargs, output_format=output_format)
+    if output_format is None:
+        result = dump_data(result)
+    print_to_output(result)
+
+
+def add_flow_delete_states_parser(add_parser):
+    parser = add_parser("delete-states", show_flow_delete_states_result,
+                        help="Delete state rows matching the supplied filters; pipeline must be stopped; dry-run unless --commit")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--computation-id",
+                        help="Filter by computation id; mutually exclusive with --partition-id")
+    parser.add_argument("--partition-id",
+                        help="Filter by partition id; mutually exclusive with --computation-id")
+    parser.add_argument("--key",
+                        help="TKey value as a YSON list or named map; requires --computation-id")
+    parser.add_argument("--name",
+                        help="Optional state name filter")
+    parser.add_argument("--target", choices=["all", "key_state", "partition_state"],
+                        help="Which table(s) to delete from (default all)")
+    parser.add_argument("--force", action="store_true", default=False,
+                        help="Delete states even if the pipeline is only paused, not stopped")
+    parser.add_argument("--commit", action="store_true", default=False,
+                        help="Actually delete; without it the call only previews the affected rows")
     add_structured_format_argument(parser, "--output-format")
 
 

@@ -33,7 +33,6 @@ def make_rl_ace(users, row_access_predicate=None, mode=None, permission="read"):
     return ace
 
 
-@pytest.mark.enabled_multidaemon
 class TestCheckPermissionProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -358,7 +357,6 @@ class CheckPermissionBase(YTEnvSetup):
             assert_items_equal(response_parameters["omitted_inaccessible_columns"], [b"a", b"b"])
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressAcls(CheckPermissionBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -2213,7 +2211,6 @@ class TestCypressAcls(CheckPermissionBase):
         alter_table("//tmp/t", schema=new_schema_2, authenticated_user="u_with_explicit_full_read")
 
 
-@pytest.mark.enabled_multidaemon
 class TestRowAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2716,7 +2713,6 @@ class TestRowAcls(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressAclsMulticell(TestCypressAcls):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
@@ -2728,7 +2724,6 @@ class TestCypressAclsMulticell(TestCypressAcls):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestCheckPermissionRpcProxy(CheckPermissionBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2736,7 +2731,6 @@ class TestCheckPermissionRpcProxy(CheckPermissionBase):
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressAclsPortal(TestCypressAclsMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
@@ -2787,7 +2781,6 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressAclsSequoia(TestCypressAclsMulticell):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

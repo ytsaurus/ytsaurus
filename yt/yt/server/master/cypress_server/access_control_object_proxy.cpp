@@ -39,7 +39,7 @@ class TAccessControlObjectProxy
     : public TNonversionedObjectProxyBase<TAccessControlObject>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject*>
+    , public THierarchicPermissionValidator<TObject>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -491,7 +491,7 @@ protected:
 
             auto parent = GetParent<TAccessControlObjectProxy>();
             parent->SetAttribute(
-                renamedKey.Unintern(),
+                TYPath(renamedKey.Unintern()),
                 &typedContext->Request(),
                 &typedContext->Response(),
                 typedContext);
@@ -530,7 +530,7 @@ protected:
             auto parent = GetParent<TAccessControlObjectProxy>();
 
             parent->RemoveAttribute(
-                renamedKey.Unintern(),
+                TYPath(renamedKey.Unintern()),
                 &typedContext->Request(),
                 &typedContext->Response(),
                 typedContext);
@@ -594,7 +594,7 @@ class TAccessControlObjectNamespaceProxy
     : public TNonversionedObjectProxyBase<TAccessControlObjectNamespace>
     , public virtual TNodeBase
     , public virtual TMapNodeMixin
-    , public THierarchicPermissionValidator<TObject*>
+    , public THierarchicPermissionValidator<TObject>
 {
 public:
     YTREE_NODE_TYPE_OVERRIDES(Map)

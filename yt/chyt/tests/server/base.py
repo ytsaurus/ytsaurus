@@ -964,7 +964,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
-        create_user("yt-clikhouse-dictionaries")
+        create_user("yt-clickhouse-dictionaries")
 
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
@@ -989,6 +989,9 @@ def enable_sequoia(test_class):
 
 
 def enable_sequoia_acls(test_class):
+    if not test_class.USE_SEQUOIA:
+        return test_class
+
     if not hasattr(test_class, "DELTA_CYPRESS_PROXY_CONFIG"):
         test_class.DELTA_CYPRESS_PROXY_CONFIG = {}
     test_class.DELTA_CYPRESS_PROXY_CONFIG.update({

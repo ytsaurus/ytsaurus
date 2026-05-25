@@ -23,7 +23,6 @@ from copy import deepcopy
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_MASTER_CACHE = True
@@ -118,7 +117,6 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         assert actual == []
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCaching):
     ENABLE_MULTIDAEMON = True
     USE_MASTER_CACHE = False
@@ -175,7 +173,6 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -186,7 +183,6 @@ class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMet
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -200,14 +196,12 @@ class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMe
 ###################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -217,7 +211,6 @@ class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMet
 ###################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -261,7 +254,6 @@ class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBa
         wait(lambda: proxy_lookup_retry_count.get_delta() > 0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesMetadataCachingOnRpcProxy(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

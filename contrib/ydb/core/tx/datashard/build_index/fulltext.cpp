@@ -8,7 +8,7 @@
 #include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/base/counters.h>
 #include <contrib/ydb/core/base/fulltext.h>
-#include <contrib/ydb/core/kqp/common/kqp_types.h>
+#include <contrib/ydb/core/base/json_index.h>
 #include <contrib/ydb/core/scheme/scheme_tablecell.h>
 
 #include <contrib/ydb/core/tx/tx_proxy/proxy.h>
@@ -232,10 +232,10 @@ public:
         TVector<TString> tokens;
         if (Request.GetIndexType() == NKikimrTxDataShard::EFulltextIndexType::Json) {
             if (IsBinaryJson) {
-                tokens = TokenizeBinaryJson(row.Get(0).AsBuf());
+                tokens = NJsonIndex::TokenizeBinaryJson(row.Get(0).AsBuf());
             } else {
                 TString error;
-                tokens = TokenizeJson(row.Get(0).AsBuf(), error);
+                tokens = NJsonIndex::TokenizeJson(row.Get(0).AsBuf(), error);
                 if (error != "") {
                     JsonErrors++;
                 }

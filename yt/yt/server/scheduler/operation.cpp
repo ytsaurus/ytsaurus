@@ -4,7 +4,6 @@
 #include "helpers.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
-#include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>

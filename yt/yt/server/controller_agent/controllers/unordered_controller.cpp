@@ -768,6 +768,7 @@ IOperationControllerPtr CreateUnorderedMapController(
 {
     auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    EnrichLayers(config, spec, host, spec->Mapper.Get());
     AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
 }

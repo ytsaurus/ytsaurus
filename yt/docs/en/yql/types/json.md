@@ -114,6 +114,46 @@ Time interval. Int64, precision down to microseconds. Permitted interval values 
 * Sample {{product-name}} value: `123456`, `-123456`.
 * Sample JSON value: `123456`, `-123456`.
 
+## Date32 {#date32}
+
+Date. Int32, number of days relative to the unix epoch (can be negative).
+
+* Type in JSON: `string`.
+* Sample {{product-name}} value: `-8722`.
+* Sample JSON value: `"1946-02-14"`.
+
+## Datetime64 {#datetime64}
+
+Date and time. Int64, number of seconds relative to the unix epoch.
+
+* Type in JSON: `string`.
+* Sample {{product-name}} value: `-753511371`.
+* Sample JSON value: `"1946-02-14T19:17:09Z"`.
+
+## Timestamp64 {#timestamp64}
+
+Date and time. Int64, number of microseconds relative to the unix epoch.
+
+* Type in JSON: `string`.
+* Sample {{product-name}} value: `-753511370765432`.
+* Sample JSON value: `"1946-02-14T19:17:09.234568Z"`.
+
+## Interval64 {#interval64}
+
+Time interval. Int64, precision down to microseconds.
+
+* Type in JSON: `number`.
+* Sample {{product-name}} value: `123456`, `-123456`.
+* Sample JSON value: `123456`, `-123456`.
+
+## TzDate32, TzDatetime64, TzTimestamp64 {#tzdate32}
+
+Date/time types with a timezone label. The point in time is stored in UTC.
+
+* Type in JSON: `string`.
+* The value is represented as a string time representation and the timezone, separated by a comma.
+* Sample JSON value: `"1946-02-14,Europe/Moscow"`, `"1946-02-14T19:17:09,Europe/Moscow"`, `"1946-02-14T19:17:09.234568,Europe/Moscow"` for TzDate32, TzDatetime64, and TzTimestamp64, respectively.
+
 ## Optional {#optional}
 
 Means that the value can be `null`. If the value is `null`, then in JSON it's also `null`. If the value is not `null`, then the JSON value is expressed as if the type isn't `Optional`.

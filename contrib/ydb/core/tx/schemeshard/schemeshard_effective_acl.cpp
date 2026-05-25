@@ -1,5 +1,7 @@
 #include "schemeshard_effective_acl.h"
 
+#include <contrib/ydb/library/aclib/protos/identity/user_token.pb.h>
+
 namespace NKikimr {
 namespace NSchemeShard {
 

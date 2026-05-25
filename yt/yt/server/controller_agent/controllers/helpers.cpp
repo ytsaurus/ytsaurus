@@ -532,7 +532,8 @@ bool IsBulkInsertAllowedForUser(
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"enable_bulk_insert"};
 
-    auto path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
+    // TODO(dgolear): Switch to std::string.
+    TString path = "//sys/users/" + ToYPathLiteral(authenticatedUser);
     auto rspOrError = WaitFor(client->GetNode(path, options));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check if bulk insert is enabled");
     auto rsp = ConvertTo<INodePtr>(rspOrError.Value());
@@ -544,7 +545,7 @@ bool IsBulkInsertAllowedForUser(
 bool HasCompressionDictionaries(
     const IAttributeDictionaryPtr& tableAttributes)
 {
-    // TODO(alexelexa, YT-20044): Support compression dicrionaries remote copy.
+    // TODO(alexelexa, YT-20044): Support compression dictionaries remote copy.
     auto dictionaryCompressionNode =
         tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
     if (dictionaryCompressionNode) {

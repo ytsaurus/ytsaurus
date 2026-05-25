@@ -264,6 +264,14 @@ spec_template = {
         "run_sort_probability": 0.2,
         "run_map_reduce_probability": 0.2,
         "run_merge_probability": 0.2,
+        "merge_two_tables_probability": 0.3,
+        "alter_to_queue_probability": 0.1,
+        "alter_to_static_probability": 0.1,
+        "copy_static_table_probability": 0.1,
+        "move_static_table_probability": 0.1,
+        "remove_static_table_probability": 0.1,
+        "write_probability": 0.3,
+        "read_probability": 0.3,
     },
 
     "replicated": {

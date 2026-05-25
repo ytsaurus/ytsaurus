@@ -1571,7 +1571,7 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
             // TODO(pogorelov): It could be fixed by defering job releasing untill the end of method, think about it.
             Host_->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
 
-            if ([[maybe_unused]] auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(jobId, abortReason))) {
+            if ([[maybe_unused]] auto operationFinished = !OnJobAborted(joblet, CreateAbortedJobSummary(jobId, abortReason))) {
                 YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", jobId);
                 return;
             }
@@ -2083,6 +2083,10 @@ IOperationControllerPtr CreateVanillaController(
     auto options = CreateOperationOptions(config->VanillaOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TVanillaOperationSpec>(
         UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+
+    for (const auto& [taskName, taskSpec] : spec->Tasks) {
+        EnrichLayers(config, spec, host, taskSpec.Get());
+    }
 
     for (const auto& [taskName, taskSpec] : spec->Tasks) {
         if (taskSpec->GangOptions) {

@@ -32,8 +32,8 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/components/components.h>
+#include <yt/yt/server/lib/signature/components/config.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
@@ -118,7 +118,6 @@ public:
         SlotManager_ = New<TSlotManager>(this);
 
         GpuManager_ = New<TGpuManager>(this);
-        GpuManager_->Initialize();
 
         JobReporter_ = New<TJobReporter>(
             New<TJobReporterConfig>(),
@@ -233,7 +232,7 @@ public:
             NbdThreadPool_ = CreateThreadPool(nbdConfig->Server->ThreadCount, "Nbd", { .ThreadPriority = EThreadPriority::RealTime });
             NbdServer_ = CreateNbdServer(
                 nbdConfig->Server,
-                NBus::TTcpDispatcher::Get()->GetXferPoller(),
+                NBus::NTcp::TDispatcher::Get()->GetXferPoller(),
                 NbdThreadPool_->GetInvoker());
 
             // Create block caches to read from Cypress.
@@ -296,6 +295,7 @@ public:
             JobProxyLogManager_->Start();
         }
 
+        GpuManager_->Start();
         SlotManager_->Start();
         JobController_->Start();
 
@@ -529,7 +529,7 @@ private:
         if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
             newJobProxyConfigTemplate->SupervisorConnection = CloneYsonStruct(supervisorConnection);
         } else {
-            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::NTcp::TBusClientConfig>();
             newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
         }
 
@@ -556,12 +556,12 @@ private:
         newJobProxyConfigTemplate->EnvironmentVariables = GetConfig()->ExecNode->JobProxy->EnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
-            newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::NTcp::TBusClientConfig>();
             newJobProxyConfigTemplate->TvmBridgeConnection->Address = localAddress;
 
             // Duplicate the TBusConfig part from SupervisorConnection to TvmBridgeConnection,
             // because it may have ssl parameters.
-            if (const NBus::TBusConfigPtr& busConfig = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            if (const NBus::NTcp::TBusConfigPtr& busConfig = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
                 newJobProxyConfigTemplate->TvmBridgeConnection = UpdateYsonStruct(
                     newJobProxyConfigTemplate->TvmBridgeConnection,
                     NYson::ConvertToYsonString(busConfig));

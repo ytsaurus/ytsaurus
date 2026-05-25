@@ -12,7 +12,7 @@ IF (AUTOCHECK OR YT_TEAMCITY)
     TIMEOUT(3600)
 ENDIF()
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 TAG(
     ya:fat

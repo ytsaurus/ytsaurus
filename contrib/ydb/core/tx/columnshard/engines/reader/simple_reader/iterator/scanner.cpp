@@ -10,10 +10,13 @@
 
 #include <contrib/ydb/core/tx/columnshard/engines/reader/abstract/read_metadata.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/common/result.h>
+#include <contrib/ydb/core/tx/columnshard/engines/reader/tracing/data_source_probes.h>
 
 #include <contrib/ydb/library/actors/core/log.h>
 
 namespace NKikimr::NOlap::NReader::NSimple {
+
+LWTRACE_USING(YDB_CS_DATA_SOURCE);
 
 TConclusionStatus TScanHead::Start() {
     return TConclusionStatus::Success();
@@ -57,6 +60,7 @@ TConclusion<bool> TScanHead::BuildNextInterval() {
         if (!source) {
             return changed;
         }
+        source->OnStartProcessing();
         SyncPoints.front()->AddSource(std::move(source));
         changed = true;
     }

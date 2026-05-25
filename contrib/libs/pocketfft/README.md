@@ -82,6 +82,10 @@ POCKETFFT_NO_MULTITHREADING:\
 if defined, multi-threading will be disabled.\
 Default: undefined
 
+POCKETFFT_NAMESPACE:\
+if defined, this name will be used as the namespace enclosing all of
+the pocketfft functionality.\
+if undefined, "pocketfft" will be used.
 
 Programming interface
 =====================
@@ -204,7 +208,10 @@ template<typename T> void r2r_fftpack(const shape_t &shape,
 /* For every requested axis, this function carries out a forward Fourier
    transform, and the real and imaginary parts of the result are added before
    the next axis is processed.
-   This is analogous to FFTW's implementation of the Hartley transform. */
+
+   NOTE: this function inadvertently follows an unusual convention
+   for real and imaginary parts and is only kept for backwards compatibility.
+   Please use  r2r_separable_fht() instead. */
 template<typename T> void r2r_separable_hartley(const shape_t &shape,
   const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
   const T *data_in, T *data_out, T fct, size_t nthreads=1);
@@ -217,7 +224,31 @@ template<typename T> void r2r_separable_hartley(const shape_t &shape,
 
    NOTE: This function allocates temporary working space with a size
    comparable to the input array. */
+
+   NOTE: this function inadvertently follows an unusual convention
+   for real and imaginary parts and is only kept for backwards compatibility.
+   Please use  r2r_genuine_fht() instead. */
 template<typename T> void r2r_genuine_hartley(const shape_t &shape,
+  const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
+  const T *data_in, T *data_out, T fct, size_t nthreads=1);
+
+/* For every requested axis, this function carries out a forward Fourier
+   transform, and "re(x)-im(x)" is computed from that before
+   the next axis is processed.
+   This is analogous to FFTW's implementation of the Hartley transform. */
+template<typename T> void r2r_separable_fht(const shape_t &shape,
+  const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
+  const T *data_in, T *data_out, T fct, size_t nthreads=1);
+
+/* This function carries out a full forward Fourier transform over the
+   requested axes, and "re(x)-im(x)" of the result is stored in the output
+   array. For a single transformed axis, this is identical to
+   `r2r_separable_fht`, but when transforming multiple axes, the results
+   are different.
+
+   NOTE: This function allocates temporary working space with a size
+   comparable to the input array. */
+template<typename T> void r2r_genuine_fht(const shape_t &shape,
   const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
   const T *data_in, T *data_out, T fct, size_t nthreads=1);
 

@@ -204,9 +204,6 @@ struct TDynamicChunkMergerConfig
     // COMPAT(aleksandra-zh) COMPAT(shakurov).
     bool TweakTraversalInfoAfterRebalance;
 
-    // COMPAT(h0pless): Hotfix for copy with preserve-modification-time. Should be set to #false asap.
-    bool UpdateModificationTime;
-
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);
@@ -317,6 +314,9 @@ struct TDynamicDataNodeTrackerConfig
     TDuration ValidationFullHeartbeatPeriod;
     TDuration ValidationFullHeartbeatSplay;
     bool ValidateSequoiaReplicas;
+    bool ValidateMasterReplicas;
+    // COMPAT(grphil)
+    bool IgnoreReplicasWithChangedStateDuringValidation;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
@@ -532,6 +532,7 @@ struct TDynamicSequoiaChunkReplicasConfig
     bool EnableSequoiaChunkRefresh;
     TDuration SequoiaChunkRefreshPeriod;
     int SequoiaChunkCountToFetchFromRefreshQueue;
+    int MaxUnsuccessfulSequoiaChunkRefreshIterations;
 
     bool UseLocationReplacementForLocationFullHeartbeat;
 
@@ -554,6 +555,12 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
 
     bool FixSequoiaReplicasIfReplicaValidationFailed;
+
+    bool EnableLocationRefresh;
+    TDuration LocationRefreshPeriod;
+    int MaxConcurrentLocationsToRefresh;
+    int MaxLocationsAwaitingRefresh;
+    int MaxUnsuccessfulLocationRefreshAttempts;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -841,8 +848,11 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
-    // COMPAT(grphil)
     bool AlwaysFetchNonOnlineReplicas;
+
+    // COMPAT(grphil)
+    bool RefreshNodeOnRegistered;
+    bool RefreshNodeOnOnline;
 
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;

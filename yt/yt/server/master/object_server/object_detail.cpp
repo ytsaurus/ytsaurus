@@ -943,7 +943,7 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
-std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
 {
     return std::make_unique<TPermissionValidator>(this);
 }
@@ -1009,7 +1009,7 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
         TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));
 }
 
-void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const NObjectClient::TCellTagSet& cellTags)
 {
     auto* object = GetObject();
     YT_VERIFY(object->IsNative());

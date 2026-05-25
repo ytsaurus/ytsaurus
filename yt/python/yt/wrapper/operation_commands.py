@@ -150,44 +150,54 @@ class OperationInfoRetrier(Retrier):
 # Public functions
 
 
-def abort_operation(operation: str, message: str = None, reason: str = None, client=None):
+def abort_operation(operation: str = None, message: str = None, reason: str = None, operation_alias: str = None, client=None):
     """Aborts operation.
 
     Do nothing if operation is in final state.
 
     :param str operation: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :param str message: custom message for abort error.
     :param str reason: alias for message (deprecated).
     """
-    if get_operation_state(operation, client=client).is_finished():
+    if get_operation_state(operation, operation_alias=operation_alias, client=client).is_finished():
         return
-    params = {"operation_id": operation}
+    params = {}
+    set_param(params, "operation_id", operation)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "abort_message", get_value(message, reason))
     command_name = "abort_operation" if get_api_version(client) == "v4" else "abort_op"
     make_request(command_name, params, client=client)
 
 
-def suspend_operation(operation: str, abort_running_jobs: bool = False, reason: str = None, client=None):
+def suspend_operation(operation: str = None, abort_running_jobs: bool = False, reason: str = None, operation_alias: str = None, client=None):
     """Suspends operation.
 
     :param str operation: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     """
     command_name = "suspend_operation" if get_api_version(client) == "v4" else "suspend_op"
-    params = {"operation_id": operation, "abort_running_jobs": abort_running_jobs}
+    params = {"abort_running_jobs": abort_running_jobs}
+    set_param(params, "operation_id", operation)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "reason", reason)
     return make_request(command_name, params, client=client)
 
 
-def resume_operation(operation: str, client=None):
+def resume_operation(operation: str = None, operation_alias: str = None, client=None):
     """Continues operation after suspending.
 
     :param str operation: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     """
     command_name = "resume_operation" if get_api_version(client) == "v4" else "resume_op"
-    return make_request(command_name, {"operation_id": operation}, client=client)
+    params = {}
+    set_param(params, "operation_id", operation)
+    set_param(params, "operation_alias", operation_alias)
+    return make_request(command_name, params, client=client)
 
 
-def complete_operation(operation: str, client=None):
+def complete_operation(operation: str = None, operation_alias: str = None, client=None):
     """Completes operation.
 
     Aborts all running and pending jobs.
@@ -195,11 +205,15 @@ def complete_operation(operation: str, client=None):
     Does nothing if operation is in final state.
 
     :param str operation: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     """
-    if get_operation_state(operation, client=client).is_finished():
+    if get_operation_state(operation, operation_alias=operation_alias, client=client).is_finished():
         return
     command_name = "complete_operation" if get_api_version(client) == "v4" else "complete_op"
-    return make_request(command_name, {"operation_id": operation}, client=client)
+    params = {}
+    set_param(params, "operation_id", operation)
+    set_param(params, "operation_alias", operation_alias)
+    return make_request(command_name, params, client=client)
 
 
 def get_operation(
@@ -284,14 +298,17 @@ def list_operations(
         timeout=timeout)
 
 
-def list_operation_events(operation_id: str, event_type: str = None, format: Union[str, Format, None] = None, client=None):
+def list_operation_events(operation_id: str = None, event_type: str = None, operation_alias: str = None, format: Union[str, Format, None] = None, client=None):
     """List events of given operation.
 
     :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :param str event_type: event type.
     """
 
-    params = {"operation_id": operation_id}
+    params = {}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "event_type", event_type)
 
     timeout = get_config(client)["operation_info_commands_timeout"]
@@ -312,17 +329,20 @@ def check_operation_permission(
     operation_id: str = None,
     user: str = None,
     permission: str = None,
+    operation_alias: str = None,
     format: Union[str, Format, None] = None,
     client=None,
 ) -> CheckOperationPermissionResultType:
     """Check if user has permission for operation.
 
     :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :param str user: user name.
     :param str permission: permission name (e.g., "read", "manage").
     """
     params = {}
     set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "user", user)
     set_param(params, "permission", permission)
 
@@ -371,22 +391,30 @@ def iterate_operations(user=None, state=None, type=None, filter=None, pool_tree=
         cursor_time = datetime_to_string(date_string_to_datetime(cursor_time) - timedelta(microseconds=step))
 
 
-def update_operation_parameters(operation_id: str, parameters: Mapping[str, Any], client=None):
-    """Updates operation runtime parameters."""
+def update_operation_parameters(operation_id: str = None, parameters: Mapping[str, Any] = None, operation_alias: str = None, client=None):
+    """Updates operation runtime parameters.
+
+    :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
+    """
     command_name = "update_operation_parameters" if get_api_version(client) == "v4" else "update_op_parameters"
-    return make_request(
-        command_name,
-        {"operation_id": operation_id, "parameters": parameters},
-        client=client)
+    params = {"parameters": parameters}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
+    return make_request(command_name, params, client=client)
 
 
-def patch_operation_spec(operation_id: str, patches: List[Mapping[str, Any]], client=None):
-    """Patches operation spec."""
+def patch_operation_spec(operation_id: str = None, patches: List[Mapping[str, Any]] = None, operation_alias: str = None, client=None):
+    """Patches operation spec.
+
+    :param str operation_id: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
+    """
     command_name = "patch_operation_spec" if get_api_version(client) == "v4" else "patch_op_spec"
-    return make_request(
-        command_name,
-        {"operation_id": operation_id, "patches": patches},
-        client=client)
+    params = {"patches": patches}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
+    return make_request(command_name, params, client=client)
 
 # Helpers
 
@@ -449,20 +477,22 @@ class TimeWatcher(object):
         sleep(pause)
 
 
-def get_operation_attributes(operation: str, fields: Optional[List[str]] = None, client=None):
+def get_operation_attributes(operation: str = None, fields: Optional[List[str]] = None, operation_alias: str = None, client=None):
     """Returns dict with operation attributes.
 
     :param str operation: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
     :return: operation description.
     :rtype: dict
     """
-    return get_operation(operation, attributes=fields, client=client)
+    return get_operation(operation, attributes=fields, operation_alias=operation_alias, client=client)
 
 
-def get_operation_state(operation: str, client=None) -> OperationState:
+def get_operation_state(operation: str = None, operation_alias: str = None, client=None) -> OperationState:
     """Returns current state of operation.
 
     :param str operation: operation id.
+    :param str operation_alias: operation alias (alternative to operation id).
 
     Raises :class:`YtError <yt.common.YtError>` if operation does not exists.
     """
@@ -470,7 +500,7 @@ def get_operation_state(operation: str, client=None) -> OperationState:
     retry_count = config["proxy"]["retries"]["count"]
     config["proxy"]["retries"]["count"] = config["proxy"]["operation_state_discovery_retry_count"]
     try:
-        return OperationState(get_operation_attributes(operation, fields=["state"], client=client)["state"])
+        return OperationState(get_operation_attributes(operation, fields=["state"], operation_alias=operation_alias, client=client)["state"])
     finally:
         config["proxy"]["retries"]["count"] = retry_count
 

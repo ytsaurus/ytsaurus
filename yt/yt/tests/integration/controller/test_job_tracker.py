@@ -675,7 +675,6 @@ class TestJobTracker(YTEnvSetup):
             wait(lambda: len(ls(orchid_path)) == 0)
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobTrackerRaces(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

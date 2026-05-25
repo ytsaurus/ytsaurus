@@ -27,11 +27,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NServer::TDiskHealthCheckerPtr;
-using NServer::TDiskHealthCheckerConfigPtr;
-using NProfiling::TTagSet;
-using NProfiling::TEventTimerGuard;
-
 class TOverlayData;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,48 +38,48 @@ public:
     TLayerLocation(
         NDataNode::TLayerLocationConfigPtr locationConfig,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        TDiskHealthCheckerConfigPtr healthCheckerConfig,
+        NServer::TDiskHealthCheckerConfigPtr healthCheckerConfig,
         NContainers::IPortoExecutorPtr volumeExecutor,
         NContainers::IPortoExecutorPtr layerExecutor,
         NContainers::IPortoExecutorPtr fastLayerExecutor,
-        const TString& id);
+        const std::string& id);
 
     TFuture<void> Initialize();
 
     TFuture<TVolumeMeta> CreateNbdVolume(
         TGuid tag,
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TNbdConfigPtr nbdConfig,
         TCreateNbdVolumeOptions options);
 
     TFuture<TVolumeMeta> CreateOverlayVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         int userId,
-        const std::optional<TString>& placePath,
-        std::optional<int> diskSpaceLimit,
-        std::optional<int> inodeLimit,
+        const std::optional<std::string>& placePath,
+        std::optional<i64> diskSpaceLimit,
+        std::optional<i64> inodeLimit,
         const std::vector<TOverlayData>& overlayDataArray,
         bool placeInUserSlot);
 
     TFuture<TVolumeMeta> CreateSquashFSVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
     TFuture<TVolumeMeta> CreateLoopVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TLocalDiskVolumeParamsPtr tmpfsVolume);
 
     TFuture<TVolumeMeta> CreateTmpfsVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TTmpfsVolumeParamsPtr tmpfsVolume);
 
     void Disable(const TError& error, bool persistentDisable = true);
@@ -105,8 +100,8 @@ public:
 
     TFuture<TLayerMeta> ImportLayer(
         const TArtifactKey& artifactKey,
-        const TString& archivePath,
-        const TString& container,
+        const std::string& archivePath,
+        const std::string& container,
         TLayerId layerId,
         TGuid tag);
 
@@ -121,26 +116,25 @@ public:
     TFuture<void> RemoveLayer(const TLayerId& layerId);
 
     TFuture<void> RemoveVolume(
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TVolumeId volumeId,
         std::optional<std::string> portoPlacePath);
 
     //! TODO(yuryalekseev): Remove me when slot rbind is removed.
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath);
+        const std::string& slotPath);
 
     bool ResidesOnTmpfs() const;
 
     TFuture<void> LinkVolume(
         TGuid tag,
-        const TString& source,
-        const TString& target,
-        bool sholdCheckTargetDirExists);
+        const std::string& source,
+        const std::string& target);
 
     TFuture<void> UnlinkVolume(
-        const TString& source,
-        const TString& target);
+        const std::string& source,
+        const std::string& target);
 
     int GetVolumeCount() const;
 
@@ -148,12 +142,12 @@ public:
 
     //! Remove volumes planted at a given place.
     void RemoveVolumes(
-        const TString& place,
+        const std::string& place,
         TDuration timeout);
 
     //! Remove layers planted at a given place.
     void RemoveLayers(
-        const TString& place,
+        const std::string& place,
         TDuration timeout);
 
 private:
@@ -165,13 +159,13 @@ private:
     const NContainers::IPortoExecutorPtr FastLayerExecutor_;
 
     const NConcurrency::TActionQueuePtr LocationQueue_;
-    const TString VolumesPath_;
-    const TString VolumesMetaPath_;
-    const TString LayersPath_;
-    const TString LayersMetaPath_;
-    const TString PlacePath_;
+    const std::string VolumesPath_;
+    const std::string VolumesMetaPath_;
+    const std::string LayersPath_;
+    const std::string LayersMetaPath_;
+    const std::string PlacePath_;
 
-    TDiskHealthCheckerPtr HealthChecker_;
+    NServer::TDiskHealthCheckerPtr HealthChecker_;
 
     TLayerLocationPerformanceCounters PerformanceCounters_;
 
@@ -215,8 +209,8 @@ private:
 
     TLayerMeta DoImportLayer(
         const TArtifactKey& artifactKey,
-        const TString& archivePath,
-        const TString& container,
+        const std::string& archivePath,
+        const std::string& container,
         TLayerId layerId,
         TGuid tag);
 
@@ -224,68 +218,65 @@ private:
 
     TVolumeMeta DoCreateVolume(
         TGuid tag,
-        TTagSet tagSet,
-        std::optional<TEventTimerGuard> volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        std::optional<NProfiling::TEventTimerGuard> volumeCreateTimeGuard,
         TVolumeMeta volumeMeta,
-        THashMap<TString, TString>&& volumeProperties,
+        THashMap<std::string, std::string> volumeProperties,
         std::optional<std::string> portoPlacePath = std::nullopt);
 
     TVolumeMeta DoCreateNbdVolume(
         TGuid tag,
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TNbdConfigPtr nbdConfig,
         TCreateNbdVolumeOptions options);
 
     TVolumeMeta DoCreateOverlayVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         int userId,
-        const std::optional<TString>& placePath,
-        std::optional<int> diskSpaceLimit,
-        std::optional<int> inodeLimit,
+        const std::optional<std::string>& placePath,
+        std::optional<i64> diskSpaceLimit,
+        std::optional<i64> inodeLimit,
         const std::vector<TOverlayData>& overlayDataArray,
         bool placeInUserSlot);
 
     TVolumeMeta DoCreateSquashFSVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
         const std::string& squashFSFilePath);
 
     TVolumeMeta DoCreateLoopVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TLocalDiskVolumeParamsPtr volumeParams);
 
     TVolumeMeta DoCreateTmpfsVolume(
         TGuid tag,
-        TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
+        NProfiling::TTagSet tagSet,
+        NProfiling::TEventTimerGuard volumeCreateTimeGuard,
         TTmpfsVolumeParamsPtr volumeParams);
 
     void DoRemoveVolume(
-        TTagSet tagSet,
+        NProfiling::TTagSet tagSet,
         TVolumeId volumeId,
         std::optional<std::string> portoPlacePath = std::nullopt);
 
     void DoLinkVolume(
         TGuid tag,
-        const TString& source,
-        const TString& target,
-        bool sholdCheckTargetDirExists);
+        const std::string& source,
+        const std::string& target);
 
     void DoUnlinkVolume(
-        const TString& source,
-        const TString& target);
+        const std::string& source,
+        const std::string& target);
 
-    //! Remove volumes planted in VolumesPath_;
+    //! Remove volumes planted in VolumesPath_.
     void RemoveVolumes(TDuration timeout);
 };
-
-DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

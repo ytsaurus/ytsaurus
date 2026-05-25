@@ -13,9 +13,8 @@ namespace NYT::NChunkClient {
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ReaderMemoryManagerLogger, "ReaderMemoryManager");
 
 //! A suffix to distinguish chunk meta files.
-inline const TString ChunkMetaSuffix(".meta");
+inline const std::string ChunkMetaSuffix(".meta");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

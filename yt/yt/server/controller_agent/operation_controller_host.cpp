@@ -275,11 +275,12 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
         return;
     }
 
+    i64 jobsToReleaseCount = std::ssize(jobsToRelease);
     JobTrackerOperationHandler_->ReleaseJobs(std::move(jobsToRelease));
 
     YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
-        jobsToRelease.size());
+        jobsToReleaseCount);
 }
 
 void TOperationControllerHost::AbortJob(

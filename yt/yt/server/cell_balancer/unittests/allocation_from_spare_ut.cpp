@@ -625,6 +625,9 @@ TEST_P(TNoAllocatorTest, Stress)
     GenerateNodesForBundle(input, SpareBundleName, 10, {.SlotCount = 1});
     GenerateTabletCellsForBundle(input, "bigd", CellsPerNode);
 
+    // This test executes ScheduleBundles multiple times.
+    input.DynamicConfig->FlushLogAfterMutations = false;
+
     auto runIteration = [&] {
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);

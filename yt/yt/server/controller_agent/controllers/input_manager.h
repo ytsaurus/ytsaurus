@@ -141,9 +141,9 @@ public:
     // NB: Note that this is local client, not <this cluster's client>.
     void InitializeClient(NApi::NNative::IClientPtr localClient);
 
-    void Persist(const TPersistenceContext& context);
-
     NLogging::TLogger GetLogger() const;
+
+    PHOENIX_DECLARE_TYPE(TInputCluster, 0xe1f2a3b4);
 
 private:
     NLogging::TSerializableLogger Logger;
@@ -184,8 +184,6 @@ public:
 
     void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task);
     NChunkClient::TInputChunkPtr GetInputChunk(NChunkClient::TChunkId chunkId, int chunkIndex) const;
-
-    void Persist(const TPersistenceContext& context);
 
     void RegisterUnavailableInputChunks(bool reportIfFound = false);
     void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;
@@ -228,6 +226,8 @@ public:
         const std::optional<std::vector<TString>>& attributeKeys) const;
 
 private:
+    PHOENIX_DECLARE_FRIEND();
+
     // NB: InputManager does not outlive its host.
     IInputManagerHost* Host_;
     NLogging::TSerializableLogger Logger;
@@ -244,7 +244,7 @@ private:
         TTaskPtr Task;
         int WaitingChunkCount = 0;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TStripeDescriptor, 0x4b2c8f31);
     };
 
     using TStripeDescriptorPtr = TIntrusivePtr<TStripeDescriptor>;
@@ -258,7 +258,7 @@ private:
 
         int GetTableIndex() const;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TInputChunkDescriptor, 0x7d5a21e4);
     };
 
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap_;
@@ -293,6 +293,8 @@ private:
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(
         const TInputClusterPtr& cluster,
         bool fetchHunkChunks = false) const;
+
+    PHOENIX_DECLARE_TYPE(TInputManager, 0xc5d6e7f8);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputManager)

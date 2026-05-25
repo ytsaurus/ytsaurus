@@ -30,9 +30,7 @@ def wait_single_scheduler_alert(alert_type):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
-class TestSchedulerAlerts(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+class TestSchedulerAlertsBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -48,6 +46,10 @@ class TestSchedulerAlerts(YTEnvSetup):
             "validate_node_tags_period": 100,
         }
     }
+
+
+class TestSchedulerAlerts(TestSchedulerAlertsBase):
+    ENABLE_MULTIDAEMON = True
 
     @authors("ignat", "eshcherbin")
     def test_pools(self):
@@ -78,18 +80,6 @@ class TestSchedulerAlerts(YTEnvSetup):
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/scheduler/config", {})
-        wait(lambda: get("//sys/scheduler/@alerts") == [])
-
-    @authors("ignat")
-    def test_cluster_directory(self):
-        assert get("//sys/scheduler/@alerts") == []
-
-        set("//sys/clusters/banach", {})
-
-        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
-
-        set("//sys/clusters", {})
-
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
     @authors("ignat")
@@ -157,6 +147,27 @@ class TestSchedulerAlerts(YTEnvSetup):
         })
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
+
+class TestSchedulerClusterDirectoryAlerts(TestSchedulerAlertsBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_LOCAL_YT_CONFIG = {
+        "default_abort_on_alert": False,
+    }
+
+    @authors("ignat")
+    def test_cluster_directory(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/clusters/banach", {})
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+
+        set("//sys/clusters", {})
+
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
+
+
 ##################################################################
 
 
@@ -190,7 +201,6 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -213,7 +223,6 @@ class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
         assert "low_cpu_usage" in op.get_alerts()
 
 
-@pytest.mark.enabled_multidaemon
 class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -646,7 +655,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -693,7 +701,6 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerAgentAlerts(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

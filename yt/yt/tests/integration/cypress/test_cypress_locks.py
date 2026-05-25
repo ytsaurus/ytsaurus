@@ -19,7 +19,6 @@ import builtins
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressLocks(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -1631,7 +1630,6 @@ class TestCypressLocks(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressLocksMulticell(TestCypressLocks):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1642,14 +1640,12 @@ class TestCypressLocksMulticell(TestCypressLocks):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressLocksRpcProxy(TestCypressLocks):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLocksRpcProxy):
     ENABLE_MULTIDAEMON = True
 
@@ -1657,7 +1653,6 @@ class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLo
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -1674,7 +1669,6 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestCypressLocksSequoia(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

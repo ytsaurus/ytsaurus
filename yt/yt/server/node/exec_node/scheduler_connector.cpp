@@ -213,7 +213,7 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     YT_LOG_INFO(
-        "Seting new min spare resources (MinSpareResources: %v)",
+        "Setting new min spare resources (MinSpareResources: %v)",
         minSpareResources);
 
     MinSpareResources_ = minSpareResources;

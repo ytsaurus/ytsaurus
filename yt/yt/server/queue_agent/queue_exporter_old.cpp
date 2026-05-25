@@ -166,7 +166,7 @@ public:
             ExportConfig_->ExportDirectory,
             ELockMode::Shared,
             TLockNodeOptions{
-                .AttributeKey = TString(ExporterAttributeName_),
+                .AttributeKey = std::string(ExporterAttributeName_),
             }))
             .ThrowOnError();
 
@@ -492,7 +492,7 @@ private:
         YT_LOG_DEBUG("Finished fetching chunk specs (Count: %v)", ChunkSpecs_.size());
     }
 
-    TString GetOutputTableName(ui64 unixTs)
+    std::string GetOutputTableName(ui64 unixTs)
     {
         auto periodInSeconds = ExportConfig_->ExportPeriod->Seconds();
 
@@ -504,7 +504,7 @@ private:
 
         auto outputTableName = ExportConfig_->OutputTableNamePattern;
 
-        std::vector<std::pair<TString, TString>> variables = {
+        std::vector<std::pair<std::string, std::string>> variables = {
             {"%UNIX_TS", ToString(unixTs)},
             {"%PERIOD", ToString(periodInSeconds)},
             {"%ISO", instant.ToStringUpToSeconds()},
@@ -512,7 +512,7 @@ private:
 
         // Replace all occurrences of variables with their values.
         for (const auto& [variable, value] : variables) {
-            for (size_t position = 0; (position = outputTableName.find(variable, position)) != TString::npos; ) {
+            for (size_t position = 0; (position = outputTableName.find(variable, position)) != std::string::npos; ) {
                 outputTableName.replace(position, variable.length(), value);
             }
         }
@@ -773,8 +773,8 @@ TQueueExportProfilingCountersOld::TQueueExportProfilingCountersOld(const TProfil
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueueExporterOld::TQueueExporterOld(
-    TString exportName,
-    TQueuePath queue,
+    std::string exportName,
+    TTablePath queue,
     const TQueueStaticExportConfigPtr& exportConfig,
     const TQueueExporterDynamicConfig& dynamicConfig,
     TClientDirectoryPtr clientDirectory,

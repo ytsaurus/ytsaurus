@@ -36,12 +36,14 @@ TChunkListPool::TChunkListPool(
     NNative::IClientPtr client,
     IInvokerPoolPtr controllerInvokerPool,
     TOperationId operationId,
-    TTransactionId transactionId)
+    TTransactionId transactionId,
+    bool isHunk)
     : Config_(config)
     , Client_(client)
     , ControllerInvokerPool_(controllerInvokerPool)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
+    , IsHunk_(isHunk)
     , Logger(ControllerLogger().WithTag("OperationId: %v", operationId))
 {
     YT_VERIFY(Config_);
@@ -122,6 +124,9 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
 
     ToProto(req->mutable_transaction_id(), TransactionId_);
     req->set_count(count);
+    if (IsHunk_) {
+        req->set_is_hunk_chunk_list(true);
+    }
 
     data.RequestInProgress = true;
 

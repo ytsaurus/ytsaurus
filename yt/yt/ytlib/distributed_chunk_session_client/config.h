@@ -1,6 +1,12 @@
 #pragma once
 
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/core/misc/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <limits>
 
 namespace NYT::NDistributedChunkSessionClient {
 
@@ -31,6 +37,22 @@ DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDistributedChunkSessionPoolConfig
+    : public NYTree::TYsonStruct
+{
+    int MaxActiveSessionsPerSlot;
+    TExponentialBackoffOptions ChunkSealRetryBackoff;
+    TDuration ChunkSealRpcTimeout;
+
+    REGISTER_YSON_STRUCT(TDistributedChunkSessionPoolConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionPoolConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDistributedChunkWriterConfig
     : public NYTree::TYsonStruct
 {
@@ -42,6 +64,28 @@ struct TDistributedChunkWriterConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedChunkWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDistributedChunkSessionReaderConfig
+    : public NYTree::TYsonStruct
+{
+    NChunkClient::TReplicationReaderConfigPtr UnderlyingReaderConfig;
+
+    TDuration ProbeTimeout;
+    TDuration PollInterval;
+    int MaxReadAttempts;
+    TExponentialBackoffOptions ErrorBackoff;
+    TDuration RefreshTimeout;
+    TDuration QuorumProbeTimeout;
+    i64 ReplicaLagLimit;
+
+    REGISTER_YSON_STRUCT(TDistributedChunkSessionReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

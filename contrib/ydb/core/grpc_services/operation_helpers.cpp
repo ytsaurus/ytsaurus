@@ -9,7 +9,7 @@
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>
 
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_build_index.h>
+#include <contrib/ydb/core/tx/schemeshard/index/build_index.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_export.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_import.h>
 

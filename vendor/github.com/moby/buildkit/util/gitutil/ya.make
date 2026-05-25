@@ -2,16 +2,20 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.12.2)
+VERSION(v0.18.2)
 
 SRCS(
-    git_protocol.go
+    git_cli.go
+    git_cli_helpers.go
+    git_commit.go
     git_ref.go
+    git_url.go
 )
 
 GO_TEST_SRCS(
-    git_protocol_test.go
+    git_commit_test.go
     git_ref_test.go
+    git_url_test.go
 )
 
 END()

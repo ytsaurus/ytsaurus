@@ -13,7 +13,9 @@ PEERDIR(
     library/cpp/threading/future
     contrib/ydb/public/api/protos
     contrib/ydb/public/sdk/cpp/src/client/impl/endpoints
+    contrib/ydb/public/sdk/cpp/src/client/impl/observability
     contrib/ydb/public/sdk/cpp/src/client/impl/session
+    contrib/ydb/public/sdk/cpp/src/client/metrics
     contrib/ydb/public/sdk/cpp/src/client/table/query_stats
     contrib/ydb/public/sdk/cpp/src/library/string_utils/helpers
 )

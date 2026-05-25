@@ -371,6 +371,10 @@ private:
                             fluent
                                 .Item(medium->GetName()).BeginMap()
                                     .Item("io_weight").Value(mediumStatistics.io_weight())
+                                    .DoIf(mediumStatistics.has_max_write_sessions_per_location(), [&] (TFluentMap fluent) {
+                                        fluent.Item("max_write_sessions_per_location")
+                                            .Value(mediumStatistics.max_write_sessions_per_location());
+                                    })
                                 .EndMap();
                         })
                         .Item("memory").BeginMap()

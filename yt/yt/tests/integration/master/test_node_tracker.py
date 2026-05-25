@@ -421,7 +421,6 @@ class TestRemoveClusterNodes(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -486,7 +485,6 @@ class TestReregisterNode(YTEnvSetup):
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestRackDataCenter(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -508,7 +506,6 @@ class TestRackDataCenter(YTEnvSetup):
             assert self.DATA_CENTER_SET == data_center_get
 
 
-@pytest.mark.enabled_multidaemon
 class TestRack(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -526,49 +523,14 @@ class TestRack(YTEnvSetup):
             assert self.RACK_SET == rack_get
 
 
-@pytest.mark.enabled_multidaemon
 class TestRackCells(TestRack):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-@pytest.mark.enabled_multidaemon
 class TestRackDataCenterCells(TestRackDataCenter):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
-
-################################################################################
-
-
-class TestNodesRegistrationAndClusterHeartbeatSwitch(YTEnvSetup):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_NODES = 3
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "node_tracker": {
-            "return_master_cells_connection_configs_on_node_registration": False,
-            "return_master_cells_connection_configs_on_node_heartbeat": False,
-        },
-    }
-
-    @authors("cherepashka")
-    def test_switch(self):
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_registration", True)
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_heartbeat", True)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_registration", False)
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_heartbeat", False)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_registration", True)
-        set("//sys/@config/node_tracker/return_master_cells_connection_configs_on_node_heartbeat", True)
-
-        # Nodes should continue work correctly, switches shouldn't affect it.
 
 
 ################################################################################

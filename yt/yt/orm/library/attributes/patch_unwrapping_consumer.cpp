@@ -52,7 +52,6 @@ void TPatchUnwrappingConsumer::SetState(const TState& state)
         : std::nullopt;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes

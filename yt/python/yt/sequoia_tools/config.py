@@ -13,6 +13,12 @@ class Scope(enum.Enum):
     REPLICAS = enum.auto()
 
 
+SCOPE_GROUPS: dict[Scope, list[str]] = {
+    Scope.SEQUOIA: ["resolve_tables", "transaction_tables", "response_keeper_table"],
+    Scope.REPLICAS: ["chunk_tables", "refresh_queue_table"],
+}
+
+
 def flatten(config: dict[str, Any], prefix="") -> list[tuple[str, Any]]:
     """Flatten into a list of (path, value) tuples."""
     if prefix.endswith("/"):
@@ -46,23 +52,21 @@ class GroundClusterConfig:
 
 
 @dataclass
-class TableGroupDescriptor:
-    name: str
-    attributes: dict[str, Any]
-
-
-@dataclass
 class SequoiaComponentConfig:
     tablet_cell_bundle: str
     tablet_cell_bundle_config: dict[str, Any]
     tablet_cell_count: int
-    table_groups: list[TableGroupDescriptor]
+    default_table_attributes: dict[str, Any]
+    table_attribute_patches: dict[str, dict[str, Any]]
 
-    def get_table_group_attributes(self, name: str) -> dict[str, Any]:
-        for group in self.table_groups:
-            if group.name == name:
-                return group.attributes
-        raise RuntimeError(f'Unknown group "{name}"')
+    def get_table_attributes(self, table_name: str) -> dict[str, Any]:
+        attributes = dict(self.default_table_attributes)
+        for key, value in self.table_attribute_patches.get(table_name, {}).items():
+            if value is None:
+                attributes.pop(key, None)
+            else:
+                attributes[key] = value
+        return attributes
 
 
 class ConfigProvider(ABC):

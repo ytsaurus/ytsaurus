@@ -29,6 +29,5 @@ target_link_libraries(restricted-boost-type_traits INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   restricted-boost-config
-  restricted-boost-static_assert
 )
 

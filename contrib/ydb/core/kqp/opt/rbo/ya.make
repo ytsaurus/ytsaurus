@@ -12,15 +12,17 @@ SRCS(
     kqp_rewrite_select.cpp
     kqp_rbo_compute_statistics.cpp
     kqp_rbo_statistics.cpp
+    kqp_plan_to_json.cpp
 )
 
 PEERDIR(
     contrib/ydb/core/kqp/common
+    contrib/ydb/core/kqp/opt/cbo
     contrib/ydb/core/kqp/opt/logical
     contrib/ydb/core/kqp/opt/peephole
     contrib/ydb/core/kqp/opt/physical
     contrib/ydb/core/kqp/opt/rbo/rules
-    contrib/ydb/core/kqp/opt/rbo/physical_convertion
+    contrib/ydb/core/kqp/opt/rbo/physical_conversion
     contrib/ydb/library/yql/dq/common
     contrib/ydb/library/yql/dq/opt
     contrib/ydb/library/yql/dq/type_ann
@@ -29,6 +31,7 @@ PEERDIR(
     contrib/ydb/library/yql/utils/plan
     contrib/ydb/core/kqp/provider
     contrib/ydb/library/formats/arrow/protos
+    yql/essentials/core/extract_predicate
 )
 
 YQL_LAST_ABI_VERSION()

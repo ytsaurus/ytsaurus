@@ -8,9 +8,6 @@ INCLUDE(../ya_check_dependencies.inc)
 PROTO_NAMESPACE(yt)
 
 SRCS(
-    admin/proto/admin_service.proto
-    admin/proto/restart_service.proto
-
     api/connection.cpp
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
@@ -61,6 +58,7 @@ SRCS(
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
     api/native/pool_weight_provider.cpp
+    api/native/public.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -260,8 +258,10 @@ SRCS(
     data_node_tracker_client/proto/data_node_tracker_service.proto
 
     distributed_chunk_session_client/config.cpp
+    distributed_chunk_session_client/distributed_chunk_session_pool.cpp
     distributed_chunk_session_client/distributed_chunk_writer.cpp
     distributed_chunk_session_client/distributed_chunk_session_controller.cpp
+    distributed_chunk_session_client/distributed_chunk_session_reader.cpp
 
     distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
 
@@ -315,9 +315,9 @@ SRCS(
 
     job_proxy/any_to_composite_converter.cpp
     job_proxy/config.cpp
+    job_proxy/first_batch_tracking_base.cpp
     job_proxy/helpers.cpp
     job_proxy/job_spec_helper.cpp
-    job_proxy/private.cpp
     job_proxy/profiling_reader.cpp
     job_proxy/profiling_writer.cpp
     job_proxy/user_job_io_factory.cpp
@@ -373,6 +373,14 @@ SRCS(
     object_client/proto/object_service.proto
     object_client/proto/object_ypath.proto
     object_client/proto/user_directory.proto
+
+    offshore_data_gateway/config.cpp
+    offshore_data_gateway/offshore_data_gateway_channel.cpp
+
+    push_based_shuffle_client/config.cpp
+    push_based_shuffle_client/record_format.cpp
+    push_based_shuffle_client/session_provider.cpp
+    push_based_shuffle_client/shuffle_writer.cpp
 
     query_client/executor.cpp
     query_client/explain.cpp
@@ -838,6 +846,7 @@ PEERDIR(
     yt/yt/library/query/secondary_index
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api
+    yt/yt/ytlib/admin
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client

@@ -36,6 +36,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_order_by_in_join_subqueries", &TThis::UseOrderByInJoinSubqueries)
         .Optional();
 
+    registrar.Parameter("enable_parallelize_unordered_group_by", &TThis::EnableParallelizeUnorderedGroupBy)
+        .Optional();
+
     registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
         .Optional();
 
@@ -49,6 +52,19 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("truncated_query_length_for_tracing", &TThis::TruncatedQueryLengthForTracing)
+        .GreaterThan(0)
+        .Optional();
+
+    registrar.Parameter("allow_reverse_scan_for_order_by", &TThis::AllowReverseScanForOrderBy)
+        .Optional();
+
+    registrar.Parameter("allow_heavy_range_inference_in_joins", &TThis::AllowHeavyRangeInferenceInJoins)
+        .Optional();
+
+    registrar.Parameter("prefetch_join_tables", &TThis::PrefetchJoinTables)
+        .Optional();
+
+    registrar.Parameter("join_cache_size", &TThis::JoinCacheSize)
         .GreaterThan(0)
         .Optional();
 }

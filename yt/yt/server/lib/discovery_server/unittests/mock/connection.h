@@ -419,6 +419,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NRpc::IChannelPtr& GetTabletBalancerChannel() override
     {
         YT_UNIMPLEMENTED();

@@ -53,6 +53,8 @@ struct IChunkManager
         const NProto::TReqRegisterChunkEndorsements& request) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateScheduleChunkRequisitionUpdatesMutation(
         const NProto::TReqScheduleChunkRequisitionUpdates& request) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateTopUpSequoiaChunkPurgatoryMutation(
+        const NProto::TReqTopUpSequoiaChunkPurgatory& request) = 0;
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
@@ -397,6 +399,8 @@ struct IChunkManager
         NChunkClient::NProto::TReqConfirmChunk request) = 0;
 
     virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
+
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastSequoiaReplicasCommitTimestamp, NTransactionClient::NullTimestamp);
 
 private:
     friend class TChunkTypeHandler;

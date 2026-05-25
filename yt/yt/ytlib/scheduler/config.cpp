@@ -218,7 +218,8 @@ TString TPoolName::ToString() const
 
 void Deserialize(TPoolName& value, INodePtr node)
 {
-    value = TPoolName::FromString(node->AsString()->GetValue());
+    // TODO(babenko): migrate to std::string
+    value = TPoolName::FromString(TString(node->AsString()->GetValue()));
 }
 
 void Deserialize(TPoolName& value, TYsonPullParserCursor* cursor)
@@ -376,6 +377,9 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("controller_failure", &TThis::ControllerFailure)
         .Default();
     registrar.Parameter("settle_job_delay", &TThis::SettleJobDelay)
+        .Default();
+    registrar.Parameter("schedule_allocation_cpu_multiplier", &TThis::ScheduleAllocationCpuMultiplier)
+        .GreaterThan(0.0)
         .Default();
     registrar.Parameter("fail_settle_job_requests", &TThis::FailSettleJobRequests)
         .Default(false);
@@ -1258,6 +1262,8 @@ void TVolume::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("layers", &TThis::Layers)
         .Default();
+    registrar.Parameter("allow_reusing", &TThis::AllowReusing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1582,8 +1588,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             } else {
-                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
                 *diskRequest = spec->DeprecatedDiskRequest;
             }
         }
@@ -1669,8 +1675,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         }
 
         if (spec->DiskSpaceLimit) {
-            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
-            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
+            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
 
             diskRequest->DiskSpace = *spec->DiskSpaceLimit;
             diskRequest->InodeCount = spec->InodeLimit;
@@ -1708,10 +1714,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->Volumes[*newNameForNewVolume] = std::move(newVolume);
             spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
         }
-
-        std::sort(spec->JobVolumeMounts.begin(), spec->JobVolumeMounts.end(), [] (const auto& lhs, const auto& rhs) {
-            return lhs->MountPath < rhs->MountPath;
-        });
 
         {
             THashSet<std::string_view> allUniqueVolumeMountPaths;

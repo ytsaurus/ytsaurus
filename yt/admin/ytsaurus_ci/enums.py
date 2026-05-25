@@ -1,0 +1,9 @@
+from enum import StrEnum
+
+
+class JobStatus(StrEnum):
+    FINISHED = "TASK_STATUS_FINISHED"
+    NEW = "TASK_STATUS_NEW"
+    PENDING = "TASK_STATUS_PENDING"
+    FAULT = "TASK_STATUS_FAULT"
+    UNSPECIFIED = "TASK_STATUS_UNSPECIFIED"

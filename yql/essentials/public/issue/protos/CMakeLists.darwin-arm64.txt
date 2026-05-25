@@ -36,11 +36,13 @@ target_link_libraries(public-issue-protos PUBLIC
 )
 
 target_proto_messages(public-issue-protos PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/protos/issue_id.proto
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/protos/issue_message.proto
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/protos/issue_severity.proto
 )
 
 target_sources(public-issue-protos PRIVATE
+  ${PROJECT_BINARY_DIR}/yql/essentials/public/issue/protos/issue_id.pb.h
   ${PROJECT_BINARY_DIR}/yql/essentials/public/issue/protos/issue_message.pb.h
   ${PROJECT_BINARY_DIR}/yql/essentials/public/issue/protos/issue_severity.pb.h
 )

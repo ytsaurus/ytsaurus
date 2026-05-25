@@ -750,6 +750,21 @@ public: \
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, FreezeHydraPeer, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TFreezeHydraPeerOptions& options),
+        (cellId, address, options))
+    IMPLEMENT_METHOD(void, TruncateChangelog, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TTruncateChangelogOptions& options),
+        (cellId, address, options))
+    IMPLEMENT_METHOD(void, ScheduleRestart, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TScheduleRestartOptions& options),
+        (cellId, address, options))
     IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
         const TResetDynamicallyPropagatedMasterCellsOptions& options),
         (options))
@@ -1165,11 +1180,6 @@ private:
         const TTimeoutOptions& options,
         TCallback<T()> callback);
 
-    template <class T>
-    auto CallAndRetryIfMetadataCacheIsInconsistent(
-        const TDetailedProfilingInfoPtr& profilingInfo,
-        T&& callback) -> decltype(callback());
-
     void SetMutationId(
         const NRpc::IClientRequestPtr& request,
         const TMutatingOptions& options);
@@ -1236,6 +1246,7 @@ private:
     struct TReplicaFallbackInfo
     {
         NApi::IClientPtr Client;
+        std::string ClusterName;
         NYPath::TYPath Path;
         NTabletClient::TTableReplicaId ReplicaId;
         NTableClient::TTableSchemaPtr OriginalTableSchema;
@@ -1259,7 +1270,6 @@ private:
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
 
-    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const std::string& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const std::string& clusterName);
 
     TDuration CheckPermissionsForQuery(

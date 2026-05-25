@@ -356,6 +356,10 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_use_order_by_in_join_subqueries(original.UseOrderByInJoinSubqueries);
     serialized->set_statistics_aggregation(ToProto(original.StatisticsAggregation));
     serialized->set_read_from(ToProto(original.ReadFrom));
+    if (original.JoinCacheSize) {
+        serialized->set_join_cache_size(*original.JoinCacheSize);
+    }
+    serialized->set_enable_parallelize_unordered_group_by(original.EnableParallelizeUnorderedGroupBy);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -436,6 +440,12 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_read_from()) {
         original->ReadFrom = FromProto<EPeerKind>(serialized.read_from());
+    }
+    if (serialized.has_join_cache_size()) {
+        original->JoinCacheSize = serialized.join_cache_size();
+    }
+    if (serialized.has_enable_parallelize_unordered_group_by()) {
+        original->EnableParallelizeUnorderedGroupBy = serialized.enable_parallelize_unordered_group_by();
     }
 }
 

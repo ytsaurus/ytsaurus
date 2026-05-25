@@ -2,6 +2,7 @@
 
 #include <contrib/ydb/core/kqp/proxy_service/kqp_script_executions.h>
 #include <contrib/ydb/core/mind/tenant_node_enumeration.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/library/actors/core/interconnect.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect.h>
 

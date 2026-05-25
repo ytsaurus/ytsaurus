@@ -279,7 +279,8 @@ public:
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
         const TString& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 

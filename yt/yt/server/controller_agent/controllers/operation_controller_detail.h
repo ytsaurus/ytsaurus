@@ -357,7 +357,9 @@ public:
     TAutoMergeDirector* GetAutoMergeDirector() override;
 
     const TChunkListPoolPtr& GetOutputChunkListPool() const override;
+    const TChunkListPoolPtr& GetOutputHunkChunkListPool() const override;
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
+    NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
@@ -1119,8 +1121,10 @@ private:
 
     NObjectClient::TCellTagList IntermediateOutputCellTagList_;
     TChunkListPoolPtr OutputChunkListPool_;
+    TChunkListPoolPtr OutputHunkChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputHunkChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
     NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
@@ -1495,7 +1499,7 @@ private:
 
     void RegisterTestingSpeculativeJobIfNeeded(TTask& task, TAllocationId allocationId);
 
-    std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
+    THashSet<NYPath::TRichYPath> GetAllUniqueLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
@@ -1523,6 +1527,7 @@ private:
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
+    void ReportErrorToArchive(const TJobletPtr& joblet, const std::optional<TError>& error) const;
 
     std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,

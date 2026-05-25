@@ -4,6 +4,7 @@
 #include "job.h"
 #include "job_controller.h"
 #include "job_environment.h"
+#include "job_proxy_log_manager.h"
 #include "private.h"
 #include "slot.h"
 #include "slot_location.h"
@@ -28,6 +29,8 @@
 #include <yt/yt/library/containers/porto_health_checker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/proc.h>
 
@@ -423,10 +426,12 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDeprecatedDiskReques
 
         try {
             location->ValidateEnabled();
+        } catch (const std::exception& ex) {
             YT_LOG_DEBUG(
+                ex,
                 "Skipping not enabled slot location (Path: %v)",
                 location->GetPath());
-        } catch (const std::exception& ex) {
+
             ++skippedByDisabled;
             continue;
         }
@@ -582,13 +587,16 @@ bool TSlotManager::IsEnabled() const
         JobEnvironmentType_ && JobEnvironmentType_ != NJobProxy::EJobEnvironmentType::Porto ||
         volumeManager && volumeManager->IsEnabled();
 
+    const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
+
     return
         JobProxyReady_.load() &&
         IsInitialized() &&
         SlotCount_ > 0 &&
         hasAliveLocations &&
         jobEnvironment->IsEnabled() &&
-        isVolumeManagerEnabled;
+        isVolumeManagerEnabled &&
+        (!jobProxyLogManager || jobProxyLogManager->IsEnabled());
 }
 
 bool TSlotManager::GuardedHasArmedAlerts() const
@@ -859,6 +867,11 @@ bool TSlotManager::Disable(TError error)
     auto jobsAbortionError = TError("Job aborted due to fatal alert")
         << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
 
+    constexpr auto abortDramatically = [] (const char* error) {
+        NLogging::TLogManager::Get()->Shutdown();
+        AbortProcessDramatically(EProcessExitCode::InternalError, error);
+    };
+
     const auto& jobController = Bootstrap_->GetJobController();
 
     if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
@@ -872,7 +885,7 @@ bool TSlotManager::Disable(TError error)
             InitializedSlotCount_.load(),
             InitializationEpoch_,
             MakeCompactIntervalView(GetSortedFreeSlots()));
-        AbortProcessDramatically(EProcessExitCode::InternalError, "Free slot synchronization failed");
+        abortDramatically("Free slot synchronization failed");
     }
 
     if (auto volumeManager = VolumeManager_.Acquire()) {
@@ -889,7 +902,7 @@ bool TSlotManager::Disable(TError error)
                 disableVolumeManagerResult,
                 "Failed to release volumes");
             if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
-                AbortProcessDramatically(EProcessExitCode::InternalError, "Failed to release volumes");
+                abortDramatically("Failed to release volumes");
             }
         }
 
@@ -898,7 +911,7 @@ bool TSlotManager::Disable(TError error)
                 disableLayerCacheResult,
                 "Disabling the layer cache failed with an error");
             if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
-                AbortProcessDramatically(EProcessExitCode::InternalError, "Disabling the layer cache failed with an error");
+                abortDramatically("Disabling the layer cache failed with an error");
             }
         }
     }
@@ -913,7 +926,7 @@ bool TSlotManager::Disable(TError error)
             InitializedSlotCount_.load(),
             InitializationEpoch_,
             MakeCompactIntervalView(GetSortedFreeSlots()));
-        AbortProcessDramatically(EProcessExitCode::InternalError, "Some slots are hung after disabling slot manager");
+        abortDramatically("Some slots are hung after disabling slot manager");
     }
 
     VerifyCurrentState(ESlotManagerState::Disabling);
@@ -1108,6 +1121,9 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     auto rootVolumeManager = VolumeManager_.Acquire();
 
+    // NB: to avoid potential use-after-move in DoIf.
+    bool rootVolumeManagerPresent = static_cast<bool>(rootVolumeManager);
+
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("slot_count").Value(slotManagerInfo.SlotCount)
@@ -1133,7 +1149,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
                     }
                 })
             .DoIf(
-                static_cast<bool>(rootVolumeManager),
+                rootVolumeManagerPresent,
                 [rootVolumeManager = std::move(rootVolumeManager)] (TFluentMap fluent){
                     fluent
                         .Item("root_volume_manager").Do(std::bind(

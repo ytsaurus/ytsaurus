@@ -1,14 +1,15 @@
 #pragma once
 
+#include "public.h"
+
 #include "expression_context.h"
 #include "position_independent_value.h"
-#include <yt/yt/library/query/base/join_profiler.h>
-#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/misc/allocator.h>
 #include <yt/yt/library/query/misc/objects_holder.h>

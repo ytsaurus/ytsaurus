@@ -2,9 +2,9 @@ from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
 
 from yt_commands import (
     authors, create, get, set, copy, remove, exists, wait,
-    create_account, create_user, assert_statistics, raises_yt_error, sorted_dicts,
-    make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
-    sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
+    create_account, create_user, assert_statistics, extract_statistic_v2, raises_yt_error, sorted_dicts,
+    make_ace, start_transaction, commit_transaction, insert_rows, delete_rows, read_table, write_table, sort, erase, get_operation,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, get_singular_chunk_id, create_dynamic_table)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
@@ -226,7 +226,6 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
     return op
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 18
@@ -1537,6 +1536,65 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         verify_sort(["key1", "key2", "value"])
         verify_sort(["value", "key2", "key1"])
 
+    @authors("pogorelov")
+    def test_sort_empty_dynamic_table(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (26, 1):
+            pytest.skip()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", schema=schema)
+
+        sync_mount_table("//tmp/t")
+
+        # Insert and immediately delete each key, flushing after every
+        # mutation. This produces separate store chunks per key so that the
+        # controller sees multiple versioned data slices (one per
+        # non-overlapping key range) instead of a single combined slice.
+        # Multiple data slices lead to multiple SimpleSort jobs, which
+        # forces the SimpleSort to be non-final: its empty outputs are
+        # forwarded to the SortedMerge stage, and the operation must
+        # correctly complete even though every job produces no rows.
+        for i in range(3):
+            insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+            sync_flush_table("//tmp/t")
+            delete_rows("//tmp/t", [{"key": i}])
+            sync_flush_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+
+        assert read_table("//tmp/t") == []
+
+        create("table", "//tmp/t_out")
+
+        op = sort(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            sort_by=["key"],
+            spec={
+                "data_weight_per_sort_job": 1,
+                "partition_count": 1,
+            },
+        )
+        assert read_table("//tmp/t_out") == []
+
+        progress = get_operation(op.id)["progress"]
+        statistics = progress["job_statistics_v2"]
+        assert extract_statistic_v2(statistics, "data.input.compressed_data_size", job_type="simple_sort") > 0
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_transmitted", job_type="simple_sort") > 0
+
+        # Make sure SimpleSort was not executed as a single final job: the
+        # operation must run several SimpleSort jobs whose empty outputs are
+        # then consumed by the following merge stage.
+        tasks = progress["tasks"]
+        simple_sort_tasks = [t for t in tasks if t["task_name"] == "simple_sort"]
+        assert len(simple_sort_tasks) == 1
+        assert simple_sort_tasks[0]["job_counter"]["completed"]["total"] > 1
+
     @authors("savrus", "psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_computed_columns(self, sort_order):
@@ -2661,7 +2719,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2672,7 +2729,6 @@ class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {

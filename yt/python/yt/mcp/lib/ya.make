@@ -18,6 +18,7 @@ PY_SRCS(
     tools/admin.py
     tools/account.py
     tools/common_client.py
+    tools/table.py
 )
 
 PEERDIR(

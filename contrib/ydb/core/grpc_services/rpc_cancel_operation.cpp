@@ -6,7 +6,7 @@
 #include <contrib/ydb/core/kqp/common/kqp.h>
 #include <contrib/ydb/core/grpc_services/base/base.h>
 #include <contrib/ydb/core/grpc_services/rpc_common/rpc_common.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_build_index.h>
+#include <contrib/ydb/core/tx/schemeshard/index/build_index.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_export.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_forced_compaction.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_import.h>

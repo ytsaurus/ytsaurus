@@ -60,8 +60,7 @@ using NYT::NTableClient::TUnversionedRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
-{
+const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode {
     {"equals", EBinaryOp::Equal},
     {"notEquals", EBinaryOp::NotEqual},
     {"less", EBinaryOp::Less},
@@ -72,8 +71,7 @@ const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
     {"or", EBinaryOp::Or},
 };
 
-const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
-{
+const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp {
     {EBinaryOp::Equal, EBinaryOp::Equal},
     {EBinaryOp::NotEqual, EBinaryOp::NotEqual},
     {EBinaryOp::Less, EBinaryOp::Greater},
@@ -89,7 +87,7 @@ const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
 NYT::TSharedRange<TUnversionedRow> ConvertConstantSetToSharedRange(
     const DB::DataTypePtr& targetDataType,
     const DB::QueryTreeNodePtr& node,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     DB::GetSetElementParams params = {})
 {
     auto constantNode = node->as<DB::ConstantNode>();
@@ -147,7 +145,7 @@ DB::QueryTreeNodePtr AdjustToYTBooleanExpression(DB::QueryTreeNodePtr node)
 struct TConversionContext
 {
     const TTableSchemaPtr& Schema;
-    const TCompositeSettingsPtr& ConversionSettings;
+    const TConversionSettingsPtr& ConversionSettings;
     DB::GetSetElementParams SetParams;
 };
 
@@ -256,7 +254,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
 
                 if (rhsNode->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
                     lhsNode.swap(rhsNode);
-                    opCode = BinaryOpToConversedOp.at(opCode);
+                    opCode = GetOrCrash(BinaryOpToConversedOp, opCode);
                 }
 
                 DB::DataTypePtr desiredLhsDataType;
@@ -330,7 +328,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
 TConstExpressionPtr ConvertToConstExpression(
     DB::QueryTreeNodePtr node,
     const TTableSchemaPtr& schema,
-    const TCompositeSettingsPtr& settings,
+    const TConversionSettingsPtr& settings,
     DB::GetSetElementParams setParams)
 {
     node = AdjustToYTBooleanExpression(node);
@@ -363,7 +361,8 @@ std::vector<TReadRange> InferReadRange(
     auto predicateExpr = ConvertToConstExpression(
         std::move(filterNode),
         schema,
-        TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true),
+        TConversionSettings::Create(
+            TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)),
         setParams);
     if (!predicateExpr) {
         return {};

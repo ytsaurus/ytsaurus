@@ -10,7 +10,6 @@
 #include <contrib/ydb/core/kqp/compute_actor/kqp_compute_actor.h>
 #include <contrib/ydb/core/kqp/rm_service/kqp_rm_service.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_scan_data.h>
-#include <contrib/ydb/core/kqp/runtime/kqp_tasks_runner.h>
 #include <contrib/ydb/core/protos/kqp_stats.pb.h>
 
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_impl.h>
@@ -305,7 +304,7 @@ void TKqpScanComputeActor::DoBootstrap() {
     ScanData = &ComputeCtx.GetTableScan(0);
 
     ScanData->TaskId = GetTask().GetId();
-    ScanData->TableReader = CreateKqpTableReader(*ScanData, *ComputeCtx.StartTs, *ComputeCtx.InputConsumed);
+    ScanData->TableReader = CreateKqpTableReader(*ScanData, *ComputeCtx.StartTs, *ComputeCtx.InputsConsumed);
     Become(&TKqpScanComputeActor::StateFunc);
 
     TBase::DoBootstrap();

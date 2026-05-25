@@ -77,7 +77,7 @@
 
 Для задания типов `кортежа` или `структуры` без элементов используются аннотации `EmptyTuple` и `EmptyStruct` соответственно.
 
-Для описания типа вызываемого значения используется аннотация `Callable`, в которой в квадратных скобках передается число опциональных аргментов, тип выходного значения и описания аргументов. Описание аргумента это либо тип, либо `slice` в форме `имя-аргумента:тип:флаги`. Если не нужно задавать имя аргументу, то следует использовать пустую строку. Можно опускать последний компонент `slice`-а, но, если он задан, то должен быть `set`-ом флагов. В настоящее время возможным значением флага может быть только `AutoMap`. Если нужно задать флаги или имя для аргумента самой UDF, в аннотации указывается объект `slice` в такой же форме.
+Для описания типа вызываемого значения используется аннотация `Callable`, в которой в квадратных скобках передается число опциональных аргументов, тип выходного значения и описания аргументов. Описание аргумента это либо тип, либо `slice` в форме `имя-аргумента:тип:флаги`. Если не нужно задавать имя аргументу, то следует использовать пустую строку. Можно опускать последний компонент `slice`-а, но, если он задан, то должен быть `set`-ом флагов. В настоящее время возможным значением флага может быть только `AutoMap`. Если нужно задать флаги или имя для аргумента самой UDF, в аннотации указывается объект `slice` в такой же форме.
 
 **Пример использования аннотаций:**
 ``` yql
@@ -270,6 +270,86 @@ def list_func(lst):
 list_func._yql_lazy_input = False
 @@);
 SELECT $u(AsList(1,2,3));
+```
+
+## Использование линейных типов {#python-linear}
+
+Линейные типы позволяют оптимизировать сценарии, когда какое-то состояние находится внутри python-объекта. Ранее было возможно два варианта:
+* Преобразовывать это состояние в неизменяемые YQL типы (строки, списки и т.п.) на каждом вызове, что даёт дополнительные накладные расходы.
+* Использовать тип `Resource`, что может быть небезопасно, если в UDF это состояние изменяется в вызовах вместо возвращения нового значения.
+
+Начиная с версии [2025.04](../changelog/2025.04.md) можно пометить `Resource` как линейный тип, что позволяет запретить повторное использование значений такого типа в запросе и снять ограничения на изменение состояния прямо в python-объекте.
+
+Обычно следует использовать статические линейные типы (`Linear`) в аргументах или возвращаемых значениях, если это возможно (если, например, не требуется поместить их в список).
+
+Использование `Linear` типа внутри python не отличается от использования его базового типа, кроме того, что в запросе проводится анализ на повторное использование такого значения.
+
+Пример:
+``` yql
+$script = @@#py
+def producer():
+    return []
+
+def adder(state, i):
+    # изменяет state in-place
+    state.append(i)
+    return state
+
+def consumer(state):
+    return ",".join(str(x) for x in state)
+@@;
+
+$linearResource = Linear<Resource<Python3>>;
+$producer = Python3::producer(Callable<()->$linearResource>, $script);
+$adder = Python3::adder(Callable<($linearResource, Int32)->$linearResource>, $script);
+$consumer = Python3::consumer(Callable<($linearResource)->String>, $script);
+
+select Block(($arg)->{
+    $state = Udf($producer, $arg as Depends)();
+    $state = $adder($state, 1);
+    $state = $adder($state, 2);
+    return $consumer($state);
+}); -- "1,2"
+```
+
+При использовании `DynamicLinear` типа значение из аргумента необходимо получать через метод `extract`, а для возврата результата необходимо реализовать метод `extract` в python-объекте.
+
+Пример:
+``` yql
+$script = @@#py
+class Result:
+    def __init__(self, lst):
+        self.lst = lst
+
+    def extract(self):
+        ret = self.lst
+        self.lst = None
+        return ret
+
+def producer():
+    return Result([])
+
+def adder(state, i):
+    # изменяет state in-place
+    lst = state.extract()
+    lst.append(i)
+    return Result(lst)
+
+def consumer(state):
+    return ",".join(str(x) for x in state.extract())
+@@;
+
+$linearResource = DynamicLinear<Resource<Python3>>;
+$producer = Python3::producer(Callable<()->$linearResource>, $script);
+$adder = Python3::adder(Callable<($linearResource, Int32)->$linearResource>, $script);
+$consumer = Python3::consumer(Callable<($linearResource)->String>, $script);
+
+select Block(($arg)->{
+    $list = [1, 2, 3];
+    $state = Udf($producer, $arg as Depends)();
+    $state = ListFold($list, $state, ($item, $state)->($adder($state, $item)));
+    return $consumer($state);
+}); -- "1,2,3"
 ```
 
 {% if audience == "internal" %}

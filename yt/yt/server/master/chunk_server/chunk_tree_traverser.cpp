@@ -42,16 +42,20 @@ static const auto DataSizeMember = &TCumulativeStatisticsEntry::DataSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsHunkRelatedChunkList(EChunkListKind kind)
+i64 GetChunkCountInChunkList(const TChunkList* chunkList)
 {
-    return
-        kind == EChunkListKind::HunkRoot ||
-        kind == EChunkListKind::HunkStorageRoot ||
-        kind == EChunkListKind::Hunk ||
-        kind == EChunkListKind::HunkTablet;
+    // NB: Within hunk tree statistics we count only sealed chunks and without repetitions.
+    // However when traverseing we need to consider every chunk occurrence as a unique entry
+    // so we rely on cumulative statistics.
+    if (IsHunkRelatedChunkList(chunkList)) {
+        YT_VERIFY(chunkList->HasCumulativeStatistics());
+        return chunkList->CumulativeStatistics().Empty()
+            ? 0
+            : chunkList->CumulativeStatistics().Back().ChunkCount;
+    } else {
+        return chunkList->Statistics().ChunkCount;
+    }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 //! Returns smallest iterator it s.t.:
 //! 1) start <= it <= end
@@ -92,6 +96,8 @@ TIterator UpperBoundWithMissingValues(
         return end;
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTreeTraverser
     : public TRefCounted
@@ -213,7 +219,7 @@ protected:
             auto child = chunkList->Children()[entry.ChildIndex];
 
             // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
-            if (IsEmpty(child) && !IsHunkRelatedChunkList(chunkList->GetKind())) {
+            if (IsEmpty(child) && !IsHunkRelatedChunkList(chunkList.Get())) {
                 if (IsObjectAlive(child)) {
                     YT_LOG_TRACE("Child is empty (Index: %v, Id: %v, Kind: %v)",
                         entry.ChildIndex,
@@ -694,7 +700,6 @@ protected:
         auto childIndex = entry->ChildIndex;
         auto child = chunkList->Children()[childIndex];
         auto childType = child->GetType();
-        const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
 
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet;
 
@@ -721,6 +726,8 @@ protected:
 
             // Row index.
             if (isOrdered) {
+                const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+
                 i64 childLimit = cumulativeStatistics.GetPreviousSum(entry->ChildIndex).RowCount;
                 rowIndex = childLimit;
                 if (const auto& upperRowIndex = entry->UpperLimit.GetRowIndex()) {
@@ -744,6 +751,7 @@ protected:
 
             // Chunk index.
             {
+                const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
                 i64 childLimit = cumulativeStatistics.GetPreviousSum(entry->ChildIndex).ChunkCount;
 
                 if (const auto& upperChunkIndex = entry->UpperLimit.GetChunkIndex()) {
@@ -1130,7 +1138,6 @@ protected:
             return;
         }
 
-        const auto& statistics = chunkList->Statistics();
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
 
         // Offset.
@@ -1159,7 +1166,7 @@ protected:
                 chunkList,
                 ChunkCountMember,
                 *lowerChunkIndex,
-                statistics.ChunkCount);
+                GetChunkCountInChunkList(chunkList));
         }
 
         // Key.
@@ -1197,7 +1204,6 @@ protected:
 
         if (EnforceBounds_) {
             bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet;
-            const auto& statistics = chunkList->Statistics();
 
             // Row index.
             YT_VERIFY(!lowerLimit.GetRowIndex() || isOrdered);
@@ -1216,7 +1222,7 @@ protected:
                         chunkList,
                         RowCountMember,
                         *lowerRowIndex,
-                        statistics.LogicalRowCount);
+                        chunkList->Statistics().LogicalRowCount);
 
                     while (chunkIndex > 0) {
                         auto child = chunkList->Children()[chunkIndex - 1];
@@ -1236,7 +1242,7 @@ protected:
                     chunkList,
                     ChunkCountMember,
                     *lowerChunkIndex,
-                    chunkList->Statistics().ChunkCount);
+                    GetChunkCountInChunkList(chunkList));
             }
 
             // NB: Tablet index lower bound is checked above in tablet root.
@@ -1915,7 +1921,7 @@ std::vector<TChunkTreeRawPtr> EnumerateStoresInChunkTree(
     TChunkList* root)
 {
     std::vector<TChunkTreeRawPtr> stores;
-    stores.reserve(root->Statistics().ChunkCount);
+    stores.reserve(GetChunkCountInChunkList(root));
     EnumerateStoresInChunkTree(root, &stores);
     return stores;
 }

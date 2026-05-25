@@ -145,6 +145,20 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
         .Default();
+
+    registrar.Parameter("max_concurrent_cypress_write_requests", &TThis::MaxConcurrentCypressWriteRequests)
+        .Default(50);
+    registrar.Parameter("max_released_nodes_per_iteration", &TThis::MaxReleasedNodesPerIteration)
+        .Default(50);
+
+    registrar.Parameter("flush_log_after_mutations", &TThis::FlushLogAfterMutations)
+        .Default(false);
+
+    registrar.Parameter("enable_chaos_bundle_management", &TThis::EnableChaosBundleManagement)
+        .Default();
+
+    registrar.Parameter("foreign_cluster_request_timeout", &TThis::ForeignClusterRequestTimeout)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,6 +190,10 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default(DefaultBundleControllerConfigPath);
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->DynamicConfigManager->IgnoreConfigAbsence = true;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

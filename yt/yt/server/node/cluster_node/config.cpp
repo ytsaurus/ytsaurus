@@ -355,7 +355,7 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0)
         .Default(0.1);
     registrar.Parameter("enable_fair_throttler", &TThis::EnableFairThrottler)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("in_throttler", &TThis::InThrottler)
         .DefaultNew();
     registrar.Parameter("out_throttler", &TThis::OutThrottler)
@@ -480,12 +480,12 @@ NHttp::TServerConfigPtr TClusterNodeBootstrapConfig::CreateSkynetHttpServerConfi
 void TClusterNodeProgramConfig::Register(TRegistrar registrar)
 {
     registrar.Postprocessor([] (TThis* config) {
-        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto dispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!dispatcherConfig->NetworkBandwidth) {
             dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }
 
-        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::NTcp::TDispatcherConfig>();
         if (!tcpDispatcherConfig->NetworkBandwidth) {
             tcpDispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
         }

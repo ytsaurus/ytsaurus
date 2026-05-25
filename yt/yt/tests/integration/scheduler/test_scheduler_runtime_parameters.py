@@ -272,7 +272,7 @@ class TestRuntimeParameters(YTEnvSetup):
         response.wait()
         assert not response.is_ok()
         error = YtResponseError(response.error())
-        assert error.contains_text("Max running operation count of pool \"busy\" violated")
+        assert error.contains_text("Max running operation count in pool \"busy\" of tree \"default\" is violated")
 
     @authors("omgronny")
     @pytest.mark.parametrize("slot_index_source", ["slot_index_per_pool_tree", "scheduling_attributes_per_pool_tree"])
@@ -549,7 +549,6 @@ class TestRuntimeParametersWithHeavyRuntimeParameters(TestRuntimeParameters):
     }
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

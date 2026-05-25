@@ -2,6 +2,12 @@
 
 The RemoteCopy operation copies tables and files from one cluster to another. The RemoteCopy operation's jobs are run on the destination cluster and copy chunks from the source cluster ("pull"-schema). The operation copies the chunks in their original form, without uncompressing them or changing the `erasure` schema. If the input is a table and it is sorted, the output table will also be sorted.
 
+{% note info %}
+
+The data transfer rate between clusters is subject to throttling. For more information, see [Inter-cluster Network Bandwidth Throttling](../../../../user-guide/data-processing/operations/cluster-throttlers.md).
+
+{% endnote %}
+
 General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The RemoteCopy operation supports the following additional options (default values, if set, are specified in brackets):
@@ -15,8 +21,6 @@ The RemoteCopy operation supports the following additional options (default valu
 * `cluster_connection` — configuration for connecting to the source cluster. Configured by the {{product-name}} system administrator when configuring the cluster.
 * `copy_attributes` (false) — copy the attributes of the input table. Available only if there is one input table. Only user attributes are copied (not system attributes).
 * `attribute_keys` — when this option is enabled along with `copy_attributes`, only attributes from the given list are copied.
-
-**Important:** There is a special restriction for production clusters: remote copy operations can only be run in pools that have a limit on the number of simultaneously running jobs in one of the parents (that is, the `user_slots` value of the `resource_limits` attribute is below a certain threshold).
 
 ## Example specification
 

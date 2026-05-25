@@ -19,6 +19,7 @@ PEERDIR(
     contrib/ydb/core/audit
     contrib/ydb/core/base
     contrib/ydb/core/protos
+    contrib/ydb/core/security/util
     contrib/ydb/library/aclib
     contrib/ydb/library/aclib/protos
     contrib/ydb/library/login
@@ -39,4 +40,5 @@ RECURSE(
     certificate_check
     ldap_auth_provider
     sasl
+    util
 )

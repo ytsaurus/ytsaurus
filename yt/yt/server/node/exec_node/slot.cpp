@@ -38,6 +38,7 @@ namespace NYT::NExecNode {
 static NLogging::TLogger SlotLogger("Slot");
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NNode;
@@ -66,7 +67,7 @@ public:
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
         NExecNode::IBootstrap* bootstrap,
-        const TString& nodeTag,
+        const std::string& nodeTag,
         ESlotType slotType,
         NClusterNode::TCpu requestedCpu,
         NScheduler::NProto::TDeprecatedDiskRequest diskRequest,
@@ -209,10 +210,10 @@ public:
 
     TFuture<void> MakeLink(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& linkName,
+        const std::string& targetPath,
+        const std::string& linkName,
         bool executable) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -236,10 +237,10 @@ public:
 
     TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& bindPath,
+        const std::string& targetPath,
+        const std::string& bindPath,
         bool executable) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -263,9 +264,9 @@ public:
 
     TFuture<void> MakeCopy(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& sourcePath,
+        const std::string& sourcePath,
         const TFile& destinationFile,
         const TCacheLocationPtr& sourceLocation) override
     {
@@ -290,7 +291,7 @@ public:
 
     TFuture<void> MakeFile(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) override
@@ -320,8 +321,24 @@ public:
         return VolumeManager_->IsLayerCached(artifactKey);
     }
 
+    std::vector<TFuture<TOverlayData>> PrepareLayers(
+        TJobId jobId,
+        const std::vector<TOverlayLayerPreparationOptions>& layerOptions,
+        const TArtifactDownloadOptions& artifactDownloadOptions) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        if (!VolumeManager_) {
+            return {};
+        }
+
+        return VolumeManager_->PrepareOverlayLayers(jobId, layerOptions, artifactDownloadOptions);
+    }
+
     TFuture<IVolumePtr> PrepareRootVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -329,14 +346,16 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            return MakeFuture<IVolumePtr>(TError("Can not prepare root volume without volume manager."));
+            return MakeFuture<IVolumePtr>(TError("Cannot prepare root volume without volume manager."));
         }
 
         return RunPreparationAction(
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, options);
+                return VolumeManager_->PrepareVolume(
+                    std::move(overlayDataArray),
+                    options);
             });
     }
 
@@ -349,7 +368,7 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            return MakeFuture<IVolumePtr>(TError("Can not bind root volume without volume manager."));
+            return MakeFuture<IVolumePtr>(TError("Cannot bind root volume without volume manager."));
         }
 
         return RunPreparationAction(
@@ -361,7 +380,7 @@ public:
     }
 
     TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        const std::vector<TArtifactKey>& layers,
+        std::vector<TOverlayData> overlayDataArray,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -376,7 +395,9 @@ public:
             /*actionName*/ "PrepareGpuCheckVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, options);
+                return VolumeManager_->PrepareVolume(
+                    std::move(overlayDataArray),
+                    options);
             });
     }
 
@@ -384,8 +405,8 @@ public:
         TJobId jobId,
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumeParams,
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
         const std::vector<TVolumeMountPtr>& volumeMounts,
-        const TArtifactDownloadOptions& artifactDownloadOptions,
         bool testRootFs) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -410,17 +431,8 @@ public:
         return RunPreparationAction(
             /*actionName*/ "PrepareNonRootVolumes",
             /*uncancelable*/ false,
-            [
-                jobId,
-                userSandboxPath = std::move(userSandboxPath),
-                rootVolume,
-                volumeParams,
-                volumeMounts,
-                artifactDownloadOptions,
-                this,
-                this_ = MakeStrong(this)
-            ] {
-                return VolumeManager_->PrepareNonRootVolumes(userSandboxPath, jobId, volumeParams, volumeMounts, artifactDownloadOptions)
+            [&] {
+                return VolumeManager_->PrepareNonRootVolumes(userSandboxPath, jobId, volumeParams, std::move(perVolumeOverlayData), volumeMounts)
                     .AsUnique()
                     .Apply(
                         BIND(
@@ -498,7 +510,7 @@ public:
         return Location_->GetDiskStatistics(SlotIndex_);
     }
 
-    TString GetSlotPath() const override
+    std::string GetSlotPath() const override
     {
         VerifyEnabled();
 
@@ -545,6 +557,7 @@ public:
 
     TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
+        const std::vector<TBaseVolumeParamsPtr>& nonRootVolumeParams,
         bool ignoreQuota) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -559,6 +572,7 @@ public:
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options,
+                    nonRootVolumeParams,
                     ignoreQuota);
             });
     }
@@ -569,7 +583,7 @@ public:
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
-        const std::optional<TString>& hostName,
+        const std::optional<std::string>& hostName,
         const std::vector<TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) override
@@ -599,9 +613,9 @@ public:
 
     void OnArtifactPreparationFailed(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& artifactPath,
+        const std::string& artifactPath,
         const TError& error) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -645,7 +659,7 @@ public:
         Logger.AddTag("AllocationId: %v", allocationId);
     }
 
-    TString GetJobProxyUnixDomainSocketPath() const override
+    std::string GetJobProxyUnixDomainSocketPath() const override
     {
         VerifyEnabled();
 
@@ -679,7 +693,7 @@ public:
         return Location_->ValidateRootFS(rootVolume);
     }
 
-    TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
+    std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
     {
         VerifyEnabled();
 
@@ -725,11 +739,11 @@ private:
 
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
-    const TString NodeTag_;
+    const std::string NodeTag_;
 
     bool PreparationCanceled_ = false;
 
-    const TString JobProxyUnixDomainSocketPath_;
+    const std::string JobProxyUnixDomainSocketPath_;
 
     const std::optional<TNumaNodeInfo> NumaNodeAffinity_;
 
@@ -770,7 +784,7 @@ private:
         }
     }
 
-    TString GetJobProxyGrpcUnixDomainSocketPath() const
+    std::string GetJobProxyGrpcUnixDomainSocketPath() const
     {
         VerifyEnabled();
 
@@ -859,7 +873,7 @@ IUserSlotPtr CreateSlot(
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
     NExecNode::IBootstrap* bootstrap,
-    const TString& nodeTag,
+    const std::string& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TDeprecatedDiskRequest diskRequest,

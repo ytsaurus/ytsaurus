@@ -51,11 +51,29 @@ namespace NKikimr::NDDisk {
             return;
         }
 
-        // TODO: check that request is within a single chunk
-
         const auto& record = ev->Get()->Record;
         const TQueryCredentials creds(record.GetCredentials());
         const TBlockSelector selector(record.GetSelector());
+        const TWriteInstruction instr(record.GetInstruction());
+
+        if (instr.PayloadId) {
+            const TRope& data = ev->Get()->GetPayload(*instr.PayloadId);
+            auto dataIter = data.Begin();
+            if (dataIter.ContiguousSize() != data.size() ||
+                    reinterpret_cast<uintptr_t>(dataIter.ContiguousData()) % DiskFormat->SectorSize != 0) {
+                TStringStream ss;
+                ss << "payload must be contiguous and aligned to " << DiskFormat->SectorSize << " bytes"
+                    << ", contiguousSize# " << dataIter.ContiguousSize()
+                    << " dataSize# " << data.size()
+                    << " aligned# " << (reinterpret_cast<uintptr_t>(dataIter.ContiguousData()) % DiskFormat->SectorSize == 0);
+                SendReply(*ev, std::make_unique<TEvWriteResult>(
+                    NKikimrBlobStorage::NDDisk::TReplyStatus::INCORRECT_REQUEST,
+                    ss.Str()));
+                Counters.Interface.Write.Request(0);
+                Counters.Interface.Write.Reply(false);
+                return;
+            }
+        }
 
         TChunkRef& chunkRef = ChunkRefs[creds.TabletId][selector.VChunkIndex];
         if (!chunkRef.PendingEventsForChunk.empty() || !chunkRef.ChunkIdx) {
@@ -68,14 +86,14 @@ namespace NKikimr::NDDisk {
 
         Counters.Interface.Write.Request(selector.Size);
 
-        const TWriteInstruction instr(record.GetInstruction());
-
-        auto span = std::move(NWilson::TSpan(TWilson::DDiskTopLevel, std::move(ev->TraceId), "DDisk.Write",
-                NWilson::EFlags::NONE, TActivationContext::ActorSystem())
-            .Attribute("tablet_id", static_cast<long>(creds.TabletId))
-            .Attribute("vchunk_index", static_cast<long>(selector.VChunkIndex))
+        auto span = NWilson::TSpan(TWilson::DDiskTopLevel, std::move(ev->TraceId), "DDisk.Write",
+                NWilson::EFlags::NONE, TActivationContext::ActorSystem());
+        NPrivate::AddMessageWaitAttributes(span);
+        span
+            .Attribute("tablet_id", static_cast<i64>(creds.TabletId))
+            .Attribute("vchunk_index", static_cast<i64>(selector.VChunkIndex))
             .Attribute("offset_in_bytes", selector.OffsetInBytes)
-            .Attribute("size", selector.Size));
+            .Attribute("size", selector.Size);
 
         TRope data;
         if (instr.PayloadId) {
@@ -86,9 +104,7 @@ namespace NKikimr::NDDisk {
 
         auto offset = DiskFormat->Offset(chunkRef.ChunkIdx, 0, selector.OffsetInBytes);
 
-        // TODO: use pool
-        std::unique_ptr<TDirectIoOpBase> op = std::make_unique<TDDiskIoOp>(
-            SelfId(), Counters, ev.Get());
+        std::unique_ptr<TDirectIoOpBase> op = AllocateOp<TDDiskIoOp>(ev.Get());
         op->SetSpan(std::move(span));
         op->PrepareWrite(std::move(data), offset, chunkRef.ChunkIdx, selector.OffsetInBytes);
 
@@ -119,11 +135,12 @@ namespace NKikimr::NDDisk {
     }
 
     void TDDiskActor::Handle(TEvRead::TPtr ev) {
+        STLOG(PRI_TRACE, BS_DDISK, BSDD21,
+            "TDDiskActor::Handle(TEvRead)", (DDiskId, DDiskId), (Msg, ev->Get()->Record));
+
         if (!CheckQuery(*ev, &Counters.Interface.Read)) {
             return;
         }
-
-        // TODO: check that request is within a single chunk
 
         const auto& record = ev->Get()->Record;
         const TQueryCredentials creds(record.GetCredentials());
@@ -139,12 +156,14 @@ namespace NKikimr::NDDisk {
 
         Counters.Interface.Read.Request(selector.Size);
 
-        auto span = std::move(NWilson::TSpan(TWilson::DDiskTopLevel, std::move(ev->TraceId), "DDisk.Read",
-                NWilson::EFlags::NONE, TActivationContext::ActorSystem())
-            .Attribute("tablet_id", static_cast<long>(creds.TabletId))
-            .Attribute("vchunk_index", static_cast<long>(selector.VChunkIndex))
+        auto span = NWilson::TSpan(TWilson::DDiskTopLevel, std::move(ev->TraceId), "DDisk.Read",
+                NWilson::EFlags::NONE, TActivationContext::ActorSystem());
+        NPrivate::AddMessageWaitAttributes(span);
+        span
+            .Attribute("tablet_id", static_cast<i64>(creds.TabletId))
+            .Attribute("vchunk_index", static_cast<i64>(selector.VChunkIndex))
             .Attribute("offset_in_bytes", selector.OffsetInBytes)
-            .Attribute("size", selector.Size));
+            .Attribute("size", selector.Size);
 
         if (!chunkRef.ChunkIdx) {
             auto zero = TRcBuf::Uninitialized(selector.Size);
@@ -159,9 +178,7 @@ namespace NKikimr::NDDisk {
 
         auto offset = DiskFormat->Offset(chunkRef.ChunkIdx, 0, selector.OffsetInBytes);
 
-        // TODO: use pool
-        std::unique_ptr<TDirectIoOpBase> op = std::make_unique<TDDiskIoOp>(
-            SelfId(), Counters, ev.Get());
+        std::unique_ptr<TDirectIoOpBase> op = AllocateOp<TDDiskIoOp>(ev.Get());
         op->SetSpan(std::move(span));
         op->PrepareRead(selector.Size, offset, chunkRef.ChunkIdx, selector.OffsetInBytes);
 
@@ -220,8 +237,8 @@ namespace NKikimr::NDDisk {
 
         return submitted;
 #else
-	Y_UNUSED(op);
-	Y_UNUSED(flush);
+        Y_UNUSED(op);
+        Y_UNUSED(flush);
 #endif
         return false;
     }
@@ -307,6 +324,8 @@ namespace NKikimr::NDDisk {
         const ui32 opsToWait = currentInflight - inDiskInflight;
         const ui32 usecWait = (opsToWait + opsInParallel - 1) * opMinLatencyUs / opsInParallel;
         Schedule(TDuration::MicroSeconds(usecWait), new TEvents::TEvWakeup(EWakeupTag::WakeupIoSubmitQueue));
+#else
+        Y_UNUSED(this);
 #endif
     }
 
@@ -330,6 +349,8 @@ namespace NKikimr::NDDisk {
         UringRouter->Flush();
 
         ScheduleIoSubmitWakeup();
+#else
+        Y_UNUSED(this);
 #endif
     }
 

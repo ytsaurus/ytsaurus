@@ -5,7 +5,6 @@
 #include "actions.h"
 #include "bootstrap.h"
 #include "ban_service.h"
-#include "config.h"
 #include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -17,6 +16,8 @@
 #include "sequoia_session.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
+
+#include <yt/yt/server/lib/cypress_proxy/config.h>
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
@@ -120,7 +121,7 @@ public:
         return Bootstrap_->GetMasterConnector()->IsUp();
     }
 
-    const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
+    TObjectServiceDynamicConfigPtr GetDynamicConfig() const
     {
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->ObjectService;
     }
@@ -223,7 +224,7 @@ private:
             queue->ConfigureWeightThrottler(newConfig);
             queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
-            // We utilize the fact that #GetOrCreateThrottle keeps #TWrappedThrottler pointers valid,
+            // We utilize the fact that #GetOrCreateThrottler keeps #TWrappedThrottler pointers valid,
             // including the one inside the request queue.
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
@@ -301,6 +302,7 @@ public:
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
+        , DynamicConfig_(Owner_->GetDynamicConfig())
         , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
@@ -338,6 +340,7 @@ private:
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
         ERequestTarget Target = ERequestTarget::Undetermined;
+        bool IsSequoiaFallback = false;
 
         // If request was resolved in Sequoia and forwared to master server then
         // "No such object" error should be retriable to allow the following use
@@ -361,6 +364,8 @@ private:
     };
     std::vector<TSubrequest> Subrequests_;
 
+    const TObjectServiceDynamicConfigPtr DynamicConfig_;
+
     const NLogging::TLogger Logger;
 
     void GuardedRun()
@@ -368,7 +373,7 @@ private:
         ValidateUserNotBanned();
         ParseSubrequests();
 
-        if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
+        if (!DynamicConfig_->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
         } else {
@@ -612,7 +617,7 @@ private:
                 NObjectServer::ComputeForwardingTimeout(
                     *RpcContext_->GetTimeout(),
                     RpcContext_->GetStartTime(),
-                    Owner_->GetDynamicConfig()->ForwardedRequestTimeoutReserve));
+                    DynamicConfig_->ForwardedRequestTimeoutReserve));
         }
 
         // Copy some header extensions.
@@ -748,6 +753,7 @@ private:
         if (involvesSequoiaError.has_value()) {
             auto& subrequest = Subrequests_[subrequestIndex];
             subrequest.Target = ERequestTarget::Sequoia;
+            subrequest.IsSequoiaFallback = true;
             RewriteSequoiaRequestTargetPath(&subrequest, *involvesSequoiaError);
         }
 
@@ -1033,18 +1039,27 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
+        bool hasSequoiaFallbackRequests = false;
+        int relevantSubrequestCount = 0;
         auto isSubrequestRelevant = [] (const TSubrequest& subrequest) {
             return subrequest.Target == ERequestTarget::Undetermined ||
                 subrequest.Target == ERequestTarget::Sequoia;
         };
+        for (const auto& subrequest : Subrequests_) {
+            if (isSubrequestRelevant(subrequest)) {
+                ++relevantSubrequestCount;
+            }
+            if (subrequest.IsSequoiaFallback) {
+                hasSequoiaFallbackRequests = true;
+            }
+        }
 
-        auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
         if (relevantSubrequestCount == 0) {
             // No Sequoia requests are present.
             return;
         }
 
-        MaybeSyncWithMaster();
+        MaybeSyncWithMaster(hasSequoiaFallbackRequests);
 
         const auto& invoker = Owner_->GetDefaultInvoker();
         std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
@@ -1129,7 +1144,7 @@ private:
     // Performs selective synchronization with
     // - the user directory,
     // - the ground update queues across all master cells.
-    void MaybeSyncWithMaster() const
+    void MaybeSyncWithMaster(bool hasSequoiaFallbackRequests) const
     {
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
         if (!config->EnableUserDirectoryPerRequestSync &&
@@ -1149,7 +1164,9 @@ private:
             const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
             futures.push_back(userDirectorySynchronizer->NextSync(true));
         }
-        if (config->EnableGroundUpdateQueuesSync) {
+        if (config->EnableGroundUpdateQueuesSync &&
+            (Owner_->GetDynamicConfig()->SyncGroundUpdateQueueOnEveryRequest || hasSequoiaFallbackRequests))
+        {
             futures.push_back(DoSyncWithGroundUpdateQueues());
         }
 

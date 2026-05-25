@@ -49,7 +49,6 @@ class TestJobSlicingBase(YTEnvSetup):
         return result["summary"]
 
 
-@pytest.mark.enabled_multidaemon
 class TestCompressedDataSizePerJob(TestJobSlicingBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1301,7 +1300,6 @@ fi
         assert "inaccurately_estimated_compressed_data_size" not in op.get_alerts()
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobSlicingWithLostInput(TestJobSlicingBase):
     ENABLE_MULTIDAEMON = True
 

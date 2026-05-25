@@ -54,7 +54,7 @@ void BuildRegistrationYson(TFluentList fluent, TConsumerRegistrationTableRow reg
 void BuildQueueStatusYson(
     const TQueueSnapshotPtr& snapshot,
     const IAlertManagerPtr& alertManager,
-    const TErrorOr<THashMap<TString, TQueueExportProgressPtr>>& queueExportsProgressOrError,
+    const TErrorOr<THashMap<std::string, TQueueExportProgressPtr>>& queueExportsProgressOrError,
     TFluentAny fluent)
 {
     fluent

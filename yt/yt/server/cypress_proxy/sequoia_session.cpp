@@ -531,7 +531,9 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     // lib/sequoia/cypress_transaction.cpp.
     SequoiaTransaction_->LockRow(
         NRecords::TTransactionKey{.TransactionId = cypressTransactionId},
-        ELockType::SharedWrite);
+        SequoiaTransaction_->GetFeatures().UseSharedWriteLocksForCypressTransactions
+            ? ELockType::SharedWrite
+            : ELockType::SharedStrong);
 
     auto affectedCellTags = SequoiaTransaction_->GetAffectedMasterCellTags();
     Erase(affectedCellTags, CellTagFromId(cypressTransactionId));
@@ -600,10 +602,12 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
 
     MaybeLockAndReplicateCypressTransaction();
 
+    SequoiaTransaction_->AddBarrierTags({NNative::SequoiaCypressOrderingTag});
+    SequoiaTransaction_->AddStrongOrderingTags({NNative::SequoiaCypressOrderingTag});
+
     WaitFor(SequoiaTransaction_->Commit({
             .CoordinatorCellId = coordinatorCellId,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-            .StronglyOrdered = true,
         })
         .Apply(BIND([] (const TError& error) -> TError {
             if (error.IsOK()) {
@@ -826,11 +830,7 @@ TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster
     auto requestTemplate = TYPathProxy::Get("&/@");
     ToProto(requestTemplate->mutable_attributes(), attributeFilter);
 
-    auto batcher = TMasterYPathProxy::CreateGetBatcher(
-        GetNativeAuthenticatedClient(),
-        requestTemplate,
-        nodeIds,
-        GetCurrentCypressTransactionId());
+    auto batcher = CreateGetBatcher(requestTemplate, nodeIds);
     return batcher.Invoke()
         .Apply(BIND([] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& nodeIdToRspOrError) {
             TNodeIdToConstAttributes result;
@@ -844,9 +844,32 @@ TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster
         }));
 }
 
-const NApi::NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
+const NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
 {
     return NativeAuthenticatedClient_;
+}
+
+TMasterYPathProxy::TVectorizedGetBatcher TSequoiaSession::CreateGetBatcher(
+    const TYPathProxy::TReqGetPtr& requestTemplate,
+    TRange<TObjectId> objectIds,
+    std::optional<ETreeScope> scope) const
+{
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+    auto subbatchSize = dynamicConfig->DefaultVectorizedSubbatchSize;
+
+    if (scope) {
+        auto it = dynamicConfig->VectorizedSubbatchSizeOverrides.find(*scope);
+        if (it != dynamicConfig->VectorizedSubbatchSizeOverrides.end()) {
+            subbatchSize = it->second;
+        }
+    }
+
+    return TMasterYPathProxy::CreateGetBatcher(
+        GetNativeAuthenticatedClient(),
+        requestTemplate,
+        objectIds,
+        GetCurrentCypressTransactionId(),
+        subbatchSize);
 }
 
 void TSequoiaSession::AcquireCypressLockInSequoia(
@@ -950,7 +973,7 @@ void TSequoiaSession::MultisetNodeAttributes(
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
     const TYsonString& effectiveAcl,
-    const NApi::TSuppressableAccessTrackingOptions& options)
+    const TSuppressableAccessTrackingOptions& options)
 {
     AcquireCypressLockInSequoia(nodeId, ELockMode::Shared);
 
@@ -1568,7 +1591,7 @@ TSequoiaSession::TSequoiaSession(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr sequoiaTransaction,
     std::vector<TTransactionId> cypressTransactionIds,
-    NApi::NNative::IClientPtr nativeAuthenticatedClient,
+    NNative::IClientPtr nativeAuthenticatedClient,
     TUserDescriptorPtr authenticatedUser)
     : SequoiaTransaction_(sequoiaTransaction)
     , Bootstrap_(bootstrap)

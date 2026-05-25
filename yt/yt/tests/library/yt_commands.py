@@ -196,6 +196,13 @@ def init_drivers(clusters):
             _clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
 
 
+def create_cypress_proxy_bypass_driver(driver_config):
+    config_without_cypress_proxy = pycopy.deepcopy(driver_config)
+    config_without_cypress_proxy["api_version"] = 4
+    del config_without_cypress_proxy["cypress_proxy"]
+    return Driver(config=config_without_cypress_proxy)
+
+
 def sorted_dicts(list_of_dicts):
     sorted_items_list = [(sorted(list(dict.items())), index) for index, dict in enumerate(list_of_dicts)]
     sorted_items_list.sort()
@@ -497,8 +504,9 @@ def execute_command(
 
     if response_parameters is not None:
         response_params = response.response_parameters()
-        print_debug(response_parameters)
-        response_parameters.update(response_params)
+        if response_params is not None:
+            print_debug(response_parameters)
+            response_parameters.update(response_params)
 
     if not response.is_ok():
         # TODO(ignat): it build empty error with response.error() as inner error. Fix it!
@@ -578,18 +586,22 @@ def multicell_sleep():
         time.sleep(0.5)
 
 
+def master_memory_sleep():
+    multicell_sleep()
+    time.sleep(0.2)
+    multicell_sleep()
+
+
+def upstream_sync_sleep():
+    time.sleep(0.5)
+
+
 def wait_for_sys_config_sync():
     config = get("//sys/@config")
     drivers = get_cluster_drivers()
     wait(
         lambda: all(get("//sys/@config", driver=driver) == config for driver in drivers)
     )
-
-
-def master_memory_sleep():
-    multicell_sleep()
-    time.sleep(0.2)
-    multicell_sleep()
 
 
 def dump_job_context(job_id, path, **kwargs):
@@ -998,7 +1010,7 @@ def pull_queue(queue_path, offset, partition_index, **kwargs):
     return execute_command_with_output_format("pull_queue", kwargs)
 
 
-def pull_consumer(consumer_path, queue_path, offset, partition_index, **kwargs):
+def pull_consumer(consumer_path, queue_path, offset: int | None = None, partition_index: int = 0, **kwargs):
     kwargs["consumer_path"] = consumer_path
     kwargs["queue_path"] = queue_path
     kwargs["offset"] = offset
@@ -1328,6 +1340,10 @@ def discover_proxies(type_, **kwargs):
 
 def get_supported_features(**kwargs):
     return execute_command("get_supported_features", kwargs, parse_yson=True)
+
+
+def check_cluster_liveness(**kwargs):
+    execute_command("check_cluster_liveness", kwargs)
 
 
 def start_shuffle(account, partition_count, parent_transaction_id, **kwargs):
@@ -2269,7 +2285,11 @@ def create_user(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    return execute_command("create", kwargs)
+    result = execute_command("create", kwargs)
+    # Ensure that the user is created everywhere (at each cell and at each master peer).
+    # User state caches will be requesting user info with various sync suppressions.
+    upstream_sync_sleep()
+    return result
 
 
 def remove_user(name, **kwargs):
@@ -3775,139 +3795,6 @@ def get_supported_erasure_codecs(filter=None):
     if filter is None:
         return yt_tests_settings.supported_erasure_codes
     return [codec for codec in filter if codec in yt_tests_settings.supported_erasure_codes]
-
-
-def get_pipeline_spec(pipeline_path, spec_path=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-
-    return execute_command("get_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, force=None, **kwargs):
-    if not is_raw:
-        spec = yson.dumps(spec)
-
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-    if force is not None:
-        kwargs["force"] = force
-
-    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
-
-
-def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, force=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-    if force is not None:
-        kwargs["force"] = force
-
-    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-
-    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, **kwargs):
-    if not is_raw:
-        spec = yson.dumps(spec)
-
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-
-    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
-
-
-def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if spec_path is not None:
-        kwargs["spec_path"] = spec_path
-    if expected_version is not None:
-        kwargs["expected_version"] = expected_version
-
-    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def start_pipeline(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    return execute_command("start_pipeline", kwargs, unwrap_v4_result=False)
-
-
-def stop_pipeline(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    return execute_command("stop_pipeline", kwargs, unwrap_v4_result=False)
-
-
-def pause_pipeline(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    return execute_command("pause_pipeline", kwargs, unwrap_v4_result=False)
-
-
-def get_pipeline_state(pipeline_path, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    try:
-        return execute_command("get_pipeline_state", kwargs, parse_yson=True, unwrap_v4_result=False).lower()
-    except YtResponseError:
-        return "unknown"
-
-
-def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
-    kwargs["pipeline_path"] = pipeline_path
-    if view_path is not None:
-        kwargs["view_path"] = view_path
-    if cache is not None:
-        kwargs["cache"] = cache
-
-    return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
-
-
-def flow_execute(
-    pipeline_path: str,
-    flow_command: str,
-    flow_argument=None,
-    is_raw=False,
-    plaintext=False,
-    **kwargs
-):
-    is_input_raw = is_raw or "input_format" in kwargs
-    if not is_input_raw:
-        flow_argument = yson.dumps(flow_argument)
-    elif isinstance(flow_argument, str):
-        flow_argument = flow_argument.encode("utf-8")
-    elif not isinstance(flow_argument, (bytes, bytearray)):
-        raise TypeError(
-            "Serialized flow_argument must be str, bytes or bytearray, "
-            "actual type: {}".format(flow_argument.__class__)
-        )
-
-    kwargs["pipeline_path"] = pipeline_path
-    kwargs["flow_command"] = flow_command
-
-    if plaintext:
-        kwargs["flow_argument"] = flow_argument
-
-    is_output_raw = plaintext or is_raw or "output_format" in kwargs
-    return execute_command(
-        "flow_execute" if not plaintext else "flow_execute_plaintext",
-        kwargs,
-        input_stream=BytesIO(flow_argument) if not plaintext else None,
-        parse_yson=not is_output_raw,
-        unwrap_v4_result=False)
 
 
 def make_externalized_tx_id(tx_id, externalizing_cell_tag):

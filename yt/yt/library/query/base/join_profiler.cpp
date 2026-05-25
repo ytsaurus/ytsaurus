@@ -8,6 +8,8 @@
 #include <yt/yt/library/query/misc/rowset_subrange_reader.h>
 #include <yt/yt/library/query/misc/rowset_writer.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -15,6 +17,12 @@
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
+
+#include <yt/yt/core/misc/range_formatters.h>
+
+#include <library/cpp/cache/cache.h>
+
+#include <absl/container/flat_hash_map.h>
 
 namespace NYT::NQueryClient {
 
@@ -25,14 +33,48 @@ using namespace NTableClient;
 
 namespace {
 
-DECLARE_REFCOUNTED_CLASS(TEmptyReader)
+struct TJoinedRowsVectorSizeProvider
+{
+    size_t operator()(const std::vector<TOwningRow>& rows) const
+    {
+        return std::max<size_t>(rows.size(), 1);
+    }
+};
 
-class TEmptyReader
+using TJoinRowsCache = TLRUCache<TOwningRow, std::vector<TOwningRow>, TNoopDelete, TJoinedRowsVectorSizeProvider>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TBatchReader)
+
+class TBatchReader
     : public ISchemafulUnversionedReader
 {
-    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions&) override
+public:
+    explicit TBatchReader(IUnversionedRowBatchPtr batch)
+        : Batch_(std::move(batch))
+    { }
+
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/) override
     {
-        return nullptr;
+        return std::exchange(Batch_, {});
+    }
+
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return {};
+    }
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return {};
+    }
+    bool IsFetchingCompleted() const override
+    {
+        return true;
+    }
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
     }
 
     TFuture<void> GetReadyEvent() const override
@@ -40,28 +82,11 @@ class TEmptyReader
         return OKFuture;
     }
 
-    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return {};
-    }
-
-    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
-    {
-        return {};
-    }
-
-    bool IsFetchingCompleted() const override
-    {
-        return false;
-    }
-
-    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
-    {
-        return {};
-    }
+private:
+    IUnversionedRowBatchPtr Batch_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TEmptyReader)
+DEFINE_REFCOUNTED_TYPE(TBatchReader)
 
 } // namespace
 
@@ -82,7 +107,7 @@ public:
 
     ISchemafulUnversionedReaderPtr FetchJoinedRows(std::vector<TRow> keys, TRowBufferPtr /*permanentBuffer*/) override {
         if (keys.empty()) {
-            return New<TEmptyReader>();
+            return New<TBatchReader>(/*batch*/ nullptr);
         } else {
             return CreateRowsetSubrangeReader(
                 AsyncRows_,
@@ -116,6 +141,8 @@ public:
         TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
         IMemoryChunkProviderPtr memoryChunkProvider,
         bool useOrderByInJoinSubqueries,
+        bool allowHeavyRangeInferenceInJoins,
+        std::optional<i64> cacheSize,
         TLogger logger)
         : JoinClause_(std::move(joinClause))
         , ExecutePlan_(std::move(executeForeign))
@@ -123,6 +150,10 @@ public:
         , GetPrefetchJoinDataSource_(std::move(getPrefetchJoinDataSource))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , UseOrderByInJoinSubqueries_(useOrderByInJoinSubqueries)
+        , AllowHeavyRangeInferenceInJoins_(allowHeavyRangeInferenceInJoins)
+        , Cache_(cacheSize
+            ? std::make_unique<TJoinRowsCache>(*cacheSize, /*multiValue*/ false, TJoinedRowsVectorSizeProvider{})
+            : nullptr)
         , Logger(std::move(logger))
     { }
 
@@ -171,6 +202,10 @@ public:
             return ISchemafulUnversionedReaderPtr{};
         }
 
+        if (Cache_) {
+            return FetchJoinedRowsUsingCache(std::move(keys), std::move(permanentBuffer));
+        }
+
         auto joinFragment = GetForeignQuery(std::move(keys), std::move(permanentBuffer));
 
         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinFragment.Query->Id);
@@ -196,8 +231,136 @@ private:
     const TGetPrefetchJoinDataSource GetPrefetchJoinDataSource_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const bool UseOrderByInJoinSubqueries_;
+    const bool AllowHeavyRangeInferenceInJoins_;
+
+    const std::unique_ptr<TJoinRowsCache> Cache_;
 
     const TLogger Logger;
+
+    ISchemafulUnversionedReaderPtr FetchJoinedRowsUsingCache(
+        std::vector<TRow> keys,
+        TRowBufferPtr permanentBuffer)
+    {
+        int foreignKeyPrefix = JoinClause_->ForeignKeyPrefix;
+        int joinKeySize = JoinClause_->SelfEquations.size();
+
+        std::vector<TOwningRow> cachedRows;
+        std::vector<TOwningRow> missingOwningKeys;
+        i64 keyCount = std::ssize(keys);
+        i64 missingKeyCount = 0;
+
+        for (auto key : keys) {
+            TOwningRow keyOwning(key);
+            auto it = Cache_->Find(keyOwning);
+            if (it != Cache_->End()) {
+                for (const auto& row : it.Value()) {
+                    cachedRows.push_back(row);
+                }
+            } else {
+                missingOwningKeys.push_back(std::move(keyOwning));
+                keys[missingKeyCount++] = key;
+            }
+        }
+        keys.resize(missingKeyCount);
+
+        YT_LOG_DEBUG("Collected join rows from cache (MissCount: %v, HitCount: %v, FoundCachedRowCount: %v)",
+            missingKeyCount,
+            keyCount - std::ssize(missingOwningKeys),
+            cachedRows.size());
+
+        if (missingOwningKeys.empty()) {
+            std::vector<TRow> rows;
+            rows.reserve(cachedRows.size());
+            for (const auto& owningRow : cachedRows) {
+                rows.push_back(TRow(owningRow));
+            }
+            return New<TBatchReader>(CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), std::move(cachedRows))));
+        }
+
+        auto joinFragment = GetForeignQuery(std::move(keys), permanentBuffer);
+
+        YT_LOG_DEBUG("Evaluating remote subquery with cache (SubqueryId: %v)", joinFragment.Query->Id);
+
+        auto writer = New<TSimpleRowsetWriter>(MemoryChunkProvider_);
+
+        ExecutePlan_(joinFragment, writer)
+            .AsUnique().Subscribe(BIND([this, this_ = MakeStrong(this), writer] (TErrorOr<TQueryStatistics>&& error) {
+                if (!error.IsOK()) {
+                    writer->Fail(error);
+                } else {
+                    ConsumeSubqueryStatistics_(std::move(error.Value()));
+                }
+            }));
+
+        auto asyncMerged = writer->GetResult().Apply(
+            BIND([this, this_ = MakeStrong(this),
+                cachedRows = std::move(cachedRows),
+                sortedMissingKeys = std::move(missingOwningKeys),
+                foreignKeyPrefix,
+                joinKeySize
+            ] (const TSharedRange<TRow>& subqueryRows) mutable {
+                auto joinKeyLess = [&] (const TOwningRow& lhs, TRow rhs) {
+                    return CompareValueRanges(lhs.Elements(), rhs.FirstNElements(joinKeySize)) < 0;
+                };
+                auto joinKeyEqual = [&] (TRow lhs, const TOwningRow& rhs) {
+                    return CompareValueRanges(lhs.FirstNElements(joinKeySize), rhs.Elements()) == 0;
+                };
+
+                std::vector<TOwningRow> fetched;
+                fetched.reserve(subqueryRows.size());
+                std::vector<bool> seen(sortedMissingKeys.size(), false);
+
+                for (auto row : subqueryRows) {
+                    auto lb = std::lower_bound(
+                        sortedMissingKeys.begin(),
+                        sortedMissingKeys.end(),
+                        row,
+                        joinKeyLess);
+                    if (lb != sortedMissingKeys.end() && joinKeyEqual(row, *lb)) {
+                        seen[lb - sortedMissingKeys.begin()] = true;
+                        fetched.emplace_back(row);
+                    }
+                }
+
+                std::sort(fetched.begin(), fetched.end(), [&] (const TOwningRow& lhs, const TOwningRow& rhs) {
+                    return CompareValueRanges(lhs.FirstNElements(joinKeySize), rhs.FirstNElements(joinKeySize)) < 0;
+                });
+
+                for (auto groupIt = fetched.begin(); groupIt != fetched.end(); ) {
+                    auto groupEnd = groupIt;
+                    while (groupEnd != fetched.end() &&
+                        CompareValueRanges(groupEnd->FirstNElements(joinKeySize), groupIt->FirstNElements(joinKeySize)) == 0)
+                    {
+                        ++groupEnd;
+                    }
+                    auto lb = std::lower_bound(sortedMissingKeys.begin(), sortedMissingKeys.end(), TRow(*groupIt), joinKeyLess);
+                    Cache_->Insert(*lb, std::vector<TOwningRow>(groupIt, groupEnd));
+                    groupIt = groupEnd;
+                }
+
+                for (size_t i = 0; i < sortedMissingKeys.size(); ++i) {
+                    if (!seen[i]) {
+                        Cache_->Insert(sortedMissingKeys[i], {});
+                    }
+                }
+
+                std::vector<TRow> merged;
+                merged.reserve(cachedRows.size() + fetched.size());
+                std::merge(
+                    cachedRows.begin(), cachedRows.end(),
+                    fetched.begin(), fetched.end(),
+                    std::back_inserter(merged),
+                    [foreignKeyPrefix] (const TOwningRow& lhs, const TOwningRow& rhs) {
+                        return CompareValueRanges(
+                            lhs.FirstNElements(foreignKeyPrefix),
+                            rhs.FirstNElements(foreignKeyPrefix)) < 0;
+                    });
+
+                return MakeSharedRange(std::move(merged), std::move(cachedRows), std::move(fetched));
+            }));
+
+        return CreateRowsetSubrangeReader(std::move(asyncMerged));
+    }
 
     TPlanFragment GetForeignQuery(
         std::vector<TRow> keys,
@@ -247,14 +410,17 @@ private:
                 foreignEquations,
                 MakeSharedRange(std::move(keys), std::move(buffer)));
 
-            newQuery->WhereClause = newQuery->WhereClause
-                ? MakeAndExpression(inClause, newQuery->WhereClause)
-                : inClause;
+            newQuery->WhereClause = MakeAndExpression(inClause, newQuery->WhereClause);
 
             if (JoinClause_->Schema.Original->HasComputedColumns() &&
                 AllComputedColumnsEvaluated(*JoinClause_))
             {
-                newQuery->ForceLightRangeInference = true;
+                if (AllowHeavyRangeInferenceInJoins_) {
+                    YT_LOG_DEBUG("Using heavy range inference in join subquery");
+                } else {
+                    newQuery->ForceLightRangeInference = true;
+                    YT_LOG_DEBUG("Using light range inference in join subquery");
+                }
             }
 
             if (foreignKeyPrefix > 0) {
@@ -282,9 +448,9 @@ private:
             }
 
             newQuery->InferRanges = false;
-            if (foreignKeyPrefix > 0) {
+            newQuery->Limit = OrderedReadWithPrefetchHint;
+            if (UseOrderByInJoinSubqueries_) {
                 newQuery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
-                newQuery->Limit = OrderedReadWithPrefetchHint;
             }
         }
 
@@ -376,6 +542,8 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
     bool useOrderByInJoinSubqueries,
+    bool allowHeavyRangeInferenceInJoins,
+    std::optional<i64> cacheSize,
     TLogger logger)
 {
     return New<TJoinSubqueryProfiler>(
@@ -385,7 +553,271 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
         std::move(getPrefetchJoinDataSource),
         std::move(memoryChunkProvider),
         useOrderByInJoinSubqueries,
+        allowHeavyRangeInferenceInJoins,
+        std::move(cacheSize),
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeJoinRowsetProfiler
+    : public IJoinProfiler
+    , public IJoinRowsProducer
+{
+public:
+    TMergeJoinRowsetProfiler(TSharedRange<TRow> rowset, int joinKeySize, TLogger logger)
+        : ForeignRowset_(std::move(rowset))
+        , JoinKeySize_(joinKeySize)
+        , Logger(std::move(logger))
+    { }
+
+    IJoinRowsProducerPtr Profile() override
+    {
+        return this;
+    }
+
+    ISchemafulUnversionedReaderPtr FetchJoinedRows(
+        std::vector<TRow> joinKeys,
+        TRowBufferPtr /*buffer*/) override
+    {
+        YT_LOG_DEBUG("Merge join profiler got keys (Keys: %v)", joinKeys);
+
+        YT_ASSERT(std::is_sorted(joinKeys.begin(), joinKeys.end(), [&] (TRow lhs, TRow rhs) {
+            return CompareValueRanges(lhs.FirstNElements(JoinKeySize_), rhs.FirstNElements(JoinKeySize_)) < 0;
+        }));
+
+        std::vector<TRow> matchedRows;
+
+        auto beginSearch = ForeignRowset_.Begin();
+
+        for (const auto& key : joinKeys) {
+            auto it = ExponentialSearch(
+                beginSearch,
+                ForeignRowset_.End(),
+                [&] (auto foreignRowIt) {
+                    return CompareValueRanges(
+                        foreignRowIt->FirstNElements(JoinKeySize_),
+                        key.Elements()) < 0;
+                });
+
+            while (it != ForeignRowset_.End() &&
+                CompareValueRanges(it->FirstNElements(JoinKeySize_), key.Elements()) == 0)
+            {
+                matchedRows.push_back(*it);
+                it++;
+            }
+
+            beginSearch = it;
+        }
+
+        YT_LOG_DEBUG("Merge join profiler matched rows (Rows: %v)", matchedRows);
+
+        auto batch = CreateBatchFromRows(MakeSharedRange(std::move(matchedRows), ForeignRowset_.GetHolder()));
+        return New<TBatchReader>(std::move(batch));
+    }
+
+private:
+    const TSharedRange<TRow> ForeignRowset_;
+    const int JoinKeySize_;
+
+    const TLogger Logger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TJoinHashTable = absl::flat_hash_map<
+    TUnversionedValueRange,
+    std::vector<TRow>,
+    TDefaultUnversionedValueRangeHash,
+    TDefaultUnversionedValueRangeEqual>;
+
+class THashJoinRowsetProfiler
+    : public IJoinProfiler
+    , public IJoinRowsProducer
+{
+public:
+    THashJoinRowsetProfiler(TSharedRange<TRow> rowset, int joinKeySize, TLogger logger)
+        : ForeignRowset_(std::move(rowset))
+        , HashTable_(MakeHashTable(ForeignRowset_, joinKeySize))
+        , Logger(std::move(logger))
+    { }
+
+    IJoinRowsProducerPtr Profile() override
+    {
+        return this;
+    }
+
+    ISchemafulUnversionedReaderPtr FetchJoinedRows(
+        std::vector<TRow> joinKeys,
+        TRowBufferPtr /*buffer*/) override
+    {
+        YT_LOG_DEBUG("Hash table join profiler got keys (Keys: %v)", joinKeys);
+
+        std::vector<TRow> matchedRows;
+        for (auto joinKey : joinKeys) {
+            auto it = HashTable_.find(joinKey.Elements());
+            if (it != HashTable_.end()) {
+                matchedRows.insert(matchedRows.end(), it->second.begin(), it->second.end());
+            }
+        }
+
+        YT_LOG_DEBUG("Hash table join profiler matched rows (Rows: %v)", matchedRows);
+
+        auto batch = CreateBatchFromRows(MakeSharedRange(std::move(matchedRows), ForeignRowset_.GetHolder()));
+        return New<TBatchReader>(std::move(batch));
+    }
+
+private:
+    const TSharedRange<TRow> ForeignRowset_;
+    const TJoinHashTable HashTable_;
+
+    const TLogger Logger;
+
+    static TJoinHashTable MakeHashTable(TRange<TRow> rowset, int joinKeySize)
+    {
+        TJoinHashTable hashTable;
+        for (auto row : rowset) {
+            auto [it, inserted] = hashTable.insert({row.FirstNElements(joinKeySize), {}});
+            it->second.push_back(row);
+        }
+        return hashTable;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeHashJoinRowsetProfiler
+    : public IJoinProfiler
+    , public IJoinRowsProducer
+{
+public:
+    TMergeHashJoinRowsetProfiler(TSharedRange<TRow> rowset, int foreignKeyPrefix, int joinKeySize, TLogger logger)
+        : ForeignRowset_(std::move(rowset))
+        , ForeignKeyPrefix_(foreignKeyPrefix)
+        , JoinKeySize_(joinKeySize)
+        , PrefixGroups_(BuildPrefixGroups(ForeignRowset_, foreignKeyPrefix, joinKeySize))
+        , Logger(std::move(logger))
+    { }
+
+    IJoinRowsProducerPtr Profile() override
+    {
+        return this;
+    }
+
+    ISchemafulUnversionedReaderPtr FetchJoinedRows(
+        std::vector<TRow> joinKeys,
+        TRowBufferPtr /*buffer*/) override
+    {
+        YT_LOG_DEBUG("Hybrid join profiler got keys (Keys: %v)", joinKeys);
+
+        YT_ASSERT(std::is_sorted(joinKeys.begin(), joinKeys.end(), [&] (TRow lhs, TRow rhs) {
+            return CompareValueRanges(lhs.FirstNElements(JoinKeySize_), rhs.FirstNElements(JoinKeySize_)) < 0;
+        }));
+
+        std::vector<TRow> matchedRows;
+
+        auto beginGroupIt = PrefixGroups_.begin();
+        for (const auto& joinKey : joinKeys) {
+            auto joinKeyPrefix = joinKey.FirstNElements(ForeignKeyPrefix_);
+
+            auto groupIt = ExponentialSearch(
+                beginGroupIt,
+                PrefixGroups_.end(),
+                [&] (auto currentGroupIt) {
+                    return CompareValueRanges(currentGroupIt->Prefix, joinKeyPrefix) < 0;
+                });
+            beginGroupIt = groupIt;
+
+            if (groupIt == PrefixGroups_.end()) {
+                break;
+            }
+            if (CompareValueRanges(groupIt->Prefix, joinKeyPrefix) > 0) {
+                continue;
+            }
+
+            auto joinKeySuffix = TUnversionedValueRange(
+                joinKey.Begin() + ForeignKeyPrefix_,
+                joinKey.Begin() + JoinKeySize_);
+
+            auto suffixIt = groupIt->SuffixHashTable.find(joinKeySuffix);
+            if (suffixIt != groupIt->SuffixHashTable.end()) {
+                matchedRows.insert(matchedRows.end(), suffixIt->second.begin(), suffixIt->second.end());
+            }
+        }
+
+        YT_LOG_DEBUG("Hybrid join profiler matched rows (Rows: %v)", matchedRows);
+
+        auto batch = CreateBatchFromRows(MakeSharedRange(std::move(matchedRows), ForeignRowset_.GetHolder()));
+        return New<TBatchReader>(std::move(batch));
+    }
+
+private:
+    struct TPrefixGroup
+    {
+        TUnversionedValueRange Prefix;
+        TJoinHashTable SuffixHashTable;
+    };
+
+    const TSharedRange<TRow> ForeignRowset_;
+    const int ForeignKeyPrefix_;
+    const int JoinKeySize_;
+    const std::vector<TPrefixGroup> PrefixGroups_;
+
+    const TLogger Logger;
+
+    static std::vector<TPrefixGroup> BuildPrefixGroups(TRange<TRow> rowset, int foreignKeyPrefix, int joinKeySize)
+    {
+        std::vector<TPrefixGroup> result;
+
+        if (rowset.Empty()) {
+            return result;
+        }
+
+        auto currentPrefix = rowset.Front().FirstNElements(foreignKeyPrefix);
+        TJoinHashTable currentHashTable;
+
+        for (auto row : rowset) {
+            auto prefix = row.FirstNElements(foreignKeyPrefix);
+
+            if (CompareValueRanges(prefix, currentPrefix) != 0) {
+                result.emplace_back(currentPrefix, std::exchange(currentHashTable, {}));
+                currentPrefix = prefix;
+            }
+
+            auto suffix = TUnversionedValueRange(row.Begin() + foreignKeyPrefix, row.Begin() + joinKeySize);
+            currentHashTable[suffix].push_back(row);
+        }
+
+        result.emplace_back(currentPrefix, std::move(currentHashTable));
+
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinProfilerPtr CreateJoinRowsetProfiler(
+    TSharedRange<TRow> rowset,
+    int foreignKeyPrefix,
+    int joinKeySize,
+    TLogger Logger)
+{
+    YT_LOG_DEBUG("Creating join rowset profiler (ForeignKeyPrefix: %v, JoinKeySize: %v, Rowset: %v)",
+        foreignKeyPrefix,
+        joinKeySize,
+        rowset);
+
+    YT_ASSERT(foreignKeyPrefix == 0 || std::is_sorted(rowset.begin(), rowset.end(), [&] (TRow lhs, TRow rhs) {
+        return CompareValueRanges(lhs.FirstNElements(foreignKeyPrefix), rhs.FirstNElements(foreignKeyPrefix)) < 0;
+    }));
+
+    if (foreignKeyPrefix == 0) {
+        return New<THashJoinRowsetProfiler>(std::move(rowset), joinKeySize, std::move(Logger));
+    }
+    if (foreignKeyPrefix == joinKeySize) {
+        return New<TMergeJoinRowsetProfiler>(std::move(rowset), joinKeySize, std::move(Logger));
+    }
+    return New<TMergeHashJoinRowsetProfiler>(std::move(rowset), foreignKeyPrefix, joinKeySize, std::move(Logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

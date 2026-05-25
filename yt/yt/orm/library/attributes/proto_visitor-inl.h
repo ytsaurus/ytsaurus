@@ -64,7 +64,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRegularMessage(
     EVisitReason reason)
 {
     if (Self()->PathComplete()) {
-        if (Self()->GetVisitEverythingAfterPath()) {
+        if (Self()->IsVisitEverythingAfterPath()) {
             Self()->VisitWholeMessage(message, EVisitReason::AfterPath);
             return;
         } else {

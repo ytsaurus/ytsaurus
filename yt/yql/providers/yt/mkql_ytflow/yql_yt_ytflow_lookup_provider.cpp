@@ -107,7 +107,8 @@ public:
                 ctx.ComputationNodeFactoryContext.Env);
 
             auto keysYtType = ConvertType(keysType);
-            auto keysTableSchema = BuildTableSchema(keysYtType);
+            auto reorderedKeysYtType = PartiallyReorderFields(keysYtType, ctx.StreamKeys);
+            auto keysTableSchema = BuildTableSchema(reorderedKeysYtType);
 
             OutputCodec = NYtflow::NCodec::CreateOutputCodec(
                 keysType, std::move(keysTableSchema), RowBuffer);

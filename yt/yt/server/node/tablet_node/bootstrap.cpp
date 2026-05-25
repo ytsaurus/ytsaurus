@@ -302,7 +302,7 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetInvoker());
+        OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetInvoker());
         OverloadController_->TrackInvoker(CompressionThreadPoolName, NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
         OverloadController_->TrackInvoker(LookupThreadPoolName, TabletLookupThreadPool_->GetInvoker());
         OverloadController_->TrackFSHThreadPool(QueryThreadPoolName, QueryThreadPool_);

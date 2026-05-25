@@ -10,10 +10,9 @@ namespace NYT::NShell {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ShellLogger, "Shell");
 
-extern const TString ShellToolDirectory;
-extern const TString ShellToolPath;
+extern const std::string ShellToolDirectory;
+extern const std::string ShellToolPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NShell
-

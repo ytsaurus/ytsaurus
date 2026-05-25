@@ -792,7 +792,8 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
 
-    DoDumpFile(pipe, outputFilePath, config, [] (const arrow20::Status& status) {
+    // TODO(babenko): migrate to std::string
+    DoDumpFile(pipe, TString(outputFilePath), config, [] (const arrow20::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -855,7 +856,8 @@ Py::Object DumpOrc(Py::Tuple& args, Py::Dict& kwargs)
     };
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
-    DoDumpFile(pipe, outputFilePath, config, [] (const arrow20::Status& status) {
+    // TODO(babenko): migrate to std::string
+    DoDumpFile(pipe, TString(outputFilePath), config, [] (const arrow20::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -882,7 +884,8 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
     auto* iter = pythonIter.getCxxObject();
-    iter->Initialize(inputFilePath, EFileFormat::Parquet, arrowBatchSize);
+    // TODO(babenko): migrate to std::string
+    iter->Initialize(TString(inputFilePath), EFileFormat::Parquet, arrowBatchSize);
 
     return pythonIter;
 }
@@ -903,7 +906,8 @@ Py::Object UploadOrc(Py::Tuple& args, Py::Dict& kwargs)
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
     auto* iter = pythonIter.getCxxObject();
-    iter->Initialize(inputFilePath, EFileFormat::Orc, arrowBatchSize);
+    // TODO(babenko): migrate to std::string
+    iter->Initialize(TString(inputFilePath), EFileFormat::Orc, arrowBatchSize);
 
     return pythonIter;
 }

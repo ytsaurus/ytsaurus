@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/public.h>
+#include <yt/yt/server/lib/signature/components/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -60,9 +60,9 @@ private:
     const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
-    NBus::IBusServerPtr BusServer_;
-    NBus::IBusServerPtr PublicBusServer_;
-    NBus::IBusServerPtr TvmOnlyBusServer_;
+    NBus::NTcp::IBusServerPtr BusServer_;
+    NBus::NTcp::IBusServerPtr PublicBusServer_;
+    NBus::NTcp::IBusServerPtr TvmOnlyBusServer_;
     IApiServicePtr ApiService_;
     IApiServicePtr TvmOnlyApiService_;
     NRpc::IServicePtr DiscoveryService_;

@@ -54,7 +54,7 @@ public:
     }
 
 private:
-    TCellTagList DoGetReplicationCellTags(const TDataCenter* /*dc*/) override
+    TCellTagSet DoGetReplicationCellTags(const TDataCenter* /*dc*/) override
     {
         return AllSecondaryCellTags();
     }

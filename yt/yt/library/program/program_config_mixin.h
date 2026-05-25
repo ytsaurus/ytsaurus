@@ -73,7 +73,7 @@ protected:
                     JoinToString(
                         TEnumTraits<NYTree::EUnrecognizedStrategy>::GetDomainValues(),
                         [] (TStringBuilderBase* builder, NYTree::EUnrecognizedStrategy strategy) {
-                            builder->AppendFormat(FormatEnum(strategy));
+                            builder->AppendString(FormatEnum(strategy));
                         },
                         TStringBuf(", "))))
             .DefaultValue(FormatEnum(UnrecognizedStrategy_))

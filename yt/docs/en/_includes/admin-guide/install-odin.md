@@ -110,6 +110,7 @@ The UI must be installed as a Helm chart (see [installation guide](install-ytsau
 Specify the Odin web service address in the `values.yaml` file under `.settings.odinBaseUrl`. Example address when Odin is deployed in the `default` namespace and exposed on port 9002 (default):
 `"http://odin-odin-chart-web.default.svc.cluster.local:9002"`.
 
+
 ## Enabling and Disabling Checks
 
 The list of checks is configured in the `config.checks` section of `values.yaml`.
@@ -166,6 +167,8 @@ helm upgrade odin oci://ghcr.io/ytsaurus/odin-chart \
     -n <namespace>
 ```
 
+> We do not recommend using the `--reuse-values` flag when upgrading a release. This flag preserves old parameter values (in particular, `$Values.image.tag`) from previous chart versions, which may lead to undefined behavior, version conflicts, and unexpected errors. Always explicitly pass the up‑to‑date configuration file using `-f` or `--set`.
+
 **Uninstall release:**
 
 ```bash
@@ -189,4 +192,3 @@ curl -sS -H "Authorization: OAuth $YT_TOKEN" http://http-proxies.default.svc.clu
 
 * Follow the principle of least privilege when assigning rights to `robot-odin`; create dedicated ACLs for target paths when necessary;
 * Rotate tokens according to your internal policies and update secrets promptly (via `kubectl apply -f` or `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -`).
-

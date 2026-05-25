@@ -10,6 +10,7 @@
 #define BOOST_HEAP_CONCEPTS_HPP
 
 #include <boost/concept_check.hpp>
+#include <utility>
 
 namespace boost { namespace heap {
 
@@ -34,7 +35,7 @@ struct PriorityQueue : boost::ForwardContainer< C >
 
         BOOST_CONCEPT_ASSERT( (boost::Const_BinaryPredicate< value_compare, value_type, value_type >));
 
-        c.swap( c2 );
+        std::swap( c, c2 );
         c.clear();
         a = c.get_allocator();
 
@@ -101,6 +102,6 @@ struct MutablePriorityQueue : PriorityQueue< C >
     bool equal, not_equal;
 };
 
-}}     // namespace boost::heap
+}} // namespace boost::heap
 
 #endif /* BOOST_HEAP_CONCEPTS_HPP */

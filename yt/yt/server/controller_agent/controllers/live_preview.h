@@ -44,8 +44,6 @@ public:
     TError TryInsertChunk(NChunkClient::TInputChunkPtr chunk);
     TError TryEraseChunk(const NChunkClient::TInputChunkPtr& chunk);
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NJobTrackerClient::TOperationId OperationId_;
@@ -55,6 +53,8 @@ private:
 
     void Initialize();
     void ValidateChunks();
+
+    PHOENIX_DECLARE_TYPE(TLivePreview, 0x7e8f9a0b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLivePreview)

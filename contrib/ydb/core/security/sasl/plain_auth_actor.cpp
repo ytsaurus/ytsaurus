@@ -7,7 +7,6 @@
 #include <contrib/ydb/core/security/login_shared_func.h>
 #include <contrib/ydb/core/security/sasl/base_auth_actors.h>
 #include <contrib/ydb/core/security/sasl/events.h>
-#include <contrib/ydb/core/security/sasl/static_credentials_provider.h>
 
 #include <contrib/ydb/library/login/hashes_checker/hash_types.h>
 #include <contrib/ydb/library/login/hashes_checker/hashes_checker.h>
@@ -63,45 +62,6 @@ public:
             return;
         }
 
-        const auto [credsLookupResult, userHashInitParams] = TStaticCredentialsProvider::GetInstance()
-            .GetUserHashInitParams(Database, AuthcId);
-
-        if (credsLookupResult == TStaticCredentialsProvider::UnknownDatabase) {
-            std::string error = "Unknown database";
-            LOG_INFO_S(ctx, NKikimrServices::SASL_AUTH,
-                ActorName << "# " << ctx.SelfID.ToString() <<
-                ", " << "Authentication failed: " << error
-            );
-            SendError(NKikimrIssues::TIssuesIds::DATABASE_NOT_EXIST, error);
-            return CleanupAndDie(ctx);
-        } else if (credsLookupResult == TStaticCredentialsProvider::UnknownUser) {
-            std::stringstream error;
-            error << "Cannot find user '" << AuthcId << "'";
-            LOG_INFO_S(ctx, NKikimrServices::SASL_AUTH,
-                ActorName << "# " << ctx.SelfID.ToString() <<
-                ", " << "Authentication failed: " << error.str();
-            );
-            SendError(NKikimrIssues::TIssuesIds::ACCESS_DENIED, error.str());
-            return CleanupAndDie(ctx);
-        }
-
-        // it can happen if SchemeShard works on a old version and doesn't pass hashes params
-        // after migration it has to become an error
-        if (userHashInitParams.empty()) {
-            std::string error = "SchemeShard works on old version";
-            LOG_INFO_S(ctx, NKikimrServices::SASL_AUTH,
-                ActorName << "# " << ctx.SelfID.ToString() <<
-                ", " << error
-            );
-
-            ResolveSchemeShard(ctx);
-            return;
-        }
-
-        if (!ComputeHash(ctx, userHashInitParams)) {
-            return;
-        }
-
         ResolveSchemeShard(ctx);
         return;
     }
@@ -115,6 +75,40 @@ private:
             return NKikimr::CreatePlainLoginRequest(TString(AuthcId), ChosenAuthHashType, TString(ComputedHash),
                 TString(PeerName), AppData()->AuthConfig);
         }
+    }
+
+    virtual void ProceedWithAuthentication(const TActorContext &ctx,
+        TIntrusivePtr<NSchemeCache::TDomainInfo> domainInfo) override final
+    {
+        const auto itUser = domainInfo->Users.find(AuthcId);
+        if (itUser == domainInfo->Users.end()) {
+            std::stringstream error;
+            error << "Cannot find user '" << AuthcId << "'";
+            LOG_INFO_S(ctx, NKikimrServices::SASL_AUTH,
+                ActorName << "# " << ctx.SelfID.ToString() <<
+                ", " << "Authentication failed: " << error.str();
+            );
+            SendError(NKikimrIssues::TIssuesIds::ACCESS_DENIED, error.str());
+            return CleanupAndDie(ctx);
+        }
+
+        const auto& userHashInitParams = itUser->second;
+
+        // it can happen if SchemeShard works on a old version and doesn't pass hashes params
+        // after migration it has to become an error
+        if (userHashInitParams.empty()) {
+            std::string error = "SchemeShard works on old version";
+            LOG_INFO_S(ctx, NKikimrServices::SASL_AUTH,
+                ActorName << "# " << ctx.SelfID.ToString() <<
+                ", " << error
+            );
+        } else {
+            if (!ComputeHash(ctx, userHashInitParams)) {
+                return;
+            }
+        }
+
+        SendLoginRequest();
     }
 
     virtual void SendIssuedToken(const NKikimrScheme::TEvLoginResult& loginResult) const override final {
@@ -163,10 +157,8 @@ private:
         return Base64Encode(serverKey);
     }
 
-    bool ComputeHash(const TActorContext &ctx,
-        const std::unordered_map<NLoginProto::EHashType::HashType, std::string>& hashesInitParams)
-    {
-        std::string computedHash;
+    [[nodiscard]] bool ComputeHash(const TActorContext &ctx,
+        const std::unordered_map<NLoginProto::EHashType::HashType, std::string>& hashesInitParams) {
         for (const auto& allowedHashType : ALLOWED_HASHES_TO_AUTH) {
             const auto itHashesInitParams = hashesInitParams.find(allowedHashType);
             if (itHashesInitParams == hashesInitParams.end()) {

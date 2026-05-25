@@ -3,12 +3,18 @@
 
 #include <yt/yt/tests/cpp/modify_rows_test.h>
 
-#include <yt/yt/server/lib/signature/components.h>
-#include <yt/yt/server/lib/signature/config.h>
-#include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/key_info.h>
-#include <yt/yt/server/lib/signature/signature_generator.h>
-#include <yt/yt/server/lib/signature/signature_validator.h>
+#include <yt/yt/server/lib/signature/common/key_info.h>
+
+#include <yt/yt/server/lib/signature/components/components.h>
+#include <yt/yt/server/lib/signature/components/config.h>
+
+#include <yt/yt/server/lib/signature/generation/config.h>
+#include <yt/yt/server/lib/signature/generation/cypress_key_writer.h>
+#include <yt/yt/server/lib/signature/generation/signature_generator.h>
+
+#include <yt/yt/server/lib/signature/validation/config.h>
+#include <yt/yt/server/lib/signature/validation/cypress_key_reader.h>
+#include <yt/yt/server/lib/signature/validation/signature_validator.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>

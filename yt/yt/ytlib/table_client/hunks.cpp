@@ -280,6 +280,13 @@ void FromProto(THunkChunkMeta* meta, const NProto::THunkChunkMeta& protoMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 ComputeHunkDataSize(const NProto::THunkChunkRef& ref)
+{
+    return ref.total_hunk_length() + sizeof(THunkPayloadHeader) * ref.hunk_count();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TCompressedInlineRefHunkValue& value)
 {
     YT_VERIFY(value.Payload.Size() != 0);
@@ -805,8 +812,8 @@ public:
 
         auto onField = [&] (auto field) {
             (this->*field)().fetch_add(
-                (from.Get()->*field)().load(std::memory_order_relaxed),
-                std::memory_order_relaxed);
+                (from.Get()->*field)().load(std::memory_order::relaxed),
+                std::memory_order::relaxed);
         };
 
         onField(&IHunkChunkReaderStatistics::DataWeight);

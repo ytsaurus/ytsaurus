@@ -97,6 +97,15 @@ public:
         return DoFindRequest(id, isRetry);
     }
 
+    std::optional<i64> GetGroundUpdateQueueSequenceNumber(TMutationId mutationId) override
+    {
+        auto it = GroundUpdateQueueSequenceNumbers_.find(mutationId);
+        if (it != GroundUpdateQueueSequenceNumbers_.end()) {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+
     std::function<void()> EndRequest(
         TMutationId id,
         TSharedRefArray response,
@@ -142,6 +151,10 @@ public:
                 FinishedResponseCount_.fetch_add(1, std::memory_order::acq_rel);
                 FinishedResponseSpace_.fetch_add(space, std::memory_order::acq_rel);
 
+                auto groundUpdateQueueSequenceNumber = mutationContext->GetGroundUpdateQueueSequenceNumber();
+                if (groundUpdateQueueSequenceNumber) {
+                    GroundUpdateQueueSequenceNumbers_.emplace(id, *groundUpdateQueueSequenceNumber);
+                }
                 YT_LOG_DEBUG("Response added to persistent response keeper "
                     "(MutationId: %v, ResponseHash: %v)",
                     id,
@@ -209,6 +222,7 @@ public:
     void Clear() override
     {
         FinishedResponses_.clear();
+        GroundUpdateQueueSequenceNumbers_.clear();
         FinishedResponseCount_.store(0, std::memory_order::release);
         FinishedResponseSpace_.store(0, std::memory_order::release);
         ResponseEvictionQueue_.clear();
@@ -219,16 +233,20 @@ public:
         using NYT::Save;
 
         Save(context, FinishedResponses_);
+        Save(context, GroundUpdateQueueSequenceNumbers_);
         Save(context, FinishedResponseCount_.load(std::memory_order::acquire));
         Save(context, FinishedResponseSpace_.load(std::memory_order::acquire));
         Save(context, ResponseEvictionQueue_);
     }
 
-    void Load(TLoadContext& context) override
+    void Load(TLoadContext& context, bool loadGroundUpdateSequenceNumbers) override
     {
         using NYT::Load;
 
         Load(context, FinishedResponses_);
+        if (loadGroundUpdateSequenceNumbers) {
+            Load(context, GroundUpdateQueueSequenceNumbers_);
+        }
         FinishedResponseCount_.store(
             Load<decltype(FinishedResponseCount_)::value_type>(context),
             std::memory_order::release);
@@ -275,6 +293,8 @@ public:
                 static_cast<i64>(GetByteSize(it->second)), std::memory_order::acq_rel);
 
             FinishedResponses_.erase(it);
+            GroundUpdateQueueSequenceNumbers_.erase(item.Id);
+
             ResponseEvictionQueue_.pop_front();
         }
 
@@ -294,6 +314,9 @@ private:
     // Persistent.
     using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
     TFinishedResponseMap FinishedResponses_;
+    // We do not store it with FinishedResponses_ to decrease memory consumption.
+    THashMap<TMutationId, i64> GroundUpdateQueueSequenceNumbers_;
+
     // For profiling only. Saved to snapshot to avoid recomputing after loading.
     std::atomic<int> FinishedResponseCount_ = 0;
     // For limiting memory footprint and profiling. Saved to snapshot to avoid recomputing after loading.
@@ -360,6 +383,11 @@ private:
     bool IsWarmingUp() const override
     {
         return false;
+    }
+
+    bool IsPersistent() const override
+    {
+        return true;
     }
 
     bool TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse) override

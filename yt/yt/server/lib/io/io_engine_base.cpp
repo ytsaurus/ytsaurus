@@ -90,7 +90,7 @@ void TInflightCounter::Decrement()
     State_->Counter.fetch_sub(1, std::memory_order::relaxed);
 }
 
-TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& name)
+TInflightCounter TInflightCounter::Create(TProfiler& profiler, const std::string& name)
 {
     TInflightCounter counter;
     counter.State_ = New<TState>();
@@ -362,7 +362,7 @@ i64 TIOEngineBase::GetWriteRequestLimit() const
 
 TIOEngineBase::TIOEngineBase(
     TConfigPtr config,
-    TString locationId,
+    std::string locationId,
     IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
@@ -595,11 +595,11 @@ void TIOEngineBase::InitProfilerSensors()
         return SicknessCounter_.load();
     });
 
-    Profiler.AddFuncCounter("/inflight_write_request_count", MakeStrong(this), [this] {
+    Profiler.AddFuncGauge("/inflight_write_request_count", MakeStrong(this), [this] {
         return GetInFlightWriteRequestCount();
     });
 
-    Profiler.AddFuncCounter("/inflight_read_request_count", MakeStrong(this), [this] {
+    Profiler.AddFuncGauge("/inflight_read_request_count", MakeStrong(this), [this] {
         return GetInFlightReadRequestCount();
     });
 

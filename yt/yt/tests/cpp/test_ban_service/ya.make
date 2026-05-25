@@ -5,7 +5,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     test_ban_service.cpp
 )
-INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/common_tests.make.inc)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
@@ -15,7 +14,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/core/test_framework
     yt/yt/library/named_value
-    yt/yt/server/lib/signature
+    yt/yt/server/lib/signature/components
     yt/yt/server/lib/cross_cluster_replicated_state
 )
 
@@ -30,7 +29,7 @@ TAG(
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:20)

@@ -42,21 +42,53 @@ const std::string& TPortoVolumeBase::GetPath() const
 
 TFuture<void> TPortoVolumeBase::Link(
     TGuid tag,
-    const TString& target,
-    bool sholdCheckTargetDirExists)
+    const std::string& target)
 {
     return TAsyncLockWriterGuard::Acquire(&Lock_)
-        .AsUnique().Apply(BIND([tag, target, sholdCheckTargetDirExists, this, this_ = MakeStrong(this)] (
+        .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
             TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
         {
             // Targets_ is protected with guard.
             Y_UNUSED(guard);
 
+            const auto& Logger = ExecNodeLogger();
+
+            YT_LOG_DEBUG(
+                "Starting linking volume (Tag: %v, Target: %v, VolumePath: %v)",
+                tag,
+                target,
+                GetPath());
+
             Targets_.push_back(target);
 
-            // TODO(dgolear): Switch to std::string.
-            auto source = TString(GetPath());
-            return LayerLocation_->LinkVolume(tag, source, target, sholdCheckTargetDirExists);
+            auto source = GetPath();
+            return LayerLocation_->LinkVolume(tag, source, target);
+        }))
+        .ToUncancelable();
+}
+
+TFuture<void> TPortoVolumeBase::Unlink()
+{
+    return TAsyncLockWriterGuard::Acquire(&Lock_)
+        .AsUnique()
+        .Apply(BIND([this, this_ = MakeStrong(this)] (
+            TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
+        {
+            // Targets_ is protected with guard.
+            Y_UNUSED(guard);
+
+            const auto& Logger = ExecNodeLogger();
+
+            YT_LOG_DEBUG(
+                "Starting unlinking volume (Targets: %v, VolumePath: %v)",
+                Targets_,
+                GetPath());
+
+            auto targets = std::move(Targets_);
+            Targets_.clear();
+
+            auto source = GetPath();
+            return UnlinkTargets(LayerLocation_, source, targets);
         }));
 }
 
@@ -98,7 +130,7 @@ bool TPortoVolumeBase::IsCached() const
 }
 
 TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
-    const TString& volumeType,
+    const std::string& volumeType,
     TTagSet tagSet,
     TLayerLocationPtr location,
     TVolumeMeta volumeMeta,
@@ -149,7 +181,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
             location = LayerLocation_,
             volumePath = ToString(VolumeMeta_.MountPath),
             callback = std::move(callback)
-        ] (const std::vector<TString>& targets) {
+        ] (const std::vector<std::string>& targets) {
             return UnlinkTargets(location, volumePath, targets)
                 .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
                     auto Logger = ExecNodeLogger()
@@ -166,7 +198,7 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
         });
 }
 
-TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, TString source, const std::vector<TString>& targets)
+TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, std::string source, const std::vector<std::string>& targets)
 {
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath: %v", source);
@@ -256,11 +288,6 @@ TRWNbdVolume::TRWNbdVolume(
 TRWNbdVolume::~TRWNbdVolume()
 {
     YT_UNUSED_FUTURE(Remove());
-}
-
-bool TRWNbdVolume::IsRootVolume() const
-{
-    return true;
 }
 
 TFuture<void> TRWNbdVolume::DoRemove(
@@ -408,11 +435,6 @@ TOverlayVolume::~TOverlayVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TOverlayVolume::IsRootVolume() const
-{
-    return false;
-}
-
 TFuture<void> TOverlayVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
@@ -473,11 +495,6 @@ TTmpfsVolume::~TTmpfsVolume()
     YT_UNUSED_FUTURE(Remove());
 }
 
-bool TTmpfsVolume::IsRootVolume() const
-{
-    return false;
-}
-
 TFuture<void> TTmpfsVolume::DoRemove(
     TTagSet tagSet,
     TLayerLocationPtr location,
@@ -513,11 +530,6 @@ TLoopVolume::TLoopVolume(
 TLoopVolume::~TLoopVolume()
 {
     YT_UNUSED_FUTURE(Remove());
-}
-
-bool TLoopVolume::IsRootVolume() const
-{
-    return false;
 }
 
 TFuture<void> TLoopVolume::DoRemove(

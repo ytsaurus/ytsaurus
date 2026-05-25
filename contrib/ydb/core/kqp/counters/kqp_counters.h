@@ -347,6 +347,7 @@ public:
     void ReportCompileQueueWaitTime(const TDuration& duration);
 
     const ::NMonitoring::TDynamicCounters::TCounterPtr RecompileRequestGet() const;
+    ::NMonitoring::TDynamicCounterPtr GetRootCounters() const;
     ::NMonitoring::TDynamicCounterPtr GetKqpCounters() const;
     ::NMonitoring::TDynamicCounterPtr GetQueryReplayCounters() const;
     ::NMonitoring::TDynamicCounterPtr GetWorkloadManagerCounters() const;
@@ -388,6 +389,7 @@ public:
     ::NMonitoring::TDynamicCounters::TCounterPtr WarmupQueriesFetched;
     ::NMonitoring::TDynamicCounters::TCounterPtr WarmupQueriesCompiled;
     ::NMonitoring::TDynamicCounters::TCounterPtr WarmupQueriesTruncated;
+    ::NMonitoring::TDynamicCounters::TCounterPtr WarmupQueriesEmptyQueryType;
 
     // Compile computation pattern service
     ::NMonitoring::TDynamicCounters::TCounterPtr CompiledComputationPatterns;

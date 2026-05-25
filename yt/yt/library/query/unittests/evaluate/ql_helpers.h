@@ -3,6 +3,7 @@
 #include <yt/yt/library/query/base/callbacks.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_builder.h>

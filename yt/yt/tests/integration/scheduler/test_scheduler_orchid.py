@@ -15,15 +15,12 @@ from yt.common import YtError
 
 from yt import yson
 
-import pytest
-
 import builtins
 import time
 
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolTreeOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

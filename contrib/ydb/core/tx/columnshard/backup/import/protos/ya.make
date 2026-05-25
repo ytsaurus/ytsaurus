@@ -5,4 +5,8 @@ SRCS(
     task.proto
 )
 
+PEERDIR(
+    contrib/ydb/core/protos
+)
+
 END()

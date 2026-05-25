@@ -94,6 +94,7 @@
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerStatus, chunk_merger_status) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
+    XX(ChunkMergerUsage, chunk_merger_usage) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
     XX(ChunkReplicaCount, chunk_replica_count) \
@@ -224,6 +225,7 @@
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
     XX(ExternalizedToCellTags, externalized_to_cell_tags) \
+    XX(FailedExpirationAttempts, failed_expiration_attempts) \
     XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
     XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
@@ -263,6 +265,7 @@
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkPrimaryMediumId, hunk_primary_medium_id) \
+    XX(HunkReferenceStatistics, hunk_reference_statistics) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \
@@ -364,6 +367,7 @@
     XX(MountRevision, mount_revision) \
     XX(MountTime, mount_time) \
     XX(Movable, movable) \
+    XX(MulticellChunkMergerUsage, multicell_chunk_merger_usage) \
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \

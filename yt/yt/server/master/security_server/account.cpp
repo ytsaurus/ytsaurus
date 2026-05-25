@@ -30,6 +30,7 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = SecurityServerLogger;
+constinit const auto Profiler = AccountProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +69,17 @@ void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, co
     fluent
         .EndMap();
 }
+
+void FormatValue(TStringBuilderBase* builder, const TAccountStatistics& statistics, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{ResourceUsage: %v, CommittedResourceUsage: %v}",
+        statistics.ResourceUsage,
+        statistics.CommittedResourceUsage);
+}
+
+const TAccountStatistics TAccountStatistics::Empty = TAccountStatistics();
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
@@ -228,7 +240,10 @@ void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node)
 
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
-    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(0)))
+    , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(
+        TThroughputThrottlerConfig::Create(0),
+        Logger(),
+        Profiler().WithPrefix("/merge_job_throttler")))
     , ShardIndex_(GetAccountShardIndex(id))
     , ProfilingBucketIndex_(GetAccountProfilingBucketIndex(id))
     , ChunkMergerNodeTraversals_(id)

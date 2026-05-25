@@ -486,6 +486,29 @@ ACTIONS[6] = [
     create_replica_mapping_index_action_factory(),
 ]
 
+# Add consumer_name field to consumer_registrations table.
+TRANSFORMS[7] = [
+    Conversion(
+        "consumer_registrations",
+        table_info=TableInfo(
+            [
+                ("queue_cluster", "string"),
+                ("queue_path", "string"),
+                ("consumer_cluster", "string"),
+                ("consumer_path", "string"),
+                ("consumer_name", "string"),  # new field
+            ],
+            [
+                ("vital", "boolean"),
+                ("partitions", "any"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_replicated_table_filter_callback,
+    ),
+]
+
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,
@@ -519,6 +542,15 @@ CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
 ]
 
 CONSUMER_OBJECT_TABLE_SCHEMA = CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META + [
+    {"name": "meta", "type": "any", "required": False},
+]
+
+MULTI_CONSUMER_OBJECT_TABLE_SCHEMA = [
+    {"name": "queue_consumer_name", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
+    {"name": "offset", "type": "uint64", "required": True},
     {"name": "meta", "type": "any", "required": False},
 ]
 
@@ -586,8 +618,13 @@ def get_latest_version():
 
 
 # Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
-def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
-    """ Creates queue agent state tables of latest version """
+def create_tables(client, target_version, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
+    """ Creates queue agent state tables of given version """
+    target_version = target_version if target_version is not None else get_latest_version()
+    if target_version > get_latest_version():
+        raise RuntimeError(f"Target version {target_version} is greater than latest version {get_latest_version()}")
+    if target_version < INITIAL_VERSION:
+        raise RuntimeError(f"Target version {target_version} is less than initial version {INITIAL_VERSION}")
 
     migration = prepare_migration(client, root=root, override_tablet_cell_bundle=override_tablet_cell_bundle)
 
@@ -595,12 +632,24 @@ def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_
 
     migration.run(
         client=client,
-        target_version=migration.get_latest_version(),
+        target_version=target_version,
         tables_path=root,
         shard_count=shard_count,
         force=False,
         retransform=False,
         pool=None,
+    )
+
+
+# Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
+def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
+    """ Creates queue agent state tables of latest version """
+    create_tables(
+        client=client,
+        target_version=get_latest_version(),
+        root=root,
+        shard_count=shard_count,
+        override_tablet_cell_bundle=override_tablet_cell_bundle,
     )
 
 

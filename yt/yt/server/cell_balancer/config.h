@@ -4,13 +4,13 @@
 
 #include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/yt/server/lib/cypress_election/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
 
@@ -133,6 +133,19 @@ struct TBundleControllerDynamicConfig
 
     std::optional<TDuration> RemoveInstanceCypressNodeAfter;
     std::optional<TDuration> OfflineInstanceGracePeriod;
+
+    int MaxConcurrentCypressWriteRequests;
+
+    // Limits the number of nodes which are released via decommission.
+    // Used to throttle tablet cell restart rate.
+    int MaxReleasedNodesPerIteration;
+
+    // For unittests.
+    bool FlushLogAfterMutations;
+
+    std::optional<bool> EnableChaosBundleManagement;
+
+    TDuration ForeignClusterRequestTimeout;
 
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 

@@ -15,7 +15,7 @@ extern "C" {
 
 ssize_t BridgeGetAbiVersion()
 {
-    return 9; // EYqlPluginAbiVersion::SolomonProvider
+    return 11; // EYqlPluginAbiVersion::RegisterUnregisterQuery
 }
 
 TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOptions)
@@ -43,6 +43,8 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .SolomonGatewayConfig = bridgeOptions->SolomonGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->SolomonGatewayConfig, bridgeOptions->SolomonGatewayConfigLength)) : TYsonString(),
         .DqManagerConfig = bridgeOptions->DqGatewayConfigLength ? TYsonString(TStringBuf(bridgeOptions->DqManagerConfig, bridgeOptions->DqManagerConfigLength)) : TYsonString(),
         .FileStorageConfig = TYsonString(TStringBuf(bridgeOptions->FileStorageConfig, bridgeOptions->FileStorageConfigLength)),
+        .TvmConfig = TYsonString(TStringBuf(bridgeOptions->TvmConfig, bridgeOptions->TvmConfigLength)),
+        .YtAccessProviderConfig = TYsonString(TStringBuf(bridgeOptions->YtAccessProviderConfig, bridgeOptions->YtAccessProviderConfigLength)),
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),
         .Libraries = libraries,
         .YTTokenPath = TString(bridgeOptions->YTTokenPath),
@@ -246,6 +248,17 @@ void BridgeFreeGetDeclaredParametersInfoResult(TBridgeGetDeclaredParametersInfoR
     delete result;
 }
 
+void BridgeRegisterQuery(TBridgeYqlPlugin* plugin, const char* queryId)
+{
+    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
+    return nativePlugin->RegisterQuery(NYT::TGuid::FromString(queryId));
+}
+
+void BridgeUnregisterQuery(TBridgeYqlPlugin* plugin, const char* queryId)
+{
+    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
+    return nativePlugin->UnregisterQuery(NYT::TGuid::FromString(queryId));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

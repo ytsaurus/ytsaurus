@@ -138,6 +138,18 @@ bool TMutationContext::GetResponseKeeperSuppressed()
     return ResponseKeeperSuppressed_;
 }
 
+std::optional<i64> TMutationContext::GetGroundUpdateQueueSequenceNumber() const
+{
+    return GroundUpdateQueueSequenceNumber_;
+}
+
+void TMutationContext::SetGroundUpdateQueueSequenceNumber(i64 groundUpdateQueueSequenceNumber)
+{
+    if (groundUpdateQueueSequenceNumber != -1) {
+        GroundUpdateQueueSequenceNumber_ = groundUpdateQueueSequenceNumber;
+    }
+}
+
 TLogicalVersion TMutationContext::GetLastUsedVersion() const
 {
     if (CumulativeVersionDelta_ == 0) {

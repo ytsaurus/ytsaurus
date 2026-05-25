@@ -4,9 +4,12 @@
 #include "llvm_folding_set.h"
 #include "functions_cg.h"
 
+#include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/join_profiler.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
@@ -53,6 +56,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (AggregateItem)
 
     (TableSchema)
+    (TableSchemaColumn)
     (FinalMode)
     (MergeMode)
     (TotalsMode)
@@ -174,14 +178,29 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
 {
     const auto& columns = tableSchema->Columns();
     Fold(EFoldingObjectType::TableSchema);
+
     for (int index = 0; index < std::ssize(columns); ++index) {
+        Fold(EFoldingObjectType::TableSchemaColumn);
+
         const auto& column = columns[index];
         Fold(static_cast<ui8>(column.GetWireType()));
+        Fold(column.Expression().has_value());
+        Fold(column.Aggregate().has_value());
+        Fold(column.Required());
 
-        int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
-        Fold(aux);
         if (column.Expression()) {
             Fold(column.Expression()->c_str());
+
+            auto parsedExpression = ParseSource(*column.Expression(), EParseMode::Expression);
+            TColumnSet referencedColumns;
+            NAst::TReferenceHarvester(&referencedColumns).Visit(
+                std::get<NAst::TExpressionPtr>(parsedExpression->AstHead.Ast));
+
+            for (int index = 0; index < std::ssize(columns); ++index) {
+                if (referencedColumns.contains(columns[index].Name())) {
+                    Fold(index);
+                }
+            }
         }
         if (column.Aggregate()) {
             Fold(column.Aggregate()->c_str());
@@ -848,7 +867,7 @@ size_t TExpressionProfiler::Profile(
             std::move(argumentTypes),
             functionExpr->LogicalType,
             "{" + InferName(functionExpr, TInferNameOptions{.OmitValues = true}) + "}",
-            ExecutionBackend_,
+            {.ExecutionBackend = ExecutionBackend_},
             Id_),
         functionExpr->GetWireType(),
         function->IsNullable(nullableArgs));
@@ -1470,7 +1489,7 @@ size_t TExpressionProfiler::Profile(
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
-                ExecutionBackend_,
+                {.ExecutionBackend = ExecutionBackend_},
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
@@ -1614,17 +1633,21 @@ public:
         TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        bool useCanonicalNullRelations,
-        EExecutionBackend executionBackend,
-        EOptimizationLevel optimizationLevel,
-        bool allowUnorderedGroupByWithLimit,
-        i64 maxJoinBatchSize,
+        const TQueryFoldingProfilerOptions& options,
         NWebAssembly::TModuleBytecodeHashSet* const usedWebAssemblyFiles,
         const NWebAssembly::TModuleBytecode* const sdk)
-        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles, sdk)
-        , MaxJoinBatchSize_(maxJoinBatchSize)
-        , OptimizationLevel_(optimizationLevel)
-        , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
+        : TExpressionProfiler(
+            id,
+            variables,
+            functionProfilers,
+            aggregateProfilers,
+            options.UseCanonicalNullRelations,
+            options.ExecutionBackend,
+            usedWebAssemblyFiles,
+            sdk)
+        , MaxJoinBatchSize_(options.MaxJoinBatchSize)
+        , OptimizationLevel_(options.OptimizationLevel)
+        , AllowUnorderedGroupByWithLimit_(options.AllowUnorderedGroupByWithLimit)
     { }
 
     void Profile(
@@ -1661,6 +1684,7 @@ class TGroupByStreamManager
 public:
     TGroupByStreamManager(
         bool finalMode,
+        bool exclusiveGroupKeyView,
         bool mergeMode,
         TCodegenSource* codegenSource,
         const TConstBaseQueryPtr& query,
@@ -1675,6 +1699,7 @@ public:
         bool combineGroupOpWithOrderOp,
         bool allowUnorderedGroupByWithLimit)
         : FinalMode_(finalMode)
+        , ExclusiveGroupKeyView_(exclusiveGroupKeyView)
         , MergeMode_(mergeMode)
         , CodegenSource_(codegenSource)
         , Query_(query)
@@ -1704,6 +1729,7 @@ public:
 
 private:
     const bool FinalMode_;
+    const bool ExclusiveGroupKeyView_;
     const bool MergeMode_;
 
     TCodegenSource* CodegenSource_;
@@ -1745,7 +1771,7 @@ private:
     {
         bool boundarySegmentsAreAlsoFinal = Query_->UseDisjointGroupBy && !CombineGroupOpWithOrderOp_;
 
-        if (boundarySegmentsAreAlsoFinal || FinalMode_) {
+        if (boundarySegmentsAreAlsoFinal || FinalMode_ || ExclusiveGroupKeyView_) {
             *delta = MakeCodegenMergeOp(CodegenSource_, SlotCount_, *intermediate, *delta);
             *intermediate = Dummy_;
         }
@@ -1937,11 +1963,13 @@ void TQueryProfiler::Profile(
     size_t totalsSlot = dummySlot;
 
     bool finalMode = query->IsFinal;
+    bool exclusiveGroupKeyView = query->HasExclusiveGroupKeyView;
 
     Fold(EFoldingObjectType::FinalMode);
     Fold(finalMode);
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
+    Fold(exclusiveGroupKeyView);
     Fold(EFoldingObjectType::QueryIsOrdered);
     Fold(query->GetScanOrder(AllowUnorderedGroupByWithLimit_));
 
@@ -1951,6 +1979,7 @@ void TQueryProfiler::Profile(
         Fold(EFoldingObjectType::GroupOp);
         Fold(groupClause->CommonPrefixWithPrimaryKey);
         Fold(query->UseDisjointGroupBy);
+        Fold(query->EnableCombineGroupOpWithOrderOp);
 
         bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
 
@@ -2012,7 +2041,7 @@ void TQueryProfiler::Profile(
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
-                ExecutionBackend_,
+                {.ExecutionBackend = ExecutionBackend_},
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
@@ -2048,10 +2077,14 @@ void TQueryProfiler::Profile(
                     return TExpressionHasAggregatesChecker(groupClause->AggregateItems).Check(item.Expression);
                 });
 
-            if (!addHaving && !orderOpHasAggregates && groupClause->TotalsMode == ETotalsMode::None) {
+            if (query->EnableCombineGroupOpWithOrderOp &&
+                !addHaving &&
+                !orderOpHasAggregates &&
+                groupClause->TotalsMode == ETotalsMode::None)
+            {
                 Fold(EFoldingObjectType::CombineGroupOpWithOrderOp);
 
-                auto afterGroupSchema = groupClause->GetTableSchema(query->IsFinal);
+                auto sourceSchema = groupClause->GetTableSchema(finalMode);
 
                 std::vector<size_t> orderExprIds;
                 std::vector<bool> isDesc;
@@ -2059,7 +2092,7 @@ void TQueryProfiler::Profile(
                 TExpressionFragments orderExprFragments;
                 for (const auto& item : orderClause->OrderItems) {
                     orderExprIds.push_back(
-                        TExpressionProfiler::Profile(item.Expression, afterGroupSchema, &orderExprFragments));
+                        TExpressionProfiler::Profile(item.Expression, sourceSchema, &orderExprFragments));
                     Fold(item.Descending);
                     isDesc.push_back(item.Descending);
                     orderColumnTypes.push_back(item.Expression->GetWireType());
@@ -2068,7 +2101,7 @@ void TQueryProfiler::Profile(
                 auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
                 orderExprFragments.DumpArgs(orderExprIds);
 
-                auto schemaTypes = GetTypesFromSchema(*afterGroupSchema);
+                auto schemaTypes = GetTypesFromSchema(*sourceSchema);
                 for (auto type : schemaTypes) {
                     Fold(static_cast<ui8>(type));
                 }
@@ -2104,7 +2137,7 @@ void TQueryProfiler::Profile(
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
-        schema = groupClause->GetTableSchema(query->IsFinal);
+        schema = groupClause->GetTableSchema(/*isFinal*/ true);
 
         size_t havingPredicateId = 0;
         TCodegenFragmentInfosPtr havingFragmentsInfos;
@@ -2124,6 +2157,7 @@ void TQueryProfiler::Profile(
 
         auto manager = TGroupByStreamManager(
             finalMode,
+            exclusiveGroupKeyView,
             mergeMode,
             codegenSource,
             query,
@@ -2527,10 +2561,11 @@ void TQueryProfiler::Profile(
 
             parameters.push_back(std::move(codegenParameters));
 
+            size_t joinKeySize = joinClause->ForeignEquations.size();
             TSingleJoinParameters singleJoinParameters{
-                .KeySize = joinClause->ForeignEquations.size(),
+                .KeySize = joinKeySize,
                 .IsLeft = joinClause->IsLeft,
-                .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
+                .IsPartiallySorted = joinClause->ForeignKeyPrefix < joinKeySize,
                 .ForeignColumns = joinClause->GetForeignColumnIndices(),
                 .JoinRowsProducer = joinProfilerRegistry.GetJoinProfilerOrThrow(joinIndex)->Profile(),
             };
@@ -2686,14 +2721,10 @@ TCGQueryGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TJoinProfilerRegistry& joinProfilerRegistry,
-    bool useCanonicalNullRelations,
-    EExecutionBackend executionBackend,
-    EOptimizationLevel optimizationLevel,
+    TQueryFoldingProfilerOptions options,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
-    const NWebAssembly::TModuleBytecode& sdk,
-    bool allowUnorderedGroupByWithLimit,
-    i64 maxJoinBatchSize)
+    const NWebAssembly::TModuleBytecode& sdk)
 {
     auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
 
@@ -2702,11 +2733,7 @@ TCGQueryGenerator Profile(
         variables,
         functionProfilers,
         aggregateProfilers,
-        useCanonicalNullRelations,
-        executionBackend,
-        optimizationLevel,
-        allowUnorderedGroupByWithLimit,
-        maxJoinBatchSize,
+        options,
         usedWebAssemblyFiles.get(),
         &sdk);
 
@@ -2725,7 +2752,12 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, sdk, *usedWebAssemblyFiles);
+            return CodegenQuery(
+                &codegenSource,
+                slotCount,
+                options,
+                sdk,
+                *usedWebAssemblyFiles);
         };
 }
 

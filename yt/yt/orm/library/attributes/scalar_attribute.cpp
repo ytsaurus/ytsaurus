@@ -485,7 +485,7 @@ public:
         SetRelativeIndexPolicy(ERelativeIndexPolicy::Throw);
     }
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Equal, true);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Equal, true);
 
 protected:
     void NotEqual()
@@ -775,7 +775,7 @@ bool AreProtoMessagesEqualByPath(
 
     TComparisonVisitor visitor(options.CompareAbsentAsDefault);
     visitor.Visit(std::pair(&lhs, &rhs), path);
-    return visitor.GetEqual();
+    return visitor.IsEqual();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

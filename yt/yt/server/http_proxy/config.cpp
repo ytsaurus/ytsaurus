@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/security_server/config.h>
 
-#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/components/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -426,7 +426,7 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
         .DefaultNew();

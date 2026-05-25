@@ -61,6 +61,8 @@ func ConvertPermissionType(typ *Permission) (*int32, error) {
 	switch *typ {
 	case PermissionRead:
 		ret = 0x0001
+	case PermissionFullRead:
+		ret = 0x2000
 	case PermissionWrite:
 		ret = 0x0002
 	case PermissionUse:

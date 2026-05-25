@@ -195,7 +195,7 @@ private:
 
     void ValidateSchema(const TTableSchema& schema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TCompositeSettings>());
+        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TConversionSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
             THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
@@ -257,7 +257,7 @@ void RegisterTableDictionarySource(THost* host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYPath::TYPath> GetTableDictionarySourcePath(DB::DictionarySourcePtr source)
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(DB::DictionarySourcePtr source)
 {
     auto ytSource = std::dynamic_pointer_cast<TTableDictionarySource>(source);
     if (!ytSource) {

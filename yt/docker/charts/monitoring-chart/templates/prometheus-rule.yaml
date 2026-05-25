@@ -1,0 +1,43 @@
+{{- if .Values.alerts.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "monitoring.fullname" . }}-ytsaurus-alerts
+  labels:
+    {{- include "monitoring.labels" . | nindent 4 }}
+    {{- with .Values.alerts.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    {{- range $groupName, $groupConfig := .Values.alerts.groups }}
+    {{- if $groupConfig.enabled }}
+    - name: {{ printf "ytsaurus-%s-alerts" (kebabcase $groupName) }}
+      rules:
+        {{- range $alertName, $alertConfig := $groupConfig.rules }}
+        {{- if $alertConfig.enabled }}
+        - alert: YTsaurus{{ $alertName }}
+          expr: |
+            {{- tpl $alertConfig.expr $ | nindent 12 }}
+          {{- if $alertConfig.for }}
+          for: {{ $alertConfig.for }}
+          {{- end }}
+          labels:
+            {{- if $.Values.alerts.defaultRuleLabels }}
+            {{- tpl (toYaml $.Values.alerts.defaultRuleLabels) $ | nindent 12 }}
+            {{- end }}
+            {{- with $alertConfig.labels }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
+            {{- end }}
+          annotations:
+            {{- if $.Values.alerts.defaultRuleAnnotations }}
+            {{- tpl (toYaml $.Values.alerts.defaultRuleAnnotations) $ | nindent 12 }}
+            {{- end }}
+            {{- with $alertConfig.annotations }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
+            {{- end }}
+        {{- end }}
+        {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}

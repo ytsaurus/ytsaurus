@@ -445,11 +445,11 @@ private:
             TProgressCounterGuard JobProgressCounterGuard;
 
             template <class... TArgs>
-            void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
+            void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args)
             {
-                (DataWeightProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
-                (RowProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
-                (JobProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
+                (DataWeightProgressCounterGuard.*Method)(args...);
+                (RowProgressCounterGuard.*Method)(args...);
+                (JobProgressCounterGuard.*Method)(args...);
             }
 
             int GetSliceCount() const

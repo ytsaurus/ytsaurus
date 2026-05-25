@@ -213,6 +213,7 @@ namespace NYT::NCellMaster {
 using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChaosServer;
@@ -327,7 +328,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const std::set<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+const TCellTagSet& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }

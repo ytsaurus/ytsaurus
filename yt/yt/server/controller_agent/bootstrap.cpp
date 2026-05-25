@@ -74,6 +74,7 @@ namespace NYT::NControllerAgent {
 
 using namespace NAdmin;
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;
@@ -282,6 +283,8 @@ void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
     TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+
+    Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(config->MasterCellDirectorySynchronizer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

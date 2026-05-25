@@ -59,9 +59,8 @@ public:
             tokenHash,
             userIP);
 
-        THashMap<TString, TString> params{
-            // TODO(babenko): migrate to std::string
-            {"oauth_token", TString(token)},
+        THashMap<std::string, std::string> params{
+            {"oauth_token", token},
             {"userip", userIP},
         };
 
@@ -85,7 +84,7 @@ private:
     const TCounter TokenScopeCheckErrorsCounter_;
 
 
-    TAuthenticationResult OnCallResult(const TString& tokenHash, const INodePtr& data)
+    TAuthenticationResult OnCallResult(const std::string& tokenHash, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
@@ -112,7 +111,7 @@ private:
         }
 
         if (EBlackboxStatus(statusId.Value()) != EBlackboxStatus::Valid) {
-            auto error = GetByYPath<TString>(data, "/error");
+            auto error = GetByYPath<std::string>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             RejectedTokensCounter_.Increment();
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected token")
@@ -120,9 +119,9 @@ private:
         }
 
         auto login = BlackboxSevice_->GetLogin(data);
-        auto oauthClientId = GetByYPath<TString>(data, "/oauth/client_id");
-        auto oauthClientName = GetByYPath<TString>(data, "/oauth/client_name");
-        auto oauthScope = GetByYPath<TString>(data, "/oauth/scope");
+        auto oauthClientId = GetByYPath<std::string>(data, "/oauth/client_id");
+        auto oauthClientName = GetByYPath<std::string>(data, "/oauth/client_name");
+        auto oauthScope = GetByYPath<std::string>(data, "/oauth/scope");
 
         // Sanity checks.
         if (!login.IsOK() || !oauthClientId.IsOK() || !oauthClientName.IsOK() || !oauthScope.IsOK()) {
@@ -161,7 +160,7 @@ private:
         TAuthenticationResult result;
         result.Login = login.Value();
         result.Realm = "blackbox:token:" + oauthClientId.Value() + ":" + oauthClientName.Value();
-        auto userTicket = GetByYPath<TString>(data, "/user_ticket");
+        auto userTicket = GetByYPath<std::string>(data, "/user_ticket");
         if (userTicket.IsOK()) {
             result.UserTicket = userTicket.Value();
         } else if (Config_->GetUserTicket) {
@@ -230,7 +229,7 @@ private:
 private:
     static void SanitizeToken(TError* error, const std::string& token)
     {
-        auto message = TString(error->GetMessage());
+        auto message = std::string(error->GetMessage());
         SubstGlobal(message, token, "<redacted>");
         error->SetMessage(message);
         for (auto& innerError : *error->MutableInnerErrors()) {
@@ -238,7 +237,7 @@ private:
         }
     }
 
-    TAuthenticationResult OnCallResult(const std::string& token, const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
+    TAuthenticationResult OnCallResult(const std::string& token, const std::string& tokenHash, const TErrorOr<TYsonString>& callResult)
     {
         if (!callResult.IsOK()) {
             TError error = callResult;
@@ -264,7 +263,7 @@ private:
         const auto& ysonString = callResult.Value();
         try {
             TAuthenticationResult authResult;
-            authResult.Login = ConvertTo<TString>(ysonString);
+            authResult.Login = ConvertTo<std::string>(ysonString);
             authResult.Realm = Config_->Realm;
             YT_LOG_DEBUG("Cypress authentication successful (TokenHash: %v, Login: %v)",
                 tokenHash,
@@ -292,7 +291,7 @@ struct TTokenAuthenticatorCacheKey
 {
     std::optional<std::string> Token;
     std::optional<std::string> TokenSha256;
-    TString UserIPFactor;
+    std::string UserIPFactor;
 
     operator size_t() const
     {
@@ -367,59 +366,15 @@ public:
     TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
     {
-        return New<TAuthenticationSession>(this, credentials)->GetResult();
+        return New<TCompositeAuthSession<ITokenAuthenticator, TTokenCredentials, TAuthenticationResult>>(
+            Authenticators_,
+            credentials,
+            TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed"))
+            ->GetResult();
     }
 
 private:
     const std::vector<ITokenAuthenticatorPtr> Authenticators_;
-
-    class TAuthenticationSession
-        : public TRefCounted
-    {
-    public:
-        TAuthenticationSession(
-            TIntrusivePtr<TCompositeTokenAuthenticator> owner,
-            const TTokenCredentials& credentials)
-            : Owner_(std::move(owner))
-            , Credentials_(credentials)
-        {
-            InvokeNext();
-        }
-
-        TFuture<TAuthenticationResult> GetResult()
-        {
-            return Promise_;
-        }
-
-    private:
-        const TIntrusivePtr<TCompositeTokenAuthenticator> Owner_;
-        const TTokenCredentials Credentials_;
-
-        TPromise<TAuthenticationResult> Promise_ = NewPromise<TAuthenticationResult>();
-        std::vector<TError> Errors_;
-        size_t CurrentIndex_ = 0;
-
-    private:
-        void InvokeNext()
-        {
-            if (CurrentIndex_ >= Owner_->Authenticators_.size()) {
-                Promise_.Set(TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed")
-                    << Errors_);
-                return;
-            }
-
-            const auto& authenticator = Owner_->Authenticators_[CurrentIndex_++];
-            authenticator->Authenticate(Credentials_).Subscribe(
-                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TAuthenticationResult>& result) {
-                    if (result.IsOK()) {
-                        Promise_.Set(result.Value());
-                    } else {
-                        Errors_.push_back(result);
-                        InvokeNext();
-                    }
-                }));
-        }
-    };
 };
 
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
@@ -436,8 +391,8 @@ class TNoopTokenAuthenticator
 public:
     TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& /*credentials*/) override
     {
-        static const auto Realm = TString("noop");
-        static const auto UserTicket = TString("");
+        static const auto Realm = std::string("noop");
+        static const auto UserTicket = std::string("");
         TAuthenticationResult result{
             .Login = NRpc::RootUserName,
             .Realm = Realm,

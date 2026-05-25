@@ -15,7 +15,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/core/test_framework
     yt/yt/library/named_value
-    yt/yt/server/lib/signature
+    yt/yt/server/lib/signature/components
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
@@ -29,7 +29,7 @@ TAG(
 
 SIZE(LARGE)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:20)

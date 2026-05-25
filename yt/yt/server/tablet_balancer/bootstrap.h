@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 

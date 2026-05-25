@@ -36,7 +36,7 @@ TNonversionedMapObjectProxyBase<TObject>::TNonversionedMapObjectProxyBase(
     TObjectTypeMetadata* metadata,
     TObject* object)
     : TBase(bootstrap, metadata, object)
-    , THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>(TBase::CreatePermissionValidator())
+    , THierarchicPermissionValidator<TObject>(TBase::CreatePermissionValidator())
 { }
 
 template <class TObject>
@@ -354,12 +354,12 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 }
 
 template <class TObject>
-TCompactVector<NObjectServer::TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
+TCompactVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendantsForPermissionValidation(
     TObject* object)
 {
     return AccumulateOverMapObjectSubtree(
         object,
-        TCompactVector<NObjectServer::TObject*, 1>(),
+        TCompactVector<TObject*, 1>(),
         [root = object] (auto* currentObject, auto* descendants) {
             if (currentObject != root) {
                 descendants->push_back(currentObject);
@@ -368,7 +368,7 @@ TCompactVector<NObjectServer::TObject*, 1> TNonversionedMapObjectProxyBase<TObje
 }
 
 template <class TObject>
-NObjectServer::TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
+TObject* TNonversionedMapObjectProxyBase<TObject>::GetParentForPermissionValidation(TObject* object)
 {
     return object->GetParent();
 }

@@ -53,6 +53,7 @@
 #include <yql/essentials/minikql/mkql_function_registry.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
+#include <yql/essentials/utils/log/context.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/sql/v1/sql.h>
 #include <yql/essentials/sql/v1/lexer/antlr4/lexer.h>
@@ -191,6 +192,13 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class EAbortState
+{
+    Pending,
+    Started,
+    Finished
+};
+
 struct TActiveQuery
 {
     // Store shared data for TProgram after dyn config changing.
@@ -198,8 +206,13 @@ struct TActiveQuery
     NYql::TProgramFactoryPtr ProgramFactory;
 
     NYql::TProgramPtr Program;
+
+    bool Started = false;
     bool Compiled = false;
+    bool ExecutionStarted = false;
     bool Finished = false;
+
+    std::optional<EAbortState> AbortState;
 
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
@@ -410,6 +423,22 @@ public:
 
             FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
 
+            NYql::TYtTvmConfig tvmConfig;
+            tvmConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.TvmConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtTvmConfig>(),
+                protobufWriterOptions));
+
+            TvmClient_ = CreateTvmClient(tvmConfig);
+
+            NYql::TYtAccessProviderConfig ytAccessProviderConfig;
+            ytAccessProviderConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.YtAccessProviderConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtAccessProviderConfig>(),
+                protobufWriterOptions));
+
+            YtAccessProvider_ = CreateYtAccessProvider(TvmClient_, ytAccessProviderConfig);
+
             FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
                 NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
             const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
@@ -516,8 +545,9 @@ public:
         std::vector<TQueryFile> files)
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto program = factory->Create("-memory-", queryText);
+        auto fictionalQueryId = TQueryId::Create();
+        auto factory = CreateProgramFactory(fictionalQueryId, *dynamicConfig);
+        auto program = factory->Create("-memory-", queryText, ToString(fictionalQueryId));
 
         program->AddCredentials({
             {"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)},
@@ -598,21 +628,30 @@ public:
         std::vector<TQueryFile> files,
         int executeMode)
     {
-
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
         factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
-        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settings, credentialsStr, dynamicConfig, factory);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
+            queryId,
+            queryText,
+            settings,
+            credentialsStr,
+            dynamicConfig,
+            factory);
+
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
             auto guard = WriterGuard(ProgressSpinLock_);
-            YT_VERIFY(!ActiveQueriesProgress_.contains(queryId));
-            ActiveQueriesProgress_[queryId] = TActiveQuery{
-                .ProgramSharedData = dynamicConfig,
-                .ProgramFactory = factory,
-                .Program = program,
-                .PipelineConfigurator = pipelineConfigurator,
-            };
+
+            auto& activeQuery = GetActiveQuery(queryId);
+            YT_VERIFY(!activeQuery.Started);
+            YT_VERIFY(!activeQuery.Program);
+
+            activeQuery.ProgramSharedData = dynamicConfig;
+            activeQuery.ProgramFactory = factory;
+            activeQuery.Program = program;
+            activeQuery.PipelineConfigurator = pipelineConfigurator;
+            activeQuery.Started = true;
         }
 
         auto userDataTable = FilesToUserTable(files);
@@ -629,13 +668,14 @@ public:
             }
 
             auto guard = WriterGuard(ProgressSpinLock_);
-            if (ActiveQueriesProgress_.contains(queryId)) {
-                ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
+            if (auto* activeQuery = GetActiveQueryPtr(queryId)) {
+                activeQuery->ProgressMerger.MergeWith(progress);
                 if (plan) {
-                    ActiveQueriesProgress_[queryId].Plan.swap(plan);
+                    activeQuery->Plan.swap(plan);
                 }
+
                 if (ast) {
-                    ActiveQueriesProgress_[queryId].Ast.swap(ast);
+                    activeQuery->Ast.swap(ast);
                 }
             }
         });
@@ -654,14 +694,12 @@ public:
         }
 
         if (!program->ParseSql(sqlSettings)) {
-            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
         }
 
         if (!program->Compile(user)) {
-            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
@@ -669,31 +707,51 @@ public:
 
         {
             auto guard = WriterGuard(ProgressSpinLock_);
-            ActiveQueriesProgress_[queryId].Compiled = true;
+
+            auto& activeQuery = GetActiveQuery(queryId);
+            activeQuery.Compiled = true;
         }
 
-        NYql::TProgram::TStatus status = NYql::TProgram::TStatus::Error;
+        ::NThreading::TFuture<NYql::TProgram::TStatus> futureStatus;
 
         // NYT::NYqlClient::EExecuteMode (yt/yt/ytlib/yql_client/public.h)
         switch (executeMode) {
         case 0: // Validate.
-            status = program->Validate(user, nullptr);
+            futureStatus = program->ValidateAsync(user, nullptr);
             break;
         case 1: // Optimize.
-            status = program->OptimizeWithConfig(user, *pipelineConfigurator);
+            futureStatus = program->OptimizeAsyncWithConfig(user, *pipelineConfigurator);
             break;
         case 2: // Run.
-            status = program->RunWithConfig(user, *pipelineConfigurator);
+            futureStatus = program->RunAsyncWithConfig(user, *pipelineConfigurator);
             break;
         default: // Unknown.
-            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
-                .YsonError = MessageToYtErrorYson(Format("Unknown execution mode: %v", executeMode)),
+                .YsonError = MessageToYtErrorYson(
+                    Format("Unknown execution mode: %v", executeMode)),
             };
         }
 
+        std::optional<EAbortState> abortState;
+
+        {
+            auto guard = WriterGuard(ProgressSpinLock_);
+
+            auto& activeQuery = GetActiveQuery(queryId);
+            activeQuery.ExecutionStarted = true;
+            abortState = activeQuery.AbortState;
+        }
+
+        if (abortState) {
+            auto abortQueryResult = DoAbort(std::move(queryId), std::move(program));
+            return TQueryResult{
+                .YsonError = abortQueryResult.YsonError,
+            };
+        }
+
+        auto status = WaitExecution(program, futureStatus);
+
         if (status == NYql::TProgram::TStatus::Error) {
-            ExtractQuery(queryId, /*force*/ true);
             return TQueryResult{
                 .YsonError = IssuesToYtErrorYson(program->Issues()),
             };
@@ -710,8 +768,16 @@ public:
             yson.OnEndList();
         }
 
-        TString progress = ExtractQuery(queryId, /*force*/ true).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
-        YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished successfully";
+        TString progress;
+
+        {
+            auto guard = ReaderGuard(ProgressSpinLock_);
+
+            auto& activeQuery = GetActiveQuery(queryId);
+            progress = activeQuery.ProgressMerger.ToYsonString();
+        }
+
+        YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished successfully";
 
         return {
             .YsonResult = result.Empty() ? std::nullopt : std::make_optional(result.Str()),
@@ -724,15 +790,21 @@ public:
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
-        TQueryId /*queryId*/,
+        TQueryId queryId,
         TString user,
         TString queryText,
         TYsonString settingsStr,
         TYsonString credentialsStr) override
     {
         auto dynamicConfig = DynamicConfig_.Acquire();
-        auto factory = CreateProgramFactory(*dynamicConfig);
-        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settingsStr, credentialsStr, dynamicConfig, factory);
+        auto factory = CreateProgramFactory(queryId, *dynamicConfig);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
+            queryId,
+            queryText,
+            settingsStr,
+            credentialsStr,
+            dynamicConfig,
+            factory);
 
         if (!program->ParseSql(sqlSettings)) {
             ythrow yexception() << IssuesToYtErrorYson(program->Issues());
@@ -781,24 +853,24 @@ public:
             BIND([&](NConcurrency::TCoroutine<void()>& /*self*/){
                 auto finalCleaning = Finally([&] {
                     auto guard = WriterGuard(ProgressSpinLock_);
-                    // throwing of FiberCancellationException should keep queryId in ActiveQueriesProgress_
-                    if (ActiveQueriesProgress_.contains(queryId)) {
-                        ActiveQueriesProgress_[queryId].Finished = true;
-                    }
-                    YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished";
+
+                    auto& activeQuery = GetActiveQuery(queryId);
+                    activeQuery.Finished = true;
+
+                    YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished";
                 });
 
                 try {
                     result = GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
                 } catch (const std::exception& ex) {
-                    YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished with errors";
-                    ExtractQuery(queryId, /*force*/ true);
+                    YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished with errors";
                     result = TQueryResult{
                         .YsonError = MessageToYtErrorYson(ex.what()),
                     };
                 }
             }),
             NConcurrency::EExecutionStackKind::Large);
+
         coroutine.Run();
         YT_VERIFY(coroutine.IsCompleted());
 
@@ -808,12 +880,12 @@ public:
     TQueryResult GetProgress(TQueryId queryId) noexcept override
     {
         auto guard = ReaderGuard(ProgressSpinLock_);
-        if (ActiveQueriesProgress_.contains(queryId)) {
+        if (auto* activeQuery = GetActiveQueryPtr(queryId)) {
             TQueryResult result;
-            if (ActiveQueriesProgress_[queryId].ProgressMerger.HasChangesSinceLastFlush()) {
-                result.Plan = ActiveQueriesProgress_[queryId].Plan;
-                result.Progress = ActiveQueriesProgress_[queryId].ProgressMerger.ToYsonString();
-                result.Ast = ActiveQueriesProgress_[queryId].Ast;
+            if (activeQuery->ProgressMerger.HasChangesSinceLastFlush()) {
+                result.Plan = activeQuery->Plan;
+                result.Progress = activeQuery->ProgressMerger.ToYsonString();
+                result.Ast = activeQuery->Ast;
             }
             return result;
         } else {
@@ -823,37 +895,101 @@ public:
         }
     }
 
+    /* TODO(ngc224): retry aborts from QT, it will allow to simplify current messy logic.
+     *
+     * Currently we have several tools to properly handle aborts:
+     * - AbortState in active query allows to preserve aborts which happen at inappropriate time
+     *   (before program's execution start - we cannot abort query's parsing / compilation)
+     * - RegisterQuery injects query into active queries on yql agent's StartQuery start, thus
+     *   allowing us to preserve also aborts before plugin's Run call
+     *
+     * To keep things not overly complicated, Abort call returns error whenever it cannot
+     * start sync abort or guarantee that it already completed.
+     *
+     * Regardless of returned error, actual abort will wait until program's execution start,
+     * and then it will be performed.
+     */
     TAbortResult Abort(TQueryId queryId) noexcept override
     {
         NYql::TProgramPtr program;
         {
             auto guard = WriterGuard(ProgressSpinLock_);
-            if (!ActiveQueriesProgress_.contains(queryId)) {
+            auto* activeQuery = GetActiveQueryPtr(queryId);
+
+            if (!activeQuery) {
                 return TAbortResult{
-                    .YsonError = MessageToYtErrorYson(Format("Query %v is not found", queryId)),
-                };
-            }
-            if (!ActiveQueriesProgress_[queryId].Compiled) {
-                return TAbortResult{
-                    .YsonError = MessageToYtErrorYson(Format("Query %v is not compiled", queryId)),
+                    .YsonError = MessageToYtErrorYson(
+                        Format("Query %v is not found", queryId)),
                 };
             }
 
-            program = ActiveQueriesProgress_[queryId].Program;
+            if (activeQuery->AbortState) {
+                if (auto abortResult = ValidateAbortState(*activeQuery, queryId)) {
+                    return *abortResult;
+                }
+            }
+
+            activeQuery->AbortState = EAbortState::Pending;
+
+            if (!activeQuery->Started) {
+                return TAbortResult{
+                    .YsonError = MessageToYtErrorYson(
+                        Format("Query %v is not started", queryId)),
+                };
+            }
+
+            if (!activeQuery->Compiled) {
+                return TAbortResult{
+                    .YsonError = MessageToYtErrorYson(
+                        Format("Query %v is not compiled", queryId)),
+                };
+            }
+
+            if (!activeQuery->ExecutionStarted) {
+                return TAbortResult{
+                    .YsonError = MessageToYtErrorYson(
+                        Format("Query %v execution is not started", queryId)),
+                };
+            }
+
+            program = activeQuery->Program;
+        }
+
+        return DoAbort(std::move(queryId), std::move(program));
+    }
+
+    TAbortResult DoAbort(TQueryId queryId, NYql::TProgramPtr program)
+    {
+        // Method is called outside of guards, so it may be reached
+        // simultaneously by Abort and Run branches, hence more locking
+        // is needed..
+        {
+            auto guard = WriterGuard(ProgressSpinLock_);
+
+            auto& activeQuery = GetActiveQuery(queryId);
+            if (auto abortResult = ValidateAbortState(activeQuery, queryId)) {
+                return *abortResult;
+            }
+
+            activeQuery.AbortState = EAbortState::Started;
         }
 
         try {
-            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborting";
+            YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " is aborting";
             program->Abort().GetValueSync();
-            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborted";
+            YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " is aborted";
 
-            // TActiveQuery should live longer than TProgram
-            program.Reset();
+            auto guard = WriterGuard(ProgressSpinLock_);
 
-            ExtractQuery(queryId);
+            // This section may be called after query unregistration,
+            // hence additional check is required.
+            if (auto* activeQuery = GetActiveQueryPtr(queryId)) {
+                activeQuery->AbortState = EAbortState::Finished;
+            }
         } catch (...) {
             return TAbortResult{
-                .YsonError = MessageToYtErrorYson(Format("Failed to abort query %v: %v", queryId, CurrentExceptionMessage())),
+                .YsonError = MessageToYtErrorYson(
+                    Format("Failed to abort query %v: %v", queryId, CurrentExceptionMessage())),
             };
         }
 
@@ -904,6 +1040,39 @@ public:
         YQL_LOG(INFO) << "Dynamic config update finished";
     }
 
+    void RegisterQuery(TQueryId queryId) noexcept override
+    {
+        auto guard = WriterGuard(ProgressSpinLock_);
+        // There should not be known query before registration.
+        YT_VERIFY(!ActiveQueriesProgress_.contains(queryId));
+
+        ActiveQueriesProgress_[queryId] = TActiveQuery{
+            .Started = false,
+        };
+    }
+
+    void UnregisterQuery(TQueryId queryId) noexcept override
+    {
+        // NB: TProgram destructor must be called without locking.
+        std::optional<TActiveQuery> activeQuery;
+
+        {
+            auto guard = WriterGuard(ProgressSpinLock_);
+
+            auto iterator = ActiveQueriesProgress_.find(queryId);
+            YT_VERIFY(iterator != ActiveQueriesProgress_.end());
+
+            activeQuery = std::move(iterator->second);
+            ActiveQueriesProgress_.erase(iterator);
+
+            YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " is removed";
+        }
+
+        // Unregister may happen before query run (query is not started yet)
+        // or after execution complete (successful or not).
+        YT_VERIFY(!activeQuery->Started || activeQuery->Finished);
+    }
+
 private:
     const TDqManagerConfigPtr DqManagerConfig_;
     const bool StartDqManager_;
@@ -916,6 +1085,8 @@ private:
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
+    NYql::ITvmClient::TPtr TvmClient_;
+    NYql::IYtAccessProvider::TPtr YtAccessProvider_;
 
     std::atomic<TLangVersion> MaxYqlLangVersion_;
     TLangVersion MaxYqlLangVersionInitial_;
@@ -925,20 +1096,46 @@ private:
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
 
-    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false)
+    // NOTE: must be called under locked ProgressSpinLock_
+    TActiveQuery* GetActiveQueryPtr(TQueryId queryId)
     {
-        // NB: TProgram destructor must be called without locking.
-        std::optional<TActiveQuery> query;
-        {
-            auto guard = WriterGuard(ProgressSpinLock_);
-            auto it = ActiveQueriesProgress_.find(queryId);
-            if (it != ActiveQueriesProgress_.end() && (force | it->second.Finished)) {
-                query = std::move(it->second);
-                ActiveQueriesProgress_.erase(it);
-            }
+        auto iterator = ActiveQueriesProgress_.find(queryId);
+        if (iterator != ActiveQueriesProgress_.end()) {
+            return &iterator->second;
         }
-        YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is removed";
-        return query;
+
+        return nullptr;
+    }
+
+    // NOTE: must be called under locked ProgressSpinLock_
+    TActiveQuery& GetActiveQuery(TQueryId queryId)
+    {
+        auto* activeQuery = GetActiveQueryPtr(queryId);
+        YT_VERIFY(activeQuery);
+        return *activeQuery;
+    }
+
+    std::optional<TAbortResult> ValidateAbortState(
+        const TActiveQuery& activeQuery,
+        const TQueryId& queryId)
+    {
+        YT_VERIFY(activeQuery.AbortState);
+
+        switch (*activeQuery.AbortState) {
+            case EAbortState::Started:
+                return TAbortResult{
+                    .YsonError = MessageToYtErrorYson(
+                        Format("Query %v is already being aborted", queryId)),
+                };
+
+            case EAbortState::Finished:
+                return TAbortResult{};
+
+            case EAbortState::Pending:
+                break;
+        }
+
+        return std::nullopt;
     }
 
     static TString PatchQueryAttributes(TYsonString configAttributes, TYsonString querySettings)
@@ -1043,7 +1240,9 @@ private:
         return std::move(dynamicConfig);
     }
 
-    NYql::TProgramFactoryPtr CreateProgramFactory(TDynamicConfig& dynamicConfig) {
+    NYql::TProgramFactoryPtr CreateProgramFactory(TQueryId queryId, TDynamicConfig& dynamicConfig) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(ToString(queryId));
+
         YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         NYql::TYtNativeServices ytServices;
@@ -1051,8 +1250,8 @@ private:
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
-        ytServices.TvmClient = CreateTvmClient(dynamicConfig.GatewaysConfig.GetYt());
-        ytServices.YtAccessProvider = CreateYtAccessProvider(ytServices.TvmClient, dynamicConfig.GatewaysConfig.GetYt());
+        ytServices.TvmClient = TvmClient_;
+        ytServices.YtAccessProvider = YtAccessProvider_;
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
@@ -1119,13 +1318,14 @@ private:
     }
 
     std::pair<TProgramPtr, NSQLTranslation::TTranslationSettings> CreateProgramAndSqlSettingsFromParameters(
+        TQueryId queryId,
         const TString& queryText,
         const TYsonString& settingsStr,
         const TYsonString& credentialsStr,
         TDynamicConfigPtr dynamicConfig,
         TProgramFactoryPtr factory)
     {
-        auto program = factory->Create("-memory-", queryText);
+        auto program = factory->Create("-memory-", queryText, ToString(queryId));
 
         TVector<std::pair<TString, NYql::TCredential>> credentials;
         const auto credentialsMap = NodeFromYsonString(credentialsStr.ToString()).AsMap();

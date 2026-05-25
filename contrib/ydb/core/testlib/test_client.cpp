@@ -63,7 +63,6 @@
 #include <contrib/ydb/core/security/ldap_auth_provider/ldap_auth_provider.h>
 #include <contrib/ydb/core/security/token_manager/token_manager.h>
 #include <contrib/ydb/core/security/ticket_parser_settings.h>
-#include <contrib/ydb/core/security/sasl/static_credentials_provider.h>
 #include <contrib/ydb/core/base/user_registry.h>
 #include <contrib/ydb/core/health_check/health_check.h>
 #include <contrib/ydb/core/kafka_proxy/actors/kafka_metrics_actor.h>
@@ -84,6 +83,7 @@
 #include <contrib/ydb/core/tx/coordinator/coordinator.h>
 #include <contrib/ydb/core/tx/datashard/datashard.h>
 #include <contrib/ydb/core/tx/long_tx_service/public/events.h>
+#include <contrib/ydb/core/tx/long_tx_service/public/snapshot_registry.h>
 #include <contrib/ydb/core/tx/long_tx_service/long_tx_service.h>
 #include <contrib/ydb/core/tx/mediator/mediator.h>
 #include <contrib/ydb/core/tx/replication/controller/controller.h>
@@ -588,6 +588,8 @@ namespace Tests {
             appData.AdministrationAllowedSIDs = std::move(administrationAllowedSIDs);
             TVector<TString> registerDynamicNodeAllowedSIDs(securityConfig.GetRegisterDynamicNodeAllowedSIDs().cbegin(), securityConfig.GetRegisterDynamicNodeAllowedSIDs().cend());
             appData.RegisterDynamicNodeAllowedSIDs = std::move(registerDynamicNodeAllowedSIDs);
+            TVector<TString> defaultUserSIDs(securityConfig.GetDefaultUserSIDs().begin(), securityConfig.GetDefaultUserSIDs().end());
+            appData.DefaultUserSIDs = std::move(defaultUserSIDs);
             appData.PersQueueGetReadSessionsInfoWorkerFactory = Settings->PersQueueGetReadSessionsInfoWorkerFactory.get();
             appData.DataStreamsAuthFactory = Settings->DataStreamsAuthFactory.get();
             appData.PersQueueMirrorReaderFactory = Settings->PersQueueMirrorReaderFactory.get();
@@ -1470,6 +1472,7 @@ namespace Tests {
         }
 
         {
+            Runtime->GetAppData(nodeIdx).SnapshotRegistryHolder = CreateImmutableSnapshotRegistryHolder();
             IActor* longTxService = NLongTxService::CreateLongTxService();
             TActorId longTxServiceId = Runtime->Register(longTxService, nodeIdx, userPoolId);
             Runtime->RegisterService(NLongTxService::MakeLongTxServiceID(Runtime->GetNodeId(nodeIdx)), longTxServiceId, nodeIdx);
@@ -1860,7 +1863,6 @@ namespace Tests {
 
     TServer::~TServer() {
         ShutdownGRpc();
-        NSasl::TStaticCredentialsProvider::GetInstance().Clear();
 
         if (YqSharedResources) {
             YqSharedResources->Stop();

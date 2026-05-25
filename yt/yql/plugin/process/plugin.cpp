@@ -92,31 +92,26 @@ public:
         }
     }
 
-    // Acquires subprocess for query and routes call to it. Acquired process will
-    // also be used in subsequent Run call. If Run call did not happen in one
-    // minute, the process will be reinitialized.
     TClustersResult GetUsedClusters(
         TQueryId queryId,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) override
     {
-        // Yql agent calls this method first when staring query, so we acquire
-        // process in this call and then use it in Run() as well.
-        TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
 
-        if (!acquiredProcess) {
+        if (!pluginProcessOrError.IsOK()) {
             return TClustersResult{
-                .YsonError = ConvertToYsonString(TError("No available slots to acquire")).ToString()
+                .YsonError = ConvertToYsonString<TError>(pluginProcessOrError).ToString()
             };
         }
 
-        YT_LOG_INFO("Acquired slot for query (SlotIndex: %v, QueryId: %v)", acquiredProcess->SlotIndex(), queryId);
+        auto pluginProcess = pluginProcessOrError.Value();
 
-        return acquiredProcess->GetUsedClusters(queryId, queryText, settings, files);
+        return pluginProcess->GetUsedClusters(queryId, queryText, settings, files);
     }
 
-    // Gets an acquired in GetUsedClusters subprocess and routes Run call to it.
+    // Gets an acquired in RegisterQuery subprocess and routes Run call to it.
     // Marks subprocess as active so it would not reinitialize. Long blocking call
     TQueryResult Run(
         TQueryId queryId,
@@ -138,9 +133,6 @@ public:
         auto pluginProcess = pluginProcessOrError.Value();
 
         YT_LOG_INFO("Starting query in subprocess (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
-
-        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
-            .Via(Invoker_));
 
         auto result = pluginProcess->Run(
             queryId,
@@ -242,6 +234,42 @@ public:
                 .Item("standby_processes").Value(StandbyProcessesQueue_.Size())
                 .Item("total_processes").Value(Config_->ProcessPluginConfig->SlotCount)
             .EndMap()->AsMap();
+    }
+
+    // Acquires subprocess for query and routes call to it.
+    // Acquired process will also be used in subsequent GetUsedClusters and Run calls.
+    // If Run call did not happen in one minute, the process will be reinitialized.
+    void RegisterQuery(TQueryId queryId) override
+    {
+        // Yql agent calls this method first when staring query, so we acquire
+        // process in this call and then use it in GetUsedClusters() and Run() as well.
+        TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
+
+        if (!acquiredProcess) {
+            THROW_ERROR TError("No available slots to acquire");
+        }
+
+        YT_LOG_INFO("Acquired slot for query (SlotIndex: %v, QueryId: %v)",
+            acquiredProcess->SlotIndex(),
+            queryId);
+
+
+        return acquiredProcess->RegisterQuery(queryId);
+    }
+
+    void UnregisterQuery(TQueryId queryId) override
+    {
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
+        if (!pluginProcessOrError.IsOK()) {
+            THROW_ERROR pluginProcessOrError;
+        }
+
+        auto pluginProcess = pluginProcessOrError.Value();
+
+        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
+            .Via(Invoker_));
+
+        return pluginProcess->UnregisterQuery(queryId);
     }
 
 private:
@@ -370,6 +398,7 @@ private:
     void OnQueryFinish(TQueryId queryId, TYqlExecutorProcessPtr process)
     {
         YT_LOG_DEBUG("Query finished, cleaning up and restarting process (QueryId: %v, SlotIndex: %v)", queryId, process->SlotIndex());
+
         CleanupAfterQueryFinish(queryId);
         process->Stop();
     }
@@ -430,12 +459,12 @@ private:
             NFS::Remove(unixDomainSocketPath);
         }
 
-        auto serverConfig = NBus::TBusServerConfig::CreateUds(unixDomainSocketPath);
-        auto clientConfig = NBus::TBusClientConfig::CreateUds(unixDomainSocketPath);
+        auto serverConfig = NBus::NTcp::TBusServerConfig::CreateUds(unixDomainSocketPath);
+        auto clientConfig = NBus::NTcp::TBusClientConfig::CreateUds(unixDomainSocketPath);
 
         auto config = BuildProcessConfig(slotIndex, serverConfig);
 
-        auto client = NBus::CreateBusClient(clientConfig);
+        auto client = NBus::NTcp::CreateBusClient(clientConfig);
 
         auto process = New<TSimpleProcess>(YqlAgentProgramName);
 
@@ -460,7 +489,7 @@ private:
             Config_->ProcessPluginConfig->RunRequestTimeout);
     }
 
-    TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::TBusServerConfigPtr serverConfig)
+    TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::NTcp::TBusServerConfigPtr serverConfig)
     {
         auto config = NYTree::CloneYsonStruct(ConfigTemplate_);
 

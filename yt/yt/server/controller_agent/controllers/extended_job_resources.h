@@ -1,11 +1,12 @@
 #pragma once
 
+#include <yt/yt/ytlib/controller_agent/persistence.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NControllerAgent {
 
@@ -31,7 +32,7 @@ public:
 public:
     i64 GetMemory() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TExtendedJobResources, 0x3c8e4f12);
 };
 
 void Serialize(const TExtendedJobResources& resources, NYson::IYsonConsumer* consumer);

@@ -132,13 +132,14 @@ bool TOperationSharedState::ProcessAllocationUpdate(
 
 bool TOperationSharedState::ProcessAllocationPreemption(
     TPoolTreeOperationElement* operationElement,
-    TAllocationId allocationId)
+    TAllocationId allocationId,
+    const TJobResources& precommittedResources)
 {
     if (!IsEnabled()) {
         return false;
     }
 
-    auto delta = [&] {
+    auto resourceUsageDelta = [&] {
         auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
         return SetAllocationResourceUsage(
@@ -146,17 +147,18 @@ bool TOperationSharedState::ProcessAllocationPreemption(
             TJobResources());
     }();
 
-    if (delta != TJobResources()) {
-        if (!operationElement->CommitHierarchicalPreemptedResourceUsage(-delta)) {
-            YT_LOG_DEBUG(
-                "Failed to commit preempted resource usage, decreasing resource usage instead "
-                "(OperationId: %v, Delta: %v)",
-                operationElement->GetId(),
-                delta);
-            operationElement->IncreaseHierarchicalResourceUsage(delta);
-        }
-        UpdatePreemptibleAllocationsList(operationElement);
+    // NB(eshcherbin): Delta is negative and precommitted resources are positive.
+    if (!operationElement->CommitHierarchicalPreemptedResourceUsage(resourceUsageDelta, precommittedResources)) {
+        YT_LOG_DEBUG(
+            "Failed to commit preempted resource usage, decreasing resource usage instead "
+            "(OperationId: %v, ResourceUsageDelta: %v, PrecommittedResources: %v)",
+            operationElement->GetId(),
+            resourceUsageDelta,
+            precommittedResources);
+        operationElement->IncreaseHierarchicalResourceUsage(resourceUsageDelta);
     }
+
+    UpdatePreemptibleAllocationsList(operationElement);
 
     return true;
 }
@@ -670,14 +672,14 @@ void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus sta
 void TOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
-    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order::relaxed) + UpdateStateShardsBackoff_) {
         return;
     }
 
     auto guard = WriterGuard(DiagnosticCountersLock_);
 
     now = TInstant::Now();
-    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order_relaxed) + UpdateStateShardsBackoff_) {
+    if (now < LastDiagnosticCountersUpdateTime_.load(std::memory_order::relaxed) + UpdateStateShardsBackoff_) {
         return;
     }
 
@@ -701,7 +703,7 @@ void TOperationSharedState::UpdateDiagnosticCounters()
     }
 
     ScheduleAllocationAttemptCount_ = scheduleAllocationAttemptCount;
-    LastDiagnosticCountersUpdateTime_.store(now, std::memory_order_relaxed);
+    LastDiagnosticCountersUpdateTime_.store(now, std::memory_order::relaxed);
 }
 
 TInstant TOperationSharedState::GetLastScheduleAllocationSuccessTime() const

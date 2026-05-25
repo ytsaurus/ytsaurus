@@ -493,8 +493,7 @@ private:
                 const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, std::ssize(cellTags), [&] (TFluentMap fluent, int index) {
-                        auto cellTag = cellTags[index];
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
                         const auto exportData = chunk->GetExportData(cellTag);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
@@ -513,8 +512,7 @@ private:
 
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, std::ssize(cellTags), [&] (TFluentMap fluent, int index) {
-                        auto cellTag = cellTags[index];
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
                         const auto exportData = chunk->GetExportData(cellTag);
                         if (exportData.RefCounter > 0) {
                             fluent
@@ -546,8 +544,7 @@ private:
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                 BuildYsonFluently(consumer)
-                    .DoMapFor(0, std::ssize(cellTags), [&] (TFluentMap fluent, int index) {
-                        auto cellTag = cellTags[index];
+                    .DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
                         const auto exportData = chunk->GetExportData(cellTag);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
@@ -1034,7 +1031,10 @@ private:
                     break;
                 }
 
-                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                TEphemeralObjectPtr<TChunk> chunkPtr(chunk);
+                return chunkReplicaFetcher->GetChunkReplicasAsync(
+                    chunkPtr.Clone(),
+                    /*includeUnapproved*/ false)
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, aliveReplicas);
@@ -1139,7 +1139,9 @@ private:
                 }
 
                 auto chunkId = chunk->GetId();
-                return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                return chunkReplicaFetcher->GetChunkReplicasAsync(
+                    TEphemeralObjectPtr<TChunk>(chunk),
+                    /*includeUnapproved*/ true)
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         return BuildYsonStringFluently()

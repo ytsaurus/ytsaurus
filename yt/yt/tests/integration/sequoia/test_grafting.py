@@ -20,7 +20,6 @@ import pytest
 ################################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -142,7 +141,6 @@ class TestGrafting(YTEnvSetup):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestGraftingTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -180,7 +178,6 @@ class TestGraftingTmpCleanup(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaSymlinks(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -240,7 +237,10 @@ class TestSequoiaSymlinks(YTEnvSetup):
 
         s = create("map_node", "//tmp/s")
         link("//tmp/s", "//cypress/m1/m2/link_to_sequoia")
+        assert exists("//tmp/link_to_cypress/m2/link_to_sequoia")
+
         assert s == get("//tmp/link_to_cypress/m2/link_to_sequoia/@id")
+        assert get("//tmp/link_to_cypress/m2/@count") == 1
 
         tx = start_transaction()
         lock("//tmp/link_to_cypress/m2/link_to_sequoia", mode="snapshot", tx=tx)

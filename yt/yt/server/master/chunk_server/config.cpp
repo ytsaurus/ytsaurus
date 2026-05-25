@@ -45,6 +45,14 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("repair_queue_balancer_weight_decay_factor", &TThis::RepairQueueBalancerWeightDecayFactor)
         .Default(0.5);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
+            THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
+                << TErrorAttribute("max_replication_factor", config->MaxReplicationFactor)
+                << TErrorAttribute("min_vital_replication_factor", MinVitalReplicationFactor);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +79,14 @@ void TDomesticMediumConfig::Register(TRegistrar registrar)
         .Default(std::numeric_limits<int>::max());
     registrar.Parameter("prefer_local_host_for_dynamic_tables", &TThis::PreferLocalHostForDynamicTables)
         .Default(true);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
+            THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
+                << TErrorAttribute("max_replication_factor", config->MaxReplicationFactor)
+                << TErrorAttribute("min_vital_replication_factor", MinVitalReplicationFactor);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,10 +200,6 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tweak_traversal_info_after_rebalance", &TThis::TweakTraversalInfoAfterRebalance)
         .Default(true);
-
-    registrar.Parameter("update_modification_time", &TThis::UpdateModificationTime)
-        .Default(true)
-        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,6 +332,11 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_sequoia_replicas", &TThis::ValidateSequoiaReplicas)
         .Default(false)
         .DontSerializeDefault();
+    registrar.Parameter("validate_master_replicas", &TThis::ValidateMasterReplicas)
+        .Default(true)
+        .DontSerializeDefault();
+    registrar.Parameter("ignore_replicas_with_changed_state_during_validation", &TThis::IgnoreReplicasWithChangedStateDuringValidation)
+        .Default(true);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
@@ -482,6 +499,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_chunk_count_to_fetch_from_refresh_queue", &TThis::SequoiaChunkCountToFetchFromRefreshQueue)
         .Default(1'000);
 
+    registrar.Parameter("max_unsuccessful_sequoia_chunk_refresh_iterations", &TThis::MaxUnsuccessfulSequoiaChunkRefreshIterations)
+        .Default(10);
+
     registrar.Parameter("use_location_replacement_for_location_full_heartbeat", &TThis::UseLocationReplacementForLocationFullHeartbeat)
         .Default(false);
 
@@ -509,7 +529,7 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("global_sequoia_chunk_refresh_period", &TThis::GlobalSequoiaChunkRefreshPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("global_sequoia_chunk_refresh_batch_size", &TThis::GlobalSequoiaChunkRefreshBatchSize)
         .Default(100'000);
@@ -519,6 +539,21 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fix_sequoia_replicas_if_replica_validation_failed", &TThis::FixSequoiaReplicasIfReplicaValidationFailed)
         .Default(false);
+
+    registrar.Parameter("enable_location_refresh", &TThis::EnableLocationRefresh)
+        .Default(false);
+
+    registrar.Parameter("location_refresh_period", &TThis::LocationRefreshPeriod)
+        .Default(TDuration::Seconds(2));
+
+    registrar.Parameter("max_concurrent_locations_to_refresh", &TThis::MaxConcurrentLocationsToRefresh)
+        .Default(10);
+
+    registrar.Parameter("max_locations_awaiting_refresh", &TThis::MaxLocationsAwaitingRefresh)
+        .Default(500);
+
+    registrar.Parameter("max_unsuccessful_location_refresh_attempts", &TThis::MaxUnsuccessfulLocationRefreshAttempts)
+        .Default(10);
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
@@ -532,10 +567,6 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
             regularStoreConfig->ValidateSequoiaReplicasFetch = config->CompatValidateSequoiaReplicasFetch;
             regularStoreConfig->AllowExtraMasterReplicasDuringValidation = config->CompatAllowExtraMasterReplicasDuringValidation;
             config->BlobReplicasStoreConfig = regularStoreConfig;
-        }
-
-        if (config->JournalReplicasStoreConfig->StoreInSequoia) {
-            THROW_ERROR_EXCEPTION("Journal chunk replicas are not supported in Sequoia");
         }
     });
 }
@@ -931,10 +962,15 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(100)
         .DontSerializeDefault();
 
-    // COMPAT(grphil)
     registrar.Parameter("always_fetch_non_online_replicas", &TThis::AlwaysFetchNonOnlineReplicas)
         .Default(true)
         .DontSerializeDefault();
+
+    registrar.Parameter("refresh_node_on_registered", &TThis::RefreshNodeOnRegistered)
+        .Default(true);
+
+    registrar.Parameter("refresh_node_on_online", &TThis::RefreshNodeOnOnline)
+        .Default(false);
 
     registrar.Parameter("update_historically_non_vital_in_unexport", &TThis::UpdateHistoricallyNonVitalInUnexport)
         .Default(false)
@@ -952,6 +988,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         // COMPAT(aleksandra-zh).
         if (config->SequoiaChunkReplicas->Enable && config->ChunkRefreshDelay < config->ReplicaApproveTimeout) {
             config->ChunkRefreshDelay = config->ReplicaApproveTimeout;
+        }
+
+        if (!config->AlwaysFetchNonOnlineReplicas && !config->RefreshNodeOnOnline) {
+            THROW_ERROR_EXCEPTION("Can not disable always_fetch_non_online_replicas without online node refresh");
         }
     });
 }

@@ -423,11 +423,11 @@ private:
                 .Size = miscExt.uncompressed_data_size(),
                 .Offset = offset,
                 .Reader = CreateReplicationReader(
-                    std::move(readerConfig),
+                    readerConfig,
                     readerOptions,
                     ChunkReaderHost_,
                     chunkId,
-                    /*seedReplicas*/ {}),
+                    TChunkReplicaList{}),
                 .ReadBlocksOptions = {
                     .ClientOptions = {
                         .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),

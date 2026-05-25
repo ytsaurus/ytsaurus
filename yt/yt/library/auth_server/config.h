@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/https/public.h>
@@ -43,10 +45,10 @@ struct TBlackboxServiceConfig
     : public virtual NYTree::TYsonStruct
 {
     NHttps::TClientConfigPtr HttpClient;
-    TString Host;
+    std::string Host;
     int Port;
     bool Secure;
-    TString BlackboxServiceId;
+    std::string BlackboxServiceId;
 
     int ConcurrencyLimit;
     TDuration RequestTimeout;
@@ -68,7 +70,7 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxServiceConfig)
 struct TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-    TString Scope;
+    std::string Scope;
     bool EnableScopeCheck;
     bool GetUserTicket;
 
@@ -84,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
 struct TBlackboxTicketAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
-    THashSet<TString> Scopes;
+    THashSet<std::string> Scopes;
     bool EnableScopeCheck;
 
     REGISTER_YSON_STRUCT(TBlackboxTicketAuthenticatorConfig);
@@ -128,7 +130,7 @@ struct TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
     std::optional<NYPath::TYPath> RootPath;
-    TString Realm;
+    std::string Realm;
 
     bool Secure;
 
@@ -203,9 +205,9 @@ struct TBlackboxCookieAuthenticatorConfig
     // If set to true, sessguard cookie is checked.
     bool EnableSessguard;
 
-    TString Domain;
+    std::string Domain;
 
-    std::optional<TString> CsrfSecret;
+    std::optional<std::string> CsrfSecret;
     TDuration CsrfTokenTtl;
 
     bool GetUserTicket;
@@ -239,7 +241,7 @@ struct TStringReplacementConfig
 
     //! If set, replaces all non-overlapping matches of this pattern with the replacement string.
     NRe2::TRe2Ptr MatchPattern;
-    TString Replacement;
+    std::string Replacement;
 
     //! If set, uppercase characters are replaced with lowercase.
     bool ToLower;
@@ -262,15 +264,15 @@ struct TOAuthServiceConfig
     NHttp::TRetryingClientConfigPtr RetryingClient;
     NHttps::TClientConfigPtr HttpClient;
 
-    TString Host;
+    std::string Host;
     int Port;
     bool Secure;
 
-    TString AuthorizationHeaderPrefix;
-    TString UserInfoEndpoint;
-    TString UserInfoLoginField;
-    std::optional<TString> UserInfoSubjectField;
-    std::optional<TString> UserInfoErrorField;
+    std::string AuthorizationHeaderPrefix;
+    std::string UserInfoEndpoint;
+    std::string UserInfoLoginField;
+    std::optional<std::string> UserInfoSubjectField;
+    std::optional<std::string> UserInfoErrorField;
 
     //! Configures a list of transformations to be applied to the contents of the login field.
     //! Transformations are applied consecutively in order they are listed.
@@ -380,13 +382,13 @@ DEFINE_REFCOUNTED_TYPE(TCachingOAuthCookieAuthenticatorConfig)
 struct TDefaultSecretVaultServiceConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
-    TString Host;
+    std::string Host;
     int Port;
     bool Secure;
     NHttps::TClientConfigPtr HttpClient;
     TDuration RequestTimeout;
-    TString VaultServiceId;
-    TString Consumer;
+    std::string VaultServiceId;
+    std::string Consumer;
     bool EnableRevocation;
     std::optional<TTvmId> DefaultTvmIdForNewTokens;
     std::optional<TTvmId> DefaultTvmIdForExistingTokens;
@@ -430,6 +432,66 @@ DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressPasswordAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+    bool Enabled;
+
+    REGISTER_YSON_STRUCT(TCypressPasswordAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressPasswordAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLdapServiceConfig
+    : public virtual NYTree::TYsonStruct
+{
+    //! LDAP server hostname.
+    std::string Host;
+
+    //! LDAP server port. Defaults to 636 for Ldaps, 389 for None/StartTls.
+    std::optional<int> Port;
+
+    //! TLS mode: None (plain ldap://), Ldaps (ldaps://, port 636), StartTls (upgrade, port 389).
+    ELdapEncryption Encryption;
+
+    //! CA certificate for TLS verification. Only FileName is supported for LDAP.
+    NCrypto::TPemBlobConfigPtr CertificateAuthority;
+
+    //! DN used for admin bind (search phase).
+    std::string AdminDn;
+
+    //! Path to a file containing the admin bind password (one line, no trailing newline required).
+    std::optional<std::string> AdminPasswordPath;
+
+    //! Name of the environment variable holding the admin bind password.
+    std::optional<std::string> AdminPasswordEnvVar;
+
+    //! LDAP search base DN.
+    std::string SearchBase;
+
+    //! LDAP search filter template. Use {login} as placeholder for the username.
+    //! Example: "(sAMAccountName={login})" or "(uid={login})"
+    std::string SearchFilter;
+
+    //! Timeout for LDAP network and request operations.
+    TDuration RequestTimeout;
+
+    //! Resolves the admin password from the configured source. Throws if none is set.
+    std::string GetAdminPassword() const;
+
+    REGISTER_YSON_STRUCT(TLdapServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLdapServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressCookieStoreConfig
     : public NYTree::TYsonStruct
 {
@@ -470,14 +532,17 @@ struct TCypressCookieGeneratorConfig
     bool HttpOnly;
 
     //! Domain parameter of generated cookies.
-    std::optional<TString> Domain;
+    std::optional<std::string> Domain;
 
     //! Path parameter of generated cookies.
-    TString Path;
+    std::string Path;
+
+    //! Cookie expiration timeout for LDAP-authenticated users.
+    TDuration LdapCookieExpirationTimeout;
 
     //! If set and if cookie is generated via login page,
     //! will redirect user to this page.
-    std::optional<TString> RedirectUrl;
+    std::optional<std::string> RedirectUrl;
 
     REGISTER_YSON_STRUCT(TCypressCookieGeneratorConfig);
 
@@ -510,7 +575,7 @@ struct TYCAuthenticatorConfig
     NHttp::TRetryingClientConfigPtr RetryingClient;
     NHttps::TClientConfigPtr HttpClient;
 
-    TString Host;
+    std::string Host;
     int Port;
     bool Secure;
 
@@ -550,7 +615,12 @@ struct TAuthenticationManagerConfig
     TCypressCookieManagerConfigPtr CypressCookieManager;
     TCachingCypressUserManagerConfigPtr CypressUserManager;
 
-    TString GetCsrfSecret() const;
+    TCypressPasswordAuthenticatorConfigPtr CypressPasswordAuthenticator;
+
+    //! If set, enables LDAP password authentication in the cookie login handler.
+    TLdapServiceConfigPtr LdapService;
+
+    std::string GetCsrfSecret() const;
 
     TInstant GetCsrfTokenExpirationTime() const;
 

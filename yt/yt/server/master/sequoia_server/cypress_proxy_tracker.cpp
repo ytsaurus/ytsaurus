@@ -30,6 +30,7 @@
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
+using namespace NCypressProxy;
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NRpc;
@@ -143,8 +144,20 @@ public:
 
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(CypressProxy, CypressProxies, TCypressProxyObject);
 
+    const TCypressProxyDynamicConfigPtr& GetDynamicConfig() const override
+    {
+        return DynamicConfig_;
+    }
+
+    void SetDynamicConfig(TCypressProxyDynamicConfigPtr config) override
+    {
+        DynamicConfig_ = std::move(config);
+    }
+
 private:
     const IChannelFactoryPtr ChannelFactory_;
+
+    TCypressProxyDynamicConfigPtr DynamicConfig_ = New<TCypressProxyDynamicConfig>();
 
     // Part of dynamic config to read it from non-automaton thread.
     std::atomic<int> MaxCopiableSubtreeSize_;
@@ -158,6 +171,7 @@ private:
     {
         CypressProxyByAddress_.clear();
         CypressProxyMap_.Clear();
+        DynamicConfig_ = New<TCypressProxyDynamicConfig>();
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -168,6 +182,7 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         CypressProxyMap_.SaveValues(context);
+        Save(context, *DynamicConfig_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -178,6 +193,9 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         CypressProxyMap_.LoadValues(context);
+        if (context.GetVersion() >= EMasterReign::InternCypressProxyConfig) {
+            Load(context, *DynamicConfig_);
+        }
     }
 
     void OnAfterSnapshotLoaded() override

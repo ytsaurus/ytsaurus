@@ -61,7 +61,7 @@ public:
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Logger(FileClientLogger().WithTag("Path: %v, TransactionId: %v",
-            cookie.CookieData.RichPath,
+            Cookie_.CookieData.RichPath,
             transactionId))
     { }
 

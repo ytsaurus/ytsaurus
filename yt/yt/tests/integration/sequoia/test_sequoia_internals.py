@@ -6,7 +6,7 @@ from yt_commands import (
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
     execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
-    create_account, remove_account,
+    create_account, remove_account, create_cypress_proxy_bypass_driver,
 )
 
 from yt_sequoia_helpers import (
@@ -23,7 +23,7 @@ from yt.sequoia_tools import DESCRIPTORS
 
 from yt_helpers import profiler_factory
 
-from yt_driver_bindings import Driver
+from yt.common import YtError
 
 import yt.yson as yson
 
@@ -48,7 +48,6 @@ except ImportError:
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaEnvSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -73,12 +72,12 @@ class TestSequoiaEnvSetup(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaInternals(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 2
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -181,6 +180,10 @@ class TestSequoiaInternals(YTEnvSetup):
         id = create("document", "//tmp/d")
         tt = get("//tmp", attributes=["id"])
         assert tt["d"].attributes["id"] == id
+        rsp = get(f"#{id}/@", attributes=["id", "effective_acl", "recursive_resource_usage"])
+        assert rsp["id"] == id
+        assert rsp["effective_acl"]
+        assert rsp["recursive_resource_usage"]["node_count"] == 1
 
     @authors("danilalexeev")
     def test_get_recursive_limits(self):
@@ -568,7 +571,7 @@ class TestSequoiaInternals(YTEnvSetup):
         with raises_yt_error():
             get_batch_output(results[1])
 
-    @authors("danilalexeev")
+    @authors("h0pless")
     @flaky(max_runs=3)
     @with_additional_threads
     def test_request_throttling(self):
@@ -672,7 +675,8 @@ class TestSequoiaInternals(YTEnvSetup):
         write_table("//tmp/a/b/c", [{"x": "hello"}])
         create("table", "//tmp/a/b/d")
         write_table("//tmp/a/b/d", [{"x": "hello2"}])
-        set("//tmp/a/@annotation", "test")
+        annotation = "test"
+        set("//tmp/a/@annotation", annotation)
         for i in range(5):
             set(f"//tmp/a/{i}", i)
 
@@ -743,15 +747,18 @@ class TestSequoiaInternals(YTEnvSetup):
                 assert child.attributes["recursive_resource_usage"]["node_count"] == 3
                 assert child.attributes["resource_usage"]["node_count"] == 1
 
-        # TODO(grphil): Implement ls in attributes
-        # assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+        assert exists("//tmp/a/@recursive_resource_usage/node_count")
+        assert not exists("//tmp/a/@recursive_resource_usage/non_existing")
 
-        # TODO(grphil): Implement attributes in get for non map node
-        # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
+        c_attr = get("//tmp/a/b/c", attributes=["recursive_resource_usage", "annotation"]).attributes
+        assert c_attr["recursive_resource_usage"]["node_count"] == 1
+        assert c_attr["annotation"] == annotation
 
     @authors("danilalexeev")
     def test_recursive_attributes_heavy(self):
         set("//sys/cypress_proxies/@config/select_subtree_rows_limit", 100)
+        set("//sys/cypress_proxies/@config/vectorized_subbatch_size_overrides/descendants", 50)
         sleep(0.5)
         MAP_SIZE = 123
         yson = {f"{i:03}": 42 for i in range(MAP_SIZE)}
@@ -769,12 +776,14 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_sequoia_barrier_delay(self):
-        set("//sys/@config/transaction_manager/testing/sequoia_transaction_barrier_delay", 2000)
+        set("//sys/@config/transaction_manager/testing/prepared_transactions_barrier_delay", 2000)
 
         start = datetime.now()
         get("//@owner")
         finish = datetime.now()
         assert finish - start >= timedelta(seconds=2)
+        # Remove this option or teardown will take forever.
+        remove("//sys/@config/transaction_manager/testing/prepared_transactions_barrier_delay")
 
     @authors("kvk1920")
     def test_sequoia_tx_start_failure(self):
@@ -802,8 +811,47 @@ class TestSequoiaInternals(YTEnvSetup):
         # Not using contains_code here - we're checking the outermost error.
         assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
 
+    @authors("kvk1920")
+    def test_ground_connection_synchronization(self):
+        clusters = get("//sys/clusters")
+        remove("//sys/clusters/primary_ground")
 
-@pytest.mark.enabled_multidaemon
+        num = 0
+
+        def sequoia_broken():
+            nonlocal num
+            try:
+                create("map_node", f"//tmp/m{num}")
+                num += 1
+                return False
+            except YtError as error:
+                return error.contains_code(yt_error_codes.UnknownCell)
+
+        wait(sequoia_broken)
+
+        if self.DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG.get("object_service", {}).get("allow_bypass_master_resolve", False):
+            cypress_proxy_bypass_driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
+            set("//sys/clusters", clusters, driver=cypress_proxy_bypass_driver)
+        else:
+            set("//sys/clusters", clusters)
+
+        def sequoia_works():
+            nonlocal num
+            try:
+                create("map_node", f"//tmp/m{num}")
+                num += 1
+                return True
+            except YtError as error:
+                if error.contains_code(yt_error_codes.UnknownCell):
+                    return False
+                raise
+
+        wait(sequoia_works)
+
+        remove("//tmp/*")
+        assert not ls("//tmp")
+
+
 class TestSequoiaResolve(TestSequoiaInternals):
     ENABLE_MULTIDAEMON = True
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
@@ -816,7 +864,6 @@ class TestSequoiaResolve(TestSequoiaInternals):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1334,7 +1381,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1389,7 +1435,6 @@ class TestSequoiaCypressTransactionCompatibility(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2340,7 +2385,6 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
@@ -2390,7 +2434,6 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -3015,7 +3058,6 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
-@pytest.mark.enabled_multidaemon
 class TestSequoiaTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -3102,10 +3144,7 @@ class TestSequoiaClusterDirectoryInitialization(YTEnvSetup):
         # GUQM cannot be unpaused via regular driver since every request to
         # Cypress waits for sync with GUQM on Cypress proxy. Therefore, request
         # has to be sent to master directly.
-        config_without_cypress_proxy = deepcopy(self.Env.configs["driver"])
-        config_without_cypress_proxy["api_version"] = 4
-        del config_without_cypress_proxy["cypress_proxy"]
-        cypress_proxy_bypass_driver = Driver(config=config_without_cypress_proxy)
+        cypress_proxy_bypass_driver = create_cypress_proxy_bypass_driver(self.Env.configs["driver"])
 
         def try_reset_guqm_config():
             print_debug("Trying to remove GUQM config...")

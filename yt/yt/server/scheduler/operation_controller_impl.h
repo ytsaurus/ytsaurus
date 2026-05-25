@@ -73,7 +73,8 @@ public:
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout) override;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout,
+        std::optional<std::string> allocationGroupName) override;
 
     void UpdateGroupedNeededResources() override;
 

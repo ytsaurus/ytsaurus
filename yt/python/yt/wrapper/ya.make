@@ -29,7 +29,6 @@ ELSE()
         contrib/python/cryptography
         contrib/python/decorator
         contrib/python/distro
-        contrib/python/six
         contrib/python/typing-extensions
     )
 

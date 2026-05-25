@@ -28,13 +28,14 @@ from yt_commands import (
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_domestic_medium, raises_yt_error, get_tablet_errors,
     suspend_tablet_cells, resume_tablet_cells, update_nodes_dynamic_config, externalize,
-    set_node_banned, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
+    set_node_banned, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
+    check_cluster_liveness)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, update, update_inplace
+from yt.common import YtError, WaitFailed, update, update_inplace
 import yt.yson as yson
 
 import pytest
@@ -525,6 +526,71 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         self._check_cell_stable(cell_id)
 
+    @authors("ifsmirnov")
+    def test_leader_smoothing(self):
+        set("//sys/@config/tablet_manager/peer_revocation_timeout", 3000)
+        set("//sys/@config/tablet_manager/leader_reassignment_timeout", 2000)
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) >= 6
+
+        # Pick 4 nodes for the bundle and 1 extra node for later.
+        tagged_nodes = nodes[:4]
+        extra_node = nodes[4]
+
+        for node in tagged_nodes:
+            set(f"//sys/cluster_nodes/{node}/@user_tags", ["smoothing"])
+
+        # Create bundle with peer_count=2 and node_tag_filter.
+        create_tablet_cell_bundle("b", attributes={
+            "options": {"peer_count": 2},
+            "node_tag_filter": "smoothing",
+        })
+
+        # Set slot count to 6 on each node via dynamic config.
+        # 4 nodes * 6 slots = 24 slots, peer_count=2 => 12 cells to fill all slots.
+        update_nodes_dynamic_config({"slots": 6}, path="tablet_node", replace=True)
+
+        cell_count = 12
+        cell_ids = sync_create_cells(cell_count, tablet_cell_bundle="b")
+
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_leader_smoothing", True)
+
+        def _get_leader_counts():
+            """Returns a dict: node_address -> number of leaders on that node."""
+            nodes = ls("//sys/tablet_nodes", attributes=["tablet_slots"], verbose=False)
+            return {
+                str(node): sum(1 for slot in node.attributes.get("tablet_slots", []) if slot.get("state") == "leading")
+                for node in nodes
+            }
+
+        def _is_balanced(expected_nodes):
+            counts = _get_leader_counts()
+            # Only count leaders on expected nodes.
+            counts = {n: c for n, c in counts.items() if n in expected_nodes}
+            if not counts:
+                return False
+            max_count = max(counts.values())
+            min_count = min(counts.values())
+            return min_count >= cell_count // len(expected_nodes) and \
+                max_count <= (cell_count + len(expected_nodes) - 1) // len(expected_nodes)
+
+        # Wait until leaders are balanced across the 4 tagged nodes.
+        wait(lambda: _is_balanced(builtins.set(tagged_nodes)))
+
+        # Now ban one of the nodes and add the tag to a new node.
+        banned_node = tagged_nodes[0]
+        set_node_banned(banned_node, True)
+
+        set(f"//sys/cluster_nodes/{extra_node}/@user_tags", ["smoothing"])
+        new_tagged_nodes = tagged_nodes[1:] + [extra_node]
+
+        # Wait for cells to recover after ban.
+        wait_for_cells(cell_ids)
+
+        # Wait until leaders are balanced across the new set of 4 nodes.
+        wait(lambda: _is_balanced(builtins.set(new_tagged_nodes)))
+
     @authors("savrus")
     def test_tablet_cell_health_status(self):
         cell_id = sync_create_cells(1)[0]
@@ -688,6 +754,32 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set("//tmp/t2/@profiling_mode", "tag")
         assert get("//tmp/t2/@profiling_mode") == "tag"
 
+    @authors("navasardianna")
+    def test_update_content_revision(self):
+        set("//sys/@config/tablet_manager/update_table_content_revision_on_heartbeat", True)
+
+        sync_create_cells(1)
+
+        attributes = {"external_cell_tag": 11} if self.NUM_SECONDARY_MASTER_CELLS > 1 else {}
+        attributes.update({"dynamic_store_auto_flush_period": yson.YsonEntity()})
+        self._create_sorted_table("//tmp/t", **attributes)
+        sync_mount_table("//tmp/t")
+
+        driver = get_driver(1 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
+        table_id = get("//tmp/t/@id")
+
+        # Waiting for all content revision updates to reach the master.
+        time.sleep(2)
+
+        for i in range(0, 3):
+            old_content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+            insert_rows("//tmp/t", [{"key": i, "value": "0"}])
+            wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
+
+        content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+        time.sleep(3)
+        assert get(f"#{table_id}/@content_revision", driver=driver) == content_revision
+
     @authors("akozhikhov")
     def test_inherited_profiling_mode_without_tag(self):
         sync_create_cells(1)
@@ -835,6 +927,29 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         # Evaluation of non materializied computed columns is not implemented yet.
         assert lookup_rows("//tmp/t", [{"a": r["a"], "b": r["b"]} for r in rows]) == [{"a": i, "b": -i, "c": i, "mul": yson.YsonEntity()} for i in range(1, 4)]
         assert select_rows("mul from [//tmp/t]") == [{"mul": yson.YsonEntity()} for i in range(1, 4)]
+
+    @authors("sabdenovch")
+    def test_validate_reshard_complexity(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(100)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [50]])
+
+        set("//sys/@config/tablet_manager/max_reshard_complexity", 10)
+
+        alter_table("//tmp/t", schema=(
+            [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            + [{"name": f"k_{i}", "type": "int64", "sort_order": "ascending"} for i in range(11)]
+            + [{"name": "value", "type": "string"}]
+        ))
+
+        with raises_yt_error("Reshard complexity exceeds maximum allowed complexity"):
+            sync_reshard_table("//tmp/t", [[], [30], [70]])
+
+        set("//sys/@config/tablet_manager/max_reshard_complexity", 30)
+        sync_reshard_table("//tmp/t", [[], [30], [70]])
 
 
 ##################################################################
@@ -3819,6 +3934,27 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         link(f"//sys/cluster_nodes/{leader_address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}", "//tmp/tablet", force=True)
         assert get("//tmp/tablet/state") == "mounted"
 
+    @authors("danilalexeev")
+    def test_chunk_count_limit_reached_yt27645(self):
+        create_account("account")
+        set("//sys/accounts/account/@resource_limits/chunk_count", 0)
+        set("//sys/accounts/account/@resource_limits/node_count", 10000)
+
+        create_tablet_cell_bundle(
+            "custom",
+            attributes={"options": {"changelog_account": "account"}})
+
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "custom"})
+        wait(lambda: exists(f"#{cell_id}/changelogs"))
+
+        with pytest.raises(WaitFailed):
+            wait(lambda: get(f"#{cell_id}/changelogs/@count") > 5, timeout=5)
+
+        assert get(f"#{cell_id}/@health") == "failed"
+
+        set("//sys/accounts/account/@resource_limits/chunk_count", 10000)
+        wait_for_cells([cell_id])
+
 
 ##################################################################
 
@@ -3846,8 +3982,7 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
-class TestDynamicTablesSafeMode(DynamicTablesBase):
+class TestDynamicTablesAvailability(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
 
@@ -3872,6 +4007,19 @@ class TestDynamicTablesSafeMode(DynamicTablesBase):
         trim_rows("//tmp/t", 0, 1, authenticated_user="u")
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}], authenticated_user="u")
         assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 1, "value": "1"}]
+
+    @authors("savrus")
+    def test_check_cluster_liveness(self):
+        bundle_name = "b"
+        create_tablet_cell_bundle(bundle_name)
+        sync_create_cells(1, tablet_cell_bundle=bundle_name)
+        wait(lambda : get("//sys/tablet_cell_bundles/{0}/@health".format(bundle_name)) == "good")
+
+        check_cluster_liveness(check_tablet_cell_bundle=bundle_name)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[bundle_name]):
+            with raises_yt_error("Tablet cell bundle health subrequest failed"):
+                check_cluster_liveness(check_tablet_cell_bundle=bundle_name)
 
 
 ##################################################################
@@ -4033,7 +4181,6 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert get("//tmp/t/@remount_needed_tablet_count") == 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesDecommissionStall(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -4148,7 +4295,6 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
         assert "//tmp/t_2" in str(err)
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = update(
@@ -4172,7 +4318,6 @@ class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSing
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTabletOrchid(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
@@ -4277,7 +4422,6 @@ class TestTabletOrchid(DynamicTablesBase):
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestTabletCellJanitor(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3

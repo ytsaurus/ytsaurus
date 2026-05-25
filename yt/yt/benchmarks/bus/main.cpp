@@ -14,6 +14,7 @@
 namespace NYT {
 
 using namespace NBus;
+using namespace NBus::NTcp;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NProfiling;

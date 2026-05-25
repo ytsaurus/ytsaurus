@@ -56,8 +56,8 @@ public:
     { }
 
     TFuture<INodePtr> Call(
-        const TString& method,
-        const THashMap<TString, TString>& params) override
+        const std::string& method,
+        const THashMap<std::string, std::string>& params) override
     {
         auto callId = TGuid::Create();
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
@@ -70,12 +70,12 @@ public:
             .Run();
     }
 
-    TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
+    TErrorOr<std::string> GetLogin(const NYTree::INodePtr& reply) const override
     {
         if (Config_->UseLowercaseLogin) {
-            return GetByYPath<TString>(reply, "/attributes/1008");
+            return GetByYPath<std::string>(reply, "/attributes/1008");
         } else {
-            return GetByYPath<TString>(reply, "/login");
+            return GetByYPath<std::string>(reply, "/login");
         }
     }
 
@@ -93,8 +93,8 @@ private:
 
 private:
     INodePtr DoCall(
-        const TString& method,
-        const THashMap<TString, TString>& params,
+        const std::string& method,
+        const THashMap<std::string, std::string>& params,
         TGuid callId,
         TInstant deadline)
     {
@@ -183,7 +183,7 @@ private:
                 auto errorNode = result->AsMap()->FindChild("error");
                 auto blackboxError =
                     errorNode && errorNode->GetType() == ENodeType::String
-                    ? TError(errorNode->GetValue<TString>(), TError::DisableFormat)
+                    ? TError(errorNode->GetValue<std::string>(), TError::DisableFormat)
                     : TError("Blackbox did not provide any human-readable error details");
 
                 switch (static_cast<EBlackboxException>(exceptionIdNode->GetValue<i64>())) {
@@ -233,10 +233,10 @@ private:
     INodePtr DoCallOnce(
         TGuid callId,
         int attempt,
-        const TString& realUrl,
-        const TString& safeUrl,
-        const TString& realParams,
-        const TString& safeParams,
+        const std::string& realUrl,
+        const std::string& safeUrl,
+        const std::string& realParams,
+        const std::string& safeParams,
         const THeadersPtr& headers,
         TInstant deadline)
     {

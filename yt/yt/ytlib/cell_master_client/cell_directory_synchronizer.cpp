@@ -71,10 +71,21 @@ public:
         return RecentSyncPromise_.ToFuture();
     }
 
-    void Reconfigure(const TCellDirectorySynchronizerConfigPtr& newConfig) override
+    void ApplyDynamicConfigOverride(const TCellDirectorySynchronizerOverrideDynamicConfigPtr& overrideDynamicConfig) override
     {
-        SyncExecutor_->SetPeriod(newConfig->SyncPeriod);
-        Config_.Store(newConfig);
+        auto config = Config_.Acquire();
+        if (overrideDynamicConfig->SyncPeriod) {
+            config->SyncPeriod = overrideDynamicConfig->SyncPeriod;
+        }
+        if (overrideDynamicConfig->RetryPeriod) {
+            config->RetryPeriod = overrideDynamicConfig->RetryPeriod;
+        }
+        config->ExpireAfterFailedUpdateTime = overrideDynamicConfig->ExpireAfterFailedUpdateTime.value_or(config->ExpireAfterFailedUpdateTime);
+        config->ExpireAfterSuccessfulUpdateTime = overrideDynamicConfig->ExpireAfterSuccessfulUpdateTime.value_or(config->ExpireAfterSuccessfulUpdateTime);
+        config->Testing = overrideDynamicConfig->Testing.value_or(config->Testing);
+
+        SyncExecutor_->SetPeriod(config->SyncPeriod);
+        Config_.Store(config);
     }
 
 private:

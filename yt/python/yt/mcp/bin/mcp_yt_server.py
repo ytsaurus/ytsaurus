@@ -6,6 +6,7 @@ from yt.mcp.lib.tools.check_is_paths_exists import CheckIsPathsExists
 from yt.mcp.lib.tools.admin import GetProxy
 from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
 from yt.mcp.lib.tools.common_client import CommonCypress
+from yt.mcp.lib.tools.table import ReadStaticTable
 
 import argparse
 import itertools
@@ -57,6 +58,8 @@ def main():
             CheckIsPathsExists(),
             # common_client
             CommonCypress(),
+            # table
+            ReadStaticTable(),
         ],
         "account": [
             # account

@@ -145,6 +145,42 @@ TClientCommandOption&  TClientCommandOption::IfPresentDisableCompletion() {
     return *this;
 }
 
+TClientCommandOption& TClientCommandOption::CompletionArgHelp(const TString& help) {
+    Opt->CompletionArgHelp(help);
+    return *this;
+}
+
+TClientCommandOption& TClientCommandOption::Completer(NLastGetopt::NComp::ICompleterPtr completer) {
+    Opt->Completer(std::move(completer));
+    return *this;
+}
+
+TClientCommandOption& TClientCommandOption::ChoicesWithCompletion(TVector<NLastGetopt::NComp::TChoice> choices) {
+    Opt->ChoicesWithCompletion(choices);
+    return *this;
+}
+
+NLastGetopt::NComp::ICompleterPtr SchemePathCompleterForTables();
+NLastGetopt::NComp::ICompleterPtr SchemePathCompleterForTopics();
+NLastGetopt::NComp::ICompleterPtr SchemePathCompleterForDir();
+NLastGetopt::NComp::ICompleterPtr SchemePathCompleterForAll();
+
+TClientCommandOption& TClientCommandOption::SchemePathCompletionForTables() {
+    return CompletionArgHelp("<database path>").Completer(SchemePathCompleterForTables());
+}
+
+TClientCommandOption& TClientCommandOption::SchemePathCompletionForTopics() {
+    return CompletionArgHelp("<database path>").Completer(SchemePathCompleterForTopics());
+}
+
+TClientCommandOption& TClientCommandOption::SchemePathCompletionForDir() {
+    return CompletionArgHelp("<database path>").Completer(SchemePathCompleterForDir());
+}
+
+TClientCommandOption& TClientCommandOption::SchemePathCompletionForAll() {
+    return CompletionArgHelp("<database path>").Completer(SchemePathCompleterForAll());
+}
+
 const NLastGetopt::EHasArg& TClientCommandOption::GetHasArg() const {
     return Opt->GetHasArg();
 }
@@ -293,7 +329,7 @@ void TClientCommandOption::RebuildHelpMessage() {
     NColorizer::TColors& colors = NConsoleClient::AutoColors(Cout);
     TStringBuilder helpMessage;
     helpMessage << Help;
-    const bool needDefinitionsPriority = ClientOptions->HelpCommandVerbosiltyLevel >= 2 && NeedPrintDefinitionsPriority();
+    const bool needDefinitionsPriority = ClientOptions->HelpCommandVerbosityLevel >= 2 && NeedPrintDefinitionsPriority();
 
     if (!needDefinitionsPriority && (DefaultOptionValue || ManualDefaultOptionValueDescription)) {
         helpMessage << " (default: " << colors.Cyan()
@@ -313,7 +349,7 @@ void TClientCommandOption::RebuildHelpMessage() {
         helpMessage << Endl;
     };
 
-    TString indent = ClientOptions->HelpCommandVerbosiltyLevel >= 2 ? "  " : "";
+    TString indent = ClientOptions->HelpCommandVerbosityLevel >= 2 ? "  " : "";
     if (Documentation) {
         makeMultiline();
         helpMessage << indent << "For more info go to: " << Documentation << Endl;

@@ -1,7 +1,7 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
-                                      ObjectAlertHelper, GenericObjectPath)
+                                      ObjectAlertHelper)
 
 from yt.environment.init_queue_agent_state import (
     run_migration, prepare_migration, INITIAL_VERSION as QUEUE_AGENT_STATE_INITIAL_VERSION,
@@ -44,7 +44,6 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueAgent(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -59,12 +58,11 @@ class TestQueueAgent(TestQueueAgentBase):
         queue_orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = str(GenericObjectPath(queue_path, "primary"))
         self._create_queue(queue_path)
 
         self._wait_for_component_passes()
 
-        status = queue_orchid.get_queue_orchid(queue_ypath).get_status()
+        status = queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert status["partition_count"] == 1
 
         set(f"{queue_path}/@queue_agent_stage", "testing")
@@ -72,13 +70,13 @@ class TestQueueAgent(TestQueueAgentBase):
         self._wait_for_component_passes()
 
         with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
-            queue_orchid.get_queue_orchid(queue_ypath).get_status()
+            queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
 
         set(f"{queue_path}/@queue_agent_stage", "production")
 
         self._wait_for_component_passes()
 
-        status = queue_orchid.get_queue_orchid(queue_ypath).get_status()
+        status = queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert status["partition_count"] == 1
 
     @authors("cherepashka", "nadya73")
@@ -86,14 +84,13 @@ class TestQueueAgent(TestQueueAgentBase):
         queue_orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = str(GenericObjectPath(queue_path, "primary"))
         self._create_queue(queue_path)
         self._wait_for_component_passes()
 
         # Frozen queue doesn't have errors.
         sync_freeze_table(queue_path)
         self._wait_for_component_passes()
-        partitions = queue_orchid.get_queue_orchid(queue_ypath).get_partitions()
+        partitions = queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         for partition in partitions:
             assert "error" not in partition
 
@@ -113,10 +110,9 @@ class TestQueueAgent(TestQueueAgentBase):
         consumer_registrations = get(f"{consumer_path}/@queue_consumer_status/registrations")
         consumer_queues = get(f"{consumer_path}/@queue_consumer_status/queues")
         for registration in consumer_registrations:
-            assert "error" not in consumer_queues[queue_ypath]
+            assert "error" not in consumer_queues[registration["queue"]]
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -304,7 +300,6 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert orchid.get_consumer_orchid(f"primary:{consumer_path}").get_pass_index() > pass_index
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueController(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -325,25 +320,21 @@ class TestQueueController(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = GenericObjectPath(queue_path, "primary")
         consumer_path = self.create_consumer_path()
-        consumer_ypath = GenericObjectPath(consumer_path, "primary")
 
         schema, _ = self._create_queue(queue_path, partition_count=2, enable_cumulative_data_weight_column=False)
         schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
         self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
 
         self._wait_for_component_passes()
-        orchid.get_queue_orchid(str(queue_ypath)).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_status = orchid.get_queue_orchid(str(queue_ypath)).get_status()
+        queue_status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert queue_status["family"] == "ordered_dynamic_table"
         assert queue_status["partition_count"] == 2
-        assert queue_status["registrations"] == [{
-            "queue": queue_ypath.to_yson_type(),
-            "consumer": consumer_ypath.to_yson_type(),
-            "vital": yt.yson.YsonBoolean(False),
-        }]
+        assert queue_status["registrations"] == [
+            {"queue": f"primary:{queue_path}", "consumer": f"primary:{consumer_path}", "vital": False}
+        ]
 
         def assert_partition(partition, lower_row_index, upper_row_index):
             assert partition["lower_row_index"] == lower_row_index
@@ -352,15 +343,15 @@ class TestQueueController(TestQueueAgentBase):
 
         null_time = "1970-01-01T00:00:00.000000Z"
 
-        queue_partitions = orchid.get_queue_orchid(str(queue_ypath)).get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         for partition in queue_partitions:
             assert_partition(partition, 0, 0)
             assert partition["last_row_commit_time"] == null_time
 
         insert_rows(queue_path, [{"data": "foo", "$tablet_index": 0}])
-        orchid.get_queue_orchid(str(queue_ypath)).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid(str(queue_ypath)).get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         assert_partition(queue_partitions[0], 0, 1)
         assert queue_partitions[0]["last_row_commit_time"] != null_time
         assert_partition(queue_partitions[1], 0, 0)
@@ -369,8 +360,8 @@ class TestQueueController(TestQueueAgentBase):
         alter_table(queue_path, schema=schema_with_cumulative_data_weight)
         sync_mount_table(queue_path)
 
-        orchid.get_queue_orchid(str(queue_ypath)).wait_fresh_pass()
-        queue_partitions = orchid.get_queue_orchid(str(queue_ypath)).get_partitions()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         assert_partition(queue_partitions[0], 0, 1)
         assert_partition(queue_partitions[1], 0, 0)
         assert queue_partitions[0]["cumulative_data_weight"] == YsonEntity()
@@ -379,18 +370,18 @@ class TestQueueController(TestQueueAgentBase):
 
         self._wait_for_row_count(queue_path, 0, 0)
 
-        orchid.get_queue_orchid(str(queue_ypath)).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid(str(queue_ypath)).get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         assert_partition(queue_partitions[0], 1, 1)
         assert queue_partitions[0]["last_row_commit_time"] != null_time
         assert_partition(queue_partitions[1], 0, 0)
 
         insert_rows(queue_path, [{"data": "foo", "$tablet_index": 0}] * 100)
 
-        orchid.get_queue_orchid(str(queue_ypath)).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid(str(queue_ypath)).get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
 
         assert_partition(queue_partitions[0], 1, 101)
         assert queue_partitions[0]["cumulative_data_weight"] == 2012
@@ -399,9 +390,9 @@ class TestQueueController(TestQueueAgentBase):
         trim_rows(queue_path, 0, 91)
         self._wait_for_row_count(queue_path, 0, 10)
 
-        orchid.get_queue_orchid(str(queue_ypath)).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid(str(queue_ypath)).get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
 
         assert_partition(queue_partitions[0], 91, 101)
         assert queue_partitions[0]["cumulative_data_weight"] == 2012
@@ -415,9 +406,7 @@ class TestQueueController(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = str(GenericObjectPath(queue_path, "primary"))
         consumer_path = self.create_consumer_path()
-        consumer_ypath = str(GenericObjectPath(consumer_path, "primary"))
 
         self._create_queue(queue_path, partition_count=2)
         self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
@@ -433,8 +422,8 @@ class TestQueueController(TestQueueAgentBase):
         timestamps = [timestamps[0], timestamps[2]]
         print_debug(self._timestamp_to_iso_str(timestamps[0]), self._timestamp_to_iso_str(timestamps[1]))
 
-        orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
-        consumer_status = orchid.get_consumer_orchid(consumer_ypath).get_status()["queues"][queue_ypath]
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_status = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()["queues"][f"primary:{queue_path}"]
         assert consumer_status["partition_count"] == 2
 
         time.sleep(1.5)
@@ -450,21 +439,21 @@ class TestQueueController(TestQueueAgentBase):
                                                          if next_row_index < 2 else YsonEntity())
             assert (partition["processing_lag"] > 0) == (next_row_index < 2)
 
-        orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid(consumer_ypath).get_partitions()[queue_ypath]
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
         assert_partition(consumer_partitions[0], 0)
         assert_partition(consumer_partitions[1], 0)
 
         self._advance_consumer(consumer_path, queue_path, 0, 1)
 
-        orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
 
         if trim:
             trim_rows(queue_path, 0, 1)
 
-        orchid.get_queue_orchid(queue_ypath).wait_fresh_pass()
-        orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid(consumer_ypath).get_partitions()[queue_ypath]
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
         assert_partition(consumer_partitions[0], 1)
 
         self._advance_consumer(consumer_path, queue_path, 1, 2)
@@ -472,9 +461,9 @@ class TestQueueController(TestQueueAgentBase):
         if trim:
             trim_rows(queue_path, 1, 1)
 
-        orchid.get_queue_orchid(queue_ypath).wait_fresh_pass()
-        orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid(consumer_ypath).get_partitions()[queue_ypath]
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
 
         assert_partition(consumer_partitions[1], 2)
 
@@ -484,9 +473,7 @@ class TestQueueController(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = str(GenericObjectPath(queue_path, "primary"))
         consumer_path = self.create_consumer_path()
-        consumer_ypath = str(GenericObjectPath(consumer_path, "primary"))
 
         schema, _ = self._create_queue(queue_path, enable_timestamp_column=False, enable_cumulative_data_weight_column=False)
         insert_rows(queue_path, [{"data": "foo"}] * 3)
@@ -501,8 +488,8 @@ class TestQueueController(TestQueueAgentBase):
 
         self._wait_for_component_passes()
 
-        assert orchid.get_queue_orchid(queue_ypath).get_status()["partition_count"] == 1
-        assert orchid.get_consumer_orchid(consumer_ypath).get_status()["queues"][queue_ypath]["partition_count"] == 1
+        assert orchid.get_queue_orchid(f"primary:{queue_path}").get_status()["partition_count"] == 1
+        assert orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()["queues"][f"primary:{queue_path}"]["partition_count"] == 1
 
     @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
@@ -510,9 +497,7 @@ class TestQueueController(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = str(GenericObjectPath(queue_path, "primary"))
         consumer_path = self.create_consumer_path()
-        consumer_ypath = str(GenericObjectPath(consumer_path, "primary"))
 
         self._create_queue(queue_path)
         self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
@@ -521,13 +506,13 @@ class TestQueueController(TestQueueAgentBase):
 
         insert_rows(queue_path, [{"data": "foo"}] * 3)
         trim_rows(queue_path, 0, 1)
-        orchid.get_queue_orchid(queue_ypath).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         expected_dispositions = ["expired", "pending_consumption", "pending_consumption", "up_to_date", "ahead"]
         for offset, expected_disposition in enumerate(expected_dispositions):
             self._advance_consumer(consumer_path, queue_path, 0, offset)
-            orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
-            partition = orchid.get_consumer_orchid(consumer_ypath).get_partitions()[queue_ypath][0]
+            orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+            partition = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"][0]
             assert partition["disposition"] == expected_disposition
             assert partition["unread_row_count"] == 3 - offset
 
@@ -537,9 +522,7 @@ class TestQueueController(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         queue_path = self.create_queue_path()
-        queue_ypath = str(GenericObjectPath(queue_path, "primary"))
         consumer_path = self.create_consumer_path()
-        consumer_ypath = str(GenericObjectPath(consumer_path, "primary"))
 
         self._create_queue(queue_path, partition_count=2)
         self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
@@ -547,20 +530,19 @@ class TestQueueController(TestQueueAgentBase):
         self._wait_for_component_passes()
 
         insert_rows(queue_path, [{"data": "foo"}] * 2)
-        orchid.get_queue_orchid(queue_ypath).wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         self._advance_consumer(consumer_path, queue_path, 1, 1, via_insert=True)
         self._advance_consumer(consumer_path, queue_path, 2 ** 63 - 1, 1, via_insert=True)
         self._advance_consumer(consumer_path, queue_path, 2 ** 64 - 1, 1, via_insert=True)
 
-        orchid.get_consumer_orchid(consumer_ypath).wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
 
-        partitions = orchid.get_consumer_orchid(consumer_ypath).get_partitions()[queue_ypath]
+        partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
 
 
-@pytest.mark.enabled_multidaemon
 class TestRates(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -632,8 +614,7 @@ class TestRates(TestQueueAgentBase):
         # Test consumer read rate. Again, initially rates are zero.
 
         orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        queue_ypath = str(GenericObjectPath("//tmp/q", "primary"))
-        status, partitions = orchid.get_consumer_orchid("primary://tmp/c").get_subconsumer(queue_ypath)
+        status, partitions = orchid.get_consumer_orchid("primary://tmp/c").get_subconsumer("primary://tmp/q")
         assert len(partitions) == 2
         assert partitions[0]["read_row_count_rate"] == zero
         assert partitions[1]["read_row_count_rate"] == zero
@@ -647,7 +628,7 @@ class TestRates(TestQueueAgentBase):
         self._advance_consumers("//tmp/c", "//tmp/q", {0: 3, 1: 2})
 
         orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        status, partitions = orchid.get_consumer_orchid("primary://tmp/c").get_subconsumer(queue_ypath)
+        status, partitions = orchid.get_consumer_orchid("primary://tmp/c").get_subconsumer("primary://tmp/q")
         assert len(partitions) == 2
         assert partitions[1]["read_row_count_rate"]["1m_raw"] > 0
         assert abs(partitions[0]["read_row_count_rate"]["1m_raw"] -
@@ -658,14 +639,13 @@ class TestRates(TestQueueAgentBase):
 
         # Check total read rate.
 
-        status, partitions = orchid.get_consumer_orchid("primary://tmp/c").get_subconsumer(queue_ypath)
+        status, partitions = orchid.get_consumer_orchid("primary://tmp/c").get_subconsumer("primary://tmp/q")
         assert abs(status["read_row_count_rate"]["1m_raw"] -
                    3 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert abs(status["read_data_weight_rate"]["1m_raw"] -
                    3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
 
-@pytest.mark.enabled_multidaemon
 class TestAutomaticTrimming(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -1058,10 +1038,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         # This should set an error in c1.
         sync_unmount_table("//tmp/c1")
 
-        def check_error():
-            queues = queue_agent_orchid.get_consumer_orchid(str(GenericObjectPath("//tmp/c1", "primary"))).get_status()["queues"]
-            return "error" in queues[str(GenericObjectPath("//tmp/q", "primary"))]
-        wait(check_error)
+        wait(lambda: "error" in queue_agent_orchid.get_consumer_orchid("primary://tmp/c1").get_status()["queues"]["primary://tmp/q"])
 
         # Consumers c1 and c3 are vital, but c1 is in an erroneous state, so nothing should be trimmed.
         self._advance_consumer("//tmp/c3", "//tmp/q", 0, 2)
@@ -1418,7 +1395,7 @@ class TestMultipleAgents(TestQueueAgentBase):
         mapping = list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
         objects_by_host = defaultdict(builtins.set)
         for row in mapping:
-            objects_by_host[row["host"]].add(str(GenericObjectPath(row["object"])))
+            objects_by_host[row["host"]].add(row["object"])
         # Assert that at most one of the queue agents didn't receive any objects to manage.
         assert len(objects_by_host) >= len(instances) - 1
 
@@ -1450,9 +1427,8 @@ class TestMultipleAgents(TestQueueAgentBase):
                 consumer_queues = statuses[consumer]["queues"]
                 assert len(consumer_queues) == 2
                 for registration in consumer_registrations:
-                    queue_ypath = str(GenericObjectPath(registration["queue"]))
-                    assert "error" not in consumer_queues[queue_ypath]
-                    assert consumer_queues[queue_ypath]["partition_count"] == 1
+                    assert "error" not in consumer_queues[registration["queue"]]
+                    assert consumer_queues[registration["queue"]]["partition_count"] == 1
 
             for instance in instances:
                 if instance in ignore_instances:
@@ -1478,9 +1454,8 @@ class TestMultipleAgents(TestQueueAgentBase):
                     consumer_queues = consumer_status["queues"]
                     assert len(consumer_queues) == 2
                     for registration in consumer_status["registrations"]:
-                        queue_ypath = str(GenericObjectPath(registration["queue"]))
-                        assert "error" not in consumer_queues[queue_ypath]
-                        assert consumer_queues[queue_ypath]["partition_count"] == 1
+                        assert "error" not in consumer_queues[registration["queue"]]
+                        assert consumer_queues[registration["queue"]]["partition_count"] == 1
 
         perform_checks()
 
@@ -1505,7 +1480,7 @@ class TestMultipleAgents(TestQueueAgentBase):
             assert {row["object"] for row in new_mapping} == {row["object"] for row in mapping}
             hits = 0
             for row in new_mapping:
-                if str(GenericObjectPath(row["object"])) in objects_by_host[row["host"]]:
+                if row["object"] in objects_by_host[row["host"]]:
                     hits += 1
                 assert row["host"] in remaining_instances
             assert len({row["host"] for row in new_mapping}) >= len(remaining_instances) - 1
@@ -1621,7 +1596,6 @@ class TestMultipleAgents(TestQueueAgentBase):
         assert mapping == get_mapping()
 
 
-@pytest.mark.enabled_multidaemon
 class TestOrchid(TestMultipleAgents):
     NUM_QUEUE_AGENTS = 2
 
@@ -1636,8 +1610,8 @@ class TestOrchid(TestMultipleAgents):
             consumer = f"//tmp/consumer_{i}"
             self._create_queue(queue)
             self._create_consumer(consumer)
-            queues.append(str(GenericObjectPath(queue, "primary")))
-            consumers.append(str(GenericObjectPath(consumer, "primary")))
+            queues.append(f"primary:{queue}")
+            consumers.append(f"primary:{consumer}")
 
         self._wait_for_component_passes()
 
@@ -1646,11 +1620,11 @@ class TestOrchid(TestMultipleAgents):
         queues_by_host = defaultdict(builtins.set)
         for row in mapping:
             if "queue" in row["object"]:
-                queues_by_host[row["host"]].add(str(GenericObjectPath(row["object"])))
+                queues_by_host[row["host"]].add(row["object"])
         consumers_by_host = defaultdict(builtins.set)
         for row in mapping:
             if "consumer" in row["object"]:
-                consumers_by_host[row["host"]].add(str(GenericObjectPath(row["object"])))
+                consumers_by_host[row["host"]].add(row["object"])
 
         for instance in instances:
             orchid = QueueAgentOrchid(agent_id=instance)
@@ -1698,7 +1672,6 @@ class TestOrchid(TestMultipleAgents):
                         owned_consumer_orchid.get()
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterIntegration(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
@@ -1775,10 +1748,9 @@ class TestMasterIntegration(TestQueueAgentBase):
 
         # Wait for consumer status to become available.
         wait(lambda: len(get("//tmp/c/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
-        queue_ypath = str(GenericObjectPath("//tmp/q", "primary"))
-        wait(lambda: get("//tmp/c/@queue_consumer_status").get("queues").get(queue_ypath).get("partition_count") == 1, ignore_exceptions=True)
+        wait(lambda: get("//tmp/c/@queue_consumer_status").get("queues").get("primary://tmp/q").get("partition_count") == 1, ignore_exceptions=True)
 
-        wait(lambda: len(get("//tmp/c/@queue_consumer_partitions").get(queue_ypath)) == 1, ignore_exceptions=True)
+        wait(lambda: len(get("//tmp/c/@queue_consumer_partitions").get("primary://tmp/q")) == 1, ignore_exceptions=True)
 
         # Check that consumer attributes are opaque.
         full_attributes = get("//tmp/c/@")
@@ -1894,7 +1866,6 @@ class TestMasterIntegration(TestQueueAgentBase):
         self._set_and_assert_revision_change("//tmp/p", "queue_agent_stage", "testing")
 
 
-@pytest.mark.enabled_multidaemon
 class TestMasterIntegrationFixes(TestQueueAgentBase):
     DELTA_MASTER_CONFIG = {
         "cluster_connection": {
@@ -2037,7 +2008,6 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
         self.LAST_REVISIONS[row["path"]] = row["row_revision"]
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2138,7 +2108,6 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 # TODO(achulkov2): eliminate copy & paste between watching and polling versions below.
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2296,7 +2265,6 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
             self._assert_increased_revision(consumer)
 
 
-@pytest.mark.enabled_multidaemon
 class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -2474,7 +2442,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     def test_invalid_replica(self):
         # See YT-26507.
         queue_path = self.create_queue_path()
-        bad_replica_path = f"<bad_attr=value>{queue_path}-[{{replica}}]-@&*\\"
+        bad_replica_path = f"{queue_path}-[{{replica}}]-@&*\\"
         schema = [{"name": "data", "type": "string"}]
         create("replicated_table", queue_path, attributes={
             "dynamic": True,
@@ -2727,7 +2695,6 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
         }])
 
 
-@pytest.mark.enabled_multidaemon
 class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObjectsBase):
     NUM_TEST_PARTITIONS = 2
 
@@ -2759,8 +2726,8 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
 
         self._wait_for_component_passes()
 
-        queue_orchid = queue_agent_orchid.get_queue_orchid(str(GenericObjectPath(queue, "primary")))
-        consumer_orchid = queue_agent_orchid.get_consumer_orchid(str(GenericObjectPath(consumer, "primary")))
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue}")
+        consumer_orchid = queue_agent_orchid.get_consumer_orchid(f"primary:{consumer}")
 
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
@@ -2771,7 +2738,7 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         queue_partitions = queue_orchid.get_partitions()
         self._assert_queue_partition(queue_partitions[0], 0, 0)
         consumer_partitions = consumer_orchid.get_partitions()
-        self._assert_consumer_partition(consumer_partitions[str(GenericObjectPath(queue, "primary"))][0],
+        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
                                         next_row_index=0, unread_row_count=0)
 
         insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3)
@@ -2781,14 +2748,14 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
 
         wait(lambda: self._check_queue_partition(queue_orchid.get_partitions()[0], 0, 3))
 
-        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[str(GenericObjectPath(queue, "primary"))][0],
+        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[f"primary:{queue}"][0],
                                                     next_row_index=0, unread_row_count=3))
 
         advance_consumer(consumer, queue, partition_index=0, old_offset=None, new_offset=1)
 
         consumer_orchid.wait_fresh_pass()
 
-        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[str(GenericObjectPath(queue, "primary"))][0],
+        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[f"primary:{queue}"][0],
                                                     next_row_index=1, unread_row_count=2))
 
         set(f"{queue}/@auto_trim_config", {"enable": True})
@@ -2804,7 +2771,7 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
 
         wait(lambda: self._check_queue_partition(queue_orchid.get_partitions()[0], 1, 5))
 
-        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[str(GenericObjectPath(queue, "primary"))][0],
+        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[f"primary:{queue}"][0],
                                                     next_row_index=1, unread_row_count=4))
 
         unregister_queue_consumer(queue, consumer)
@@ -2883,11 +2850,11 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         # Wait for consumer status to become available.
         wait(lambda: len(get(f"{chaos_consumer}/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
 
-        wait(lambda: get(f"{chaos_consumer}/@queue_consumer_partitions").get(str(GenericObjectPath(chaos_queue, "primary")))[0].get("unread_row_count") == 0, ignore_exceptions=True)
+        wait(lambda: get(f"{chaos_consumer}/@queue_consumer_partitions").get(f"primary:{chaos_queue}")[0].get("unread_row_count") == 0, ignore_exceptions=True)
 
         insert_rows(f"{chaos_queue}", [{"$tablet_index": 0, "data": "foo"}] * 5)
 
-        wait(lambda: get(f"{chaos_consumer}/@queue_consumer_partitions").get(str(GenericObjectPath(chaos_queue, "primary")))[0].get("unread_row_count") == 5, ignore_exceptions=True)
+        wait(lambda: get(f"{chaos_consumer}/@queue_consumer_partitions").get(f"primary:{chaos_queue}")[0].get("unread_row_count") == 5, ignore_exceptions=True)
 
         # Check that consumer attributes are opaque.
         full_attributes = get(f"{chaos_consumer}/@")
@@ -2936,7 +2903,6 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         assert "Chaos cell directory synchronizer is stopped" not in str(get(f"{chaos_queue}/@queue_status")["alerts"])
 
 
-@pytest.mark.enabled_multidaemon
 class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
@@ -3088,7 +3054,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         def get_replica_mapping_from_replicated_table_mapping():
             replicated_table_mapping = get_replicated_table_mapping()
             return sorted(
-                ReplicaMappingRow(replica_list=str(GenericObjectPath(replica['replica_path'], replica['cluster_name'])),
+                ReplicaMappingRow(replica_list=f"{replica['cluster_name']}:{replica['replica_path']}",
                                   cluster=row["cluster"],
                                   path=row["path"])
                 for row in replicated_table_mapping
@@ -3163,7 +3129,6 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         self._assert_internal_consumers_are({replicated_consumer})
 
 
-@pytest.mark.enabled_multidaemon
 class TestDynamicConfig(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -3227,7 +3192,6 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         super().teardown_method(method)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -3421,7 +3385,6 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
 
 
 # XXX(apachee): Maybe split TestQueueStaticExport in TestQueueStaticExportCommon and TestQueueStaticExportNoPortals.
-@pytest.mark.enabled_multidaemon
 class TestQueueStaticExport(TestQueueStaticExportBase):
     NUM_TEST_PARTITIONS = 3
 
@@ -4403,7 +4366,6 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
-@pytest.mark.enabled_multidaemon
 class TestQueueStaticExportOldImpl(TestQueueStaticExport):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
@@ -4573,7 +4535,6 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
 
 # COMPAT(apachee): Checking compatability for swithcing between queue exporter implementations
-@pytest.mark.enabled_multidaemon
 class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4680,7 +4641,6 @@ class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
         wait(lambda: len(queue_orchid.get_alerts()) == 0, timeout=10)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueExporterRetries(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4786,7 +4746,6 @@ class TestQueueExporterRetries(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
-        print_debug("lole", exporter_orchid.get())
         exporter_orchid.wait_fresh_invocation()
         assert exporter_orchid.get_retry_index() == 0
 
@@ -4841,7 +4800,6 @@ class TestQueueExporterRetries(TestQueueStaticExportBase):
         assert abs(exporter_orchid_value["retry_index"] - exporter_orchid_value["export_task_invocation_index"]) <= 1
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueExportTaskConfig(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4910,7 +4868,6 @@ class TestQueueExportTaskConfig(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueExportManager(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -5037,7 +4994,6 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         self.remove_export_destinations(export_dirs)
 
 
-@pytest.mark.enabled_multidaemon
 class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -5229,14 +5185,12 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
-@pytest.mark.enabled_multidaemon
 class TestAutomaticTrimmingWithExportsOldImpl(TestAutomaticTrimmingWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
     ENABLE_MULTIDAEMON = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
@@ -5273,14 +5227,12 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
-@pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueueStaticExportPortals):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
     ENABLE_MULTIDAEMON = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestObjectAlertCollection(TestQueueStaticExportBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -5367,7 +5319,6 @@ def _with_create_cells(f):
     return g
 
 
-@pytest.mark.enabled_multidaemon
 class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterReplicatedTableObjectsBase, QueueStaticExportHelpers):
     NUM_TEST_PARTITIONS = 3
 
@@ -5810,14 +5761,12 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 
 
 # COMPAT(apachee): Same tests, but use old implementation.
-@pytest.mark.enabled_multidaemon
 class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClusterReplicatedTableObjectsTrimWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
     ENABLE_MULTIDAEMON = True
 
 
-@pytest.mark.enabled_multidaemon
 class TestControllerInfo(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -6104,7 +6053,6 @@ class TestControllerInfo(TestQueueAgentBase):
         })
 
 
-@pytest.mark.enabled_multidaemon
 class TestMigration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -6268,7 +6216,6 @@ class TestMigration(YTEnvSetup):
         self._check_table_schema(f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", self.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA)
 
 
-@pytest.mark.enabled_multidaemon
 class TestExportWithHunkStorage(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -6508,7 +6455,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir)) == 1)
         export_table = "{}/{}".format(export_dir, ls(export_dir)[0])
 
-        assert get(f"{export_table}/@data_weight") == 38
+        assert get(f"{export_table}/@data_weight") == 67
         assert get(f"{export_table}/@chunk_count") == 2
 
         chunk_format_statistics = get(f"{export_table}/@chunk_format_statistics")
@@ -6549,7 +6496,6 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         self.remove_export_destinations([export_dir])
 
 
-@pytest.mark.enabled_multidaemon
 class TestExportWithHunkStoragePortals(TestExportWithHunkStorage):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True

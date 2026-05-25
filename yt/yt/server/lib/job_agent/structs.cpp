@@ -15,6 +15,31 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile)
+{
+    protoProfile->set_profiling_binary(ToProto(profile.ProfilingBinary));
+    protoProfile->set_profiler_type(ToProto(profile.ProfilerType));
+    protoProfile->set_blob(profile.Blob);
+    protoProfile->set_profiling_probability(profile.ProfilingProbability);
+}
+
+void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile)
+{
+    profile->ProfilingBinary = GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilingBinary>(protoProfile.profiling_binary()));
+    profile->ProfilerType = GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilerType>(protoProfile.profiler_type()));
+    profile->Blob = protoProfile.blob();
+    profile->ProfilingProbability = protoProfile.profiling_probability();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TJobProfile::GetType() const
+{
+    return Format("%lv_%lv", ProfilingBinary, ProfilerType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
 {
     using namespace NStatisticPath;
@@ -29,6 +54,9 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
         statistics->AddSample("/time/artifacts_caching"_SP, ArtifactsCachingDuration->MilliSeconds());
         // COMPAT(krasovav): Remove this statistic after it's no longer used
         statistics->AddSample("/time/artifacts_download"_SP, ArtifactsCachingDuration->MilliSeconds());
+    }
+    if (PrepareLayersDuration) {
+        statistics->AddSample("/time/prepare_layers"_SP, PrepareLayersDuration->MilliSeconds());
     }
     if (PrepareRootFSDuration) {
         statistics->AddSample("/time/prepare_root_fs"_SP, PrepareRootFSDuration->MilliSeconds());
@@ -61,10 +89,12 @@ bool TTimeStatistics::IsEmpty() const
         !WaitingForResourcesDuration &&
         !PrepareDuration &&
         !ArtifactsCachingDuration &&
+        !PrepareLayersDuration &&
         !PrepareRootFSDuration &&
         !ValidateRootFSDuration &&
         !PrepareNonRootVolumesDuration &&
         !LinkVolumesDuration &&
+        !ExecDuration &&
         !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
 }
@@ -91,6 +121,9 @@ void TTimeStatistics::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(10, LinkVolumesDuration,
         .SinceVersion(NControllerAgent::ESnapshotVersion::LinkVolumes));
+
+    PHOENIX_REGISTER_FIELD(11, PrepareLayersDuration,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareLayersDuration));
 }
 
 void ToProto(
@@ -105,6 +138,9 @@ void ToProto(
     }
     if (timeStatistics.ArtifactsCachingDuration) {
         timeStatisticsProto->set_artifacts_caching_duration(ToProto(*timeStatistics.ArtifactsCachingDuration));
+    }
+    if (timeStatistics.PrepareLayersDuration) {
+        timeStatisticsProto->set_prepare_layers_duration(ToProto(*timeStatistics.PrepareLayersDuration));
     }
     if (timeStatistics.PrepareRootFSDuration) {
         timeStatisticsProto->set_prepare_root_fs_duration(ToProto(*timeStatistics.PrepareRootFSDuration));
@@ -141,6 +177,9 @@ void FromProto(
     }
     if (timeStatisticsProto.has_artifacts_caching_duration()) {
         timeStatistics->ArtifactsCachingDuration = FromProto<TDuration>(timeStatisticsProto.artifacts_caching_duration());
+    }
+    if (timeStatisticsProto.has_prepare_layers_duration()) {
+        timeStatistics->PrepareLayersDuration = FromProto<TDuration>(timeStatisticsProto.prepare_layers_duration());
     }
     if (timeStatisticsProto.has_prepare_root_fs_duration()) {
         timeStatistics->PrepareRootFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_root_fs_duration());
@@ -179,6 +218,9 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
                 fluent.Item("artifacts_caching").Value(*timeStatistics.ArtifactsCachingDuration);
                 // COMPAT(krasovav): Remove this field after it's no longer used
                 fluent.Item("artifacts_download").Value(*timeStatistics.ArtifactsCachingDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.PrepareLayersDuration), [&] (auto fluent) {
+                fluent.Item("prepare_layers").Value(*timeStatistics.PrepareLayersDuration);
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareRootFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_root_fs").Value(*timeStatistics.PrepareRootFSDuration);

@@ -109,7 +109,9 @@ void TSchedulingPolicy::RegisterNode(TNodeId nodeId, const std::string& nodeAddr
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeId, nodeAddress));
+    auto node = EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeId, nodeAddress))->second;
+
+    ReviveNodeState(node);
 
     YT_LOG_DEBUG("Node registered (NodeId: %v, NodeAddress: %v)",
         nodeId,
@@ -282,6 +284,14 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
     EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
 
     operation->SetEnabled(false);
+
+    // NB(severovv): We remove disabled all operation assignments during dry-run to
+    // avoid preempting them during allocation plan update and crashing the scheduler
+    for (const auto& assignment : GetItems(operation->Assignments())) {
+        if (IsAssignmentPreliminary(assignment)) {
+            RemoveAssignment(assignment);
+        }
+    }
 
     YT_LOG_DEBUG("Operation disabled (OperationId: %v)", operation->GetId());
 }
@@ -485,8 +495,6 @@ void TSchedulingPolicy::UpdateNodeDescriptor(const TNodePtr& node, TExecNodeDesc
 
     node->SetDescriptor(std::move(descriptor));
 
-    ReviveNodeState(node);
-
     // TODO(eshcherbin): Rework how modules are configured.
     auto oldModule = node->SchedulingModule();
     node->SchedulingModule() = GetNodeModule(
@@ -653,7 +661,7 @@ void TSchedulingPolicy::ReviveOperationState(TOperationPtr operation)
 
     YT_LOG_DEBUG(
         "Operation state revived "
-        "(OperationId: %v,SchedulingModule: %v)",
+        "(OperationId: %v, SchedulingModule: %v)",
         operation->GetId(),
         operation->SchedulingModule());
 }
@@ -866,7 +874,7 @@ void TSchedulingPolicy::PreemptAllocations(
     auto runningAllocationInfos = CollectRunningAllocationInfos(schedulingHeartbeatContext, treeSnapshot);
 
     THashSet<TAllocationId> preemptedAllocations;
-    for (const auto& [allocationId, preemptionInfo] : node->AllocationIdToPreemptionInfo()) {
+    for (auto allocationId : node->AllocationsToPreempt()) {
         auto it = runningAllocationInfos.find(allocationId);
         if (it == runningAllocationInfos.end()) {
             YT_LOG_DEBUG("No running allocation to preempt (AllocationId: %v)", allocationId);
@@ -879,17 +887,9 @@ void TSchedulingPolicy::PreemptAllocations(
             continue;
         }
 
-        runningAllocation->SetPreemptionReason(preemptionInfo.Description);
-        if (preemptionInfo.PreemptedForOperationId) {
-            runningAllocation->SetPreemptedFor(TPreemptedFor{.OperationId = *preemptionInfo.PreemptedForOperationId});
+        if (!PreemptAllocation(runningAllocation, operationElement, schedulingHeartbeatContext)) {
+            continue;
         }
-
-        PreemptAllocation(
-            runningAllocation,
-            operationElement,
-            schedulingHeartbeatContext,
-            preemptionInfo.Reason,
-            preemptionInfo.PreemptedResources);
 
         runningAllocationInfos.erase(it);
         InsertOrCrash(preemptedAllocations, allocationId);
@@ -916,16 +916,14 @@ void TSchedulingPolicy::PreemptAllocations(
             continue;
         }
 
-        YT_LOG_WARNING("Found unexpected allocation (OperationId: %v, AllocationId: %v)",
+        YT_LOG_WARNING("Found allocation without assignment (OperationId: %v, AllocationId: %v)",
             runningAllocation->GetOperationId(),
             runningAllocation->GetId());
 
         PreemptAllocation(
             runningAllocation,
             operationElement,
-            schedulingHeartbeatContext,
-            EAllocationPreemptionReason::UnexpectedAllocation,
-            runningAllocation->ResourceUsage());
+            schedulingHeartbeatContext);
     }
 }
 
@@ -984,6 +982,7 @@ void TSchedulingPolicy::ScheduleAllocations(
             /*allowLimitsOvercommit*/ false,
             /*additionalLocalResourceLimits*/ {},
             &availableResourceLimits);
+        auto precommittedResources = assignment->ResourceUsage;
 
         auto availableResources = Min(availableResourceLimits, schedulingHeartbeatContext->GetNodeFreeResourcesWithDiscount());
 
@@ -1019,13 +1018,12 @@ void TSchedulingPolicy::ScheduleAllocations(
 
             RemoveAssignment(assignment, /*strict*/ false);
 
-            operationElement->DecreaseHierarchicalResourceUsagePrecommit(
-                assignment->ResourceUsage);
+            operationElement->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
 
             nodeShardInvoker->Invoke(BIND(
                 &TPoolTreeOperationElement::OnScheduleAllocationFailed,
                 MakeWeak(operationElement),
-                schedulingHeartbeatContext->GetNow(),
+                schedulingHeartbeatContext,
                 operationElement->GetTreeId(),
                 scheduleAllocationResult));
 
@@ -1037,11 +1035,15 @@ void TSchedulingPolicy::ScheduleAllocations(
         }
 
         auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
-        assignment->AddAllocation(allocationId);
+        auto allocation = New<TAllocationState>(
+            allocationId,
+            assignment,
+            assignment->ResourceUsage);
+        assignment->AddAllocation(allocation);
 
         operationElement->CommitHierarchicalResourceUsage(
-            assignment->ResourceUsage,
-            assignment->ResourceUsage);
+            allocation->ResourceUsage(),
+            allocation->ResourceUsage());
 
         // TODO(yaishenka): Scheduling index and stage type are irrelevant for this policy. Do not store it in TAllocation.
         // TODO(YT-27936): (!) Implement network priority though.
@@ -1072,38 +1074,65 @@ void TSchedulingPolicy::ScheduleAllocations(
     }
 }
 
-void TSchedulingPolicy::PreemptAllocation(
+bool TSchedulingPolicy::PreemptAllocation(
     const TAllocationPtr& allocation,
     TPoolTreeOperationElement* element,
-    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-    EAllocationPreemptionReason preemptionReason,
-    TJobResources preemptedUsage) const
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    MaybeDelay(element->Spec()->TestingOperationOptions->DelayBeforeAllocationPreemption);
+
+    auto operation = GetOrDefault(EnabledOperations_, allocation->GetOperationId());
+    if (!operation) {
+        YT_LOG_WARNING("Operation not found (OperationId: %v)", allocation->GetOperationId());
+        return false;
+    }
+
+    auto allocationState = GetOrDefault(operation->AllocationIdToAllocationState(), allocation->GetId());
+
+    schedulingHeartbeatContext->ResourceUsage() -= allocation->ResourceUsage();
+    allocation->ResourceUsage() = TJobResources();
+
+    YT_LOG_WARNING_UNLESS(allocationState,
+        "Allocation not found in operation during preemption "
+        "(OperationId: %v, AllocationId: %v)",
+        element->GetOperationId(),
+        allocation->GetId());
+
+    auto preemptionReason = EAllocationPreemptionReason::UnexpectedAllocation;
+    TJobResources usageToPreempt;
+    if (allocationState) {
+        if (const auto& preemptionInfo = allocationState->PreemptionInfo()) {
+            preemptionReason = preemptionInfo->Reason;
+            allocation->SetPreemptionReason(preemptionInfo->Description);
+            if (preemptionInfo->PreemptedForOperationId) {
+                allocation->SetPreemptedFor(TPreemptedFor{.OperationId = *preemptionInfo->PreemptedForOperationId});
+            }
+        }
+
+        usageToPreempt = allocationState->UpdateResourceUsage(TJobResources());
+    }
+
+    if (usageToPreempt != TJobResources()) {
+        element->IncreaseHierarchicalResourceUsage(usageToPreempt);
+    }
 
     YT_LOG_DEBUG(
         "Preempting allocation (OperationId: %v, AllocationId: %v, PreemptionReason: %v, PreemptedUsage: %v)",
         element->GetOperationId(),
         allocation->GetId(),
         preemptionReason,
-        preemptedUsage);
-
-    MaybeDelay(element->Spec()->TestingOperationOptions->DelayBeforeAllocationPreemption);
-
-    schedulingHeartbeatContext->ResourceUsage() -= allocation->ResourceUsage();
-    allocation->ResourceUsage() = TJobResources();
-
-    if (preemptedUsage != TJobResources()) {
-        element->IncreaseHierarchicalResourceUsage(-preemptedUsage);
-    }
+        usageToPreempt);
 
     schedulingHeartbeatContext->PreemptAllocation(
         allocation,
         element->GetEffectiveAllocationPreemptionTimeout(),
         preemptionReason);
+
+    return true;
 }
 
-// TODO(YT-27935): (!) Ask for a specific allocation group.
 // TODO(YT-27867): Add diagnostics like in regular policy.
 TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     const TNodePtr& node,
@@ -1129,7 +1158,8 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         availableResources,
         schedulingHeartbeatContext->GetNodeFreeDiskResourcesWithDiscount(assignment->ResourceUsage),
         treeSnapshot->ControllerConfig()->ScheduleAllocationTimeLimit,
-        operationElement->GetTreeId())
+        operationElement->GetTreeId(),
+        assignment->AllocationGroupName)
         .AsyncVia(nodeShardInvoker)
         .Run();
 
@@ -1261,135 +1291,62 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
         };
     }
 
-    auto assignment = GetOrDefault(operation->AllocationIdToAssignment(), allocationUpdate.AllocationId);
+    auto allocation = GetOrDefault(operation->AllocationIdToAllocationState(), allocationUpdate.AllocationId);
 
-    if (allocationUpdate.Finished) {
-        // TODO(YT-27933): Update operation allocation info by removing allocation
-        YT_LOG_DEBUG(
-            "Allocation finished (OperationId: %v, AllocationId: %v)",
-            element->GetOperationId(),
-            allocationUpdate.AllocationId);
-        if (assignment) {
-            RemoveAssignment(assignment);
-            element->IncreaseHierarchicalResourceUsage(-allocationUpdate.AllocationResources);
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
-        // TODO(YT-27592): We need to check if allocation is reviving here.
-        if (!node) {
-            YT_LOG_DEBUG(
-                "No registered node found for allocation (OperationId: %v, AllocationId: %v, NodeId: %v)",
-                element->GetOperationId(),
-                allocationUpdate.AllocationId,
-                allocationUpdate.NodeId);
-
-            element->IncreaseHierarchicalResourceUsage(-allocationUpdate.AllocationResources);
-
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
-        if (node->AllocationIdToPreemptionInfo().contains(allocationUpdate.AllocationId)) {
-            YT_LOG_DEBUG(
-                "Found finished allocation waiting for preemption (OperationId: %v, AllocationId: %v)",
-                element->GetOperationId(),
-                allocationUpdate.AllocationId);
-
-            node->PreemptAllocation(allocationUpdate.AllocationId);
-            node->RemovePreemptedAllocation(allocationUpdate.AllocationId);
-            element->IncreaseHierarchicalResourceUsage(-allocationUpdate.AllocationResources);
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
-        if (node->PreemptedAllocations().contains(allocationUpdate.AllocationId)) {
-            YT_LOG_DEBUG(
-                "Found finished preempted allocation (OperationId: %v, AllocationId: %v)",
-                element->GetOperationId(),
-                allocationUpdate.AllocationId);
-
-            node->RemovePreemptedAllocation(allocationUpdate.AllocationId);
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
-        YT_LOG_DEBUG(
-            "Found unexpected finished allocation (OperationId: %v, AllocationId: %v)",
-            element->GetOperationId(),
-            allocationUpdate.AllocationId);
-
-        return TProcessAllocationUpdateResult{
-            .Status = EAllocationUpdateStatus::Unexpected,
-        };
-    }
-
-    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
-
-    if (!assignment) {
-        if (node && node->AllocationIdToPreemptionInfo().contains(allocationUpdate.AllocationId)) {
-            // NB(yaishenka): allocation is waiting for preemption.
-            YT_LOG_DEBUG(
-                "Found allocation waiting for preemption (OperationId: %v, AllocationId: %v)",
-                element->GetOperationId(),
-                allocationUpdate.AllocationId);
-
-            // TODO(YT-27933): Update operation allocation.
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Updated,
-            };
-        }
-
-        if (node && node->PreemptedAllocations().contains(allocationUpdate.AllocationId)) {
-            // NB(yaishenka): Allocation is waiting to be preempted on the node. Postpone it.
-            YT_LOG_DEBUG(
-                "Found preempted allocation (OperationId: %v, AllocationId: %v)",
-                element->GetOperationId(),
-                allocationUpdate.AllocationId);
-
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Preempted,
-                .NeedToPostpone = true,
-            };
-        }
-
-        // TODO(YT-27592): We need to check if allocation is reviving here.
-        if (!node) {
-            YT_LOG_DEBUG(
-                "No registered node found for allocation (OperationId: %v, AllocationId: %v, NodeId: %v)",
-                element->GetOperationId(),
-                allocationUpdate.AllocationId,
-                allocationUpdate.NodeId);
-
-            return TProcessAllocationUpdateResult{
-                .Status = EAllocationUpdateStatus::Unexpected,
-                .NeedToPostpone = true,
-            };
-        }
-
+    // TODO(YT-27592): We need to check if allocation is reviving here.
+    if (!allocation) {
         YT_LOG_DEBUG(
             "Found unexpected allocation, aborting it (OperationId: %v, AllocationId: %v)",
             element->GetOperationId(),
             allocationUpdate.AllocationId);
 
+        if (allocationUpdate.Finished) {
+            return TProcessAllocationUpdateResult{
+                .Status = EAllocationUpdateStatus::Unexpected,
+            };
+        }
+
         return TProcessAllocationUpdateResult{
             .Status = EAllocationUpdateStatus::Unexpected,
             .NeedToPostpone = false,
             .NeedToAbort = true,
+            .AbortReason = EAbortReason::Abandoned,
+        };
+    }
+
+    auto assignment = allocation->Assignment().Lock();
+
+    if (allocationUpdate.Finished) {
+        return DoProcessFinishedAllocation(
+            element,
+            allocationUpdate,
+            node,
+            operation,
+            assignment,
+            allocation);
+    }
+
+    YT_VERIFY(allocationUpdate.ResourceUsageUpdated || allocationUpdate.PreemptibleProgressStartTime);
+
+    auto delta = allocation->UpdateResourceUsage(allocationUpdate.AllocationResources);
+    if (delta != TJobResources()) {
+        element->IncreaseHierarchicalResourceUsage(delta);
+    }
+
+    if (!assignment) {
+        // NB(yaishenka): All preempted but not finished allocations go here.
+        YT_LOG_DEBUG(
+            "Found allocation without assignment (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Updated,
         };
     }
 
     if (allocationUpdate.PreemptibleProgressStartTime) {
         assignment->PreemptibleProgressStartTime = allocationUpdate.PreemptibleProgressStartTime;
-    }
-
-    auto delta = assignment->UpdateResourceUsage(allocationUpdate.AllocationResources);
-    if (delta != TJobResources()) {
-        element->IncreaseHierarchicalResourceUsage(delta);
     }
 
     if (Dominates(assignment->Node->AssignedResourceUsage(), assignment->Node->Descriptor()->ResourceLimits)) {
@@ -1404,6 +1361,64 @@ TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessAllocationUpdate(
             assignment,
             EAllocationPreemptionReason::ResourceOvercommit,
             /*preemptionDescription*/ "Preempted due to node resource overcommit");
+    }
+
+    return TProcessAllocationUpdateResult{
+        .Status = EAllocationUpdateStatus::Updated,
+    };
+}
+
+TProcessAllocationUpdateResult TSchedulingPolicy::DoProcessFinishedAllocation(
+    const TPoolTreeOperationElementPtr& element,
+    const TAllocationUpdate& allocationUpdate,
+    const TNodePtr& node,
+    const TOperationPtr& operation,
+    const TAssignmentPtr& assignment,
+    const TAllocationStatePtr& allocation)
+{
+    YT_LOG_DEBUG(
+        "Allocation finished (OperationId: %v, AllocationId: %v)",
+        element->GetOperationId(),
+        allocationUpdate.AllocationId);
+
+    operation->RemoveAllocation(allocationUpdate.AllocationId);
+    element->IncreaseHierarchicalResourceUsage(-allocation->ResourceUsage());
+
+    if (assignment) {
+        RemoveAssignment(assignment);
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Updated,
+        };
+    }
+
+    if (!node) {
+        YT_LOG_DEBUG(
+            "No registered node found for allocation (OperationId: %v, AllocationId: %v, NodeId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId,
+            allocationUpdate.NodeId);
+
+        return TProcessAllocationUpdateResult{
+            .Status = EAllocationUpdateStatus::Updated,
+        };
+    }
+
+    if (node->AllocationsToPreempt().contains(allocationUpdate.AllocationId)) {
+        YT_LOG_DEBUG(
+            "Found finished allocation waiting for preemption (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+
+        node->PreemptAllocation(allocationUpdate.AllocationId);
+        node->RemovePreemptedAllocation(allocationUpdate.AllocationId);
+    } else if (node->PreemptedAllocations().contains(allocationUpdate.AllocationId)) {
+        YT_LOG_DEBUG(
+            "Found finished preempted allocation (OperationId: %v, AllocationId: %v)",
+            element->GetOperationId(),
+            allocationUpdate.AllocationId);
+
+        node->RemovePreemptedAllocation(allocationUpdate.AllocationId);
     }
 
     return TProcessAllocationUpdateResult{

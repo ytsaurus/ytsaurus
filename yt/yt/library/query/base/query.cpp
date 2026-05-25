@@ -253,8 +253,8 @@ TAggregateItem::TAggregateItem(
     : Arguments(std::move(arguments))
     , Name(name)
     , AggregateFunction(aggregateFunction)
-    , StateType(stateType)
-    , ResultType(resultType)
+    , StateType(std::move(stateType))
+    , ResultType(std::move(resultType))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,10 +283,15 @@ TKeyColumns TMappedSchema::GetKeyColumns() const
 
 TTableSchemaPtr TMappedSchema::GetRenamedSchema() const
 {
+    auto orderedMapping = GetOrderedSchemaMapping();
+
     TSchemaColumns result;
-    for (const auto& item : GetOrderedSchemaMapping()) {
-        result.emplace_back(item.Name, Original->Columns()[item.Index].LogicalType());
+    result.reserve(orderedMapping.size());
+
+    for (auto& item : orderedMapping) {
+        result.emplace_back(std::move(item.Name), Original->Columns()[item.Index].LogicalType());
     }
+
     return New<TTableSchema>(std::move(result));
 }
 
@@ -504,10 +509,15 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , Limit(other.Limit)
     , UseDisjointGroupBy(other.UseDisjointGroupBy)
     , InferRanges(other.InferRanges)
+    , IsReverseScan(other.IsReverseScan)
 { }
 
 EScanOrder TBaseQuery::GetScanOrder(bool allowUnorderedGroupByWithLimit) const
 {
+    if (IsReverseScan) {
+        return EScanOrder::Reversed;
+    }
+
     if (Limit < std::numeric_limits<i64>::max()) {
         if (allowUnorderedGroupByWithLimit) {
             bool ordered = !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
@@ -539,13 +549,13 @@ TKeyColumns TQuery::GetKeyColumns() const
 
 TTableSchemaPtr TQuery::GetReadSchema() const
 {
-    TSchemaColumns result;
+    auto orderedMapping = Schema.GetOrderedSchemaMapping();
 
-    for (const auto& item : Schema.GetOrderedSchemaMapping()) {
-        auto& columnSchema = result.emplace_back(
-            Schema.Original->Columns()[item.Index].Name(),
-            Schema.Original->Columns()[item.Index].LogicalType());
-        columnSchema.SetStableName(Schema.Original->Columns()[item.Index].StableName());
+    TSchemaColumns result;
+    result.reserve(orderedMapping.size());
+
+    for (const auto& item : orderedMapping) {
+        result.emplace_back(Schema.Original->Columns()[item.Index]);
     }
 
     return New<TTableSchema>(std::move(result));
@@ -1551,6 +1561,11 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     }
 
     proto->set_require_sync_replica(original->RequireSyncReplica);
+
+    if (const auto& prefetchedBlockRange = original->PrefetchedBlockRange) {
+        proto->set_prefetched_first_block(prefetchedBlockRange->first);
+        proto->set_prefetched_last_block(prefetchedBlockRange->second);
+    }
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -1589,6 +1604,12 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     }
 
     FromProto(&result->RequireSyncReplica, serialized.require_sync_replica());
+
+    if (serialized.has_prefetched_first_block()) {
+        result->PrefetchedBlockRange = std::pair(
+            serialized.prefetched_first_block(),
+            serialized.prefetched_last_block());
+    }
 
     *original = result;
 }

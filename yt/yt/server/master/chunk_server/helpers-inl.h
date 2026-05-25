@@ -68,6 +68,77 @@ void VisitAncestors(TChunkList* chunkList, F functor)
     }
 }
 
+template <class F>
+void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
+{
+    const auto& Logger = ChunkServerLogger;
+
+    if (hunkChunk->IsConfirmed() && !IsHunkChunkFormat(hunkChunk->GetChunkFormat())) {
+        YT_LOG_ALERT("Unexpectedely encountered a non-hunk chunk when visiting its ancestors; skipping it "
+            "(ChunkId: %v, ChunkFormat: %v)",
+                hunkChunk->GetId(),
+                hunkChunk->GetChunkFormat());
+        return;
+    }
+
+    TChunkListId hunkStorageRootChunkListId;
+    THashSet<TChunkListId> rootChunkListIds;
+    THashSet<TChunkListId> tabletChunkListIds;
+
+    for (const auto& [chunkParent, _] : hunkChunk->Parents()) {
+        const auto& chunkList = chunkParent->AsChunkList();
+
+        if (chunkList->GetKind() != EChunkListKind::Hunk &&
+            chunkList->GetKind() != EChunkListKind::HunkTablet)
+        {
+            YT_LOG_ALERT("Parent chunk list of unexpected kind was encountered upon visiting ancestors in hunk tree "
+                "(HunkChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
+                hunkChunk->GetId(),
+                chunkParent->GetId(),
+                chunkList->GetKind());
+            continue;
+        }
+
+        if (!tabletChunkListIds.emplace(chunkList->GetId()).second) {
+            YT_LOG_ALERT("Tablet chunk list encountered multiple times upon visiting ancestors in hunk tree "
+                "(HunkChunkId: %v, ParentId: %v)",
+                hunkChunk->GetId(),
+                chunkParent->GetId());
+            continue;
+        }
+
+        functor(chunkList, /*firstOccurrence*/ true);
+
+        for (const auto& chunkListParent : chunkList->Parents()) {
+            const auto& rootChunkList = chunkListParent->AsChunkList();
+
+            if (!IsHunkRootChunkList(rootChunkList)) {
+                YT_LOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting ancestors in hunk tree "
+                    "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
+                    hunkChunk->GetId(),
+                    chunkListParent->GetId(),
+                    rootChunkList->GetKind());
+                continue;
+            }
+
+            if (rootChunkList->GetKind() == EChunkListKind::HunkStorageRoot) {
+                YT_LOG_ALERT_IF(hunkStorageRootChunkListId,
+                    "Multiple ancestor hunk storage roots were encountered upon visiting ancestors in hunk tree "
+                    "(ChunkId: %v, FirstParentId: %v, SecondParentId: %v)",
+                    hunkChunk->GetId(),
+                    hunkStorageRootChunkListId,
+                    rootChunkList->GetId());
+
+                hunkStorageRootChunkListId = rootChunkList->GetId();
+            }
+
+            functor(
+                rootChunkList,
+                rootChunkListIds.emplace(rootChunkList->GetId()).second);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

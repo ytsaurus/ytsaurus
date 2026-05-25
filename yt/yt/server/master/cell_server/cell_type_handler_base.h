@@ -31,7 +31,7 @@ protected:
         NObjectClient::TObjectId id,
         NYTree::IAttributeDictionary* attributes);
 
-    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cell*/) override;
+    NObjectClient::TCellTagSet DoGetReplicationCellTags(const TImpl* /*cell*/) override;
     void DoZombifyObject(TImpl* cell) override;
     void DoDestroyObject(TImpl* cell) noexcept override;
 

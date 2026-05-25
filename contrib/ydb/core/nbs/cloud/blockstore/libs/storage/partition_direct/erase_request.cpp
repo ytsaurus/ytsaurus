@@ -2,6 +2,9 @@
 
 #include <contrib/ydb/core/nbs/cloud/storage/core/libs/common/future_helper.h>
 
+#include <contrib/ydb/library/actors/core/log.h>
+#include <contrib/ydb/library/services/services.pb.h>
+
 namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,11 +15,11 @@ TEraseRequestExecutor::TEraseRequestExecutor(
     IDirectBlockGroupPtr directBlockGroup,
     ELocation location,
     TEraseHint hint,
-    NWilson::TTraceId traceId)
+    NWilson::TSpan span)
     : ActorSystem(actorSystem)
     , VChunkConfig(vChunkConfig)
     , DirectBlockGroup(std::move(directBlockGroup))
-    , TraceId(std::move(traceId))
+    , Span(std::move(span))
     , Location(location)
     , Hint(std::move(hint))
 {}
@@ -39,7 +42,7 @@ void TEraseRequestExecutor::Run()
         VChunkConfig.VChunkIndex,
         VChunkConfig.GetHostIndex(Location),
         Hint.Segments,
-        NWilson::TTraceId(TraceId));
+        Span.GetTraceId());
     future.Subscribe(
         [self = shared_from_this()]   //
         (const NThreading::TFuture<TDBGEraseResponse>& f)

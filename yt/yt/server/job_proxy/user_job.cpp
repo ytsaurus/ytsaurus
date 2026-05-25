@@ -499,7 +499,7 @@ public:
     }
 
     void PrepareArtifact(
-        const TString& artifactName,
+        const std::string& artifactName,
         int permissions)
     {
         auto Logger = this->Logger
@@ -507,7 +507,7 @@ public:
 
         YT_LOG_INFO("Preparing artifact");
 
-        TString sandboxPath;
+        std::string sandboxPath;
         if (UserJobEnvironment_->HasRootFS()) {
             YT_VERIFY(Config_->RootPath);
             sandboxPath = CombinePaths(
@@ -526,8 +526,7 @@ public:
             artifactPath);
 
         auto onError = [&] (const TError& error) {
-            // TODO(dgolear): Switch to std::string.
-            Host_->OnArtifactPreparationFailed(artifactName, TString(artifactPath), error);
+            Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
         };
 
         try {
@@ -542,8 +541,7 @@ public:
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
             artifactFile.Flock(LOCK_EX);
 
-            // TODO(dgolear): Switch to std::string.
-            Host_->PrepareArtifact(artifactName, TString(pipePath));
+            Host_->PrepareArtifact(artifactName, pipePath);
 
             // Now pipe is opened and O_NONBLOCK is not required anymore.
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
@@ -680,8 +678,8 @@ private:
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TFuture<void> ProcessFinished_;
-    std::vector<TString> EnvironmentNameValuePairs_;
-    THashMap<TString, int> EnvironmentNameToIndex_;
+    std::vector<std::string> EnvironmentNameValuePairs_;
+    THashMap<std::string, int> EnvironmentNameToIndex_;
 
     std::optional<TExecutorInfo> ExecutorInfo_;
 
@@ -701,7 +699,7 @@ private:
 
     TCoreWatcherPtr CoreWatcher_;
 
-    std::optional<TString> FailContext_;
+    std::optional<std::string> FailContext_;
 
     std::atomic<bool> NotFullyConsumed_ = false;
 
@@ -726,22 +724,22 @@ private:
     void InitShellManager()
     {
 #ifdef _linux_
-        std::vector<TString> shellEnvironment;
+        std::vector<std::string> shellEnvironment;
         shellEnvironment.reserve(EnvironmentNameValuePairs_.size());
-        std::vector<TString> visibleEnvironment;
+        std::vector<std::string> visibleEnvironment;
         visibleEnvironment.reserve(EnvironmentNameValuePairs_.size());
 
         for (const auto& variable : EnvironmentNameValuePairs_) {
-            if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
+            if (variable.starts_with(NControllerAgent::SecureVaultEnvPrefix) &&
                 !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
             {
                 continue;
             }
             if (JobEnvironmentType_ == EJobEnvironmentType::Cri
-                ? !variable.StartsWith("YT_") || !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()
+                ? !variable.starts_with("YT_") || !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()
                 // TODO(ignat, faucct): investigate why $HOME breaks shell start in porto tests
                 // https://github.com/ytsaurus/ytsaurus/pull/1041#issuecomment-2608440987
-                : variable.StartsWith("YT_") && !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
+                : variable.starts_with("YT_") && !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
             {
                 shellEnvironment.push_back(variable);
             }
@@ -871,7 +869,7 @@ private:
             size += context.Size();
         }
 
-        FailContext_ = TString();
+        FailContext_ = std::string();
         FailContext_->reserve(size);
         for (const auto& context : contexts) {
             FailContext_->append(context.Begin(), context.Size());
@@ -934,7 +932,7 @@ private:
         return result;
     }
 
-    std::optional<TString> GetFailContext() override
+    std::optional<std::string> GetFailContext() override
     {
         ValidatePrepared();
 
@@ -1367,7 +1365,7 @@ private:
         YT_LOG_INFO("Pipes initialized");
     }
 
-    void SetEnvironmentVariable(const TString& nameValuePair)
+    void SetEnvironmentVariable(const std::string& nameValuePair)
     {
         if (auto [name, value] = ParseEnvironNameValuePair(nameValuePair); value) {
             if (auto* index = EnvironmentNameToIndex_.FindPtr(name)) {
@@ -1377,16 +1375,16 @@ private:
                 EnvironmentNameToIndex_[name] = std::ssize(EnvironmentNameValuePairs_) - 1;
             }
         } else {
-            ResetEnvironmentVariable(TString(name));
+            ResetEnvironmentVariable(std::string(name));
         }
     }
 
-    void SetEnvironmentVariable(const TString& name, const TString& value)
+    void SetEnvironmentVariable(const std::string& name, const std::string& value)
     {
         SetEnvironmentVariable(Format("%v=%v", name, value));
     }
 
-    void ResetEnvironmentVariable(const TString& name)
+    void ResetEnvironmentVariable(const std::string& name)
     {
         if (auto* index = EnvironmentNameToIndex_.FindPtr(name)) {
             EnvironmentNameValuePairs_[*index] = "";
@@ -1407,7 +1405,7 @@ private:
 
         if (Config_->ForwardAllEnvironmentVariables) {
             for (const auto& pair : GetEnvironNameValuePairs()) {
-                SetEnvironmentVariable(TString(pair));
+                SetEnvironmentVariable(pair);
             }
         }
 
@@ -1665,7 +1663,7 @@ private:
         TraceEventProcessor_->FinishGlobalTrace();
     }
 
-    void OnIOErrorOrFinished(const TError& error, const TString& message)
+    void OnIOErrorOrFinished(const TError& error, const std::string& message)
     {
         if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {
             return;
@@ -1704,9 +1702,9 @@ private:
         }
     }
 
-    TString GetExecutorConfigPath() const
+    std::string GetExecutorConfigPath() const
     {
-        const static TString ExecutorConfigFileName = "executor_config.yson";
+        const static std::string ExecutorConfigFileName = "executor_config.yson";
 
         return CombinePaths(NFs::CurrentWorkingDirectory(), ExecutorConfigFileName);
     }
@@ -1734,7 +1732,7 @@ private:
             // is redirected to reserved buffer (container stderr) by default.
             executorConfig->StdoutUnusedAction = EStdoutUnusedAction::Leave;
         } else {
-            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::RedirrectToDevNull;
+            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::RedirectToDevNull;
         }
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
@@ -1758,7 +1756,7 @@ private:
 
         executorConfig->Environment.reserve(EnvironmentNameValuePairs_.size());
         for (const auto& variable : EnvironmentNameValuePairs_) {
-            if (variable) {
+            if (!variable.empty()) {
                 executorConfig->Environment.push_back(variable);
             }
         }
@@ -1767,7 +1765,7 @@ private:
             auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
             auto processWorkingDirectory = CombinePaths(Host_->GetPreparationPath(), GetSandboxRelPath(ESandboxKind::User));
             // TODO(babenko): switch to std::string
-            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, TString(*Config_->BusServer->UnixDomainSocketPath));
+            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, std::string(*Config_->BusServer->UnixDomainSocketPath));
             executorConfig->UserJobSynchronizerConnectionConfig = connectionConfig;
         }
 

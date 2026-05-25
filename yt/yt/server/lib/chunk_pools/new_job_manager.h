@@ -222,7 +222,7 @@ private:
         void Remove();
 
         template <class... TArgs>
-        void CallProgressCounterGuards(void (NControllerAgent::TProgressCounterGuard::*Method)(TArgs...), TArgs... args);
+        void CallProgressCounterGuards(void (NControllerAgent::TProgressCounterGuard::*Method)(TArgs...), const TArgs&... args);
 
         void UpdateSelf();
 

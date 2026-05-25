@@ -121,11 +121,11 @@ class TYTToCHConversionTest
 public:
     void SetUp() override
     {
-        Settings_ = New<TCompositeSettings>();
+        Settings_ = New<TConversionSettings>();
     }
 
 protected:
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     template <class TExpectedColumnType = void>
@@ -308,7 +308,7 @@ TEST_F(TYTToCHConversionTest, AnyPassthrough)
 
 
     for (const auto& ysonFormat : TEnumTraits<EExtendedYsonFormat>::GetDomainValues()) {
-        Settings_->DefaultYsonFormat = ysonFormat;
+        Settings_->Composite->DefaultYsonFormat = ysonFormat;
 
         ExpectTypeConversion(descriptor, std::make_shared<DB::DataTypeString>());
 
@@ -429,7 +429,6 @@ TEST_F(TYTToCHConversionTest, SimpleTypes)
             logicalType = TaggedLogicalType(LowCardinalityTag, std::move(logicalType));
             expectedDataType = std::make_shared<DB::DataTypeLowCardinality>(expectedDataType);
         }
-
 
         auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
         TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
@@ -756,7 +755,7 @@ TEST_F(TYTToCHConversionTest, ListAny)
     auto logicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
     auto expectedDataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeString>());
 
-    Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
+    Settings_->Composite->DefaultYsonFormat = EExtendedYsonFormat::Text;
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     ExpectTypeConversion(descriptor, expectedDataType);
@@ -807,7 +806,7 @@ TEST_F(TYTToCHConversionTest, OptionalListOptionalInt32)
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 
-    Settings_->EnableComplexNullConverison = false;
+    Settings_->Composite->EnableComplexNullConverison = false;
     ExpectThrowOnDataConversion(descriptor, ysonsOptionalListOptionalInt32);
     ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
     ExpectThrowOnDataConversion(descriptor, ytColumn);
@@ -908,7 +907,7 @@ TEST_F(TYTToCHConversionTest, OptionalTupleInt32String)
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 
-    Settings_->EnableComplexNullConverison = false;
+    Settings_->Composite->EnableComplexNullConverison = false;
     ExpectThrowOnDataConversion(descriptor, ysonsOptionalTupleInt32String);
     ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
     ExpectThrowOnDataConversion(descriptor, ytColumn);
@@ -966,7 +965,7 @@ TEST_F(TYTToCHConversionTest, OptionalStructInt32String)
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 
-    Settings_->EnableComplexNullConverison = false;
+    Settings_->Composite->EnableComplexNullConverison = false;
     ExpectThrowOnDataConversion(descriptor, ysonsOptionalStructInt32String);
     ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
     ExpectThrowOnDataConversion(descriptor, ytColumn);
@@ -1216,7 +1215,7 @@ TEST_F(TYTToCHConversionTest, AnyUpcast)
     std::vector<TUnversionedValue> booleanValues = {MakeUnversionedBooleanValue(false), MakeUnversionedBooleanValue(true)};
     std::vector<TUnversionedValue> anyValues = {MakeUnversionedAnyValue("{a=1}"), MakeUnversionedAnyValue("[]")};
 
-    Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
+    Settings_->Composite->DefaultYsonFormat = EExtendedYsonFormat::Text;
     TColumnSchema int64ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int64));
     TColumnSchema int16ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
     TColumnSchema stringColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::String));
@@ -1248,7 +1247,7 @@ TEST_F(TYTToCHConversionTest, IntegerUpcast)
     // Similar as previous for integers, e.g. int16 -> int32.
     std::vector<TUnversionedValue> intValues = {MakeUnversionedInt64Value(42), MakeUnversionedInt64Value(-17)};
 
-    Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
+    Settings_->Composite->DefaultYsonFormat = EExtendedYsonFormat::Text;
     TColumnSchema int32ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int32));
     TColumnSchema int16ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
 
@@ -1364,10 +1363,10 @@ public:
         if (GetEnv("SKIP_CHYT_CONVERSION_BENCHMARK_TESTS") != "") {
             GTEST_SKIP();
         }
-        Settings_ = New<TCompositeSettings>();
+        Settings_ = New<TConversionSettings>();
     }
 protected:
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
 };
 
 TEST_F(TBenchmarkYTToCHConversion, TestStringConversionSpeedSmall)

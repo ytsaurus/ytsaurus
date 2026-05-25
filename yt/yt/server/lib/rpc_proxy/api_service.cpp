@@ -63,6 +63,8 @@
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
+#include <yt/yt/client/rpc/request_info.h>
+
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/config.h>
@@ -477,12 +479,23 @@ DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This context extends standard typed service context. By this moment it is used for structured
-//! logging reasons.
+DECLARE_REFCOUNTED_STRUCT(IApiServiceContext)
+
+struct IApiServiceContext
+    : public virtual IServiceContext
+{
+    virtual void SetClient(std::optional<std::string> clientClusterName, NNative::IClientPtr client) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IApiServiceContext)
+
 template <class TRequestMessage, class TResponseMessage>
 class TApiServiceContext
     : public TTypedServiceContext<TRequestMessage, TResponseMessage>
+    , public IApiServiceContext
 {
+    using TBase = TTypedServiceContext<TRequestMessage, TResponseMessage>;
+
 public:
     // For most cases the most important request field is "path". If it is present in request message,
     // we want to see it in the structured log.
@@ -491,9 +504,28 @@ public:
 public:
     using TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
 
+    void Reply(const TError& error = {}) override
+    {
+        if (Client_ && Client_->GetNativeConnection()->IsTerminated()) {
+            auto replyError = TError(NRpc::EErrorCode::TransportError, "Connection to cluster %v was terminated", ClientClusterName_);
+            if (!error.IsOK()) {
+                replyError <<= error;
+            }
+            TBase::Reply(replyError);
+        } else {
+            TBase::Reply(error);
+        }
+    }
+
     void SetLogger(TLogger logger)
     {
         Logger = std::move(logger);
+    }
+
+    void SetClient(std::optional<std::string> clientClusterName, NNative::IClientPtr client) override
+    {
+        ClientClusterName_ = std::move(clientClusterName);
+        Client_ = std::move(client);
     }
 
     void SetupMainMessage(TYsonString requestYson)
@@ -529,6 +561,9 @@ public:
 
 private:
     TLogger Logger;
+
+    std::optional<std::string> ClientClusterName_;
+    NNative::IClientPtr Client_;
 
     //! True if message should be emitted to main topic.
     bool EmitMain_ = false;
@@ -1491,6 +1526,8 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
         THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
     }
 
+    VerifyDynamicCast<IApiServiceContext*>(context.Get())->SetClient(multiproxyTargetCluster, client);
+
     return client;
 }
 
@@ -1606,8 +1643,8 @@ void TApiService::ExecuteCall(
     New<TExecuteCallSession<TContext, TExecutor, TResultHandler>>(
         this,
         std::move(context),
-        std::move(executor),
-        std::move(resultHandler))
+        std::forward<TExecutor>(executor),
+        std::forward<TResultHandler>(resultHandler))
         ->Run();
 }
 
@@ -1618,7 +1655,7 @@ void TApiService::ExecuteCall(
 {
     ExecuteCall(
         context,
-        std::move(executor),
+        std::forward<TExecutor>(executor),
         [] (const TIntrusivePtr<TContext>& /*context*/) { });
 }
 
@@ -1849,6 +1886,18 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
     TTransactionCommitOptions options;
     SetMutatingOptions(&options, request, context.Get());
     options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+    options.ExpectedPrepareSignatures = FromProto<std::vector<TTransactionSignature>>(request->expected_prepare_signatures());
+    // COMPAT(atalmenev): old clients don't send expected_prepare_signatures.
+    if (options.ExpectedPrepareSignatures.empty()) {
+        options.ExpectedPrepareSignatures.assign(
+            options.AdditionalParticipantCellIds.size(),
+            FinalTransactionSignature);
+    }
+    if (options.ExpectedPrepareSignatures.size() != options.AdditionalParticipantCellIds.size()) {
+        THROW_ERROR_EXCEPTION("Expected prepare signatures count mismatch")
+            << TErrorAttribute("additional_participant_cell_ids_size", options.AdditionalParticipantCellIds.size())
+            << TErrorAttribute("expected_prepare_signatures_size", options.ExpectedPrepareSignatures.size());
+    }
     if (request->has_max_allowed_commit_timestamp()) {
         options.MaxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
     }
@@ -1858,8 +1907,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
 
     context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v, PrerequisiteTransactionIds: %v",
         transactionId,
-        options.PrerequisiteTransactionIds,
-        options.AdditionalParticipantCellIds);
+        options.AdditionalParticipantCellIds,
+        options.PrerequisiteTransactionIds);
 
     TTransactionAttachOptions attachOptions = {};
     attachOptions.Ping = false;
@@ -1909,6 +1958,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
         [&] (const auto& context, const TTransactionFlushResult& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_participant_cell_ids(), result.ParticipantCellIds);
+            ToProto(response->mutable_expected_prepare_signatures(), result.ExpectedPrepareSignatures);
 
             context->SetResponseInfo("ParticipantCellIds: %v",
                 result.ParticipantCellIds);
@@ -2074,6 +2124,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
                     auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
                     ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
                     ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
+                    // COMPAT(sabdenovch): Query tracker best-effort backwards compat.
+                    if (unfoldedColumns->IndexColumn == unfoldedColumns->TableColumn) {
+                        ToProto(protoIndexInfo->mutable_unfolded_column(), unfoldedColumns->IndexColumn);
+                    }
                 }
                 protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
                 if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
@@ -4668,6 +4722,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
         options.MaxJoinBatchSize = request->max_join_batch_size();
     }
     options.UseOrderByInJoinSubqueries = YT_OPTIONAL_FROM_PROTO(*request, use_order_by_in_join_subqueries);
+    options.EnableParallelizeUnorderedGroupBy = YT_OPTIONAL_FROM_PROTO(*request, enable_parallelize_unordered_group_by);
     if (request->has_statistics_aggregation()) {
         options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
     }
@@ -4677,14 +4732,16 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
+    i64 queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
+
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            query,
+            TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp,
             options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
-            query,
+            TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp);
     }
 
@@ -5173,8 +5230,8 @@ void TApiService::PullQueueConsumerImpl(
     context->SetRequestInfo(
         "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
         "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
-        request->consumer_path(),
-        request->queue_path(),
+        consumerPath,
+        queuePath,
         offset,
         request->partition_index(),
         rowBatchReadOptions.MaxRowCount,
@@ -5902,7 +5959,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
     using TByUser = TMaintenanceFilter::TByUser;
     if (request->has_user()) {
         auto user = request->user();
-        requestInfo.AppendFormat(", User: ", user);
+        requestInfo.AppendFormat(", User: %v", user);
         filter.User = user;
     } else if (request->mine()) {
         filter.User = TByUser::TMine{};
@@ -6535,14 +6592,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    context->SetRequestInfo(
-        "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, OmitInaccessibleRows: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+    SetReadTableRequestInfo(
+        context,
         path,
-        options.Unordered,
-        options.OmitInaccessibleColumns,
-        options.OmitInaccessibleRows,
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+        *request);
 
     PutMethodInfoInTraceContext("read_table");
 
@@ -6804,20 +6857,22 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
 
     options.EnableKeyGuarantee = request->enable_key_guarantee();
     options.EnableCookies = request->enable_cookies();
+    options.FetchCookieNodeDescriptors = request->fetch_cookie_node_descriptors();
     options.OmitInaccessibleRows = request->omit_inaccessible_rows();
 
     if (request->has_transactional_options()) {
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
+    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v, FetchCookieNodeDescriptors: %v",
         paths,
         options.PartitionMode,
         options.EnableKeyGuarantee,
         options.DataWeightPerPartition,
         options.CompressedDataSizePerPartition,
         options.AdjustDataWeightPerPartition,
-        options.EnableCookies);
+        options.EnableCookies,
+        options.FetchCookieNodeDescriptors);
 
     ExecuteCall(
         context,

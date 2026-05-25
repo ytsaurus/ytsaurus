@@ -216,7 +216,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                         type,
                         type,
                         aggregateName,
-                        EExecutionBackend::Native),
+                        {.ExecutionBackend = EExecutionBackend::Native}),
                     {wireType},
                     wireType,
                     EExecutionBackend::Native,
@@ -296,6 +296,11 @@ public:
     void Configure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
     {
         TSyncSlruCacheBase::Reconfigure(config->CGCache);
+    }
+
+    i64 GetSize() const override
+    {
+        return TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>::GetSize();
     }
 
 private:

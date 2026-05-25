@@ -239,7 +239,7 @@ public:
             auto row = Owner_->LookupRow(
                 key,
                 Request_.Timestamp,
-                std::move(columnFilter),
+                columnFilter,
                 TabletSnapshot_);
             if (!row) {
                 Result_.Set(TLookupResult{

@@ -92,7 +92,7 @@ spark-launch-yt \
 Существуют два способа обновления версии python:
 1. Установить необходимую версию python:
    1. Установить необходимую версию python на exeс nodes
-   2. Добавит версию python `//home/spark/conf/global` и путь к новому интерпретатору.
+   2. Добавить версию python `//home/spark/conf/global` и путь к новому интерпретатору.
    3. После этого в spark-submit-yt будет возможность использовать его. Параметр `--python-version`
 2. Собрать свой образ с необходимой версией python
 
@@ -102,7 +102,7 @@ spark-launch-yt \
 
 ### Сборка образа с установленными пакетами
 
-#### Сборка образа
+#### Сборка образа { #build-image }
 
 Пример Dockerfile для сборки образа python3.12 с установленными пакетами:
 ```docker
@@ -155,7 +155,7 @@ RUN python3.12 -m pip install -r requirements.txt
 ```text
 # requirements.txt
 ytsaurus-client==0.13.29
-ytsaurus-spyt==2.9.0
+ytsaurus-spyt==2.9.2
 pyspark==3.5.8
 ```
 

@@ -85,22 +85,34 @@ public:
         return BundleSnapshot_->TableRegistry->GetProfilingCounters(table, GroupName_);
     }
 
-    std::vector<TReshardDescriptor> AnnotateInplaceReshardDescriptors(
-        std::vector<TReshardDescriptor> descriptors)
+    void AnnotateInplaceReshardDescriptors(
+        std::vector<TReshardDescriptor>* descriptors) const override
     {
-        auto [hasTrue, hasFalse] = EvaluateFeatureFlag(
-            &TFeatureFlagConfig::EnableInplaceReshard,
+        auto [inplaceSplitHasTrue, inplaceSplitHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableInplaceSplit,
             DynamicConfig_,
             GroupConfig_,
             BundleSnapshot_->Bundle->Config);
 
-        if (hasFalse) {
-            return descriptors;
+        auto [inplaceMergeHasTrue, inplaceMergeHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableInplaceMerge,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
+        if (inplaceMergeHasFalse && inplaceSplitHasFalse) {
+            return;
         }
 
-        for (auto& descriptor : descriptors) {
-            const auto& tablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.Tablets.front());
-            const auto* table = tablet->Table;
+        auto [smoothHasTrue, smoothHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovement,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
+        for (auto& descriptor : *descriptors) {
+            const auto& firstTablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.Tablets.front());
+            const auto* table = firstTablet->Table;
 
             YT_LOG_FATAL_IF(
                 TypeFromId(table->Id) != EObjectType::Table,
@@ -111,14 +123,54 @@ public:
                 table->Path,
                 table->Bundle);
 
-            if (std::ssize(descriptor.Tablets) != 1) {
+            if (descriptor.Tablets.size() == 1) {
+                descriptor.Inplace = !inplaceSplitHasFalse && table->TableConfig->EnableInplaceSplit.value_or(inplaceSplitHasTrue);
                 continue;
             }
 
-            descriptor.Inplace = table->TableConfig->EnableInplaceReshard.value_or(hasTrue);
-        }
+            // Inplace many-to-many reshard is not supported.
+            if (descriptor.TabletCount != 1) {
+                continue;
+            }
 
-        return descriptors;
+            auto firstCell = firstTablet->Cell.Lock();
+            if (!firstCell) {
+                continue;
+            }
+
+            THashSet<TTabletId> pendingTabletIds;
+            for (auto tabletId : descriptor.Tablets) {
+                const auto& otherTablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, tabletId);
+                auto otherCell = otherTablet->Cell.Lock();
+
+                YT_LOG_FATAL_UNLESS(
+                    otherCell,
+                    "Failed to annotate reshard descriptor: tablet is not linked to any alive cell "
+                    "(TabletId: %v, TableId: %v, Path: %v, Bundle: %v, TabletState: %v, MountTime: %v)",
+                    tabletId,
+                    table->Id,
+                    table->Path,
+                    table->Bundle,
+                    otherTablet->State,
+                    otherTablet->MountTime);
+
+                if (otherCell->Id != firstCell->Id) {
+                    pendingTabletIds.insert(tabletId);
+                }
+            }
+
+            bool inplaceMerge = !inplaceMergeHasFalse && table->TableConfig->EnableInplaceMerge.value_or(inplaceMergeHasTrue);
+            if (inplaceMerge) {
+                bool preferSmoothMove = !smoothHasFalse && table->TableConfig->EnableSmoothMovement.value_or(smoothHasTrue);
+
+                descriptor.Inplace = true;
+                // TODO(atalmenev): Choose target cell more carefully: check node memory capacity
+                // and prefer the cell with the most tablets from the merge group.
+                descriptor.TargetCellId = firstCell->Id;
+                descriptor.PendingTabletIds = std::move(pendingTabletIds);
+                descriptor.UseSmoothMovementToUniteTablets = preferSmoothMove;
+            }
+        }
     }
 
 protected:
@@ -226,10 +278,7 @@ public:
             IsPickPivotKeysEnabled(),
             Logger())
             .AsyncVia(invoker)
-            .Run()
-            .Apply(BIND(
-                &TSizeReshardIteration::AnnotateInplaceReshardDescriptors,
-                MakeStrong(this)));
+            .Run();
     }
 
     void UpdateProfilingCounters(
@@ -326,10 +375,7 @@ public:
     {
         return BIND(&IParameterizedResharder::BuildTableActionDescriptors, Resharder_, table)
             .AsyncVia(invoker)
-            .Run()
-            .Apply(BIND(
-                &TParameterizedReshardIteration::AnnotateInplaceReshardDescriptors,
-                MakeStrong(this)));
+            .Run();
     }
 
     void UpdateProfilingCounters(
@@ -484,10 +530,7 @@ public:
                 .WithTag("BundleName: %v", BundleName_)
                 .WithTag("TableId: %v", table->Id))
             .AsyncVia(invoker)
-            .Run()
-            .Apply(BIND(
-                &TReplicaReshardIteration::AnnotateInplaceReshardDescriptors,
-                MakeStrong(this)));
+            .Run();
     }
 
     void UpdateProfilingCounters(

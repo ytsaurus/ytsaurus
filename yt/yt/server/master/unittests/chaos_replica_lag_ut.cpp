@@ -31,7 +31,7 @@ TReplicationCardId GenerateReplicationCardId()
 
 TReplicaId AddReplicationCardReplica(
     TReplicationCardId replicationCardId,
-    TReplicationCardPtr& replicationCard,
+    const TReplicationCardPtr& replicationCard,
     ETableReplicaMode mode,
     ETableReplicaContentType contentType,
     std::string_view path,
@@ -80,7 +80,7 @@ TLagTimeItem ParseLagTime(const INodePtr& lagNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TChaosReplicaLagTest, TestGetSortedLag)
+TEST(TChaosReplicaLagTest, GetSortedLag)
 {
     auto syncProgress = "{"
         "segments=[{lower_key=[];timestamp=107374182400};{lower_key=[\"c\"];timestamp=214748364800};];"

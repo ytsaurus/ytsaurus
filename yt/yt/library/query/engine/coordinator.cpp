@@ -2,6 +2,7 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
+#include <yt/yt/library/query/engine_api/shuffling_reader.h>
 
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
@@ -45,17 +46,22 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     bottomQuery->InferRanges = query->InferRanges;
     bottomQuery->IsFinal = false;
     bottomQuery->WhereClause = query->WhereClause;
+    bottomQuery->IsReverseScan = false;
 
     auto frontQuery = New<TFrontQuery>();
 
     frontQuery->GroupClause = query->GroupClause;
     frontQuery->HavingClause = query->HavingClause;
-    frontQuery->OrderClause = query->OrderClause;
+    // When the scan is reversed, tablets are read in descending key order so
+    // the merged stream is already sorted correctly. The front query only
+    // needs to apply OFFSET/LIMIT without re-sorting.
+    frontQuery->OrderClause = query->IsReverseScan ? nullptr : query->OrderClause;
     frontQuery->Offset = query->Offset;
     frontQuery->Limit = query->Limit;
     frontQuery->IsFinal = query->IsFinal;
     frontQuery->ProjectClause = query->ProjectClause;
     frontQuery->Schema = bottomQuery->GetTableSchema();
+    frontQuery->IsReverseScan = query->IsReverseScan;
 
     return {frontQuery, bottomQuery};
 }
@@ -369,11 +375,18 @@ TQueryStatistics CoordinateAndExecute(
         useAdaptiveOrderedSchemafulReader);
 
     // TODO: Use separate condition for prefetch after protocol update
-    auto topReader = (scanOrder == EScanOrder::Ordered)
-        ? (prefetch
-            ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
-            : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader))
-        : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+    ISchemafulUnversionedReaderPtr topReader;
+    switch (scanOrder) {
+        case EScanOrder::Ordered:
+        case EScanOrder::Reversed:
+            topReader = prefetch
+                ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
+                : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader);
+            break;
+        case EScanOrder::Unordered:
+            topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
+            break;
+    }
 
     auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
 
@@ -388,6 +401,102 @@ TQueryStatistics CoordinateAndExecute(
     }
 
     return queryStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryStatistics CoordinateAndExecuteWithShuffle(
+    int splitCount,
+    int groupKeyPrefix,
+    TSubQueryEvaluator evaluateSubQuery,
+    TMiddleQueryEvaluator evaluateMiddleQuery,
+    TTopQueryEvaluator evaluateTopQuery,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
+{
+    if (splitCount == 0) {
+        return {};
+    }
+
+    constexpr int ParallelizationFactor = 8;
+    int destinationCount = std::min(ParallelizationFactor, splitCount);
+
+    std::vector<TFuture<TQueryStatistics>> bottomSubqueryStatistics;
+    std::vector<TFuture<TFeatureFlags>> subqueryFeatureFlags;
+    std::vector<ISchemafulUnversionedReaderPtr> readers;
+    readers.reserve(splitCount);
+    bottomSubqueryStatistics.reserve(splitCount);
+    subqueryFeatureFlags.reserve(splitCount);
+    for (int index = 0; index < splitCount; ++index) {
+        auto bottomResult = evaluateSubQuery();
+        bottomSubqueryStatistics.push_back(std::move(bottomResult.Statistics));
+        subqueryFeatureFlags.push_back(bottomResult.ResponseFeatureFlags);
+        readers.push_back(bottomResult.Reader);
+    }
+
+    auto anyFeatureFlag = AnySucceeded(subqueryFeatureFlags, {.CancelInputOnShortcut = false});
+
+    auto [shuffledReaders, shuffleFutures] = ShuffleByPrefixHash(
+        readers,
+        groupKeyPrefix,
+        destinationCount,
+        GetCurrentInvoker(),
+        memoryChunkProvider);
+
+    readers.clear();
+    readers.reserve(shuffledReaders.size());
+    std::vector<TFuture<TQueryStatistics>> middleSubqueryStatistics;
+    middleSubqueryStatistics.reserve(shuffledReaders.size());
+    for (const auto& reader : shuffledReaders) {
+        auto middleResult = evaluateMiddleQuery(reader, anyFeatureFlag);
+        readers.push_back(std::move(middleResult.Reader));
+        middleSubqueryStatistics.push_back(std::move(middleResult.Statistics));
+    }
+
+    auto getNextReader = [readers = std::move(readers), index = 0] () mutable {
+        if (index >= std::ssize(readers)) {
+            return ISchemafulUnversionedReaderPtr();
+        }
+        return readers[index++];
+    };
+    auto finalReader = CreateUnorderedSchemafulReader(getNextReader, destinationCount);
+
+    // TODO(sabdenovch): No clue if MostFreshFeatureFlags would be more or less correct.
+    // Middle stage is executed locally, MostFreshFeatureFlags makes sense.
+    // But the data itself comes from the bottom subqueries, just shuffled and merged a little more.
+    // Input might have traits of different code versions.
+    auto statisticsFuture = BIND(evaluateTopQuery, finalReader, anyFeatureFlag)
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+
+    shuffleFutures.push_back(statisticsFuture.AsVoid());
+    for (const auto& future : middleSubqueryStatistics) {
+        shuffleFutures.push_back(future.AsVoid());
+    }
+    for (const auto& future : bottomSubqueryStatistics) {
+        shuffleFutures.push_back(future.AsVoid());
+    }
+
+    WaitFor(AllSucceeded(shuffleFutures))
+        .ThrowOnError();
+
+    auto statistics = WaitForFast(statisticsFuture)
+        .ValueOrThrow();
+
+    statistics.InnerStatistics = WaitForFast(AllSucceeded(middleSubqueryStatistics))
+        .ValueOrThrow();
+
+    statistics.InnerStatistics.front().InnerStatistics = WaitForFast(AllSucceeded(bottomSubqueryStatistics))
+        .ValueOrThrow();
+
+    statistics.GroupedRowCount.SetTotal(std::accumulate(
+        statistics.InnerStatistics.begin(),
+        statistics.InnerStatistics.end(),
+        static_cast<i64>(0),
+        [] (i64 groupedRowCount, const TQueryStatistics& innerStatistics) {
+            return groupedRowCount + innerStatistics.GroupedRowCount.GetTotal();
+        }));
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

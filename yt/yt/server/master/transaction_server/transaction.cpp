@@ -20,6 +20,7 @@ namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -245,6 +246,16 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     TObject::Save(context);
     TTransactionBase::Save(context);
 
+    // All transactions should have this flag set to true, unless they were started before 24.2
+    // and something went wrong when attempting to abort it.
+    // But let's write a detailed message here anyway.
+    YT_LOG_ALERT_UNLESS(
+        NativeTxExternalizationEnabled_,
+        "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
+        "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
+        "to data corruption! Please abort said transaction (TransactionId: %v)",
+        Id_);
+
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
@@ -260,7 +271,6 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, LockedNodes_);
     Save(context, Locks_);
     Save(context, BranchedNodes_);
-    Save(context, StagedNodes_);
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
     Save(context, PrerequisiteTransactions_);
@@ -279,6 +289,14 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+    if (IsCypressTransactionType(GetType())) {
+        Save(context, NativeTxExternalizationEnabled_);
+    }
+
+    // Cookies are invalidated anyway, so let's save the keys only.
+    auto tags = GetKeys(BarrierTagToCookie_);
+    std::sort(tags.begin(), tags.end());
+    Save(context, tags);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -301,7 +319,11 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, LockedNodes_);
     Load(context, Locks_);
     Load(context, BranchedNodes_);
-    Load(context, StagedNodes_);
+    // COMPAT(theevilbird)
+    if (context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions ||
+        (context.GetVersion() >= EMasterReign::Start_26_2 && context.GetVersion() < EMasterReign::RemoveStagedNodesInTransactions_26_2)) {
+        Load(context, StagedNodes_);
+    }
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
     Load(context, PrerequisiteTransactions_);
@@ -333,19 +355,23 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
-    if (context.GetVersion() < EMasterReign::RemoveNativeTxExternalizationEnabledFlag) {
+    auto version = context.GetVersion();
+    if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||
+        (EMasterReign::AbortStuckTransactions <= version && version < EMasterReign::Start_26_2) ||
+        EMasterReign::AbortStuckTransactions_26_2 <= version)
+    {
         if (IsCypressTransactionType(GetType())) {
-            bool nativeTxExternalizationEnabled;
-            Load(context, nativeTxExternalizationEnabled);
+            Load(context, NativeTxExternalizationEnabled_);
+        }
+    }
 
-            // All transactions should have this flag set to true, unless they were started before 24.2.
-            // But let's write a detailed message here anyway.
-            YT_LOG_FATAL_UNLESS(
-                nativeTxExternalizationEnabled,
-                "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
-                "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
-                "to data corruption! Please abort said transaction in order for master to be able to be started (TransactionId: %v)",
-                Id_);
+    if ((EMasterReign::StrongOrderingTags <= context.GetVersion() && context.GetVersion() < EMasterReign::Start_26_2) ||
+        EMasterReign::StrongOrderingTags_26_2 <= context.GetVersion())
+    {
+        auto barrierTags = Load<std::vector<std::string>>(context);
+
+        for (const auto& tag : barrierTags) {
+            RegisterBarrierCookie(tag, InvalidAsyncBarrierCookie);
         }
     }
 }
@@ -366,12 +392,12 @@ TTransaction* TTransaction::GetTopmostTransaction()
 
 bool TTransaction::IsReplicatedToCell(TCellTag cellTag) const
 {
-    return std::find(ReplicatedToCellTags_.begin(), ReplicatedToCellTags_.end(), cellTag) != ReplicatedToCellTags_.end();
+    return ReplicatedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalizedToCell(TCellTag cellTag) const
 {
-    return std::find(ExternalizedToCellTags_.begin(), ExternalizedToCellTags_.end(), cellTag) != ExternalizedToCellTags_.end();
+    return ExternalizedToCellTags_.contains(cellTag);
 }
 
 bool TTransaction::IsExternalized() const
@@ -501,6 +527,27 @@ void TTransaction::SetSuccessorTransactionLeaseCount(int newLeaseCount)
 int TTransaction::GetSuccessorTransactionLeaseCount() const
 {
     return SuccessorTransactionLeaseCount_;
+}
+
+bool TTransaction::IsNativeTxExternalizationEnabled() const
+{
+    return NativeTxExternalizationEnabled_;
+}
+
+void TTransaction::RegisterBarrierCookie(
+    const std::string& tag,
+    TAsyncBarrierCookie cookie)
+{
+    if (cookie == InvalidAsyncBarrierCookie) {
+        YT_VERIFY(!BarrierTagToCookie_.contains(tag));
+    }
+
+    BarrierTagToCookie_[tag] = cookie;
+}
+
+const THashMap<std::string, TAsyncBarrierCookie>& TTransaction::GetBarrierCookies() const
+{
+    return BarrierTagToCookie_;
 }
 
 auto TTransaction::GetActionStateFactory() -> IActionStateFactory*

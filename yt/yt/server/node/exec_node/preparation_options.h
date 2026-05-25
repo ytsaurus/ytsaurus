@@ -26,6 +26,14 @@ struct TVirtualSandboxData
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOverlayLayerPreparationOptions
+{
+    TArtifactKey ArtifactKey;
+    NNbd::IImageReaderPtr ImageReader;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Data necessary to create NBD root volume.
 struct TSandboxNbdRootVolumeData
 {
@@ -62,7 +70,6 @@ void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& d
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
-    std::vector<TBaseVolumeParamsPtr> NonRootVolumes;
     std::vector<NScheduler::TVolumeMountPtr> JobVolumeMounts;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
@@ -70,7 +77,6 @@ struct TUserSandboxOptions
     bool EnableDiskQuota = true;
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
     std::string SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
@@ -83,6 +89,7 @@ struct TVolumePreparationOptions
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     TArtifactDownloadOptions ArtifactDownloadOptions;
+    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

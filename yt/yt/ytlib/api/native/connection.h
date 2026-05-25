@@ -120,6 +120,7 @@ struct IConnection
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetBundleControllerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetTabletBalancerChannel() = 0;
+    virtual const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual NRpc::IChannelPtr GetChaosChannelByCellId(
@@ -305,8 +306,15 @@ DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
 //!    - SyncOutOfBound -- run sync out of bound sync immediately.
 //!    - WaitFirstSuccessfulSync -- wait until first successful sync is performed
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
-    const NApi::NNative::IConnectionPtr& connection,
-    const std::string& clusterName,
+    NApi::NNative::IConnectionPtr connection,
+    std::string clusterName,
+    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
+
+//! Same as #InsistentGetRemoteConnection but for multiple clusters.
+//! Helpful to sync cluster directory once instead of once per connection.
+TFuture<std::vector<IConnectionPtr>> InsistentGetMultipleRemoteConnections(
+    NApi::NNative::IConnectionPtr connection,
+    std::vector<std::string> clusterNames,
     EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
 
 IConnectionPtr FindRemoteConnection(

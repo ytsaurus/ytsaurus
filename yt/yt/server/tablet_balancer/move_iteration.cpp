@@ -143,6 +143,11 @@ protected:
                 continue;
             }
 
+            // Support smooth movement for frozen tablets: YT-17388.
+            if (tablet->State != ETabletState::Mounted) {
+                continue;
+            }
+
             descriptor.Smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
         }
 
@@ -182,7 +187,6 @@ public:
         return BIND(
             ReassignOrdinaryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -235,8 +239,6 @@ public:
         return BIND(
             ReassignInMemoryTablets,
             BundleSnapshot_->Bundle,
-            /*movableTables*/ std::nullopt,
-            /*ignoreTableWiseConfig*/ false,
             Logger())
             .AsyncVia(invoker)
             .Run()

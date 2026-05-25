@@ -72,7 +72,7 @@ private:
     TMinHashItems<TTimestampComparator> ItemsBuffer_;
 
 private:
-    void EnsureCompacted();
+    void CompactBuffer();
 };
 
 using TWriteMinHashAccumulator = TMinHashAccumulator<std::less<ui32>>;

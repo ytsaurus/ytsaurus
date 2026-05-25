@@ -12,11 +12,11 @@
 #include "reshard_iteration.h"
 #include "tablet_balancer.h"
 
-#include <yt/yt/server/lib/cypress_election/election_manager.h>
-
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -138,7 +138,7 @@ public:
             Logger().WithTag("CellTag: %v", cellTag),
             TabletBalancerProfiler()
                 .WithPrefix("/master_request_throttler")
-                .WithTag("cellTag", ToString(cellTag)))).first->second;
+                .WithTag("cell_tag", ToString(cellTag)))).first->second;
     }
 
     void Reconfigure(TThroughputThrottlerConfigPtr config) override
@@ -236,8 +236,8 @@ private:
         THashMap<TGlobalGroupTag, i64> GroupToActionCount;
         i64 GroupLimit;
 
-        bool TryIncrease(const TGlobalGroupTag& groupTag);
-        bool CanIncrease(const TGlobalGroupTag& groupTag);
+        bool TryIncrease(const TGlobalGroupTag& groupTag, int actionCount = 1);
+        bool CanIncrease(const TGlobalGroupTag& groupTag, int actionCount = 1);
     };
 
     struct TBundleErrors
@@ -768,6 +768,7 @@ void TTabletBalancer::TryBalancerIteration()
 void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
 {
     const auto& bundleName = bundleSnapshot->Bundle->Name;
+
     auto groups = bundleSnapshot->Bundle->GetBalancingGroups();
 
     if (DynamicConfig_.Acquire()->IgnoreTabletToCellRatio) {
@@ -836,19 +837,19 @@ bool TTabletBalancer::IsBalancingAllowed(const IBundleStatePtr& bundleState) con
          bundleState->GetConfig(/*allowStale*/ true).GetOrCrash().Value()->EnableStandaloneTabletBalancer);
 }
 
-bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
+bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag, int actionCount)
 {
-    if (!CanIncrease(groupTag)) {
+    if (!CanIncrease(groupTag, actionCount)) {
         return false;
     }
 
-    ++GroupToActionCount[groupTag];
+    GroupToActionCount[groupTag] += actionCount;
     return true;
 }
 
-bool TTabletBalancer::TScheduledActionCountLimiter::CanIncrease(const TGlobalGroupTag& groupTag)
+bool TTabletBalancer::TScheduledActionCountLimiter::CanIncrease(const TGlobalGroupTag& groupTag, int actionCount)
 {
-    if (GroupToActionCount[groupTag] >= GroupLimit) {
+    if (GroupToActionCount[groupTag] + actionCount > GroupLimit) {
         YT_LOG_WARNING("Action per iteration limit exceeded (BundleName: %v, Group: %v, Limit: %v)",
             groupTag.first,
             groupTag.second,
@@ -863,7 +864,11 @@ bool TTabletBalancer::TryScheduleActionCreation(
     const TActionDescriptor& descriptor)
 {
     auto guard = WriterGuard(Lock_);
-    auto increased = ActionCountLimiter_.TryIncrease(groupTag);
+    int actionCount = 1;
+    if (const auto* reshardDescriptor = std::get_if<TReshardDescriptor>(&descriptor)) {
+        actionCount += std::ssize(reshardDescriptor->PendingTabletIds);
+    }
+    bool increased = ActionCountLimiter_.TryIncrease(groupTag, actionCount);
     if (increased) {
         ActionManager_->ScheduleActionCreation(groupTag.first, descriptor);
     }
@@ -878,7 +883,7 @@ TTabletBalancer::TBundleOrchidService::TBundleOrchidService(TTabletBalancerPtr o
 
 i64 TTabletBalancer::TBundleOrchidService::GetSize() const
 {
-    return Owner_->Bundles_.size();
+    return std::ssize(Owner_->Bundles_);
 }
 
 IYPathServicePtr TTabletBalancer::TBundleOrchidService::FindItemService(const std::string& key) const
@@ -979,7 +984,7 @@ std::vector<std::string> TTabletBalancer::TTableOrchidService::GetKeys(i64 limit
 
 i64 TTabletBalancer::TTableOrchidService::GetSize() const
 {
-    return Bundle_->Tables.size();
+    return std::ssize(Bundle_->Tables);
 }
 
 IYPathServicePtr TTabletBalancer::TTableOrchidService::FindItemService(const std::string& key) const
@@ -1026,7 +1031,7 @@ void TTabletBalancer::LinkOrchidService(TTransactionId prerequisiteTransactionId
         WaitFor(client->CreateNode(LeaderOrchidServicePath, EObjectType::Orchid, createOptions))
             .ThrowOnError();
 
-        YT_LOG_INFO("Succesfully created orchid node");
+        YT_LOG_INFO("Successfully created orchid node");
 
         auto remoteAddressPath = Format("%v&/@remote_addresses", LeaderOrchidServicePath);
 
@@ -1038,9 +1043,9 @@ void TTabletBalancer::LinkOrchidService(TTransactionId prerequisiteTransactionId
         WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses), setOptions))
             .ThrowOnError();
 
-        YT_LOG_INFO("Succesfully linked orchid service");
-    } catch (const std::exception& e) {
-        YT_LOG_ERROR(e, "Failed to link orchid service, will stop leading");
+        YT_LOG_INFO("Successfully linked orchid service");
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to link orchid service, will stop leading");
 
         YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
     }
@@ -1064,7 +1069,7 @@ void TTabletBalancer::LinkTabletBalancerService(TTransactionId prerequisiteTrans
         options));
 
     if (rspOrError.IsOK()) {
-        YT_LOG_INFO("Succesfully linked tablet balancer service");
+        YT_LOG_INFO("Successfully linked tablet balancer service");
     } else {
         YT_LOG_ERROR(rspOrError, "Failed to link tablet balancer service, will stop leading");
         YT_UNUSED_FUTURE(Bootstrap_->GetElectionManager()->StopLeading());
@@ -1330,8 +1335,9 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
     THashSet<std::string> currentBundles;
     std::vector<std::string> newBundles;
     for (const auto& bundle : bundleList->GetChildren()) {
-        const auto& name = bundle->AsString()->GetValue();
-        currentBundles.insert(bundle->AsString()->GetValue());
+        // TODO(babenko): migrate to std::string
+        auto name = TString(bundle->AsString()->GetValue());
+        currentBundles.insert(name);
 
         auto [it, isNew] = Bundles_.emplace(
             name,
@@ -1685,6 +1691,10 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
             continue;
         }
 
+        if (!table->Sorted) {
+            continue;
+        }
+
         auto tableDescriptors = WaitFor(reshardIteration->MergeSplitTable(table, WorkerPool_->GetInvoker()))
             .ValueOrThrow();
 
@@ -1752,6 +1762,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
             beginIt,
             endIt,
             reshardIteration);
+        reshardIteration->AnnotateInplaceReshardDescriptors(&limitedDescriptors);
 
         for (const auto& descriptor : limitedDescriptors) {
             auto firstTablet = GetOrCrash(reshardIteration->GetBundle()->Tablets, descriptor.Tablets[0]);
@@ -1767,7 +1778,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
 
             ++actionCount;
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, "
-                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, TablePath: %v, CorrelationId: %v)",
+                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, TablePath: %v, CorrelationId: %v, PendingTabletIds: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
@@ -1775,7 +1786,8 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
                 firstTabletIndex,
                 lastTabletIndex,
                 table->Path,
-                descriptor.CorrelationId);
+                descriptor.CorrelationId,
+                descriptor.PendingTabletIds);
 
             reshardIteration->UpdateProfilingCounters(table, descriptor);
         }
@@ -2141,7 +2153,7 @@ void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& b
             bundleName,
             TabletBalancerProfiler()
                 .WithSparse()
-                .WithTag("bundle", bundleName)
+                .WithTag("tablet_cell_bundle", bundleName)
                 .Counter("/bundle_iteration_cancellations"));
     }
 

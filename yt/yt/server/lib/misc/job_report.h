@@ -119,6 +119,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerStartTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerFinishTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, GangRank);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerError);
 
 protected:
     TJobReport() = default;

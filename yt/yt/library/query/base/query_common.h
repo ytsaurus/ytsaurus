@@ -177,6 +177,8 @@ struct TQueryBaseOptions
     // COMPAT(sabdenovch)
     bool AllowUnorderedGroupByWithLimit = true;
     std::optional<int> TruncatedQueryLengthForTracing;
+    bool PrefetchJoinTables = false;
+    bool EnableParallelizeUnorderedGroupBy = false;
 };
 
 struct TQueryOptions
@@ -214,6 +216,8 @@ struct TQueryOptions
     bool AdaptiveOrderedSchemafulReader = true;
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
+
+    std::optional<i64> JoinCacheSize;
 
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
 };
@@ -270,6 +274,7 @@ struct TPreparePlanFragmentOptions
     bool ShouldRewriteCardinalityIntoHyperLogLog = false; // COMPAT(dtorilov): Remove after 25.4.
     int HyperLogLogPrecision = 14;
     bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
+    bool AllowReverseScanForOrderBy = false;
 };
 
 struct TPreparePlanFragmentContext

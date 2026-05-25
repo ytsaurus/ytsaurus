@@ -107,7 +107,7 @@ public:
     }
 
     void RegisterDevice(
-        const TString& name,
+        const std::string& name,
         IBlockDevicePtr device) override
     {
         YT_LOG_INFO("Registering device (Name: %v, Info: %v)", name, device->DebugString());
@@ -128,7 +128,7 @@ public:
         YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
 
-    IBlockDevicePtr TryUnregisterDevice(const TString& name) override
+    IBlockDevicePtr TryUnregisterDevice(const std::string& name) override
     {
         YT_LOG_INFO("Unregistering device (Name: %v)", name);
 
@@ -148,13 +148,13 @@ public:
         return device;
     }
 
-    bool IsDeviceRegistered(const TString& name) const override
+    bool IsDeviceRegistered(const std::string& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return NameToDevice_.contains(name);
     }
 
-    IBlockDevicePtr GetDeviceOrThrow(const TString& name) const override
+    IBlockDevicePtr GetDeviceOrThrow(const std::string& name) const override
     {
         auto device = FindDevice(name);
         if (!device) {
@@ -164,7 +164,7 @@ public:
         return device;
     }
 
-    IBlockDevicePtr FindDevice(const TString& name) const override
+    IBlockDevicePtr FindDevice(const std::string& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return GetOrDefault(NameToDevice_, name);
@@ -198,9 +198,9 @@ private:
     IListenerPtr Listener_;
 
     mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
-    THashMap<TString, IBlockDevicePtr> NameToDevice_;
+    THashMap<std::string, IBlockDevicePtr> NameToDevice_;
 
-    std::vector<std::pair<TString, IBlockDevicePtr>> ListDevices()
+    std::vector<std::pair<std::string, IBlockDevicePtr>> ListDevices()
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return {NameToDevice_.begin(), NameToDevice_.end()};
@@ -526,11 +526,24 @@ private:
                 length,
                 flags);
 
-            TWallTimer timer;
+            TEventTimerGuard readTimeGuard(
+                TNbdProfilerCounters::Get()->GetTimer(
+                    TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                    "/device/read_time"));
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/read_count")
+                .Increment(1);
+
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) {
-                        auto duration = timer.GetElapsedTime().SecondsFloat();
+                    BIND([=, readTimeGuard = std::move(readTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) mutable {
+                        auto duration = readTimeGuard.GetElapsedTime().SecondsFloat();
+                        {
+                            // Destroy readTimeGuard to finalize read time.
+                            auto guard = std::move(readTimeGuard);
+                        }
 
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
@@ -547,6 +560,11 @@ private:
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+
+                        TNbdProfilerCounters::Get()->GetCounter(
+                            TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                            "/device/read_bytes")
+                            .Increment(length);
 
                         const auto& response = result.Value();
                         if (response.ShouldStopUsingDevice) {
@@ -632,11 +650,24 @@ private:
                 options.Flush = true;
             }
 
-            TWallTimer timer;
+            TEventTimerGuard writeTimeGuard(
+                TNbdProfilerCounters::Get()->GetTimer(
+                    TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                    "/device/write_time"));
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/write_count")
+                .Increment(1);
+
             Device_->Write(offset, payload, options)
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) {
-                        auto duration = timer.GetElapsedTime().SecondsFloat();
+                    BIND([=, writeTimeGuard = std::move(writeTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) mutable {
+                        auto duration = writeTimeGuard.GetElapsedTime().SecondsFloat();
+                        {
+                            // Destroy writeTimeGuard to finalize write time.
+                            auto guard = std::move(writeTimeGuard);
+                        }
 
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
@@ -653,6 +684,11 @@ private:
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+
+                        TNbdProfilerCounters::Get()->GetCounter(
+                            TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                            "/device/write_bytes")
+                            .Increment(length);
 
                         const auto& response = result.Value();
                         if (response.ShouldStopUsingDevice) {
@@ -765,7 +801,7 @@ private:
                 YT_VERIFY(readSize >= 0);
                 if (readSize == 0) {
                     // The connection has been closed by the peer.
-                    TString strTagSet;
+                    std::string strTagSet;
                     NProfiling::TTagSet tagSet;
                     if (Device_) {
                         strTagSet = Device_->GetProfileSensorTag();
@@ -775,7 +811,7 @@ private:
                             Device_->SetError(TError("Connection has been closed without NBD_CMD_DISC"));
                         }
 
-                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DevicDebugString: %v, DeviceError: %v)",
+                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DeviceDebugString: %v, DeviceError: %v)",
                             Abort_,
                             Device_->DebugString(),
                             Device_->GetError());

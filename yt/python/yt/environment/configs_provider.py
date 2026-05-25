@@ -298,6 +298,19 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         logs_dir,
     )
 
+    offshore_data_gateway_configs = _build_offshore_data_gateway_configs(
+        yt_config,
+        multidaemon_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        discovery_configs,
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        cypress_proxy_rpc_ports,
+        ports_generator,
+        logs_dir,
+    )
+
     cluster_configuration = {
         "master": master_configs,
         "clock": clock_configs,
@@ -319,6 +332,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "tablet_balancer": tablet_balancer_configs,
         "cypress_proxy": cypress_proxy_configs,
         "replicated_table_tracker": replicated_table_tracker_configs,
+        "offshore_data_gateway": offshore_data_gateway_configs,
         "cluster_connection": _build_cluster_connection_config(
             yt_config,
             master_connection_configs,
@@ -1194,21 +1208,34 @@ def _build_node_configs(multidaemon_config_output,
 
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
-            # COMPAT
-            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
-            if yt_config.enable_legacy_logging_scheme
-            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
-        )
-        set_at(
-            config,
             "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
             # COMPAT
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
             if yt_config.enable_legacy_logging_scheme
             else os.path.join(logs_dir, "ytserver_exec-{0}-stderr".format(index))
         )
-
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/sharding_key_length",
+            yt_config.job_proxy_log_manager["sharding_key_length"]
+        )
+        if yt_config.job_proxy_logging["mode"] == "per_job_directory":
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/job_proxy_log_symlinks_path",
+                os.path.join(logs_dir, "job-proxy-logs"),
+            )
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/locations",
+                [
+                    {
+                        "path": os.path.join(logs_dir, "disk{0}/job_proxy-{1}/cluster-data/job-proxy-logs".format(num, index)),
+                    }
+                    for num in range(3)
+                ]
+            )
+        # COMPAT(epsilond1): remove after 26.1
         set_at(
             config,
             "exec_node/job_proxy_log_manager/directory",
@@ -1216,9 +1243,13 @@ def _build_node_configs(multidaemon_config_output,
         )
         set_at(
             config,
-            "exec_node/job_proxy_log_manager/sharding_key_length",
-            yt_config.job_proxy_log_manager["sharding_key_length"]
+            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
+            # COMPAT(epsilond1): remove after 26.1
+            os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index))
+            if yt_config.enable_legacy_logging_scheme
+            else os.path.join(logs_dir, "job_proxy-{0}-stderr".format(index)),
         )
+
         set_at(
             config,
             "exec_node/job_proxy_log_manager/logs_storage_period",
@@ -2030,6 +2061,51 @@ def _build_replicated_table_tracker_configs(yt_config,
     return configs
 
 
+def _build_offshore_data_gateway_configs(yt_config,
+                                         multidaemon_config_output,
+                                         master_connection_configs,
+                                         clock_connection_config,
+                                         discovery_configs,
+                                         timestamp_provider_addresses,
+                                         master_cache_addresses,
+                                         cypress_proxy_rpc_ports,
+                                         ports_generator,
+                                         logs_dir):
+    configs = []
+
+    for index in xrange(yt_config.offshore_data_gateway_count):
+        config = default_config.get_offshore_data_gateway_config()
+
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        if not yt_config.enable_multidaemon:
+            init_singletons(singletons_config, yt_config)
+
+            _init_logging(logs_dir,
+                          "offshore-data-gateway-" + str(index),
+                          singletons_config.setdefault("logging", {}),
+                          yt_config,
+                          has_structured_logs=True)
+
+        init_jaeger_collector(config, "offshore_data_gateway", {"offshore_data_gateway_index": str(index)})
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                cypress_proxy_rpc_ports)
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+
+        configs.append(config)
+
+    return configs
+
+
 def _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator):
     rpc_ports = []
 
@@ -2115,7 +2191,8 @@ def _init_logging(path, name, logging_config, yt_config,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr,
-        use_name_in_writer_name=use_name_in_writer_name)
+        use_name_in_writer_name=use_name_in_writer_name,
+        abort_on_alert=yt_config.default_abort_on_alert)
 
 
 def init_logging(path, name,

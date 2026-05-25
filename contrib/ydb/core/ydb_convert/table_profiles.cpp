@@ -3,6 +3,7 @@
 
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
 #include <contrib/ydb/core/protos/follower_group.pb.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/base/feature_flags.h>
 #include <contrib/ydb/core/base/domain.h>
 

@@ -23,30 +23,33 @@ struct IChunkReplicaFetcher
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
         NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
+    virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicasWithoutSequoiaChecks(
+        TNodeId nodeId,
+        NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
 
     // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
     virtual TErrorOr<TStoredChunkReplicaList> GetChunkReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk,
-        bool includeUnapproved = false) const = 0;
+        bool includeUnapproved) const = 0;
     virtual TChunkToStoredChunkReplicaList GetChunkReplicas(
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks,
-        bool includeUnapproved = false) const = 0;
+        bool includeUnapproved) const = 0;
 
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetChunkReplicasAsync(
         NObjectServer::TEphemeralObjectPtr<TChunk> chunk,
-        bool includeUnapproved = false) const = 0;
+        bool includeUnapproved) const = 0;
     virtual TFuture<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>> GetChunkReplicasAsync(
         std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>> chunks,
-        bool includeUnapproved = false) const = 0;
+        bool includeUnapproved) const = 0;
 
     virtual TFuture<std::vector<TNodeId>> GetLastSeenReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
 
     virtual TFuture<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>> GetOnlySequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,
-        bool includeUnapproved = false,
-        bool force = false) const = 0;
+        bool includeUnapproved,
+        bool force) const = 0;
 
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,

@@ -21,7 +21,6 @@ import os
 ##################################################################
 
 
-@pytest.mark.enabled_multidaemon
 class TestJobQuery(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

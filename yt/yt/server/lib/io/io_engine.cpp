@@ -47,7 +47,7 @@ struct TInternalReadResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIOEngineHandle::TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept
+TIOEngineHandle::TIOEngineHandle(const std::string& fName, EOpenMode oMode) noexcept
     : TFileHandle(fName, oMode)
     , OpenForDirectIO_(oMode & DirectAligned)
 { }
@@ -290,7 +290,6 @@ TInternalReadResponse DoRead(
                     << TErrorAttribute("really_read", reallyRead)
                     << TErrorAttribute("file_offset", fileOffset)
                     << TErrorAttribute("file_size", request.Handle->GetLength())
-                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
                     << TError::FromSystem();
             } else if (useDirectIO && fileOffset + reallyRead == request.Handle->GetLength()) {
                 toReadRemaining = 0;
@@ -672,7 +671,7 @@ TFlushFileRangeResponse DoFlushFileRange(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TReadResponse> IIOEngine::ReadAll(
-    const TString& path,
+    const std::string& path,
     EWorkloadCategory category,
     TIOSessionId sessionId,
     TFairShareSlotId fairShareSlot)
@@ -792,7 +791,7 @@ class TFixedPriorityExecutor
 public:
     TFixedPriorityExecutor(
         const TThreadPoolIOEngineConfigPtr& config,
-        const TString& locationId,
+        const std::string& locationId,
         NLogging::TLogger /*logger*/)
         : ReadThreadPool_(CreateThreadPool(config->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
@@ -852,7 +851,7 @@ class TFairShareThreadPool
 public:
     TFairShareThreadPool(
         TThreadPoolIOEngineConfigPtr config,
-        const TString& locationId,
+        const std::string& locationId,
         NLogging::TLogger logger)
         : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(
             config->ReadThreadCount,
@@ -919,7 +918,7 @@ public:
 
     TThreadPoolIOEngine(
         TConfigPtr config,
-        TString locationId,
+        std::string locationId,
         IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger)
@@ -1164,7 +1163,7 @@ public:
 
     TFairShareHierarchicalThreadPoolIOEngine(
         TConfigPtr config,
-        TString locationId,
+        std::string locationId,
         IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger,
@@ -1214,7 +1213,7 @@ public:
             buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index], config->DirectIOBlockSize);
 
             for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer, config->DirectIOBlockSize)) {
-                auto slotId = requests[index].FairShareSlotId;
+                auto slotId = slice.Request.FairShareSlotId;
                 auto requestId = TGuid::Create();
                 auto promise = CreateRequestPromise<TInternalReadResponse>(
                     slotId,
@@ -1311,7 +1310,7 @@ public:
                 slotId,
                 requestId,
                 EFairShareIOEngineRequestType::Write);
-            auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
+            auto toWriteRemaining = static_cast<i64>(GetByteSize(slice.Buffers));
 
             futures.push_back(promise.ToFuture());
 
@@ -1678,7 +1677,7 @@ private:
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    TString locationId,
+    std::string locationId,
     TProfiler profiler,
     NLogging::TLogger logger,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,

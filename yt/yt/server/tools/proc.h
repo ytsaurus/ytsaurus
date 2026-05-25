@@ -10,7 +10,7 @@ namespace NYT::NTools {
 
 struct TRemoveDirAsRootTool
 {
-    void operator()(const TString& arg) const;
+    void operator()(const std::string& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,14 +24,14 @@ struct TKillAllByUidTool
 
 struct TRemoveDirContentAsRootTool
 {
-    void operator()(const TString& arg) const;
+    void operator()(const std::string& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCreateDirectoryAsRootTool
 {
-    void operator()(const TString& arg) const;
+    void operator()(const std::string& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ struct TCreateDirectoryAsRootTool
 struct TMountTmpfsConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     int UserId;
     i64 Size;
 
@@ -62,7 +62,7 @@ struct TMountTmpfsAsRootTool
 struct TSpawnShellConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<TString> Command;
+    std::optional<std::string> Command;
 
     REGISTER_YSON_STRUCT(TSpawnShellConfig);
 
@@ -83,7 +83,7 @@ struct TSpawnShellTool
 struct TUmountConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     bool Detach;
 
     REGISTER_YSON_STRUCT(TUmountConfig);
@@ -130,7 +130,7 @@ struct TFSQuotaConfig
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;
     int UserId;
-    TString Path;
+    std::string Path;
 
     REGISTER_YSON_STRUCT(TFSQuotaConfig);
 
@@ -149,7 +149,7 @@ struct TFSQuotaTool
 struct TChownChmodConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     std::optional<uid_t> UserId;
     std::optional<int> Permissions;
 
@@ -214,8 +214,8 @@ struct TGetTotalDirectoriesSizeAsRootTool
 struct TCopyDirectoryContentConfig
     : public NYTree::TYsonStruct
 {
-    TString Source;
-    TString Destination;
+    std::string Source;
+    std::string Destination;
 
     REGISTER_YSON_STRUCT(TCopyDirectoryContentConfig);
 
@@ -233,7 +233,7 @@ struct TCopyDirectoryContentTool
 
 struct TReadProcessSmapsTool
 {
-    TString operator()(int pid) const;
+    std::string operator()(int pid) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,7 +241,7 @@ struct TReadProcessSmapsTool
 struct TDirectoryConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     std::optional<int> UserId;
     std::optional<int> Permissions;
     bool RemoveIfExists;
@@ -258,7 +258,7 @@ DEFINE_REFCOUNTED_TYPE(TDirectoryConfig)
 struct TRootDirectoryConfig
     : public NYTree::TYsonStruct
 {
-    TString SlotPath;
+    std::string SlotPath;
     std::optional<int> UserId;
     int Permissions;
 
@@ -302,8 +302,8 @@ struct TMkFsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString Path;
-    TString Type;
+    std::string Path;
+    std::string Type;
 
     REGISTER_YSON_STRUCT(TMkFsConfig);
 

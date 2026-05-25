@@ -31,6 +31,7 @@ from yt.environment.helpers import (  # noqa
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
     KAFKA_PROXIES_SERVICE,
+    OFFSHORE_DATA_GATEWAYS_SERVICE,
     CYPRESS_PROXIES_SERVICE,
 )
 
@@ -348,6 +349,7 @@ class YTEnvSetup(object):
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 1
     NUM_REPLICATED_TABLE_TRACKERS = 0
+    NUM_OFFSHORE_DATA_GATEWAYS = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
@@ -475,6 +477,7 @@ class YTEnvSetup(object):
         return cls.NUM_SECONDARY_MASTER_CELLS
 
     # To be redefined in successors
+    # TODO(pavel-bash): add modify_offshore_data_gateway_config when needed.
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         pass
@@ -760,6 +763,7 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             cypress_proxy_count=cypress_proxy_count,
             replicated_table_tracker_count=cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index),
+            offshore_data_gateway_count=cls.get_param("NUM_OFFSHORE_DATA_GATEWAYS", index),
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=primary_cell_tag,
@@ -1156,9 +1160,7 @@ class YTEnvSetup(object):
             ground_index = cluster_index + cls.get_ground_index_offset()
             cls._restore_sequoia_bundles_options(ground_index)
             yt_commands.wait_for_cells(driver=ground_driver)
-            # TODO(danilalexeev): YT-25434. Make it a single call.
-            yt_sequoia.initialization.mount_tables(app, ground_reign, sync=False)
-            yt_sequoia.initialization.mount_tables(app, ground_reign, sync=True)
+            yt_sequoia.initialization.mount_tables(app, ground_reign)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
@@ -1210,6 +1212,7 @@ class YTEnvSetup(object):
         for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
             assert cell_tag in cell_tags
 
+    # TODO(pavel-bash): use the modify_offshore_data_gateway_config when implemented.
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         multidaemon_config = configs["multi"]
@@ -1375,6 +1378,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def update_transaction_supervisor_config(cls, config, cluster_index):
+        # COMPAT(h0pless)
+        if "master" not in cls.ARTIFACT_COMPONENTS.get("25_4", []):
+            return
+
         if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
             return
         config.setdefault("transaction_supervisor", {})
@@ -1401,7 +1408,7 @@ class YTEnvSetup(object):
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,
-                "enable_ground_reign_validation": False,
+                "enable_ground_reign_validation": True,
             },
         })
 
@@ -2217,8 +2224,18 @@ class YTEnvSetup(object):
         if cls.Env.get_component_version("ytserver-master").abi < (24, 2):
             config["node_tracker"]["full_node_states_gossip_period"] = 6 * 60 * 60 * 1000
 
+        # COMPAT(kvk1920): async sequoia tx start lead to too long transient
+        # locks in tablet cells due to not accurate enough handling of entering
+        # in read-only mode.
+        if cls.Env.get_component_version("ytserver-master").abi < (26, 2):
+            config["sequoia_manager"]["enable_async_sequoia_transaction_start"] = False
+
         if not cls._is_ground_cluster(cluster_index) and cls.get_param("USE_SEQUOIA", cluster_index):
             config["sequoia_manager"]["enable"] = True
+            update_inplace(config["transaction_manager"], {
+                "enable_wait_until_prepared_transactions_finished": True,
+            })
+
             if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
                 config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
                 update_inplace(config["transaction_manager"], {
@@ -2626,4 +2643,5 @@ def get_service_component_name(service):
         HTTP_PROXIES_SERVICE: "http-proxy",
         KAFKA_PROXIES_SERVICE: "kafka-proxy",
         CYPRESS_PROXIES_SERVICE: "cypress-proxy",
+        OFFSHORE_DATA_GATEWAYS_SERVICE: "offshore-data-gateway",
     }[service]

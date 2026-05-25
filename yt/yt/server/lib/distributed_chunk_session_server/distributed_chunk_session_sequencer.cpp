@@ -71,7 +71,9 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        THROW_ERROR_EXCEPTION_IF(!IsOpen_, "Journal writer is not open");
+        if (!IsOpen_) {
+            return MakeFuture<void>(TError("Journal writer is not open"));
+        }
 
         i64 recordIndex = RecordIndex_.fetch_add(1);
         YT_LOG_DEBUG("Writing record (RecordIndex: %v, RecordSize: %v)", recordIndex, record.Size());

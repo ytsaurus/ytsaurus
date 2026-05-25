@@ -49,7 +49,7 @@ private:
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 
-    void OnFinished();
+    void OnFinished(bool executedSeal);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

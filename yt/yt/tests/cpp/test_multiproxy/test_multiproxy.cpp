@@ -357,7 +357,7 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostname)
     };
     EXPECT_THROW_THAT(
         action(),
-        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+        testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 }
 
 TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
@@ -369,14 +369,14 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
     };
     EXPECT_THROW_THAT(
         action(targetClient),
-        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+        testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 
     auto token = CreateUser(WriteAccessClient_, "user-yt-26910");
 
     auto targetClient2 = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target-with-typo", token);
     EXPECT_THROW_THAT(
         action(targetClient2),
-        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+        testing::HasSubstr("Unknown cluster \"target-with-typo\""));
 }
 
 TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)

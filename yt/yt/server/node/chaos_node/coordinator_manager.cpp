@@ -3,8 +3,8 @@
 #include "automaton.h"
 #include "chaos_manager.h"
 #include "chaos_slot.h"
-#include "private.h"
-#include "replication_card.h"
+#include "helpers.h"
+#include "chaos_object_base.h"
 #include "shortcut_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
@@ -453,20 +453,23 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutNotFound,
                 "Shortcut for replication card is not found")
-                << TErrorAttribute("replication_card_id", replicationCardId);
+                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
+                << TErrorAttribute("chaos_object_id", replicationCardId);
         }
         if (it->second.State != EShortcutState::Granted) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutRevoked,
                 "Shortcut for replication card has been revoked")
-                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
+                << TErrorAttribute("chaos_object_id", replicationCardId)
                 << TErrorAttribute("shortcut_state", it->second.State);
         }
         if (it->second.Era != era) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutHasDifferentEra,
                 "Shortcut for replication card has different era")
-                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
+                << TErrorAttribute("chaos_object_id", replicationCardId)
                 << TErrorAttribute("shortcut_era", it->second.Era)
                 << TErrorAttribute("replication_card_era", era);
         }
@@ -475,12 +478,18 @@ private:
         for (const auto& chaosLeaseId : chaosLeaseIds) {
             auto it = Shortcuts_.find(chaosLeaseId);
             if (it == Shortcuts_.end()) {
-                THROW_ERROR_EXCEPTION("Shortcut for chaos lease is not found")
-                    << TErrorAttribute("chaos_lease_id", chaosLeaseId);
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ShortcutNotFound,
+                    "Shortcut for chaos lease is not found")
+                    << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
+                    << TErrorAttribute("chaos_object_id", chaosLeaseId);
             }
             if (it->second.State != EShortcutState::Granted) {
-                THROW_ERROR_EXCEPTION("Shortcut is not in 'Granted' state")
-                    << TErrorAttribute("chaos_lease_id", chaosLeaseId)
+                THROW_ERROR_EXCEPTION(
+                    NChaosClient::EErrorCode::ShortcutRevoked,
+                    "Shortcut for chaos lease has been revoked")
+                    << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
+                    << TErrorAttribute("chaos_object_id", chaosLeaseId)
                     << TErrorAttribute("shortcut_state", it->second.State);
             }
         }
@@ -621,10 +630,12 @@ private:
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
+        bool completelySuspended = Suspended_ && Shortcuts_.empty();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("suspended").Value(
-                    Suspended_ && Shortcuts_.empty())
+                    completelySuspended)
+                .Item("suspension_status").Value(GetSuspensionStatus(Suspended_, completelySuspended))
             .EndMap();
     }
 

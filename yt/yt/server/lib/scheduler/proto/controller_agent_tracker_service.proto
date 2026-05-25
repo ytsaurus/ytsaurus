@@ -135,6 +135,8 @@ message TScheduleAllocationRequest
     required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
     optional TScheduleAllocationSpec spec = 7;
 
+    optional string allocation_group_name = 10;
+
     optional NYT.NTracing.NProto.TTracingExt tracing_ext = 9;
 }
 

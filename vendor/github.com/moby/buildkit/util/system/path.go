@@ -27,7 +27,7 @@ func DefaultPathEnv(os string) string {
 
 // NormalizePath cleans the path based on the operating system the path is meant for.
 // It takes into account a potential parent path, and will join the path to the parent
-// if the path is relative. Additionally, it will apply the folliwing rules:
+// if the path is relative. Additionally, it will apply the following rules:
 //   - always return an absolute path
 //   - always strip drive letters for Windows paths
 //   - optionally keep the trailing slashes on paths
@@ -89,7 +89,7 @@ func ToSlash(inputPath, inputOS string) string {
 	if inputOS != "windows" {
 		return inputPath
 	}
-	return strings.Replace(inputPath, "\\", "/", -1)
+	return strings.ReplaceAll(inputPath, "\\", "/")
 }
 
 func FromSlash(inputPath, inputOS string) string {
@@ -97,7 +97,7 @@ func FromSlash(inputPath, inputOS string) string {
 	if inputOS == "windows" {
 		separator = "\\"
 	}
-	return strings.Replace(inputPath, "/", separator, -1)
+	return strings.ReplaceAll(inputPath, "/", separator)
 }
 
 // NormalizeWorkdir will return a normalized version of the new workdir, given

@@ -235,7 +235,7 @@ public:
             std::move(user),
             std::move(clusterClient),
             std::move(logger))
-        , DriverOperationDescription_(Format("QT Spark connect driver for %Qv", User_))
+        , DriverOperationDescription_(Format("QT Spark connect driver for %v", User_))
     { }
 
     std::string GetSessionId() override
@@ -446,6 +446,7 @@ private:
                 .Item("secure_vault").BeginMap()
                     .Item("YT_TOKEN").Value(token)
                 .EndMap()
+                .Item("max_failed_job_count").Value(1)
                 .Item("tasks").BeginMap()
                     .Item("driver").BeginMap()
                         .Item("command").Value(command)
@@ -508,7 +509,7 @@ public:
             std::move(user),
             std::move(clusterClient),
             std::move(logger))
-        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
+        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::NTcp::TDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
     {
         auto discoveryValues = GetDiscoveryValues({"rest", "operation"});

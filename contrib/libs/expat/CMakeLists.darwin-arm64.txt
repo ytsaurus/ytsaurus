@@ -25,12 +25,61 @@ target_include_directories(contrib-libs-expat PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib
 )
 
+target_link_libraries(contrib-libs-expat PUBLIC
+  contrib-libs-libc_compat
+)
+
 target_sources(contrib-libs-expat PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_arc4random.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_arc4random_buf.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_dev_urandom.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_getentropy.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_getrandom.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/xmlparse.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/xmlrole.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/xmltok.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_arc4random.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_arc4random_buf.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_dev_urandom.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_getentropy.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/random_getrandom.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
 
 set_property(
   SOURCE

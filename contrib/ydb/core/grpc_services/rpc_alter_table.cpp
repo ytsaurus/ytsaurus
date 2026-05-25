@@ -10,7 +10,7 @@
 #include <contrib/ydb/core/base/tablet_pipe.h>
 #include <contrib/ydb/core/cms/console/configs_dispatcher.h>
 #include <contrib/ydb/core/protos/console_config.pb.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_build_index.h>
+#include <contrib/ydb/core/tx/schemeshard/index/build_index.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_forced_compaction.h>
 #include <contrib/ydb/core/engine/mkql_proto.h>
 #include <contrib/ydb/core/ydb_convert/column_families.h>

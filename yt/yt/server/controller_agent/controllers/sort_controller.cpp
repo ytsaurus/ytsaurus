@@ -384,9 +384,12 @@ public:
         // race with SetStreamDescriptors running on JobSpecBuildInvoker. The flag is
         // set inside DoSwitchIntermediateMedium after the mutation completes, ensuring
         // snapshot consistency.
-        BIND(&TSortControllerBase::DoSwitchIntermediateMedium, MakeWeak(this), usage, fastIntermediateMediumLimit, outputTransaction->GetId())
-            .Via(GetCancelableInvoker())
-            .Run();
+        GetCancelableInvoker()->Invoke(
+            BIND(&TSortControllerBase::DoSwitchIntermediateMedium,
+                MakeWeak(this),
+                usage,
+                fastIntermediateMediumLimit,
+                outputTransaction->GetId()));
     }
 
 private:
@@ -1398,6 +1401,10 @@ protected:
             Controller_->SortedMergeTask_->Finalize();
             if (IsFinal()) {
                 ++Controller_->CompletedPartitionCount_;
+            } else {
+                // NB(pogorelov): In some cases (e.g. dynamic tables), simple sort jobs may produce no output.
+                // So, we should check if SortedMergeTask_ completed.
+                Controller_->SortedMergeTask_->CheckCompleted();
             }
         }
 
@@ -3126,11 +3133,8 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs_);
     PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings_);
 
-    registrar.template VirtualField<36>("IntermediateChunkSchema_", [] (TThis* this_, auto& context) {
-        NYT::Load(context, *this_->IntermediateChunkSchema_);
-    }, [] (const TThis* this_, auto& context) {
-        NYT::Save(context, *this_->IntermediateChunkSchema_);
-    })();
+    PHOENIX_REGISTER_FIELD(36, IntermediateChunkSchema_,
+        .template Serializer<TDerefSerializer<>>());
     PHOENIX_REGISTER_FIELD(37, IntermediateStreamSchemas_,
         .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>());
 
@@ -5012,6 +5016,14 @@ IOperationControllerPtr CreateMapReduceController(
 {
     auto options = CreateOperationOptions(config->MapReduceOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+
+    EnrichLayers(config, spec, host, spec->Reducer.Get());
+    if (spec->Mapper) {
+        EnrichLayers(config, spec, host, spec->Mapper.Get());
+    }
+    if (spec->ReduceCombiner) {
+        EnrichLayers(config, spec, host, spec->ReduceCombiner.Get());
+    }
     AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);
 }

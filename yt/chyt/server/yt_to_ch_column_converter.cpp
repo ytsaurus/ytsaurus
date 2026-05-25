@@ -172,10 +172,10 @@ class TRawYsonToStringConverter
     : public TYsonExtractingConverterBase
 {
 public:
-    TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /*descriptor*/, const TCompositeSettingsPtr& settings)
+    TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /*descriptor*/, const TConversionSettingsPtr& settings)
         : Settings_(settings)
         , YsonOutput_(YsonBuffer_)
-        , YsonWriter_(&YsonOutput_, settings->DefaultYsonFormat)
+        , YsonWriter_(&YsonOutput_, settings->Composite->DefaultYsonFormat)
     { }
 
     void InitColumn() override
@@ -228,7 +228,7 @@ public:
         DB::MutableColumnPtr intermediateColumn;
         switch (v1Type) {
             case ESimpleLogicalValueType::Any:
-                if (Settings_->DefaultYsonFormat == EExtendedYsonFormat::Binary) {
+                if (Settings_->Composite->DefaultYsonFormat == EExtendedYsonFormat::Binary) {
                     ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column, filterHint));
                 } else {
                     TYsonExtractingConverterBase::ConsumeYtColumn(column, filterHint);
@@ -277,12 +277,12 @@ public:
         ReplaceColumnTypeChecked(Column_, ConvertCHColumnToAny(
             *intermediateColumn,
             v1Type,
-            Settings_->DefaultYsonFormat));
+            Settings_->Composite->DefaultYsonFormat));
     }
 
 private:
     DB::ColumnString::MutablePtr Column_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     TString YsonBuffer_;
     TStringOutput YsonOutput_;
     TExtendedYsonWriter YsonWriter_;
@@ -1329,7 +1329,7 @@ private:
 class TYTToCHColumnConverter::TImpl
 {
 public:
-    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isReadConversions)
+    TImpl(TComplexTypeFieldDescriptor descriptor, TConversionSettingsPtr settings, bool isReadConversions)
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
         , IsReadConversions_(isReadConversions)
@@ -1379,7 +1379,7 @@ public:
 
 private:
     TComplexTypeFieldDescriptor Descriptor_;
-    TCompositeSettingsPtr Settings_;
+    TConversionSettingsPtr Settings_;
     bool IsReadConversions_;
 
     IConverterPtr RootConverter_;
@@ -1600,13 +1600,13 @@ private:
         }
 
         if (isV1Optional) {
-            if (Settings_->EnableComplexNullConverison) {
+            if (Settings_->Composite->EnableComplexNullConverison) {
                 return std::make_unique<TOptionalConverter<true, true>>(std::move(underlyingConverter), nestingLevel);
             } else {
                 return std::make_unique<TOptionalConverter<true, false>>(std::move(underlyingConverter), nestingLevel);
             }
         } else {
-            if (Settings_->EnableComplexNullConverison) {
+            if (Settings_->Composite->EnableComplexNullConverison) {
                 return std::make_unique<TOptionalConverter<false, true>>(std::move(underlyingConverter), nestingLevel);
             } else {
                 return std::make_unique<TOptionalConverter<false, false>>(std::move(underlyingConverter), nestingLevel);
@@ -1732,7 +1732,7 @@ private:
 
 TYTToCHColumnConverter::TYTToCHColumnConverter(
     TComplexTypeFieldDescriptor descriptor,
-    TCompositeSettingsPtr settings,
+    TConversionSettingsPtr settings,
     bool isReadConversions)
     : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isReadConversions))
 { }

@@ -37,7 +37,8 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   server-lib-chunk_pools
   server-lib-cypress_registrar
   server-lib-logging
-  server-lib-signature
+  server-lib-security_server
+  lib-signature-components
   yt-yt-ytlib
   yt-client-driver
   yt-library-auth_server

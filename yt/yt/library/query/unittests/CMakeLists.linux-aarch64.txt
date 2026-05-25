@@ -92,6 +92,7 @@ target_link_libraries(library-query-unittests.global PUBLIC
 
 target_sources(library-query-unittests.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/join_profilers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_distributed_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp

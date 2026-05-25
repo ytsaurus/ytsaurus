@@ -2,13 +2,15 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v0.0.0-20230629203738-36ef4d8c0dbb)
+VERSION(v0.0.0-20241121093142-31cf1f437184)
 
 SRCS(
-    generate.go
     stat.go
     stat.pb.go
+    stat_vtproto.pb.go
+    wire.go
     wire.pb.go
+    wire_vtproto.pb.go
 )
 
 END()

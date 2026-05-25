@@ -4,7 +4,6 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TUnversionedRowLayout::TUnversionedRowLayout(
     const TKeyWideningOptions& keyWideningOptions,
     int totalColumnCount)

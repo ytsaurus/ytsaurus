@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <yt/yt/core/yson/yson_builder.h>
 #include <yt/yt/core/yson/forwarding_consumer.h>
 
