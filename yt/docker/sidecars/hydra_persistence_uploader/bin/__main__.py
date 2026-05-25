@@ -1,13 +1,12 @@
-import os
-import logging
+import hydra_persistence_uploader
 
 from apscheduler.schedulers import blocking
 from apscheduler.executors import pool
 from apscheduler.jobstores import memory
 from apscheduler.triggers.interval import IntervalTrigger
 
-
-import hydra_persistence_uploader
+import logging
+import os
 
 
 handler = logging.StreamHandler()
