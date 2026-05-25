@@ -954,7 +954,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     for (const auto& streamDescriptor : joblet->OutputStreamDescriptors) {
         int cellTagIndex = RandomNumber<size_t>() % streamDescriptor->CellTags.size();
         auto cellTag = streamDescriptor->CellTags[cellTagIndex];
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(cellTag));
+        joblet->ChunkListIds.push_back(ExtractOutputChunkList(cellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
@@ -1096,6 +1096,16 @@ void TTask::StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) 
     allocation.LastJobInfo = std::make_unique<TAllocation::TLastJobInfo>();
     allocation.LastJobInfo->JobId = joblet->JobId;
     allocation.LastJobInfo->CompetitionType = joblet->CompetitionType;
+}
+
+const TChunkListPoolPtr& TTask::GetOutputChunkListPool() const
+{
+    return TaskHost_->GetOutputChunkListPool();
+}
+
+NChunkClient::TChunkListId TTask::ExtractOutputChunkList(NObjectClient::TCellTag cellTag)
+{
+    return TaskHost_->ExtractOutputChunkList(cellTag);
 }
 
 std::optional<EAbortReason> TTask::ShouldAbortCompletingJob(const TJobletPtr& joblet)
@@ -1344,7 +1354,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             auto outputStatistics = VectorAtOr(outputDataStatistics, index);
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
-                    TaskHost_->GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
+                    GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }

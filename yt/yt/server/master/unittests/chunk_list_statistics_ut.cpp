@@ -6,6 +6,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+
 #include <random>
 
 namespace NYT::NChunkServer {
@@ -19,6 +21,8 @@ using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 
+using NChunkClient::EChunkFormat;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckCumulativeStatistics(TChunkList* chunkList)
@@ -27,8 +31,8 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
 
     int index = 0;
     for (auto child : chunkList->Children()) {
-        auto stats = GetChunkTreeStatistics(child);
-        current = current + TCumulativeStatisticsEntry(stats);
+        current += GetCumulativeStatisticsEntry(child);
+
         if (child->GetType() == EObjectType::ChunkList) {
             CheckCumulativeStatistics(child->AsChunkList());
         }
@@ -39,7 +43,7 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
         ++index;
     }
 
-    EXPECT_EQ(current, TCumulativeStatisticsEntry(chunkList->Statistics()));
+    EXPECT_EQ(current, GetCumulativeStatisticsEntry(chunkList));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -251,6 +255,192 @@ TEST_F(TChunkListCumulativeStatisticsTest, UnconfirmedChunk)
     EXPECT_EQ(rootCumulativeStats.Size(), 1);
     EXPECT_EQ(rootCumulativeStats[0].ChunkCount, 3);
     EXPECT_EQ(rootCumulativeStats[0].RowCount, sum);
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsOperations)
+{
+    auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
+    auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkTablet2 = CreateChunkList(EChunkListKind::Hunk);
+
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault, 10);
+    auto* hunkChunk2 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault, 11);
+    auto* hunkChunk3 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault, 12);
+    auto* hunkChunk4 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault, 13);
+    auto* hunkChunk5 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault, 14);
+
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk1, 2, 2);
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk3, 3, 3);
+
+    AttachToChunkList(hunkTablet1, {hunkChunk1, hunkChunk2});
+    AttachToChunkList(hunkTablet1, {hunkChunk3});
+    AttachToChunkList(hunkRoot, {hunkTablet1});
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk1, 1, 1);
+
+    AttachToChunkList(hunkRoot, {hunkTablet2});
+    AttachToChunkList(hunkTablet2, {hunkChunk3, hunkChunk4});
+    AttachToChunkList(hunkTablet2, {hunkChunk5});
+    AttachToChunkList(hunkTablet2, {hunkChunk1});
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk4, 4, 4);
+
+    CheckCumulativeStatistics(hunkRoot);
+    CheckCumulativeStatistics(hunkTablet1);
+    CheckCumulativeStatistics(hunkTablet2);
+
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 3, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
+        TCumulativeStatisticsEntry(0, 7, 0));
+
+    EXPECT_EQ(hunkRoot->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 10,
+            .RegularDiskSpace = 60,
+            .ChunkCount = 5,
+        }));
+    EXPECT_EQ(hunkTablet1->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 6,
+            .RegularDiskSpace = 33,
+            .ChunkCount = 3,
+        }));
+    EXPECT_EQ(hunkTablet2->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 10,
+            .RegularDiskSpace = 49,
+            .ChunkCount = 4,
+        }));
+
+    DetachFromChunkList(hunkTablet1, {hunkChunk3}, EChunkDetachPolicy::SortedTablet);
+    DetachFromChunkList(hunkTablet2, {hunkChunk1, hunkChunk3, hunkChunk4}, EChunkDetachPolicy::SortedTablet);
+
+    CheckCumulativeStatistics(hunkRoot);
+    CheckCumulativeStatistics(hunkTablet1);
+    CheckCumulativeStatistics(hunkTablet2);
+
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 2, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
+        TCumulativeStatisticsEntry(0, 3, 0));
+
+    EXPECT_EQ(hunkRoot->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 3,
+            .RegularDiskSpace = 35,
+            .ChunkCount = 3,
+        }));
+    EXPECT_EQ(hunkTablet1->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 3,
+            .RegularDiskSpace = 21,
+            .ChunkCount = 2,
+        }));
+    EXPECT_EQ(hunkTablet2->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 0,
+            .RegularDiskSpace = 14,
+            .ChunkCount = 1,
+        }));
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsJournals)
+{
+    auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
+    auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkTablet2 = CreateChunkList(EChunkListKind::Hunk);
+
+    auto* hunkChunk1 = CreateJournalChunk(false, false, EChunkFormat::HunkJournal);
+
+    AttachToChunkList(hunkTablet1, {hunkChunk1});
+    AttachToChunkList(hunkRoot, {hunkTablet1});
+
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk1, 1, 1);
+
+    CheckCumulativeStatistics(hunkRoot);
+    CheckCumulativeStatistics(hunkTablet1);
+
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkTablet1->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+
+    {
+        NChunkClient::NProto::TChunkSealInfo sealInfo;
+        sealInfo.set_row_count(1);
+        sealInfo.set_uncompressed_data_size(10);
+        sealInfo.set_compressed_data_size(10);
+        hunkChunk1->Seal(sealInfo);
+
+        // NB: Same as in OnHunkJournalChunkSealed.
+        VisitAllAncestorsInHunkTree(hunkChunk1, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
+            chunkList->AccumulateHunkStatistics(hunkChunk1);
+        });
+    }
+
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk1, 2, 2);
+
+    AttachToChunkList(hunkRoot, {hunkTablet2});
+    AttachToChunkList(hunkTablet2, {hunkChunk1});
+
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk1, 3, 3);
+
+    CheckCumulativeStatistics(hunkRoot);
+    CheckCumulativeStatistics(hunkTablet1);
+    CheckCumulativeStatistics(hunkTablet2);
+
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
+        TCumulativeStatisticsEntry(0, 2, 0));
+    EXPECT_EQ(hunkTablet1->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_EQ(hunkTablet2->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+
+    EXPECT_EQ(hunkRoot->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 6,
+            .RegularDiskSpace = 10,
+            .ChunkCount = 1,
+        }));
+    EXPECT_EQ(hunkTablet1->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 6,
+            .RegularDiskSpace = 10,
+            .ChunkCount = 1,
+        }));
+    EXPECT_EQ(hunkTablet2->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 6,
+            .RegularDiskSpace = 10,
+            .ChunkCount = 1,
+        }));
+
+    DetachFromChunkList(hunkTablet1, {hunkChunk1}, EChunkDetachPolicy::SortedTablet);
+    AccumulateNewlyReferencedHunkStatistics(hunkChunk1, -1, -1);
+
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 0, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
+        TCumulativeStatisticsEntry(0, 1, 0));
+    EXPECT_TRUE(hunkTablet1->CumulativeStatistics().Empty());
+    EXPECT_EQ(hunkTablet2->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 1, 0));
+
+    EXPECT_EQ(hunkRoot->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 5,
+            .RegularDiskSpace = 10,
+            .ChunkCount = 1,
+        }));
+    EXPECT_EQ(hunkTablet1->HunkStatistics(),
+        (THunkChunkTreeStatistics{}));
+    EXPECT_EQ(hunkTablet2->HunkStatistics(),
+        (THunkChunkTreeStatistics{
+            .ReferencedRegularDiskSpace = 5,
+            .RegularDiskSpace = 10,
+            .ChunkCount = 1,
+        }));
 }
 
 TEST_F(TChunkListCumulativeStatisticsTest, SortedDynamicRootChanging)

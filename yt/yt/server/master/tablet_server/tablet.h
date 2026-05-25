@@ -150,8 +150,8 @@ public:
 
     i64 GetTabletMasterMemoryUsage() const override;
 
-    i64 GetHunkUncompressedDataSize() const;
-    i64 GetHunkCompressedDataSize() const;
+    i64 GetHunkDataWeight() const;
+    i64 GetHunkDataSize() const;
 
     void CheckedSetBackupState(ETabletBackupState previous, ETabletBackupState next);
 

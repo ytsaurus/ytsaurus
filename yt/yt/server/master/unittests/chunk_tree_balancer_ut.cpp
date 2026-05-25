@@ -106,6 +106,7 @@ public:
     TChunkList* CreateChunkList() override
     {
         auto chunkList = TPoolAllocator::New<TChunkList>(GenerateChunkListId());
+        chunkList->SetKind(EChunkListKind::Static);
         ChunkLists_->push_back(std::move(chunkList));
         return ChunkLists_->back().get();
     }

@@ -130,8 +130,14 @@ public:
             return lhs == rhs;
         };
 
+        std::variant<TChunkTreeStatistics, THunkChunkTreeStatistics> oldStatistics;
+        if (IsHunkRelatedChunkList(oldRootChunkList)) {
+            oldStatistics = oldRootChunkList->HunkStatistics();
+        } else {
+            oldStatistics = oldRootChunkList->Statistics();
+        }
+
         if (oldRootChunkList->GetObjectRefCounter(/*flushUnrefs*/ true) > 1) {
-            auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
             chunkManager->AttachToChunkList(
                 newRootChunkList,
@@ -141,7 +147,9 @@ public:
                 auto* newTabletChunkList = chunkManager->CloneTabletChunkList(chunkLists[index]->AsChunkList());
                 chunkManager->AttachToChunkList(newRootChunkList, {newTabletChunkList});
 
-                actionCount += newTabletChunkList->Statistics().ChunkCount;
+                actionCount += IsHunkRelatedChunkList(newTabletChunkList)
+                    ? newTabletChunkList->HunkStatistics().ChunkCount
+                    : newTabletChunkList->Statistics().ChunkCount;
             }
 
             chunkManager->AttachToChunkList(
@@ -154,45 +162,76 @@ public:
             table->SetChunkList(contentType, newRootChunkList);
             newRootChunkList->AddOwningNode(table);
             oldRootChunkList->RemoveOwningNode(table);
-            if (!checkStatisticsMatch(newRootChunkList->Statistics(), statistics)) {
-                YT_LOG_ALERT(
-                    "Invalid new root chunk list statistics "
-                    "(TableId: %v, ContentType: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
-                    table->GetId(),
-                    contentType,
-                    newRootChunkList->Statistics(),
-                    statistics);
+
+            if (IsHunkRelatedChunkList(newRootChunkList)) {
+                const auto& oldTypedStatistics = std::get<THunkChunkTreeStatistics>(oldStatistics);
+                if (newRootChunkList->HunkStatistics() != oldTypedStatistics) {
+                    YT_LOG_ALERT("Invalid new root chunk list hunk statistics "
+                        "(TableId: %v, NewRootChunkListHunkStatistics: %v, HunkStatistics: %v)",
+                        table->GetId(),
+                        newRootChunkList->HunkStatistics(),
+                        oldTypedStatistics);
+                }
+            } else {
+                const auto& oldTypedStatistics = std::get<TChunkTreeStatistics>(oldStatistics);
+                if (!checkStatisticsMatch(newRootChunkList->Statistics(), oldTypedStatistics)) {
+                    YT_LOG_ALERT("Invalid new root chunk list statistics "
+                        "(TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
+                        table->GetId(),
+                        newRootChunkList->Statistics(),
+                        oldTypedStatistics);
+                }
             }
         } else {
-            auto statistics = oldRootChunkList->Statistics();
-
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
                 if (force || oldTabletChunkList->GetObjectRefCounter(/*flushUnrefs*/ true) > 1) {
                     auto* newTabletChunkList = chunkManager->CloneTabletChunkList(oldTabletChunkList);
                     chunkManager->ReplaceChunkListChild(oldRootChunkList, index, newTabletChunkList);
 
-                    actionCount += newTabletChunkList->Statistics().ChunkCount;
+                    actionCount += IsHunkRelatedChunkList(newTabletChunkList)
+                        ? newTabletChunkList->HunkStatistics().ChunkCount
+                        : newTabletChunkList->Statistics().ChunkCount;
 
-                    // ReplaceChunkListChild assumes that statistics are updated by caller.
-                    // Here everything remains the same except for missing subtablet chunk lists.
-                    int subtabletChunkListCount = oldTabletChunkList->Statistics().ChunkListCount - 1;
-                    if (subtabletChunkListCount > 0) {
-                        TChunkTreeStatistics delta{};
-                        delta.ChunkListCount = -subtabletChunkListCount;
-                        AccumulateUniqueAncestorsStatistics(newTabletChunkList, delta);
+                    if (IsHunkRelatedChunkList(oldTabletChunkList)) {
+                        if (newTabletChunkList->HunkStatistics() != oldTabletChunkList->HunkStatistics()) {
+                            YT_LOG_ALERT("Invalid tablet chunk list hunk statistics "
+                                "(TableId: %v, OldHunkStatistics: %v, NewHunkStatistics: %v)",
+                                table->GetId(),
+                                oldTabletChunkList->HunkStatistics(),
+                                newTabletChunkList->HunkStatistics());
+                        }
+                    } else {
+                        // NB: ReplaceChunkListChild assumes that statistics are updated by caller.
+                        // Here everything remains the same except for missing subtablet chunk lists.
+                        int subtabletChunkListCount = oldTabletChunkList->Statistics().ChunkListCount - 1;
+                        if (subtabletChunkListCount > 0) {
+                            TChunkTreeStatistics delta{};
+                            delta.ChunkListCount = -subtabletChunkListCount;
+                            AccumulateUniqueAncestorsStatistics(newTabletChunkList, delta);
+                        }
                     }
                 }
             }
 
-            if (!checkStatisticsMatch(oldRootChunkList->Statistics(), statistics)) {
-                YT_LOG_ALERT(
-                    "Invalid old root chunk list statistics "
-                    "(TableId: %v, ContentType: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
-                    table->GetId(),
-                    contentType,
-                    oldRootChunkList->Statistics(),
-                    statistics);
+            if (IsHunkRelatedChunkList(oldRootChunkList)) {
+                const auto& oldTypedStatistics = std::get<THunkChunkTreeStatistics>(oldStatistics);
+                if (oldRootChunkList->HunkStatistics() != oldTypedStatistics) {
+                    YT_LOG_ALERT("Invalid old root chunk list hunk statistics "
+                        "(TableId: %v, OldRootChunkListHunkStatistics: %v, HunkStatistics: %v)",
+                        table->GetId(),
+                        oldRootChunkList->HunkStatistics(),
+                        oldTypedStatistics);
+                }
+            } else {
+                const auto& oldTypedStatistics = std::get<TChunkTreeStatistics>(oldStatistics);
+                if (!checkStatisticsMatch(oldRootChunkList->Statistics(), oldTypedStatistics)) {
+                    YT_LOG_ALERT("Invalid old root chunk list statistics "
+                        "(TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
+                        table->GetId(),
+                        oldRootChunkList->Statistics(),
+                        oldTypedStatistics);
+                }
             }
         }
 
@@ -2064,6 +2103,7 @@ private:
     void SetLogicalRowCount(TChunkList* chunkList, i64 trimmedRowCount)
     {
         YT_VERIFY(chunkList->Children().empty());
+        YT_VERIFY(!IsHunkRelatedChunkList(chunkList));
 
         if (trimmedRowCount == 0) {
             return;

@@ -997,8 +997,16 @@ private:
         if (chunk->IsConfirmed()) {
             YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
                 chunkId);
+
             if (context->Request().request_statistics()) {
-                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+                // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
+                // to the confirming writer. All hunk statistics are known within the same writing session.
+                auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
+                    ? chunk->GetHunkStatistics().ToDataStatistics()
+                    : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
+                ToProto(
+                    context->Response().mutable_statistics(),
+                    dataStatistics);
             }
             context->Reply();
             return;
@@ -1026,7 +1034,15 @@ private:
                         "Chunk %v is not confirmed after confirm",
                         chunkId);
                 }
-                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+
+                // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
+                // to the confirming writer. All hunk statistics are known within the same writing session.
+                auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
+                    ? chunk->GetHunkStatistics().ToDataStatistics()
+                    : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
+                ToProto(
+                    context->Response().mutable_statistics(),
+                    dataStatistics);
                 // Do not set revision as ally replicas do not work for Sequoia anyway.
             }
             context->Reply();

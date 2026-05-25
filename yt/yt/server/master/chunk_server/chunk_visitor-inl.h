@@ -4,6 +4,8 @@
 #include "chunk_visitor.h"
 #endif
 
+#include "helpers.h"
+
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -82,6 +84,9 @@ private:
     {
         TChunkTreeStatistics ChunkTreeStatistics;
         i64 MaxBlockSize = 0;
+
+        THashSet<TChunkId> HunkChunkIds;
+        THunkChunkTreeStatistics HunkChunkTreeStatistics;
     };
 
     using TStatisticsMap = THashMap<TKey, TStatistics>;
@@ -111,8 +116,12 @@ private:
         }
 
         auto& statistics = StatisticsMap_[key];
-        statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
-        statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->GetMaxBlockSize());
+        if (!IsHunkChunkFormat(chunk->GetChunkFormat())) {
+            statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
+            statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->GetMaxBlockSize());
+        } else if (statistics.HunkChunkIds.emplace(chunk->GetId()).second) {
+            statistics.HunkChunkTreeStatistics.Accumulate(chunk->GetHunkStatistics());
+        }
 
         return true;
     }
@@ -138,14 +147,25 @@ private:
         auto result = NYTree::BuildYsonStringFluently()
             .DoMapFor(StatisticsMap_, [this] (NYTree::TFluentMap fluent, const typename TStatisticsMap::value_type& pair) {
                 const auto& statistics = pair.second;
+
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
                     .Item(KeyFormatter_(pair.first)).BeginMap()
-                        .Item("chunk_count").Value(statistics.ChunkTreeStatistics.ChunkCount)
+                        .Item("chunk_count").Value(
+                            statistics.ChunkTreeStatistics.ChunkCount +
+                            statistics.HunkChunkTreeStatistics.ChunkCount)
                         .Item("uncompressed_data_size").Value(statistics.ChunkTreeStatistics.UncompressedDataSize)
                         .Item("compressed_data_size").Value(statistics.ChunkTreeStatistics.CompressedDataSize)
                         .Item("data_weight").Value(statistics.ChunkTreeStatistics.DataWeight)
                         .Item("max_block_size").Value(statistics.MaxBlockSize)
+                        .Item("hunk_data_size").Value(statistics.ChunkTreeStatistics.HunkDataSize)
+                        .Item("hunk_data_weight").Value(statistics.ChunkTreeStatistics.HunkDataWeight)
+                        .Item("hunk_disk_space").Value(
+                            statistics.HunkChunkTreeStatistics.RegularDiskSpace +
+                            statistics.HunkChunkTreeStatistics.ErasureDiskSpace)
+                        .Item("referenced_hunk_disk_space").Value(
+                            statistics.HunkChunkTreeStatistics.ReferencedRegularDiskSpace +
+                            statistics.HunkChunkTreeStatistics.ReferencedErasureDiskSpace)
                     .EndMap();
             });
         Promise_.Set(result);

@@ -200,6 +200,7 @@ DEFINE_ENUM(EMasterReign,
     ((StrongOrderingTags)                                           (3246))  // h0pless
     ((NativeClientUnfoldedIndexPartialBackCompat)                   (3247))  // sabdenovch
     ((ExpectedPrepareSignature_26_1)                                (3248))  // atalmenev
+    ((HunkChunkTreeStatisticsOverhaul)                              (3249))  // akozhikhov
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd

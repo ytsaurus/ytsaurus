@@ -84,7 +84,9 @@ struct ITaskHost
     virtual bool ShouldSkipSanityCheck() = 0;
 
     virtual const TChunkListPoolPtr& GetOutputChunkListPool() const = 0;
+    virtual const TChunkListPoolPtr& GetOutputHunkChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) = 0;
+    virtual NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,

@@ -2076,14 +2076,15 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
-    @authors("alexelexa")
-    @pytest.mark.parametrize("max_inline_hunk_size", [1, 5, 10])
-    def test_remote_copy_hunks_after_reshard(self, max_inline_hunk_size):
+    @authors("alexelexa", "akozhikhov")
+    def test_remote_copy_hunks_after_reshard(self):
+        max_inline_hunk_size = 1
+
         for path, driver in [("//tmp/t1", self.remote_driver), ("//tmp/t2", None)]:
             sync_create_cells(1, driver=driver)
             self._create_sorted_table(
                 path,
-                max_inline_hunk_size=1,
+                max_inline_hunk_size=max_inline_hunk_size,
                 pivot_keys=[[], [3]],
                 enable_compaction_and_partitioning=False,
                 max_hunk_compaction_size=5,
@@ -2156,7 +2157,23 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         delete_rows("//tmp/t2", [{"key": i} for i in range(1, 8, 2)])
         assert_items_equal(select_rows("* from [//tmp/t2]"), [{"key": i, "value": hunk_value(i)} for i in range(0, 8, 2)])
 
-    @authors("alexelexa")
+        root_chunk_list_id = get("//tmp/t2/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t2/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["row_count"] == 8
+        assert statistics["chunk_count"] == 6
+        assert statistics["data_weight"] == 232
+        assert statistics["hunk_data_weight"] == 160
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["chunk_count"] == 8
+        assert statistics["referenced_regular_disk_space"] == 224
+        assert statistics["regular_disk_space"] > 1000
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["row_count"] == 8
+        assert snapshot_statistics["chunk_count"] == 14
+        assert snapshot_statistics["data_weight"] == 392
+
+    @authors("alexelexa", "akozhikhov")
     @pytest.mark.parametrize("max_inline_hunk_size", [15, 1000000000])
     def test_remote_copy_hunks_with_compression_dictionaries(self, max_inline_hunk_size):
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
@@ -2252,6 +2269,18 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 
         _check_hunk_count("//tmp/t2", usual_hunk_count=2, attached_cd_count=2, unattached_cd_count=1)
         assert_items_equal(select_rows("* from [//tmp/t2]"), rows + rows2)
+
+        root_chunk_list_id = get("//tmp/t2/@chunk_list_id")
+        hunk_root_chunk_list_id = get("//tmp/t2/@hunk_chunk_list_id")
+        statistics = get(f"#{root_chunk_list_id}/@statistics")
+        assert statistics["hunk_data_weight"] == (12586 if max_inline_hunk_size == 15 else 0)
+        assert statistics["hunk_data_size"] == (14186 if max_inline_hunk_size == 15 else 0)
+        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+        assert statistics["referenced_regular_disk_space"] == (14186 if max_inline_hunk_size == 15 else 0)
+        assert statistics["regular_disk_space"] > 1000
+        assert statistics["chunk_count"] == (5 if max_inline_hunk_size == 15 else 3)
+        snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
+        assert snapshot_statistics["chunk_count"] == (7 if max_inline_hunk_size == 15 else 5)
 
 
 ##################################################################

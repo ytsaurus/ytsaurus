@@ -426,6 +426,9 @@ protected:
 
     virtual void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const;
 
+    virtual const TChunkListPoolPtr& GetOutputChunkListPool() const;
+    virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag);
+
 private:
     TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;

@@ -6455,7 +6455,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir)) == 1)
         export_table = "{}/{}".format(export_dir, ls(export_dir)[0])
 
-        assert get(f"{export_table}/@data_weight") == 38
+        assert get(f"{export_table}/@data_weight") == 67
         assert get(f"{export_table}/@chunk_count") == 2
 
         chunk_format_statistics = get(f"{export_table}/@chunk_format_statistics")

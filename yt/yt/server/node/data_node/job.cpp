@@ -2980,6 +2980,7 @@ private:
         req->mutable_chunk_info();
         auto* meta = req->mutable_chunk_meta();
         meta->set_type(ToProto(EChunkType::Journal));
+        // NB: We set this value unconditionally because only non-hunk journals can be autotomized.
         meta->set_format(ToProto(EChunkFormat::JournalDefault));
         TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);

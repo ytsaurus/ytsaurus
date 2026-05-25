@@ -1638,9 +1638,7 @@ public:
                 continue;
             }
 
-            auto newMemorySize = tablet->GetTabletStaticMemorySize();
-
-            totalMemorySizeDelta += newMemorySize;
+            totalMemorySizeDelta += tablet->GetTabletStaticMemorySize();
 
             if (updateMode == EUpdateMode::Overwrite) {
                 tablet->SetStoresUpdatePreparedTransaction(nullptr);
@@ -1687,9 +1685,8 @@ public:
         // originating node with the ones of branched node. Since dynamic stores are already
         // attached, we have to account them this way.
         branchedNode->SnapshotStatistics() = {};
-        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-            branchedNode->SnapshotStatistics() += originatingNode->GetChunkList(contentType)->Statistics().ToDataStatistics();
-        }
+        branchedNode->SnapshotStatistics() += originatingNode->GetChunkList()->Statistics().ToDataStatistics();
+        branchedNode->SnapshotStatistics() += originatingNode->GetHunkChunkList()->HunkStatistics().ToDataStatistics();
 
         auto resourceUsageDelta = TTabletResources()
             .SetTabletStaticMemory(totalMemorySizeDelta);
@@ -2664,6 +2661,7 @@ public:
     void OnHunkJournalChunkSealed(TChunk* chunk) override
     {
         YT_VERIFY(chunk->IsSealed());
+        YT_VERIFY(IsHunkChunkFormat(chunk->GetChunkFormat()));
 
         auto owningNodes = GetOwningNodes(chunk);
         std::vector<TTableNode*> tableNodes;
@@ -2694,86 +2692,35 @@ public:
 
         for (auto* table : tableNodes) {
             for (auto tablet : table->Tablets()) {
-                auto tabletStatistics = tablet->GetTabletStatistics();
-                table->DiscountTabletStatistics(tabletStatistics);
+                table->DiscountTabletStatistics(tablet->GetTabletStatistics());
             }
         }
 
         // NB: We accumulate statistics to ancestors before copying shared chunk lists, because otherwise
         // statistics are copied incorrectly as chunk manager is anaware of which chunk has just been sealed.
-        // NB: Here we omit updating cumulative statistics, because they do not make sence for hunk-related chunk lists,
-        // as each hunk chunk can be attached to multiple tablet-level chunk lists.
-        // TODO(akozhikhov): Completely drop cumulative statistics from hunk related chunk lists.
-        auto statistics = chunk->GetStatistics();
-        ++statistics.Rank;
-
-        auto hunkRootStatistics = statistics;
-        ++hunkRootStatistics.Rank;
-
-        THashSet<TChunkListId> hunkRootChunkListIds;
-        TChunkListId hunkStorageRootChunkListId;
-        THashSet<TChunkListId> parentChunkListIds;
-        for (const auto& [chunkParent, _] : chunk->Parents()) {
-            parentChunkListIds.insert(chunkParent->GetId());
-
-            const auto& hunkChunkList = chunkParent->AsChunkList();
-            if (hunkChunkList->GetKind() != EChunkListKind::Hunk &&
-                hunkChunkList->GetKind() != EChunkListKind::HunkTablet)
-            {
-                YT_LOG_ALERT("Parent chunk list of enexpected kind was encountered upon sealing of hunk journal chunk "
-                    "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
-                    chunk->GetId(),
-                    chunkParent->GetId(),
-                    hunkChunkList->GetKind());
-                continue;
-            }
-
-            hunkChunkList->Statistics().Accumulate(statistics);
-
-            for (const auto& hunkChunkListParent : hunkChunkList->Parents()) {
-                const auto& hunkRootChunkList = hunkChunkListParent->AsChunkList();
-                if (hunkRootChunkList->GetKind() != EChunkListKind::HunkRoot &&
-                    hunkRootChunkList->GetKind() != EChunkListKind::HunkStorageRoot)
-                {
-                    YT_LOG_ALERT("Grandparent chunk list of enexpected kind was encountered upon sealing of hunk journal chunk "
-                        "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
-                        chunk->GetId(),
-                        hunkChunkListParent->GetId(),
-                        hunkRootChunkList->GetKind());
-                    continue;
-                }
-
-                if (hunkRootChunkList->GetKind() == EChunkListKind::HunkStorageRoot) {
-                    YT_LOG_ALERT_IF(hunkStorageRootChunkListId,
-                        "Multiple ancestor hunk storage roots were encountered upon sealing of hunk journal chunk "
-                        "(ChunkId: %v, FirstParentId: %v, SecondParentId: %v)",
-                        chunk->GetId(),
-                        hunkStorageRootChunkListId,
-                        hunkRootChunkList->GetId());
-
-                    hunkStorageRootChunkListId = hunkRootChunkList->GetId();
-                    hunkRootChunkList->Statistics().Accumulate(hunkRootStatistics);
-                } else if (hunkRootChunkListIds.emplace(hunkRootChunkList->GetId()).second) {
-                    hunkRootChunkList->Statistics().Accumulate(hunkRootStatistics);
-                }
-            }
-        }
+        VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool /*firstOccurrence*/) {
+            chunkList->AccumulateHunkStatistics(chunk);
+        });
 
         for (auto* table : tableNodes) {
             RecomputeTableSnapshotStatistics(table);
 
             for (auto tablet : table->Tablets()) {
-                if (parentChunkListIds.contains(tablet->GetHunkChunkList()->GetId())) {
-                    TabletChunkManager_->CopyChunkListIfShared(
-                        table,
-                        EChunkListContentType::Hunk,
-                        tablet->GetIndex(),
-                        tablet->GetIndex());
-                }
-
-                auto tabletStatistics = tablet->GetTabletStatistics();
-                table->AccountTabletStatistics(tabletStatistics);
+                table->AccountTabletStatistics(tablet->GetTabletStatistics());
             }
+        }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        for (auto* table : tableNodes) {
+            tableManager->ScheduleStatisticsUpdate(
+                table,
+                TStatisticsUpdateRequest{
+                    .UpdateDataStatistics = true,
+                    .UpdateTabletResourceUsage = false,
+                    .UpdateModificationTime = true,
+                    .UpdateAccessTime = false,
+                    .UseNativeContentRevisionCas = false,
+                });
         }
     }
 
@@ -3399,15 +3346,16 @@ private:
             // COMPAT(ifsmirnov)
             reqReplicatable.set_has_replicas_and_replication_progress(true);
 
-            auto* chunkList = tablet->GetChunkList();
-            const auto& chunkListStatistics = chunkList->Statistics();
+            const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
             i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
 
             std::vector<TChunkTreeRawPtr> chunksOrViews;
-            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                auto* chunkList = tablet->GetChunkList(contentType);
-                EnumerateStoresInChunkTree(chunkList, &chunksOrViews);
+            EnumerateStoresInChunkTree(tablet->GetChunkList(), &chunksOrViews);
+            if (table->GetInMemoryMode() != EInMemoryMode::None) {
+                preloadPendingStoreCount = chunksOrViews.size();
             }
+            EnumerateStoresInChunkTree(tablet->GetHunkChunkList(), &chunksOrViews);
+
             for (auto chunkOrView : chunksOrViews) {
                 if (IsHunkChunk(tablet, chunkOrView)) {
                     FillHunkChunkDescriptor(chunkOrView->AsChunk(), reqReplicatable.add_hunk_chunks());
@@ -3426,18 +3374,11 @@ private:
                 CreateAndAttachDynamicStores(tablet, &req);
             }
 
-            if (table->GetInMemoryMode() != EInMemoryMode::None) {
-                preloadPendingStoreCount = chunksOrViews.size();
-            }
-
             auto* mountHint = req.mutable_mount_hint();
             ToProto(mountHint->mutable_eden_store_ids(), tablet->EdenStoreIds());
 
-            // TODO(gritukan): Does it make sense for hunk chunk lists?
-            i64 cumulativeDataWeight = 0;
-            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                cumulativeDataWeight += tablet->GetChunkList(contentType)->Statistics().LogicalDataWeight;
-            }
+            // TODO(akozhikhov): Fix cumulative data weight for hunk chunk tree.
+            i64 cumulativeDataWeight = tablet->GetChunkList()->Statistics().LogicalDataWeight;
             reqReplicatable.set_cumulative_data_weight(cumulativeDataWeight);
 
             YT_LOG_DEBUG("Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
@@ -4268,9 +4209,8 @@ private:
     void RecomputeTableSnapshotStatistics(TTableNode* table)
     {
         table->SnapshotStatistics() = {};
-        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
-        }
+        table->SnapshotStatistics() += table->GetChunkList()->Statistics().ToDataStatistics();
+        table->SnapshotStatistics() += table->GetHunkChunkList()->HunkStatistics().ToDataStatistics();
     }
 
     void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
@@ -5849,8 +5789,7 @@ private:
 
     void DoTabletUnmounted(TTablet* tablet, bool force)
     {
-        auto tabletStatistics = tablet->GetTabletStatistics();
-        tablet->GetOwner()->DiscountTabletStatistics(tabletStatistics);
+        tablet->GetOwner()->DiscountTabletStatistics(tablet->GetTabletStatistics());
 
         // Remember unflushed timestamp for unmounted tablets so we could get a better estimate
         // when they are mounted back with a tablet action.
