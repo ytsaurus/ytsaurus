@@ -376,7 +376,7 @@ void TTabletBase::ValidateMount(bool freeze)
     for (auto store : stores) {
         if (!storeSet.insert(store->GetId()).second) {
             THROW_ERROR_EXCEPTION("Cannot mount %v: tablet %v contains duplicate store %v of type %Qlv",
-                GetOwner()->GetType(),
+                GetOwner()->GetLowercaseObjectName(),
                 Id_,
                 store->GetId(),
                 store->GetType());
