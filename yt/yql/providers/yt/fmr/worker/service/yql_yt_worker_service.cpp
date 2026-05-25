@@ -192,7 +192,7 @@ int main(int argc, const char *argv[]) {
         NYql::NFS::IDownloaderPtr ytDownloader =  MakeYtDownloader(*options.FsConfig, ytDownloaderServer);
         TFileStoragePtr fileStorage = WithAsync(CreateFileStorage(*options.FsConfig, {ytDownloader}));
 
-        auto jobPreparer = MakeFmrJobPreparer(fileStorage, tableDataServiceDiscoveryFilePath, TFmrJobPreparerSettings(), tvmClient, tableDataServiceTvmId);
+        auto jobPreparer = MakeFmrJobPreparer(fileStorage, MakeFileTableDataServiceDiscovery({.Path = tableDataServiceDiscoveryFilePath}), TFmrJobPreparerSettings(), tvmClient, tableDataServiceTvmId);
         if (isNative && fmrCacheConfig && !fmrCacheConfig->GetPath().empty()) {
             TString distFileCacheBaseUrl = "yt://" + fmrCacheConfig->GetCluster() + "/" + fmrCacheConfig->GetPath();
             TString distCacheYtToken;

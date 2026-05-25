@@ -60,7 +60,7 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
 
     fmrServices->FileStorage = GetFileStorage();
     if (!fmrServices->DisableLocalFmrWorker) {
-        auto jobPreparer = NFmr::MakeFmrJobPreparer(GetFileStorage(), TableDataServiceDiscoveryFilePath_);
+        auto jobPreparer = NFmr::MakeFmrJobPreparer(GetFileStorage(), NFmr::MakeFileTableDataServiceDiscovery({.Path = TableDataServiceDiscoveryFilePath_}));
         fmrServices->JobPreparer = jobPreparer;
     }
     fmrServices->CheckSpecDoesntUseNativeYtTypes = false;

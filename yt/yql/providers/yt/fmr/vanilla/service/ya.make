@@ -23,7 +23,8 @@ PEERDIR(
     yt/yql/providers/yt/fmr/job/impl
     yt/yql/providers/yt/fmr/job_factory/impl
     yt/yql/providers/yt/fmr/job_launcher
-    yt/yql/providers/yt/fmr/job_preparer/interface
+    yt/yql/providers/yt/fmr/job_preparer/impl
+    yt/yql/providers/yt/lib/yt_download
     yt/yql/providers/yt/fmr/table_data_service/local/impl
     yt/yql/providers/yt/fmr/table_data_service/server
     yt/yql/providers/yt/fmr/vanilla/coordinator_client

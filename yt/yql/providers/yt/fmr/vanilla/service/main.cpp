@@ -9,7 +9,7 @@
 #include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
 #include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
 #include <yt/yql/providers/yt/fmr/job_launcher/yql_yt_job_launcher.h>
-#include <yt/yql/providers/yt/fmr/job_preparer/interface/yql_yt_job_preparer_interface.h>
+#include <yt/yql/providers/yt/fmr/job_preparer/impl/yql_yt_job_preparer_impl.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/local/impl/yql_yt_table_data_service_local.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/server/yql_yt_table_data_service_server.h>
@@ -44,75 +44,14 @@ using namespace NYql::NFmr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Job preparer for vanilla mode. Downloads the FMR job binary from a Cypress
-// path on construction. UDF / remote-file downloads are not supported.
-class TVanillaJobPreparer : public IFmrJobPreparer {
-public:
-    TVanillaJobPreparer(
-        NYql::TFileStoragePtr fileStorage,
-        const TString& cluster,
-        const TString& fmrJobCypressPath)
-        : FileStorage_(std::move(fileStorage))
-    {
-        if (!fmrJobCypressPath.empty()) {
-            TString url = "yt://" + cluster + "?path=" + fmrJobCypressPath;
-            BinaryDownload_ = FileStorage_->PutUrlAsync(url, TString());
-        }
-    }
-
-    // Blocks until the binary is downloaded and returns its local path.
-    // Returns empty string if no binary was configured.
-    TString GetLocalFmrJobBinaryPath() {
-        if (!BinaryDownload_.Initialized()) {
-            return TString();
-        }
-        auto link = BinaryDownload_.GetValue();
-        TString localPath = link->GetPath();
-        NFs::SetExecutable(localPath, true);
-        return localPath;
-    }
-
-    TString GenerateJobEnvironmentDir(const TString& taskId) override {
-        TString dir = FileStorage_->GetTemp() / taskId;
-        MakeDirIfNotExist(dir);
-        return dir;
-    }
-
-    void InitalizeDistributedCache(const TString&, const TString&) override {
-    }
-
-    NThreading::TFuture<NYql::TFileLinkPtr> DownloadFileFromDistributedCache(const TString&) override {
-        throw yexception() << "Distributed cache is not supported in vanilla mode";
-    }
-
-    NThreading::TFuture<NYql::TFileLinkPtr> DownloadYtResource(
-        const NYT::TRichYPath&, const TString&, const TString&) override
-    {
-        throw yexception() << "YT resource downloads are not supported in vanilla mode";
-    }
-
-    NThreading::TFuture<NYql::TFileLinkPtr> DownloadFmrResource(
-        const TFmrResourceTaskInfo&) override
-    {
-        throw yexception() << "FMR resource downloads are not supported in vanilla mode";
-    }
-
-private:
-    NYql::TFileStoragePtr FileStorage_;
-    NThreading::TFuture<NYql::TFileLinkPtr> BinaryDownload_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVanillaServiceJob : public IVanillaJob<> {
 public:
     TVanillaServiceJob() = default;
 
-    TVanillaServiceJob(TString cluster, ui64 jobCount, TString fmrJobBinaryPath, int verbosity,
+    TVanillaServiceJob(TString cluster, ui64 jobCount, int verbosity,
                        TString fmrOperationYson, TString workerYson, TString coordinatorYson)
         : Cluster_(std::move(cluster))
         , JobCount_(jobCount)
-        , FmrJobBinaryPath_(std::move(fmrJobBinaryPath))
         , Verbosity_(verbosity)
         , FmrOperationYson_(std::move(fmrOperationYson))
         , WorkerYson_(std::move(workerYson))
@@ -188,6 +127,11 @@ public:
             auto gcService = MakeGcService(tableDataServiceClient);
             auto coordSettings = GetDefaultCoordinatorSettings(coordinatorConfig, fmrOperationSpec);
             coordSettings.WorkersNum = static_cast<ui32>(JobCount_) - 1;
+            coordSettings.RequireFmrJob = true;
+            coordSettings.WorkerDeadlineLease = TDuration::Seconds(30);
+            if (fmrOperationSpec.Defined()) {
+                coordSettings.DefaultFmrOperationSpec = *fmrOperationSpec;
+            }
             auto coordinator = MakeFmrCoordinator(coordSettings, MakeYtCoordinatorService(), gcService);
             coordServer = MakeFmrCoordinatorServer(
                 coordinator,
@@ -206,32 +150,32 @@ public:
             NYql::TFileStorageConfig fsConfig;
             fsConfig.SetThreads(2);
             fsConfig.SetMaxFiles(100);
+            fsConfig.SetMaxSizeMb(10 * 1024);
             auto ytDownloader = NYql::MakeYtDownloader(fsConfig, Cluster_);
             auto fileStorage = NYql::CreateAsyncFileStorage(fsConfig, {ytDownloader});
 
-            auto jobPreparer = MakeIntrusive<TVanillaJobPreparer>(
-                fileStorage, Cluster_, FmrJobBinaryPath_);
-            TString localBinaryPath = jobPreparer->GetLocalFmrJobBinaryPath();
+            auto jobPreparer = MakeFmrJobPreparer(fileStorage, tdsDiscovery);
 
             auto ytJobService = MakeYtJobSerivce();
             auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
-                .RunInSeparateProcess = !localBinaryPath.empty(),
-                .FmrJobBinaryPath = localBinaryPath,
+                .RunInSeparateProcess = true,
                 .GatewayType = "native",
             });
 
-            TVanillaInfo vanillaInfo{
-                .Tracker = {
-                    .OperationId = operationId,
-                    .SelfIndex = selfIndex,
-                    .SelfJobId = tracker.GetSelfJobId(),
-                    .PeerIps = tracker.GetPeerAddresses()
-                }
-            };
             auto workerSettings = GetDefaultWorkerSettings(workerConfig);
+            const TString selfJobId = tracker.GetSelfJobId();
             workerSettings.WorkerId = static_cast<ui32>(selfIndex) - 1;
+            workerSettings.JobFactorySettings.NumThreads = 2;
             workerSettings.JobFactorySettings.Function =
-                [tdsDiscovery, jobLauncher, ytJobService, vanillaInfo](TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) {
+                [tdsDiscovery, jobLauncher, ytJobService, &tracker, selfIndex, selfJobId, operationId](TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) {
+                    TVanillaInfo vanillaInfo{
+                        .Tracker = {
+                            .OperationId = operationId,
+                            .SelfIndex = selfIndex,
+                            .SelfJobId = selfJobId,
+                            .PeerIps = tracker.GetPeerAddresses()
+                        }
+                    };
                     return RunJob(task, tdsDiscovery, vanillaInfo, ytJobService, jobLauncher, cancelFlag);
                 };
             jobFactory = MakeFmrJobFactory(workerSettings.JobFactorySettings);
@@ -263,12 +207,11 @@ public:
         }
     }
 
-    Y_SAVELOAD_JOB(Cluster_, JobCount_, FmrJobBinaryPath_, Verbosity_, FmrOperationYson_, WorkerYson_, CoordinatorYson_);
+    Y_SAVELOAD_JOB(Cluster_, JobCount_, Verbosity_, FmrOperationYson_, WorkerYson_, CoordinatorYson_);
 
 private:
     TString Cluster_;
     ui64 JobCount_ = 1;
-    TString FmrJobBinaryPath_;
     int Verbosity_ = static_cast<int>(TLOG_ERR);
     TString FmrOperationYson_;
     TString WorkerYson_;
@@ -296,7 +239,6 @@ int main(int argc, const char* argv[]) {
     TString cluster;
     TString pool;
     TString networkProject;
-    TString fmrJobBinaryPath;
     TString alias;
     TString fmrOperationYsonPath;
     TString workerYsonPath;
@@ -309,7 +251,6 @@ int main(int argc, const char* argv[]) {
     opts.AddLongOption("alias", "Operation alias").Required().StoreResult(&alias);
     opts.AddLongOption("network-project", "Network project name").Required().StoreResult(&networkProject);
     opts.AddLongOption("job-count", "Number of service jobs (>1)").Required().StoreResult(&jobCount);
-    opts.AddLongOption("fmr-job-bin", "Cypress path to the FMR job binary").Optional().StoreResult(&fmrJobBinaryPath);
     opts.AddLongOption("fmr-operation-yson", "Path to YSON file with FMR operation settings").Optional().StoreResult(&fmrOperationYsonPath);
     opts.AddLongOption("worker-yson-path", "Path to YSON file with FMR worker settings").Optional().StoreResult(&workerYsonPath);
     opts.AddLongOption("coordinator-yson-path", "Path to YSON file with FMR coordinator settings").Optional().StoreResult(&coordinatorYsonPath);
@@ -351,13 +292,13 @@ int main(int argc, const char* argv[]) {
         operationSpec = operationSpec.Pool(pool);
     }
 
-    constexpr size_t DefaultMemoryLimit = 4_GB;
+    constexpr size_t DefaultMemoryLimit = 16_GB;
     NYT::TUserJobSpec userJobSpec;
     userJobSpec.MemoryLimit(DefaultMemoryLimit);
     auto task = TVanillaTask()
         .Name("main")
         .JobCount(jobCount)
-        .Job(new TVanillaServiceJob(cluster, jobCount, fmrJobBinaryPath, verbosity, fmrOperationYson, workerYson, coordinatorYson))
+        .Job(new TVanillaServiceJob(cluster, jobCount, verbosity, fmrOperationYson, workerYson, coordinatorYson))
         .NetworkProject(networkProject)
         .Spec(userJobSpec);
 

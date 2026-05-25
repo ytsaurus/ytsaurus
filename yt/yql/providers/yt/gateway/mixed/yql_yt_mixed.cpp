@@ -328,6 +328,10 @@ public:
         return NativeGateway_->DownloadTable(std::move(options));
     }
 
+    NThreading::TFuture<TUploadFilesToCacheResult> UploadFilesToCache(TUploadFilesToCacheOptions&& options) override {
+        return NativeGateway_->UploadFilesToCache(std::move(options));
+    }
+
     IYtTokenResolver::TPtr GetYtTokenResolver() const override {
         return NativeGateway_->GetYtTokenResolver();
     }
