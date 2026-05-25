@@ -95,6 +95,32 @@ void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAccountBackupConfig
+{
+    TAccountId BackupAccountId;
+    NYPath::TYPath BackupPath;
+    NYPath::TYPath TrimPathPrefix;
+
+    //! Used only for attribute.
+    std::string BackupAccountName;
+
+    void Validate(const NCellMaster::TBootstrap* bootstrap) const;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+};
+
+void SerializeAccountBackupConfig(
+    const TAccountBackupConfig& config,
+    NYson::IYsonConsumer* consumer,
+    const NCellMaster::TBootstrap* bootstrap);
+
+TAccountBackupConfig DeserializeAccountBackupConfig(
+    NYTree::INodePtr node,
+    const NCellMaster::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccount
     : public NObjectServer::TNonversionedMapObjectBase<TAccount>
 {
@@ -116,6 +142,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NConcurrency::IReconfigurableThroughputThrottlerPtr, MergeJobThrottler);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkReincarnation);
+
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TAccountBackupConfig>, BackupConfig);
 
     //! Cached |GetAccountShardIndex(id)| for efficient access.
     DEFINE_BYVAL_RO_PROPERTY(i8, ShardIndex);

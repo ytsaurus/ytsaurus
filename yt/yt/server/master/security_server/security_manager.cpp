@@ -735,6 +735,8 @@ public:
         auto it = std::remove(accounts.begin(), accounts.end(), account);
         accounts.erase(it, accounts.end());
 
+        RemoveBackupConfigForAccount(account);
+
         auto usageDelta = -account->LocalStatistics().ResourceUsage;
         auto committedUsageDelta = -account->LocalStatistics().CommittedResourceUsage;
         const auto statisticsDelta = TAccountStatistics(usageDelta, committedUsageDelta);
@@ -1218,6 +1220,89 @@ public:
         ValidateResourceUsageIncrease(account, resourcesDelta, /*allowRootAccount*/ true);
 
         DoUpdateAccountResourceUsageLease(accountResourceUsageLease, resources);
+    }
+
+    void RegisterBackupConfigForAccount(TAccount* account)
+    {
+        if (!account->GetBackupConfig()) {
+            return;
+        }
+        try {
+            account->GetBackupConfig()->Validate(Bootstrap_);
+            auto backupAccountId = account->GetBackupConfig()->BackupAccountId;
+            InsertOrCrash(BackupSourceAccountsMap_[backupAccountId], account->GetId());
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Invalid backup config for account (AccountId: %v)",
+                account->GetId());
+        }
+    }
+
+    void UpdateBackupConfigForAccount(TAccount* account, TAccountBackupConfig backupConfig) override
+    {
+        RemoveBackupConfigForAccount(account);
+        account->SetBackupConfig(std::move(backupConfig));
+        RegisterBackupConfigForAccount(account);
+    }
+
+    void RemoveBackupConfigForAccount(TAccount* account) override
+    {
+        if (!account->GetBackupConfig()) {
+            return;
+        }
+
+        auto oldBackupAccountId = account->GetBackupConfig()->BackupAccountId;
+        auto oldBackupAccount = FindAccount(oldBackupAccountId);
+        if (!oldBackupAccount) {
+            YT_LOG_ALERT("Account had invalid backup account (AccountId: %v, BackupAccountId: %v)",
+                account->GetId(),
+                oldBackupAccountId);
+        }
+        auto it = BackupSourceAccountsMap_.find(oldBackupAccountId);
+        if (it == BackupSourceAccountsMap_.end()) {
+            YT_LOG_ALERT("Account that was used as backup account has no entry in BackupSourceAccountsMap (BackupAccountId: %v)",
+                oldBackupAccountId);
+        } else {
+            it->second.erase(account->GetId());
+            if (it->second.empty()) {
+                BackupSourceAccountsMap_.erase(it);
+            }
+        }
+
+        account->SetBackupConfig(std::nullopt);
+    }
+
+    std::vector<std::string> GetBackupSourceAccountNames(const TAccount* account) const override
+    {
+        auto it = BackupSourceAccountsMap_.find(account->GetId());
+        if (it == BackupSourceAccountsMap_.end()) {
+            return {};
+        }
+        std::vector<std::string> result;
+        for (const auto& sourceAccountId : it->second) {
+            auto sourceAccount = FindAccount(sourceAccountId);
+            if (!sourceAccount) {
+                YT_LOG_ALERT("Invalid account is used as backup source account (BackupSourceAccountId: %v, BackupAccountId: %v)",
+                    sourceAccountId,
+                    account->GetId());
+                continue;
+            }
+            if (!IsObjectActive(sourceAccount)) {
+                YT_LOG_ALERT("Non active account is used as backup source account (BackupSourceAccountId: %v, BackupAccountId: %v)",
+                    sourceAccountId,
+                    account->GetId());
+                continue;
+            }
+            result.push_back(sourceAccount->GetName());
+        }
+        return result;
+    }
+
+    void ValidateAccountRemoval(const TAccount* account) const override
+    {
+        auto it = BackupSourceAccountsMap_.find(account->GetId());
+        if (it != BackupSourceAccountsMap_.end()) {
+            THROW_ERROR_EXCEPTION("Account is used as backup account for %v accounts", it->second.size());
+        }
     }
 
     void UpdateTransactionResourceUsage(
@@ -3054,6 +3139,8 @@ private:
 
     TSyncMap<std::string, TProfilerTagPtr> CpuProfilerTags_;
 
+    THashMap<TAccountId, THashSet<TAccountId>> BackupSourceAccountsMap_;
+
     bool IsChunkHostCell_ = false;
 
     bool MustRecomputeMembershipClosure_ = false;
@@ -3402,6 +3489,10 @@ private:
                 // Reconstruct account name map.
                 RegisterAccountName(name, account);
             }
+
+            if (account->GetBackupConfig()) {
+                RegisterBackupConfigForAccount(account);
+            }
         }
 
         UserNameMap_.clear();
@@ -3747,6 +3838,24 @@ private:
                 actualRefCounter);
         }
 
+        for (const auto& [backupAccountId, sourceAccounts] : BackupSourceAccountsMap_) {
+            auto* backupAccount = FindAccount(backupAccountId);
+            if (!backupAccount) {
+                YT_LOG_ALERT("Backup account not found (BackupAccountId: %v)", backupAccountId);
+            }
+
+            if (sourceAccounts.empty()) {
+                YT_LOG_ALERT("Backup account in BackupSourceAccountsMap has no source accounts (BackupAccountId: %v)", backupAccountId);
+            }
+
+            for (const auto& sourceAccountId : sourceAccounts) {
+                auto* sourceAccount = FindAccount(sourceAccountId);
+                if (!sourceAccount) {
+                    YT_LOG_ALERT("Source account not found (BackupAccountId: %v, SourceAccountId: %v)", backupAccountId, sourceAccountId);
+                }
+            }
+        }
+
         ValidateAccountResourceUsages();
     }
 
@@ -3850,6 +3959,7 @@ private:
             ProxyRoleNameMaps_[proxyKind].clear();
         }
 
+        BackupSourceAccountsMap_.clear();
 
         RootUser_ = nullptr;
         GuestUser_ = nullptr;

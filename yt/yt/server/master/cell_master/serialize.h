@@ -201,6 +201,7 @@ DEFINE_ENUM(EMasterReign,
     ((NativeClientUnfoldedIndexPartialBackCompat)                   (3247))  // sabdenovch
     ((ExpectedPrepareSignature_26_1)                                (3248))  // atalmenev
     ((HunkChunkTreeStatisticsOverhaul)                              (3249))  // akozhikhov
+    ((TableBackupAttributes)                                        (3250))  // grphil
 
     // 26.2 starts here.
     ((Start_26_2)                                                   (3300))  // ermolovd
@@ -218,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((StrongOrderingTags_26_2)                                      (3312))  // h0pless
     ((NativeClientUnfoldedIndexPartialBackCompat_26_2)              (3313))  // sabdenovch
     ((ExpectedPrepareSignature)                                     (3314))  // atalmenev
+    ((TableBackupAttributes_26_2)                                   (3315))  // grphil
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

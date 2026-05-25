@@ -85,6 +85,8 @@ struct TAcdOverride;
 struct TAccountStatistics;
 using TAccountMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
 
+struct TAccountBackupConfig;
+
 struct TPermissionCheckOptions;
 
 class TClusterResources;

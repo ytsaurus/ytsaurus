@@ -165,6 +165,18 @@ struct ISecurityManager
         TAccountResourceUsageLease* accountResourceUsageLease,
         const TClusterResources& resources) = 0;
 
+    //! Updates backup config for account.
+    virtual void UpdateBackupConfigForAccount(TAccount* account, TAccountBackupConfig backupConfig) = 0;
+
+    //! Removes backup config for account.
+    virtual void RemoveBackupConfigForAccount(TAccount* account) = 0;
+
+    //! Validates that account can be removed, throws otherwise.
+    virtual void ValidateAccountRemoval(const TAccount* account) const = 0;
+
+    //! Returns accounts using current account as backup.
+    virtual std::vector<std::string> GetBackupSourceAccountNames(const TAccount* account) const = 0;
+
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
     virtual void UpdateTabletResourceUsage(
