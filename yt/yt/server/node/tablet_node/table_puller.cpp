@@ -482,7 +482,7 @@ private:
         TThrottlingTimes throttlingTimes;
 
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
-        if(oldestTimestamp < selfReplica.History.back().Timestamp) {
+        if (oldestTimestamp < selfReplica.History.back().Timestamp) {
             YT_LOG_DEBUG("Skipping replication throttling because replica is not in its last era");
             return throttlingTimes;
         }
