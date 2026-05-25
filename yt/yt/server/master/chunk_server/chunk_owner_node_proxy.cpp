@@ -723,6 +723,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
         .SetWritable(!isExternal)
         .SetPresent(false);
+    descriptors->emplace_back(EInternedAttributeKey::TableBackupEnabled);
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -998,6 +999,14 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
             BuildYsonFluently(consumer)
                 .Value(extraResourceUsage);
+            return true;
+        }
+
+        case EInternedAttributeKey::TableBackupEnabled: {
+            const auto* account = node->Account().Get();
+
+            BuildYsonFluently(consumer)
+                .Value(account->GetBackupConfig().has_value());
             return true;
         }
 
