@@ -5,7 +5,7 @@ PY_SRCS(
 )
 
 PEERDIR(
-    yt/python/yt/admin
+    yt/python/client_with_admin
 )
 
 END()

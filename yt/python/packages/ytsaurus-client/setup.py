@@ -54,7 +54,7 @@ def main():
 
         extras_require={
             "recommended": ["brotli", "cryptography"],
-            "admin": ["kubernetes>=31.0.0", "python-dateutil", "pyyaml"],
+            "admin": ["kubernetes>=31.0.0"],
         },
     )
 

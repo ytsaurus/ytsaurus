@@ -2,8 +2,6 @@ import yt.logger as logger
 import yt.yson as yson
 from yt.admin._experimental import warn_experimental, EXPERIMENTAL_HELP_SUFFIX
 
-from dateutil import parser as date_parser
-
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Set
@@ -34,6 +32,13 @@ COMPONENTS_MAP = {
 }
 
 YTSERVER_CONTAINER = "ytserver"
+
+
+def _parse_iso8601(value: str) -> datetime:
+    normalized = value.strip()
+    if normalized.endswith("Z") or normalized.endswith("z"):
+        normalized = normalized[:-1] + "+00:00"
+    return datetime.fromisoformat(normalized)
 
 
 @dataclass
@@ -72,7 +77,7 @@ def _k8s_install_hint() -> str:
     for name in ("ytsaurus-client", "yandex-yt"):
         if name in dists:
             return f"pip install '{name}[admin]'"
-    return "pip install kubernetes python-dateutil pyyaml"
+    return "pip install kubernetes"
 
 
 class K8sExecutor:
@@ -496,8 +501,8 @@ def run_logs_k8s(namespace, cluster_name, component_name, group_name, pods, exec
         exec_slot_index=exec_slot_index,
         writer=writer,
         writer_force=writer_force,
-        from_ts=date_parser.parse(from_ts) if from_ts else None,
-        to_ts=date_parser.parse(to_ts) if to_ts else None,
+        from_ts=_parse_iso8601(from_ts) if from_ts else None,
+        to_ts=_parse_iso8601(to_ts) if to_ts else None,
         output=output,
         grep=grep,
         yes=yes,
