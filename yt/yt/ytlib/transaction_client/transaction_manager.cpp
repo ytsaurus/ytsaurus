@@ -618,6 +618,11 @@ public:
         }
     }
 
+    void SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
+    {
+        ParticipantExpectedPrepareSignatures_ = std::move(participantExpectedPrepareSignatures);
+    }
+
     void ChooseCoordinator(const TTransactionCommitOptions& options)
     {
         YT_VERIFY(!CoordinatorCellId_);
@@ -700,6 +705,8 @@ private:
 
     THashSet<TCellId> RegisteredParticipantIds_;
     THashSet<TCellId> PrepareOnlyRegisteredParticipantIds_;
+
+    THashMap<TCellId, TTransactionSignature> ParticipantExpectedPrepareSignatures_;
 
     TCellId CoordinatorCellId_;
 
@@ -1237,6 +1244,13 @@ private:
 
         req->set_dynamic_tables_locked(dynamicTablesLocked);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+        for (auto cellId : supervisorParticipantCellIds) {
+            req->add_expected_prepare_signatures(
+                GetOrDefault(ParticipantExpectedPrepareSignatures_, cellId, FinalTransactionSignature));
+        }
+        req->set_coordinator_expected_prepare_signature(
+            GetOrDefault(ParticipantExpectedPrepareSignatures_, CoordinatorCellId_, FinalTransactionSignature));
 
         return req->Invoke().Apply(
             BIND(
@@ -1960,6 +1974,11 @@ TTransaction::~TTransaction() = default;
 TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
 {
     return Impl_->Commit(options);
+}
+
+void TTransaction::SetExpectedPrepareSignatures(THashMap<TCellId, TTransactionSignature> participantExpectedPrepareSignatures)
+{
+    Impl_->SetExpectedPrepareSignatures(std::move(participantExpectedPrepareSignatures));
 }
 
 TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& options)

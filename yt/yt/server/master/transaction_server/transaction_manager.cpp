@@ -2662,6 +2662,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        auto expectedPrepareSignature = request->has_expected_prepare_signature()
+            ? FromProto<NTransactionClient::TTransactionSignature>(request->expected_prepare_signature())
+            : NTransactionClient::FinalTransactionSignature;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
@@ -2669,6 +2672,7 @@ private:
         TTransactionPrepareOptions options{
             .Persistent = true,
             .PrepareTimestamp = prepareTimestamp,
+            .ExpectedPrepareSignature = expectedPrepareSignature,
         };
         PrepareTransactionCommit(transactionId, options);
     }

@@ -94,6 +94,9 @@ public:
     //! Choose transaction coordinator.
     void ChooseCoordinator(const TTransactionCommitOptions& options);
 
+    void SetExpectedPrepareSignatures(
+        THashMap<NObjectClient::TCellId, NTransactionClient::TTransactionSignature> participantExpectedPrepareSignatures);
+
     //! Check that all participants are healthy.
     TFuture<void> ValidateNoDownedParticipants();
 

@@ -25,6 +25,8 @@ using NElection::TCellId;
 using NTransactionClient::TTransactionId;
 using NTransactionClient::TTimestamp;
 using NTransactionClient::TTransactionActionData;
+using NTransactionClient::TTransactionSignature;
+using NTransactionClient::FinalTransactionSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 

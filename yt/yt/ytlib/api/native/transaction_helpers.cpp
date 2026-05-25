@@ -39,6 +39,28 @@ TTransactionSignature TTransactionSignatureGenerator::GenerateSignature()
     }
 }
 
+TTransactionSignature TTransactionSignatureGenerator::GetFinalSignature() const
+{
+    return NTransactionClient::FinalTransactionSignature;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionSignature TUniformSignatureGenerator::GenerateSignature()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto requestIndex = RequestIndex_.fetch_add(1, std::memory_order::relaxed);
+    YT_VERIFY(requestIndex < RequestCount_);
+
+    return 1;
+}
+
+TTransactionSignature TUniformSignatureGenerator::GetFinalSignature() const
+{
+    return RequestCount_.load();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

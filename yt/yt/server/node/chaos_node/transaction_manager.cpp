@@ -155,10 +155,18 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        if (signature != FinalTransactionSignature) {
+        // COMPAT(atalmenev)
+        auto expectedSignature = options.ExpectedPrepareSignature;
+        if (auto* context = TryGetCurrentMutationContext()) {
+            if (static_cast<EChaosReign>(context->Request().Reign) < EChaosReign::ExpectedPrepareSignature) {
+                expectedSignature = FinalTransactionSignature;
+            }
+        }
+
+        if (signature != expectedSignature) {
             THROW_ERROR_EXCEPTION("Transaction %v is incomplete: expected signature %x, actual signature %x",
                 transactionId,
-                FinalTransactionSignature,
+                expectedSignature,
                 signature);
         }
 

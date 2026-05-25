@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 
 #include "register_transaction_actions_request_factory.h"
@@ -32,7 +34,8 @@ ICellCommitSessionPtr CreateCellCommitSession(
     IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<NTransactionClient::TTransaction> transaction,
     NHiveClient::TCellId cellId,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    bool useUniformPrepareSignatures);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +48,8 @@ struct ICellCommitSessionProvider
     virtual std::vector<NHiveClient::TCellId> GetParticipantCellIds() const = 0;
 
     virtual TFuture<void> InvokeAll() = 0;
+
+    virtual THashMap<NHiveClient::TCellId, ICellCommitSessionPtr> GetCellCommitSessions() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellCommitSessionProvider)
@@ -54,7 +59,8 @@ DEFINE_REFCOUNTED_TYPE(ICellCommitSessionProvider)
 ICellCommitSessionProviderPtr CreateCellCommitSessionProvider(
     IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<NTransactionClient::TTransaction> transaction,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    bool useUniformPrepareSignatures);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -57,6 +57,8 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NTransactionSupervisor {
 
 using namespace NApi;
@@ -187,18 +189,19 @@ public:
         return MessageToError(
             CoordinatorCommitTransaction(
                 transactionId,
-                {},
-                {},
-                {},
-                false,
-                true,
-                false,
-                ETransactionCoordinatorPrepareMode::Early,
-                ETransactionCoordinatorCommitMode::Eager,
+                /*participantCellIds*/ {},
+                /*expectedPrepareSignatures*/ {},
+                /*prepareOnlyParticipantCellIds*/ {},
+                /*cellIdsToSyncWithBeforePrepare*/ {},
+                /*force2PC*/ false,
+                /*generatePrepareTimestamp*/ true,
+                /*inheritCommitTimestamp*/ false,
+                /*coordinatorPrepareMode*/ ETransactionCoordinatorPrepareMode::Early,
+                /*coordinatorCommitMode*/ ETransactionCoordinatorCommitMode::Eager,
                 /*strongOrderingTags*/ {},
                 /*maxAllowedCommitTimestamp*/ NullTimestamp,
-                NullMutationId,
-                GetCurrentAuthenticationIdentity(),
+                /*mutationId*/ NullMutationId,
+                /*identity*/ GetCurrentAuthenticationIdentity(),
                 /*prerequisiteTransactionIds*/ {}));
     }
 
@@ -351,6 +354,17 @@ private:
 
         TFuture<void> PrepareTransaction(TCommit* commit)
         {
+            // TODO(atalmenev): use binary search instead of linear scan for large participant sets.
+            auto expectedPrepareSignature = FinalTransactionSignature;
+            for (auto [participantCellId, expectedSignature] :
+                Zip(commit->ParticipantCellIds(), commit->ExpectedPrepareSignatures().Participants))
+            {
+                if (CellId_ == participantCellId) {
+                    expectedPrepareSignature = expectedSignature;
+                    break;
+                }
+            }
+
             return EnqueueRequest(
                 false,
                 true,
@@ -363,7 +377,8 @@ private:
                     inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
                     cellIdsToSyncWith = commit->CellIdsToSyncWithBeforePrepare(),
                     identity = commit->AuthenticationIdentity(),
-                    strongOrderingTags = commit->GetStrongOrderingTagsForCell(CellId_)
+                    strongOrderingTags = commit->GetStrongOrderingTagsForCell(CellId_),
+                    expectedPrepareSignature
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
@@ -377,7 +392,8 @@ private:
                         GetTimestampClusterTag(participant, inheritCommitTimestamp),
                         std::move(strongOrderingTags),
                         cellIdsToSyncWith,
-                        identity);
+                        identity,
+                        expectedPrepareSignature);
                 });
         }
 
@@ -805,6 +821,13 @@ private:
 
             // COMPAT(tea-mur): It should be safe to remove prerequisite transactions from tx supervisor after 26.1 (YT-27547)
             auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
+            auto expectedPrepareSignatures = BuildExpectedPrepareSignaturesFromRequest(*request, participantCellIds.size());
+            YT_LOG_ALERT_AND_THROW_UNLESS(
+                expectedPrepareSignatures.Participants.size() == participantCellIds.size(),
+                "Participant expected prepare signature count mismatch "
+                "(ParticipantCount: %v, SignatureCount: %v)",
+                participantCellIds.size(),
+                expectedPrepareSignatures.Participants.size());
 
             // Actually there may be prerequisites in the case of old CA (see r18873063) or tablet txs from old proxies
             YT_LOG_ALERT_UNLESS(
@@ -835,7 +858,8 @@ private:
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
                 "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, CoordinatorPrepareMode: %v, "
-                "CoordinatorCommitMode: %v, StronglyOrdered: %v, PrerequisiteTransactionIds: %v, MaxAllowedCommitTimestamp: %v, StrongOrderingTags: %v",
+                "CoordinatorCommitMode: %v, StronglyOrdered: %v, PrerequisiteTransactionIds: %v, MaxAllowedCommitTimestamp: %v, StrongOrderingTags: %v, "
+                "CoordinatorExpectedPrepareSignature: %v, ParticipantExpectedPrepareSignatures: %v",
                 transactionId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
@@ -849,7 +873,9 @@ private:
                 stronglyOrdered,
                 prerequisiteTransactionIds,
                 maxAllowedCommitTimestamp,
-                MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+                MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100),
+                expectedPrepareSignatures.Coordinator,
+                expectedPrepareSignatures.Participants);
 
             // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
             if (owner->TransactionManager_->CommitTransaction(context)) {
@@ -882,6 +908,7 @@ private:
                 asyncResponseMessage = owner->CoordinatorCommitTransaction(
                     transactionId,
                     participantCellIds,
+                    expectedPrepareSignatures,
                     prepareOnlyParticipantCellIds,
                     cellIdsToSyncWithBeforePrepare,
                     force2PC,
@@ -902,11 +929,13 @@ private:
                         =,
                         owner = std::move(owner),
                         prerequisiteTransactionIds = std::move(prerequisiteTransactionIds),
-                        strongOrderingTags = std::move(strongOrderingTags)
+                        strongOrderingTags = std::move(strongOrderingTags),
+                        expectedPrepareSignatures = std::move(expectedPrepareSignatures)
                     ] () mutable {
                         return owner->CoordinatorCommitTransaction(
                             transactionId,
                             participantCellIds,
+                            std::move(expectedPrepareSignatures),
                             prepareOnlyParticipantCellIds,
                             cellIdsToSyncWithBeforePrepare,
                             force2PC,
@@ -1051,13 +1080,19 @@ private:
             auto prepareTimestampClusterTag = request->prepare_timestamp_cluster_tag();
             auto cellIdsToSyncWith = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with());
             auto strongOrderingTags = FromProto<std::vector<std::string>>(request->strong_ordering_tags());
+            auto expectedPrepareSignature = request->has_expected_prepare_signature()
+                ? FromProto<TTransactionSignature>(request->expected_prepare_signature())
+                : FinalTransactionSignature;
 
-            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %v@%v, CellIdsToSyncWith: %v, StrongOrderingTags: %v",
+            context->SetRequestInfo(
+                "TransactionId: %v, PrepareTimestamp: %v@%v, CellIdsToSyncWith: %v, "
+                "StrongOrderingTags: %v, ExpectedPrepareSignature: %v",
                 transactionId,
                 prepareTimestamp,
                 prepareTimestampClusterTag,
                 cellIdsToSyncWith,
-                MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+                MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100),
+                expectedPrepareSignature);
 
             auto owner = GetOwnerOrThrow();
             if (owner->HydraManager_->IsEnteringReadOnlyMode() && !strongOrderingTags.empty()) {
@@ -1072,6 +1107,7 @@ private:
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             hydraRequest.set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
             ToProto(hydraRequest.mutable_strong_ordering_tags(), strongOrderingTags);
+            hydraRequest.set_expected_prepare_signature(expectedPrepareSignature);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
@@ -1333,6 +1369,7 @@ private:
     TFuture<TSharedRefArray> CoordinatorCommitTransaction(
         TTransactionId transactionId,
         std::vector<TCellId> participantCellIds,
+        TExpectedTransactionSignatureInfo expectedPrepareSignatures,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool force2PC,
@@ -1358,6 +1395,7 @@ private:
         commit = CreateTransientCommit(
             transactionId,
             mutationId,
+            std::move(expectedPrepareSignatures),
             std::move(participantCellIds),
             std::move(prepareOnlyParticipantCellIds),
             std::move(cellIdsToSyncWithBeforePrepare),
@@ -1403,6 +1441,7 @@ private:
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = SelfClockClusterTag_,
                 .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds(),
+                .ExpectedPrepareSignature = commit->ExpectedPrepareSignatures().Coordinator,
             };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
@@ -1435,12 +1474,15 @@ private:
             ? TimestampProvider_->GetLatestTimestamp()
             : NullTimestamp;
 
+        const auto& expectedPrepareSignatures = commit->ExpectedPrepareSignatures();
         NTransactionSupervisor::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         ToProto(request.mutable_prepare_only_participant_cell_ids(), commit->PrepareOnlyParticipantCellIds());
         ToProto(request.mutable_cell_ids_to_sync_with_before_prepare(), commit->CellIdsToSyncWithBeforePrepare());
+        ToProto(request.mutable_expected_prepare_signatures(), expectedPrepareSignatures.Participants);
+        request.set_coordinator_expected_prepare_signature(expectedPrepareSignatures.Coordinator);
         request.set_generate_prepare_timestamp(commit->GetGeneratePrepareTimestamp());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         request.set_coordinator_commit_mode(ToProto(commit->GetCoordinatorCommitMode()));
@@ -1553,6 +1595,9 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
+        auto expectedPrepareSignature = request->has_expected_prepare_signature()
+            ? FromProto<TTransactionSignature>(request->expected_prepare_signature())
+            : FinalTransactionSignature;
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -1576,7 +1621,8 @@ private:
             auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
             TTransactionCommitOptions options{
                 .CommitTimestamp = commitTimestamp,
-                .CommitTimestampClusterTag = SelfClockClusterTag_
+                .CommitTimestampClusterTag = SelfClockClusterTag_,
+                .ExpectedPrepareSignature = expectedPrepareSignature,
             };
             TransactionManager_->CommitTransaction(transactionId, options);
         } catch (const std::exception& ex) {
@@ -1602,6 +1648,7 @@ private:
             commit = CreateTransientCommit(
                 transactionId,
                 mutationId,
+                /*expectedPrepareSignatures*/ TExpectedTransactionSignatureInfo{ .Coordinator = expectedPrepareSignature },
                 /*participantCellIds*/ {},
                 /*prepareOnlyParticipantCellIds*/ {},
                 /*cellIdsToSyncWithBeforePrepare*/ {},
@@ -1647,6 +1694,15 @@ private:
             EmplaceOrCrash(strongOrderingTags, cellId, FromProto<std::vector<std::string>>(entry.strong_ordering_tags()));
         }
 
+        auto expectedPrepareSignatures = BuildExpectedPrepareSignaturesFromRequest(*request, participantCellIds.size());
+        YT_LOG_ALERT_UNLESS(
+            expectedPrepareSignatures.Participants.size() == participantCellIds.size(),
+            "Participant expected prepare signature count mismatch "
+            "(TransactionId: %v, ParticipantCount: %v, SignatureCount: %v)",
+            transactionId,
+            participantCellIds.size(),
+            expectedPrepareSignatures.Participants.size());
+
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
@@ -1677,6 +1733,7 @@ private:
                 transactionId,
                 mutationId,
                 participantCellIds,
+                expectedPrepareSignatures,
                 prepareOnlyParticipantCellIds,
                 cellIdsToSyncWithBeforePrepare,
                 true,
@@ -1708,11 +1765,14 @@ private:
         commit->PrepareTimestampClusterTag() = prepareTimestampClusterTag;
 
         YT_LOG_DEBUG(
-            "Distributed commit phase one started (TransactionId: %v, %v, ParticipantCellIds: %v, "
+            "Distributed commit phase one started "
+            "(TransactionId: %v, %v, ParticipantCellIds: %v, ParticipantExpectedPrepareSignatures: %v, CoordinatorExpectedPrepareSignature: %v, "
             "PrepareTimestamp: %v@%v, StrongOrderingTags: %v)",
             transactionId,
             NRpc::GetCurrentAuthenticationIdentity(),
             participantCellIds,
+            expectedPrepareSignatures.Participants,
+            expectedPrepareSignatures.Coordinator,
             prepareTimestamp,
             prepareTimestampClusterTag,
             MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
@@ -1965,6 +2025,9 @@ private:
         auto prepareTimestamp = request->prepare_timestamp();
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
         auto strongOrderingTags = FromProto<std::vector<std::string>>(request->strong_ordering_tags());
+        auto expectedPrepareSignature = request->has_expected_prepare_signature()
+            ? request->expected_prepare_signature()
+            : FinalTransactionSignature;
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -1985,6 +2048,7 @@ private:
                 .Persistent = true,
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = prepareTimestampClusterTag,
+                .ExpectedPrepareSignature = expectedPrepareSignature,
             };
             // PrepareTransactionCommit validates that transaction is Active and throws if it is not.
             TransactionManager_->PrepareTransactionCommit(
@@ -2257,6 +2321,7 @@ private:
     TCommit* CreateTransientCommit(
         TTransactionId transactionId,
         TMutationId mutationId,
+        TExpectedTransactionSignatureInfo expectedPrepareSignatures,
         std::vector<TCellId> participantCellIds,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
@@ -2274,6 +2339,7 @@ private:
             transactionId,
             mutationId,
             std::move(participantCellIds),
+            std::move(expectedPrepareSignatures),
             std::move(prepareOnlyParticipantCellIds),
             std::move(cellIdsToSyncWithBeforePrepare),
             distributed,
@@ -2292,6 +2358,7 @@ private:
         TTransactionId transactionId,
         TMutationId mutationId,
         std::vector<TCellId> participantCellIds,
+        TExpectedTransactionSignatureInfo expectedPrepareSignatures,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
@@ -2317,6 +2384,7 @@ private:
                 transactionId,
                 mutationId,
                 std::move(participantCellIds),
+                std::move(expectedPrepareSignatures),
                 std::move(prepareOnlyParticipantCellIds),
                 std::move(cellIdsToSyncWithBeforePrepare),
                 distributed,
@@ -2408,6 +2476,7 @@ private:
                 .PrepareTimestamp = commit->PrepareTimestamp(),
                 .PrepareTimestampClusterTag = commit->PrepareTimestampClusterTag(),
                 .PrerequisiteTransactionIds = prerequisiteTransactionIds,
+                .ExpectedPrepareSignature = commit->ExpectedPrepareSignatures().Coordinator,
             };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
@@ -2682,6 +2751,7 @@ private:
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
             WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
+            request.set_expected_prepare_signature(commit->ExpectedPrepareSignatures().Coordinator);
 
             auto mutation = CreateMutation(HydraManager_, request);
             mutation->SetCurrentTraceContext();

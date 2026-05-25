@@ -445,6 +445,9 @@ struct TConnectionDynamicConfig
     bool CheckOperationBaseAco;
     std::string OperationBaseAcoName;
 
+    // COMPAT(atalmenev)
+    bool UseUniformPrepareSignatures;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);

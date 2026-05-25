@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((KulenovClockPart2)                                            (3245))  // aleksandra-zh
     ((StrongOrderingTags)                                           (3246))  // h0pless
     ((NativeClientUnfoldedIndexPartialBackCompat)                   (3247))  // sabdenovch
+    ((ExpectedPrepareSignature_26_1)                                (3248))  // atalmenev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
