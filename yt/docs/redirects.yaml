@@ -877,3 +877,7 @@ ru:
     - from: /admin-guide/cluster-access-proxy.md
       to: /admin-guide/cluster-access-proxy/index.md
       type: redirect
+
+    - from: /yandex-specific/flow/extensions/solomon.md
+      to: /yandex-specific/flow/extensions/monium.md
+      type: redirect
