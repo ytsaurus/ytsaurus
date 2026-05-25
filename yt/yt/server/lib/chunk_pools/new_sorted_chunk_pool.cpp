@@ -711,11 +711,14 @@ private:
             dataWeight += dataSlice->GetDataWeight();
         }
 
-        // NB(coteeq): We do not set isExplicitJob count because sorted pool
-        // does not support this flag and it would be *very* hard to support
+        // NB(coteeq): Generally, sorted job builder does not support
+        // isExplicitJobCount because it would be *very* hard to support
         // (and it probably is not worth it).
-        // So we just increase all constraints to effective infinity to trick
-        // the pool to always make a single job.
+        // The case of requiring exactly one job is simpler though (also, this
+        // is an important guarantee for the split), so the builder does
+        // support this. Moreover, we also increase all the constraints
+        // to effective infinity to trick other parts of job builder to always
+        // make a single job.
         auto adjustSizeIfSingleJob = [singleJob = splitJobCount == 1] (i64 size) {
             return singleJob ? std::numeric_limits<i64>::max() / 4 : size;
         };
@@ -726,7 +729,7 @@ private:
         // into the old job size constraints.
         auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
             /*canAdjustDataSizePerJob*/ false,
-            /*isExplicitJobCount*/ false,
+            /*isExplicitJobCount*/ true,
             /*jobCount*/ splitJobCount,
             dataWeightPerJob,
             /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
