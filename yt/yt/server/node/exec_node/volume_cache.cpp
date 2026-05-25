@@ -265,7 +265,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
     auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer || !nbdConfig || !nbdConfig->Enabled) {
-        auto error = TError("Nbd server is not present")
+        auto error = TError("NBD server is not present")
             << TErrorAttribute("device_id", deviceId)
             << TErrorAttribute("job_id", jobId)
             << TErrorAttribute("path", artifactKey.data_source().path())
