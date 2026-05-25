@@ -325,20 +325,6 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
             auto sumOfUsageShare = assignedUsageShare + readyToAssignShare + extraShare + allocationUsageShare;
             bool belowFairShare = Dominates(fairShare + TResourceVector::Epsilon(), sumOfUsageShare);
 
-            YT_LOG_DEBUG_UNLESS(
-                !operationElement->AreDetailedLogsEnabled(),
-                "Checking if fair share is exceeded before adding another assignment "
-                "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
-                "ReadyToAssignShare: %v, FairShare: %v, ExtraShare: %v, SumOfUsageShare: %v, BelowFairShare: %v)",
-                operation->GetId(),
-                neededAllocationGroupName,
-                assignedUsageShare,
-                readyToAssignShare,
-                fairShare,
-                extraShare,
-                sumOfUsageShare,
-                belowFairShare);
-
             if (belowFairShare) {
                 ++readyToAssignResources.AllocationCount;
                 readyToAssignShare += allocationUsageShare;
@@ -350,6 +336,23 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
                 extraShare += allocationUsageShare;
             }
         }
+
+        YT_LOG_DEBUG(
+            "Finished updating operation resources for allocation group "
+            "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
+            "ReadyToAssignShare: %v, ExtraShare: %v, FairShare: %v, "
+            "ReadyToAssignAllocationCount: %v, ExtraAllocationCount: %v, EmptyAssignmentCount: %v, "
+            "NeededAllocationCount: %v)",
+            operation->GetId(),
+            neededAllocationGroupName,
+            assignedUsageShare,
+            readyToAssignShare,
+            extraShare,
+            fairShare,
+            readyToAssignResources.AllocationCount,
+            extraResources.AllocationCount,
+            emptyAssignmentCount,
+            neededAllocationGroupResources.AllocationCount);
     }
 }
 
