@@ -4,6 +4,8 @@
 #include "versioned_block_reader.h"
 #endif
 
+#include "chunk_column_mapping.h"
+
 #include <yt/yt/ytlib/table_chunk_format/reader_helpers.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>

@@ -1,5 +1,7 @@
 #include "versioned_reader_adapter.h"
 
+#include "chunk_column_mapping.h"
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/table_client/helpers.h>
