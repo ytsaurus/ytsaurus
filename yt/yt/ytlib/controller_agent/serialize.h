@@ -118,6 +118,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((LinkVolumes)                           (302211))
     ((HighThreadCountJobPerTask)             (302212))
     ((PrepareLayersDuration)                 (302213))
+    ((HunkStatistics)                        (302214))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

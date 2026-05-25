@@ -31,10 +31,15 @@ public:
         i64 dataWeight,
         NTableClient::TLegacyOwningKey minKey = {},
         NTableClient::TLegacyOwningKey maxKey = {},
-        EChunkType chunkType = EChunkType::Table);
+        EChunkType chunkType = EChunkType::Table,
+        NChunkClient::EChunkFormat chunkFormat = NChunkClient::EChunkFormat::Unknown,
+        i64 diskSpace = 0);
 
     TChunk* CreateUnconfirmedChunk();
-    TChunk* CreateJournalChunk(bool sealed, bool overlayed);
+    TChunk* CreateJournalChunk(
+        bool sealed,
+        bool overlayed,
+        NChunkClient::EChunkFormat chunkFormat = NChunkClient::EChunkFormat::JournalDefault);
 
     TChunkList* CreateChunkList(EChunkListKind kind = EChunkListKind::Static);
 

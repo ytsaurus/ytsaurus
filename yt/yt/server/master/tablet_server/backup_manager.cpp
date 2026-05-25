@@ -863,11 +863,8 @@ private:
                 tablet->GetId());
             ToProto(currentReq.add_tablet_ids(), tablet->GetId());
 
-            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* chunkList = tablet->GetChunkList(contentType)) {
-                    storeCount += chunkList->Statistics().ChunkCount;
-                }
-            }
+            storeCount += tablet->GetChunkList()->Statistics().ChunkCount;
+            storeCount += tablet->GetHunkChunkList()->HunkStatistics().ChunkCount;
 
             maybeFlush(false);
         }

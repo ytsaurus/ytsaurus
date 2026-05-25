@@ -42,6 +42,7 @@ using namespace NYson;
 
 using NChunkClient::TLegacyReadLimit;
 using NChunkClient::TReadLimit;
+using NChunkClient::EChunkFormat;
 using NChunkClient::ReadLimitToLegacyReadLimit;
 using NChunkClient::ReadLimitFromLegacyReadLimit;
 
@@ -362,11 +363,10 @@ private:
                 if (!OnChunk(child->AsChunk(), lowerKeyLimit, upperKeyLimit)) {
                     return false;
                 }
-            } else {
-                if (!OnChunk(child->AsChunk(), lowerKeyLimit, upperKeyLimit)) {
-                    return false;
-                }
+            } else if (!OnChunk(child->AsChunk(), lowerKeyLimit, upperKeyLimit)) {
+                return false;
             }
+
             updateTabletIndex();
         }
         return true;
@@ -378,7 +378,13 @@ private:
         const TLegacyOwningKey& upperKeyLimit = MaxKey())
     {
         int newChunkCount = ChunkCount_ + 1;
-        int newRowCount = RowCount_ + GetChunkTreeStatistics(chunk).LogicalRowCount;
+        int newRowCount = RowCount_;
+        if (IsHunkChunkFormat(chunk->GetChunkFormat())) {
+            // Naive traverser treats zero row count case differently.
+            ++newRowCount;
+        } else {
+            newRowCount += GetChunkTreeStatistics(chunk).LogicalRowCount;
+        }
 
         auto finally = Finally([&] {
             ChunkCount_ = newChunkCount;
@@ -1469,7 +1475,7 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkChunk)
 
     auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
     auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
-    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
     AttachToChunkList(hunkRoot, {hunkTablet1});
     AttachToChunkList(hunkTablet1, {hunkChunk1});
 
@@ -1506,17 +1512,18 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
     auto* hunkTablet2 = CreateChunkList(EChunkListKind::Hunk);
     auto* hunkTablet3 = CreateChunkList(EChunkListKind::Hunk);
 
-    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk4 = CreateChunk(4, 4, 4, 4, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk5 = CreateChunk(5, 5, 5, 5, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk6 = CreateChunk(6, 6, 6, 6, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk7 = CreateChunk(7, 7, 7, 7, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk4 = CreateChunk(4, 4, 4, 4, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk5 = CreateChunk(5, 5, 5, 5, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk6 = CreateChunk(6, 6, 6, 6, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk7 = CreateChunk(7, 7, 7, 7, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
 
-    AttachToChunkList(hunkRoot, {hunkTablet1, hunkTablet2, hunkTablet3});
-    AttachToChunkList(hunkTablet1, {hunkChunk1, hunkChunk2, hunkChunk3, hunkChunk4});
+    AttachToChunkList(hunkTablet1, {hunkChunk1});
     AttachToChunkList(hunkTablet2, {hunkChunk5, hunkChunk6});
+    AttachToChunkList(hunkRoot, {hunkTablet1, hunkTablet2, hunkTablet3});
+    AttachToChunkList(hunkTablet1, {hunkChunk2, hunkChunk3, hunkChunk4});
     AttachToChunkList(hunkTablet3, {hunkChunk7});
 
     auto context = GetSyncChunkTraverserContext();
@@ -1645,8 +1652,8 @@ TEST_F(TChunkTreeTraversingTest, HunkListInStaticTable)
     auto* hunkBranch2 = CreateChunkList(EChunkListKind::Hunk);
 
     // NB: Journal chunks are intentional here.
-    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk);
-    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
 
     AttachToChunkList(hunkRoot, {hunkBranch1, hunkBranch2});
     AttachToChunkList(hunkBranch1, {hunkChunk1});
@@ -1678,7 +1685,7 @@ TEST_F(TChunkTreeTraversingTest, HunkListInStaticTable)
     }
 
     // NB: Putting journal chunk is intentional.
-    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Journal);
+    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Journal, EChunkFormat::HunkJournal);
     AttachToChunkList(hunkBranch2, {hunkChunk3});
 
     {
@@ -1731,6 +1738,169 @@ TEST_F(TChunkTreeTraversingTest, HunkListInStaticTable)
             TChunkInfo(chunk, 0),
         };
         EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+}
+
+TEST_F(TChunkTreeTraversingTest, TraverseHunkTreeAfterDetach)
+{
+    auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
+
+    auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkTablet2 = CreateChunkList(EChunkListKind::Hunk);
+
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk4 = CreateChunk(4, 4, 4, 4, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk5 = CreateChunk(5, 5, 5, 5, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk6 = CreateChunk(6, 6, 6, 6, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+    auto* hunkChunk7 = CreateChunk(7, 7, 7, 7, {}, {}, EChunkType::Hunk, EChunkFormat::HunkDefault);
+
+    AttachToChunkList(hunkTablet1, {hunkChunk1, hunkChunk2, hunkChunk3, hunkChunk4});
+    AttachToChunkList(hunkTablet2, {hunkChunk5});
+    AttachToChunkList(hunkRoot, {hunkTablet1, hunkTablet2});
+    AttachToChunkList(hunkTablet2, {hunkChunk6, hunkChunk7});
+    AttachToChunkList(hunkTablet2, {hunkChunk2});
+    AttachToChunkList(hunkTablet1, {hunkChunk7});
+
+    auto context = GetSyncChunkTraverserContext();
+    TChunkLists roots{
+        {EChunkListContentType::Main, CreateChunkList(EChunkListKind::Static)},
+        {EChunkListContentType::Hunk, hunkRoot},
+    };
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(1);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetChunkIndex(6);
+
+        TraverseChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            upperLimit,
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
+        EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(hunkChunk2),
+            TChunkInfo(hunkChunk3),
+            TChunkInfo(hunkChunk4),
+            TChunkInfo(hunkChunk7),
+            TChunkInfo(hunkChunk5),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    DetachFromChunkList(
+        hunkTablet2,
+        {hunkChunk6},
+        EChunkDetachPolicy::SortedTablet);
+    DetachFromChunkList(
+        hunkTablet1,
+        {hunkChunk2, hunkChunk4},
+        EChunkDetachPolicy::SortedTablet);
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(0);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetChunkIndex(3);
+
+        TraverseChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            upperLimit,
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
+        EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(hunkChunk1),
+            TChunkInfo(hunkChunk3),
+            TChunkInfo(hunkChunk7),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(3);
+
+        TLegacyReadLimit upperLimit;
+
+        TraverseChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            upperLimit,
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
+        EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(hunkChunk5),
+            TChunkInfo(hunkChunk7),
+            TChunkInfo(hunkChunk2),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[0],
+        TCumulativeStatisticsEntry(0, 3, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics()[1],
+        TCumulativeStatisticsEntry(0, 6, 0));
+    EXPECT_EQ(hunkRoot->CumulativeStatistics().Back(),
+        TCumulativeStatisticsEntry(0, 6, 0));
+    EXPECT_EQ(hunkTablet1->CumulativeStatistics().Back(),
+        TCumulativeStatisticsEntry(0, 3, 0));
+    EXPECT_EQ(hunkTablet2->CumulativeStatistics().Back(),
+        TCumulativeStatisticsEntry(0, 3, 0));
+
+    {
+        for (int startIndex = 0; startIndex < 8; ++startIndex) {
+            for (int finishIndex = 0; finishIndex < 8; ++finishIndex) {
+                auto visitor = New<TTestChunkVisitor>();
+
+                TLegacyReadLimit lowerLimit;
+                if (startIndex != 7) {
+                    lowerLimit.SetChunkIndex(startIndex);
+                }
+
+                TLegacyReadLimit upperLimit;
+                if (finishIndex != 7) {
+                    upperLimit.SetChunkIndex(finishIndex);
+                }
+
+                TraverseChunkTree(
+                    context,
+                    visitor,
+                    roots,
+                    lowerLimit,
+                    upperLimit,
+                    MakeComparator(1),
+                    /*testingOptions*/ {},
+                    EChunkListContentType::Hunk);
+                EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+            }
+        }
     }
 }
 

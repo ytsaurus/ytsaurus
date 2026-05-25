@@ -81,6 +81,11 @@ struct THunkPayloadHeader
     TChecksum Checksum;
 };
 
+//! NB: Hunk data size statistics on master rely on this via ComputeHunkDataSize function.
+static_assert(sizeof(THunkPayloadHeader) == 8, "sizeof(THunkPayloadHeader) == 8");
+
+i64 ComputeHunkDataSize(const NProto::THunkChunkRef& ref);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef GetAndValidateHunkPayload(

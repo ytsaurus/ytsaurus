@@ -370,6 +370,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                 NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
                 ToProto(hunkChunkRefsExt.mutable_refs(), hunkStoreRefs);
                 SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
+
+                // NB: We do not have THunkChunkMetasExt here because it is only used to
+                // infer block size parameter for erasure hunk chunks when globalizing refs,
+                // but refs of journal hunk chunks can only be global and are never localalized.
             });
 
         if (tabletSnapshot->Settings.MountConfig->InsertMetaUponStoreUpdate) {
@@ -500,7 +504,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         for (const auto& hunkStoreRef : hunkStoreRefs) {
             auto& descriptor = result.HunkChunksToAdd.emplace_back();
             ToProto(descriptor.mutable_chunk_id(), hunkStoreRef.ChunkId);
-            // TODO(aleksandra-zh): add meta as well.
+            // TODO(aleksandra-zh, akozhikhov): add meta as well.
         }
 
         if (tabletSnapshot->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {

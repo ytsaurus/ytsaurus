@@ -264,6 +264,7 @@
     XX(HunkMedia, hunk_media) \
     XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkPrimaryMediumId, hunk_primary_medium_id) \
+    XX(HunkReferenceStatistics, hunk_reference_statistics) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \

@@ -117,6 +117,8 @@ DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
+DECLARE_MASTER_OBJECT_TYPE(TMainTreeChunkList)
+DECLARE_MASTER_OBJECT_TYPE(THunkTreeChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkTree)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
@@ -135,6 +137,7 @@ class TChunkRequisition;
 class TChunkRequisitionRegistry;
 
 struct TChunkTreeStatistics;
+struct THunkChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
 
 struct TChunkOwnerDataStatistics;

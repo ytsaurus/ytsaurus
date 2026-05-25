@@ -213,6 +213,7 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList(EChunkListContentType ty
             return chunkList;
 
         case EUpdateMode::Append:
+            YT_VERIFY(type == EChunkListContentType::Main);
             if (GetType() == EObjectType::Journal) {
                 return chunkList;
             } else {
@@ -416,10 +417,9 @@ TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
             break;
 
         case EUpdateMode::Overwrite:
-            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                if (auto* chunkList = GetSnapshotChunkList(contentType)) {
-                    updateStatistics += chunkList->Statistics().ToDataStatistics();
-                }
+            updateStatistics += GetSnapshotChunkList()->Statistics().ToDataStatistics();
+            if (auto* hunkChunkList = GetSnapshotHunkChunkList()) {
+                updateStatistics += hunkChunkList->HunkStatistics().ToDataStatistics();
             }
             break;
 

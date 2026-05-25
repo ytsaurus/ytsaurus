@@ -3,6 +3,7 @@
 #include "chunk_owner_base.h"
 #include "chunk_manager.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -23,6 +24,10 @@ TChunkTreeBalancer::TChunkTreeBalancer(
 bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerMode settingsMode)
 {
     if (!root->Parents().Empty()) {
+        return false;
+    }
+
+    if (IsHunkRelatedChunkList(root)) {
         return false;
     }
 
@@ -54,6 +59,7 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerM
 TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkList* root)
 {
     YT_VERIFY(root->GetKind() == EChunkListKind::Static);
+    YT_VERIFY(!IsHunkRelatedChunkList(root));
 
     auto oldStatistics = root->Statistics();
 
@@ -97,6 +103,10 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkLis
     YT_VERIFY(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
     YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+    YT_VERIFY(newStatistics.HunkDataWeight == oldStatistics.HunkDataWeight);
+    YT_VERIFY(newStatistics.HunkDataSize == oldStatistics.HunkDataSize);
+    YT_VERIFY(newStatistics.HunkRegularDiskSpace == oldStatistics.HunkRegularDiskSpace);
+    YT_VERIFY(newStatistics.HunkErasureDiskSpace == oldStatistics.HunkErasureDiskSpace);
 
     // Should we schedule a requisition update here? We shouldn't. Here's why.
     // First of all, it would be prohibitively expensive (trust me, I checked).
@@ -151,9 +161,11 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::AppendChunkTree(
     while (!stack.empty()) {
         auto& currentEntry = stack.top();
         auto* currentChunkTree = currentEntry.ChunkTree;
+        YT_VERIFY(currentChunkTree->GetType() != EObjectType::ChunkList ||
+            !IsHunkRelatedChunkList(currentChunkTree->AsChunkList()));
 
         if (currentChunkTree->GetType() == EObjectType::ChunkList &&
-            currentChunkTree->AsChunkList()->Statistics().Rank > 1)
+            currentChunkTree->AsChunkList()->GetRank() > 1)
         {
             auto* currentChunkList = currentChunkTree->AsChunkList();
             YT_VERIFY(currentChunkList->GetKind() == EChunkListKind::Static);
@@ -190,7 +202,7 @@ bool TChunkTreeBalancer::AppendChild(
     if (!children->empty()) {
         auto* lastChild = children->back()->AsChunkList();
         if (std::ssize(lastChild->Children()) < settings->MinChunkListSize) {
-            YT_VERIFY(lastChild->Statistics().Rank <= 1);
+            YT_VERIFY(lastChild->GetRank() <= 1);
             YT_VERIFY(std::ssize(lastChild->Children()) <= settings->MaxChunkListSize);
             Callbacks_->FlushObjectUnrefs();
             if (Callbacks_->GetObjectRefCounter(lastChild) > 0) {
@@ -237,7 +249,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
     Callbacks_->FlushObjectUnrefs();
     YT_VERIFY(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
 
-    YT_VERIFY(lastChunkList->Statistics().Rank <= 1);
+    YT_VERIFY(lastChunkList->GetRank() <= 1);
     const auto& settings = GetConfig()->GetSettingsForMode(EChunkTreeBalancerMode::Strict);
     YT_VERIFY(std::ssize(lastChunkList->Children()) < settings->MinChunkListSize);
 

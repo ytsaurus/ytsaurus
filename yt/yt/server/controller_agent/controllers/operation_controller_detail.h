@@ -357,7 +357,9 @@ public:
     TAutoMergeDirector* GetAutoMergeDirector() override;
 
     const TChunkListPoolPtr& GetOutputChunkListPool() const override;
+    const TChunkListPoolPtr& GetOutputHunkChunkListPool() const override;
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
+    NChunkClient::TChunkListId ExtractOutputHunkChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     void ReleaseChunkTrees(
         const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
@@ -1119,8 +1121,10 @@ private:
 
     NObjectClient::TCellTagList IntermediateOutputCellTagList_;
     TChunkListPoolPtr OutputChunkListPool_;
+    TChunkListPoolPtr OutputHunkChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputHunkChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
     NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
