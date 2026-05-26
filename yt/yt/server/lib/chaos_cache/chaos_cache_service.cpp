@@ -65,7 +65,7 @@ public:
             replicationCardId,
             timestamp);
 
-        ReplicationCardsWatcher_->OnReplcationCardUpdated(replicationCardId, replicationCard, timestamp);
+        ReplicationCardsWatcher_->OnReplicationCardUpdated(replicationCardId, replicationCard, timestamp);
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
