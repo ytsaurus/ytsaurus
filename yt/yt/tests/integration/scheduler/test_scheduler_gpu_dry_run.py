@@ -428,11 +428,21 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
 
     @authors("yaishenka")
     def test_vanilla_more_gpu_goes_first(self):
+        # We want both operations to be planned in the same iteration so that the GPU-priority
+        # ordering (more GPU goes first) is what decides the assignment creation order. Racing
+        # operation registration against the 100ms plan tick flaps under CI load: op1 can be
+        # planned alone before op2 is registered.
+        #
+        # Instead, disable planning by setting a huge plan update period, register both
+        # operations, then re-enable planning. Lowering the period kickstarts a single plan
+        # update (see TPeriodicExecutor::ShouldKickstart) that sees both operations at once.
+        update_pool_tree_config_option(
+            "gpu", "gpu_scheduling_policy/plan_update_period", 1000000, strict_value_validation=True)
+
         op1 = run_sleeping_vanilla(
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
             job_count=1,
             track=False,
-            spec={"testing": {"delay_inside_materialize": 100}},
         )
         op2 = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
@@ -443,7 +453,14 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         wait(lambda: len(op1.get_running_jobs()) == 1)
         wait(lambda: len(op2.get_running_jobs()) == 1)
 
+        # Both operations are registered in the policy, but have no assignments yet because
+        # planning is effectively disabled.
         wait_for_operations_in_gpu_policy_orchid(operation_count=2)
+
+        # Kickstart a single planning iteration that sees both operations.
+        update_pool_tree_config_option(
+            "gpu", "gpu_scheduling_policy/plan_update_period", 100, strict_value_validation=True)
+
         wait_for_assignments_in_gpu_policy_orchid(op1, assignment_count=1)
         wait_for_assignments_in_gpu_policy_orchid(op2, assignment_count=1)
 
