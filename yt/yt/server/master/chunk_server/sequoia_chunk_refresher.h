@@ -30,6 +30,9 @@ struct TSequoiaChunkRefresherShardStatus
     EGlobalSequoiaChunkRefreshShardStatus GlobalRefreshStatus = EGlobalSequoiaChunkRefreshShardStatus::Disabled;
     i64 GlobalRefreshChunksProcessed = 0;
     TChunkId GlobalRefreshLastProcessedChunkId = NullChunkId;
+    ui64 GlobalRefreshLastProcessedSmallChunkIdHash = 0;
+
+    void ResetGlobalRefreshChunksProcessed();
 
     REGISTER_YSON_STRUCT_LITE(TSequoiaChunkRefresherShardStatus);
 
