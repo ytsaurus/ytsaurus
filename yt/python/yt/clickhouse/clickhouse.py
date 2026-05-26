@@ -16,11 +16,6 @@ from yt.wrapper.yson import dumps, to_yson_type
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 from copy import deepcopy
 from tempfile import NamedTemporaryFile
 
@@ -212,7 +207,7 @@ def prepare_artifacts(artifact_path,
                 else:
                     dump_suffix = None
             if dump_suffix is None:
-                dump_suffix = ''.join(random.choice("0123456789abcdef") for i in xrange(16))
+                dump_suffix = ''.join(random.choice("0123456789abcdef") for i in range(16))
                 logger.debug("Dumping suffix is random = %s", dump_suffix)
 
         for table_path in (stderr_table_path, core_table_path):

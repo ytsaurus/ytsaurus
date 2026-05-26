@@ -10,8 +10,6 @@ ELSE()
 
         # It is necessary for possible presence of tables in YSON format in local cypress dir.
         yt/yt/python/yt_yson_bindings
-
-        contrib/python/six
     )
 
     PY_SRCS(

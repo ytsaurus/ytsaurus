@@ -1,8 +1,3 @@
-try:
-    from yt.packages.six import iteritems
-except ImportError:
-    from six import iteritems
-
 from yt.wrapper.common import generate_uuid
 
 import logging
@@ -146,6 +141,6 @@ class PortoSubprocess(object):
             return key + "=" + value.replace(';', '\\;')
         if env is not None:
             environment = []
-            for key, value in iteritems(env):
+            for key, value in env.items():
                 environment.append(_format_key(key, value))
             self._container.SetProperty("env", ";".join(environment))

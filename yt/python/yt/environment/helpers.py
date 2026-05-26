@@ -23,12 +23,7 @@ except ImportError:
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six import iteritems, PY3, text_type, Iterator
-    from yt.packages.six.moves import xrange, map as imap
-except ImportError:
-    from six import iteritems, PY3, text_type, Iterator
-    from six.moves import xrange, map as imap
+from collections.abc import Iterator
 
 import codecs
 import collections
@@ -54,9 +49,9 @@ else:
 
 logger = logging.getLogger("YtLocal")
 
-if PY3:
-    def cmp(a, b):
-        return (a > b) - (a < b)
+
+def cmp(a, b):
+    return (a > b) - (a < b)
 
 
 def _dump_netstat(dump_file_path):
@@ -112,7 +107,7 @@ class OpenPortIteratorNonArcadia(Iterator):
         self.local_port_range = local_port_range
         if self.local_port_range is None and os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
             with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
-                start, end = list(imap(int, f.read().split()))
+                start, end = list(map(int, f.read().split()))
                 self.local_port_range = start, min(end, start + 10000)
 
     def release(self):
@@ -197,7 +192,7 @@ class OpenPortIteratorNonArcadia(Iterator):
 
     def __next__(self):
         error_counter = collections.Counter()
-        for _ in xrange(self.GEN_PORT_ATTEMPTS):
+        for _ in range(self.GEN_PORT_ATTEMPTS):
             port = self._next_impl(verbose=False, error_counter=error_counter)
             if port is not None:
                 return port
@@ -252,13 +247,13 @@ def is_port_opened(port, verbose=False):
 
 def versions_cmp(version1, version2):
     def normalize(v):
-        return list(imap(int, v.split(".")))
+        return list(map(int, v.split(".")))
     return cmp(normalize(version1), normalize(version2))
 
 
 def _fix_yson_booleans(obj):
     if isinstance(obj, dict):
-        for key, value in list(iteritems(obj)):
+        for key, value in list(obj.items()):
             _fix_yson_booleans(value)
             if isinstance(value, yson.YsonBoolean):
                 obj[key] = True if value else False
@@ -271,14 +266,12 @@ def _fix_yson_booleans(obj):
 def write_config(config, filename, format="yson"):
     with open(filename, "wb") as f:
         if format == "json":
-            writer = lambda stream: stream  # noqa
-            if PY3:
-                writer = codecs.getwriter("utf-8")
+            writer = codecs.getwriter("utf-8")
             json.dump(_fix_yson_booleans(config), writer(f), indent=4)
         elif format == "yson":
             yson.dump(config, f, yson_format="pretty")
         else:
-            if isinstance(config, text_type):
+            if isinstance(config, str):
                 config = config.encode("utf-8")
             f.write(config)
         f.write(b"\n")
@@ -289,9 +282,7 @@ def read_config(filename, format="yson"):
         if format == "yson":
             return yson.load(f)
         elif format == "json":
-            reader = lambda stream: stream  # noqa
-            if PY3:
-                reader = codecs.getreader("utf-8")
+            reader = codecs.getreader("utf-8")
             return json.load(reader(f))
         else:
             return to_native_str(f.read())

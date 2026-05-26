@@ -15,11 +15,6 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace, MB, YtError
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
-try:
-    from yt.packages.six import iteritems, itervalues
-except ImportError:
-    from six import iteritems, itervalues
-
 import yt.wrapper as yt
 
 import os
@@ -268,7 +263,7 @@ class YtTestEnvironment(object):
 
         self.config["pickling"]["python_binary"] = sys.executable
         self.config["user_job_spec_defaults"] = {
-            "environment": dict([(key, value) for key, value in iteritems(os.environ) if "PYTHON" in key])
+            "environment": dict([(key, value) for key, value in os.environ.items() if "PYTHON" in key])
         }
 
         if config["backend"] != "rpc":
@@ -303,7 +298,7 @@ class YtTestEnvironment(object):
         self.env._create_cluster_client().set("//sys/clusters", {cluster_name: cluster_connection})
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
-        for module in list(itervalues(sys.modules)):
+        for module in list(sys.modules.values()):
             hasattr(module, "__file__")
 
     def cleanup(self, remove_operations_archive=True):

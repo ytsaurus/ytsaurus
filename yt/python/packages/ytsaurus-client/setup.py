@@ -46,7 +46,6 @@ def main():
             "decorator >=4.4.2, ~=4.4",
             "tqdm >=4.67.1, ~=4.66",
             "argcomplete >=3.6.2, ~=3.1",
-            "six >=1.17.0, ~=1.16",
             "charset-normalizer >=3.3.0, ~=3.3",
             "typing-extensions >=4.13.2, ~=4.8",
             "distro >=1.6.0, ~=1.6",

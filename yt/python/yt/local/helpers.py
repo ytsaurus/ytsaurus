@@ -1,8 +1,4 @@
-try:
-    from yt.packages.six.moves import _thread as thread
-except ImportError:
-    from six.moves import _thread as thread
-
+import _thread as thread
 from threading import Thread
 import time
 import os

@@ -14,11 +14,6 @@ from yt.common import YtError, require, is_process_alive, get_fqdn
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six.moves import map as imap, filter as ifilter
-except ImportError:
-    from six.moves import map as imap, filter as ifilter
-
 import yt.wrapper as yt
 
 import errno
@@ -78,7 +73,7 @@ def _get_bool_from_env(name, default=False):
 
 def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
-        return list(imap(int, f))
+        return list(map(int, f))
 
 
 def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only):
@@ -366,7 +361,7 @@ def start(master_count=1,
     pids_filename = os.path.join(environment.path, "pids.txt")
     if os.path.isfile(pids_filename):
         pids = _read_pids_file(pids_filename)
-        alive_pids = list(ifilter(is_process_alive, pids))
+        alive_pids = list(filter(is_process_alive, pids))
         for pid in alive_pids:
             logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
             _safe_kill(pid)
