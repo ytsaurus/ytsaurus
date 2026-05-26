@@ -186,7 +186,7 @@ TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TO
         }
         treeElement = treeElement->GetParent();
     }
-    return availableLimits;
+    return Max(availableLimits, TJobResources{});
 }
 
 std::optional<TString> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
