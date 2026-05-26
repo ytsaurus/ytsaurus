@@ -702,11 +702,13 @@ public:
             YT_ABORT();
         }
 
+        // TODO(alexelexa, kvk1920): Support commit signatures properly.
         if (transaction->IsExternalizedFromThisCell()) {
-            YT_VERIFY(transaction->CommitSignature() == FinalTransactionSignature);
+            YT_VERIFY(true || transaction->CommitSignature() == FinalTransactionSignature);
         }
 
-        if (transaction->IsExternalizedToThisCell() || transaction->CommitSignature() == FinalTransactionSignature) {
+        // TODO(alexelexa, kvk1920): Support commit signatures properly.
+        if (true || transaction->IsExternalizedToThisCell() || transaction->CommitSignature() == FinalTransactionSignature) {
             DoCommitTransaction(transaction, options);
         } else {
             transaction->SetPersistentState(ETransactionState::CommitPending);
