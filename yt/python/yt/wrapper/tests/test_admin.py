@@ -7,8 +7,9 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 
 import yt.wrapper as yt
 
-import pytest
 import os
+import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc_v3")
@@ -57,3 +58,68 @@ class TestAdminCommands(object):
             node: {"decommission": 1},
         }
         assert not yt.get(path + "/@decommissioned")
+
+
+@pytest.mark.usefixtures("yt_env_hydra")
+class TestHydraCommands(object):
+    @authors("danilalexeev")
+    def test_hydra_freeze(self):
+        addrs = yt.list("//sys/primary_masters")
+        cell_id = yt.get("//sys/@cell_id")
+
+        def get_hydra_monitoring(addr):
+            return yt.get(
+                f"//sys/primary_masters/{addr}/orchid/monitoring/hydra",
+                suppress_upstream_sync=True,
+                suppress_transaction_coordinator_sync=True)
+
+        follower_addrs = [addr for addr in addrs if get_hydra_monitoring(addr)["active_follower"]]
+        leader_addr = [addr for addr in addrs if addr not in follower_addrs][0]
+        assert len(follower_addrs) + 1 == len(addrs)
+
+        term = get_hydra_monitoring(addrs[0])["term"]
+
+        def freeze_hydra_peer(addr):
+            get_driver_instance(None).freeze_hydra_peer(addr, cell_id=cell_id, term=term)
+
+        with ThreadPoolExecutor() as executor:
+            list(executor.map(freeze_hydra_peer, follower_addrs))
+
+        for addr in follower_addrs:
+            wait(lambda: get_hydra_monitoring(addr).get("frozen", False), f"{addr} is not frozen")
+
+        for addr in follower_addrs:
+            wait(
+                lambda a=addr: (
+                    lambda m=get_hydra_monitoring(a): m["logged_sequence_number"] > m["committed_sequence_number"]
+                )(),
+                f"{addr} has no uncommitted records to truncate",
+            )
+
+        get_driver_instance(None).schedule_restart(leader_addr, cell_id=cell_id)
+
+        seq_nums = [get_hydra_monitoring(addr)["committed_sequence_number"] for addr in follower_addrs]
+
+        def truncate_changelog(addr, seq_num):
+            def try_truncate():
+                try:
+                    get_driver_instance(None).truncate_changelog(addr, cell_id=cell_id, last_sequence_number=seq_num)
+                    return True
+                except yt.errors.YtError:
+                    # Cannot truncate changelog while logging mutations.
+                    return False
+            wait(try_truncate, f"failed to truncate changelog on {addr}")
+
+        with ThreadPoolExecutor() as executor:
+            list(executor.map(truncate_changelog, follower_addrs, seq_nums))
+
+        def check_available():
+            try:
+                yt.set("//sys/@test", 42)
+                return True
+            except yt.errors.YtError:
+                return False
+
+        wait(check_available)
+
+        assert yt.get("//sys/@test") == 42

@@ -36,6 +36,10 @@ public:
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, DiscombobulateNonvotingPeers,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto, Freeze,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto, TruncateChangelog,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

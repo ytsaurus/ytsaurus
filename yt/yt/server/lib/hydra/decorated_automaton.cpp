@@ -1433,6 +1433,8 @@ void TDecoratedAutomaton::DoApplyMutation(
             formatter->AppendNumber(logicalMutationVersion.RecordId);
             formatter->AppendString("), SequenceNumber: ");
             formatter->AppendNumber(mutationContext->GetSequenceNumber());
+            formatter->AppendString(", Term: ");
+            formatter->AppendNumber(mutationContext->GetTerm());
             formatter->AppendString(", MutationType: ");
             formatter->AppendString(mutationContext->Request().Type);
             if (mutationId) {

@@ -55,11 +55,6 @@ public:
             YT_UNIMPLEMENTED();
         }
 
-        void OnDiscombobulate(i64 /*leaderSequenceNumber*/) override
-        {
-            YT_UNIMPLEMENTED();
-        }
-
         TPeerPriority GetPriority() override
         {
             YT_UNIMPLEMENTED();

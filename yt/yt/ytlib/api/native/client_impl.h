@@ -750,6 +750,21 @@ public: \
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, FreezeHydraPeer, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TFreezeHydraPeerOptions& options),
+        (cellId, address, options))
+    IMPLEMENT_METHOD(void, TruncateChangelog, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TTruncateChangelogOptions& options),
+        (cellId, address, options))
+    IMPLEMENT_METHOD(void, ScheduleRestart, (
+        NObjectClient::TCellId cellId,
+        const std::string& address,
+        const TScheduleRestartOptions& options),
+        (cellId, address, options))
     IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
         const TResetDynamicallyPropagatedMasterCellsOptions& options),
         (options))
