@@ -17,4 +17,6 @@ func extendRootCmd(rootCmd *cobra.Command) {
 
 	rootCmd.Flags().String("proxy", "", "The cluster proxy from which to obtain information about the clusters that will be included in the `include` parameter. Clusters are specified as keys of the `//sys/clusters` node of the `document` type.")
 	rootCmd.Flags().String("chyt-cluster-name", "", "CHYT cluster to operate")
+
+	rootCmd.Flags().String("logs-timezone", "UTC", "Timezone in which logs are written")
 }

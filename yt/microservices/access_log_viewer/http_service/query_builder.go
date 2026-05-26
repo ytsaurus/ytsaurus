@@ -252,10 +252,10 @@ func GetPathClause(request AccessLogRequest) (clause string, settings map[string
 	return
 }
 
-func GetInstantClause(request AccessLogRequest) (clause string) {
-	clause = fmt.Sprintf("toDateTime(instant) >= toDateTime(%d)", int64(request.Begin))
+func GetInstantClause(logsTimezone string, request AccessLogRequest) (clause string) {
+	clause = fmt.Sprintf("toDateTime(instant, '%s') >= toDateTime(%d, '%s')", logsTimezone, int64(request.Begin), logsTimezone)
 	if int64(request.End) > 0 {
-		clause = fmt.Sprintf("%s AND toDateTime(instant) < toDateTime(%d)", clause, int64(request.End))
+		clause = fmt.Sprintf("%s AND toDateTime(instant, '%s') < toDateTime(%d, '%s')", clause, logsTimezone, int64(request.End), logsTimezone)
 	}
 	return
 }
@@ -266,7 +266,7 @@ func MergeMaps(dst map[string]string, src map[string]string) {
 	}
 }
 
-func GetWhereClause(subject string, request AccessLogRequest) (clause string, settings map[string]string, err error) {
+func GetWhereClause(subject string, request AccessLogRequest, logsTimezone string) (clause string, settings map[string]string, err error) {
 	settings = make(map[string]string)
 	userNameFilterClause, settingsUpd, err := GetUserNameFilterClause(request)
 	if err != nil {
@@ -283,7 +283,7 @@ func GetWhereClause(subject string, request AccessLogRequest) (clause string, se
 		GetTypeFilterClause(request),
 		GetMethodFilterClause(request),
 		pathClause,
-		GetInstantClause(request),
+		GetInstantClause(logsTimezone, request),
 		GetMetadataScopeFilterClause(request),
 		GetSubjectFilterClause(request.Cluster, subject),
 	}
@@ -294,16 +294,16 @@ func GetWhereClause(subject string, request AccessLogRequest) (clause string, se
 	return
 }
 
-func GetFromClause(request AccessLogRequest, snapshotRoot string) (clause string, settings map[string]string, err error) {
+func GetFromClause(request AccessLogRequest, snapshotRoot, logsTimezone string) (clause string, settings map[string]string, err error) {
 	settings = make(map[string]string)
 	if int64(request.Begin) == 0 {
 		err = fmt.Errorf("request begin must be greather than zero")
 		return
 	}
 	if int64(request.End) > 0 {
-		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d), toDateTime(%d)))", snapshotRoot, request.Cluster, int64(request.Begin), int64(request.End))
+		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d, '%s'), toDateTime(%d, '%s')))", snapshotRoot, request.Cluster, int64(request.Begin), logsTimezone, int64(request.End), logsTimezone)
 	} else {
-		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d)))", snapshotRoot, request.Cluster, int64(request.Begin))
+		clause = fmt.Sprintf("  ytTables(ytListLogTables('%s/%s', toDateTime(%d, '%s')))", snapshotRoot, request.Cluster, int64(request.Begin), logsTimezone)
 	}
 	return
 }
@@ -341,7 +341,7 @@ func GetSelectFieldsClauseGet(request AccessLogRequest) string {
 	return "  " + strings.Join(selectors, ",\n  ")
 }
 
-func GetQuery(subject string, request AccessLogRequest, accessMasterLogRoot string, index, limit uint32) (query string, settings map[string]string, err error) {
+func GetQuery(subject string, request AccessLogRequest, accessMasterLogRoot string, index, limit uint32, logsTimezone string) (query string, settings map[string]string, err error) {
 	settings = make(map[string]string)
 	settings["priority"] = GetQueryPriority()
 	//settings["max_result_rows"] = QueryTrackerRowCountLimitStr
@@ -350,12 +350,12 @@ func GetQuery(subject string, request AccessLogRequest, accessMasterLogRoot stri
 	request.PathRegex = espaceClickHouseStr(request.PathRegex)
 	request.UserRegex = espaceClickHouseStr(request.UserRegex)
 
-	fromClause, settingsUpd, err := GetFromClause(request, accessMasterLogRoot)
+	fromClause, settingsUpd, err := GetFromClause(request, accessMasterLogRoot, logsTimezone)
 	if err != nil {
 		return
 	}
 	MergeMaps(settings, settingsUpd)
-	whereClause, settingsUpd, err := GetWhereClause(subject, request)
+	whereClause, settingsUpd, err := GetWhereClause(subject, request, logsTimezone)
 	if err != nil {
 		return
 	}
@@ -375,8 +375,8 @@ func GetQuery(subject string, request AccessLogRequest, accessMasterLogRoot stri
 	return
 }
 
-func GetVisibleTimeRangeQuery(accessMasterLogRoot string, cluster string) (query string, settings map[string]string) {
+func GetVisibleTimeRangeQuery(accessMasterLogRoot, cluster, logsTimezone string) (query string, settings map[string]string) {
 	settings = make(map[string]string)
-	query = fmt.Sprintf("SELECT toInt64(min(toDateTime($key))) as earliest, toInt64(max(toDateTime($key))) as latests FROM ytListLogTables('%s/%s')", accessMasterLogRoot, cluster)
+	query = fmt.Sprintf("SELECT toInt64(min(toDateTime($key, '%s'))) as earliest, toInt64(max(toDateTime($key, '%s'))) as latests FROM ytListLogTables('%s/%s')", logsTimezone, logsTimezone, accessMasterLogRoot, cluster)
 	return
 }

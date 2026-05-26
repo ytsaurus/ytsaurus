@@ -157,6 +157,7 @@ microservices:
         port: 80
       config:
         chytAlias: "ch_public"
+        logsTimezone: "UTC"
     rawLogPreprocessing:
       enabled: true
       schedule: "*/15 * * * *"
