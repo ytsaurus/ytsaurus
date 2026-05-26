@@ -767,7 +767,7 @@ bool AreProtoMessagesEqual(
 bool AreProtoMessagesEqualByPath(
     const Message& lhs,
     const Message& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options)
 {
     THROW_ERROR_EXCEPTION_IF(options.MessageDifferencer,
@@ -786,12 +786,12 @@ bool AreProtoMessagesEqualByPath(
 
 bool HasProtobufField(
     const google::protobuf::Message& message,
-    const std::string& fieldName)
+    TStringBuf fieldName)
 {
     auto throwPresenceCheckError = [&] (const std::string& reason) {
         THROW_ERROR_EXCEPTION("Could not check presence for field %Qv of %Qv: %v",
-            message.GetTypeName(),
             fieldName,
+            message.GetTypeName(),
             reason);
     };
 
@@ -813,7 +813,7 @@ bool HasProtobufField(
 
 void ClearProtobufFieldByPath(
     Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool skipMissing)
 {
     if (path.empty()) {
@@ -831,7 +831,7 @@ void ClearProtobufFieldByPath(
 
 void SetProtobufFieldByPath(
     Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const INodePtr& value,
     const TProtobufWriterOptions& options,
     bool recursive)
@@ -842,7 +842,7 @@ void SetProtobufFieldByPath(
 
 void SetProtobufFieldByPath(
     Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& value,
     bool discardUnknownFields,
     bool recursive)
@@ -857,7 +857,7 @@ template <>
 bool AreScalarAttributesEqualByPath(
     const NYson::TYsonString& lhs,
     const NYson::TYsonString& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& /*options*/)
 {
     if (path.empty()) {

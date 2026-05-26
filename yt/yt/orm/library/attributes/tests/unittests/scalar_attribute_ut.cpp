@@ -483,7 +483,7 @@ public:
 
     void SetProtobufFieldByPath(
         NProtoBuf::Message& message,
-        const NYPath::TYPath& path,
+        NYPath::TYPathBuf path,
         const NYTree::INodePtr& value,
         const NYson::TProtobufWriterOptions& options = {},
         bool recursive = false)
@@ -925,7 +925,7 @@ TEST_P(TSetAttributeTest, UnknownYsonFields)
 TEST_P(TSetAttributeTest, UnknownYsonFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
-    options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
+    options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf path) {
         if (path == "/nested_message/unknown_map") {
             return NYson::EUnknownYsonFieldsMode::Keep;
         }
@@ -964,7 +964,7 @@ TEST_P(TSetAttributeTest, UnknownYsonFieldsByPath)
 TEST_P(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
-    options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath&) {
+    options.UnknownYsonFieldModeResolver = [] (NYPath::TYPathBuf) {
         return NYson::EUnknownYsonFieldsMode::Keep;
     };
 
@@ -1083,7 +1083,7 @@ class TScalarAttributesEqualitySuite
     : public ::testing::Test
 {
 public:
-    bool AreEqual(const NYPath::TYPath& path, const TComparisonOptions& options = {})
+    bool AreEqual(NYPath::TYPathBuf path, const TComparisonOptions& options = {})
     {
         return NAttributes::AreScalarAttributesEqualByPath(Message1, Message2, path, options);
     }

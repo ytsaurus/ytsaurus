@@ -118,7 +118,7 @@ TYsonString NewMergeValueLists(std::vector<TAttributeValue> attributeValues, EYs
     return resultBuilder.Flush();
 }
 
-std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(const NYPath::TYPath& path)
+std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(NYPath::TYPathBuf path)
 {
     NYPath::TTokenizer tokenizer(path);
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
@@ -190,7 +190,7 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     return result;
 }
 
-void RemoveEntitiesOnPath(NYTree::INodePtr node, const NYPath::TYPath& path)
+void RemoveEntitiesOnPath(NYTree::INodePtr node, NYPath::TYPathBuf path)
 {
     NYTree::WalkNodeByYPath(node, path, {
         .MissingAttributeHandler = [] (const std::string& /*key*/) {
@@ -639,7 +639,7 @@ bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
+bool IsOnePrefixOfAnother(NYPath::TYPathBuf lhs, NYPath::TYPathBuf rhs)
 {
     auto [lit, rit] = std::ranges::mismatch(lhs, rhs);
     if (lit == lhs.end() && (rit == rhs.end() || *rit == '/')) {

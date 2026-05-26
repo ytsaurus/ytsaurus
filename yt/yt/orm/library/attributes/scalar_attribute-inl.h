@@ -25,7 +25,7 @@ bool AreProtoMessagesEqual(
 bool AreProtoMessagesEqualByPath(
     const NProtoBuf::Message& lhs,
     const NProtoBuf::Message& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options);
 
 // List all supported types explicitly for safety.
@@ -44,7 +44,7 @@ concept CScalarAttributeTriviallyComparable =
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-bool AreScalarAttributesEqualAsYTrees(const T& lhs, const T& rhs, const NYPath::TYPath& path)
+bool AreScalarAttributesEqualAsYTrees(const T& lhs, const T& rhs, NYPath::TYPathBuf path)
 {
     auto lhsNode = GetNodeByPathOrEntity(NYTree::ConvertToNode(lhs), path);
     auto rhsNode = GetNodeByPathOrEntity(NYTree::ConvertToNode(rhs), path);
@@ -197,7 +197,7 @@ template <class T>
 bool AreScalarAttributesEqualByPath(
     const T& lhs,
     const T& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options)
 {
     if (path.empty()) {
@@ -215,14 +215,14 @@ template <class T>
 bool AreScalarAttributesEqualByPath(
     const std::vector<T>& lhs,
     const std::vector<T>& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options)
 {
     if (path.empty()) {
         return AreScalarAttributesEqual(lhs, rhs, options);
     }
 
-    if (!path.StartsWith("/*")) {
+    if (!path.starts_with("/*")) {
         return AreScalarAttributesEqualByPath<std::vector<T>>(lhs, rhs, path, options);
     }
 
