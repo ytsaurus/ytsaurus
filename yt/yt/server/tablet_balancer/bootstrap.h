@@ -29,6 +29,7 @@ struct IBootstrap
     virtual std::string GetClusterName() const = 0;
     virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
     virtual NNodeTrackerClient::TAddressMap GetLocalAddresses() const = 0;
+    virtual void ExecuteBalancerIteration(TDryRunConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

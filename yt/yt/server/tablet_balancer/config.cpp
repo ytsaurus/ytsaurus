@@ -251,6 +251,8 @@ void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default();
+    registrar.Parameter("dry_run", &TThis::DryRun)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
@@ -260,6 +262,23 @@ void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
             dynamicConfigPath = config->RootPath + "/config";
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDryRunConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("is_dry_run", &TThis::IsDryRun)
+        .Default(false);
+    registrar.Parameter("create_tablet_actions", &TThis::CreateTabletActions)
+        .Default(false);
+
+    registrar.Parameter("bundle", &TThis::Bundle)
+        .Default();
+    registrar.Parameter("groups", &TThis::Groups)
+        .Default();
+    registrar.Parameter("mode", &TThis::Mode)
+        .Default(NTabletBalancerClient::EBalancingRequestMode::Reshard);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
