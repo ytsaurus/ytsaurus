@@ -53,7 +53,10 @@ public:
     bool HasPendingActions(const std::string& bundleName) const override;
     void CancelPendingActions(const std::string& bundleName) override;
 
-    void Start(TTransactionId prerequisiteTransactionId) override;
+    int GetPendingActionCount(const std::string& bundleName) const override;
+    TFuture<void> WaitForAllActions() override;
+
+    void Start(TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig) override;
     void Stop() override;
 
     void Reconfigure(const TActionManagerConfigPtr& config) override;
@@ -75,6 +78,8 @@ private:
     TActionManagerConfigPtr Config_;
     NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     NConcurrency::TPeriodicExecutorPtr CreateActionExecutor_;
+    TDryRunConfigPtr DryRunConfig_;
+    TPromise<void> AllActionsFinished_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PendingActionsLock_);
     THashMap<std::string, std::deque<TActionDescriptor>> PendingActionDescriptors_;
@@ -145,6 +150,7 @@ TActionManager::TActionManager(
         Invoker_,
         BIND(&TActionManager::TryCreatePendingActions, MakeWeak(this)),
         Config_->TabletActionPollingPeriod))
+    , DryRunConfig_(New<TDryRunConfig>())
 { }
 
 void TActionManager::ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor)
@@ -211,6 +217,12 @@ void TActionManager::TryCreatePendingActions()
 {
     TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("CreatePendingActions"));
     try {
+        if (DryRunConfig_->IsDryRun && !DryRunConfig_->CreateTabletActions) {
+            YT_LOG_INFO("Skip creation of tablet actions in pure dry run mode (DryRunConfig: %v)",
+                ConvertToYsonString(DryRunConfig_, EYsonFormat::Text));
+            return;
+        }
+
         CreatePendingActions();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to create pending actions");
@@ -315,7 +327,9 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
             bundleName);
         TCreateObjectOptions options;
         options.Attributes = std::move(attributes);
-        options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+        if (!DryRunConfig_->IsDryRun) {
+            options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+        }
         futures.emplace_back(Client_->CreateObject(EObjectType::TabletAction, std::move(options)));
 
         createdSmoothMovementActionCount += IsSmoothMovementAction(descriptors[index]);
@@ -410,6 +424,11 @@ bool TActionManager::AreAllActionsKnown(
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+    if (DryRunConfig_->IsDryRun) {
+        YT_LOG_DEBUG("Skip checking whether all actions are known in dry run mode");
+        return true;
+    }
+
     auto collectActionIds = [] (const auto& actions) {
         THashSet<TTabletActionId> actionIds;
         for (const TTabletActionPtr& action : actions) {
@@ -461,15 +480,45 @@ void TActionManager::CancelPendingActions(const std::string& bundleName)
     }
 }
 
-void TActionManager::Start(TTransactionId prerequisiteTransactionId)
+TFuture<void> TActionManager::WaitForAllActions()
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    YT_VERIFY(DryRunConfig_->IsDryRun);
+    AllActionsFinished_ = NewPromise<void>();
+
+    return AllActionsFinished_;
+}
+
+int TActionManager::GetPendingActionCount(const std::string& bundleName) const
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    YT_VERIFY(DryRunConfig_->IsDryRun);
+
+    if (BundlesWithPendingActions_.empty()) {
+        return 0;
+    }
+
+    auto guard = ReaderGuard(PendingActionsLock_);
+    return std::ssize(GetOrCrash(PendingActionDescriptors_, bundleName)) +
+        std::ssize(GetOrDefault(PendingCrossCellReshards_, bundleName));
+}
+
+void TActionManager::Start(TTransactionId prerequisiteTransactionId, TDryRunConfigPtr dryRunConfig)
+{
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (dryRunConfig) {
+        YT_VERIFY(dryRunConfig->IsDryRun);
+        DryRunConfig_ = std::move(dryRunConfig);
+    }
 
     YT_LOG_INFO("Starting tablet action manager (PrerequisiteTransactionId: %v)", prerequisiteTransactionId);
 
     Started_ = true;
 
-    YT_VERIFY(prerequisiteTransactionId);
+    YT_VERIFY(prerequisiteTransactionId || DryRunConfig_->IsDryRun);
     PrerequisiteTransactionId_ = prerequisiteTransactionId;
 
     auto guard = WriterGuard(PendingActionsLock_);
@@ -575,6 +624,18 @@ void TActionManager::Poll()
     }
 
     MoveFinishedActionsFromRunningToFinished();
+
+    if (DryRunConfig_->IsDryRun &&
+        BundlesWithPendingActions_.empty() &&
+        RunningActions_.empty() &&
+        AllActionsFinished_) [[unlikely]]
+    {
+        auto guard = ReaderGuard(PendingActionsLock_);
+        YT_VERIFY(PendingActionDescriptors_.empty());
+        YT_VERIFY(PendingCrossCellReshards_.empty());
+
+        AllActionsFinished_.Set();
+    }
 }
 
 void TActionManager::MoveFinishedActionsFromRunningToFinished()

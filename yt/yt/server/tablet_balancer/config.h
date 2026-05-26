@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/public.h>
+
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/library/cypress_election/config.h>
@@ -197,6 +199,8 @@ struct TTabletBalancerBootstrapConfig
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
+    TDryRunConfigPtr DryRun;
+
     REGISTER_YSON_STRUCT(TTabletBalancerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
@@ -216,6 +220,25 @@ struct TTabletBalancerProgramConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletBalancerProgramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDryRunConfig
+    : public NYTree::TYsonStruct
+{
+    bool IsDryRun;
+    bool CreateTabletActions;
+
+    std::string Bundle;
+    THashSet<TGroupName> Groups;
+    NTabletBalancerClient::EBalancingRequestMode Mode;
+
+    REGISTER_YSON_STRUCT(TDryRunConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDryRunConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
