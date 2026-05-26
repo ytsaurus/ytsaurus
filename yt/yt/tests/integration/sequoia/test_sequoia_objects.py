@@ -594,6 +594,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         remove("//tmp/t")
 
     @authors("grphil")
+    @pytest.mark.timeout(180)
     def test_global_sequoia_refresh_batches(self):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_period", 100)
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/global_sequoia_chunk_refresh_batch_size", 1)

@@ -54,6 +54,8 @@ using namespace NConcurrency;
 
 constinit const auto Logger = ChunkServerLogger;
 
+constexpr ui64 SmallChunkIdHashModule = 16;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSequoiaChunkRefresherShardStatus::Register(TRegistrar registrar)
@@ -64,6 +66,14 @@ void TSequoiaChunkRefresherShardStatus::Register(TRegistrar registrar)
     registrar.Parameter("global_refresh_status", &TThis::GlobalRefreshStatus);
     registrar.Parameter("global_refresh_chunks_processed", &TThis::GlobalRefreshChunksProcessed);
     registrar.Parameter("global_refresh_last_processed_chunk_id", &TThis::GlobalRefreshLastProcessedChunkId);
+    registrar.Parameter("global_refresh_last_processed_small_chunk_id_hash", &TThis::GlobalRefreshLastProcessedSmallChunkIdHash);
+}
+
+void TSequoiaChunkRefresherShardStatus::ResetGlobalRefreshChunksProcessed()
+{
+    GlobalRefreshChunksProcessed = 0;
+    GlobalRefreshLastProcessedChunkId = NullChunkId;
+    GlobalRefreshLastProcessedSmallChunkIdHash = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,8 +299,7 @@ private:
                 }
                 ++Status_.Shards[shardIndex].Epoch;
 
-                Status_.Shards[shardIndex].GlobalRefreshChunksProcessed = 0;
-                Status_.Shards[shardIndex].GlobalRefreshLastProcessedChunkId = NullChunkId;
+                Status_.Shards[shardIndex].ResetGlobalRefreshChunksProcessed();
 
                 YT_LOG_DEBUG("Sequoia chunk refresher shard updated (ShardIndex: %v, Active: %v, Epoch: %v)",
                     shardIndex,
@@ -375,8 +384,7 @@ private:
             if (shard.Active) {
                 shard.GlobalRefreshStatus = EGlobalSequoiaChunkRefreshShardStatus::Running;
             }
-            shard.GlobalRefreshChunksProcessed = 0;
-            shard.GlobalRefreshLastProcessedChunkId = NullChunkId;
+            shard.ResetGlobalRefreshChunksProcessed();
         }
 
         // Global refresh will refresh all locations.
@@ -395,8 +403,7 @@ private:
                 if (shard.Active) {
                     shard.GlobalRefreshStatus = EGlobalSequoiaChunkRefreshShardStatus::Stopped;
                 }
-                shard.GlobalRefreshChunksProcessed = 0;
-                shard.GlobalRefreshLastProcessedChunkId = NullChunkId;
+                shard.ResetGlobalRefreshChunksProcessed();
             }
         }
 
@@ -714,7 +721,7 @@ private:
         for (auto shardIndex : shardIndexes) {
             chunksFutures.push_back(FetchNextChunksBatch(
                 shardIndex,
-                shards[shardIndex].GlobalRefreshLastProcessedChunkId,
+                shards[shardIndex],
                 batchSize));
         }
 
@@ -818,9 +825,20 @@ private:
                         fetchedChunkCount[shardIndex],
                         lastProcessedChunkId[shardIndex]);
                 } else {
-                    Status_.Shards[shardIndex].GlobalRefreshStatus = EGlobalSequoiaChunkRefreshShardStatus::Completed;
-                    YT_LOG_DEBUG("Global Sequoia chunk refresh for shard is complete (ShardIndex: %v)",
-                        shardIndex);
+                    Status_.Shards[shardIndex].GlobalRefreshLastProcessedSmallChunkIdHash++;
+                    Status_.Shards[shardIndex].GlobalRefreshLastProcessedChunkId = NullChunkId;
+
+                    if (Status_.Shards[shardIndex].GlobalRefreshLastProcessedSmallChunkIdHash >= SmallChunkIdHashModule) {
+                        if (Status_.Shards[shardIndex].GlobalRefreshLastProcessedSmallChunkIdHash > SmallChunkIdHashModule) {
+                            YT_LOG_ALERT(
+                                "Global Sequoia chunk refresh for shard exceeds maximum small_chunk_id_hash (ShardIndex: %v, CurrentSmallChunkIdHash: %v)",
+                                shardIndex,
+                                Status_.Shards[shardIndex].GlobalRefreshLastProcessedSmallChunkIdHash);
+                        }
+                        Status_.Shards[shardIndex].GlobalRefreshStatus = EGlobalSequoiaChunkRefreshShardStatus::Completed;
+                        YT_LOG_DEBUG("Global Sequoia chunk refresh for shard is completed (ShardIndex: %v)",
+                            shardIndex);
+                    }
                 }
             }
 
@@ -849,15 +867,17 @@ private:
 
     TFuture<std::vector<NRecords::TChunkReplicas>> FetchNextChunksBatch(
         int shardIndex,
-        TChunkId lastProcessedChunkId,
+        const TSequoiaChunkRefresherShardStatus& shardStatus,
         int batchSize)
     {
         TSelectRowsQuery query = {
             .WhereConjuncts = {
+                Format("small_chunk_id_hash = %v", shardStatus.GlobalRefreshLastProcessedSmallChunkIdHash),
                 Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                 Format("shard_index = %v", shardIndex),
             },
             .OrderBy = {
+                "small_chunk_id_hash",
                 "cell_tag",
                 "shard_index",
                 "chunk_id_hash",
@@ -866,11 +886,11 @@ private:
             .Limit = batchSize,
         };
 
-        if (lastProcessedChunkId != NullObjectId) {
+        if (shardStatus.GlobalRefreshLastProcessedChunkId != NullObjectId) {
             query.WhereConjuncts.push_back(
                 Format("(chunk_id_hash, chunk_id) > (%v, %Qv)",
-                    GetObjectIdFingerprint(lastProcessedChunkId),
-                    lastProcessedChunkId));
+                    GetObjectIdFingerprint(shardStatus.GlobalRefreshLastProcessedChunkId),
+                    shardStatus.GlobalRefreshLastProcessedChunkId));
         }
 
         return Bootstrap_
