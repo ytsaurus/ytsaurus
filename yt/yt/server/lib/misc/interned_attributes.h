@@ -56,7 +56,9 @@
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
+    XX(BackupConfig, backup_config) \
     XX(BackupError, backup_error) \
+    XX(BackupSourceAccounts, backup_source_accounts) \
     XX(BackupState, backup_state) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
@@ -547,6 +549,7 @@
     XX(StrongGuaranteeResources, strong_guarantee_resources) \
     XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
     XX(Suspended, suspended) \
+    XX(TableBackupEnabled, table_backup_enabled) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \

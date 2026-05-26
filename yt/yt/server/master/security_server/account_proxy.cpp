@@ -143,6 +143,9 @@ private:
                 account->GetName());
         }
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateAccountRemoval(account);
+
         TBase::ValidateRemoval();
     }
 
@@ -158,12 +161,16 @@ private:
         }
     }
 
-    void ValidateSuperuser(TInternedAttributeKey key)
+    bool IsSuperuser()
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
+        return securityManager->IsSuperuser(user);
+    }
 
-        if (!securityManager->IsSuperuser(user)) {
+    void ValidateSuperuser(TInternedAttributeKey key)
+    {
+        if (!IsSuperuser()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Access denied: only superusers can change %Qv",
@@ -183,6 +190,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         auto isRootAccount = IsRootAccount();
+        auto isSuperuser = IsSuperuser();
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetPresent(!isRootAccount));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommittedResourceUsage)
@@ -248,6 +257,14 @@ private:
             .SetWritable(true)
             .SetReplicated(true);
 
+        descriptors->emplace_back(EInternedAttributeKey::BackupConfig)
+            .SetWritable(isSuperuser)
+            .SetReplicated(true)
+            .SetOpaque(true)
+            .SetRemovable(true);
+        descriptors->emplace_back(EInternedAttributeKey::BackupSourceAccounts)
+            .SetOpaque(true);
+
         if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
             descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransientMasterMemoryUsage));
         }
@@ -257,6 +274,7 @@ private:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto* account = GetThisImpl();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         switch (key) {
             case EInternedAttributeKey::ResourceUsage:
@@ -414,6 +432,23 @@ private:
                     .Value(account->DetailedMasterMemoryUsage());
                 return true;
 
+            case EInternedAttributeKey::BackupConfig:
+                if (account->GetBackupConfig()) {
+                    SerializeAccountBackupConfig(
+                        *account->GetBackupConfig(),
+                        consumer,
+                        Bootstrap_);
+
+                    return true;
+                } else {
+                    return false;
+                }
+
+            case EInternedAttributeKey::BackupSourceAccounts:
+                BuildYsonFluently(consumer)
+                    .Value(securityManager->GetBackupSourceAccountNames(account));
+                return true;
+
             default:
                 break;
         }
@@ -566,9 +601,20 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::EnableChunkReincarnation:
+            case EInternedAttributeKey::EnableChunkReincarnation: {
                 account->SetEnableChunkReincarnation(ConvertTo<bool>(value));
                 return true;
+            }
+
+            case EInternedAttributeKey::BackupConfig: {
+                ValidateSuperuser(key);
+
+                auto backupConfig = DeserializeAccountBackupConfig(ConvertToNode(value), Bootstrap_);
+                backupConfig.Validate(Bootstrap_);
+
+                securityManager->UpdateBackupConfigForAccount(account, std::move(backupConfig));
+                return true;
+            }
 
             default:
                 break;
@@ -580,6 +626,7 @@ private:
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
         auto* account = GetThisImpl();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         switch (key) {
             case EInternedAttributeKey::ChunkMergerCriteria: {
@@ -594,6 +641,12 @@ private:
 
             case EInternedAttributeKey::FolderId: {
                 account->SetFolderId(std::nullopt);
+                return true;
+            }
+
+            case EInternedAttributeKey::BackupConfig: {
+                ValidateSuperuser(key);
+                securityManager->RemoveBackupConfigForAccount(account);
                 return true;
             }
 
@@ -657,4 +710,3 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> CreateAccountProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

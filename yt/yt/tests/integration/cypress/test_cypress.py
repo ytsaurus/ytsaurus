@@ -4846,6 +4846,26 @@ class TestCypress(YTEnvSetup):
         id2 = create("int64_node", "//tmp/i&", force=True)
         assert id1 != id2
 
+    @authors("grphil")
+    def test_backup_attributes(self):
+        create_account("a1")
+        create_account("a2")
+        set("//sys/accounts/a1/@backup_config", {
+            "backup_account": "a2",
+            "backup_path": "//home/backup",
+            "trim_path_prefix": "",
+        })
+
+        create("map_node", "//tmp/dir")
+        create("table", "//tmp/dir/t", attributes={"account": "a1"})
+        assert get("//tmp/dir/t/@table_backup_enabled")
+
+        create("table", "//tmp/dir2/t", attributes={"account": "a2"}, recursive=True)
+        assert not get("//tmp/dir2/t/@table_backup_enabled")
+
+        remove("//sys/accounts/a1/@backup_config")
+        assert not get("//tmp/dir/t/@table_backup_enabled")
+
 
 ##################################################################
 

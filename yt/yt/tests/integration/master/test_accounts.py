@@ -2379,6 +2379,58 @@ class TestAccounts(AccountsTestSuiteBase):
         set("//sys/accounts/parent/@resource_limits", get("//sys/accounts/parent/@total_children_resource_limits"))
         assert get("//sys/accounts/parent/@resource_limits") == limits
 
+    @authors("grphil")
+    def test_backup_relation(self):
+        create_account("a1")
+        create_account("a2")
+        create_account("b")
+
+        set("//sys/accounts/a1/@backup_config", {
+            "backup_account": "b",
+            "backup_path": "//home/backup",
+            "trim_path_prefix": "",
+        })
+        assert get("//sys/accounts/a1/@backup_config/backup_account") == "b"
+        assert get("//sys/accounts/a1/@backup_config/backup_path") == "//home/backup"
+        assert get("//sys/accounts/a1/@backup_config/trim_path_prefix") == ""
+
+        set("//sys/accounts/a2/@backup_config", {
+            "backup_account": "b",
+            "backup_path": "//home/backup",
+            "trim_path_prefix": "",
+        })
+
+        assert "a1" in get("//sys/accounts/b/@backup_source_accounts")
+        assert "a2" in get("//sys/accounts/b/@backup_source_accounts")
+
+        with raises_yt_error("Account is used as backup account for 2 accounts"):
+            remove_account("b")
+        remove("//sys/accounts/a1/@backup_config")
+        with raises_yt_error("Account is used as backup account for 1 accounts"):
+            remove_account("b")
+        remove("//sys/accounts/a2/@backup_config")
+
+        assert len(get("//sys/accounts/b/@backup_source_accounts")) == 0
+
+        remove_account("b")
+        create_account("b")
+
+        set("//sys/accounts/a1/@backup_config", {
+            "backup_account": "b",
+            "backup_path": "//home/backup",
+            "trim_path_prefix": "",
+        })
+
+        set("//sys/accounts/a2/@backup_config", {
+            "backup_account": "b",
+            "backup_path": "//home/backup",
+            "trim_path_prefix": "",
+        })
+
+        remove_account("a1")
+        remove_account("a2")
+        remove_account("b")
+
 
 @pytest.mark.enabled_multidaemon
 class TestAccountTree(AccountsTestSuiteBase):
