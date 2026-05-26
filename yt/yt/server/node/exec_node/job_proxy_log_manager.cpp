@@ -35,6 +35,8 @@
 
 #include <util/generic/ymath.h>
 
+#include <util/system/fs.h>
+
 #include <util/system/fstat.h>
 
 namespace NYT::NExecNode {
@@ -101,6 +103,11 @@ public:
         Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
             [this, this_ = MakeStrong(this)] {
                 TraverseJobDirectoriesAndScheduleRemovals();
+            }));
+
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
+            [this, this_ = MakeStrong(this)] {
+                FindAndRemoveBrokenSymlinks();
             }));
     }
 
@@ -270,6 +277,80 @@ private:
         }
     }
 
+    void FindAndRemoveBrokenSymlinks() noexcept
+    {
+        auto cleanupShard = [] (const std::string& shardPath) {
+            for (const auto& shardDirEntry : std::filesystem::directory_iterator(shardPath)) {
+                if (!shardDirEntry.is_symlink()) {
+                    YT_LOG_WARNING(
+                        "Unexpected non-symlink entry in symlinks sharding directory (Path: %v)",
+                        shardDirEntry.path().string());
+
+                    continue;
+                }
+
+                auto symlinkPath = shardDirEntry.path().string();
+                bool isBroken = false;
+                TString targetPath;
+
+                try {
+                    targetPath = NFs::ReadLink(TString(symlinkPath));
+                    isBroken = !NFs::Exists(targetPath);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to read job log symlink (Path: %v)",
+                        symlinkPath);
+                    isBroken = true;
+                }
+
+                if (!isBroken) {
+                    continue;
+                }
+
+                try {
+                    NFS::Remove(symlinkPath);
+                    YT_LOG_INFO(
+                        "Removed broken job log symlink (Path: %v, Target: %v)",
+                        symlinkPath,
+                        targetPath);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to remove broken job log symlink (Path: %v, Target: %v)",
+                        symlinkPath,
+                        targetPath);
+                }
+            }
+        };
+
+        YT_LOG_INFO(
+            "Started cleaning broken job log symlinks (Root: %v)",
+            Config_->JobProxyLogSymlinksPath);
+
+        try {
+            for (const auto& shardDirKey : NFS::EnumerateDirectories(Config_->JobProxyLogSymlinksPath)) {
+                const auto symlinksShardingDirPath = NFS::CombinePaths(Config_->JobProxyLogSymlinksPath, shardDirKey);
+
+                try {
+                    cleanupShard(symlinksShardingDirPath);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to clean up symlinks sharding directory (Path: %v)",
+                        symlinksShardingDirPath);
+                }
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(
+                ex,
+                "Failed to enumerate symlinks sharding directories (Root: %v)",
+                Config_->JobProxyLogSymlinksPath);
+        }
+
+        YT_LOG_INFO("Finished cleaning broken job log symlinks");
+    }
+
     void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const std::string& shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
@@ -315,17 +396,6 @@ private:
 
     void RemoveJobDirectory(const TString& targetDirectory, const TString& jobDirectoryName) noexcept
     {
-        try {
-            NFS::RemoveRecursive(targetDirectory);
-            YT_LOG_INFO("Job directory removed (Path: %v)", targetDirectory);
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Failed to remove job directory (Path: %v)",
-                targetDirectory);
-            return;
-        }
-
         TGuid guid;
         if (!TGuid::FromString(jobDirectoryName, &guid)) {
             YT_LOG_ERROR(
@@ -348,6 +418,17 @@ private:
                 ex,
                 "Failed to remove symlink for job directory (Path: %v)",
                 symlinkPath);
+        }
+
+        try {
+            NFS::RemoveRecursive(targetDirectory);
+            YT_LOG_INFO("Job directory removed (Path: %v)", targetDirectory);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(
+                ex,
+                "Failed to remove job directory (Path: %v)",
+                targetDirectory);
+            return;
         }
     }
 
