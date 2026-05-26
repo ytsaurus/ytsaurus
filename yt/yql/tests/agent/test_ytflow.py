@@ -490,9 +490,6 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
 pragma Ytflow.LogbrokerConsumerPath = "{self.LOGBROKER_CONSUMER}";
 pragma Ytflow.LogbrokerWriteCompressionCodec = "{self.LOGBROKER_COMPRESSION_CODEC}";
 pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVEL}";
-
-pragma Ytflow.SolomonAuthMode = "OAuthEnv";
-pragma Ytflow.SolomonSecure = "false";
 """
 
                 query_text = '\n'.join([query_text_header, query_text])
