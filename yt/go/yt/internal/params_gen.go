@@ -1697,6 +1697,10 @@ func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 		w.MapKeyString("columns")
 		w.Any(o.Columns)
 	}
+	if o.Vital != nil {
+		w.MapKeyString("vital")
+		w.Any(o.Vital)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMasterReadOptions(w, o.MasterReadOptions)
@@ -1709,6 +1713,9 @@ func logCheckPermissionOptions(o *yt.CheckPermissionOptions) []log.Field {
 	fields := []log.Field{}
 	if o.Columns != nil {
 		fields = append(fields, log.Any("columns", o.Columns))
+	}
+	if o.Vital != nil {
+		fields = append(fields, log.Any("vital", o.Vital))
 	}
 	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
 	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)

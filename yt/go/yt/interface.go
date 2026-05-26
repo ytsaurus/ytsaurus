@@ -946,6 +946,8 @@ type CheckPermissionOptions struct {
 	*MasterReadOptions
 
 	Columns []string `http:"columns,omitnil"`
+	// Vital is used for RegisterQueueConsumer permission checks (vital vs non-vital ACE).
+	Vital *bool `http:"vital,omitnil"`
 }
 
 type CheckPermissionByACLOptions struct {
