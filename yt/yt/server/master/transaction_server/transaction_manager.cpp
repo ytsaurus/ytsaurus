@@ -3162,7 +3162,7 @@ private:
                     transactionFinisher->PersistRequest(transaction, commitRequest);
                 } break;
                 case ETransactionFinishRequest::Expiration:
-                    transactionFinisher->PersistRequest(transaction, TTransactionExpirationRequest{});
+                    transactionFinisher->PersistRequest(transaction, TTransactionExpirationRequest{}, /*update*/ true);
             }
         });
 
@@ -3426,18 +3426,15 @@ private:
         YT_VERIFY(IsLeader());
         YT_VERIFY(IsObjectAlive(transaction));
 
-        switch (transaction->GetTransactionLeasesState()) {
-            case ETransactionLeasesState::Active: {
-                NProto::TTransactionFinishRequest finishRequest;
-                finishRequest.set_kind(ToProto(ETransactionFinishRequest::Expiration));
-                finishRequest.mutable_expiration();
-                return RevokeTransactionLeases(transaction->GetId(), &finishRequest);
-            }
-            case ETransactionLeasesState::Revoking:
-                return transaction->LeasesRevokedPromise().ToFuture().ToUncancelable();
-            case ETransactionLeasesState::Revoked:
-                return OKFuture;
-        }
+        // NB: there is no fast path. Lease revocation cannot be skipped here
+        // since abort request is persisted during lease revocation. Abort
+        // request must be persisted even if there is already existing abort
+        // request since the existing abort request may have non-root user with
+        // insufficient rights.
+        NProto::TTransactionFinishRequest finishRequest;
+        finishRequest.set_kind(ToProto(ETransactionFinishRequest::Expiration));
+        finishRequest.mutable_expiration();
+        return RevokeTransactionLeases(transaction->GetId(), &finishRequest);
     }
 
     void RemoveTransactionFromBarriers(TTransaction* transaction)

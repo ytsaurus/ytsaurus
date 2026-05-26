@@ -415,9 +415,7 @@ public:
             return;
         }
 
-        if (transaction->GetPersistentState() != ETransactionState::Active ||
-            transaction->GetTransactionLeasesState() != ETransactionLeasesState::Active)
-        {
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
             return;
         }
 

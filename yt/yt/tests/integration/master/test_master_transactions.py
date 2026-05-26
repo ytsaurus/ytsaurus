@@ -229,6 +229,17 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists(f"//sys/transactions/{tx2}")
 
     @authors("kvk1920")
+    def test_timeout_after_user_banned(self):
+        create_user("u")
+        tx = start_transaction(timeout=1000, authenticated_user="u")
+        set("//sys/users/u/@banned", True)
+        with raises_yt_error() as error:
+            abort_transaction(tx, authenticated_user="u")
+        assert "Access denied" in str(error) or "is banned on" in str(error)
+        sleep(1.5)
+        assert not exists(f"#{tx}")
+
+    @authors("kvk1920")
     def test_deadline(self):
         deadline = datetime_to_string(datetime.utcnow() + timedelta(seconds=2))
         tx1 = start_transaction(timeout=10000, deadline=deadline)
