@@ -1205,7 +1205,7 @@ private:
         }
         for (const auto& mapping : gatewaySolomonConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::SolomonProviderName)});
-            dynamicConfig->ClusterAddresses.insert({mapping.name(), (mapping.usessl() ? "https://" : "http://") + mapping.cluster()});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.cluster()});
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 
