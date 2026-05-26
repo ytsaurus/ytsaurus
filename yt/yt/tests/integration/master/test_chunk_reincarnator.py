@@ -1083,6 +1083,37 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
         self._check_tables(tables)
 
 
+class TestChunkReincarnatorMultiCellSequoia(TestChunkReincarnatorMultiCell):
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_reincarnator": {
+                "chunk_scan_period": 600,
+                "ignore_account_settings": True,
+                "skip_versioned_chunks": False,
+            },
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "fetch_replicas_from_sequoia": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "store_sequoia_replicas_on_master_percentage": 100,
+                    "replicas_percentage": 100
+                },
+            }
+        },
+        "cell_master": {
+            "mutation_time_commit_period": 150,
+        }
+    }
+
 ##################################################################
 
 
