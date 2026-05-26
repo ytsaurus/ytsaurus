@@ -2,7 +2,30 @@
 
 #include <yt/yt/flow/lib/client/public.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
+#include <library/cpp/yt/string/format.h>
+
+#include <string>
+
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Cypress attribute on a pipeline node that points to the vanilla operation
+//! currently running it (a map with "alias" and optional "runtime_cluster").
+//! Lets the runner find and shut down a previous launch before starting a new one.
+inline constexpr TStringBuf CurrentVanillaOperationAttribute = "current_vanilla_operation";
+
+//! Default alias for a Flow vanilla operation: pins the op to the (cluster, pipeline)
+//! pair so a second launch of the same pipeline is rejected by the scheduler instead
+//! of racing with a stray previous run.
+inline std::string BuildVanillaOperationAlias(const NYPath::TRichYPath& pipelinePath)
+{
+    // The leading "*" is a YT scheduler convention — every operation alias must start with it.
+    // The "<cluster>:<path>" body is the canonical short form of a rich YPath.
+    return Format("*flow-runner %v:%v", pipelinePath.GetCluster().value_or(""), pipelinePath.GetPath());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
