@@ -43,6 +43,7 @@ DEFINE_ENUM(ERowSliceabilityDecision,
     // All decisions below lead to slicing by keys.
     (KeyGuaranteeEnabled)
     (NoJobSizeTracker)
+    (SingleJobNeeded)
     (VersionedSlicesPresent)
     (NonSingletonSliceCountIsAtLeastTwo)
     (NextEndpointLowerBoundTooClose)
@@ -289,6 +290,20 @@ public:
                 continue;
             }
             ValidateJob(&job);
+        }
+
+        if (MustProduceSingleJob()) {
+            auto jobCount = std::accumulate(
+                Jobs_.begin(),
+                Jobs_.end(),
+                0l,
+                [] (i64 acc, const auto& job) {
+                    return acc + !job.GetIsBarrier();
+                });
+            YT_LOG_FATAL_IF(
+                jobCount > 1,
+                "Expected to build at most one job, but built multiple (JobCount: %v)",
+                jobCount);
         }
 
         LogStructured();
@@ -752,6 +767,11 @@ private:
             return ERowSliceabilityDecision::NoJobSizeTracker;
         }
 
+        // No point in row-slicing if we need to produce a single job.
+        if (MustProduceSingleJob()) {
+            return ERowSliceabilityDecision::SingleJobNeeded;
+        }
+
         bool versionedSlicesPresent = false;
         for (const auto& endpoint : endpoints) {
             if (endpoint.DataSlice->Type == EDataSourceType::VersionedTable) {
@@ -861,6 +881,7 @@ private:
     //! Put data slice to staging area.
     void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType, const TPeriodicYielderGuard& periodicYielder)
     {
+        YT_LOG_TRACE("Staging slice (Type: %v)", sliceType);
         if (JobSizeTracker_) {
             auto vector = TResourceVector::FromDataSlice(
                 dataSlice,
@@ -1007,7 +1028,11 @@ private:
 
         PartitionSingletonAndLongDataSlices(lowerBound, dataSlices);
 
-        bool inLong = Options_.EnableKeyGuarantee;
+        bool allowSolidSlices = !(Options_.EnableKeyGuarantee || MustProduceSingleJob());
+
+        // If we are not allowed to have solid slices, treat singletons as long.
+        // Otherwise, we start with singleton slices.
+        bool inLong = !allowSolidSlices;
         bool haveSolids = false;
 
         for (const auto& dataSlice : dataSlices) {
@@ -1156,6 +1181,11 @@ private:
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 
         YT_LOG_DEBUG("Jobs created (JobCount: %v, BarrierCount: %v)", std::ssize(Jobs_) - barrierCount, barrierCount);
+    }
+
+    bool MustProduceSingleJob() const
+    {
+        return JobSizeConstraints_->IsExplicitJobCount() && JobSizeConstraints_->GetJobCount() == 1;
     }
 };
 
