@@ -104,7 +104,10 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, LogicalDataWeight);
     Persist(context, RegularDiskSpace);
     Persist(context, ErasureDiskSpace);
-    if (context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul) {
+    if ((context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul &&
+         context.GetVersion() < NCellMaster::EMasterReign::Start_26_2) ||
+        context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2)
+    {
         Persist(context, HunkDataWeight);
         Persist(context, HunkDataSize);
         Persist(context, HunkRegularDiskSpace);

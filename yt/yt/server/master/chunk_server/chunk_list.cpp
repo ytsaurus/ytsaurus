@@ -170,8 +170,13 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, BranchedOwningNodes_);
 
     // COMPAT(akozhikhov)
+    bool applyHunkTreeStatisticsOverhaulCompat = context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+        (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+         context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2);
+
+    // COMPAT(akozhikhov)
     TChunkTreeStatistics statistics;
-    if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul) {
+    if (applyHunkTreeStatisticsOverhaulCompat) {
         Load(context, statistics);
     }
 
@@ -181,16 +186,16 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(akozhikhov)
     TLegacyOwningKey pivotKey;
-    if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul) {
+    if (applyHunkTreeStatisticsOverhaulCompat) {
         Load(context, pivotKey);
     }
 
-    if (context.GetVersion() >= NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul) {
+    if (!applyHunkTreeStatisticsOverhaulCompat) {
         Load(context, ChunkListTraits_);
     }
 
     // COMPAT(akozhikhov)
-    if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul) {
+    if (applyHunkTreeStatisticsOverhaulCompat) {
         if (IsHunkRelatedChunkList(this)) {
             // NB: We will recalculate it from scratch.
             ChunkListTraits_ = THunkTreeChunkListTraits{};

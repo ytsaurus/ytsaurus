@@ -222,6 +222,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExpectedPrepareSignature)                                     (3314))  // atalmenev
     ((TableBackupAttributes_26_2)                                   (3315))  // grphil
     ((FixStuckTransactionAbortForBannedUsers_26_2)                  (3316))  // kvk1920
+    ((HunkChunkTreeStatisticsOverhaul_26_2)                         (3317))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
