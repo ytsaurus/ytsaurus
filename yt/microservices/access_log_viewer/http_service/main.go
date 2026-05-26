@@ -178,7 +178,7 @@ func ReadClickhouseResponse[T any](input io.ReadCloser) (result []T, err error) 
 				}
 				// ClickHouse return error in answer
 				err = yterrors.Err(string(data))
-				if strings.Contains(err.Error(), "No tables to read from") {
+				if strings.Contains(err.Error(), "No tables to read from") || strings.Contains(err.Error(), "Both table name and UUID are empty") {
 					err = yterrors.Err(
 						"Data is not ready yet. Please try again later or select other dates.",
 						err,
@@ -193,7 +193,7 @@ func ReadClickhouseResponse[T any](input io.ReadCloser) (result []T, err error) 
 	}
 }
 
-func GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot string, authorizer *Authorizer, ytTokenEnvVariable string) ytmsvc.HTTPHandlerE {
+func GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot string, authorizer *Authorizer, ytTokenEnvVariable, logsTimezone string) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		request, err := ReadAccessLogRequest(req)
 		if err != nil {
@@ -207,7 +207,7 @@ func GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot string, authorizer
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		}
-		query, settings, err := GetQuery(user.Login, request, snapshotRoot, 0, 0)
+		query, settings, err := GetQuery(user.Login, request, snapshotRoot, 0, 0, logsTimezone)
 		if err != nil {
 			return
 		}
@@ -251,7 +251,7 @@ func ReadAccessLogRequest(req *http.Request) (request AccessLogRequest, err erro
 	return
 }
 
-func GetClickHouseQueryHandler(snapshotRoot string, authorizer *Authorizer) ytmsvc.HTTPHandlerE {
+func GetClickHouseQueryHandler(snapshotRoot, logsTimezone string, authorizer *Authorizer) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		request, err := ReadAccessLogRequest(req)
 		if err != nil {
@@ -265,7 +265,7 @@ func GetClickHouseQueryHandler(snapshotRoot string, authorizer *Authorizer) ytms
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		}
-		query, settings, err := GetQuery(user.Login, request, snapshotRoot, request.Pagination.Index, request.Pagination.Size)
+		query, settings, err := GetQuery(user.Login, request, snapshotRoot, request.Pagination.Index, request.Pagination.Size, logsTimezone)
 		if err != nil {
 			return
 		}
@@ -277,7 +277,7 @@ func GetClickHouseQueryHandler(snapshotRoot string, authorizer *Authorizer) ytms
 	}
 }
 
-func GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable string, authorizer *Authorizer) ytmsvc.HTTPHandlerE {
+func GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, authorizer *Authorizer) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		request, err := ReadAccessLogRequest(req)
 		if err != nil {
@@ -291,7 +291,7 @@ func GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVari
 			err = fmt.Errorf("cluster '%s' not served", request.Cluster)
 			return
 		}
-		query, settings, err := GetQuery(user.Login, request, snapshotRoot, request.Pagination.Index, request.Pagination.Size)
+		query, settings, err := GetQuery(user.Login, request, snapshotRoot, request.Pagination.Index, request.Pagination.Size, logsTimezone)
 		if err != nil {
 			return
 		}
@@ -324,8 +324,8 @@ func GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVari
 	}
 }
 
-func GetVisibleTimeRange(chytCluster, chytAlias, snapshotRoot, cluster, ytTokenEnvVariable string) (result VisibleTimeRangeResponse, err error) {
-	query, settings := GetVisibleTimeRangeQuery(snapshotRoot, cluster)
+func GetVisibleTimeRange(chytCluster, chytAlias, snapshotRoot, cluster, ytTokenEnvVariable, logsTimezone string) (result VisibleTimeRangeResponse, err error) {
+	query, settings := GetVisibleTimeRangeQuery(snapshotRoot, cluster, logsTimezone)
 	settings["priority"] = "0"
 	response, err := DoClickhouseQuery[VisibleTimeRangeResponse](chytCluster, chytAlias, query, settings, ytTokenEnvVariable)
 	if err != nil {
@@ -355,15 +355,15 @@ func GetVisibleTimeRangeHandler(chytCluster, chytAlias, snapshotRoot string) ytm
 	}
 }
 
-func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable string, authorizer *Authorizer, corsConfig *ytmsvc.CORSConfig) http.Handler {
+func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, authorizer *Authorizer, corsConfig *ytmsvc.CORSConfig) http.Handler {
 	apiV1 := func(r chi.Router) {
 		r.Get("/ready", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprintf(w, "true") })
 		r.Post("/info", ytmsvc.FormatResponse(GetInfoHandler()))
 		r.Post("/whoami", ytmsvc.FormatResponse(GetWhoamiHandler(authorizer)))
 		r.Post("/{call:served(-|_)clusters}", ytmsvc.FormatResponse(GetServedClustersHandler()))
-		r.Post("/{call:access(-|_)log}", ytmsvc.FormatResponse(GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot, authorizer, ytTokenEnvVariable)))
-		r.Post("/chquery", ytmsvc.FormatResponse(GetClickHouseQueryHandler(snapshotRoot, authorizer)))
-		r.Post("/{call:qt(-|_)access(-|_)log}", ytmsvc.FormatResponse(GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, authorizer)))
+		r.Post("/{call:access(-|_)log}", ytmsvc.FormatResponse(GetAccessLogHandler(chytCluster, chytAlias, snapshotRoot, authorizer, logsTimezone, ytTokenEnvVariable)))
+		r.Post("/chquery", ytmsvc.FormatResponse(GetClickHouseQueryHandler(snapshotRoot, logsTimezone, authorizer)))
+		r.Post("/{call:qt(-|_)access(-|_)log}", ytmsvc.FormatResponse(GetQueryTrackerHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer)))
 		r.Post("/{call:visible(-|_)time(-|_)range}", ytmsvc.FormatResponse(GetVisibleTimeRangeHandler(chytCluster, chytAlias, snapshotRoot)))
 	}
 	r := chi.NewRouter()
@@ -377,7 +377,7 @@ func GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable s
 	return r
 }
 
-func UpdateClusters(ctx context.Context, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable string, ytClient yt.Client, cmd *cobra.Command) {
+func UpdateClusters(ctx context.Context, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone string, ytClient yt.Client, cmd *cobra.Command) {
 	includeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("include"))
 	excludeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("exclude"))
 	useClusterDirectory := ytmsvc.Must(cmd.Flags().GetString("proxy")) != ""
@@ -391,7 +391,7 @@ func UpdateClusters(ctx context.Context, chytCluster, chytAlias, snapshotRoot, y
 			if clusters := ytmsvc.GetClusters(ctx, ytClient, includeArr, excludeArr, useClusterDirectory); clusters != nil {
 				newClustersVisibleRanges := make(map[string]VisibleTimeRangeResponse)
 				for cluster := range clusters {
-					response, err := GetVisibleTimeRange(chytCluster, chytAlias, snapshotRoot, cluster, ytTokenEnvVariable)
+					response, err := GetVisibleTimeRange(chytCluster, chytAlias, snapshotRoot, cluster, ytTokenEnvVariable, logsTimezone)
 					if err != nil {
 						ytmsvc.Logger.Error(err.Error())
 						continue
@@ -413,7 +413,8 @@ func RunServer(cmd *cobra.Command, args []string) {
 	chytCluster := ytmsvc.Must(cmd.Flags().GetString("chyt-cluster-name"))
 	chytAlias := ytmsvc.Must(cmd.Flags().GetString("chyt-alias"))
 	snapshotRoot := ytmsvc.Must(cmd.Flags().GetString("snapshot-root"))
-	go UpdateClusters(ctx, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, ytClient, cmd)
+	logsTimezone := ytmsvc.Must(cmd.Flags().GetString("logs-timezone"))
+	go UpdateClusters(ctx, chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, ytClient, cmd)
 
 	authorizerConfig := newAuthorizerConfigFromCmd(cmd)
 	authorizer := newAuthorizer(logger, authorizerConfig)
@@ -426,7 +427,7 @@ func RunServer(cmd *cobra.Command, args []string) {
 	}
 
 	addr := fmt.Sprintf(":%v", port)
-	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, authorizer, &corsConfig)
+	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer, &corsConfig)
 
 	ytmsvc.Must0(http.ListenAndServe(addr, router))
 }
