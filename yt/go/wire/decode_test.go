@@ -1219,7 +1219,7 @@ func TestDecoder_decodeReflectTypeError(t *testing.T) {
 	require.Contains(t, err.Error(), "wire.StructField")
 }
 
-func TestDecoder_UnmarshalRow_optionalInt64Pointer(t *testing.T) {
+func TestDecoder_UnmarshalRowOptionalInt64Pointer(t *testing.T) {
 	nameTable := NameTable{
 		{Name: "creation_time"},
 	}
@@ -1252,5 +1252,43 @@ func TestDecoder_UnmarshalRow_optionalInt64Pointer(t *testing.T) {
 		}, &got)
 		require.NoError(t, err)
 		require.Nil(t, got.CreationTime)
+	})
+}
+
+func TestDecoder_UnmarshalRowOptionalBoolPointer(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "active"},
+	}
+
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "active", ComplexType: schema.Optional{Item: schema.TypeBoolean}},
+	}})
+
+	type row struct {
+		Active *bool `yson:"active"`
+	}
+
+	t.Run("true", func(t *testing.T) {
+		var got row
+		err := d.UnmarshalRow(Row{NewBool(0, true)}, &got)
+		require.NoError(t, err)
+		require.NotNil(t, got.Active)
+		require.True(t, *got.Active)
+	})
+
+	t.Run("false", func(t *testing.T) {
+		var got row
+		err := d.UnmarshalRow(Row{NewBool(0, false)}, &got)
+		require.NoError(t, err)
+		require.NotNil(t, got.Active)
+		require.False(t, *got.Active)
+	})
+
+	t.Run("null", func(t *testing.T) {
+		b := true
+		got := row{Active: &b}
+		err := d.UnmarshalRow(Row{NewNull(0)}, &got)
+		require.NoError(t, err)
+		require.Nil(t, got.Active)
 	})
 }
