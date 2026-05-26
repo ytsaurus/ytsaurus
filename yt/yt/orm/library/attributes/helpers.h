@@ -18,18 +18,18 @@ std::string RandomString(int length, TStringBuf charset);
 
 const NYson::TProtobufMessageType* GetMessageTypeByYPath(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool allowAttributeDictionary);
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options = {});
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TString& payload,
     const NYson::TProtobufParserOptions& options = {});
 

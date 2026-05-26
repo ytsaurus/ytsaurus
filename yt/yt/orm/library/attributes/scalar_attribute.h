@@ -16,7 +16,7 @@ namespace NYT::NOrm::NAttributes {
 // TODO(grigminakov): Upgrade to `HasProtobufFieldByPath` or unify with `ResolveProtobufElementByYPath`.
 bool HasProtobufField(
     const google::protobuf::Message& message,
-    const std::string& fieldName);
+    TStringBuf fieldName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +24,7 @@ bool HasProtobufField(
 //! Throws an error if path is invalid, or specified field is not set unless `skipMissing` is true.
 void ClearProtobufFieldByPath(
     google::protobuf::Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool skipMissing = false);
 
 template <class T>
@@ -36,13 +36,13 @@ void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing = false
 //! Throws an error if path is invalid, or there is a missing key along the path and `recursive` is false.
 void SetProtobufFieldByPath(
     NProtoBuf::Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const NYTree::INodePtr& value,
     const NYson::TProtobufWriterOptions& options = {},
     bool recursive = false);
 void SetProtobufFieldByPath(
     NProtoBuf::Message& message,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& value,
     bool discardUnknownFields = false,
     bool recursive = false);
@@ -65,14 +65,14 @@ template <class T>
 bool AreScalarAttributesEqualByPath(
     const T& lhs,
     const T& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options = {});
 
 template <>
 bool AreScalarAttributesEqualByPath(
     const NYson::TYsonString& lhs,
     const NYson::TYsonString& rhs,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TComparisonOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////

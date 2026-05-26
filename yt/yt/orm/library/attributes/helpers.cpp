@@ -57,7 +57,7 @@ std::string RandomString(int length, TStringBuf charset)
 
 const TProtobufMessageType* GetMessageTypeByYPath(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     bool allowAttributeDictionary)
 {
     auto result = ResolveProtobufElementByYPath(rootType, path);
@@ -78,7 +78,7 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options)
 {
@@ -100,7 +100,7 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 NYTree::INodePtr ConvertProtobufToNode(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    NYPath::TYPathBuf path,
     const TString& payload,
     const NYson::TProtobufParserOptions& options)
 {
