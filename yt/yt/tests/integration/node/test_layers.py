@@ -2341,17 +2341,17 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         )
 
-        # Get final log counts after operation completes.
-        final_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        final_logs_removed_count = len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD"))
+        # Wait until all jobs but the first one hit cache.
+        # The log message is written synchronously during volume cache lookup, but
+        # we use wait() to tolerate log buffering delays.
+        wait(lambda: len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted")) - initial_logs_cache_hit_count == self.NUM_USER_SLOTS - 1)
 
-        # Check that all jobs but the first one hit cache.
-        logs_cache_hit_delta = final_logs_cache_hit_count - initial_logs_cache_hit_count
-        assert logs_cache_hit_delta == self.NUM_USER_SLOTS - 1
-
-        # Check that volume was removed only once (proving all jobs shared the same device).
-        removed_delta = final_logs_removed_count - initial_logs_removed_count
-        assert removed_delta == self.NUM_USER_SLOTS - 1
+        # Wait until the shared RO NBD volume is removed.
+        # The "Removed volume" log is written asynchronously: it is part of a future
+        # chain that runs on the NBD server invoker after the last job releases its
+        # reference to the volume.  Reading the log file immediately after map()
+        # returns is racy because the removal chain may not have completed yet.
+        wait(lambda: len(self._get_node_debug_logs("Removed volume (VolumeType: RO NBD")) - initial_logs_removed_count == self.NUM_USER_SLOTS - 1)
 
         # Get final counter values after operation completes.
         final_cache_missed_count = cache_missed_counter.get()
