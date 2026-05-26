@@ -416,6 +416,7 @@ func (e *Encoder) CheckPermission(
 	path ypath.YPath,
 	options *yt.CheckPermissionOptions,
 ) (response *yt.CheckPermissionResponse, err error) {
+	permission, options = yt.NormalizeCheckPermission(permission, options)
 	call := e.newCall(NewCheckPermissionParams(user, permission, path, options))
 	err = e.do(ctx, call, CheckPermissionResultDecoder(&response))
 	return
