@@ -130,7 +130,7 @@ public:
         }
     }
 
-    void OnReplcationCardUpdated(
+    void OnReplicationCardUpdated(
         TReplicationCardId replicationCardId,
         const TReplicationCardPtr& replicationCard,
         TTimestamp timestamp) override

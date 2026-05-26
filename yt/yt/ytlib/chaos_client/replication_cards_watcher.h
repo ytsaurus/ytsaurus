@@ -43,7 +43,7 @@ struct IReplicationCardsWatcher
         const TReplicationCardPtr& replicationCard,
         NTransactionClient::TTimestamp timestamp) = 0;
 
-    virtual void OnReplcationCardUpdated(
+    virtual void OnReplicationCardUpdated(
         TReplicationCardId replicationCardId,
         const TReplicationCardPtr& replicationCard,
         NTransactionClient::TTimestamp timestamp) = 0;
