@@ -237,7 +237,7 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_DEBUG("Leaded switch response received but card was already removed from cache "
+                YT_LOG_DEBUG("Leader switch response received but card was already removed from cache "
                     "(ReplicationCardId: %v)",
                     replicationCardId);
             }

@@ -3318,7 +3318,7 @@ private:
 
             auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
             auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-            ReplicationCardWatcher_->OnReplcationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+            ReplicationCardWatcher_->OnReplicationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
         }
     }
 
