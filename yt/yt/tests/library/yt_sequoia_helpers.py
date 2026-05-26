@@ -299,7 +299,7 @@ def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
         @override
         def get_component_config(self, scope: yt_sequoia.Scope) -> yt_sequoia.SequoiaComponentConfig:
             if scope == yt_sequoia.Scope.REPLICAS:
-                default_attrs = {"in_memory_mode": "uncompressed"}
+                default_attrs = {"in_memory_mode": "uncompressed", "tablet_count": 2}
                 patches = {
                     "chunk_refresh_queue": {"tablet_count": 60},
                     "unapproved_chunk_replicas": {

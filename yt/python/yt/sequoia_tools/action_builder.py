@@ -226,13 +226,11 @@ class ConversionAction(actions.Action):
         self,
         table_context: TableContext,
         source: str | list[str],
-        shard_count: int | None = None,
         pool: str | None = None,
         **conversion_kwargs,
     ) -> None:
         self._table_context = table_context
         self._source = source
-        self._shard_count = shard_count
         self._pool = pool
         self._conversion_kwargs = conversion_kwargs
 
@@ -256,6 +254,8 @@ class ConversionAction(actions.Action):
                 column["name"],
                 column["type"],
                 column)
+
+        tablet_count = self._table_context.attributes.pop("tablet_count", None)
 
         table_info = migrationlib.TableInfo(
             key_columns=[
@@ -286,9 +286,16 @@ class ConversionAction(actions.Action):
             target_table=tmp_table_path,
             source_table=self._source,
             tables_path=self._table_context.parent_path,
-            shard_count=self._shard_count,
+            shard_count=tablet_count,
             pool=self._pool,
             version=self._table_context.version)
+
+        # TODO(danilalexeev): Support uniform pivot-keys generation.
+        if tablet_count is not None:
+            app.ground_client.reshard_table(
+                self._table_context.path,
+                tablet_count=tablet_count,
+                sync=True)
 
     @override
     def dry_run(self, app: sequoia_app.SequoiaTool) -> None:
