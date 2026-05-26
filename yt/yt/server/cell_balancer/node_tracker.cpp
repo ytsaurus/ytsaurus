@@ -120,7 +120,7 @@ private:
     {
         NNodeTrackerClient::ENodeState MasterState = NNodeTrackerClient::ENodeState::Unknown;
         TInstant LastPingTime;
-        ELocalNodeState LastReportedLocalState;
+        ELocalNodeState LastReportedLocalState = ELocalNodeState::Unknown;
 
         bool RequestConfigUpdate = false;
         std::string ExpectedTag;
