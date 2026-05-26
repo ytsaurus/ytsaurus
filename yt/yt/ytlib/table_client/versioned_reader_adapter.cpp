@@ -17,6 +17,7 @@
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NTableClient {
+namespace {
 
 using namespace NChunkClient;
 
@@ -143,35 +144,6 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TVersionedReaderAdapter)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IVersionedReaderPtr CreateVersionedReaderAdapter(
-    TSchemafulReaderFactory createReader,
-    const TTableSchemaPtr& schema,
-    const TColumnFilter& columnFilter,
-    TTimestamp timestamp)
-{
-    TColumnFilter filter;
-    if (!columnFilter.IsUniversal()) {
-        TColumnFilter::TIndexes columnFilterIndexes;
-
-        for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
-            columnFilterIndexes.push_back(index);
-        }
-        for (int index : columnFilter.GetIndexes()) {
-            if (index >= schema->GetKeyColumnCount()) {
-                columnFilterIndexes.push_back(index);
-            }
-        }
-        filter = TColumnFilter(std::move(columnFilterIndexes));
-    }
-
-    auto reader = createReader(schema, filter);
-    return New<TVersionedReaderAdapter>(std::move(reader), schema->GetKeyColumnCount(), timestamp);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampResettingAdapter
@@ -294,24 +266,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTimestampResettingAdapter)
-
 ////////////////////////////////////////////////////////////////////////////////
-
-IVersionedReaderPtr CreateTimestampResettingAdapter(
-    IVersionedReaderPtr underlyingReader,
-    TTimestamp timestamp,
-    EChunkFormat chunkFormat)
-{
-    return New<TTimestampResettingAdapter>(
-        std::move(underlyingReader),
-        timestamp,
-        IsTableChunkFormatVersioned(chunkFormat));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TAnyEncodingReaderAdapter)
 
 class TAnyEncodingReaderAdapter
     : public TVersionedReaderAdapterBase<TVersionedRow, IVersionedReaderPtr>
@@ -338,12 +293,32 @@ private:
             return TVersionedRow();
         }
 
-        auto result = TMutableVersionedRow::Allocate(&MemoryPool_, row.GetKeyCount(), row.GetValueCount(), row.GetWriteTimestampCount(), row.GetDeleteTimestampCount());
+        auto result = TMutableVersionedRow::Allocate(
+            &MemoryPool_,
+            row.GetKeyCount(),
+            row.GetValueCount(),
+            row.GetWriteTimestampCount(),
+            row.GetDeleteTimestampCount());
 
-        ::memcpy(result.BeginKeys(), row.BeginKeys(), sizeof(TUnversionedValue) * row.GetKeyCount());
-        ::memcpy(result.BeginValues(), row.BeginValues(), sizeof(TVersionedValue) * row.GetValueCount());
-        ::memcpy(result.BeginWriteTimestamps(), row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
-        ::memcpy(result.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
+        ::memcpy(
+            result.BeginKeys(),
+            row.BeginKeys(),
+            sizeof(TUnversionedValue) * row.GetKeyCount());
+
+        ::memcpy(
+            result.BeginValues(),
+            row.BeginValues(),
+            sizeof(TVersionedValue) * row.GetValueCount());
+
+        ::memcpy(
+            result.BeginWriteTimestamps(),
+            row.BeginWriteTimestamps(),
+            sizeof(TTimestamp) * row.GetWriteTimestampCount());
+
+        ::memcpy(
+            result.BeginDeleteTimestamps(),
+            row.BeginDeleteTimestamps(),
+            sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
         for (auto& value : result.Values()) {
             auto initialAggregateFlags = value.Flags & EValueFlags::Aggregate;
@@ -356,7 +331,47 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TAnyEncodingReaderAdapter)
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+IVersionedReaderPtr CreateVersionedReaderAdapter(
+    TSchemafulReaderFactory createReader,
+    const TTableSchemaPtr& schema,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp)
+{
+    TColumnFilter filter;
+    if (!columnFilter.IsUniversal()) {
+        TColumnFilter::TIndexes columnFilterIndexes;
+
+        for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
+            columnFilterIndexes.push_back(index);
+        }
+        for (int index : columnFilter.GetIndexes()) {
+            if (index >= schema->GetKeyColumnCount()) {
+                columnFilterIndexes.push_back(index);
+            }
+        }
+        filter = TColumnFilter(std::move(columnFilterIndexes));
+    }
+
+    auto reader = createReader(schema, filter);
+    return New<TVersionedReaderAdapter>(std::move(reader), schema->GetKeyColumnCount(), timestamp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedReaderPtr CreateTimestampResettingAdapter(
+    IVersionedReaderPtr underlyingReader,
+    TTimestamp timestamp,
+    EChunkFormat chunkFormat)
+{
+    return New<TTimestampResettingAdapter>(
+        std::move(underlyingReader),
+        timestamp,
+        IsTableChunkFormatVersioned(chunkFormat));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

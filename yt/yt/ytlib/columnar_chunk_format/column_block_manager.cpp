@@ -152,8 +152,8 @@ TCompactVector<ui16, 32> GetGroupsIds(
         *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
     }
 
-    for (auto [chunkSchemaIndex, _] : valuesIdMapping) {
-        *groupIdsData++ = preparedChunkMeta.ColumnInfos[chunkSchemaIndex].GroupId;
+    for (const auto& entry : valuesIdMapping) {
+        *groupIdsData++ = preparedChunkMeta.ColumnInfos[entry.ChunkSchemaIndex].GroupId;
     }
 
     // Timestamp group id.

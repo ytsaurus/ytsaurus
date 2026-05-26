@@ -454,7 +454,7 @@ protected:
         std::vector<TColumnIdMapping> schemaIdMapping;
         schemaIdMapping.reserve(schema->GetColumnCount() - schema->GetKeyColumnCount());
         for (int i = schema->GetKeyColumnCount(); i < schema->GetColumnCount(); ++i) {
-            schemaIdMapping.push_back({i, i});
+            schemaIdMapping.push_back({ .ChunkSchemaIndex = i, .ReaderSchemaIndex = i, });
         }
 
         typename TBlockFormatAdapter::TBlockReader blockReader(
