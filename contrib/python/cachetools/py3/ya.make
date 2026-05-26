@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(5.5.2)
+VERSION(6.0.0)
 
 LICENSE(MIT)
 
@@ -11,7 +11,8 @@ NO_LINT()
 PY_SRCS(
     TOP_LEVEL
     cachetools/__init__.py
-    cachetools/_decorators.py
+    cachetools/_cached.py
+    cachetools/_cachedmethod.py
     cachetools/func.py
     cachetools/keys.py
 )

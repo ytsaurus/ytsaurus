@@ -5,7 +5,6 @@ __all__ = (
     "FIFOCache",
     "LFUCache",
     "LRUCache",
-    "MRUCache",
     "RRCache",
     "TLRUCache",
     "TTLCache",
@@ -13,7 +12,7 @@ __all__ = (
     "cachedmethod",
 )
 
-__version__ = "5.5.2"
+__version__ = "6.0.0"
 
 import collections
 import collections.abc
@@ -23,7 +22,6 @@ import random
 import time
 
 from . import keys
-from ._decorators import _cached_wrapper
 
 
 class _DefaultSize:
@@ -210,12 +208,12 @@ class LRUCache(Cache):
     def __getitem__(self, key, cache_getitem=Cache.__getitem__):
         value = cache_getitem(self, key)
         if key in self:  # __missing__ may not store item
-            self.__update(key)
+            self.__touch(key)
         return value
 
     def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
         cache_setitem(self, key, value)
-        self.__update(key)
+        self.__touch(key)
 
     def __delitem__(self, key, cache_delitem=Cache.__delitem__):
         cache_delitem(self, key)
@@ -230,50 +228,10 @@ class LRUCache(Cache):
         else:
             return (key, self.pop(key))
 
-    def __update(self, key):
+    def __touch(self, key):
+        """Mark as recently used"""
         try:
             self.__order.move_to_end(key)
-        except KeyError:
-            self.__order[key] = None
-
-
-class MRUCache(Cache):
-    """Most Recently Used (MRU) cache implementation."""
-
-    def __init__(self, maxsize, getsizeof=None):
-        from warnings import warn
-
-        warn("MRUCache is deprecated", DeprecationWarning, stacklevel=2)
-
-        Cache.__init__(self, maxsize, getsizeof)
-        self.__order = collections.OrderedDict()
-
-    def __getitem__(self, key, cache_getitem=Cache.__getitem__):
-        value = cache_getitem(self, key)
-        if key in self:  # __missing__ may not store item
-            self.__update(key)
-        return value
-
-    def __setitem__(self, key, value, cache_setitem=Cache.__setitem__):
-        cache_setitem(self, key, value)
-        self.__update(key)
-
-    def __delitem__(self, key, cache_delitem=Cache.__delitem__):
-        cache_delitem(self, key)
-        del self.__order[key]
-
-    def popitem(self):
-        """Remove and return the `(key, value)` pair most recently used."""
-        try:
-            key = next(iter(self.__order))
-        except StopIteration:
-            raise KeyError("%s is empty" % type(self).__name__) from None
-        else:
-            return (key, self.pop(key))
-
-    def __update(self, key):
-        try:
-            self.__order.move_to_end(key, last=False)
         except KeyError:
             self.__order[key] = None
 
@@ -636,11 +594,23 @@ _CacheInfo = collections.namedtuple(
 )
 
 
-def cached(cache, key=keys.hashkey, lock=None, info=False):
+def cached(cache, key=keys.hashkey, lock=None, condition=None, info=False):
     """Decorator to wrap a function with a memoizing callable that saves
     results in a cache.
 
     """
+    from ._cached import _wrapper
+
+    if isinstance(condition, bool):
+        from warnings import warn
+
+        warn(
+            "passing `info` as positional parameter is deprecated",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        info = condition
+        condition = None
 
     def decorator(func):
         if info:
@@ -659,80 +629,21 @@ def cached(cache, key=keys.hashkey, lock=None, info=False):
                 def make_info(hits, misses):
                     return _CacheInfo(hits, misses, 0, 0)
 
-            wrapper = _cached_wrapper(func, cache, key, lock, make_info)
+            return _wrapper(func, cache, key, lock, condition, info=make_info)
         else:
-            wrapper = _cached_wrapper(func, cache, key, lock, None)
-
-        wrapper.cache = cache
-        wrapper.cache_key = key
-        wrapper.cache_lock = lock
-
-        return functools.update_wrapper(wrapper, func)
+            return _wrapper(func, cache, key, lock, condition)
 
     return decorator
 
 
-def cachedmethod(cache, key=keys.methodkey, lock=None):
+def cachedmethod(cache, key=keys.methodkey, lock=None, condition=None):
     """Decorator to wrap a class or instance method with a memoizing
     callable that saves results in a cache.
 
     """
+    from ._cachedmethod import _wrapper
 
     def decorator(method):
-        if lock is None:
-
-            def wrapper(self, *args, **kwargs):
-                c = cache(self)
-                if c is None:
-                    return method(self, *args, **kwargs)
-                k = key(self, *args, **kwargs)
-                try:
-                    return c[k]
-                except KeyError:
-                    pass  # key not found
-                v = method(self, *args, **kwargs)
-                try:
-                    c[k] = v
-                except ValueError:
-                    pass  # value too large
-                return v
-
-            def clear(self):
-                c = cache(self)
-                if c is not None:
-                    c.clear()
-
-        else:
-
-            def wrapper(self, *args, **kwargs):
-                c = cache(self)
-                if c is None:
-                    return method(self, *args, **kwargs)
-                k = key(self, *args, **kwargs)
-                try:
-                    with lock(self):
-                        return c[k]
-                except KeyError:
-                    pass  # key not found
-                v = method(self, *args, **kwargs)
-                # in case of a race, prefer the item already in the cache
-                try:
-                    with lock(self):
-                        return c.setdefault(k, v)
-                except ValueError:
-                    return v  # value too large
-
-            def clear(self):
-                c = cache(self)
-                if c is not None:
-                    with lock(self):
-                        c.clear()
-
-        wrapper.cache = cache
-        wrapper.cache_key = key
-        wrapper.cache_lock = lock
-        wrapper.cache_clear = clear
-
-        return functools.update_wrapper(wrapper, method)
+        return _wrapper(method, cache, key, lock, condition)
 
     return decorator

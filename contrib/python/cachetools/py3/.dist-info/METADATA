@@ -1,6 +1,6 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: cachetools
-Version: 5.5.2
+Version: 6.0.0
 Summary: Extensible memoizing collections and decorators
 Home-page: https://github.com/tkem/cachetools/
 Author: Thomas Kemmer
@@ -13,16 +13,15 @@ Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.7
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Requires-Python: >=3.7
+Requires-Python: >=3.9
 License-File: LICENSE
+Dynamic: license-file
 
 cachetools
 ========================================================================
@@ -116,11 +115,12 @@ Project Resources
 Related Projects
 ------------------------------------------------------------------------
 
-- asyncache_: Helpers to use cachetools with async functions
-- cacheing_: Pure Python Cacheing Library
-- CacheToolsUtils_: Cachetools Utilities
-- kids.cache_: Kids caching library
-- shelved-cache_: Persistent cache for Python cachetools
+- asyncache_: Helpers to use cachetools_ with asyncio.
+- cacheing_: Pure Python Cacheing Library.
+- CacheToolsUtils_: Stackable cache classes for sharing, encryption,
+  statistics *and more* on top of cachetools_, redis_ and memcached_.
+- shelved-cache_: Persistent cache implementation for Python
+  cachetools_.
 
 
 License
@@ -145,7 +145,9 @@ Licensed under the `MIT License`_.
 .. _MIT License: https://raw.github.com/tkem/cachetools/master/LICENSE
 
 .. _asyncache: https://pypi.org/project/asyncache/
-.. _cacheing: https://github.com/breid48/cacheing
+.. _cacheing: https://pypi.org/project/cacheing/
 .. _CacheToolsUtils: https://pypi.org/project/CacheToolsUtils/
-.. _kids.cache: https://pypi.org/project/kids.cache/
 .. _shelved-cache: https://pypi.org/project/shelved-cache/
+.. _cachetools: https://pypi.org/project/cachetools/
+.. _redis: https://redis.io/
+.. _memcached: https://memcached.org/
