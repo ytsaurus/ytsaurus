@@ -109,6 +109,7 @@ struct TReplicaFetchState
     std::vector<TChunkId> ChunkIdsToFetchUnapprovedReplicasFromSequoia;
 
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+    TCellTag CellTag;
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicaFetchState);
@@ -649,6 +650,9 @@ private:
             state->ConfigForValidation = CopySequoiaChunkReplicasConfig(GetDynamicConfig());
         }
         // If no validation is needed, the default value of NTransactionClient::SyncLastCommittedTimestamp will be used for timestamp.
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        state->CellTag = multicellManager->GetCellTag();
     }
 
     TFuture<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>> FetchReplicasFromSequoia(
@@ -747,6 +751,14 @@ private:
         std::vector<TSequoiaChunkReplica> sequoiaReplicas,
         std::vector<TSequoiaChunkReplica> masterReplicas) const
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (CellTagFromId(chunkId) != state->CellTag) {
+            YT_LOG_TRACE("Skipping foreign chunk during Sequoia replica validation (ChunkId: %v)",
+                chunkId);
+            return;
+        }
+
         YT_LOG_ALERT_AND_THROW_IF(
             !state->ConfigForValidation,
             "No Sequoia replicas config is found during Sequoia replica fetch validation");
