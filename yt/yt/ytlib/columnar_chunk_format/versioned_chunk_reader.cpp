@@ -855,8 +855,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
     }
 
-    for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        makeColumnBase(preparedChunkMeta->ColumnInfos[chunkSchemaIndex], readerSchemaIndex);
+    for (const auto& entry : valuesIdMapping) {
+        makeColumnBase(
+            preparedChunkMeta->ColumnInfos[entry.ChunkSchemaIndex],
+            entry.ReaderSchemaIndex);
     }
 
     {
@@ -908,8 +910,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     std::unique_ptr<bool[]> columnHunkFlags;
     if (chunkSchema->HasHunkColumns()) {
         columnHunkFlags.reset(new bool[tableSchema->GetColumnCount()]());
-        for (auto [chunkColumnId, tableColumnId] : valuesIdMapping) {
-            columnHunkFlags[tableColumnId] = chunkSchema->Columns()[chunkColumnId].MaxInlineHunkSize().has_value();
+        for (const auto& entry : valuesIdMapping) {
+            columnHunkFlags[entry.ReaderSchemaIndex] =
+                chunkSchema->Columns()[entry.ChunkSchemaIndex].MaxInlineHunkSize().has_value();
         }
     }
 
