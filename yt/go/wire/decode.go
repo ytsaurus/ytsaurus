@@ -867,6 +867,13 @@ func (d *WireDecoder) decodeReflect(value Value, v reflect.Value) error {
 		v.Elem().SetUint(uint64(i))
 		return err
 
+	case reflect.Bool:
+		if err := validateWireType(TypeBool, value.Type); err != nil {
+			return err
+		}
+		v.Elem().SetBool(value.Bool())
+		return nil
+
 	case reflect.String:
 		s := string(value.Bytes())
 		v.Elem().SetString(string(s))
