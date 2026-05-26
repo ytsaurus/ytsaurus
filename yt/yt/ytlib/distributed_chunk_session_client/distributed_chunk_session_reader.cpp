@@ -18,9 +18,13 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/future.h>
@@ -564,6 +568,7 @@ private:
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->set_all_extension_tags(false);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
+            NRpc::SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
             futures.push_back(req->Invoke());
         }
 
