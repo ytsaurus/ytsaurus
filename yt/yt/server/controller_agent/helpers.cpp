@@ -1,5 +1,9 @@
 #include "helpers.h"
 
+#include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/controllers/helpers.h>
+#include <yt/yt/server/controller_agent/operation_controller.h>
+
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -182,25 +186,14 @@ void BuildFileSpecs(
                 BuildFileSpec(volumeDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
             };
 
-            // COMPAT (krasovav)
             descriptor = jobSpec->add_root_volume_layers();
-            bool layerInserted = false;
             for (const auto& [volumeId, volume] : config->Volumes) {
                 for (const auto& layer : volume->Layers) {
                     if (layer->Path == file.Path) {
                         createVolumeDescriptor(volumeId);
-                        layerInserted = true;
                         break;
                     }
                 }
-            }
-
-            if (!layerInserted) {
-                auto rootVolumeIt = std::find_if(config->JobVolumeMounts.begin(), config->JobVolumeMounts.end(), [] (const auto& volume) {
-                    return volume->MountPath == "/";
-                });
-                YT_VERIFY(rootVolumeIt != config->JobVolumeMounts.end());
-                createVolumeDescriptor(rootVolumeIt->Get()->VolumeId);
             }
         } else {
             descriptor = jobSpec->add_files();
@@ -512,6 +505,104 @@ TDiskQuota CreateDiskQuota(
 ////////////////////////////////////////////////////////////////////////////////
 
 PHOENIX_DEFINE_TEMPLATE_TYPE(TAvgSummary, int);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnrichLayers(
+    const TControllerAgentConfigPtr& config,
+    const TOperationSpecBasePtr& operationSpec,
+    const IOperationControllerHostPtr& host,
+    TNonNullPtr<TUserJobSpec> spec)
+{
+    auto makeLayersFromRichYPaths = [] (const std::vector<NYPath::TRichYPath>& paths) {
+        std::vector<TLayerPtr> layers;
+        layers.reserve(paths.size());
+        for (const auto& path : paths) {
+            auto newLayer = New<TLayer>();
+            newLayer->Path = path;
+            layers.push_back(std::move(newLayer));
+        }
+        return layers;
+    };
+    auto enrichRootVolumeLayers = [&] (TVolumePtr& rootVolume) {
+        if (!config->TestingOptions->RootfsTestLayers.empty()) {
+            rootVolume->Layers = makeLayersFromRichYPaths(config->TestingOptions->RootfsTestLayers);
+            return;
+        }
+
+        if (spec->DockerImage) {
+            NYT::NControllerAgent::NControllers::TDockerImageSpec dockerImage(*spec->DockerImage, config->DockerRegistry);
+
+            // External docker images are not compatible with any additional layers.
+            if (!dockerImage.IsInternal || !config->DockerRegistry->TranslateInternalImagesIntoLayers) {
+                return rootVolume->Layers.clear();
+            }
+
+            // Resolve internal docker image into base layers.
+            auto layersFromDocker = makeLayersFromRichYPaths(GetLayerPathsFromDockerImage(host->GetClient(), dockerImage));
+            rootVolume->Layers.insert(rootVolume->Layers.end(), layersFromDocker.begin(), layersFromDocker.end());
+        }
+        if (rootVolume->Layers.empty() && operationSpec->DefaultBaseLayerPath) {
+            auto newLayer = New<TLayer>();
+            newLayer->Path = *operationSpec->DefaultBaseLayerPath;
+            rootVolume->Layers.push_back(std::move(newLayer));
+        }
+        if (config->DefaultLayerPath && rootVolume->Layers.empty()) {
+            // If no layers were specified, we insert the default one.
+            auto newLayer = New<TLayer>();
+            newLayer->Path = *config->DefaultLayerPath;
+            rootVolume->Layers.push_back(std::move(newLayer));
+        }
+
+        if (config->CudaToolkitLayerDirectoryPath &&
+            !rootVolume->Layers.empty() &&
+            spec->CudaToolkitVersion &&
+            spec->EnableGpuLayers)
+        {
+            // If cuda toolkit is requested, add the layer as the topmost user layer.
+            auto newLayer = New<TLayer>();
+            newLayer->Path = *config->CudaToolkitLayerDirectoryPath + "/" + *spec->CudaToolkitVersion;
+            rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
+        }
+
+        if (spec->Profilers) {
+            for (const auto& profilerSpec : *spec->Profilers) {
+                auto cudaProfilerLayerPath = operationSpec->CudaProfilerLayerPath
+                    ? operationSpec->CudaProfilerLayerPath
+                    : config->CudaProfilerLayerPath;
+
+                if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
+                    auto newLayer = New<TLayer>();
+                    newLayer->Path = *cudaProfilerLayerPath;
+                    rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
+                    break;
+                }
+            }
+        }
+        if (!rootVolume->Layers.empty()) {
+            auto systemLayerPath = spec->SystemLayerPath
+                ? spec->SystemLayerPath
+                : config->SystemLayerPath;
+            if (systemLayerPath) {
+                // This must be the top layer, so insert in the beginning.
+                auto newLayer = New<TLayer>();
+                newLayer->Path = *systemLayerPath;
+                rootVolume->Layers.insert(rootVolume->Layers.begin(), std::move(newLayer));
+            }
+        }
+    };
+
+    auto getRootVolumeId = [] (const std::vector<TVolumeMountPtr>& volumeMounts) {
+        auto it = std::find_if(volumeMounts.begin(), volumeMounts.end(), [] (const TVolumeMountPtr& volumeMount) {
+            return volumeMount->MountPath == "/";
+        });
+        YT_VERIFY(it != volumeMounts.end());
+        return (*it)->VolumeId;
+    };
+
+    auto it = GetIteratorOrCrash(spec->Volumes, getRootVolumeId(spec->JobVolumeMounts));
+    enrichRootVolumeLayers(it->second);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

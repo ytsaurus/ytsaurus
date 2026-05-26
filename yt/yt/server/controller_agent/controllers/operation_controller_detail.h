@@ -1499,7 +1499,7 @@ private:
 
     void RegisterTestingSpeculativeJobIfNeeded(TTask& task, TAllocationId allocationId);
 
-    std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
+    THashSet<NYPath::TRichYPath> GetAllUniqueLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;

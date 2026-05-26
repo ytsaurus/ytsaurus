@@ -1480,6 +1480,7 @@ IOperationControllerPtr CreateReduceController(
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TReduceOperationSpec>(mergedSpec);
     AdjustSamplingFromConfig(spec, config);
+    EnrichLayers(config, spec, host, spec->Reducer.Get());
     if (!spec->EnableKeyGuarantee) {
         spec->EnableKeyGuarantee = !isJoinReduce;
     }
