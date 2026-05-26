@@ -384,6 +384,11 @@ void TStoreCompactionHintController::OnStoreStateChanged(TSortedChunkStore* stor
 
 void TStoreCompactionHintController::OnStoreHasNoHint(TSortedChunkStore* store)
 {
+    // NB(dave11ar): |DefinitelyNoHint| can be set twice, in |Initialize| and after fetch for partition hint.
+    if (State_ == ECompactionHintState::DefinitelyNoHint) {
+        return;
+    }
+
     YT_VERIFY(State_ == ECompactionHintState::Active || State_ == ECompactionHintState::NotInEpoch);
     SetPassiveState(store, ECompactionHintState::DefinitelyNoHint);
 }
@@ -531,6 +536,7 @@ void TPartitionCompactionHintController::OnStoreHasNoHint(TPartition* partition,
 
 void TPartitionCompactionHintController::OnPartitionHasNoHint(TPartition* partition)
 {
+    YT_VERIFY(State_ == ECompactionHintState::NotInEpoch);
     SetPassiveState(partition, ECompactionHintState::DefinitelyNoHint);
 }
 
