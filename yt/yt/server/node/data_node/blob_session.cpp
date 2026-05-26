@@ -36,26 +36,12 @@ using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NFS;
 using namespace NIO;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NNode;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-bool IsOutOfDiskSpaceError(const TError& error)
-{
-    auto ioError = error.FindMatching(NFS::EErrorCode::IOError);
-    if (!ioError) {
-        return false;
-    }
-    return ioError->Attributes().Get<int>("status") == ENOSPC;
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
