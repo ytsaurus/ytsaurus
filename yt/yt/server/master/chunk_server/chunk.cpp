@@ -312,11 +312,14 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         YT_VERIFY(IsConfirmed());
 
         // COMPAT(akozhikhov)
-        if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul &&
-            IsHunkChunkFormat(GetChunkFormat()))
-        {
-            miscExt->set_data_weight(0);
-            miscExt->set_uncompressed_data_size(0);
+        if (IsHunkChunkFormat(GetChunkFormat())) {
+            if (context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+                (context.GetVersion() >= NCellMaster::EMasterReign::Start_26_2 &&
+                 context.GetVersion() < NCellMaster::EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2))
+            {
+                miscExt->set_data_weight(0);
+                miscExt->set_uncompressed_data_size(0);
+            }
         }
 
         OnMiscExtUpdated(*miscExt);

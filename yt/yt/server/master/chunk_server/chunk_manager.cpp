@@ -5709,7 +5709,9 @@ private:
 
         RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
 
-        RecomputeHunkRelatedChunkStatistics_ = context.GetVersion() < EMasterReign::HunkChunkTreeStatisticsOverhaul;
+        RecomputeHunkRelatedChunkStatistics_ = context.GetVersion() < EMasterReign::HunkChunkTreeStatisticsOverhaul ||
+            (context.GetVersion() >= EMasterReign::Start_26_2 &&
+             context.GetVersion() < EMasterReign::HunkChunkTreeStatisticsOverhaul_26_2);
     }
 
     void OnBeforeSnapshotLoaded() override
