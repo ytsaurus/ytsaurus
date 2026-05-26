@@ -51,8 +51,9 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
+        // Should be always filled by SyncReplicas.
         BannedReplicas_[replicaId] = TReplicaState{
-            .Counter = static_cast<int>(std::ssize(BannedReplicas_)),
+            .Counter = std::max(static_cast<int>(std::ssize(BannedReplicas_)), 1),
             .Error = std::move(error)
         };
 
@@ -64,18 +65,12 @@ public:
     void SyncReplicas(const TReplicationCardPtr& replicationCard) override
     {
         auto guard = Guard(SpinLock_);
-
-        auto replicaIds = GetKeys(BannedReplicas_);
-        for (auto replicaId : replicaIds) {
-            if (!replicationCard->Replicas.contains(replicaId)) {
-                EraseOrCrash(BannedReplicas_, replicaId);
-            }
-        }
+        DropMissingKeys(BannedReplicas_, replicationCard->Replicas);
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-            if (!BannedReplicas_.contains(replicaId) &&
-                replicaInfo.ContentType == ETableReplicaContentType::Data &&
-                IsReplicaEnabled(replicaInfo.State))
+            if (replicaInfo.ContentType == ETableReplicaContentType::Data &&
+                IsReplicaEnabled(replicaInfo.State) &&
+                !BannedReplicas_.contains(replicaId))
             {
                 InsertOrCrash(BannedReplicas_, std::pair(replicaId, TReplicaState{}));
             }
