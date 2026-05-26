@@ -5,7 +5,6 @@
 set -e
 
 pip3 install wheel
-pip3 install six
 
 ARC_ROOT=$(realpath $(dirname $0)/../../../..)
 BUILD_DIR="/tmp/yt_tmp_build_dir"

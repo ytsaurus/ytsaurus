@@ -7,11 +7,6 @@ from yt.common import update, update_inplace
 
 from yt.yson import to_yson_type
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 import random
 import os
 from copy import deepcopy
@@ -361,7 +356,7 @@ def _build_master_configs(yt_config,
     ports = []
 
     cell_tags = [str(yt_config.primary_cell_tag + index)
-                 for index in xrange(yt_config.secondary_cell_count + 1)]
+                 for index in range(yt_config.secondary_cell_count + 1)]
     random_part = random.randint(0, 2 ** 32 - 1)
     cell_ids = [canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(tag)))
                 for tag in cell_tags]
@@ -369,12 +364,12 @@ def _build_master_configs(yt_config,
     nonvoting_master_count = yt_config.nonvoting_master_count
 
     connection_configs = {}
-    for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    for cell_index in range(yt_config.secondary_cell_count + 1):
         cell_ports = []
         cell_addresses = []
         peer_configs = []
 
-        for i in xrange(yt_config.master_count):
+        for i in range(yt_config.master_count):
             rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
             address = "{0}:{1}".format(yt_config.fqdn, rpc_port)
             peer_config = {}
@@ -410,10 +405,10 @@ def _build_master_configs(yt_config,
             queue_agent_rpc_ports=queue_agent_rpc_ports)
 
     configs = {}
-    for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    for cell_index in range(yt_config.secondary_cell_count + 1):
         cell_configs = []
 
-        for master_index in xrange(yt_config.master_count):
+        for master_index in range(yt_config.master_count):
             config = default_config.get_master_config()
 
             singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -488,7 +483,7 @@ def _build_master_configs(yt_config,
 def _allocate_queue_agent_rpc_ports(yt_config, ports_generator):
     rpc_ports = []
 
-    for i in xrange(yt_config.queue_agent_count):
+    for i in range(yt_config.queue_agent_count):
         rpc_port = next(ports_generator)
         rpc_ports.append(rpc_port)
 
@@ -504,7 +499,7 @@ def _build_clock_configs(yt_config, multidaemon_config_output, clock_dirs, clock
     cell_addresses = []
     peer_configs = []
 
-    for i in xrange(yt_config.clock_count):
+    for i in range(yt_config.clock_count):
         rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
         cell_addresses.append(address)
@@ -523,7 +518,7 @@ def _build_clock_configs(yt_config, multidaemon_config_output, clock_dirs, clock
     configs = {}
     instance_configs = []
 
-    for clock_index in xrange(yt_config.clock_count):
+    for clock_index in range(yt_config.clock_count):
         config = default_config.get_clock_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -579,7 +574,7 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
     server_addresses = []
     ports = []
 
-    for i in xrange(yt_config.discovery_server_count):
+    for i in range(yt_config.discovery_server_count):
         rpc_port = yt_config.discovery_server_ports[i] if yt_config.discovery_server_ports else next(ports_generator)
         monitoring_port = next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
@@ -587,7 +582,7 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
         ports.append((rpc_port, monitoring_port))
 
     configs = []
-    for index in xrange(yt_config.discovery_server_count):
+    for index in range(yt_config.discovery_server_count):
         discovery_server_config = {}
         discovery_server_config["server_addresses"] = server_addresses
 
@@ -633,7 +628,7 @@ def _build_queue_agent_configs(multidaemon_config_output,
                                logs_dir,
                                yt_config):
     configs = []
-    for index in xrange(yt_config.queue_agent_count):
+    for index in range(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -687,7 +682,7 @@ def _build_kafka_proxy_configs(multidaemon_config_output,
                                logs_dir,
                                yt_config):
     configs = []
-    for index in xrange(yt_config.kafka_proxy_count):
+    for index in range(yt_config.kafka_proxy_count):
         config = default_config.get_kafka_proxy_config()
 
         config["port"] = next(ports_generator)
@@ -738,7 +733,7 @@ def _build_timestamp_provider_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.timestamp_provider_count):
+    for index in range(yt_config.timestamp_provider_count):
         config = default_config.get_timestamp_provider_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -791,7 +786,7 @@ def _build_cell_balancer_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.cell_balancer_count):
+    for index in range(yt_config.cell_balancer_count):
         config = default_config.get_cell_balancer_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -865,7 +860,7 @@ def _build_master_cache_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.master_cache_count):
+    for index in range(yt_config.master_cache_count):
         config = default_config.get_master_cache_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -919,7 +914,7 @@ def _build_scheduler_configs(multidaemon_config_output,
                              yt_config):
     configs = []
 
-    for index in xrange(yt_config.scheduler_count):
+    for index in range(yt_config.scheduler_count):
         config = default_config.get_scheduler_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -972,7 +967,7 @@ def _build_controller_agent_configs(multidaemon_config_output,
                                     yt_config):
     configs = []
 
-    for index in xrange(yt_config.controller_agent_count):
+    for index in range(yt_config.controller_agent_count):
         config = default_config.get_controller_agent_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -1028,7 +1023,7 @@ def _build_node_configs(multidaemon_config_output,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.node_count):
+    for index in range(yt_config.node_count):
         config = default_config.get_node_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -1293,7 +1288,7 @@ def _build_node_configs(multidaemon_config_output,
             set_at(config, "job_resource_manager/start_port", port_start)
             set_at(config, "job_resource_manager/port_count", port_end - port_start)
         else:
-            ports = [next(ports_generator) for _ in xrange(yt_config.node_port_set_size)]
+            ports = [next(ports_generator) for _ in range(yt_config.node_port_set_size)]
             set_at(config, "job_resource_manager/port_set", ports)
 
         multidaemon_config_output["daemons"][f"node_{index}"] = {
@@ -1317,7 +1312,7 @@ def _build_chaos_node_configs(multidaemon_config_output,
                               yt_config):
     configs = []
 
-    for index in xrange(yt_config.chaos_node_count):
+    for index in range(yt_config.chaos_node_count):
         config = default_config.get_chaos_node_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -1404,7 +1399,7 @@ def _build_http_proxy_config(multidaemon_config_output,
 
     proxy_configs = []
 
-    for index in xrange(yt_config.http_proxy_count):
+    for index in range(yt_config.http_proxy_count):
         config = default_config.get_proxy_config()
         config["port"] = \
             yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
@@ -1495,7 +1490,7 @@ def _build_native_driver_configs(master_connection_configs,
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
     configs = {}
-    for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    for cell_index in range(yt_config.secondary_cell_count + 1):
         config = default_config.get_driver_config()
         init_chunk_client_dispatcher(config)
         config["start_queue_consumer_registration_manager"] = True
@@ -1630,7 +1625,7 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
                              yt_config):
     configs = []
 
-    for index in xrange(yt_config.rpc_proxy_count):
+    for index in range(yt_config.rpc_proxy_count):
         grpc_server_config = {
             "addresses": [
                 {
@@ -1971,7 +1966,7 @@ def _build_tablet_balancer_configs(yt_config,
     configs = []
     addresses = []
 
-    for index in xrange(yt_config.tablet_balancer_count):
+    for index in range(yt_config.tablet_balancer_count):
         config = default_config.get_tablet_balancer_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -2022,7 +2017,7 @@ def _build_replicated_table_tracker_configs(yt_config,
                                             logs_dir):
     configs = []
 
-    for index in xrange(yt_config.replicated_table_tracker_count):
+    for index in range(yt_config.replicated_table_tracker_count):
         config = default_config.get_replicated_table_tracker_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -2073,7 +2068,7 @@ def _build_offshore_data_gateway_configs(yt_config,
                                          logs_dir):
     configs = []
 
-    for index in xrange(yt_config.offshore_data_gateway_count):
+    for index in range(yt_config.offshore_data_gateway_count):
         config = default_config.get_offshore_data_gateway_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
@@ -2109,7 +2104,7 @@ def _build_offshore_data_gateway_configs(yt_config,
 def _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator):
     rpc_ports = []
 
-    for i in xrange(yt_config.cypress_proxy_count):
+    for i in range(yt_config.cypress_proxy_count):
         rpc_port = next(ports_generator)
         rpc_ports.append(rpc_port)
 
@@ -2128,7 +2123,7 @@ def _build_cypress_proxy_configs(yt_config,
                                  logs_dir):
     configs = []
 
-    for index in xrange(yt_config.cypress_proxy_count):
+    for index in range(yt_config.cypress_proxy_count):
         config = default_config.get_cypress_proxy_config()
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config

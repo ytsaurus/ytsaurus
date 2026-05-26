@@ -36,12 +36,7 @@ except ImportError:
 from yt.admin.describe import add_describe_parser
 from yt.admin.logs_k8s import add_logs_parser
 
-try:
-    from yt.packages.six import PY3, iteritems
-    from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
-except ImportError:
-    from six import PY3, iteritems
-    from six.moves import builtins, map as imap, zip_longest as izip_longest
+import builtins
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt
@@ -197,7 +192,7 @@ class ParseFormat(Action):
 
 class ParseStructuredArguments(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, builtins.list(imap(parse_arguments, values)))
+        setattr(namespace, self.dest, builtins.list(map(parse_arguments, values)))
 
 
 class ParseTimeArgument(Action):
@@ -457,7 +452,7 @@ def read_table(**kwargs):
     def add_commas(iterator):
         current_iter, next_iter = itertools.tee(iterator)
         next(next_iter, None)
-        for current_chunk, next_chunk in izip_longest(current_iter, next_iter):
+        for current_chunk, next_chunk in itertools.zip_longest(current_iter, next_iter):
             if next_chunk is not None:
                 yield current_chunk.replace(b"\n", b",\n")
             else:
@@ -759,9 +754,7 @@ def set_helper(yt_method):
         if kwargs["value"] is None:
             value = get_binary_std_stream(sys.stdin).read()
         else:
-            value = kwargs["value"]
-            if PY3:
-                value = value.encode("utf-8")
+            value = kwargs["value"].encode("utf-8")
         if kwargs["format"] is None:
             value = parse_arguments(value)
         kwargs["value"] = value
@@ -1701,7 +1694,7 @@ def run_vanilla_operation(sync, tasks, spec):
     """Run vanilla operation."""
     spec_builder = VanillaSpecBuilder()
     if tasks is not None:
-        for name, description in iteritems(tasks):
+        for name, description in tasks.items():
             spec_builder.task(name, description)
     spec_builder.spec(spec)
     return yt.run_operation(spec_builder, sync=sync)
