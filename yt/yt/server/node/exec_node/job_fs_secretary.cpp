@@ -484,6 +484,7 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
         using TProtoMessage = NControllerAgent::NProto::TVolume;
         switch (protoVolume.disk_request_case()) {
             case TProtoMessage::DISK_REQUEST_NOT_SET:
+                YT_VERIFY(volumeId == rootVolumeId);
                 for (const auto& layerKey : protoVolume.layers()) {
                     description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
                 }

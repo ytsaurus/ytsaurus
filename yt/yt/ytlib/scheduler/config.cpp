@@ -1714,6 +1714,24 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
         }
 
+        std::optional<std::string> rootVolumeId;
+        for (const auto& volumeMount : spec->JobVolumeMounts) {
+            if (volumeMount->MountPath == "/") {
+                rootVolumeId = volumeMount->VolumeId;
+                break;
+            }
+        }
+
+        for (const auto& [volumeId, volume] : spec->Volumes) {
+            if (volumeId == rootVolumeId) {
+                continue;
+            }
+            if (!volume->DiskRequest) {
+                THROW_ERROR_EXCEPTION("Options \"volumes\" must contains disk_request for non-root volume")
+                    << TErrorAttribute("volume_id", volumeId);
+            }
+        }
+
         {
             THashSet<std::string_view> allUniqueVolumeMountPaths;
             for (const auto& volumeMount : spec->JobVolumeMounts) {

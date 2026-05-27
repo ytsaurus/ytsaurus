@@ -205,6 +205,32 @@ class TestSandboxTmpfs(YTEnvSetup):
             assert limit is not None
             assert limit == 1024 * 1024
 
+    @authors("krasovav")
+    def test_non_root_volume_without_disk_request(self):
+        with pytest.raises(YtError, match='Options "volumes" must contains disk_request for non-root volume'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "ls tmpfs",
+                            "volumes" : {
+                                "non-root": {
+                                    "disk_space": 1024,
+                                    "type": "tmpfs"
+                                },
+                            },
+                            "job_volumes_mounts" : [
+                                {
+                                    "volume_id": "non-root",
+                                    "mount_path": "tmpfs",
+                                }
+                            ],
+                        }
+                    },
+                }
+            )
+
     @authors("ignat")
     def test_dot_tmpfs_path(self):
         create("table", "//tmp/t_input")
