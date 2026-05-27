@@ -87,6 +87,24 @@ void TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(const THash
     }
 }
 
+TFuture<std::vector<TError>> TMasterHeartbeatReporterBase::GetExecutedEvents(const THashSet<NObjectClient::TCellTag>& masterCellTags)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TFuture<void>> futures;
+    futures.reserve(masterCellTags.size());
+
+    for (auto cellTag : masterCellTags) {
+        if (auto executor = FindExecutor(cellTag)) {
+            futures.emplace_back(executor->GetExecutedEvent());
+        } else {
+            futures.emplace_back(OKFuture);
+        }
+    }
+
+    return AllSet(futures);
+}
+
 void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
