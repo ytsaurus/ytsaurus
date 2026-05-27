@@ -56,8 +56,7 @@ TCommit::TCommit(
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
     TStrongOrderingTagsMap strongOrderingTags,
     TTimestamp maxAllowedCommitTimestamp,
-    NRpc::TAuthenticationIdentity identity,
-    std::vector<TTransactionId> prerequisiteTransactionIds)
+    NRpc::TAuthenticationIdentity identity)
     : TransactionId_(transactionId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
@@ -72,7 +71,6 @@ TCommit::TCommit(
     , StrongOrderingTags_(std::move(strongOrderingTags))
     , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
-    , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -217,11 +215,6 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
                     fluent.Item(ToString(item.first)).Value(item.second);
                 })
             .Item("expected_prepare_signatures").Value(ExpectedPrepareSignatures_)
-            .DoIf(!PrerequisiteTransactionIds_.empty(), [&] (auto fluent) {
-                fluent
-                    .Item("prerequisite_transaction_ids")
-                    .Value(PrerequisiteTransactionIds_);
-            })
         .EndMap();
 }
 

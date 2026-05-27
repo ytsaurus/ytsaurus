@@ -201,8 +201,7 @@ public:
                 /*strongOrderingTags*/ {},
                 /*maxAllowedCommitTimestamp*/ NullTimestamp,
                 /*mutationId*/ NullMutationId,
-                /*identity*/ GetCurrentAuthenticationIdentity(),
-                /*prerequisiteTransactionIds*/ {}));
+                /*identity*/ GetCurrentAuthenticationIdentity()));
     }
 
     TFuture<void> AbortTransaction(
@@ -819,8 +818,6 @@ private:
                 EmplaceOrCrash(strongOrderingTags, cellId, FromProto<std::vector<std::string>>(entry.strong_ordering_tags()));
             }
 
-            // COMPAT(tea-mur): It should be safe to remove prerequisite transactions from tx supervisor after 26.1 (YT-27547)
-            auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
             auto expectedPrepareSignatures = BuildExpectedPrepareSignaturesFromRequest(*request, participantCellIds.size());
             YT_LOG_ALERT_AND_THROW_UNLESS(
                 expectedPrepareSignatures.Participants.size() == participantCellIds.size(),
@@ -829,12 +826,7 @@ private:
                 participantCellIds.size(),
                 expectedPrepareSignatures.Participants.size());
 
-            // Actually there may be prerequisites in the case of old CA (see r18873063) or tablet txs from old proxies
-            YT_LOG_ALERT_UNLESS(
-                prerequisiteTransactionIds.empty(),
-                "Unexpected prerequisite transactions (TransactionId: %v, PrerequisiteTransactionIds: %v)",
-                transactionId,
-                prerequisiteTransactionIds);
+            YT_VERIFY(GetPrerequisiteTransactionIds(context->GetRequestHeader()).empty());
 
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
@@ -858,7 +850,7 @@ private:
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
                 "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, CoordinatorPrepareMode: %v, "
-                "CoordinatorCommitMode: %v, StronglyOrdered: %v, PrerequisiteTransactionIds: %v, MaxAllowedCommitTimestamp: %v, StrongOrderingTags: %v, "
+                "CoordinatorCommitMode: %v, StronglyOrdered: %v, MaxAllowedCommitTimestamp: %v, StrongOrderingTags: %v, "
                 "CoordinatorExpectedPrepareSignature: %v, ParticipantExpectedPrepareSignatures: %v",
                 transactionId,
                 participantCellIds,
@@ -871,7 +863,6 @@ private:
                 coordinatorPrepareMode,
                 coordinatorCommitMode,
                 stronglyOrdered,
-                prerequisiteTransactionIds,
                 maxAllowedCommitTimestamp,
                 MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100),
                 expectedPrepareSignatures.Coordinator,
@@ -889,7 +880,7 @@ private:
 
             // NB: CellIdsToSyncWithBeforePrepare is only respected by participants, not the coordinator.
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
-                prerequisiteTransactionIds,
+                /*prerequisiteTransactionIds*/ {},
                 /*cellIdsToSyncWith*/ {});
 
             // COMPAT(h0pless): remove after 26.1. Here I am using the fact that all components that
@@ -919,8 +910,7 @@ private:
                     std::move(strongOrderingTags),
                     maxAllowedCommitTimestamp,
                     context->GetMutationId(),
-                    GetCurrentAuthenticationIdentity(),
-                    std::move(prerequisiteTransactionIds));
+                    GetCurrentAuthenticationIdentity());
             } else {
                 auto mutationId = context->GetMutationId();
                 auto identity = GetCurrentAuthenticationIdentity();
@@ -928,7 +918,6 @@ private:
                     [
                         =,
                         owner = std::move(owner),
-                        prerequisiteTransactionIds = std::move(prerequisiteTransactionIds),
                         strongOrderingTags = std::move(strongOrderingTags),
                         expectedPrepareSignatures = std::move(expectedPrepareSignatures)
                     ] () mutable {
@@ -946,8 +935,7 @@ private:
                             std::move(strongOrderingTags),
                             maxAllowedCommitTimestamp,
                             mutationId,
-                            identity,
-                            std::move(prerequisiteTransactionIds));
+                            identity);
                     }).AsyncVia(GetCurrentInvoker()));
             }
 
@@ -1380,8 +1368,7 @@ private:
         TStrongOrderingTagsMap strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
         TMutationId mutationId,
-        const TAuthenticationIdentity& identity,
-        std::vector<TTransactionId> prerequisiteTransactionIds)
+        const TAuthenticationIdentity& identity)
     {
         YT_VERIFY(!HasMutationContext());
 
@@ -1406,8 +1393,7 @@ private:
             coordinatorCommitMode,
             std::move(strongOrderingTags),
             maxAllowedCommitTimestamp,
-            identity,
-            std::move(prerequisiteTransactionIds));
+            identity);
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -1440,7 +1426,6 @@ private:
                 .LatePrepare = true, // Technically true.
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = SelfClockClusterTag_,
-                .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds(),
                 .ExpectedPrepareSignature = commit->ExpectedPrepareSignatures().Coordinator,
             };
             TransactionManager_->PrepareTransactionCommit(
@@ -1694,8 +1679,7 @@ private:
                 ETransactionCoordinatorCommitMode::Eager,
                 /*strongOrderingTags*/ {},
                 /*maxAllowedCommitTimestamp*/ NullTimestamp,
-                identity,
-                /*prerequisiteTransactionIds*/ {});
+                identity);
             commit->CommitTimestamps() = commitTimestamps;
         }
 
@@ -2367,8 +2351,7 @@ private:
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         TStrongOrderingTagsMap strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
-        NRpc::TAuthenticationIdentity identity,
-        std::vector<TTransactionId> prerequisiteTransactionIds)
+        NRpc::TAuthenticationIdentity identity)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
@@ -2384,8 +2367,7 @@ private:
             coordinatorCommitMode,
             std::move(strongOrderingTags),
             maxAllowedCommitTimestamp,
-            std::move(identity),
-            std::move(prerequisiteTransactionIds));
+            std::move(identity));
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
@@ -2505,14 +2487,11 @@ private:
         try {
             // Any exception thrown here is caught below.
 
-            const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
-
             TTransactionPrepareOptions options{
                 .Persistent = true,
                 .LatePrepare = latePrepare,
                 .PrepareTimestamp = commit->PrepareTimestamp(),
                 .PrepareTimestampClusterTag = commit->PrepareTimestampClusterTag(),
-                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
                 .ExpectedPrepareSignature = commit->ExpectedPrepareSignatures().Coordinator,
             };
             TransactionManager_->PrepareTransactionCommit(

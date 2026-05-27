@@ -75,8 +75,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState, ECommitState::Start);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
-    // For simple transaction commits only. Transient.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TTransactionId>, PrerequisiteTransactionIds);
 
 public:
     explicit TCommit(TTransactionId transactionId);
@@ -94,8 +92,7 @@ public:
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
         TStrongOrderingTagsMap strongOrderingTags,
         TTimestamp maxAllowedCommitTimestamp,
-        NRpc::TAuthenticationIdentity identity,
-        std::vector<TTransactionId> prerequisiteTransactionIds = {});
+        NRpc::TAuthenticationIdentity identity);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
