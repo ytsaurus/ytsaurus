@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, generate_uuid, link, make_ace)
+    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -233,6 +233,7 @@ class TestMasterTransactions(YTEnvSetup):
         create_user("u")
         tx = start_transaction(timeout=1000, authenticated_user="u")
         set("//sys/users/u/@banned", True)
+        multicell_sleep()
         with raises_yt_error() as error:
             abort_transaction(tx, authenticated_user="u")
         assert "Access denied" in str(error) or "is banned on" in str(error)
@@ -1064,26 +1065,26 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
         wait(lambda: not exists(f"#{tx}"))
         assert get("//tmp/i") == 321
 
-        @authors("kvk1920")
-        def test_commit_snapshot_lock_with_guqm_pause(self):
-            create("file", "//tmp/file")
-            write_file("//tmp/file", b"some_data")
+    @authors("kvk1920")
+    def test_commit_snapshot_lock_with_guqm_pause(self):
+        create("file", "//tmp/file")
+        write_file("//tmp/file", b"some_data")
 
-            set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+        set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
 
-            try:
-                link("//tmp/file", "//tmp/link")
+        try:
+            link("//tmp/file", "//tmp/link")
 
-                tx = start_transaction()
+            tx = start_transaction()
 
-                lock("//tmp/file", mode="snapshot", tx=tx)
-                lock("//tmp/link&", mode="snapshot", tx=tx)
-                lock("//tmp", mode="snapshot", tx=tx)
+            lock("//tmp/file", mode="snapshot", tx=tx)
+            lock("//tmp/link&", mode="snapshot", tx=tx)
+            lock("//tmp", mode="snapshot", tx=tx)
 
-                remove("//tmp/file")
-                commit_transaction(tx)
-            finally:
-                set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": False})
+            remove("//tmp/file")
+            commit_transaction(tx)
+        finally:
+            set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": False})
 
 
 ##################################################################
