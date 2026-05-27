@@ -460,6 +460,8 @@ public:
 
     EStorageConflictResolveMode StorageConflictResolveMode;
 
+    bool OmitInaccessibleRows;
+
     REGISTER_YSON_STRUCT(TQuerySettings);
 
     static void Register(TRegistrar registrar);
