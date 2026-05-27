@@ -2531,7 +2531,7 @@ usage: yt add-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP] [m
 checks permission for Cypress node
 
 ```bash
-usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PERMISSION] [--path PATH] [--read-from READ_FROM] [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE]
+usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PERMISSION] [--path PATH] [-q] [--read-from READ_FROM] [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE]
                            [--columns COLUMNS] [--format FORMAT]
                            [user] [permission] [path]
 ```
@@ -2553,6 +2553,8 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 > `--permission`    one of read, write, administer, create, use
 
 > `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
+
+> `-q, --quiet`    do not write anything to standard output; exit with 0 if permission is granted, 1 otherwise
 
 > `--read-from`    Can be set to «cache» to enable reads from system cache
 
