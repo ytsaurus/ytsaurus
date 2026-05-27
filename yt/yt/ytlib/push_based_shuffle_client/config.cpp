@@ -27,4 +27,20 @@ void TShuffleWriterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPartitionReaderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("chunk_session_reader_config", &TThis::ChunkSessionReaderConfig)
+        .DefaultNew();
+    registrar.Parameter("codec", &TThis::Codec)
+        .Default(NCompression::ECodec::Lz4);
+    registrar.Parameter("row_buffer_start_chunk_size", &TThis::RowBufferStartChunkSize)
+        .Default(64_KB)
+        .GreaterThan(0);
+    registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
+        .Default(64_MB)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NPushBasedShuffleClient

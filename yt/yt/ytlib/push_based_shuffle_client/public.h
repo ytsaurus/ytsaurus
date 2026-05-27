@@ -12,6 +12,10 @@ DECLARE_REFCOUNTED_STRUCT(IPushBasedShuffleWriter)
 DECLARE_REFCOUNTED_STRUCT(IPartitionWriteSessionProvider)
 DECLARE_REFCOUNTED_STRUCT(TShuffleWriterConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IPushBasedPartitionReader)
+DECLARE_REFCOUNTED_STRUCT(TShuffleReadBatch)
+DECLARE_REFCOUNTED_STRUCT(TPartitionReaderConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, PushBasedShuffleLogger, "PushBasedShuffleClient");

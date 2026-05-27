@@ -375,6 +375,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/record_format.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/session_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/partition_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/shuffle_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp

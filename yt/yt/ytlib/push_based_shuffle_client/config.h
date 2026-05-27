@@ -42,4 +42,33 @@ DEFINE_REFCOUNTED_TYPE(TShuffleWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPartitionReaderConfig
+    : public NYTree::TYsonStruct
+{
+    //! Forwarded to each L1 reader.
+    NDistributedChunkSessionClient::TDistributedChunkSessionReaderConfigPtr ChunkSessionReaderConfig;
+
+    //! Codec all chunks in this reader instance were written with.
+    //! Default Lz4 matches the writer's default; production callers MUST set this
+    //! explicitly to the operation's actual codec.
+    NCompression::ECodec Codec;
+
+    //! Initial chunk size for each batch's TRowBuffer.
+    i64 RowBufferStartChunkSize;
+
+    //! Soft cap on compressed input bytes drained per Read(). Checked between
+    //! blobs (overshoot <= one blob; the unconsumed tail defers to the next
+    //! Read). Counts every blob the drain touches, including ones the filter
+    //! rejects. Not a cap on decompressed or returned-batch size.
+    i64 MaxBytesPerRead;
+
+    REGISTER_YSON_STRUCT(TPartitionReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NPushBasedShuffleClient
