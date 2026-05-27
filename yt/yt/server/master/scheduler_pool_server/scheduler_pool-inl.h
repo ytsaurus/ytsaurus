@@ -16,7 +16,8 @@ void TSchedulerPool::ValidateChildrenGuaranteeSum(
 {
     auto parentResource = getResource(this->FullConfig());
     if (!parentResource || !this->FullConfig()->AllowChildrenGuarantees) {
-        for (const auto& [_, child] : KeyToChild_) {
+        for (auto it : GetSortedIterators(KeyToChild_)) {
+            auto child = it->second;
             if (auto childResource = getResource(child->FullConfig())) {
                 if (!parentResource) {
                     THROW_ERROR_EXCEPTION(
