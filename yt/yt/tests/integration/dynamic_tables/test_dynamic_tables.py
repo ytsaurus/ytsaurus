@@ -960,6 +960,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_TEST_PARTITIONS = 16
 
+    DELTA_DRIVER_CONFIG = {"use_uniform_prepare_signatures": True}
+    DELTA_NODE_CONFIG = {"cluster_connection": {"use_uniform_prepare_signatures": True}}
+
     @staticmethod
     def _setup_flush_error(table_path):
         sync_reshard_table(table_path, [[], [33], [66]])
@@ -4256,6 +4259,8 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {"cluster_connection": {"use_uniform_prepare_signatures": True}}
 
     @authors("gritukan")
     def test_suspend_tablet_cell(self):
