@@ -768,16 +768,35 @@ void TAllocation::OnAllocationFinished(
     ResourceHolder_.Reset();
 
     auto fsSecretary = FSSecretary_;
+    auto allocationLogger = Logger;
+    auto releaseAllocationResources = [fsSecretary, allocationLogger] {
+        const auto& Logger = allocationLogger;
+
+        for (auto& volume : fsSecretary->ReleaseVolumes()) {
+            if (!volume) {
+                continue;
+            }
+
+            auto removeResult = WaitFor(volume->Remove());
+            YT_LOG_ERROR_IF(
+                !removeResult.IsOK(),
+                removeResult,
+                "Volume remove failed (VolumePath: %v)",
+                volume->GetPath());
+        }
+
+        fsSecretary->ReleasePreparedLayers();
+        fsSecretary->ReleaseArtifacts();
+    };
+
     if (lastJob) {
         lastJob->GetCleanupFinishedEvent().Subscribe(
-            BIND_NO_PROPAGATE([fsSecretary] (const TError& /*error*/) {
-                fsSecretary->ReleasePreparedLayers();
-                fsSecretary->ReleaseArtifacts();
+            BIND_NO_PROPAGATE([releaseAllocationResources] (const TError& /*error*/) {
+                releaseAllocationResources();
             })
                 .Via(Bootstrap_->GetJobInvoker()));
     } else {
-        fsSecretary->ReleasePreparedLayers();
-        fsSecretary->ReleaseArtifacts();
+        releaseAllocationResources();
     }
 
     FSSecretary_.Reset();

@@ -105,6 +105,7 @@ public:
     const std::optional<int64_t>& GetRootVolumeInodeLimit() const;
     bool IsRootVolumeReusable() const;
     IVolumePtr ReleaseRootVolumeIfNeeded();
+    std::vector<IVolumePtr> ReleaseVolumes();
 
     const std::vector<TBaseVolumeParamsPtr>& GetNonRootVolumeParams() const;
 

@@ -794,6 +794,24 @@ IVolumePtr TJobFSSecretary::ReleaseRootVolumeIfNeeded()
     return std::move(RootVolume_);
 }
 
+std::vector<IVolumePtr> TJobFSSecretary::ReleaseVolumes()
+{
+    YT_LOG_DEBUG("Releasing volumes");
+
+    std::vector<IVolumePtr> volumes;
+    volumes.reserve(2 + NonRootVolumes_.size());
+
+    volumes.push_back(std::move(RootVolume_));
+    volumes.push_back(std::move(GpuCheckVolume_));
+
+    for (auto& [_, volumeResult] : NonRootVolumes_) {
+        volumes.push_back(std::move(volumeResult->Volume));
+    }
+    NonRootVolumes_.clear();
+
+    return volumes;
+}
+
 const std::vector<TBaseVolumeParamsPtr>& TJobFSSecretary::GetNonRootVolumeParams() const
 {
     return NonRootVolumeParams_;
