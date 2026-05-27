@@ -1525,9 +1525,7 @@ TEST_F(TMutationIdTest, Commit)
     auto commit = [&] (bool retry) {
         TTransactionCommitOptions options;
         options.MutationId = mutationId;
-        if (retry) {
-            options.Retry = true;
-        }
+        options.Retry = retry;
         auto attached = Client_->AttachTransaction(txId);
         WaitFor(attached->Commit(options))
             .ThrowOnError();
