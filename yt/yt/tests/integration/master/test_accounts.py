@@ -173,6 +173,16 @@ class AccountsTestSuiteBase(YTEnvSetup):
             and cluster_resources_equal(get("//sys/accounts/tmp/@resource_usage"), expected_usage)
         )
 
+    def _get_master_memory_usage(self, account):
+        master_memory = get("//sys/accounts/{}/@resource_usage/master_memory/total".format(account))
+        assert master_memory >= 0
+        return master_memory
+
+    def _get_detailed_master_memory_usage(self, account, memory_type):
+        master_memory = get("//sys/accounts/{}/@resource_usage/detailed_master_memory/{}".format(account, memory_type))
+        assert master_memory >= 0
+        return master_memory
+
     # A context manager used for waiting until a chunk owner node which has been created, modified or moved
     # to another account gets accounted for in resource usage of account(s). Might not handle cases of
     # non-monotonous resource usage changes correctly (e.g. overwriting a chunk with a chunk of the same size).
@@ -467,25 +477,6 @@ class TestAccounts(AccountsTestSuiteBase):
     def test_remove_immediately(self):
         create_account("max")
         remove_account("max")
-
-    @authors("babenko", "ignat", "kiselyovp")
-    def test_remove_delayed(self):
-        create_account("max")
-        set("//tmp/a", {})
-        set("//tmp/a/@account", "max")
-        remove_account("max", sync=False)
-
-        assert get("//sys/accounts/max/@life_stage") == "removal_started"
-        with pytest.raises(YtError):
-            create("map_node", "//tmp/b", attributes={"account": "max"})
-        create("map_node", "//tmp/b")
-        with pytest.raises(YtError):
-            set("//tmp/b/@account", "max")
-        remove_account("max", sync=False)
-        assert get("//sys/accounts/max/@life_stage") == "removal_started"
-
-        remove("//tmp/a")
-        wait(lambda: not exists("//sys/accounts/max"))
 
     @authors("kvk1920")
     def test_account_attr6(self):
@@ -1548,16 +1539,6 @@ class TestAccounts(AccountsTestSuiteBase):
             and get("//sys/accounts/a/@resource_usage/node_count") == 1
         )
         assert get("//sys/accounts/a/@ref_counter") == 4
-
-    def _get_master_memory_usage(self, account):
-        master_memory = get("//sys/accounts/{}/@resource_usage/master_memory/total".format(account))
-        assert master_memory >= 0
-        return master_memory
-
-    def _get_detailed_master_memory_usage(self, account, memory_type):
-        master_memory = get("//sys/accounts/{}/@resource_usage/detailed_master_memory/{}".format(account, memory_type))
-        assert master_memory >= 0
-        return master_memory
 
     @authors("aleksandra-zh")
     def test_master_memory(self):
@@ -2686,29 +2667,61 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert not exists("//sys/account_tree/max/max42")
         assert not exists("//sys/account_tree/max/max69")
 
-    @authors("kiselyovp")
+    @authors("kiselyovp", "theevilbird")
     def test_remove3(self):
+        create_account("sparrow")
+        create("map_node", "//tmp/sparrow", attributes={"account": "sparrow"})
+        with raises_yt_error("Cannot remove an account \"sparrow\" because its usage is not zero"):
+            remove_account("sparrow", recursive=True, force=True, sync=False)
+
+        remove("//tmp/sparrow")
+        gc_collect()
+        wait(
+            lambda: cluster_resources_equal(
+                get("//sys/accounts/sparrow/@resource_usage"),
+                self._build_resource_limits(include_disk_space=False)
+            )
+            and self._get_master_memory_usage("sparrow") == 0
+            and self._get_detailed_master_memory_usage("sparrow", "nodes") == 0
+        )
+        remove_account("sparrow", recursive=True, force=True, sync=False)
+        wait(lambda: not exists("//sys/account_tree/sparrow"))
+
         create_account("max")
         create_account("max42", "max")
         create_account("max69", "max", empty=True)
 
         create("map_node", "//tmp/max42", attributes={"account": "max42"})
-        remove_account("max", recursive=True, force=True, sync=False)
-        wait(lambda: not exists("//sys/account_tree/max/max69"))
+
+        with raises_yt_error("Cannot remove an account \"max\" because its usage is not zero"):
+            remove_account("max", recursive=True, force=True, sync=False)
+        assert exists("//sys/account_tree/max/max69")
         assert exists("//sys/account_tree/max/max42")
-        assert get("//sys/account_tree/max/@life_stage") == "removal_started"
-        with pytest.raises(YtError):
-            create_account("child", "max42", empty=True)
-        with pytest.raises(YtError):
-            create_account("child", "max", empty=True)
-        create_account("child", empty=True)
-        with pytest.raises(YtError):
-            set("//sys/account_tree/child/@parent_name", "max")
+
+        create_account("child1", "max42", empty=True)
+        assert exists("//sys/account_tree/max/max42/child1")
+
+        create_account("child2", "max", empty=True)
+        assert exists("//sys/account_tree/max/child2")
+
+        create_account("child3", empty=True)
+        set("//sys/account_tree/child3/@parent_name", "max")
+        assert exists("//sys/account_tree/max/child3")
 
         remove("//tmp/max42")
+        gc_collect()
+        wait(
+            lambda: cluster_resources_equal(
+                get("//sys/accounts/max42/@resource_usage"),
+                self._build_resource_limits(include_disk_space=False))
+            and self._get_master_memory_usage("max42") == 0
+            and self._get_detailed_master_memory_usage("max42", "nodes") == 0
+        )
+
+        remove_account("max", recursive=True, force=True, sync=False)
         wait(lambda: not exists("//sys/account_tree/max"))
 
-    @authors("kiselyovp")
+    @authors("kiselyovp", "theevilbird")
     def test_remove4(self):
         create_account("max")
         create_account("a1", "max", empty=True)
@@ -2724,13 +2737,27 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("a2", "max", empty=True)
 
         create("table", "//tmp/t", attributes={"account": "a1"})
-        remove("//sys/account_tree/max/*")
-        wait(lambda: not exists("//sys/account_tree/max/a2"))
-        assert exists("//sys/account_tree/max/a1")
-        assert get("//sys/accounts/a1/@life_stage") == "removal_started"
-        remove("//tmp/t")
-        wait(lambda: not exists("//sys/account_tree/max/a1"))
+        wait(lambda: self._get_detailed_master_memory_usage("a1", "nodes") > 0)
 
+        with raises_yt_error("Cannot remove an account \"a1\" because its usage is not zero"):
+            remove("//sys/account_tree/max/*")
+        assert exists("//sys/account_tree/max/a1")
+        assert exists("//sys/account_tree/max/a2")
+
+        remove("//tmp/t")
+        gc_collect()
+        wait(
+            lambda: cluster_resources_equal(
+                get("//sys/accounts/a1/@resource_usage"),
+                self._build_resource_limits(include_disk_space=False)
+            )
+            and self._get_master_memory_usage("a1") == 0
+            and self._get_detailed_master_memory_usage("a1", "nodes") == 0
+        )
+
+        remove("//sys/account_tree/max/*")
+        wait(lambda: not exists("//sys/account_tree/max/a1"))
+        wait(lambda: not exists("//sys/account_tree/max/a2"))
         assert get("//sys/accounts/max/@life_stage") == "creation_committed"
 
     @authors("kiselyovp")
@@ -2890,60 +2917,6 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert not exists("//sys/account_tree/metrika-dev")
         assert exists("//sys/account_tree/metrika/dev")
         assert get("//tmp/f/@account", "dev")
-
-    @authors("kiselyovp")
-    def test_move_removed_account(self):
-        create_account("max")
-        create_account("tesuto")
-        create("file", "//tmp/file", attributes={"account": "tesuto"})
-        remove_account("tesuto", sync=False)
-        assert exists("//sys/account_tree/tesuto")
-
-        with raises_yt_error("Account \"tesuto\" cannot be used since it is in \"removal_started\" life stage"):
-            move("//sys/account_tree/max", "//sys/account_tree/tesuto/max")
-        set("//sys/accounts/tesuto/@parent_name", "max")
-        assert exists("//sys/account_tree/max/tesuto")
-        assert not exists("//sys/account_tree/tesuto")
-        set("//sys/accounts/tesuto/@name", "test")
-        assert get("//tmp/file/@account") == "test"
-        assert exists("//sys/account_tree/max/test")
-
-        remove_account("max", sync=False)
-        remove("//tmp/file")
-        wait(lambda: not exists("//sys/accounts/max"))
-
-    @authors("kiselyovp")
-    def test_move_removed_account_fail(self):
-        create_account("yt")
-        create("map_node", "//tmp/yt", attributes={"account": "yt"})
-        remove_account("yt", sync=False)
-
-        create_account("YaMR", empty=True)
-        with raises_yt_error("Name must match regular expression \"[A-Za-z0-9-_]+\""):
-            move("//sys/account_tree/yt", "//sys/account_tree/YaMR/2.0")
-
-        for cell_index in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
-            driver = get_driver(cell_index)
-            assert not exists("//sys/account_tree/YaMR/yt", driver=driver)
-            assert not exists("//sys/account_tree/YaMR/2.0", driver=driver)
-            assert exists("//sys/account_tree/yt", driver=driver)
-        assert get("//tmp/yt/@account") == "yt"
-
-    @authors("kiselyovp")
-    def test_move_child_from_removed_account(self):
-        create_account("YaMR")
-        create_account("dev", "YaMR")
-        create("map_node", "//tmp/dev", attributes={"account": "dev"})
-
-        create_account("yt")
-        remove_account("YaMR", sync=False)
-        assert get("//sys/accounts/YaMR/@life_stage") == "removal_started"
-        assert exists("//sys/accounts/dev")
-        set("//sys/accounts/dev/@name", "development")
-        assert get("//sys/account_tree/YaMR/@life_stage") == "removal_started"
-
-        set("//sys/account_tree/YaMR/development/@parent_name", "yt")
-        wait(lambda: not exists("//sys/accounts/YaMR"))
 
     @authors("shakurov")
     def test_nested_limits1(self):
@@ -3157,7 +3130,8 @@ class TestAccountTree(AccountsTestSuiteBase):
         )
 
         remove_account("yt-dev-spof-1")
-        remove_account("yt-dev-spof", sync=False)
+        with raises_yt_error("Cannot remove an account \"yt-dev-spof\" because its usage is not zero"):
+            remove_account("yt-dev-spof", sync=False)
 
         wait(
             lambda: get("//sys/accounts/yt/@recursive_resource_usage/node_count") == 1
@@ -3481,7 +3455,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             get("//sys/account_tree/yt/yt-dev/yt-tests", authenticated_user="kiselyovp")
 
-    @authors("kiselyovp")
+    @authors("kiselyovp", "theevilbird")
     def test_nested_acls4(self):
         create_user("babenko")
         create_user("renadeen")
@@ -3585,8 +3559,11 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         set("//sys/accounts/kurwa/@name", "work", authenticated_user="babenko")
         assert get("//tmp/yt/renadeen/work/@account") == "work"
-        remove_account("huj", authenticated_user="babenko", sync=False)
+
         remove("//tmp/yt/renadeen/never_mind")
+        gc_collect()
+        wait(lambda: get("//sys/accounts/huj/@resource_usage/master_memory/total") == 0)
+        remove_account("huj", authenticated_user="babenko", sync=False)
         wait(lambda: not exists("//sys/accounts/huj"))
         with pytest.raises(YtError):
             create(
@@ -4171,23 +4148,16 @@ class TestAccountTree(AccountsTestSuiteBase):
         transfer_account_resources("grandchild", "parent", {"node_count": 5})
         validate_node_counts(15, 10, 1)
 
-    @authors("kiselyovp")
+    @authors("kiselyovp", "theevilbird")
     def test_transfer_account_resources5(self):
         create_account("yt-dev", attributes={"resource_limits": {"node_count": 5}})
         create_account("yt-prod", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
-        remove_account("yt-dev", sync=False)
+        with raises_yt_error("Cannot remove an account \"yt-dev\" because its usage is not zero"):
+            remove_account("yt-dev", sync=False)
 
-        with pytest.raises(YtError):
-            transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})
-
-        remove("//tmp/test")
-        wait(lambda: not exists("//sys/accounts/yt-dev"))
-        with pytest.raises(YtError):
-            transfer_account_resources("yt-dev", "yt-prod", {})
-        with pytest.raises(YtError):
-            transfer_account_resources("yt-prod", "yt-dev", {})
+        transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})
 
     @authors("kiselyovp")
     def test_transfer_account_resources6(self):
@@ -4743,6 +4713,8 @@ class TestAccountsStatisticsUpdatesGossip(TestAccountsMulticell):
         sleep(1)  # wait for gossip
 
         remove("//tmp/t")
+        gc_collect()
+        wait(lambda: get("//sys/accounts/max/@resource_usage/master_memory/total") == 0)
         remove_account("max")
         sleep(1)  # wait for gossip
 

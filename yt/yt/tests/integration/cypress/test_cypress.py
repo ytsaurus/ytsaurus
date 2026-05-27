@@ -715,21 +715,26 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
             copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
-    @authors("babenko")
+    @authors("babenko", "theevilbird")
     def test_copy_removed_account(self):
         create_account("a")
         create("map_node", "//tmp/p1")
         create("map_node", "//tmp/p2")
 
         create("file", "//tmp/p1/f", attributes={"account": "a"})
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
 
-        remove("//sys/accounts/a")
-        wait(lambda: get("//sys/accounts/a/@life_stage") in ["removal_started", "removal_pre_committed"])
+        with raises_yt_error("Cannot remove an account \"a\" because its usage is not zero"):
+            remove("//sys/accounts/a")
+        assert get("//sys/accounts/a/@life_stage") == "creation_committed"
 
-        with raises_yt_error("Account \"a\" cannot be used"):
-            copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
+        copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
 
         remove("//tmp/p1/f")
+        remove("//tmp/p2/f")
+        gc_collect()
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") == 0)
+        remove("//sys/accounts/a")
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")

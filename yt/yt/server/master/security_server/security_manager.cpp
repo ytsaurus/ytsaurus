@@ -3015,7 +3015,7 @@ public:
 
     void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) override
     {
-        if (delta == TAccountStatistics()) {
+        if (delta == TAccountStatistics::Empty) {
             return;
         }
         account->IncreaseStatistics(delta);
