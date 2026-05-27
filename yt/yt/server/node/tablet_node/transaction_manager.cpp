@@ -634,17 +634,14 @@ public:
                         }),
                     options.PrepareTimestamp);
 
-                // COMPAT(tea-mur): Delete after the prerequisite transactions are removed
-                // from transaction_supervisor (YT-27441)
-                auto externalizedOptions = options;
-                externalizedOptions.PrerequisiteTransactionIds.clear();
+                YT_VERIFY(options.PrerequisiteTransactionIds.empty());
 
                 // NB: Forwarding must happen after transaction actions are run because
                 // prepare may fail locally.
                 ForwardTransactionIfExternalized(
                     transaction,
                     NProto::TReqPrepareExternalizedTransaction{},
-                    externalizedOptions);
+                    options);
             }
         }
     }
