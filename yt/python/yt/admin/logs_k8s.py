@@ -71,23 +71,15 @@ class RemoteFile:
         return os.path.basename(self.path)
 
 
-def _k8s_install_hint() -> str:
-    from importlib.metadata import packages_distributions
-    dists = packages_distributions().get("yt", [])
-    for name in ("ytsaurus-client", "yandex-yt"):
-        if name in dists:
-            return f"pip install '{name}[admin]'"
-    return "pip install kubernetes"
-
-
 class K8sExecutor:
     def __init__(self, namespace: str):
         try:
             from kubernetes import client, config, stream
         except ImportError as e:
+            from yt.admin.helpers import install_hint
             raise ImportError(
                 "The 'kubernetes' package is required for K8sExecutor. "
-                f"Install it with: {_k8s_install_hint()}"
+                f"Install it with: {install_hint('kubernetes')}"
             ) from e
 
         self.namespace = namespace

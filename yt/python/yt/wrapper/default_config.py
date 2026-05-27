@@ -373,6 +373,12 @@ class DefaultConfigType(TypedDict, total=False):
     dump_table_options: DefaultConfigDumpTableOptionsType
     enable_password_strength_validation: bool
 
+    class DefaultConfigAdminType(TypedDict, total=False):
+        prometheus_image: str
+        grafana_image: str
+
+    admin: DefaultConfigAdminType
+
 
 def retry_backoff_config(**kwargs) -> DefaultConfigRetriesBackoffType:
     config_dict = {
@@ -1117,6 +1123,11 @@ default_config = {
     # if enabled, the password strength will be verified by the client when performing
     # a set_user_password request
     "enable_password_strength_validation": RemotePatchableBoolean(False, "python_enable_password_strength_validation"),
+
+    "admin": {
+        "prometheus_image": "prom/prometheus:v3.11.3",
+        "grafana_image": "grafana/grafana-oss:12.4.2",
+    },
 }
 
 # pydoc :: default_config :: end
@@ -1237,6 +1248,9 @@ SHORTCUTS = {
     "YT_CONFIG_PROFILE": "config_profile",
 
     "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
+
+    "YT_ADMIN_PROMETHEUS_IMAGE": "admin/prometheus_image",
+    "YT_ADMIN_GRAFANA_IMAGE": "admin/grafana_image",
 }
 
 
