@@ -1,6 +1,8 @@
 PY3_LIBRARY()
 
 PEERDIR(
+    yt/python/yt/admin/helpers
+    yt/python/yt/admin/metrics
     yt/python/yt/wrapper
 )
 
@@ -14,3 +16,12 @@ PY_SRCS(
 )
 
 END()
+
+RECURSE(
+    helpers
+    metrics
+)
+
+RECURSE_FOR_TESTS(
+    tests
+)

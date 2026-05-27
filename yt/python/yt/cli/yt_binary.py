@@ -35,6 +35,7 @@ except ImportError:
 
 from yt.admin.describe import add_describe_parser
 from yt.admin.logs_k8s import add_logs_parser
+from yt.admin.metrics.cli import add_metrics_parser
 
 import builtins
 
@@ -2597,6 +2598,9 @@ def add_admin_parser(root_subparsers):
 
     # logs
     add_logs_parser(admin_subparsers)
+
+    # metrics
+    add_metrics_parser(admin_subparsers)
 
 
 def add_dirtable_parser(root_subparsers):

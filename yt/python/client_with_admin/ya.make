@@ -1,6 +1,7 @@
 PY3_LIBRARY()
 
 PEERDIR(
+    contrib/python/docker
     contrib/python/kubernetes
     yt/python/yt/admin
     yt/python/yt/clickhouse
