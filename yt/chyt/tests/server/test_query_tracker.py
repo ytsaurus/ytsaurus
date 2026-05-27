@@ -477,9 +477,7 @@ class TestChytEngineProgress(ClickHouseTestBase):
         return self.QUERY_QUEUE.get()
 
     @authors("buyval01")
-    # TODO(buyval01): CHYT-1369
-    # @pytest.mark.parametrize("wait_progress_finish", [True, False])
-    @pytest.mark.parametrize("wait_progress_finish", [False])
+    @pytest.mark.parametrize("wait_progress_finish", [True, False])
     @pytest.mark.parametrize("enable_pull_mode", [False, True])
     def test_simple(self, query_tracker, wait_progress_finish, enable_pull_mode):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
