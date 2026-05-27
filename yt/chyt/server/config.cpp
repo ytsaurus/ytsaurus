@@ -286,6 +286,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("conversion", &TThis::Conversion)
         .DefaultNew();
 
+    registrar.Parameter("composite", &TThis::Composite)
+        .Default();
+
     registrar.Parameter("dynamic_table", &TThis::DynamicTable)
         .DefaultNew();
 
@@ -330,6 +333,12 @@ void TQuerySettings::Register(TRegistrar registrar)
         config->TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
         config->TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
         config->TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Composite) {
+            config->Conversion->Composite = config->Composite;
+        }
     });
 }
 
