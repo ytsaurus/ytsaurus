@@ -573,7 +573,7 @@ class TestSequoiaInternals(YTEnvSetup):
         with raises_yt_error():
             get_batch_output(results[1])
 
-    @authors("danilalexeev")
+    @authors("h0pless")
     @flaky(max_runs=3)
     @with_additional_threads
     def test_request_throttling(self):
