@@ -149,8 +149,11 @@ private:
                 ? 0
                 : RandomNumber(SourceOfTruthCellIds_.size());
 
-            auto cellId = SourceOfTruthCellIds_[cellIndex];
-            auto masterChannel = connection->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellId);
+            auto originalCellId = SourceOfTruthCellIds_[cellIndex];
+            auto masterChannel = connection->GetMasterChannelOrThrow(
+                NApi::EMasterChannelKind::Follower,
+                originalCellId);
+
             auto proxy = TChaosMasterServiceProxy(std::move(masterChannel));
             auto req = proxy.GetCellDescriptors();
 
@@ -164,16 +167,13 @@ private:
                 TCellId cellId;
                 {
                     auto guard = Guard(SpinLock_);
-                    if (auto it = ObservedCells_.find(cellTag)) {
+                    if (auto [it, inserted] = ObservedCells_.try_emplace(cellTag, descriptor.CellId); !inserted) {
                         cellId = it->second;
                     }
                 }
 
                 if (cellId) {
                     ValidateChaosCellIdDuplication(cellTag, descriptor.CellId, cellId);
-                } else {
-                    auto guard = Guard(SpinLock_);
-                    ObservedCells_[cellTag] = descriptor.CellId;
                 }
 
                 CellDirectory_->ReconfigureCell(descriptor);
@@ -232,29 +232,34 @@ private:
             for (int index = 0; index < std::ssize(cellTags); ++index) {
                 auto descriptor = FromProto<TCellDescriptor>(rsp->cell_descriptors(index));
                 auto cellTag = cellTags[index];
-                auto cellId = ObservedCells_[cellTag];
+                TCellId cellId;
 
-                if (!descriptor.CellId) {
-                    YT_LOG_DEBUG("Forgetting cell tag in chaos cell synchronizer (CellTag: %v)",
-                        cellTag);
-
+                {
                     auto guard = Guard(SpinLock_);
-                    EraseOrCrash(ObservedCells_, cellTag);
-                    continue;
-                }
 
-                if (!cellId) {
-                    auto guard = Guard(SpinLock_);
                     auto it = ObservedCells_.find(cellTag);
-                    if (it->second) {
-                        cellId = it->second;
+                    if (!descriptor.CellId) {
+                        if (it != ObservedCells_.end()) {
+                            ObservedCells_.erase(it);
+                            guard.Release();
+
+                            YT_LOG_DEBUG("Forgetting cell tag in chaos cell synchronizer (CellTag: %v)",
+                                cellTag);
+                        }
+
+                        continue;
+                    }
+
+                    if (it == ObservedCells_.end()) {
+                        EmplaceOrCrash(ObservedCells_, cellTag, descriptor.CellId);
                     } else {
-                        cellId = descriptor.CellId;
-                        it->second = cellId;
+                        cellId = it->second;
                     }
                 }
 
-                ValidateChaosCellIdDuplication(cellTag, descriptor.CellId, cellId);
+                if (cellId) {
+                    ValidateChaosCellIdDuplication(cellTag, descriptor.CellId, cellId);
+                }
 
                 CellDirectory_->ReconfigureCell(descriptor);
             }
