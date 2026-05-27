@@ -115,6 +115,11 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("chaos_config", &TThis::ChaosConfig)
         .DefaultNew();
+
+    registrar.Parameter("annotate_new_nodes", &TThis::AnnotateNewNodes)
+        .Default(false);
+    registrar.Parameter("annotate_new_proxies", &TThis::AnnotateNewProxies)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +164,11 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("foreign_cluster_request_timeout", &TThis::ForeignClusterRequestTimeout)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("annotate_new_nodes", &TThis::AnnotateNewNodes)
+        .Default();
+    registrar.Parameter("annotate_new_proxies", &TThis::AnnotateNewProxies)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

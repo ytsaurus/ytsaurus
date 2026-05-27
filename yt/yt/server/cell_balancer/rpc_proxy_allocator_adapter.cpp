@@ -276,6 +276,56 @@ public:
         mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(DefaultRole);
     }
 
+    const THashMap<std::string, NBundleControllerClient::TInstanceSizePtr>& GetInstanceSizes(
+        const TZoneInfoPtr& zoneInfo) const
+    {
+        return zoneInfo->RpcProxySizes;
+    }
+
+    void AnnotateNewInstances(
+        const TSchedulerInputState& input,
+        const std::string& spareBundleName,
+        const NBundleControllerClient::TInstanceResourcesPtr& resource,
+        TSchedulerMutations* mutations) const
+    {
+        for (const auto& [proxyName, proxyInfo] : input.RpcProxies) {
+            if (!proxyInfo->IsOnline()) {
+                continue;
+            }
+
+            const auto& annotations = proxyInfo->BundleControllerAnnotations;
+            if (annotations->Allocated || !annotations->AllocatedForBundle.empty()) {
+                continue;
+            }
+
+            auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
+            newAnnotations->Allocated = true;
+            newAnnotations->AllocatedForBundle = spareBundleName;
+            newAnnotations->Resource = NYTree::CloneYsonStruct(resource);
+
+            mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
+
+            YT_LOG_INFO(
+                "Annotating new rpc proxy (ProxyName: %v, Bundle: %v, Vcpu: %v, Memory: %v)",
+                proxyName,
+                spareBundleName,
+                resource->Vcpu,
+                resource->Memory);
+        }
+    }
+
+    const std::string& GetAnnotateMultipleSizesAlertId() const
+    {
+        static const std::string Id = "annotate_new_proxies_multiple_sizes";
+        return Id;
+    }
+
+    const std::string& GetAnnotateMultipleZonesAlertId() const
+    {
+        static const std::string Id = "annotate_new_proxies_multiple_zones";
+        return Id;
+    }
+
     const THashSet<std::string>& GetAliveInstances(const std::string& dataCenterName) const
     {
         const static THashSet<std::string> Dummy;
