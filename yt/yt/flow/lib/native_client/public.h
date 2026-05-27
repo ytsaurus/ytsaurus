@@ -43,6 +43,7 @@ inline constexpr TStringBuf PartitionTransactionsTableName = "partition_transact
 
 inline const std::vector InternalFlowTables{
     InputMessagesTableName,
+    CompactInputMessagesTableName,
     OutputMessagesTableName,
     PartitionOutputMessagesTableName,
     StatesTableName,
