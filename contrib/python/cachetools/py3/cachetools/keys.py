@@ -29,8 +29,8 @@ class _HashedTuple(tuple):
         return {}
 
 
-# used for separating keyword arguments; we do not use an object
-# instance here so identity is preserved when pickling/unpickling
+# A sentinel for separating args from kwargs.  Using the class itself
+# ensures uniqueness and preserves identity when pickling/unpickling.
 _kwmark = (_HashedTuple,)
 
 
@@ -38,7 +38,7 @@ def hashkey(*args, **kwargs):
     """Return a cache key for the specified hashable arguments."""
 
     if kwargs:
-        return _HashedTuple(args + sum(sorted(kwargs.items()), _kwmark))
+        return _HashedTuple(args + _kwmark + tuple(sorted(kwargs.items())))
     else:
         return _HashedTuple(args)
 
@@ -51,9 +51,13 @@ def methodkey(self, *args, **kwargs):
 def typedkey(*args, **kwargs):
     """Return a typed cache key for the specified hashable arguments."""
 
-    key = hashkey(*args, **kwargs)
+    if kwargs:
+        sorted_kwargs = tuple(sorted(kwargs.items()))
+        key = _HashedTuple(args + _kwmark + sorted_kwargs)
+        key += tuple(type(v) for _, v in sorted_kwargs)
+    else:
+        key = _HashedTuple(args)
     key += tuple(type(v) for v in args)
-    key += tuple(type(v) for _, v in sorted(kwargs.items()))
     return key
 
 
