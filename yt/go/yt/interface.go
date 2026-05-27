@@ -1317,8 +1317,15 @@ type LookupRowsOptions struct {
 }
 
 type MultiLookupSubrequest struct {
-	Path                ypath.Path
-	KeepMissingRows     *bool
+	Path            ypath.Path
+	KeepMissingRows *bool
+	// EnablePartialResult allows the subrequest to succeed even when some tablets
+	// are unavailable.
+	//
+	// When set, rows for unavailable keys are omitted instead of failing the whole
+	// subrequest. The returned TableReader still yields all available rows, but
+	// TableReader.Err returns a *yterrors.PartialResultError reporting the unavailable
+	// key indexes, so callers can detect that the result is partial.
 	EnablePartialResult *bool
 	UseLookupCache      *bool
 	Columns             []string

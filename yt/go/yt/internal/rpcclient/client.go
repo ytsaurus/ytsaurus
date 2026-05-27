@@ -21,6 +21,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 var _ yt.Client = (*client)(nil)
@@ -213,6 +214,12 @@ func (c *client) doMultiLookup(
 		reader, err := newTableReader(rows, subresponse.GetRowsetDescriptor())
 		if err != nil {
 			return nil, xerrors.Errorf("unable to create table reader for subresponse %d: %w", i, err)
+		}
+
+		if unavailable := subresponse.GetUnavailableKeyIndexes(); len(unavailable) > 0 {
+			reader.partialErr = &yterrors.PartialResultError{
+				UnavailableKeyIndexes: append([]int32(nil), unavailable...),
+			}
 		}
 
 		readers[i] = reader
