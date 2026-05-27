@@ -2166,7 +2166,8 @@ private:
             treeId = treeIds[0];
         } else {
             THROW_ERROR_EXCEPTION("Node belongs to more than one pool tree")
-                    << TErrorAttribute("matched_pool_trees", treeIds);
+                << TErrorAttribute("node_address", nodeAddress)
+                << TErrorAttribute("matched_pool_trees", treeIds);
         }
 
         auto it = NodeIdToDescriptor_.find(nodeId);
