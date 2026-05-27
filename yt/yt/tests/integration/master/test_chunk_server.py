@@ -676,6 +676,20 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
                     chunk_id = get_singular_chunk_id(table_name)
                     wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
+        # Mirror the retry pattern used in test_zero_limits: even with the
+        # config in place, the session-count tracking can racily admit all
+        # writers before any node-side feedback arrives, so retry the
+        # contended write with a fresh table prefix until the limit is
+        # actually observed.
+        def write_tables_until_failure(table_prefix):
+            attempt = [0]
+
+            def try_once():
+                attempt[0] += 1
+                write_tables(f"{table_prefix}_a{attempt[0]}_{{}}", True)
+                return True
+            wait(try_once, ignore_exceptions=True)
+
         def set_session_count_limit(limit):
             update_nodes_dynamic_config({
                 "data_node": {
@@ -696,16 +710,18 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
         write_tables("//tmp/t1{}", False)
 
         set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.1)
+        multicell_sleep()
 
-        write_tables("//tmp/t2{}", True)
+        write_tables_until_failure("//tmp/t2")
 
         set_session_count_limit(100)
 
         write_tables("//tmp/t3{}", False)
 
         set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.001)
+        multicell_sleep()
 
-        write_tables("//tmp/t4{}", True)
+        write_tables_until_failure("//tmp/t4")
 
 
 ##################################################################
