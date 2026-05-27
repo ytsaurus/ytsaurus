@@ -892,6 +892,21 @@ select {select_body} from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
+    def test_select_star_logbroker_write(self, query_tracker, yql_agent, run_query, logbroker_client):
+        input_topic_path = logbroker_client.create_topic()
+        self._write_logbroker_topic(input_topic_path, ["AB", "CD", "EF"], logbroker_client)
+
+        out_topic_path = logbroker_client.create_topic()
+
+        run_query(f"""
+insert into logbroker.`{out_topic_path}`
+select * from logbroker.`{input_topic_path}`;
+""")
+
+        self._assert_logbroker_topic_content(out_topic_path, ["AB", "CD", "EF"], logbroker_client)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
     def test_logbroker_write(self, query_tracker, yql_agent, run_query, logbroker_client):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
