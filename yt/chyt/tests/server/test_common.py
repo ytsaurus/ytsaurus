@@ -2404,7 +2404,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     "schema": [
                         {"name": "key", "type": "int64"},
                         {"name": "value", "type": "string"}
-                    ]
+                    ],
+                    "inherit_acl": False,
                 },
             )
             write_table("//tmp/t", [{"key": 15, "value": "value2"}, {"key": 16, "value": "value3"}])
@@ -2416,20 +2417,23 @@ class TestClickHouseCommon(ClickHouseTestBase):
             acl[-1]["row_access_predicate"] = "key = 15"
             set("//tmp/t/@acl", acl)
 
-            assert clique.make_query('select * from "//tmp/t"', user="u") == [{"key": 15, "value": "value2"}]
+            def make_query(query):
+                return clique.make_query(query, user="u", settings={"chyt.omit_inaccessible_rows": 1})
 
-            assert clique.make_query('select key from "//tmp/t"', user="u") == [{"key": 15}]
+            assert make_query('select * from "//tmp/t"') == [{"key": 15, "value": "value2"}]
+            assert make_query('select key from "//tmp/t"') == [{"key": 15}]
+            assert make_query('select count(key) as cnt from "//tmp/t"') == [{"cnt": 1}]
+            assert make_query('select count() as cnt from "//tmp/t"') == [{"cnt": 1}]
 
-            assert clique.make_query('select count(key) as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
-
-            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
-
-            with raises_yt_error("Cannot use ranges with row_index"):
-                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+            with raises_yt_error("Cannot use ranges with \"row_index\""):
+                make_query('select * from `<upper_limit={row_index=100}>//tmp/t`')
 
             # Check again for sanity to account for various miscachings.
-            with raises_yt_error("Cannot use ranges with row_index"):
-                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+            with raises_yt_error("Cannot use ranges with \"row_index\""):
+                make_query('select * from `<upper_limit={row_index=100}>//tmp/t`')
+
+            with raises_yt_error("Table has row-level ACL but \"omit_inaccessible_rows\" is set to false"):
+                clique.make_query('select * from "//tmp/t"', user="u")
 
     @authors("coteeq")
     def test_dictionary_with_row_level_acl(self):

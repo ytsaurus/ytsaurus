@@ -163,7 +163,8 @@ DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
 void ValidateReadPermissions(
     const std::vector<std::string>& columnNames,
     const std::vector<TTablePtr>& tables,
-    TQueryContext* queryContext)
+    TQueryContext* queryContext,
+    const TStorageContext* storageContext)
 {
     std::vector<TRichYPath> tablePathsWithColumns;
     tablePathsWithColumns.reserve(tables.size());
@@ -177,12 +178,18 @@ void ValidateReadPermissions(
     auto rowLevelAclPerTable = queryContext->Host->ValidateTableReadPermissionsAndGetRowLevelAcl(tablePathsWithColumns, queryContext->User);
     for (const auto& [index, table] : SEnumerate(tables)) {
         auto rowLevelAcl = std::move(rowLevelAclPerTable[index]);
-        if (rowLevelAcl && table->Path.HasRowIndexInRanges()) {
-            THROW_ERROR_EXCEPTION("Cannot use ranges with row_index to read a table with row-level ACL")
-                << TErrorAttribute("path", table->Path);
-        }
-        table->RowLevelAcl = std::move(rowLevelAcl);
-        if (table->RowLevelAcl) {
+        if (rowLevelAcl) {
+            if (!storageContext->Settings->OmitInaccessibleRows) {
+                THROW_ERROR_EXCEPTION("Table has row-level ACL but \"omit_inaccessible_rows\" is set to false")
+                    << TErrorAttribute("path", table->Path)
+                    << TErrorAttribute("user", queryContext->User);
+            }
+            if (table->Path.HasRowIndexInRanges()) {
+                THROW_ERROR_EXCEPTION("Cannot use ranges with \"row_index\" to read a table with row-level ACL")
+                    << TErrorAttribute("path", table->Path);
+            }
+
+            table->RowLevelAcl = std::move(rowLevelAcl);
             // Force reset row count, so ClickHouse itself won't use this as a hint for count().
             // This will make it do a full scan, but that is exactly what we need in case of RLS.
             table->RowCount = std::nullopt;
@@ -1546,7 +1553,7 @@ private:
 
         auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
 
-        ValidateReadPermissions(realColumnNames, Tables_, queryContext);
+        ValidateReadPermissions(realColumnNames, Tables_, queryContext, storageContext);
 
         auto& settings = context->getSettingsRef();
         if (settings.distributed_product_mode.changed && settings.distributed_product_mode == DB::DistributedProductMode::DENY) {
