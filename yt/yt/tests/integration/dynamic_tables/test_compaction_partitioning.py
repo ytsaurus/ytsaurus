@@ -1142,7 +1142,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         wait(lambda: _get_completed_compactions_count() == tablet_count)
 
     @authors("dave11ar")
-    def test_timestamp_digest_disabling(self):
+    def test_timestamp_row_digest_disabling(self):
         sync_create_cells(1)
 
         chunk_count = 2
@@ -1197,6 +1197,47 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         remount_table(table)
 
         wait(lambda: not _has_any_hint())
+
+    @authors("dave11ar")
+    def test_timestamp_row_digest_enabling_no_digest(self):
+        sync_create_cells(1)
+
+        self._update_compaction_hint_fetcher_config("versioned_row_digest", 1)
+
+        table = "//tmp/t"
+
+        self._create_simple_table(
+            table,
+            compression_codec="none",
+            dynamic_store_auto_flush_period=yson.YsonEntity(),
+        )
+
+        # Write chunk without digest.
+        sync_mount_table(table)
+        for _ in range(10):
+            insert_rows(table, [{"key": 1, "value": "v"}])
+        sync_flush_table(table)
+
+        set(
+            f"{table}/@mount_config/compaction_hints",
+            {
+                "row_digest": {
+                    "enable_non_aggregates": True,
+                },
+            }
+        )
+
+        remount_table(table)
+
+        tablet_id = get(f"{table}/@tablets/0/tablet_id")
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def _check_compaction_hint():
+            orchid = get(f"//sys/tablets/{tablet_id}/orchid/partitions/0/stores/{chunk_id}/compaction_hints/versioned_row_digest")
+
+            return orchid["state"] == "definitely_no_hint"
+
+        wait(_check_compaction_hint)
 
     @authors("alexelexa")
     def test_performance_counters(self):
