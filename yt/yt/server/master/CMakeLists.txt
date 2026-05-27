@@ -122,6 +122,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/leader_smoothing.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_type_handler_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cellar_node_tracker_service.cpp
