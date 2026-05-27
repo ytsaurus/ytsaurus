@@ -326,6 +326,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("storage_conflict_resolve_mode", &TThis::StorageConflictResolveMode)
         .Default(EStorageConflictResolveMode::Throw);
 
+    registrar.Parameter("omit_inaccessible_rows", &TThis::OmitInaccessibleRows)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
         config->TableReader->WindowSize = 70_MB;
