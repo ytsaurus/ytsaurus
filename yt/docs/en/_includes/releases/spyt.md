@@ -8,6 +8,27 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.10.0**" %}
+
+**Release date:** 2026-05-27
+
+
+**Release page:** [2.10.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.10.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/765852936?tag=2.10.0)
+
+
+- Spark 4.0.x and Spark 4.1.x support
+- pyspark-client Python package support for writing client-side logic using Spark Connect protocol without JVM
+- Transactional Streaming
+- Drop Spark 3.2.x support
+- Drop Java 11 support, all JVM classes are compiled with Java 17
+- Drop Python 3.8, 3.9 and 3.10 support
+- Drop Livy support for Query Tracker integration
+
+{% endcut %}
+
 {% cut "**2.9.2**" %}
 
 **Release date:** 2026-05-22
