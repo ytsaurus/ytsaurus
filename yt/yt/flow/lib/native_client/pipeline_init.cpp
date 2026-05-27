@@ -51,6 +51,28 @@ IAttributeDictionaryPtr GetInputMessagesTableAttributes()
     return attributes;
 }
 
+IAttributeDictionaryPtr GetCompactInputMessagesTableAttributes()
+{
+    auto attributes = CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("deduplication_message_key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("system_timestamp", EValueType::Uint64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+
+    attributes->Set(
+        "mount_config",
+        BuildYsonStringFluently(NYson::EYsonFormat::Binary)
+            .BeginMap()
+                .Item("min_data_versions").Value(0)
+                .Item("min_data_ttl").Value(0)
+                .Item("row_merger_type").Value(NTabletClient::ERowMergerType::Watermark)
+            .EndMap());
+
+    return attributes;
+}
+
 IAttributeDictionaryPtr GetOutputMessagesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
@@ -198,6 +220,7 @@ auto GetTables()
 {
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
         {InputMessagesTableName, GetInputMessagesTableAttributes()},
+        {CompactInputMessagesTableName, GetCompactInputMessagesTableAttributes()},
         {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
         {PartitionOutputMessagesTableName, GetPartitionOutputMessagesTableAttributes()},
         {StatesTableName, GetStatesTableAttributes()},
