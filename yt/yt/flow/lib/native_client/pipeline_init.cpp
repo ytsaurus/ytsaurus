@@ -80,7 +80,7 @@ IAttributeDictionaryPtr GetOutputMessagesTableAttributes()
             TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("message", EValueType::String),
+            TColumnSchema("message", EValueType::String).SetMaxInlineHunkSize(128),
             TColumnSchema("system_timestamp", EValueType::Uint64),
             TColumnSchema("codec", EValueType::Int64),
         },
@@ -95,7 +95,7 @@ IAttributeDictionaryPtr GetPartitionOutputMessagesTableAttributes()
             TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
             TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("message", EValueType::String),
+            TColumnSchema("message", EValueType::String).SetMaxInlineHunkSize(128),
             TColumnSchema("system_timestamp", EValueType::Uint64),
             TColumnSchema("codec", EValueType::Int64),
         },
@@ -216,6 +216,38 @@ IAttributeDictionaryPtr GetPartitionTransactionsTableAttributes()
         /*uniqueKeys*/ true));
 }
 
+IAttributeDictionaryPtr GetCompactPartitionOutputMessagesTableAttributes()
+{
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
+            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("stream_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("chunk_id", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("data", EValueType::String).SetMaxInlineHunkSize(128),
+            TColumnSchema("data_codec", EValueType::Int64),
+            TColumnSchema("processed_mask", EValueType::String),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+}
+
+IAttributeDictionaryPtr GetCompactOutputMessagesTableAttributes()
+{
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
+            TColumnSchema("stream_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("chunk_id", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("data", EValueType::String).SetMaxInlineHunkSize(128),
+            TColumnSchema("data_codec", EValueType::Int64),
+            TColumnSchema("processed_mask", EValueType::String),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+}
+
 auto GetTables()
 {
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
@@ -223,6 +255,8 @@ auto GetTables()
         {CompactInputMessagesTableName, GetCompactInputMessagesTableAttributes()},
         {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
         {PartitionOutputMessagesTableName, GetPartitionOutputMessagesTableAttributes()},
+        {CompactPartitionOutputMessagesTableName, GetCompactPartitionOutputMessagesTableAttributes()},
+        {CompactOutputMessagesTableName, GetCompactOutputMessagesTableAttributes()},
         {StatesTableName, GetStatesTableAttributes()},
         {PartitionStatesTableName, GetPartitionStatesTableAttributes()},
         {TimersTableName, GetTimersTableAttributes()},
