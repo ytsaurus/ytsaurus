@@ -336,7 +336,13 @@ private:
             YT_UNUSED_FUTURE(progressPollerExecutor->Stop());
         }));
 
-        return WaitFor(rsp).ValueOrThrow();
+        auto result = WaitFor(rsp);
+
+        // Do a final progress poll after query completion to capture any progress
+        // updates that arrived after the last periodic poll and before query finish.
+        PollQueryProgress(proxy, instanceChannel->GetEndpointDescription());
+
+        return result.ValueOrThrow();
     }
 
     void PollQueryProgress(TQueryServiceProxy coordinator, std::string endpoint)

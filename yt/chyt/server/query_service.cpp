@@ -151,6 +151,8 @@ private:
             BuildPipeline(TString(queries[i]));
             ProcessPipeline();
         }
+
+        GetQueryContext(QueryContext_)->Finish();
     }
 
     void SetNextQueryId(TQueryId queryId)
