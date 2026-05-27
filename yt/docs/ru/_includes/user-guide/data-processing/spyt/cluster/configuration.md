@@ -154,9 +154,9 @@ RUN python3.12 -m pip install -r requirements.txt
 
 ```text
 # requirements.txt
-ytsaurus-client==0.13.29
-ytsaurus-spyt==2.9.2
-pyspark==3.5.8
+ytsaurus-client==0.13.49
+ytsaurus-spyt==2.10.0
+pyspark==4.1.1
 ```
 
 #### Запуск кластера с docker образом
