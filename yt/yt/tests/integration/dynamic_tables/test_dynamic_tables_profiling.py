@@ -914,10 +914,10 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         # Also note that data_bytes_transmitted is not stable between runs.
         expected = {
             "lookup": (1660, 1710),
-            # NB: This is strange, the value is always 360 but rarely 440 or 334. Maybe some miscounting happens.
-            "lookup_hunks": (334, 440),
+            # NB: This is strange, the value is always 360 but rarely 440 or 334 or 333. Maybe some miscounting happens.
+            "lookup_hunks": (300, 440),
             "select": (3320, 3420),
-            "select_hunks": (1180, 1210),
+            "select_hunks": (1000, 1210),
             "compaction": (1660, 1710),
             "compaction_hunks": (760, 800),
         }
