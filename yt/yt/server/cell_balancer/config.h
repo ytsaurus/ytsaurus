@@ -97,6 +97,9 @@ struct TBundleControllerConfig
     bool EnableChaosBundleManagement;
     TChaosConfigPtr ChaosConfig;
 
+    bool AnnotateNewNodes;
+    bool AnnotateNewProxies;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);
@@ -146,6 +149,9 @@ struct TBundleControllerDynamicConfig
     std::optional<bool> EnableChaosBundleManagement;
 
     TDuration ForeignClusterRequestTimeout;
+
+    std::optional<bool> AnnotateNewNodes;
+    std::optional<bool> AnnotateNewProxies;
 
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 

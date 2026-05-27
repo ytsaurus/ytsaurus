@@ -184,7 +184,10 @@ public:
         const TBundleControllerDynamicConfigPtr& oldConfig,
         const TBundleControllerDynamicConfigPtr& newConfig)
     {
-        PeriodicExecutor_->SetPeriod(newConfig->BundleScanPeriod.value_or(Config_->BundleScanPeriod));
+        // May be null in dry run.
+        if (PeriodicExecutor_) {
+            PeriodicExecutor_->SetPeriod(newConfig->BundleScanPeriod.value_or(Config_->BundleScanPeriod));
+        }
 
         Bootstrap_->GetNodeTracker()->OnDynamicConfigChanged(oldConfig->NodeTracker, newConfig->NodeTracker);
 
@@ -453,6 +456,20 @@ private:
         return result;
     }
 
+    void ValidateConfig(const TSchedulerInputState& inputState)
+    {
+        const auto& config = inputState.Config;
+        const auto& dynamicConfig = inputState.DynamicConfig;
+
+        bool annotateNewNodes = dynamicConfig->AnnotateNewNodes.value_or(config->AnnotateNewNodes);
+        bool annotateNewProxies = dynamicConfig->AnnotateNewProxies.value_or(config->AnnotateNewProxies);
+
+        if ((annotateNewNodes || annotateNewProxies) && config->HasInstanceAllocatorService) {
+            THROW_ERROR_EXCEPTION(
+                "\"annotate_new_nodes\"/\"annotate_new_proxies\"/ cannot be used together with \"has_instance_allocator_service\"");
+        }
+    }
+
     void DoScanTabletBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -465,6 +482,17 @@ private:
         YT_PROFILE_TIMING("/bundle_controller/get_input_state") {
             inputState = GetInputState(transaction);
             DropJailedBundlesFromInputState(&inputState);
+        }
+
+        try {
+            ValidateConfig(inputState);
+        } catch (const TErrorException& ex) {
+            RegisterAlert({
+                .Id = "invalid_config",
+                .Description = ex.Error().GetMessage(),
+            });
+
+            throw;
         }
 
         Bootstrap_->GetNodeTracker()->UpdateNodeStates(inputState.TabletNodes);

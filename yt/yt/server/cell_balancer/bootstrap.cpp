@@ -159,6 +159,8 @@ public:
         YT_LOG_DEBUG("Iteration started (DryRun: %v)",
             dryRun);
 
+        DynamicConfigManager_->Start();
+
         WaitFor(
             BIND(&IBundleController::ExecuteIteration, BundleController_, dryRun)
                 .AsyncVia(GetControlInvoker())

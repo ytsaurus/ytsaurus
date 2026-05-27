@@ -101,6 +101,25 @@ public:
         const std::string& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const = 0;
+
+    // Returns the size map for this instance type (TabletNodeSizes or RpcProxySizes).
+    // Used by AnnotateNewInstances to validate and retrieve resource guarantees.
+    virtual const THashMap<std::string, NBundleControllerClient::TInstanceSizePtr>& GetInstanceSizes(
+        const TZoneInfoPtr& zoneInfo) const = 0;
+
+    // Iterates over all instances of this type, finds unannotated online ones,
+    // and emits annotation mutations.
+    virtual void AnnotateNewInstances(
+        const TSchedulerInputState& input,
+        const std::string& spareBundleName,
+        const NBundleControllerClient::TInstanceResourcesPtr& resource,
+        TSchedulerMutations* mutations) const = 0;
+
+    // Returns a human-readable name for the "multiple sizes" alert id.
+    virtual const std::string& GetAnnotateMultipleSizesAlertId() const = 0;
+
+    // Returns a human-readable name for the "multiple zones" alert id.
+    virtual const std::string& GetAnnotateMultipleZonesAlertId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAllocatorAdapter)
