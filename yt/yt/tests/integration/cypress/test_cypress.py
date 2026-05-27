@@ -4675,14 +4675,19 @@ class TestCypress(YTEnvSetup):
 
     @authors("kvk1920")
     def test_cluster_connection_attribute(self):
-        with raises_yt_error("cannot be parsed"):
-            set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
-        set("//sys/@cluster_connection", {"default_input_row_limit": 1024})
-        assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
-        set("//sys/@cluster_connection", yson.YsonEntity())
-        assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
-        remove("//sys/@cluster_connection")
-        assert not exists("//sys/@cluster_connection")
+        # Cluster connection is not reset between tests.
+        initial_config = get("//sys/@cluster_connection")
+        try:
+            with raises_yt_error("cannot be parsed"):
+                set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
+            set("//sys/@cluster_connection", {"default_input_row_limit": 1024})
+            assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
+            set("//sys/@cluster_connection", yson.YsonEntity())
+            assert isinstance(get("//sys/@cluster_connection"), yson.YsonEntity)
+            remove("//sys/@cluster_connection")
+            assert not exists("//sys/@cluster_connection")
+        finally:
+            set("//sys/@cluster_connection", initial_config)
 
     @authors("kvk1920")
     def test_cluster_name(self):
