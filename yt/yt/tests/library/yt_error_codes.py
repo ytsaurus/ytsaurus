@@ -1,3 +1,4 @@
+Generic = 1
 Timeout = 3
 NoSuchMethod = 103
 Unavailable = 105

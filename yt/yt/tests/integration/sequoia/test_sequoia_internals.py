@@ -799,17 +799,17 @@ class TestSequoiaInternals(YTEnvSetup):
         create_account("a")
 
         create("table", "//tmp/t1", attributes={"account": "a"})
-        remove_account("a", sync=False)
+        wait(lambda: get("//sys/accounts/a/@resource_usage/node_count") > 0)
 
-        with raises_yt_error("Account \"a\" cannot be used") as err:
-            create("table", "//tmp/t2", attributes={"account": "a"})
+        with raises_yt_error("Cannot remove an account \"a\" because its usage is not zero") as err:
+            remove_account("a", sync=False)
         assert len(err) == 1
         assert err[0].message.find("Received response with error") != -1
         err = err[0]
         assert len(err.inner_errors) == 1
         print_debug(err.inner_errors[0])
         # Not using contains_code here - we're checking the outermost error.
-        assert err.inner_errors[0]["code"] == yt_error_codes.InactiveObjectLifeStage
+        assert err.inner_errors[0]["code"] == yt_error_codes.Generic
 
     @authors("kvk1920")
     def test_ground_connection_synchronization(self):
