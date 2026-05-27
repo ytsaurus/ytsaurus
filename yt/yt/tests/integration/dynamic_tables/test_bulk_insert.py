@@ -2283,6 +2283,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in range(10)]
         insert_rows("//tmp/t", rows, atomicity=atomicity)
 
+        # Wait for content_revision to become stable.
+        sleep(1)
+
         merge(
             in_="//tmp/t",
             out="<schema_modification=unversioned_update;append=%true>//tmp/t",
@@ -2308,6 +2311,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             {"key": 3, "value": "baz"},
         ]
         insert_rows("//tmp/t", rows)
+
+        # Wait for content_revision to become stable.
+        sleep(1)
 
         merge(
             in_="//tmp/t",

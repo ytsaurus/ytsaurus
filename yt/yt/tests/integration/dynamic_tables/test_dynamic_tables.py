@@ -753,6 +753,29 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set("//tmp/t2/@profiling_mode", "tag")
         assert get("//tmp/t2/@profiling_mode") == "tag"
 
+    @authors("navasardianna")
+    def test_update_content_revision(self):
+        set("//sys/@config/tablet_manager/update_table_content_revision_on_heartbeat", True)
+
+        sync_create_cells(1)
+
+        attributes = {"external_cell_tag": 11} if self.NUM_SECONDARY_MASTER_CELLS > 1 else {}
+        attributes.update({"dynamic_store_auto_flush_period": yson.YsonEntity()})
+        self._create_sorted_table("//tmp/t", **attributes)
+        sync_mount_table("//tmp/t")
+
+        driver = get_driver(1 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
+        table_id = get("//tmp/t/@id")
+
+        for i in range(0, 3):
+            old_content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+            insert_rows("//tmp/t", [{"key": i, "value": "0"}])
+            wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
+
+        content_revision = get(f"#{table_id}/@content_revision", driver=driver)
+        time.sleep(3)
+        assert get(f"#{table_id}/@content_revision", driver=driver) == content_revision
+
     @authors("akozhikhov")
     def test_inherited_profiling_mode_without_tag(self):
         sync_create_cells(1)

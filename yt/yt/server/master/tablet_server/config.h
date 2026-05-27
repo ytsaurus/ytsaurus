@@ -359,6 +359,8 @@ struct TDynamicTabletManagerConfig
 
     i64 MaxReshardComplexity;
 
+    bool UpdateTableContentRevisionOnHeartbeat;
+
     TDynamicTabletManagerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);

@@ -4614,9 +4614,13 @@ private:
                     tablet->NodeStatistics().last_commit_timestamp()));
 
                 if (tablet->NodeStatistics().has_modification_time()) {
-                    table->SetModificationTime(std::max(
-                        table->GetModificationTime(),
-                        FromProto<TInstant>(tablet->NodeStatistics().modification_time())));
+                    auto modificationTime = FromProto<TInstant>(tablet->NodeStatistics().modification_time());
+                    if (modificationTime > table->GetModificationTime()) {
+                        table->SetModificationTime(modificationTime);
+                        if (GetDynamicConfig()->UpdateTableContentRevisionOnHeartbeat) {
+                            Bootstrap_->GetCypressManager()->SetModified(table, EModificationType::Content);
+                        }
+                    }
                 }
 
                 if (tablet->NodeStatistics().has_access_time()) {
