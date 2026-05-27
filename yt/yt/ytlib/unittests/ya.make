@@ -21,6 +21,7 @@ SRCS(
     partitioner_ut.cpp
     permission_cache_ut.cpp
     push_based_shuffle_record_format_ut.cpp
+    push_based_partition_reader_ut.cpp
     replication_reader_ut.cpp
     replication_writer_ut.cpp
     secondary_index_ut.cpp
