@@ -405,10 +405,10 @@ type customRow struct {
 	B uint64
 }
 
-func (s *customRow) MarshalRow(r Resolver) (Row, error) {
+func (s *customRow) MarshalRow(b NameTableBuilder) (Row, error) {
 	return Row{
-		NewBytes(r.LookupOrAdd("a"), []byte(s.A)),
-		NewUint64(r.LookupOrAdd("b"), s.B),
+		NewBytes(b.LookupOrAdd("a"), []byte(s.A)),
+		NewUint64(b.LookupOrAdd("b"), s.B),
 	}, nil
 }
 
@@ -434,8 +434,8 @@ type rowMarshalerOverReflect struct {
 	Reflected string `yson:"reflected"`
 }
 
-func (s *rowMarshalerOverReflect) MarshalRow(r Resolver) (Row, error) {
-	return Row{NewBytes(r.LookupOrAdd("from_marshaler"), []byte(s.Reflected))}, nil
+func (s *rowMarshalerOverReflect) MarshalRow(b NameTableBuilder) (Row, error) {
+	return Row{NewBytes(b.LookupOrAdd("from_marshaler"), []byte(s.Reflected))}, nil
 }
 
 func TestEncodeRowMarshalerTakesPrecedenceOverReflect(t *testing.T) {
@@ -471,14 +471,14 @@ type handrolledBenchStub struct {
 	Tags map[string]string
 }
 
-func (s *handrolledBenchStub) MarshalRow(r Resolver) (Row, error) {
-	idS1 := r.LookupOrAdd("s1")
-	idS2 := r.LookupOrAdd("s2")
-	idS3 := r.LookupOrAdd("s3")
-	idU1 := r.LookupOrAdd("u1")
-	idU2 := r.LookupOrAdd("u2")
-	idN := r.LookupOrAdd("n")
-	idTags := r.LookupOrAdd("tags")
+func (s *handrolledBenchStub) MarshalRow(b NameTableBuilder) (Row, error) {
+	idS1 := b.LookupOrAdd("s1")
+	idS2 := b.LookupOrAdd("s2")
+	idS3 := b.LookupOrAdd("s3")
+	idU1 := b.LookupOrAdd("u1")
+	idU2 := b.LookupOrAdd("u2")
+	idN := b.LookupOrAdd("n")
+	idTags := b.LookupOrAdd("tags")
 
 	// Emit the tags map as binary YSON without reflection.
 	var buf bytes.Buffer

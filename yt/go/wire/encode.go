@@ -17,10 +17,10 @@ type NameTableEntry struct {
 	Name string
 }
 
-// Resolver translates a column name to its NameTable id, registering the
-// name on first use. Implementations must be safe for concurrent use,
+// NameTableBuilder translates a column name to its NameTable id, registering
+// the name on first use. Implementations must be safe for concurrent use,
 // because Encode invokes row marshaling in parallel.
-type Resolver interface {
+type NameTableBuilder interface {
 	LookupOrAdd(name string) uint16
 }
 
@@ -28,34 +28,34 @@ type Resolver interface {
 // encoding. If a value passed to Encode (or its pointed-to value, when
 // the value is a non-nil pointer) implements RowMarshaler, Encode calls
 // MarshalRow instead of using reflection. Column ids must be obtained
-// via the supplied Resolver so that all rows in the batch reference the
-// same NameTable.
+// via the supplied NameTableBuilder so that all rows in the batch
+// reference the same NameTable.
 type RowMarshaler interface {
-	MarshalRow(r Resolver) (Row, error)
+	MarshalRow(b NameTableBuilder) (Row, error)
 }
 
-// nameTableResolver wraps Encode's per-call indexMap so RowMarshaler
+// nameTableBuilder wraps Encode's per-call indexMap so RowMarshaler
 // implementations can register column names without touching internals.
-type nameTableResolver struct {
+type nameTableBuilder struct {
 	indexMap map[NameTableEntry]uint16
 	mapLock  *sync.RWMutex
 }
 
-func (r *nameTableResolver) LookupOrAdd(name string) uint16 {
+func (b *nameTableBuilder) LookupOrAdd(name string) uint16 {
 	k := NameTableEntry{Name: name}
-	r.mapLock.RLock()
-	id, ok := r.indexMap[k]
-	r.mapLock.RUnlock()
+	b.mapLock.RLock()
+	id, ok := b.indexMap[k]
+	b.mapLock.RUnlock()
 	if ok {
 		return id
 	}
-	r.mapLock.Lock()
-	defer r.mapLock.Unlock()
-	if id, ok = r.indexMap[k]; ok {
+	b.mapLock.Lock()
+	defer b.mapLock.Unlock()
+	if id, ok = b.indexMap[k]; ok {
 		return id
 	}
-	id = uint16(len(r.indexMap))
-	r.indexMap[k] = id
+	id = uint16(len(b.indexMap))
+	b.indexMap[k] = id
 	return id
 }
 
@@ -107,7 +107,7 @@ func encode(item any, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex)
 	}
 
 	if m, ok := item.(RowMarshaler); ok {
-		return m.MarshalRow(&nameTableResolver{indexMap: indexMap, mapLock: mapLock})
+		return m.MarshalRow(&nameTableBuilder{indexMap: indexMap, mapLock: mapLock})
 	}
 
 	return encodeReflect(vv, indexMap, mapLock)
