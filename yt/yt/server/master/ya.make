@@ -49,6 +49,7 @@ SRCS(
     cell_server/cell_proxy_base.cpp
     cell_server/cell_tracker_impl.cpp
     cell_server/cell_tracker_service.cpp
+    cell_server/leader_smoothing.cpp
     cell_server/cell_tracker.cpp
     cell_server/cell_type_handler_base.cpp
     cell_server/cellar_node_tracker_service.cpp
