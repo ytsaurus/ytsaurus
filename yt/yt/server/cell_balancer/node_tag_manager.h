@@ -11,12 +11,16 @@ namespace NYT::NCellBalancer {
 class TNodeTagManager
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(int, NodeReleasementBudget);
+
+public:
     TNodeTagManager(
         std::string bundleName,
         const TSchedulerInputState& input,
         TSpareInstanceAllocator<TSpareNodesInfo>* spareNodeAllocator,
         TSchedulerMutations* mutations,
-        INodeTrackerPtr nodeTracker);
+        INodeTrackerPtr nodeTracker,
+        int nodeReleasementBudget);
 
     // * Collects alive bundle nodes (with immediate grace period).
     // * Picks data centers to populate.
