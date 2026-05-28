@@ -133,6 +133,8 @@ public:
         , Profiler("/bundle_controller")
         , SuccessfulScanBundleCounter_(Profiler.Counter("/successful_scan_bundles_count"))
         , FailedScanBundleCounter_(Profiler.Counter("/failed_scan_bundles_count"))
+        , SuccessfulScanChaosBundleCounter_(Profiler.Counter("/succesful_scan_chaos_bundles_count"))
+        , FailedScanChaosBundleCounter_(Profiler.Counter("/failed_scan_chaos_bundles_count"))
         , DynamicConfigUpdateCounter_(Profiler.Counter("/dynamic_config_update_counter"))
         , InstanceAllocationCounter_(Profiler.Counter("/instance_allocation_counter"))
         , InstanceDeallocationCounter_(Profiler.Counter("/instance_deallocation_counter"))
@@ -204,6 +206,8 @@ private:
     const TProfiler Profiler;
     TCounter SuccessfulScanBundleCounter_;
     TCounter FailedScanBundleCounter_;
+    TCounter SuccessfulScanChaosBundleCounter_;
+    TCounter FailedScanChaosBundleCounter_;
 
     TCounter DynamicConfigUpdateCounter_;
     TCounter InstanceAllocationCounter_;
@@ -243,6 +247,8 @@ private:
     // on the next iteration.
     THashSet<std::string> BundleJail_;
 
+    TFuture<void> ChaosBundlesScanFuture_;
+
     void ScanBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -262,14 +268,25 @@ private:
             YT_LOG_INFO("Dynamic config loaded");
         }
 
-        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerScanPass"));
-
         ScanTabletCellBundles(dryRun, ignoreGlobalDisabledSwitch);
-        ScanChaosCellBundles(dryRun, ignoreGlobalDisabledSwitch);
+
+        if (!dryRun) {
+            if (ChaosBundlesScanFuture_) {
+                YT_LOG_DEBUG("Chaos scan is already in progress, will skip new iteration");
+            } else {
+                ChaosBundlesScanFuture_ = BIND(
+                    &TBundleController::ScanChaosCellBundles,
+                    Unretained(this))
+                    .AsyncVia(Bootstrap_->GetControlInvoker())
+                    .Run();
+            }
+        }
     }
 
     void ScanTabletCellBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
+        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerScanPass"));
+
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
                 if (!dryRun && !ignoreGlobalDisabledSwitch) {
@@ -301,24 +318,22 @@ private:
         }
     }
 
-    void ScanChaosCellBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
+    void ScanChaosCellBundles()
     {
-        if (dryRun) {
-            YT_LOG_DEBUG("Dry run for chaos bundles is not supported");
-            return;
-        }
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_VERIFY(ChaosBundlesScanFuture_);
 
-        if (ignoreGlobalDisabledSwitch) {
-            YT_LOG_DEBUG("Force enabling bundle controller is not supported for chaos bundles");
-            return;
-        }
+        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerChaosScanPass"));
 
         try {
             DoScanChaosBundles();
+            SuccessfulScanChaosBundleCounter_.Increment();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Scanning chaos cell bundles failed");
-            FailedScanBundleCounter_.Increment();
+            FailedScanChaosBundleCounter_.Increment();
         }
+
+        ChaosBundlesScanFuture_.Reset();
     }
 
     void ClearState()
@@ -329,6 +344,9 @@ private:
         ZoneSensors_.clear();
         BundleSensors_.clear();
         CellDowntimeTracker_.Reset();
+        if (ChaosBundlesScanFuture_) {
+            ChaosBundlesScanFuture_.Cancel(TError("Bundle controller is not leading"));
+        }
     }
 
     void LinkOrchidService() const
@@ -470,7 +488,7 @@ private:
 
             RegisterAlert({
                 .Id = "bundle_controller_is_disabled",
-                .Description = "BundleController is explicitly disabled",
+                .Description = "Bundle controller is explicitly disabled",
             });
         }
 
@@ -491,13 +509,17 @@ private:
         CellDowntimeTracker_->HandleState(inputState, [this] (const std::string& bundleName) {
             return GetBundleSensors(bundleName);
         });
+
+        YT_LOG_DEBUG("Bundles scan finished");
     }
 
     void DoScanChaosBundles()
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        if (!Config_->EnableChaosBundleManagement) {
+        if (!GetDynamicConfig()->EnableChaosBundleManagement.value_or(
+            Config_->EnableChaosBundleManagement))
+        {
             return;
         }
 
@@ -516,12 +538,9 @@ private:
                 .ThrowOnError();
         } else {
             YT_LOG_WARNING("Bundle controller is disabled");
-
-            RegisterAlert({
-                .Id = "bundle_controller_is_disabled",
-                .Description = "BundleController is explicitly disabled",
-            });
         }
+
+        YT_LOG_DEBUG("Chaos bundles scan finished");
     }
 
     inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
@@ -1284,13 +1303,26 @@ private:
         inputState.SysConfig = GetSystemConfig(transaction);
 
         const auto& chaosConfig = Config_->ChaosConfig;
+        const auto& dynamicConfig = GetDynamicConfig();
 
         for (const auto& cluster : chaosConfig->TabletCellClusters) {
             YT_LOG_DEBUG("Loading tablet cell bundles for foreign cluster (Cluster: %v)",
                 cluster);
 
             auto foreignClient = clientProvider->Get(cluster);
-            inputState.ForeignTabletCellBundles[cluster] = CypressList<TBundleInfo>(foreignClient, TabletCellBundlesPath);
+            try {
+                inputState.ForeignTabletCellBundles.emplace(cluster, CypressList<TBundleInfo>(
+                    foreignClient,
+                    TabletCellBundlesPath,
+                    dynamicConfig->ForeignClusterRequestTimeout));
+            } catch (const TErrorException& ex) {
+                if (ex.Error().FindMatching(NYT::EErrorCode::Timeout)) {
+                    YT_LOG_WARNING(ex, "Failed to load tablet cell bundles for foreign cluster, will ignore (Cluster: %v)",
+                        cluster);
+                    continue;
+                }
+                throw;
+            }
         }
 
         for (const auto& cluster : chaosConfig->ChaosCellClusters) {
@@ -1298,7 +1330,19 @@ private:
                 cluster);
 
             auto foreignClient = clientProvider->Get(cluster);
-            inputState.ForeignChaosCellBundles[cluster] = CypressList<TChaosBundleInfo>(foreignClient, ChaosCellBundlesPath);
+            try {
+                inputState.ForeignChaosCellBundles.emplace(cluster, CypressList<TChaosBundleInfo>(
+                    foreignClient,
+                    ChaosCellBundlesPath,
+                    dynamicConfig->ForeignClusterRequestTimeout));
+            } catch (const TErrorException& ex) {
+                if (ex.Error().FindMatching(NYT::EErrorCode::Timeout)) {
+                    YT_LOG_WARNING(ex, "Failed to load chaos cell bundles for foreign cluster, will ignore (Cluster: %v)",
+                        cluster);
+                    continue;
+                }
+                throw;
+            }
         }
 
         inputState.GlobalRegistry = CypressGetSingleNode<TGlobalCellRegistryPtr>(transaction, GlobalCellRegistryPath);
@@ -1307,13 +1351,20 @@ private:
     }
 
     template <class TEntryInfo>
-    static TIndexedEntries<TEntryInfo> CypressList(const IClientBasePtr& transaction, const TYPath& path)
+    static TIndexedEntries<TEntryInfo> CypressList(
+        const IClientBasePtr& transaction,
+        const TYPath& path,
+        std::optional<TDuration> timeout = {})
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
 
         auto attributeSet = New<TEntryInfo>()->GetRegisteredKeys();
         options.Attributes = std::vector(attributeSet.begin(), attributeSet.end());
+
+        if (timeout) {
+            options.Timeout = timeout;
+        }
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
