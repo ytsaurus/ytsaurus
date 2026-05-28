@@ -10,6 +10,8 @@
 #include "node_tag_manager.h"
 #include "system_accounts.h"
 
+#include <yt/yt/core/logging/log_manager.h>
+
 #include <library/cpp/yt/yson_string/public.h>
 
 #include <util/string/subst.h>
@@ -1268,6 +1270,10 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
     YT_LOG_DEBUG("Logging scheduled mutations");
     mutations->Log(Logger());
+
+    if (input.DynamicConfig->FlushLogAfterMutations) {
+        NLogging::TLogManager::Get()->Synchronize();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

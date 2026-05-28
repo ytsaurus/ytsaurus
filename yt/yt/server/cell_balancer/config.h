@@ -134,6 +134,11 @@ struct TBundleControllerDynamicConfig
     std::optional<TDuration> RemoveInstanceCypressNodeAfter;
     std::optional<TDuration> OfflineInstanceGracePeriod;
 
+    int MaxConcurrentCypressWriteRequests;
+
+    // For unittests.
+    bool FlushLogAfterMutations;
+
     REGISTER_YSON_STRUCT(TBundleControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

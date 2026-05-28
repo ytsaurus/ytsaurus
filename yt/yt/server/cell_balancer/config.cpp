@@ -145,6 +145,12 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
         .Default();
+
+    registrar.Parameter("max_concurrent_cypress_write_requests", &TThis::MaxConcurrentCypressWriteRequests)
+        .Default(50);
+
+    registrar.Parameter("flush_log_after_mutations", &TThis::FlushLogAfterMutations)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

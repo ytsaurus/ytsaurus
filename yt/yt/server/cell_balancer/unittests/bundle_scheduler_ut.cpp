@@ -5244,6 +5244,8 @@ TEST(TDataCentersPriorityTest, MinimizingTabletMoves)
 
 TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
 {
+    NLogging::TLogManager::Get()->ConfigureFromEnv();
+
     constexpr int SlotCount = 5;
 
     auto input = GenerateMultiDCInputContext(9, SlotCount);
@@ -5293,7 +5295,26 @@ TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(6, std::ssize(mutations.ChangedDecommissionedFlag));
+    // Will not release nodes from dc-2 since dc-1 is not ready.
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        EXPECT_FALSE(decommissioned);
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        EXPECT_EQ(nodeInfo->BundleControllerAnnotations->DataCenter, "dc-1");
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Now dc-1 is ready, releasing nodes from dc-2.
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
 
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
@@ -5303,7 +5324,8 @@ TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
 
     for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        EXPECT_EQ(decommissioned, nodeInfo->BundleControllerAnnotations->DataCenter == "dc-2");
+        EXPECT_TRUE(decommissioned);
+        EXPECT_EQ(nodeInfo->BundleControllerAnnotations->DataCenter, "dc-2");
         nodeInfo->Decommissioned = decommissioned;
     }
 

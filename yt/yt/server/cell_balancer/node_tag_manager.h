@@ -36,6 +36,18 @@ private:
 
     NLogging::TLogger Logger;
 
+    struct TDataCenterStatus
+    {
+        // Data center does not have enough alive bundle nodes (even with spare ones).
+        bool Unfeasible = false;
+
+        // Data center has enough alive bundle nodes with needed node tag and not decomissioned.
+        bool HaveEnoughAssignedNodes = false;
+
+        // Whether the data center is not considered redundant.
+        bool Active = false;
+    };
+
     // Handles node assignment pipeline. Performs the following actions
     // with the node in order:
     // * set node tag and decommissioned flag
@@ -118,7 +130,7 @@ private:
         const THashMap<std::string, THashSet<std::string>>& aliveBundleNodes,
         const TIndexedEntries<TTabletNodeInfo>& tabletNodes);
 
-    THashSet<std::string> GetDataCentersToPopulate(
+    THashMap<std::string, TDataCenterStatus> GetDataCentersToPopulate(
         const std::string& nodeTagFilter,
         const THashMap<std::string, THashSet<std::string>>& perDataCenterAliveNodes,
         const TPerDataCenterSpareNodesInfo& spareNodesInfo);
