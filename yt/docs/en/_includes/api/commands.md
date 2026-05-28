@@ -1346,6 +1346,8 @@ Parameters:
 | `table_reader` | No | From the driver configuration | [Table's read options](../../user-guide/storage/io-configuration.md#table_reader). |
 | `control_attributes` | No | From the driver configuration | [Configuration of the control read attributes](../../user-guide/storage/io-configuration.md#control_attributes). |
 | `unordered` | No | `false` | Whether to read data in parallel, regardless of the entry order. |
+| `omit_inaccessible_columns` | No | `false` | Skip columns the user has no access to instead of returning an error. |
+| `omit_inaccessible_rows` | No | `false` | Skip rows the user has no access to instead of returning an error. |
 
 Input data:
 

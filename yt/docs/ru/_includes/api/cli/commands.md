@@ -845,7 +845,9 @@ usage: yt get-table-columnar-statistics [-h] [--params PARAMS] --path PATHS
 reads rows from table and parse (optionally)
 
 ```bash
-usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-reader TABLE_READER] [--control-attributes CONTROL_ATTRIBUTES] [--unordered] [--as-json-list] [table]
+usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-reader TABLE_READER] [--control-attributes CONTROL_ATTRIBUTES] [--unordered] [--as-json-list]
+               [--omit-inaccessible-columns] [--omit-inaccessible-rows]
+               [table]
 ```
 
 #### Positional Arguments
@@ -867,6 +869,10 @@ usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table
 > `--unordered`
 
 > `--as-json-list`    In case of JSON format output stream as JSON list instead of JSON lines format
+
+> `--omit-inaccessible-columns`    Skip columns the user has no access to
+
+> `--omit-inaccessible-rows`    Skip rows the user has no access to
 
 ### read-blob-table
 
@@ -902,6 +908,7 @@ reads rows from table and parse (optionally)
 
 ```bash
 usage: yt read-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-reader TABLE_READER] [--control-attributes CONTROL_ATTRIBUTES] [--unordered] [--as-json-list]
+                     [--omit-inaccessible-columns] [--omit-inaccessible-rows]
                      [table]
 ```
 
@@ -924,6 +931,10 @@ usage: yt read-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [-
 > `--unordered`
 
 > `--as-json-list`    In case of JSON format output stream as JSON list instead of JSON lines format
+
+> `--omit-inaccessible-columns`    Skip columns the user has no access to
+
+> `--omit-inaccessible-rows`    Skip rows the user has no access to
 
 ### write
 
