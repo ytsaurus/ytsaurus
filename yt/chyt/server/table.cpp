@@ -31,6 +31,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +39,8 @@ namespace {
 
 void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>& tables)
 {
+    auto timerGuard = queryContext->CreateStatisticsTimerGuard("/fetch_table_schemas"_SP);
+
     const auto& client = queryContext->Client();
     // TableSchemaCache may be not configured.
     const auto& tableSchemaCache = queryContext->Host->GetTableSchemaCache();

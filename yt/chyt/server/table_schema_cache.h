@@ -44,6 +44,13 @@ public:
     void Insert(TGuid schemaId, NTableClient::TTableSchemaPtr schema);
 
 private:
+    std::atomic<int> EntryCount_ = 0;
+
+    NProfiling::TCounter HitCounter_;
+    NProfiling::TCounter MissCounter_;
+
+    void OnAdded(const TCachedTableSchemaPtr& value) override;
+    void OnRemoved(const TCachedTableSchemaPtr& value) override;
     i64 GetWeight(const TCachedTableSchemaPtr& value) const override;
 };
 
