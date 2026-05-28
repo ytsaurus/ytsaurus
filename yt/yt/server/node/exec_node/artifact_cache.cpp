@@ -50,6 +50,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/misc/io_tags.h>
@@ -1462,20 +1463,24 @@ private:
                 false, /*enableContextSaving*/
                 New<TControlAttributesConfig>(),
                 0);
-            TPipeReaderToWriterOptions options;
-            options.BufferRowCount = TableArtifactBufferRowCount;
-            options.ReaderErrorWrapper = [key] (TError readerError) {
-                return TError(
-                    NExecNode::EErrorCode::ArtifactFetchFailed,
-                    "Error while fetching artifact chunks")
-                    << TErrorAttribute("path", key.data_source().path())
-                    << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
-                    << std::move(readerError);
-            };
-            PipeReaderToWriter(
+
+            PipeReaderToWriterByBatches(
                 CreateApiFromSchemalessChunkReaderAdapter(reader),
                 writer,
-                options);
+                TPipeReaderToWriterByBatchesOptions{
+                    .StartingOptions = {
+                        .MaxRowsPerRead = TableArtifactBufferRowCount,
+                        .Columnar = (format.GetType() == EFormatType::Arrow),
+                    },
+                    .ReaderErrorWrapper = [key] (TError readerError) {
+                        return TError(
+                            NExecNode::EErrorCode::ArtifactFetchFailed,
+                            "Error while fetching artifact chunks")
+                            << TErrorAttribute("path", key.data_source().path())
+                            << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
+                            << std::move(readerError);
+                    },
+                });
         };
     }
 
