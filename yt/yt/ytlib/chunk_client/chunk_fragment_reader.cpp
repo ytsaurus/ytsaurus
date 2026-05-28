@@ -1350,12 +1350,13 @@ private:
             // TODO(akozhikhov): Support cancellation of primary requests?
             PrimaryRequestStartTime_ = TInstant::Now();
             if (Options_.AdaptiveHedgingManager) {
-                auto hedgingPrice = ComputeHedgingPrice();
-                Options_.AdaptiveHedgingManager->RegisterRequest(
-                    Promise_.ToFuture().AsVoid(),
-                    hedgingPrice,
-                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this), hedgingPrice)
-                        .Via(SessionInvoker_));
+                if (auto hedgingPrice = ComputeHedgingPrice()) {
+                    Options_.AdaptiveHedgingManager->RegisterRequest(
+                        Promise_.ToFuture().AsVoid(),
+                        *hedgingPrice,
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this), *hedgingPrice)
+                            .Via(SessionInvoker_));
+                }
             } else if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
                 if (hedgingDelay == TDuration::Zero()) {
                     StartSecondaryRequest(/*hedgingPrice*/ 0);
@@ -1418,7 +1419,7 @@ private:
         return peerInfoToPlan;
     }
 
-    int ComputeHedgingPrice() const
+    std::optional<int> ComputeHedgingPrice() const
     {
         int chunkCount = 0;
         int price = 0;
@@ -1441,8 +1442,11 @@ private:
             }
         }
 
-        // NB: This is an upper bound, but it shall be good enough for out purposes.
-        return price / chunkCount;
+        return chunkCount == 0
+            // NB: This can happen e.g. if the requests have already been processed prior to scheduling hedged request.
+            ? std::nullopt
+            // NB: This is an upper bound, but it shall be good enough for out purposes.
+            : std::make_optional(price / chunkCount);
     }
 
     void AcquireThrottler(i64 amount)
