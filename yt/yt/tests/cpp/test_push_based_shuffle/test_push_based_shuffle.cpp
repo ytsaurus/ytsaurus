@@ -277,8 +277,7 @@ protected:
     {
         WaitFor(ctx.Writer->Close())
             .ThrowOnError();
-        WaitFor(ctx.Pool->FinalizeSlot(ctx.Slot))
-            .ThrowOnError();
+        ctx.Pool->FinalizeSlot(ctx.Slot);
     }
 
     std::vector<TSlotChunkInfo> GetChunkInfos(TWriterContext& ctx)
