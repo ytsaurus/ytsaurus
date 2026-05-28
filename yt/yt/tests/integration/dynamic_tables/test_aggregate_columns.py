@@ -576,6 +576,44 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         value = lookup_rows("//tmp/t", [{"key": 2}])[0]["value"]
         assert value == []
 
+    @authors("babenko")
+    def test_aggregate_inferrum_kv_cache_replica_set(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "aggregate": "_inferrum_kv_cache_replica_set"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        def make_delta(added, removed):
+            return yson.YsonList([
+                [yson.YsonUint64(replica) for replica in added],
+                [yson.YsonUint64(replica) for replica in removed],
+            ])
+
+        def make_state(replicas):
+            return [yson.YsonUint64(replica) for replica in replicas]
+
+        insert_rows("//tmp/t", [
+            {"key": 1, "value": make_delta([20, 30], [])},
+            {"key": 2, "value": make_delta([1, 2], [])},
+        ], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == make_state([20, 30])
+        assert lookup_rows("//tmp/t", [{"key": 2}])[0]["value"] == make_state([1, 2])
+
+        insert_rows("//tmp/t", [{"key": 1, "value": make_delta([], [20])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == make_state([30])
+
+        insert_rows("//tmp/t", [{"key": 1, "value": make_delta([20, 40], [])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == make_state([20, 30, 40])
+
+        insert_rows("//tmp/t", [{"key": 1, "value": make_delta([], [20, 30, 40])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}])[0]["value"] == []
+
+        insert_rows("//tmp/t", [{"key": 2, "value": make_delta([2, 3], [1])}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 2}])[0]["value"] == make_state([2, 3])
+
     @authors("aleksandra-zh")
     def test_aggregate_last_seen_replica_set(self):
         sync_create_cells(1)
