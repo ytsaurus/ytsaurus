@@ -2735,15 +2735,30 @@ void TTablet::AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp)
     PersistentConflictHorizonTimestamp_ = std::max(PersistentConflictHorizonTimestamp_, timestamp);
 }
 
-void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp)
+void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp, std::optional<TRevision> expectedMountRevision)
 {
+    if (expectedMountRevision && *expectedMountRevision != MountRevision_) {
+        YT_LOG_DEBUG("Mount revision mismatch during advancement of the transient conflict horizon timestamp, "
+            "skipping update (%v, ExpectedMountRevision: %v, CurrentMountRevision: %v, "
+            "CurrentPersistentConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, AdvancingTimestamp: %v)",
+            GetLoggingTag(),
+            *expectedMountRevision,
+            MountRevision_,
+            PersistentConflictHorizonTimestamp_,
+            TransientConflictHorizonTimestamp_,
+            timestamp);
+
+        return;
+    }
+
     YT_VERIFY(TransientConflictHorizonTimestamp_ <= PersistentConflictHorizonTimestamp_);
 
     // NB: This verify assumes that store's max timestamp provided to PersistentConflictHorizonTimestamp_
     // in the past by flusher cannot be exceeded until unleashed backing store is released.
     YT_LOG_FATAL_IF(timestamp > PersistentConflictHorizonTimestamp_,
         "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp "
-        "(NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
+        "(%v, NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
+        GetLoggingTag(),
         timestamp,
         TransientConflictHorizonTimestamp_,
         PersistentConflictHorizonTimestamp_);
@@ -2753,7 +2768,9 @@ void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp)
 
 void TTablet::ResetTransientConflictHorizonTimestamp()
 {
-    AdvanceTransientConflictHorizonTimestamp(PersistentConflictHorizonTimestamp_);
+    AdvanceTransientConflictHorizonTimestamp(
+        PersistentConflictHorizonTimestamp_,
+        /*expectedMountRevision*/ std::nullopt);
 }
 
 bool TTablet::IsActiveServant() const
