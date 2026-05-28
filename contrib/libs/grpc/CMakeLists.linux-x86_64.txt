@@ -37,6 +37,7 @@ target_include_directories(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
   ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
+  ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
 )
 
 target_link_libraries(contrib-libs-grpc PUBLIC
@@ -51,6 +52,7 @@ target_link_libraries(contrib-libs-grpc PUBLIC
   contrib-libs-re2
   contrib-libs-xxhash
   contrib-libs-zlib
+  contrib-libs-zstd
   contrib-restricted-abseil-cpp-tstring
   library-cpp-resource
 )
