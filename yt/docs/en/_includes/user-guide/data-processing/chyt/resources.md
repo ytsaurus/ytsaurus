@@ -2,7 +2,7 @@
 
 A CHYT clique is a Vanilla {{product-name}} operation and instances are run in the jobs of this operation and consume resources. A typical CHYT instance runs on about 10 CPU cores and about 60 GB of RAM.
 
-Before continuing with this article, consider reading about the [Scheduler and pools](../../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) first.
+Before continuing with this article, consider reading about the [Scheduler and pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) first.
 
 ## Preemption { #preemption }
 

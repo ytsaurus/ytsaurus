@@ -86,16 +86,16 @@ ru:
       to: /user-guide/data-processing/chyt/cliques/access.md
       type: redirect
 
-    - from: /description/chyt/cliques/controller.md
-      to: /user-guide/data-processing/chyt/cliques/controller.md
+    - from: /description/chyt/controller.md
+      to: /user-guide/data-processing/chyt/controller.md
       type: redirect
 
     - from: /description/chyt/cliques/dashboard.md
       to: /user-guide/data-processing/chyt/cliques/dashboard.md
       type: redirect
 
-    - from: /description/chyt/cliques/resources.md
-      to: /user-guide/data-processing/chyt/cliques/resources.md
+    - from: /description/chyt/resources.md
+      to: /user-guide/data-processing/chyt/resources.md
       type: redirect
 
     - from: /description/chyt/cliques/start.md

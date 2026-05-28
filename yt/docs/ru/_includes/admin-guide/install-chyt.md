@@ -49,7 +49,7 @@ NAME     RELEASESTATUS
 mychyt   Finished
 ```
 
-После успешного выполнения всех джобов, можно запускать клику `CHYT`. Подробнее про клики можно почитать [в отдельном разделе](../../user-guide/data-processing/chyt/cliques/start).
+После успешного выполнения всех джобов, можно запускать клику `CHYT`. Подробнее про клики можно почитать [в отдельном разделе](../../user-guide/data-processing/chyt/cliques/overview.md).
 
 Если в спецификации `Chyt` был выставлен флаг `makeDefault` и на кластере запущен `strawberry controller`, то также будет поднята клика по умолчанию — `ch_public`.
 

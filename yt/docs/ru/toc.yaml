@@ -282,16 +282,38 @@ items:
               href: user-guide/data-processing/chyt/queries/joins.md
           - name: Работа с таблицами {{product-name}}
             href: user-guide/data-processing/chyt/yt-tables.md
-          - name: Клики
+          - name: Интерфейс и настройки клики
             items:
-            - name: Как запустить приватную клику
-              href: user-guide/data-processing/chyt/cliques/start.md
-            - name: Клика в интерфейсе {{product-name}}
+            - name: Обзор
+              href: user-guide/data-processing/chyt/cliques/overview.md
+            - name: Веб-интерфейс клики в {{product-name}}
               href: user-guide/data-processing/chyt/cliques/ui.md
+            - name: Клика как YT‑операция
+              href: user-guide/data-processing/chyt/cliques/yt-operation-ui.md
+            - name: Настройки клики
+              href: user-guide/data-processing/chyt/cliques/configs.md
             - name: Права доступа
               href: user-guide/data-processing/chyt/cliques/access.md
-            - name: Ресурсы и вытеснение
-              href: user-guide/data-processing/chyt/cliques/resources.md
+          - name: Сценарии управления кликами
+            items:
+            - name: Обзор сценариев
+              href: user-guide/data-processing/chyt/how-to-guides/overview.md
+            - name: Создание, запуск и остановка клики
+              href: user-guide/data-processing/chyt/how-to-guides/create-start.md
+            - name: Добавление вычислительных ресурсов
+              href: user-guide/data-processing/chyt/how-to-guides/manage-resources.md
+            - name: Управление правами доступа
+              href: user-guide/data-processing/chyt/how-to-guides/acl.md
+            - name: Получение Query Logs
+              href: user-guide/data-processing/chyt/how-to-guides/query-logs.md
+            - name: Получение версий CHYT и ClickHouse
+              href: user-guide/data-processing/chyt/how-to-guides/versions.md
+            - name: Установка версии CHYT
+              href: user-guide/data-processing/chyt/how-to-guides/custom-chyt-version.md
+            - name: Настройка продвинутых параметров
+              href: user-guide/data-processing/chyt/how-to-guides/manage-advanced-settings.md
+            - name: Проверка упавших джобов
+              href: user-guide/data-processing/chyt/how-to-guides/failed-jobs.md
           - name: CLI и Python API
             href: user-guide/data-processing/chyt/cli-and-api.md
           - name: Справочник
@@ -311,7 +333,9 @@ items:
             - name: Пользовательские функции (UDF)
               href: user-guide/data-processing/chyt/reference/user-defined-functions.md
           - name: Контроллер
-            href: user-guide/data-processing/chyt/cliques/controller.md
+            href: user-guide/data-processing/chyt/controller.md
+          - name: Ресурсы и вытеснение
+            href: user-guide/data-processing/chyt/resources.md
           - name: Производительность и рекомендации
             href: user-guide/data-processing/chyt/reference/performance.md
           - name: FAQ
