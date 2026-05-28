@@ -2152,7 +2152,7 @@ void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& b
             bundleName,
             TabletBalancerProfiler()
                 .WithSparse()
-                .WithTag("bundle", bundleName)
+                .WithTag("tablet_cell_bundle", bundleName)
                 .Counter("/bundle_iteration_cancellations"));
     }
 
