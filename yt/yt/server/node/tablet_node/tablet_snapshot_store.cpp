@@ -120,7 +120,8 @@ public:
             Bootstrap_
                 ->GetClient()
                 ->GetNativeConnection()
-                ->GetCellDirectory());
+                ->GetCellDirectory())
+            .ThrowOnError();
 
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;

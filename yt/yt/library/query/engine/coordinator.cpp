@@ -259,22 +259,12 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TSubplanHolders)
-
-struct TSubplanHolders final
-    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TSubplanHolders)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TAdaptiveReaderGenerator
 {
 public:
     TAdaptiveReaderGenerator(
         std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
-        const TSubplanHoldersPtr& subplanHolders)
+        const TSubplanFutureHoldersPtr& subplanHolders)
         : GetNextReader_(getNextReader)
         , SubplanHolders_(subplanHolders)
     { }
@@ -303,7 +293,7 @@ private:
     static constexpr i64 PrefetchWindowGrowthFactor = 2;
 
     const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
-    const TSubplanHoldersPtr SubplanHolders_;
+    const TSubplanFutureHoldersPtr SubplanHolders_;
 
     std::queue<ISchemafulUnversionedReaderPtr> PrefetchWindow_;
     i64 PrefetchWindowSize_ = 1;
@@ -315,7 +305,7 @@ private:
 
 ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
     std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
-    const NDetail::TSubplanHoldersPtr& subplanHolders,
+    const TSubplanFutureHoldersPtr& subplanHolders,
     i64 /*offset*/,
     i64 /*limit*/,
     bool useAdaptiveOrderedSchemafulReader)
@@ -343,9 +333,12 @@ TQueryStatistics CoordinateAndExecute(
     i64 limit,
     bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
-    TTopQueryEvaluator evaluateTopQuery)
+    TTopQueryEvaluator evaluateTopQuery,
+    TSubplanFutureHoldersPtr subplanHolders)
 {
-    auto subplanHolders = New<NDetail::TSubplanHolders>();
+    if (!subplanHolders) {
+        subplanHolders = New<TSubplanFutureHolders>();
+    }
 
     auto responseFeatureFlags = NewPromise<TFeatureFlags>();
 

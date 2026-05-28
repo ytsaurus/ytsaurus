@@ -284,6 +284,7 @@ struct TConnectionDynamicConfig
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     NQueryClient::TExpressionEvaluatorCacheConfigPtr ExpressionEvaluatorCache;
     TDuration DefaultSelectRowsTimeout;
+    TDuration CumulativeSelectRowsFailedResponseWaitTime;
     NCompression::ECodec SelectRowsResponseCodec;
     i64 DefaultInputRowLimit;
     i64 DefaultOutputRowLimit;
