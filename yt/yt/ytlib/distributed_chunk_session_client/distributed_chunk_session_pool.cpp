@@ -76,17 +76,14 @@ public:
             .ToUncancelable();
     }
 
-    TFuture<void> FinalizeSlot(int slotCookie) final
+    void FinalizeSlot(int slotCookie) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return BIND_NO_PROPAGATE(
+        SerializedInvoker_->Invoke(BIND_NO_PROPAGATE(
             &TDistributedChunkSessionPool::DoFinalizeSlot,
             MakeStrong(this),
-            slotCookie)
-            .AsyncVia(SerializedInvoker_)
-            .Run()
-            .ToUncancelable();
+            slotCookie));
     }
 
     TFuture<std::vector<TSlotChunkInfo>> GetSlotChunks(int slotCookie) const final
@@ -354,7 +351,7 @@ private:
     void OnSessionClosed(
         int slotCookie,
         TSessionId sessionId,
-        const TError& closeError)
+        const TError& closeError) noexcept
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -384,7 +381,7 @@ private:
         }
     }
 
-    void DoFinalizeSlot(int slotCookie)
+    void DoFinalizeSlot(int slotCookie) noexcept
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -448,7 +445,7 @@ private:
     void OnSessionCloseFailedDuringFinalize(
         int slotCookie,
         TSessionId sessionId,
-        const TError& error)
+        const TError& error) noexcept
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -487,7 +484,7 @@ private:
         int slotCookie,
         TSessionId sessionId,
         TChunkId chunkId,
-        const TError& error)
+        const TError& error) noexcept
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -530,7 +527,7 @@ private:
             return;
         }
 
-        const TDuration retryBackoff = sealRetryBackoff->GetBackoff();
+        TDuration retryBackoff = sealRetryBackoff->GetBackoff();
 
         YT_LOG_WARNING(
             error,
@@ -591,8 +588,8 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
     IInvokerPtr invoker,
     TLogger logger)
 {
-    const auto Logger = logger;
-    const auto chunkSealRpcTimeout = config->ChunkSealRpcTimeout;
+    auto Logger = logger;
+    auto chunkSealRpcTimeout = config->ChunkSealRpcTimeout;
 
     auto createController = BIND([
         client,
