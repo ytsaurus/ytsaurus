@@ -1704,6 +1704,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table()
         set("//tmp/t/@chunk_reader", {"hedging_manager": {"secondary_request_ratio": 0.5}})
+        set("//tmp/t/@chunk_reader/prefer_local_replicas", False)
         set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"secondary_request_ratio": 0.5})
         sync_mount_table("//tmp/t")
 
