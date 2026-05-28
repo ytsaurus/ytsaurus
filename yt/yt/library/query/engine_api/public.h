@@ -6,10 +6,10 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TExpressionContext;
+
 DECLARE_REFCOUNTED_STRUCT(IFunctionCodegen)
 DECLARE_REFCOUNTED_STRUCT(IAggregateCodegen)
-
-////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TFunctionProfilerMap)
 using TConstFunctionProfilerMapPtr = TIntrusivePtr<const TFunctionProfilerMap>;

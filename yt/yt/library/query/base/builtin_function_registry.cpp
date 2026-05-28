@@ -537,6 +537,15 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "stored_replica_set");
 
     builder->RegisterAggregate(
+        "_inferrum_kv_cache_replica_set",
+        {},
+        {EValueType::Any},
+        EValueType::Any,
+        EValueType::Any,
+        /*repeatedArgType*/ EValueType::Null,
+        "inferrum_kv_cache_replica_set");
+
+    builder->RegisterAggregate(
         "_yt_last_seen_replica_set",
         {},
         {EValueType::Any},

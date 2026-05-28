@@ -13,6 +13,8 @@
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/join_profiler.h>
 
+#include <yt/yt/library/query/engine/cg_routines/inferrum.h>
+
 #include <yt/yt/library/query/engine/time/dates.h>
 
 #include <yt/yt/library/query/engine_api/position_independent_value.h>
@@ -4808,6 +4810,8 @@ REGISTER_HLL_ROUTINE(13);
 REGISTER_HLL_ROUTINE(14);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
+REGISTER_ROUTINE(InferrumKVCacheReplicaSetMerge);
+REGISTER_ROUTINE(InferrumKVCacheReplicaSetFinalize);
 REGISTER_ROUTINE(LastSeenReplicaSetMerge);
 REGISTER_ROUTINE(HasPermissions);
 REGISTER_ROUTINE(YsonLength);
