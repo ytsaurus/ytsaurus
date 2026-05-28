@@ -10,6 +10,7 @@ using namespace NObjectClient;
 using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 TDownedCellTracker::TDownedCellTracker(const TDownedCellTrackerConfigPtr& config)
     : ChaosCellExpirationTime_(config->ChaosCellExpirationTime)
     , TabletCellExpirationTime_(config->TabletCellExpirationTime)
@@ -46,7 +47,7 @@ std::vector<TCellId> TDownedCellTracker::RetainDowned(const std::vector<TCellId>
 
 TCellId TDownedCellTracker::ChooseOne(const std::vector<TCellId>& candidates, TInstant now)
 {
-    if (IsEmpty_) {
+    if (IsEmpty_.load()) {
         // Fast path.
         return candidates[RandomNumber(candidates.size())];
     }
@@ -67,7 +68,7 @@ TCellId TDownedCellTracker::ChooseOne(const std::vector<TCellId>& candidates, TI
             return candidates[RandomNumber(static_cast<ui32>(candidatesCount))];
         }
 
-        for (auto& candidateCellId : candidates) {
+        for (const auto& candidateCellId : candidates) {
             if (auto it = DownedCellIds_.find(candidateCellId); it == DownedCellIds_.end()) {
                 notBannedCandidates.push_back(candidateCellId);
             } else if (notBannedCandidates.empty()) {
@@ -92,7 +93,6 @@ void TDownedCellTracker::Update(
     const std::vector<TCellId>& toAdd,
     TInstant now)
 {
-
     auto guard = Guard(SpinLock_);
     if (!toAdd.empty()) {
         IsEmpty_.store(false);
@@ -106,12 +106,13 @@ void TDownedCellTracker::Update(
     }
 
     for (const auto& id : toAdd) {
-        auto it = ExpirationList_.emplace(
-            ExpirationList_.end(),
-            GetExpirationTime(id, now),
-            id);
-
-        DownedCellIds_.emplace(id, it);
+        if (auto [downedCellIdsIt, inserted] = DownedCellIds_.try_emplace(id, ExpirationList_.end()); inserted) {
+            auto it = ExpirationList_.emplace(
+                ExpirationList_.end(),
+                GetExpirationTime(id, now),
+                id);
+            downedCellIdsIt->second = it;
+        }
     }
 
     GuardedExpire(now, guard);
@@ -121,7 +122,7 @@ bool TDownedCellTracker::GuardedExpire(TInstant now, const TGuard<TSpinLock>& /*
 {
     YT_VERIFY(SpinLock_.IsLocked());
 
-    if (IsEmpty_) {
+    if (IsEmpty_.load()) {
         return true;
     }
 
@@ -131,10 +132,10 @@ bool TDownedCellTracker::GuardedExpire(TInstant now, const TGuard<TSpinLock>& /*
     }
 
     if (ExpirationList_.empty()) {
-        IsEmpty_ = true;
+        IsEmpty_.store(true);
     }
 
-    return IsEmpty_;
+    return IsEmpty_.load();
 }
 
 TInstant TDownedCellTracker::GetExpirationTime(TCellId cellId, TInstant now) const
