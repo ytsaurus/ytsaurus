@@ -2164,6 +2164,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     context->SetRequestInfo();
 
+    const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
+    if (const auto& delay = dynamicConfig->Testing.GetMountInfoDelay) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
     ValidateNotExternal();
     ValidateNoTransaction();
 

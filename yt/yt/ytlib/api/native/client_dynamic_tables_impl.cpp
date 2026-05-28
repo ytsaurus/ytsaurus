@@ -1494,7 +1494,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     auto results = WaitFor(AllSet(std::move(multireadFutures)))
         .ValueOrThrow();
 
-    if (!options.EnablePartialResult && options.DetailedProfilingInfo) {
+    if (!options.EnablePartialResult) {
         int failedSubrequestCount = 0;
         for (int channelIndex = 0; channelIndex < std::ssize(results); ++channelIndex) {
             if (!results[channelIndex].IsOK()) {
@@ -1502,7 +1502,30 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             }
         }
         if (failedSubrequestCount > 0) {
-            options.DetailedProfilingInfo->WastedSubrequestCount += std::ssize(results) - failedSubrequestCount;
+            if (options.DetailedProfilingInfo) {
+                options.DetailedProfilingInfo->WastedSubrequestCount += std::ssize(results) - failedSubrequestCount;
+            }
+
+            // If any subrequest failed with TabletServantIsNotActive and partial result is not
+            // requested, collect all such errors and throw them as a single combined error so
+            // that the mount cache can patch all affected tablets in one shot.
+            std::vector<TError> servantNotActiveErrors;
+            for (const auto& result : results) {
+                if (!result.IsOK()) {
+                    if (result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive)) {
+                        servantNotActiveErrors.push_back(result);
+                    }
+                }
+            }
+
+            if (!servantNotActiveErrors.empty()) {
+                if (servantNotActiveErrors.size() == 1) {
+                    servantNotActiveErrors[0].ThrowOnError();
+                } else {
+                    THROW_ERROR_EXCEPTION("Some lookup subrequests failed because tablet servants are not active")
+                        << servantNotActiveErrors;
+                }
+            }
         }
     }
 

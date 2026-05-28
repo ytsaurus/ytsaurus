@@ -5,7 +5,7 @@ from yt.environment.helpers import assert_items_equal, are_items_equal
 from yt_commands import (
     authors, create, wait, get, set, exists,
     sync_create_cells, sync_mount_table, sync_unmount_table, raises_yt_error,
-    sync_reshard_table, insert_rows, ls,
+    sync_reshard_table, insert_rows, lookup_rows, ls,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
     get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
@@ -1089,3 +1089,90 @@ class TestSmoothMovementMulticell(TestSmoothMovement):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+##################################################################
+
+
+class TestSmoothMovementWithMountCacheDelay(SmoothMovementBase):
+    NUM_NODES = 4
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "tablet_manager": {
+                "sleep_before_post_to_master": 0,
+            },
+        },
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "table_mount_cache": {
+            "expire_after_successful_update_time": 60000,
+            "refresh_time": 60000,
+            "expiration_period": 60000,
+            "expire_after_failed_update_time": 1000,
+            "expire_after_access_time": 300000,
+            "on_error_retry_count": 1,
+        },
+    }
+
+    TABLET_COUNT = 10
+
+    def _prepare(self):
+        sync_create_cells(4)
+
+        pivot_keys = [[]] + [[i * 10] for i in range(1, self.TABLET_COUNT)]
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", pivot_keys)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i * 10, "value": str(i)} for i in range(self.TABLET_COUNT)]
+        insert_rows("//tmp/t", rows)
+
+        # Warm up the mount cache so subsequent requests use the (soon-to-be-stale) cached info.
+        keys = [{"key": row["key"]} for row in rows]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        self._move_all_tablets()
+
+        set("//sys/@config/table_manager/testing/get_mount_info_delay", 30000)
+
+        return rows
+
+    def _move_all_tablets(self):
+        tablet_ids = [get(f"//tmp/t/@tablets/{i}/tablet_id") for i in range(self.TABLET_COUNT)]
+        helpers = []
+        for tablet_id in tablet_ids:
+            h = SmoothMovementHelper(tablet_id)
+            h.start()
+            helpers.append(h)
+
+        for h in helpers:
+            h.wait_for_action()
+
+    @authors("ifsmirnov")
+    def test_lookup_retries(self):
+        rows = self._prepare()
+        keys = [{"key": row["key"]} for row in rows]
+
+        # lookup_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("ifsmirnov")
+    def test_select_retries(self):
+        rows = self._prepare()
+
+        # select_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+    @authors("ifsmirnov")
+    def DISABLED_test_select_parallel_unordered_group_by_retries(self):
+        # This test uses different execution pipeline (CoordinateAndExecuteWithShuffle)
+        # for which appropriate retries are not implemented.
+        self._prepare()
+
+        # select_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(
+            select_rows("sum(1) as s from [//tmp/t] group by 0", enable_parallelize_unordered_group_by=True),
+            [{"s": 10}])
