@@ -58,8 +58,7 @@ TCellId TDownedCellTracker::ChooseOne(const std::vector<TCellId>& candidates, TI
     notBannedCandidates.reserve(candidatesCount);
 
     auto firstToExpireCandidate = NullCellId;
-    auto maxDeadline = std::max(ChaosCellExpirationTime_.load(), TabletCellExpirationTime_.load());
-    auto firstToExpireCandidateExpiration = now + maxDeadline;
+    auto firstToExpireCandidateExpiration = TInstant::Max();
 
     {
         auto guard = Guard(SpinLock_);
