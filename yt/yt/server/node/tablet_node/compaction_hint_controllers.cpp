@@ -233,7 +233,9 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::OnLsmF
     YT_VERIFY(LsmCompactionHint_.GetPartitionCompactionHintKind() == lsmCompactionHint.GetPartitionCompactionHintKind());
 
     // Outdated feedback, skip.
-    if (LsmCompactionHint_.GetNodeObjectRevision() != lsmCompactionHint.GetLsmResponseRevision()) {
+    if (LsmCompactionHint_.GetNodeObjectRevision() != lsmCompactionHint.GetLsmResponseRevision() ||
+        LsmCompactionHint_.IsRelevantLsmResponse())
+    {
         return;
     }
 
@@ -389,7 +391,6 @@ void TStoreCompactionHintController::OnStoreHasNoHint(TSortedChunkStore* store)
         return;
     }
 
-    YT_VERIFY(State_ == ECompactionHintState::Active || State_ == ECompactionHintState::NotInEpoch);
     SetPassiveState(store, ECompactionHintState::DefinitelyNoHint);
 }
 
@@ -527,8 +528,12 @@ void TPartitionCompactionHintController::OnStoreStateChanged(TPartition* partiti
 
 void TPartitionCompactionHintController::OnStoreHasNoHint(TPartition* partition, TSortedChunkStore* store)
 {
-    YT_VERIFY(State_ >= ECompactionHintState::BadState);
     YT_VERIFY(store->GetStoreState() == EStoreState::Persistent);
+
+    // Can be |DisabledByConfig|.
+    if (State_ < ECompactionHintState::BadState) {
+        return;
+    }
 
     SetPassiveState(partition, ECompactionHintState::BadState);
     ++NoHintStoreCount_;
