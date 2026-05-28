@@ -1856,7 +1856,9 @@ void TSortedStoreManager::AddUnleashedBackingStore(TSortedDynamicStorePtr unleas
         CriticalUnleashedStoreCount);
 }
 
-void TSortedStoreManager::ReleaseUnleashedBackingStore(TDynamicStoreId unleashedBackingStoreId)
+void TSortedStoreManager::ReleaseUnleashedBackingStore(
+    TDynamicStoreId unleashedBackingStoreId,
+    TRevision expectedMountRevision)
 {
     auto it = UnleashedBackingStores_.find(unleashedBackingStoreId);
 
@@ -1872,7 +1874,7 @@ void TSortedStoreManager::ReleaseUnleashedBackingStore(TDynamicStoreId unleashed
         return;
     }
 
-    Tablet_->AdvanceTransientConflictHorizonTimestamp(it->second->GetMaxTimestamp());
+    Tablet_->AdvanceTransientConflictHorizonTimestamp(it->second->GetMaxTimestamp(), expectedMountRevision);
 
     UnleashedBackingStores_.erase(it);
 

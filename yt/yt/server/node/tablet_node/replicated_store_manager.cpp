@@ -343,7 +343,8 @@ void TReplicatedStoreManager::AddUnleashedBackingStore(
 }
 
 void TReplicatedStoreManager::ReleaseUnleashedBackingStore(
-    TDynamicStoreId /*backingStoreId*/)
+    TDynamicStoreId /*backingStoreId*/,
+    TRevision /*expectedMountRevision*/)
 {
     YT_ABORT();
 }

@@ -119,7 +119,7 @@ public:
     TError CheckOverflow() const override;
 
     void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) override;
-    void ReleaseUnleashedBackingStore(TStoreId backingStoreId) override;
+    void ReleaseUnleashedBackingStore(TStoreId backingStoreId, NHydra::TRevision expectedMountRevision) override;
 
 private:
     struct TBoundaryDescriptor
