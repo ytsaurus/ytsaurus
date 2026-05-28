@@ -15,6 +15,46 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AnnotateNewInstances(
+    const TSchedulerInputState& input,
+    IAllocatorAdapter* adapter,
+    TSchedulerMutations* mutations)
+{
+    YT_VERIFY(!input.Config->HasInstanceAllocatorService);
+
+    if (input.Zones.size() != 1) {
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = adapter->GetAnnotateMultipleZonesAlertId(),
+            .Description = Format(
+                "Cannot annotate new instances: expected exactly 1 zone, got %v",
+                input.Zones.size()),
+        });
+        return;
+    }
+
+    const auto& [zoneName, zoneInfo] = *input.Zones.begin();
+    const auto& instanceSizes = adapter->GetInstanceSizes(zoneInfo);
+
+    if (instanceSizes.size() != 1) {
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = adapter->GetAnnotateMultipleSizesAlertId(),
+            .Description = Format(
+                "Cannot annotate new instances: expected exactly 1 instance size in zone %Qv, got %v",
+                zoneName,
+                instanceSizes.size()),
+        });
+        return;
+    }
+
+    const auto& [/*sizeName*/ _, instanceSize] = *instanceSizes.begin();
+    const auto& spareBundleName = zoneInfo->SpareBundleName;
+
+    auto guard = mutations->MakeBundleNameGuard(spareBundleName);
+    adapter->AnnotateNewInstances(input, spareBundleName, instanceSize->ResourceGuarantee, mutations);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsAllocationFailed(const auto& requestInfo)
 {
     return requestInfo->Status && requestInfo->Status->State == "FAILED";

@@ -681,6 +681,23 @@ void ManageInstances(
     ISpareInstanceAllocatorPtr spareProxiesAllocator,
     TSchedulerMutations* mutations)
 {
+    if (!input.Config->HasInstanceAllocatorService) {
+        // Temporary adapters used only for AnnotateNewInstances; they don't need real bundle state.
+        auto dummyState = New<TBundleControllerState>();
+        TDataCenterToInstanceMap emptyMap;
+        THashMap<std::string, THashSet<std::string>> emptyAlive;
+
+        if (input.DynamicConfig->AnnotateNewNodes.value_or(input.Config->AnnotateNewNodes)) {
+            auto nodeAdapter = CreateTabletNodeAllocatorAdapter(dummyState, emptyMap, emptyAlive);
+            AnnotateNewInstances(input, nodeAdapter.Get(), mutations);
+        }
+
+        if (input.DynamicConfig->AnnotateNewProxies.value_or(input.Config->AnnotateNewProxies)) {
+            auto proxyAdapter = CreateRpcProxyAllocatorAdapter(dummyState, emptyMap, emptyAlive);
+            AnnotateNewInstances(input, proxyAdapter.Get(), mutations);
+        }
+    }
+
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
 
