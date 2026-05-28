@@ -31,7 +31,7 @@ To avoid mentioning the {{product-name}} cluster name in each command (in the `
 export YT_PROXY=<cluster_name>
 ```
 
-Next, create a clique, using the command from the [CHYT Controller CLI](../../../../../user-guide/data-processing/chyt/cliques/controller.md):
+Next, create a clique, using the command from the [CHYT Controller CLI](../../../../../user-guide/data-processing/chyt/controller.md):
 
 ```bash
 yt clickhouse ctl create chyt_example_clique

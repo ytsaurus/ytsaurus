@@ -285,8 +285,6 @@ items:
                href: user-guide/data-processing/chyt/cliques/ui.md
              - name: Access permissions
                href: user-guide/data-processing/chyt/cliques/access.md
-             - name: Resources and preemption
-               href: user-guide/data-processing/chyt/cliques/resources.md
            - name: CLI and Python API
              href: user-guide/data-processing/chyt/cli-and-api.md
            - name: Reference
@@ -306,7 +304,9 @@ items:
              - name: User-defined SQL functions (UDF)
                href: user-guide/data-processing/chyt/reference/user-defined-functions.md
            - name: Controller
-             href: user-guide/data-processing/chyt/cliques/controller.md
+             href: user-guide/data-processing/chyt/controller.md
+           - name: Resources and preemption
+             href: user-guide/data-processing/chyt/resources.md
            - name: Performance and recommendations
              href: user-guide/data-processing/chyt/reference/performance.md
            - name: FAQ

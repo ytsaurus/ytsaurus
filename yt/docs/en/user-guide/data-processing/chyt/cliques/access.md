@@ -15,7 +15,7 @@ Upon receiving a query, CHYT checks for two types of permissions:
    - To execute SQL queries, you need the `use` permission.
    - To modify, view, and delete a clique configuration, you need the `manage`, `read`, and `remove` permissions.
 
-   Clique permissions are stored in a dedicated system node called Access Control Object. It's located at the path `//sys/access_control_object_namespaces/chyt/<alias>/principal` and is generated automatically for each clique created with the [CHYT Controller](../cliques/controller.md).
+   Clique permissions are stored in a dedicated system node called Access Control Object. It's located at the path `//sys/access_control_object_namespaces/chyt/<alias>/principal` and is generated automatically for each clique created with the [CHYT Controller](../../../../user-guide/data-processing/chyt/controller.md).
 
    Clique permissions only control access to the computational resources of the cliques themselves.
 
