@@ -219,14 +219,35 @@ class ComputationCellGenerator:
         def add_messages_per_second_cell(row, title_prefix, metric_suffix):
             description = (
                 "Partition messages rate ≤ 1000 messages/s is usually good enough. "
-                "Higher values are sometimes acceptable."
+                "Higher values are sometimes acceptable, but exceeding 10000 messages/s "
+                "may lead to hard-to-diagnose problems."
             )
+
+            # Threshold lines that disappear when data is comfortably below them, so they
+            # don't pull the y-axis up. Pattern borrowed from
+            # ads/core/library/python/monitoring/solo/helpers/charts.py: drop_if removes
+            # the constant_line whenever ramp(activate_at - max_data) is positive, i.e.
+            # whenever max_data is still below the activation point.
+            def threshold(activate_at, level, label):
+                return (MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
+                    .all("stream_id")
+                    .query_transformation(
+                        'let non_empty_computation_id = ("{{{{computation_id}}}}" == \'-\' ? \'*\' : "{{{{computation_id}}}}"); '
+                        f'alias(drop_if(constant_line(ramp({activate_at} - max(series_max({{query}})))), constant_line({level})), "{label}")'))
+
             return row.cell(
                 f"{title_prefix} partition messages per second",
-                MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
-                    .all("stream_id")
-                    .query_transformation(transformation(stream_alias))
+                MultiSensor(
+                    MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
+                        .all("stream_id")
+                        .query_transformation(transformation(stream_alias)),
+                    threshold(5000, 10000, "Alert level"),
+                    threshold(500, 1000, "Warning level"))
                     .unit("UNIT_COUNTS_PER_SECOND"),
+                colors={
+                    "Alert level": "#f4cccc",
+                    "Warning level": "#ffedcc",
+                },
                 description=description)
 
         def add_bytes_per_second_cell(row, title_prefix, metric_suffix):
