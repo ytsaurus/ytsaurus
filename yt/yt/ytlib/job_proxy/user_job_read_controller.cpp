@@ -401,9 +401,11 @@ private:
         PipeReaderToWriterByBatches(
             CreateApiFromSchemalessChunkReaderAdapter(reader),
             writer,
-            options,
-            std::move(batchRorCountOptionsUpdater),
-            pipeDelay);
+            TPipeReaderToWriterByBatchesOptions{
+                .StartingOptions = options,
+                .OptionsUpdater = std::move(batchRorCountOptionsUpdater),
+                .PipeDelay = pipeDelay,
+            });
     }
 
     TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
