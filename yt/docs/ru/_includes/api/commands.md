@@ -1344,6 +1344,8 @@ INPUT { "id" = 3; "value" = 3.850; };
 | `table_reader`       | Нет      | Из конфигурации драйвера  | [Опции чтения таблицы](../../user-guide/storage/io-configuration.md#table_reader). |
 | `control_attributes` | Нет      | Из конфигурации драйвера  | [Конфигурация контрольных атрибутов чтения](../../user-guide/storage/io-configuration.md#control_attributes). |
 | `unordered`          | Нет      | `false`                     | Производить ли чтения параллельно, не заботясь о порядке записей. |
+| `omit_inaccessible_columns` | Нет | `false` | Пропускать колонки, к которым у пользователя нет доступа, вместо возврата ошибки. |
+| `omit_inaccessible_rows` | Нет | `false` | Пропускать строки, к которым у пользователя нет доступа, вместо возврата ошибки. |
 
 Входные данные:
 

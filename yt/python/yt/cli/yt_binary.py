@@ -490,6 +490,14 @@ def add_read_table_parser(add_parser):
             "--as-json-list",
             action="store_true",
             help="In case of JSON format output stream as JSON list instead of JSON lines format")
+        parser.add_argument(
+            "--omit-inaccessible-columns",
+            action="store_true",
+            help="Skip columns the user has no access to")
+        parser.add_argument(
+            "--omit-inaccessible-rows",
+            action="store_true",
+            help="Skip rows the user has no access to")
 
 
 @copy_docstring_from(yt.read_file)
