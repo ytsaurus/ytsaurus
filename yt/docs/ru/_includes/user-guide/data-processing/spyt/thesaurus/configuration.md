@@ -29,9 +29,11 @@
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} | 1.72.0 |
 | `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Включить партицирование данных при чтении по значению compressed size таблицы | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Оптимизировать агрегации и джойны на сортированных входных данных | - |
+| `spark.yt.read.countOptimization.enabled ` | `true` | Использовать метаданные для count() операций | - |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Использовать партиционирование по ключам для сортированных таблиц, необходимо для оптимизации планов | - |
 | `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Максимальное количество объединений партиций при переходе от чтения по индексам к чтению по ключам | - |
-| `spark.yt.read.transactional` | `true` | Использовать snapshot lock для чтения в случае отсутствия транзакции. Рекомендуется отключать эту опцию в случае чтения неизменяемых данных для повышения производительности чтения. | 2.6.0 |
+| `spark.yt.read.transactional` | `true` | Использовать snapshot lock для чтения в случае отсутствия транзакции. Рекомендуется отключать эту опцию в случае чтения неизменяемых данных для повышения производительности чтения | 2.6.0 |
+| `spark.yt.read.listParentDirectories` | `true` | Пакетное чтение атрибутов по родительским директориям при чтении по списку таблиц. Помогает, если читается большое количество таблиц из одной родительской директории | 2.7.5 |
 | `spark.yt.read.ytDistributedReading.enabled` | `false` | Использовать распределенное API для чтения данных из {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при чтении, но пока не совместим с опцией `spark.yt.read.planOptimization.enabled` | 2.8.0 |
 | `spark.yt.write.distributed.enabled` | `false` | Использовать распределенное API для записи данных в {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при записи, но применим только к работе со статическими таблицами | 2.8.0 |
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Пропускать строки, к которым нет доступа, вместо ошибки | 2.9.0 |
