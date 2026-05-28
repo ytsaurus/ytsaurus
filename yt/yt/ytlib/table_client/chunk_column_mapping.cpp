@@ -84,17 +84,26 @@ TChunkColumnMapping::TChunkColumnMapping(
     : TableKeyColumnCount_(tableSchema->GetKeyColumnCount())
     , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())
-    , TableValueIndexToChunkIndex_(std::invoke([&] {
+    , TableValueIndexToChunkColumnInfo_(std::invoke([&] {
         ValidateSchema(*chunkSchema, *tableSchema);
 
-        std::vector<int> result(tableSchema->GetColumnCount() - TableKeyColumnCount_, -1);
+        std::vector<std::optional<TChunkColumnInfo>> result(
+            tableSchema->GetColumnCount() - TableKeyColumnCount_);
+
         for (auto index : std::views::iota(TableKeyColumnCount_, tableSchema->GetColumnCount())) {
             const auto& column = tableSchema->Columns()[index];
 
-            // NB: Column might be absent in chunk.
-            if (auto* chunkColumn = chunkSchema->FindColumnByStableName(column.StableName())) {
-                result[index - TableKeyColumnCount_] = chunkSchema->GetColumnIndex(*chunkColumn);
+            // This is a valid case, simply skip the column.
+            auto* chunkColumn = chunkSchema->FindColumnByStableName(column.StableName());
+            if (!chunkColumn) {
+                continue;
             }
+            result[index - TableKeyColumnCount_] = {
+                .Index = chunkSchema->GetColumnIndex(*chunkColumn),
+                .Translator = NComplexTypes::CreatePositionalYsonTranslator(
+                    TComplexTypeFieldDescriptor(chunkColumn->Name(), chunkColumn->LogicalType()),
+                    TComplexTypeFieldDescriptor(column.Name(), column.LogicalType())),
+            };
         }
         return result;
     }))
@@ -104,14 +113,16 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
     const TColumnFilter& columnFilter) const
 {
     if (columnFilter.IsUniversal()) {
-        auto resultRange = std::views::iota(0, std::ssize(TableValueIndexToChunkIndex_))
+        auto resultRange = std::views::iota(0, std::ssize(TableValueIndexToChunkColumnInfo_))
             | std::views::filter([&] (auto tableValueIndex) {
-                return TableValueIndexToChunkIndex_[tableValueIndex] >= 0;
+                return TableValueIndexToChunkColumnInfo_[tableValueIndex].has_value();
             })
             | std::views::transform([&] (auto tableValueIndex) {
+                const auto& chunkColumnInfo = TableValueIndexToChunkColumnInfo_[tableValueIndex];
                 return TColumnIdMapping{
-                    .ChunkSchemaIndex = TableValueIndexToChunkIndex_[tableValueIndex],
+                    .ChunkSchemaIndex = chunkColumnInfo->Index,
                     .ReaderSchemaIndex = TableKeyColumnCount_ + tableValueIndex,
+                    .Translator = chunkColumnInfo->Translator,
                 };
             })
             | std::views::common;
@@ -123,12 +134,15 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
     auto resultRange = columnFilter.GetIndexes()
         | std::views::filter([&] (auto index) {
             return index >= TableKeyColumnCount_ &&
-                TableValueIndexToChunkIndex_[index - TableKeyColumnCount_] >= 0;
+                TableValueIndexToChunkColumnInfo_[index - TableKeyColumnCount_].has_value();
         })
         | std::views::transform([&] (auto index) {
+            const auto& chunkColumnInfo =
+                TableValueIndexToChunkColumnInfo_[index - TableKeyColumnCount_];
             return TColumnIdMapping{
-                .ChunkSchemaIndex = TableValueIndexToChunkIndex_[index - TableKeyColumnCount_],
+                .ChunkSchemaIndex = chunkColumnInfo->Index,
                 .ReaderSchemaIndex = index,
+                .Translator = chunkColumnInfo->Translator,
             };
         })
         | std::views::common;
@@ -144,11 +158,11 @@ std::vector<int> TChunkColumnMapping::BuildSchemalessHorizontalSchemaIdMapping(
     std::iota(result.begin(), result.begin() + ChunkKeyColumnCount_, 0);
 
     if (columnFilter.IsUniversal()) {
-        for (auto tableValueIndex : std::views::iota(0, std::ssize(TableValueIndexToChunkIndex_))) {
-            auto chunkIndex = TableValueIndexToChunkIndex_[tableValueIndex];
-            if (chunkIndex < 0) {
+        for (auto tableValueIndex : std::views::iota(0, std::ssize(TableValueIndexToChunkColumnInfo_))) {
+            if (!TableValueIndexToChunkColumnInfo_[tableValueIndex].has_value()) {
                 continue;
             }
+            auto chunkIndex = TableValueIndexToChunkColumnInfo_[tableValueIndex]->Index;
 
             YT_VERIFY(chunkIndex < std::ssize(result));
             YT_VERIFY(chunkIndex >= ChunkKeyColumnCount_);
@@ -158,14 +172,12 @@ std::vector<int> TChunkColumnMapping::BuildSchemalessHorizontalSchemaIdMapping(
     }
 
     for (auto index : columnFilter.GetIndexes()) {
-        if (index < TableKeyColumnCount_) {
+        if (index < TableKeyColumnCount_ ||
+            !TableValueIndexToChunkColumnInfo_[index - TableKeyColumnCount_].has_value())
+        {
             continue;
         }
-
-        auto chunkIndex = TableValueIndexToChunkIndex_[index - TableKeyColumnCount_];
-        if (chunkIndex < 0) {
-            continue;
-        }
+        auto chunkIndex = TableValueIndexToChunkColumnInfo_[index - TableKeyColumnCount_]->Index;
 
         YT_VERIFY(chunkIndex < std::ssize(result));
         YT_VERIFY(chunkIndex >= ChunkKeyColumnCount_);

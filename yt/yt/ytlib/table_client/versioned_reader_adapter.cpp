@@ -333,6 +333,113 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTranslatingReaderAdapter
+    : public TVersionedReaderAdapterBase<TVersionedRow, IVersionedReaderPtr>
+{
+public:
+    TTranslatingReaderAdapter(
+        IVersionedReaderPtr underlyingReader,
+        const TTableSchemaPtr& tableSchema,
+        const std::vector<TColumnIdMapping>& schemaIdMapping)
+        : TVersionedReaderAdapterBase(std::move(underlyingReader))
+        , ColumnTranslators_(std::invoke([&] {
+            int keyColumnCount = tableSchema->GetKeyColumnCount();
+
+            std::vector<TColumnTranslator> result;
+            for (const auto& entry : schemaIdMapping) {
+                if (entry.Translator.has_value()) {
+                    YT_VERIFY(entry.ReaderSchemaIndex >= keyColumnCount);
+                    result.push_back({
+                        .TableValueIndex = entry.ReaderSchemaIndex - keyColumnCount,
+                        .Translator = *entry.Translator,
+                    });
+                }
+            }
+
+            YT_VERIFY(!result.empty());
+            std::ranges::sort(result, std::ranges::less{}, &TColumnTranslator::TableValueIndex);
+            return result;
+        }))
+    { }
+
+    TFuture<void> Open() override
+    {
+        return UnderlyingReader_->Open();
+    }
+
+private:
+    struct TColumnTranslator
+    {
+        int TableValueIndex;
+        NComplexTypes::TPositionalYsonTranslator Translator;
+    };
+    const std::vector<TColumnTranslator> ColumnTranslators_;
+
+    TVersionedRow MakeVersionedRow(TVersionedRow row) override
+    {
+        if (!row) {
+            return TVersionedRow();
+        }
+
+        auto result = TMutableVersionedRow::Allocate(
+            &MemoryPool_,
+            row.GetKeyCount(),
+            row.GetValueCount(),
+            row.GetWriteTimestampCount(),
+            row.GetDeleteTimestampCount());
+
+        ::memcpy(
+            result.BeginKeys(),
+            row.BeginKeys(),
+            sizeof(TUnversionedValue) * row.GetKeyCount());
+
+        ::memcpy(
+            result.BeginWriteTimestamps(),
+            row.BeginWriteTimestamps(),
+            sizeof(TTimestamp) * row.GetWriteTimestampCount());
+
+        ::memcpy(
+            result.BeginDeleteTimestamps(),
+            row.BeginDeleteTimestamps(),
+            sizeof(TTimestamp) * row.GetDeleteTimestampCount());
+
+        auto* translatorIt = ColumnTranslators_.begin();
+        for (auto valueIndex : std::views::iota(0, result.GetValueCount())) {
+            const auto& sourceValue = row.Values()[valueIndex];
+            auto& targetValue = result.Values()[valueIndex];
+
+            while (translatorIt != ColumnTranslators_.end() &&
+                translatorIt->TableValueIndex < valueIndex)
+            {
+                ++translatorIt;
+            }
+            if (translatorIt == ColumnTranslators_.end() ||
+                translatorIt->TableValueIndex != valueIndex)
+            {
+                // No translation is needed.
+                targetValue = sourceValue;
+                continue;
+            }
+
+            targetValue = MakeVersionedValue(
+                translatorIt->Translator(sourceValue),
+                sourceValue.Timestamp);
+
+            // Translation is only ever requested for composite values.
+            YT_VERIFY(targetValue.Type == EValueType::Composite);
+
+            // Relocate unversioned value data to the memory pool to extend its lifetime.
+            auto* buffer = MemoryPool_.AllocateUnaligned(targetValue.Length);
+            ::memcpy(buffer, targetValue.Data.String, targetValue.Length);
+            targetValue.Data.String = buffer;
+        }
+
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 IVersionedReaderPtr CreateVersionedReaderAdapter(
@@ -391,6 +498,24 @@ IVersionedReaderPtr MaybeWrapWithAnyEncodingAdapter(
         }
     }
 
+    return underlyingReader;
+}
+
+IVersionedReaderPtr MaybeWrapWithTranslatingAdapter(
+    IVersionedReaderPtr underlyingReader,
+    const TTableSchemaPtr& tableSchema,
+    const std::vector<TColumnIdMapping>& schemaIdMapping)
+{
+    bool isTranslationRequired = std::ranges::any_of(
+        schemaIdMapping,
+        [] (const auto& entry) { return entry.Translator.has_value(); });
+
+    if (isTranslationRequired) {
+        return New<TTranslatingReaderAdapter>(
+            std::move(underlyingReader),
+            tableSchema,
+            schemaIdMapping);
+    }
     return underlyingReader;
 }
 
