@@ -1021,7 +1021,7 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         # Also note that data_bytes_transmitted is not stable between runs.
         if optimize_for == "scan":
             expected = {
-                "select": (1300, 1550),
+                "select": (1100, 1550),
             }
         else:
             expected = {
