@@ -635,7 +635,7 @@ private:
         }
 
         if (transaction->GetPersistentState() != ETransactionState::Active) {
-            YT_LOG_ALERT(
+            YT_LOG_DEBUG(
                 "Attempted to enqueue transaction finish for non-active transaction "
                 "(TransactionId: %v, PersistentState: %v)",
                 transaction->GetId(),
