@@ -12,7 +12,7 @@ __all__ = (
     "cachedmethod",
 )
 
-__version__ = "6.2.6"
+__version__ = "7.0.6"
 
 import collections
 import collections.abc
@@ -23,8 +23,13 @@ import time
 
 from . import keys
 
+# Typing stubs for this package are provided by typeshed:
+# https://github.com/python/typeshed/tree/main/stubs/cachetools
+
 
 class _DefaultSize:
+    """A minimal "fake" dict that returns a constant size 1 for any key."""
+
     __slots__ = ()
 
     def __getitem__(self, _key):
@@ -35,6 +40,9 @@ class _DefaultSize:
 
     def pop(self, _key):
         return 1
+
+    def clear(self):
+        pass
 
 
 class Cache(collections.abc.MutableMapping):
@@ -129,6 +137,17 @@ class Cache(collections.abc.MutableMapping):
             self[key] = value = default
         return value
 
+    # Although the MutableMapping.clear() default implementation works
+    # perfectly well, it calls popitem() in a loop until the cache is
+    # empty, resulting in O(n) complexity.  For large caches, this
+    # becomes a significant performance bottleneck, so we provide an
+    # optimized version for each Cache subclass.
+
+    def clear(self):
+        self.__data.clear()
+        self.__size.clear()
+        self.__currsize = 0
+
     @property
     def maxsize(self):
         """The maximum size of the cache."""
@@ -171,6 +190,10 @@ class FIFOCache(Cache):
             raise KeyError("%s is empty" % type(self).__name__) from None
         else:
             return (key, self.pop(key))
+
+    def clear(self):
+        Cache.clear(self)
+        self.__order.clear()
 
 
 class LFUCache(Cache):
@@ -232,6 +255,12 @@ class LFUCache(Cache):
         key = next(iter(curr.keys))  # remove an arbitrary element
         return (key, self.pop(key))
 
+    def clear(self):
+        Cache.clear(self)
+        root = self.__root
+        root.prev = root.next = root
+        self.__links.clear()
+
     def __touch(self, key):
         """Increment use count"""
         link = self.__links[key]
@@ -281,6 +310,10 @@ class LRUCache(Cache):
         else:
             return (key, self.pop(key))
 
+    def clear(self):
+        Cache.clear(self)
+        self.__order.clear()
+
     def __touch(self, key):
         """Mark as recently used"""
         try:
@@ -327,6 +360,11 @@ class RRCache(Cache):
         else:
             return (key, self.pop(key))
 
+    def clear(self):
+        Cache.clear(self)
+        self.__index.clear()
+        del self.__keys[:]
+
 
 class _TimedCache(Cache):
     """Base class for time aware cache implementations."""
@@ -359,7 +397,7 @@ class _TimedCache(Cache):
         def __getattr__(self, name):
             return getattr(self.__timer, name)
 
-    def __init__(self, maxsize, timer=time.monotonic, getsizeof=None):
+    def __init__(self, maxsize, timer, getsizeof=None):
         Cache.__init__(self, maxsize, getsizeof)
         self.__timer = _TimedCache._Timer(timer)
 
@@ -384,11 +422,6 @@ class _TimedCache(Cache):
         """The timer function used by the cache."""
         return self.__timer
 
-    def clear(self):
-        with self.__timer as time:
-            self.expire(time)
-            Cache.clear(self)
-
     def get(self, *args, **kwargs):
         with self.__timer:
             return Cache.get(self, *args, **kwargs)
@@ -400,6 +433,12 @@ class _TimedCache(Cache):
     def setdefault(self, *args, **kwargs):
         with self.__timer:
             return Cache.setdefault(self, *args, **kwargs)
+
+    def clear(self):
+        # Subclasses must override to also reset their own time-tracking
+        # structures; we do not call expire() here since clear() should
+        # be O(1) regardless of cache contents.
+        Cache.clear(self)
 
 
 class TTLCache(_TimedCache):
@@ -531,6 +570,12 @@ class TTLCache(_TimedCache):
             else:
                 return (key, self.pop(key))
 
+    def clear(self):
+        _TimedCache.clear(self)
+        root = self.__root
+        root.prev = root.next = root
+        self.__links.clear()
+
     def __getlink(self, key):
         value = self.__links[key]
         self.__links.move_to_end(key)
@@ -655,6 +700,11 @@ class TLRUCache(_TimedCache):
             else:
                 return (key, self.pop(key))
 
+    def clear(self):
+        _TimedCache.clear(self)
+        self.__items.clear()
+        del self.__order[:]
+
     def __getitem(self, key):
         value = self.__items[key]
         self.__items.move_to_end(key)
@@ -672,17 +722,6 @@ def cached(cache, key=keys.hashkey, lock=None, condition=None, info=False):
 
     """
     from ._cached import _wrapper
-
-    if isinstance(condition, bool):
-        from warnings import warn
-
-        warn(
-            "passing `info` as positional parameter is deprecated",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        info = condition
-        condition = None
 
     def decorator(func):
         if info:
@@ -708,14 +747,26 @@ def cached(cache, key=keys.hashkey, lock=None, condition=None, info=False):
     return decorator
 
 
-def cachedmethod(cache, key=keys.methodkey, lock=None, condition=None):
-    """Decorator to wrap a class or instance method with a memoizing
-    callable that saves results in a cache.
+def cachedmethod(cache, key=keys.methodkey, lock=None, condition=None, info=False):
+    """Decorator to wrap a method with a memoizing callable that saves
+    results in a cache.
 
     """
     from ._cachedmethod import _wrapper
 
     def decorator(method):
-        return _wrapper(method, cache, key, lock, condition)
+        if info:
+
+            def make_info(cache, hits, misses):
+                if isinstance(cache, Cache):
+                    return _CacheInfo(hits, misses, cache.maxsize, cache.currsize)
+                elif isinstance(cache, collections.abc.Mapping):
+                    return _CacheInfo(hits, misses, None, len(cache))
+                else:
+                    raise TypeError("cache(self) must return a mutable mapping")
+
+            return _wrapper(method, cache, key, lock, condition, info=make_info)
+        else:
+            return _wrapper(method, cache, key, lock, condition)
 
     return decorator
