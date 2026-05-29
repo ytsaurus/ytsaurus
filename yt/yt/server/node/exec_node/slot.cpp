@@ -130,9 +130,8 @@ public:
 
         VerifyEnabled();
 
-        RemoveVolumesFromPortoPlace();
-
-        RemoveLayersFromPortoPlace();
+        Location_->RemoveVolumesFromPortoPlace(SlotIndex_);
+        Location_->RemoveLayersFromPortoPlace(SlotIndex_);
 
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
@@ -792,76 +791,6 @@ private:
             Location_->GetSlotPath(SlotIndex_),
             "pipes",
             Format("%v-job-proxy-grpc-%v", NodeTag_, SlotIndex_)});
-    }
-
-    //! Remove volumes planted in porto place.
-    void RemoveVolumesFromPortoPlace()
-    {
-        auto portoPlacePath = Location_->GetSandboxPath(SlotIndex_, ESandboxKind::PortoPlace);
-
-        if (!VolumeManager_) {
-            YT_LOG_DEBUG(
-                "Volume manager is not available, skipping porto place cleanup (PortoPlace: %v)",
-                portoPlacePath);
-            return;
-        }
-
-        auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->RemoveVolumesFromPortoPlaceTimeout;
-
-        YT_LOG_DEBUG(
-            "Cleaning up volumes from porto place (PortoPlace: %v, Timeout: %v)",
-            portoPlacePath,
-            timeout);
-
-        auto removeVolumesResult = WaitFor(VolumeManager_->RemoveVolumes(portoPlacePath, timeout));
-        if (!removeVolumesResult.IsOK()) {
-            auto error = TError("Failed to remove volumes from porto place")
-                << TErrorAttribute("porto_place", portoPlacePath)
-                << removeVolumesResult;
-            YT_LOG_ERROR(error);
-            // It would be nice to disable just this particular slot index, not the whole slot.
-            Location_->Disable(error);
-            THROW_ERROR error;
-        }
-
-        YT_LOG_DEBUG(
-            "Cleaned up volumes from porto place (PortoPlace: %v)",
-            portoPlacePath);
-    }
-
-    //! Remove layers planted in porto place.
-    void RemoveLayersFromPortoPlace()
-    {
-        auto portoPlacePath = Location_->GetSandboxPath(SlotIndex_, ESandboxKind::PortoPlace);
-
-        if (!VolumeManager_) {
-            YT_LOG_DEBUG(
-                "Volume manager is not available, skipping porto place layer cleanup (PortoPlace: %v)",
-                portoPlacePath);
-            return;
-        }
-
-        auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->RemoveLayersFromPortoPlaceTimeout;
-
-        YT_LOG_DEBUG(
-            "Cleaning up layers from porto place (PortoPlace: %v, Timeout: %v)",
-            portoPlacePath,
-            timeout);
-
-        auto removeLayersResult = WaitFor(VolumeManager_->RemoveLayers(portoPlacePath, timeout));
-        if (!removeLayersResult.IsOK()) {
-            auto error = TError("Failed to remove layers from porto place")
-                << TErrorAttribute("porto_place", portoPlacePath)
-                << removeLayersResult;
-            YT_LOG_ERROR(error);
-            // It would be nice to disable just this particular slot index, not the whole slot.
-            Location_->Disable(error);
-            THROW_ERROR error;
-        }
-
-        YT_LOG_DEBUG(
-            "Cleaned up layers from porto place (PortoPlace: %v)",
-            portoPlacePath);
     }
 };
 
