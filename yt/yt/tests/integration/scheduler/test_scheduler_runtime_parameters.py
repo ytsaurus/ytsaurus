@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait, wait_no_assert, ls, get, set, remove,
+    authors, raises_yt_error, wait, wait_no_assert, ls, get, set, remove,
     exists, create_user, print_debug, update_pool_tree_config_option,
     create_pool, add_member, map, run_test_vanilla, run_sleeping_vanilla,
     update_op_parameters, create_test_tables, execute_command, make_ace,
@@ -167,7 +167,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
         wait(lambda: op.get_state() == "running")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Max running operation count in pool"):
             update_op_parameters(op.id, parameters={"pool": "full_pool"})
 
         wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "initial_pool")
@@ -177,7 +177,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
         wait(lambda: op.get_state() == "running")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
                 "default": {"pool": "ephemeral$subpool"}}
             })
@@ -215,7 +215,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_test_vanilla(":", spec={"pool": "child"})
         op.wait_for_state("pending")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Max running operation count in pool"):
             # core was in TPoolTree::ChangeOperationPool.
             update_op_parameters(op.id, parameters={"pool": "parent"})
 
@@ -399,7 +399,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() == "materializing", iter=10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation runtime parameters update is forbidden"):
             update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
         op.abort()
@@ -423,7 +423,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         wait(lambda: op.get_state() in ["reviving_jobs"], iter=10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation runtime parameters update is forbidden"):
             update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
         op.abort()

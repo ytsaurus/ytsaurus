@@ -92,7 +92,7 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"max_failed_job_count": 1, "job_count": 200},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         for job_id in op.list_jobs():
@@ -179,7 +179,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         command = """awk '($1=="foo"){print "bar"}'"""
 
-        with pytest.raises(YtError):
+        with raises_yt_error("YAMR line .* cannot be parsed as a table switch; did you forget a record separator?"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -202,7 +202,7 @@ class TestSchedulerCommon(YTEnvSetup):
         )
 
         # If all jobs failed then operation is also failed
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         for job_id in op.list_jobs():
@@ -264,7 +264,7 @@ class TestSchedulerCommon(YTEnvSetup):
         # Wait till job starts reading input
         wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             dump_job_context(jobs[0], "//tmp/dir/input_context", authenticated_user="abc")
 
         assert not exists("//tmp/dir/input_context")
@@ -277,7 +277,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"a": "b"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute size limit exceeded"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -300,7 +300,7 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"max_failed_job_count": 1},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         job_ids = op.list_jobs()
@@ -349,7 +349,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/input")
         create("table", "//tmp/output")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate column stable name"):
             map(
                 in_="//tmp/input",
                 out="<schema=[{name=key; type=int64}; {name=key;type=string}]>//tmp/output",
@@ -406,12 +406,12 @@ class TestSchedulerCommon(YTEnvSetup):
 
         command = 'cat >/dev/null; echo "{key=1; value=one}"'
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* contains duplicate keys: job outputs have overlapping key ranges"):
             map(in_="//tmp/t1", out="//tmp/t2", command=command, spec={"job_count": 2})
 
         command = 'cat >/dev/null; echo "{key=1; value=one}; {key=1; value=two}"'
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             map(in_="//tmp/t1", out="//tmp/t2", command=command, spec={"job_count": 1})
 
     @authors("dakovalkov")
@@ -456,7 +456,7 @@ class TestSchedulerCommon(YTEnvSetup):
         )
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* is not sorted: job outputs overlap with original table"):
             map(
                 in_="//tmp/sorted_table",
                 out="<append=%true>//tmp/sorted_table",
@@ -506,7 +506,7 @@ class TestSchedulerCommon(YTEnvSetup):
         )
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Output table .* contains duplicate keys: job outputs overlap with original table"):
             map(
                 in_="//tmp/sorted_table",
                 out="<append=%true>//tmp/sorted_table",
@@ -587,7 +587,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         time.sleep(5)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             map(in_="//tmp/t2", out="<append=%true>//tmp/sorted_table", command="cat")
 
     @authors("ignat")
@@ -636,7 +636,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         for index, op in enumerate(failed_ops):
             "//tmp/failed_output" + str(index)
-            with pytest.raises(YtError):
+            with raises_yt_error("Process exited with code .*"):
                 op.track()
 
         for index, op in enumerate(ops):
@@ -665,7 +665,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/input", original_data)
 
         create("table", "//tmp/output")
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             map(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -700,7 +700,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         map(in_=[gen_table(20)], out="//tmp/out", command="cat")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Too many ranges on table"):
             map(in_=[gen_table(2000)], out="//tmp/out", command="cat")
 
     @authors("ignat")
@@ -754,7 +754,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             map(command="cat", in_="//tmp/in", out="//tmp/out")
 
         map(
@@ -771,7 +771,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
         create("table", "//tmp/out")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             map(command="cat", in_="//tmp/in", out="//tmp/out")
 
     @authors("ignat")
@@ -883,7 +883,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         user_tx = start_transaction(timeout=5000)
 
-        with raises_yt_error(yt_error_codes.TooManyOperations):
+        with raises_yt_error(code=yt_error_codes.TooManyOperations):
             run_sleeping_vanilla(pool="test_pool", tx=user_tx)
 
         abort_transaction(user_tx)
@@ -1148,7 +1148,7 @@ class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
         create("table", "//tmp/in3")
         create("table", "//tmp/out")
 
-        with raises_yt_error("Too many input tables: maximum allowed 2, actual 3"):
+        with raises_yt_error("Too many input tables"):
             map(
                 command="",
                 in_=["//tmp/in1", "//tmp/in2/", "//tmp/in3"],
@@ -1162,7 +1162,7 @@ class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
         create("table", "//tmp/out2")
         create("table", "//tmp/out3")
 
-        with raises_yt_error("Too many output tables: maximum allowed 2, actual 3"):
+        with raises_yt_error("Too many output tables"):
             map(
                 command="",
                 in_="//tmp/in",

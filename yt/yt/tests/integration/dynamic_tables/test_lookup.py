@@ -580,9 +580,9 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         assert list(lookup_rows("//tmp/t", [{"key": 1}])) == []
-        with pytest.raises(YtError):
+        with raises_yt_error("Ranges cannot be specified"):
             lookup_rows("//tmp/t[1:2]", [{"key": 1}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Columns cannot be specified with table path"):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
     @authors("ifsmirnov")
@@ -763,7 +763,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             }
         }
         self._update_specific_nodes_dynamic_config([str(replicas[0])], node_dyn_config)
-        with raises_yt_error(yt_error_codes.Timeout):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
 
         set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000)])
@@ -779,7 +779,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             }
         }
         self._update_specific_nodes_dynamic_config([str(replicas[0]), str(replicas[1])], node_dyn_config)
-        with raises_yt_error(yt_error_codes.Timeout):
+        with raises_yt_error(code=yt_error_codes.Timeout):
             assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
 
         set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000), (1, 1100)])
@@ -1230,7 +1230,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         acl[-1]["row_access_predicate"] = "key = 1"
         set("//tmp/t/@acl", acl)
 
-        with raises_yt_error("row-level ACL is present, but is not supported"):
+        with raises_yt_error("Access denied .*: row-level ACL is present, but is not supported"):
             lookup_rows("//tmp/t", [{"key": 15}], authenticated_user="u")
 
     @authors("dtorilov")

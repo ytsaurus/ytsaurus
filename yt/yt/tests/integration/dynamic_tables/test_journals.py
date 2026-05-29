@@ -177,7 +177,7 @@ class TestJournals(TestJournalsBase):
 
     @authors("babenko")
     def test_explicit_compression_codec_forbidden(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Journal compression codec cannot be set"):
             create("journal", "//tmp/j", attributes={"compression_codec": "lz4"})
 
     @authors("babenko")
@@ -228,7 +228,7 @@ class TestJournals(TestJournalsBase):
             {"replication_factor": 4},
         ]
         for attributes in BAD_ATTRIBUTES:
-            with pytest.raises(YtError):
+            with raises_yt_error(".* cannot be greater than \"replication_factor\"|Read/write quorums are not safe"):
                 create("journal", "//tmp/j", attributes=attributes)
 
     @authors("babenko")
@@ -240,7 +240,7 @@ class TestJournals(TestJournalsBase):
             {"erasure_codec": "isa_lrc_12_2_2", "read_quorum": 14, "write_quorum": 14},
         ]
         for attributes in BAD_ATTRIBUTES:
-            with pytest.raises(YtError):
+            with raises_yt_error("\"replication_factor\" must be 1 for erasure journals"):
                 create("journal", "//tmp/j", attributes=attributes)
 
     @authors("babenko")
@@ -314,7 +314,7 @@ class TestJournals(TestJournalsBase):
         self._truncate_and_check("//tmp/j", 3)
         self._truncate_and_check("//tmp/j", 10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Truncation desired row count .* is negative"):
             truncate_journal("//tmp/j", -2)
 
     @authors("aleksandra-zh")
@@ -384,7 +384,7 @@ class TestJournals(TestJournalsBase):
         self._truncate_and_check("//tmp/j", 7, prerequisite_transaction_ids=[tx])
 
         commit_transaction(tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Prerequisite check failed"):
             self._truncate_and_check("//tmp/j", 5, prerequisite_transaction_ids=[tx])
 
         self._truncate_and_check("//tmp/j", 5)
@@ -434,7 +434,7 @@ class TestJournals(TestJournalsBase):
             journal_writer={"dont_close": True}
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Journal is not sealed|lock is taken by concurrent transaction"):
             truncate_journal("//tmp/j", 1)
 
     @authors("babenko")
@@ -478,11 +478,11 @@ class TestJournals(TestJournalsBase):
             "//tmp/j",
             attributes={"replication_factor": 5, "read_quorum": 3, "write_quorum": 3},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Changing storage settings for journal nodes is forbidden"):
             set("//tmp/j/@replication_factor", 6)
-        with pytest.raises(YtError):
+        with raises_yt_error("Changing storage settings for journal nodes is forbidden"):
             set("//tmp/j/@vital", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Changing storage settings for journal nodes is forbidden"):
             set("//tmp/j/@primary_medium", "default")
 
     @authors("babenko")
@@ -693,7 +693,7 @@ class TestJournals(TestJournalsBase):
     def test_data_weight_for_journals_absent(self):
         create("journal", "//tmp/journal_without_data_weight")
         assert not exists("//tmp/journal_without_data_weight/@data_weight")
-        with raises_yt_error("Attribute \"data_weight\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/journal_without_data_weight/@data_weight")
 
 

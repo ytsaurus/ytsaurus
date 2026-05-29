@@ -14,8 +14,6 @@ from yt_type_helpers import (
 
 from yt_helpers import profiler_factory
 
-from yt.common import YtError
-
 from yt.yson.yson_types import YsonEntity
 
 import pytest
@@ -182,7 +180,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Table .* does not have schema and column selector is not specified"):
             get_table_columnar_statistics('["//tmp/t";]')
         self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
         self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17], expected_estimated_unique_counts=[2, 1, 2])
@@ -666,7 +664,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         s = "x" * 100
         for i in range(5):
             write_table("<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}])
-        with pytest.raises(YtError):
+        with raises_yt_error("User file table .* exceeds data weight limit: .* > .*"):
             vanilla(
                 spec={
                     "tasks": {
@@ -961,7 +959,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a": "x" * 200}, {"c": True}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unable to fetch info for chunk .* from"):
             self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
 
         self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)

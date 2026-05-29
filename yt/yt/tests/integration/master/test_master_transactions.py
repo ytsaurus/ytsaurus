@@ -65,7 +65,7 @@ class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
             set(f"//tmp/tree1/{i}", subtree, force=True)
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
-        with raises_yt_error("its descendants already have"):
+        with raises_yt_error("Cannot create .* lock for node .* since transaction .* and its descendants already have .* locks associated with them"):
             copy("//tmp/tree1", "//tmp/tree2", tx=tx2)
         abort_transaction(tx1)
         gc_collect()
@@ -89,7 +89,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists(f"//sys/transactions/{tx}")
 
         # cannot commit committed transaction
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             commit_transaction(tx)
 
     @authors("babenko")
@@ -103,7 +103,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx)
 
         # cannot commit aborted transaction
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             commit_transaction(tx)
 
     @authors("panin", "ignat")
@@ -487,9 +487,9 @@ class TestMasterTransactions(YTEnvSetup):
             "inheritance_mode": "object_and_descendants",
         }]})
         create("map_node", "//tmp/wut", tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             abort_transaction(tx, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             commit_transaction(tx, authenticated_user="u")
         commit_transaction(tx)
 
@@ -565,11 +565,11 @@ class TestMasterTransactions(YTEnvSetup):
         ls("//tmp/@", prerequisite_transaction_ids=[good_tx])
         exists("//tmp/@id", prerequisite_transaction_ids=[good_tx])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             get("//tmp/@id", prerequisite_transaction_ids=[bad_tx])
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             ls("//tmp/@", prerequisite_transaction_ids=[bad_tx])
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             exists("//tmp/@id", prerequisite_transaction_ids=[bad_tx])
 
     @authors("shakurov")
@@ -581,12 +581,12 @@ class TestMasterTransactions(YTEnvSetup):
         set("//tmp/@some_attr", "some_value", prerequisite_transaction_ids=[good_tx])
         remove("//tmp/t1", prerequisite_transaction_ids=[good_tx])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             create("table", "//tmp/t2", prerequisite_transaction_ids=[bad_tx])
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             set("//tmp/@some_attr", "some_value", prerequisite_transaction_ids=[bad_tx])
         create("table", "//tmp/t3")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             remove("//tmp/t3", prerequisite_transaction_ids=[bad_tx])
 
     @authors("shakurov")
@@ -615,7 +615,7 @@ class TestMasterTransactions(YTEnvSetup):
         lock("//tmp", tx=tx)
 
         another_tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take \"exclusive\" lock"):
             lock("//tmp", tx=another_tx)
 
     @authors("babenko")
@@ -636,44 +636,44 @@ class TestMasterTransactions(YTEnvSetup):
                 tx = start_transaction()
             else:
                 tx = start_transaction(tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Transaction depth limit reached"):
             start_transaction(tx=tx)
 
     @authors("shakurov")
     def test_zero_tx_id(self):
         assert not exists("//sys/transactions/0-0-0-0")
         assert not exists("//sys/transactions/0-0-0-0/@")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such child .*"):
             get("//sys/transactions/0-0-0-0")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such child .*"):
             get("//sys/transactions/0-0-0-0/@")
 
         # Zero guid is often treated as a null transaction ID and thus
         # should be handled as a special case.
         assert not exists("#0-0-0-0")
         assert not exists("#0-0-0-0/@")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             get("#0-0-0-0")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             get("#0-0-0-0/@")
 
     @authors("shakurov")
     def test_bad_tx_id(self):
         assert not exists("//sys/transactions/a-b-c-d")
         assert not exists("//sys/transactions/a-b-c-d/@")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such child .*"):
             get("//sys/transactions/a-b-c-d")
             get("//sys/transactions/a-b-c-d/@")
 
         # Unlike zero guid above, any random guid is not a valid transaction (or,
         # indeed, any object) ID, and it's not correct to check for its existence.
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             exists("#a-b-c-d")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             exists("#a-b-c-d/@")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             get("#a-b-c-d")
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown cell tag .*"):
             get("#a-b-c-d/@")
 
     @authors("kvk1920")
@@ -683,7 +683,7 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction()
         mutation_id = generate_uuid()
         rsp1 = commit_transaction(tx, mutation_id=mutation_id)
-        with raises_yt_error("Duplicate request is not marked"):
+        with raises_yt_error("Duplicate request is not marked as \"retry\""):
             commit_transaction(tx, mutation_id=mutation_id)
         rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
         assert rsp1 == rsp2
@@ -698,7 +698,7 @@ class TestMasterTransactions(YTEnvSetup):
             },
             "scan_period": 50,
         })
-        with raises_yt_error("Builtin attribute \"type\" cannot be set"):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             start_transaction(timeout=1000, attributes={"type": "tablet"})
         # Should not crash or alert.
         sleep(3.0)
@@ -917,7 +917,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         # Sometimes this test will succeed trivially. But it must never flap.
         if tx1_cell_tag != tx2_cell_tag:
-            with pytest.raises(YtError):
+            with raises_yt_error("Both parent and prerequisite transactions specified"):
                 start_transaction(tx=tx1, prerequisite_transaction_ids=[tx2])
 
     @authors("shakurov")
@@ -929,7 +929,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         # Sometimes this test will succeed trivially. But it must never flap.
         if tx1_cell_tag != tx2_cell_tag:
-            with pytest.raises(YtError):
+            with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
                 start_transaction(prerequisite_transaction_ids=[tx1, tx2])
 
     @authors("shakurov")

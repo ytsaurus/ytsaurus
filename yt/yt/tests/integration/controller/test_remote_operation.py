@@ -664,7 +664,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
     @authors("coteeq")
     def test_disallow(self):
         create_user("user-not-allowed")
-        with raises_yt_error("not allowed to start operations"):
+        with raises_yt_error("User .* is not allowed to start operations reading from cluster .*"):
             map(
                 in_=self.to_remote_path("//tmp/t"),
                 out_="//tmp/out",
@@ -672,7 +672,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
                 command="cat"
             )
 
-        with raises_yt_error("not allowed to be an input remote cluster"):
+        with raises_yt_error("Cluster .* is not allowed to be an input remote cluster"):
             map(
                 # NB: Cluster 'not-allowed' does not need to exist
                 in_="""<cluster="not-allowed">//tmp/t""",

@@ -1,8 +1,6 @@
-from yt_commands import authors, generate_timestamp, get_driver
+from yt_commands import authors, generate_timestamp, get_driver, raises_yt_error
 from yt_env_setup import YTEnvSetup
-from yt.common import YtError
-
-import pytest
+import pytest  # noqa: F401
 
 
 class TClockTestBase(YTEnvSetup):
@@ -46,7 +44,7 @@ class TestAlienTsProviders(TClockTestBase):
         generate_timestamp(driver=driver)
         generate_timestamp(clock_cluster_tag=10, driver=driver)
         generate_timestamp(clock_cluster_tag=20, driver=driver)
-        with pytest.raises(YtError):
+        with raises_yt_error("Timestamp provider for clock cluster tag .* is unavailable"):
             generate_timestamp(clock_cluster_tag=3, driver=driver)
 
 
@@ -90,9 +88,9 @@ class TestClockMisconfiguration(TClockTestBase):
     def test_timestamp_generation(self):
         driver = get_driver(cluster=self.get_cluster_name(0))
         generate_timestamp(driver=driver)
-        with pytest.raises(YtError):
+        with raises_yt_error("Different clock cluster tag"):
             generate_timestamp(clock_cluster_tag=10, driver=driver)
-        with pytest.raises(YtError):
+        with raises_yt_error("Different clock cluster tag"):
             generate_timestamp(clock_cluster_tag=20, driver=driver)
-        with pytest.raises(YtError):
+        with raises_yt_error("Different clock cluster tag"):
             generate_timestamp(clock_cluster_tag=3, driver=driver)

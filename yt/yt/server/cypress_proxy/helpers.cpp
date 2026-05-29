@@ -487,7 +487,7 @@ void ThrowAlreadyExists(const TAbsolutePath& path)
 
 void ThrowCannotHaveChildren(const TAbsolutePath& path)
 {
-    THROW_ERROR_EXCEPTION("%v cannot have children", path);
+    THROW_ERROR_EXCEPTION("Node %v cannot have children", path);
 }
 
 void ThrowCannotReplaceNode(const TAbsolutePath& path)

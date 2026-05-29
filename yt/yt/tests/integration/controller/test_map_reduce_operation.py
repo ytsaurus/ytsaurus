@@ -1131,7 +1131,7 @@ print("x={0}\ty={1}".format(x, y))
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* control attribute is not supported by .* jobs in map-reduce operation"):
             map_reduce(
                 mapper_command="cat",
                 reducer_command="cat",
@@ -1172,7 +1172,7 @@ print("x={0}\ty={1}".format(x, y))
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             map_reduce(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1643,7 +1643,7 @@ print("x={0}\ty={1}".format(x, y))
         shuffle(rows)
         write_table("//tmp/t1", rows)
 
-        with raises_yt_error("should form a strictly increasing sequence"):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             map_reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -2932,7 +2932,7 @@ for l in sys.stdin:
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Key columns of mapper output streams should have the same names and types"):
             # Key column types must not differ.
             run(
                 ["a", "b"],
@@ -2963,7 +2963,7 @@ for l in sys.stdin:
             ],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Schemas of mapper output streams should have exactly the same"):
             # Key columns must correspond to sort_by.
             run(
                 ["a"],
@@ -3004,7 +3004,7 @@ for l in sys.stdin:
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* field is modified in non backward compatible manner"):
             # Key column types must be castable.
             run(
                 ["a", "b"],
@@ -3024,7 +3024,7 @@ for l in sys.stdin:
                 ],
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Type of .* field is modified in non backward compatible manner"):
             # Key column types must be castable.
             run(
                 ["a", "b"],
@@ -3149,7 +3149,7 @@ for l in sys.stdin:
 
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("At least one of the \"sort_by\" or \"reduce_by\" fields should be specified"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -3641,7 +3641,7 @@ while True:
         ]
         write_table("//tmp/t_in", gen_data(wrong_values))
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -4328,7 +4328,7 @@ fi
         self._ban_nodes_with_intermediate_chunks()
         events_on_fs().notify_event("continue_reducer")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Intermediate chunk is unavailable"):
             op.track()
 
         tasks = get(op.get_path() + "/@progress/tasks")
@@ -4718,7 +4718,7 @@ class TestMaxPartitionCount(YTEnvSetup):
         rows = [{"key": "%02d" % key} for key in range(50)]
         write_table("//tmp/t1", rows)
 
-        with raises_yt_error("Pivot keys count 5 exceeds maximum number of pivot keys 4"):
+        with raises_yt_error("Pivot keys count .* exceeds maximum number of pivot keys .*"):
             sort(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -4788,7 +4788,7 @@ for line in sys.stdin:
 
     @authors("apollo1321")
     def test_final_partitions_merging_invalid_spec(self):
-        with raises_yt_error("cannot be specified when"):
+        with raises_yt_error("Option .* cannot be specified when \"enable_final_partitions_merging\" is enabled"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -4801,7 +4801,7 @@ for line in sys.stdin:
                 },
             )
 
-        with raises_yt_error("cannot be greater than"):
+        with raises_yt_error("Option .* cannot be greater than .*"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -4815,7 +4815,7 @@ for line in sys.stdin:
                 },
             )
 
-        with raises_yt_error("cannot be specified when"):
+        with raises_yt_error("Option .* cannot be specified when \"enable_final_partitions_merging\" is not enabled"):
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",

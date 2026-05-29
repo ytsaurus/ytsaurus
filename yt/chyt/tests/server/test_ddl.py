@@ -15,7 +15,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert not exists("//tmp/t")
             assert clique.make_query('exists "//tmp/t"') == [{"result": 0}]
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('drop table "//tmp/t"')
 
     @authors("evgenstf")
@@ -37,11 +37,11 @@ class TestClickHouseDdl(ClickHouseTestBase):
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
             create("table", "//tmp/s", attributes={"schema": [{"name": "a", "type": "string"}]})
             assert exists("//tmp/t") and exists("//tmp/s")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('rename table "//tmp/t" to "//tmp/s"')
             assert clique.make_query('select * from "//tmp/s"') == []
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('rename table "//tmp/tt" to "//tmp/ss"')
             assert not exists("//tmp/tt") and not exists("//tmp/ss")
 
@@ -61,7 +61,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
             assert exists("//tmp/t")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exchange tables "//tmp/t" and "//tmp/s"')
             assert not exists("//tmp/s")
 
@@ -81,14 +81,14 @@ class TestClickHouseDdl(ClickHouseTestBase):
         sync_create_cells(1)
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('truncate table "//tmp/t"')
 
             create_dynamic_table("//tmp/t1", schema=[{"name": "k", "type": "int64", "sort_order": "ascending"},
                                                      {"name": "v", "type": "string"}], enable_dynamic_store_read=True)
             sync_mount_table("//tmp/t1")
             assert exists("//tmp/t1")
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('truncate table "//tmp/t1"')
 
     @authors("gudqeit")
@@ -105,7 +105,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_create_table_unsupported_engine(self):
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t_unsupported" (a String) engine Memory')
 
 

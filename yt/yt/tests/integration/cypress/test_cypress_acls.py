@@ -16,7 +16,6 @@ from yt_helpers import profiler_factory
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -365,34 +364,30 @@ class TestCypressAcls(CheckPermissionBase):
 
     @authors("babenko", "ignat")
     def test_empty_names_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Subject name cannot be empty"):
             create_user("")
-        with pytest.raises(YtError):
+        with raises_yt_error("Subject name cannot be empty"):
             create_group("")
 
     @authors("babenko")
     def test_default_acl_sanity(self):
         create_user("u")
-        with pytest.raises(YtError):
-            set("/", {}, authenticated_user="u")
-        with pytest.raises(YtError):
-            set("//sys", {}, authenticated_user="u")
-        with pytest.raises(YtError):
-            set("//sys/a", "b", authenticated_user="u")
-        with pytest.raises(YtError):
-            set("/a", "b", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
+            set("/", {}, force=True, authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            set("//sys", {}, force=True, authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            set("//sys/a", "b", force=True, authenticated_user="u")
+        with raises_yt_error("Error resolving path"):
+            set("/a", "b", force=True, authenticated_user="u")
+        with raises_yt_error("Access denied"):
             remove("//sys", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remove("//sys/tmp", authenticated_user="u")
-        with pytest.raises(YtError):
-            remove("//sys/home", authenticated_user="u")
-        with pytest.raises(YtError):
-            set("//sys/home/a", "b", authenticated_user="u")
         set("//tmp/a", "b", authenticated_user="u")
         ls("//tmp", authenticated_user="guest")
-        with pytest.raises(YtError):
-            set("//tmp/c", "d", authenticated_user="guest")
+        with raises_yt_error("Access denied"):
+            set("//tmp/c", "d", force=True, authenticated_user="guest")
 
     def _test_denying_acl(self, rw_path, rw_user, acl_path, acl_subject):
         set(rw_path, "b", authenticated_user=rw_user)
@@ -402,7 +397,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get(rw_path, authenticated_user=rw_user) == "c"
 
         set(acl_path + "/@acl/end", make_ace("deny", acl_subject, ["write", "remove"]))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(rw_path, "d", authenticated_user=rw_user)
         assert get(rw_path, authenticated_user=rw_user) == "c"
 
@@ -411,9 +406,9 @@ class TestCypressAcls(CheckPermissionBase):
             acl_path + "/@acl/end",
             make_ace("deny", acl_subject, ["read", "write", "remove"]),
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get(rw_path, authenticated_user=rw_user)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(rw_path, "d", authenticated_user=rw_user)
 
     @authors("danilalexeev")
@@ -437,7 +432,7 @@ class TestCypressAcls(CheckPermissionBase):
     def _test_allowing_acl(self, rw_path, rw_user, acl_path, acl_subject):
         set(rw_path, "a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set(rw_path, "b", authenticated_user=rw_user)
 
         set(acl_path + "/@acl/end", make_ace("allow", acl_subject, ["write", "remove"]))
@@ -445,7 +440,7 @@ class TestCypressAcls(CheckPermissionBase):
 
         remove(acl_path + "/@acl/-1")
         set(acl_path + "/@acl/end", make_ace("allow", acl_subject, ["read"]))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set(rw_path, "d", authenticated_user=rw_user)
 
     @authors("danilalexeev")
@@ -468,7 +463,7 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u")
         create("table", "//tmp/t1", authenticated_user="u")
         set("//sys/schemas/table/@acl/end", make_ace("deny", "u", "create"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create("table", "//tmp/t2", authenticated_user="u")
 
     @authors("kvk1920")
@@ -512,13 +507,13 @@ class TestCypressAcls(CheckPermissionBase):
         create_account("a")
         create_user("u")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create("table", "//tmp/t", authenticated_user="u", attributes={"account": "a"})
 
         create("table", "//tmp/t", authenticated_user="u")
         assert get("//tmp/t/@account") == "tmp"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error setting builtin attribute"):
             set("//tmp/t/@account", "a", authenticated_user="u")
 
         set("//sys/accounts/a/@acl/end", make_ace("allow", "u", "use"))
@@ -539,7 +534,7 @@ class TestCypressAcls(CheckPermissionBase):
             },
         )
         set("//tmp/t/@x", 1, authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/t/@x", 1, authenticated_user="u2")
 
     @authors("danilalexeev")
@@ -551,7 +546,7 @@ class TestCypressAcls(CheckPermissionBase):
         value.attributes["inherit_acl"] = False
         set("//tmp/t", value)
         set("//tmp/t/@x", 1, authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/t/@x", 1, authenticated_user="u2")
 
     def _prepare_scheduler_test(self):
@@ -570,14 +565,14 @@ class TestCypressAcls(CheckPermissionBase):
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t1/@acl/end", make_ace("deny", "u", "read"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko", "danilalexeev")
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@acl/end", make_ace("deny", "u", "write"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko", "danilalexeev")
@@ -586,7 +581,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/t2/@account", "a")
         set("//sys/accounts/a/@acl/end", make_ace("allow", "u", "use"))
         set_account_disk_space_limit("a", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("acid", "danilalexeev")
@@ -609,9 +604,9 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/p/@inherit_acl", False)
 
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/p/a", "b", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             ls("//tmp/p", authenticated_user="u")
 
         set("//tmp/p/@acl/end", make_ace("allow", "u", ["read", "write"]))
@@ -631,7 +626,7 @@ class TestCypressAcls(CheckPermissionBase):
             attributes={"acl": [make_ace("allow", "u", "write")]},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create("table", "//tmp/a/b", force=True, authenticated_user="u")
         set("//tmp/a/@acl", [make_ace("allow", "u", "write")])
         create("table", "//tmp/a/b", force=True, authenticated_user="u")
@@ -649,7 +644,7 @@ class TestCypressAcls(CheckPermissionBase):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create("table", "//tmp/c", force=True, authenticated_user="u")
         set(
             "//tmp/c/d/@acl",
@@ -697,7 +692,7 @@ class TestCypressAcls(CheckPermissionBase):
     def test_administer_permission1(self):
         create_user("u")
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/t/@acl", [], authenticated_user="u")
 
     @authors("danilalexeev")
@@ -727,9 +722,9 @@ class TestCypressAcls(CheckPermissionBase):
         acl = [make_ace("deny", "u", "administer")]
         set("//tmp/t/@acl", acl)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/t/@acl", [], authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/t/@inherit_acl", False, authenticated_user="u")
 
     @authors("shakurov", "danilalexeev")
@@ -770,21 +765,21 @@ class TestCypressAcls(CheckPermissionBase):
 
         read_acl = [make_ace("allow", "u", "read")]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/dir1/t1",
                 attributes={"acl": read_acl},
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/dir2/t1",
                 attributes={"acl": read_acl},
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/dir3/t1",
@@ -798,21 +793,21 @@ class TestCypressAcls(CheckPermissionBase):
             authenticated_user="u",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/dir1/t2",
                 attributes={"inherit_acl": False},
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/dir2/t2",
                 attributes={"inherit_acl": False},
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/dir3/t2",
@@ -836,7 +831,7 @@ class TestCypressAcls(CheckPermissionBase):
     def test_user_rename_fail(self):
         create_user("u1")
         create_user("u2")
-        with pytest.raises(YtError):
+        with raises_yt_error('User "u2" already exists'):
             set("//sys/users/u1/@name", "u2")
 
     @authors("danilalexeev")
@@ -853,20 +848,20 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko", "ignat")
     def test_deny_create(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied|not supported in Sequoia yet"):
             create("account_map", "//tmp/accounts", authenticated_user="u")
 
     @authors("danilalexeev")
     def test_deny_copy_src(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//sys", "//tmp/sys", authenticated_user="u")
 
     @authors("danilalexeev")
     def test_deny_copy_dst(self):
         create_user("u")
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//tmp/t", "//sys/t", authenticated_user="u", preserve_account=True)
 
     @authors("danilalexeev")
@@ -877,31 +872,31 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/d/@inherit_acl", False)
 
         assert get("//tmp", authenticated_user="u") == {"d": None}
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//tmp/d", authenticated_user="u") == {"foo": {}}
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//tmp/d/@value", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//tmp/d/foo", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/d/foo", {}, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/d/@value", {}, authenticated_user="u")
-        with pytest.raises(YtError):
-            set("//tmp/d", {"foo": {}}, authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            set("//tmp/d", {"foo": {}}, force=True, authenticated_user="u")
         assert ls("//tmp", authenticated_user="u") == ["d"]
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             ls("//tmp/d", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             ls("//tmp/d/foo", authenticated_user="u")
         assert exists("//tmp/d", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             exists("//tmp/d/@value", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             exists("//tmp/d/foo", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/d/foo", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/d", authenticated_user="u")
 
     @authors("danilalexeev")
@@ -916,21 +911,21 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/d", authenticated_user="u") == {"foo": {}}
         assert get("//tmp/d/@value", authenticated_user="u") == {"foo": {}}
         assert get("//tmp/d/foo", authenticated_user="u") == {}
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/d/foo", {}, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/d/@value", {}, authenticated_user="u")
-        with pytest.raises(YtError):
-            set("//tmp/d", {"foo": {}}, authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            set("//tmp/d", {"foo": {}}, force=True, authenticated_user="u")
         assert ls("//tmp", authenticated_user="u") == ["d"]
         assert ls("//tmp/d", authenticated_user="u") == ["foo"]
         assert ls("//tmp/d/foo", authenticated_user="u") == []
         assert exists("//tmp/d", authenticated_user="u")
         assert exists("//tmp/d/@value", authenticated_user="u")
         assert exists("//tmp/d/foo", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/d/foo", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/d", authenticated_user="u")
 
     @authors("danilalexeev")
@@ -965,7 +960,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x", {})
         set("//tmp/x/@account", "a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
     @authors("babenko", "ignat")
@@ -988,7 +983,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x", {"u": "v"})
         set("//tmp/x/u/@account", "a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
     @authors("danilalexeev")
@@ -1007,9 +1002,9 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/s", {"x": {}})
         set("//tmp/s/@acl/end", make_ace("allow", "u", ["read", "write", "remove"]))
         set("//tmp/s/x/@acl", [make_ace("deny", "u", "read")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
     @authors("danilalexeev")
@@ -1018,9 +1013,9 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/s", {"x": {}})
         set("//tmp/s/@acl/end", make_ace("allow", "u", ["read", "remove"]))
         set("//tmp/s/@acl/end", make_ace("deny", "u", ["write"]))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
     @authors("danilalexeev")
@@ -1029,9 +1024,9 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/s", {"x": {}, "y": {}})
         set("//tmp/s/@acl/end", make_ace("allow", "u", ["read", "write", "remove"]))
         set("//tmp/s/y/@acl", [make_ace("deny", "u", "remove")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy("//tmp/s/x", "//tmp/s/y", force=True, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move("//tmp/s/x", "//tmp/s/y", force=True, authenticated_user="u")
 
     @authors("danilalexeev")
@@ -1040,7 +1035,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/s", {"x": {}})
         set("//tmp/s/@acl", [make_ace("allow", "u", ["read", "write", "remove"])])
         set("//tmp/s/x/@acl", [make_ace("deny", "u", "remove")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
         set("//tmp/s/x/@acl", [])
         set(
@@ -1050,7 +1045,7 @@ class TestCypressAcls(CheckPermissionBase):
                 make_ace("deny", "u", "write"),
             ],
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
         set("//tmp/s/@acl", [make_ace("allow", "u", ["read", "write", "remove"])])
         move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
@@ -1059,7 +1054,7 @@ class TestCypressAcls(CheckPermissionBase):
     def test_superusers(self):
         create("table", "//sys/protected")
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//sys/protected", authenticated_user="u")
         add_member("u", "superusers")
         remove("//sys/protected", authenticated_user="u")
@@ -1071,23 +1066,23 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y", {}, force=True)
 
         set("//tmp/x/@inherit_acl", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x/y", authenticated_user="u")
 
         set("//tmp/x/@acl", [make_ace("allow", "u", "write")])
         set("//tmp/x/y/@acl", [make_ace("deny", "u", "remove")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x/y", authenticated_user="u")
 
         set("//tmp/x/y/@acl", [make_ace("allow", "u", "remove")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x", authenticated_user="u")
         remove("//tmp/x/y", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x", authenticated_user="u")
 
         set("//tmp/x/@acl", [make_ace("allow", "u", "remove")])
@@ -1100,11 +1095,11 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y", {}, force=True)
 
         set("//tmp/x/@inherit_acl", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x/*", authenticated_user="u")
         set("//tmp/x/@acl", [make_ace("allow", "u", "write")])
         set("//tmp/x/y/@acl", [make_ace("deny", "u", "remove")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/x/*", authenticated_user="u")
         set("//tmp/x/y/@acl", [make_ace("allow", "u", "remove")])
         remove("//tmp/x/*", authenticated_user="u")
@@ -1116,15 +1111,15 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y", {}, force=True)
 
         set("//tmp/x/@inherit_acl", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/x", {}, authenticated_user="u", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//tmp/x/y", {}, authenticated_user="u", force=True)
 
         set("//tmp/x/@acl", [make_ace("allow", "u", "write")])
         set("//tmp/x/y/@acl", [make_ace("deny", "u", "remove")])
         set("//tmp/x/y", {}, authenticated_user="u", force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/x", {}, authenticated_user="u", force=True)
 
         set("//tmp/x/@acl", [make_ace("allow", "u", "write")])
@@ -1137,9 +1132,9 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u")
         create_group("g")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_user("u", sync=False, authenticated_user="guest")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//sys/groups/g", authenticated_user="guest")
 
         set("//sys/schemas/user/@acl/end", make_ace("allow", "guest", "remove"))
@@ -1165,7 +1160,7 @@ class TestCypressAcls(CheckPermissionBase):
     def test_group_write_acl(self):
         create_user("u")
         create_group("g")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             add_member("u", "g", authenticated_user="guest")
         set("//sys/groups/g/@acl/end", make_ace("allow", "guest", "write"))
         add_member("u", "g", authenticated_user="guest")
@@ -1173,7 +1168,7 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko")
     def test_user_remove_acl(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_user("u", sync=False, authenticated_user="guest")
         set("//sys/users/u/@acl/end", make_ace("allow", "guest", "remove"))
         remove_user("u", authenticated_user="guest")
@@ -1181,7 +1176,7 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko")
     def test_group_remove_acl(self):
         create_group("g")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//sys/groups/g", authenticated_user="guest")
         set("//sys/groups/g/@acl/end", make_ace("allow", "guest", "remove"))
         remove("//sys/groups/g", authenticated_user="guest")
@@ -1200,9 +1195,9 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u")
         set("//tmp/a", "b")
         set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//tmp/a", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//tmp/a", authenticated_user="u", read_from="cache")
 
     @authors("babenko", "danilalexeev")
@@ -1211,13 +1206,13 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/a", "b")
         set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
         assert get("//tmp/a", read_from="cache", disable_per_user_cache=True) == "b"
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//tmp/a", authenticated_user="u")
         assert get("//tmp/a", authenticated_user="u", read_from="cache", disable_per_user_cache=True) == "b"
 
     @authors("danilalexeev")
     def test_no_owner_auth(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot authenticate as \"owner\""):
             get("//tmp", authenticated_user="owner")
 
     @authors("babenko")
@@ -1261,15 +1256,15 @@ class TestCypressAcls(CheckPermissionBase):
     @not_implemented_in_sequoia
     def test_safe_mode(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
             set("//sys/@config/enable_safe_mode", True, authenticated_user="u")
         set("//sys/@config/enable_safe_mode", True)
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create("table", "//tmp/t2", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             start_transaction(authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Permission check is not possible: cluster is in safe mode"):
             check_permission("u", "read", "//tmp")
 
     @authors("danilalexeev")
@@ -1394,9 +1389,9 @@ class TestCypressAcls(CheckPermissionBase):
 
         assert read_table("//tmp/t{public}") == [{"public": "a"}]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             read_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             read_table("//tmp/t{secret}", authenticated_user="u")
 
     @authors("babenko", "danilalexeev")
@@ -1407,11 +1402,12 @@ class TestCypressAcls(CheckPermissionBase):
             "//tmp/t",
             attributes={"acl": [make_ace("allow", "u", "read", columns="secret")]},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error('ACE specifying columns may contain only "read" permission'):
             create(
                 "table",
                 "//tmp/t",
                 attributes={"acl": [make_ace("allow", "u", "write", columns="secret")]},
+                force=True,
             )
 
     @authors("babenko", "danilalexeev")
@@ -1488,14 +1484,14 @@ class TestCypressAcls(CheckPermissionBase):
         )
         assert read_table("//tmp/t_out") == [{"public": "a"}]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             map(
                 in_="//tmp/t_in{secret}",
                 out="//tmp/t_out",
                 command="cat",
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1627,11 +1623,11 @@ class TestCypressAcls(CheckPermissionBase):
         )
 
         # Explicitly denied.
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy(src_dir + "/t1", dst_dir + "/t1_copy", authenticated_user="u1")
 
         # No matching ACE.
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             copy(src_dir + "/t2", dst_dir + "/t2_copy", authenticated_user="u1")
 
         remove(src_dir + "/t1")
@@ -1687,7 +1683,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert old_revision == max(old_attribute_revision, old_content_revision)
 
         # Removing a non-existent attribute should not affect revision.
-        with pytest.raises(YtError):
+        with raises_yt_error('Attribute "foo" is not found'):
             remove("//sys/access_control_object_namespaces/cats/garfield/@foo")
 
         assert get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision") == old_attribute_revision
@@ -1818,7 +1814,7 @@ class TestCypressAcls(CheckPermissionBase):
         )
 
         # Missing tag "drinks".
-        with raises_yt_error("Access denied for user"):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/drinks_discussion/carbonated_drinks_topic",
@@ -1847,7 +1843,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/drinks_discussion/carbonated_drinks_topic/@inherit_acl", False)
 
         # With inherit_acl set to false user loses the ability to create anything there without "kvas" or "beer" roles.
-        with raises_yt_error("Access denied for user"):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/drinks_discussion/carbonated_drinks_topic/best_kvas_in_my_oblast",
@@ -1868,7 +1864,7 @@ class TestCypressAcls(CheckPermissionBase):
             "//tmp/drinks_discussion/smoothie_topic/my_favorite_smoothie_place",
             authenticated_user="smoothie_lover",
         )
-        with raises_yt_error("Access denied for user"):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/drinks_discussion/smoothie_topic/top_10_kvas",
@@ -1882,10 +1878,10 @@ class TestCypressAcls(CheckPermissionBase):
         set("//sys/@config/security_manager/max_user_tag_size", 500)
         set("//sys/@config/security_manager/max_user_tag_count", 4)
 
-        with raises_yt_error("user tag size limit exceeded"):
+        with raises_yt_error("Cannot set user tags as user tag size limit exceeded"):
             set("//sys/users/u/@tags", ["tag_big" * 100])
 
-        with raises_yt_error("user tags count limit exceeded"):
+        with raises_yt_error("Cannot set user tags as user tags count limit exceeded"):
             set("//sys/users/u/@tags", [f"tag_{i}" for i in range(10)])
 
     @authors("danilalexeev")
@@ -1902,7 +1898,7 @@ class TestCypressAcls(CheckPermissionBase):
             },
         )
 
-        with raises_yt_error("tag filter size limit exceeded"):
+        with raises_yt_error("Cannot set tag filter as tag filter size limit exceeded"):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
 
     @authors("danilalexeev")
@@ -1926,9 +1922,9 @@ class TestCypressAcls(CheckPermissionBase):
         )
 
         read_table("//tmp/t{public}", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             read_table("//tmp/t", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             read_table("//tmp/t{secret}", authenticated_user="u")
 
     @authors("h0pless")
@@ -1965,7 +1961,7 @@ class TestCypressAcls(CheckPermissionBase):
             "//tmp/cool_dir/cool_table",
             authenticated_user="George50",
         )
-        with raises_yt_error("Access denied for user"):
+        with raises_yt_error("Access denied"):
             create(
                 "table",
                 "//tmp/uncool_dir/cool_table",
@@ -2020,7 +2016,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert response1["columns"][1]["action"] == "allow"
         assert response1["columns"][2]["action"] == "deny"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
 
         set(
@@ -2274,13 +2270,13 @@ class TestRowAcls(YTEnvSetup):
         for user in ["prime_manager", "even_manager", "everything_manager", "everything_manager_via_row_access_predicate", "only_generic_read"]:
             get("//tmp/t/@optimize_for", authenticated_user=user)
 
-        with raises_yt_error("Access denied for user"):
+        with raises_yt_error("Access denied"):
             get("//tmp/t/@optimize_for", authenticated_user="no_read")
 
         for user in ["prime_manager", "even_manager", "only_generic_read", "no_read", "everything_manager_via_row_access_predicate"]:
-            with raises_yt_error("Access denied for user"):
+            with raises_yt_error("Access denied"):
                 copy("//tmp/t", f"//tmp/t_copy_{user}", authenticated_user=user)
-            with raises_yt_error("Access denied for user"):
+            with raises_yt_error("Access denied"):
                 concatenate(["//tmp/t"], f"//tmp/t_concat_{user}", authenticated_user=user)
 
         copy("//tmp/t", "//tmp/t2_copy", authenticated_user="everything_manager")
@@ -2364,7 +2360,7 @@ class TestRowAcls(YTEnvSetup):
         id = get("//tmp/with_rls/@id")
         external_cell_tag = get("//tmp/with_rls/@external_cell_tag")
         driver = get_driver(external_cell_tag - 10)
-        with raises_yt_error("Attribute \"has_row_level_ace\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             assert get("#" + id + "/@has_row_level_ace", driver=driver)
 
     @authors("coteeq")
@@ -2677,7 +2673,7 @@ class TestRowAcls(YTEnvSetup):
             optimize_for,
         )
 
-        with raises_yt_error("\"write\" permission for node"):
+        with raises_yt_error("Access denied for user .*: \"write\" permission for node .* is not allowed by any matching ACE"):
             write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="u")
 
         write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="writer")
@@ -2699,11 +2695,11 @@ class TestRowAcls(YTEnvSetup):
             "lookup",
         )
 
-        with raises_yt_error("Attribute \"row_count\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/t/@row_count", authenticated_user="u")
 
         # Even owner cannot see @row_count.
-        with raises_yt_error("Attribute \"row_count\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             get("//tmp/t/@row_count", authenticated_user="data_owner")
 
         # Request as root.

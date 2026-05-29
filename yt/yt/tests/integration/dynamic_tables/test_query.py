@@ -167,7 +167,7 @@ class TestQuery(DynamicTablesBase):
     def test_full_scan(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Primary table key is not used in the where clause"):
             select_rows("* from [//tmp/t]", allow_full_scan=False)
 
     @authors("lukyan")
@@ -196,7 +196,7 @@ class TestQuery(DynamicTablesBase):
         )
 
         create("map_node", "//sys/ql_pools/secured_pool")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             select_rows(
                 "* from [//tmp/t]",
                 allow_full_scan=True,
@@ -571,7 +571,7 @@ class TestQuery(DynamicTablesBase):
             "scan",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Foreign table key is not used in the join clause"):
             select_rows(
                 "* from [//tmp/jl] join [//tmp/jr] on b = d",
                 allow_join_without_index=False,
@@ -1052,7 +1052,7 @@ class TestQuery(DynamicTablesBase):
 
         select_rows("* from [//tmp/t] where key < 50")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             select_rows("* from [//tmp/t] where key < 51")
 
     @authors("babenko", "savrus", "lukyan")
@@ -1231,7 +1231,7 @@ class TestQuery(DynamicTablesBase):
         sync_create_cells(1)
         self._sample_data(path="//tmp/u")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("UDF file is empty"):
             select_rows("empty_udf(-2 * a) as s from [//tmp/u]")
 
     @authors("lukyan")
@@ -1521,7 +1521,7 @@ class TestQuery(DynamicTablesBase):
         nan = float("nan")
         str_nan = "(1.0 / 0 - 1.0 / 0)"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Key of type \"double\" cannot be NaN"):
             insert_rows("//tmp/t", [{"a": nan, "b": 1.0}])
         data = [{"a": 1.0, "b": nan}, {"a": 2.0, "b": 2.0}, {"a": 3.0}]
         insert_rows("//tmp/t", data)
@@ -1552,20 +1552,20 @@ class TestQuery(DynamicTablesBase):
         assert _compare(select_rows("* from [//tmp/t]"), data)
         assert _compare(select_rows("* from [//tmp/t] where is_nan(b)"), data[:1])
         assert _compare(select_rows("* from [//tmp/t] where is_null(b)"), data[2:])
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("* from [//tmp/t] where b > 0")
         assert _compare(select_rows("* from [//tmp/t] where if(is_nan(b), false, b > 0)"), data[1:2])
 
         assert all(_isnan(list(x.values())[0]) for x in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan)))
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("* from [//tmp/t] where b = {}".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("* from [//tmp/t] where b = if(true, {}, 0)".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("NaN value is not comparable"):
             select_rows("{} > 1 from [//tmp/t]".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("No matching function .*"):
             select_rows("if({}, 0, 1) from [//tmp/t]".format(str_nan))
-        with pytest.raises(YtError):
+        with raises_yt_error("Query evaluation failed"):
             select_rows("if(true, {}, 0) > 1 from [//tmp/t]".format(str_nan))
 
         assert list(select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values())[0]
@@ -1752,7 +1752,7 @@ class TestQuery(DynamicTablesBase):
         insert_rows(tt, [{"a": "a", "b": b"\x80\x00\x00\x00"}])
         insert_rows(tj, [{"b": b"\x80\x00\x00\x00", "c": "c"}])
 
-        with raises_yt_error("nonsimple type"):
+        with raises_yt_error("Cannot join column .* of nonsimple type"):
             select_rows("* from [//tmp/t] join [//tmp/j] using b")
 
     @authors("dtorilov")
@@ -2828,11 +2828,11 @@ class TestQuery(DynamicTablesBase):
 
         assert select_rows(casting_query, expression_builder_version=2, syntax_version=2) == expected
 
-        with raises_yt_error("is not supported in expression builder v1"):
+        with raises_yt_error("Function .* is not supported in expression builder v1"):
             select_rows("CAST(key AS Int64) from [//tmp/table]")
-        with raises_yt_error("is not supported in expression builder v1"):
+        with raises_yt_error("Function .* is not supported in expression builder v1"):
             select_rows("cast_operator(key, 'Int64') from [//tmp/table]")
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             select_rows("CAST(lvalue AS `Struct<x:String, y:List<Bool>>`) from [//tmp/table]", expression_builder_version=2)
         with raises_yt_error("Misuse of function \"cast_operator\""):
             select_rows("cast_operator(1, 1) from [//tmp/table]", expression_builder_version=2)
@@ -2860,7 +2860,7 @@ class TestQuery(DynamicTablesBase):
         acl[-1]["row_access_predicate"] = "key = 1"
         set("//tmp/t/@acl", acl)
 
-        with raises_yt_error("row-level ACL is present, but is not supported"):
+        with raises_yt_error("Access denied .*: row-level ACL is present, but is not supported"):
             select_rows("* from [//tmp/t]", authenticated_user="u")
 
     @authors("dtorilov")
@@ -3266,7 +3266,7 @@ class TestQueryRpcProxy(TestQuery):
             "on l.pk = r.pk1 and r.pk3 in (1, 2)"
             "limit 1024"
         )
-        with raises_yt_error("Foreign table key is not used in the join clause; the query is inefficient, consider rewriting it"):
+        with raises_yt_error("Foreign table key is not used in the join clause"):
             select_rows(query, allow_join_without_index=False)
         set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
 

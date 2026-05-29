@@ -7,7 +7,7 @@ from yt_commands import (
     authors, print_debug, wait, sync_mount_table, sync_unmount_table,
     ls, remove, insert_rows, select_rows, lookup_rows, alter_table,
     wait_for_tablet_state, sync_create_cells, pull_queue,
-    clear_metadata_caches, execute_command)
+    clear_metadata_caches, execute_command, raises_yt_error)
 
 from yt_helpers import profiler_factory
 
@@ -16,7 +16,7 @@ from yt.environment.helpers import assert_items_equal
 
 from yt_driver_bindings import Driver
 
-import pytest
+import pytest  # noqa: F401
 
 from copy import deepcopy
 
@@ -134,7 +134,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
         self._sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             lookup_rows("//tmp/t1", keys)
         clear_metadata_caches()
         self._sync_mount_table("//tmp/t1")
@@ -142,7 +142,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
         self._sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot read from tablet .*"):
             select_rows("* from [//tmp/t1]")
         clear_metadata_caches()
         self._sync_mount_table("//tmp/t1")
@@ -162,7 +162,7 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
 
         reshard_mounted_table("//tmp/t1", [[]])
         rows = [{"key": i, "value": str(i + 1)} for i in range(3)]
-        with pytest.raises(YtError):
+        with raises_yt_error("Error committing transaction"):
             insert_rows("//tmp/t1", rows)
         insert_rows("//tmp/t1", rows)
 

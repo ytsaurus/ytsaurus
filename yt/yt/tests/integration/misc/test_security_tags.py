@@ -2,13 +2,11 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, concatenate, start_transaction, commit_transaction,
-    lock, write_file, copy, read_table, write_table, map)
+    lock, write_file, copy, read_table, write_table, map, raises_yt_error)
 
 from yt_helpers import wait_until_unlocked
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
-import pytest
+import pytest  # noqa: F401
 
 import time
 
@@ -164,7 +162,7 @@ class TestSecurityTags(YTEnvSetup):
 
         tx = start_transaction()
         write_table("<append=%true>//tmp/t", [{"a": "b"}], tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change security tags"):
             set("//tmp/t/@security_tags", ["tag1", "tag2"], tx=tx)
 
     @authors("babenko")
@@ -201,7 +199,7 @@ class TestSecurityTags(YTEnvSetup):
         tx = start_transaction()
         lock("//tmp/t", mode="shared", tx=tx)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot take .* lock for node .* since .* lock is taken by concurrent transaction .*"):
             set("//tmp/t/@security_tags", ["tag1", "tag2"])
 
     @authors("babenko")
@@ -250,27 +248,27 @@ class TestSecurityTags(YTEnvSetup):
     @authors("babenko")
     def test_tag_naming_on_set(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Security tag cannot be empty"):
             set("//tmp/t/@security_tags", [""])
-        with pytest.raises(YtError):
+        with raises_yt_error("Security tag .* is too long"):
             set("//tmp/t/@security_tags", ["a" * 129])
         set("//tmp/t/@security_tags", ["a" * 128])
 
     @authors("babenko")
     def test_tag_naming_on_create(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Security tag cannot be empty"):
             create("table", "//tmp/t", attributes={"security_tags": [""]})
-        with pytest.raises(YtError):
+        with raises_yt_error("Security tag .* is too long"):
             create("table", "//tmp/t", attributes={"security_tags": ["a" * 129]})
         create("table", "//tmp/t", attributes={"security_tags": ["a" * 128]})
 
     @authors("babenko")
     def test_tag_naming_on_write(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Security tag cannot be empty"):
             write_table('<security_tags=[""]>//tmp/t', [])
         wait_until_unlocked("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Security tag .* is too long"):
             write_table('<security_tags=["' + "a" * 129 + '"]>//tmp/t', [])
         wait_until_unlocked("//tmp/t")
         write_table('<security_tags=["' + "a" * 128 + '"]>//tmp/t', [])

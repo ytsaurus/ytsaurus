@@ -200,7 +200,7 @@ class TestSimpleQueriesYql(TestQueriesYqlSimpleBase):
 
     @authors("max42")
     def test_issues(self, query_tracker, yql_agent):
-        with raises_yt_error(30000):
+        with raises_yt_error(code=30000):
             self._run_simple_query("select * from primary.`//tmp/nonexistent`")
 
     @authors("max42")
@@ -380,7 +380,7 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
         address = yql_agent.yql_agent.addresses[0]
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
 
-        with raises_yt_error(yt_error_codes.Unavailable) as err:
+        with raises_yt_error(code=yt_error_codes.Unavailable) as err:
             wait(self._test_query_fails)
         assert err[0].contains_text("No alive peers found")
 
@@ -403,7 +403,7 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
         address = yql_agent.yql_agent.addresses[0]
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
 
-        with raises_yt_error(yt_error_codes.Unavailable) as err:
+        with raises_yt_error(code=yt_error_codes.Unavailable) as err:
             wait(self._test_query_fails)
         assert err[0].contains_text("No alive peers found")
 
@@ -773,7 +773,7 @@ class TestDefaultCluster(TestQueriesYqlSimpleBase):
         rows = [{"a": 42}]
         write_table("//tmp/t", rows)
 
-        with raises_yt_error(1):  # Generic error
+        with raises_yt_error(code=1):  # Generic error
             self._run_simple_query("select a + 1 from primary.`//tmp/t`;", settings={"cluster": "unknown_cluster"})
 
 

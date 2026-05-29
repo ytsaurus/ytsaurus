@@ -383,7 +383,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_chunk_id)
 
         self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_chunk_id)
-        with pytest.raises(YtError):
+        with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
             lookup_rows("//tmp/t", keys)
         self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_chunk_id)
 
@@ -1055,7 +1055,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_alter_must_preserve_hunks(self):
         self._create_table()
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=None))
 
     @authors("akozhikhov")
@@ -1365,7 +1365,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_hunk_erasure_codec_cannot_be_set_for_nontable(self):
         create("file", "//tmp/f")
         assert not exists("//tmp/f/@hunk_erasure_codec")
-        with pytest.raises(YtError):
+        with raises_yt_error("Hunk erasure codec can only be set for tables"):
             set("//tmp/f/@hunk_erasure_codec", "isa_lrc_12_2_2")
 
     @authors("babenko", "gritukan")
@@ -1508,7 +1508,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ]
         self._prepare_hunk_read_requests(requests, erasure_codec, self.BLOB_HUNK_PAYLOAD)
         for request in requests:
-            with pytest.raises(YtError):
+            with raises_yt_error(code=yt_error_codes.MalformedReadRequest):
                 read_hunks([request], parse_header=False)
 
     JOURNAL_HUNK_PAYLOAD = [
@@ -1564,7 +1564,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ]
         self._prepare_hunk_read_requests(requests, erasure_codec, self.JOURNAL_HUNK_PAYLOAD)
         for request in requests:
-            with pytest.raises(YtError):
+            with raises_yt_error("Fragment|fragment|Journal chunk record is missing"):
                 read_hunks([request], parse_header=False)
 
     @authors("akozhikhov")
@@ -2326,7 +2326,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_store_id)
 
         self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_store_id)
-        with raises_yt_error("exceeded retry count limit"):
+        with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
             assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_store_id)
 
@@ -2384,7 +2384,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
             time.sleep(5)
             assert not _check_all_replicas_ok()
-            with raises_yt_error("exceeded retry count limit"):
+            with raises_yt_error("Chunk fragment reader has exceeded retry count limit"):
                 assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     @authors("akozhikhov")
@@ -2851,7 +2851,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         remove("#{}".format(cell_ids[0]))
         wait(lambda: get("//tmp/h/@tablets/0/state") == "unmounting")
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t", rows2)
         # NB: We speed up unmounting here by forcing queue tablets to unlock hunk stores.
         sync_flush_table("//tmp/t")
@@ -2937,7 +2937,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
         self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
-        with raises_yt_error("that is linked to hunk storage"):
+        with raises_yt_error("Cannot remove table .* that is linked to hunk storage"):
             remove("//tmp/t")
 
     @authors("akozhikhov")
@@ -3112,7 +3112,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_id = hunk_chunk_ids[0]
         assert not get("#{}/@sealed".format(hunk_chunk_id))
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             get("#{}/@compressed_data_size".format(hunk_chunk_id))
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
         assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
@@ -3289,7 +3289,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         init_node("//tmp/t1", hunk_primary_medium=self.NON_DEFAULT_MEDIUM_1)
         assert get("//tmp/t1/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
 
-        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set, consider setting it first"):
+        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set"):
             init_node("//tmp/t2", hunk_media={"default": {"replication_factor": 5, "data_parts_only": False}})
 
         with raises_yt_error("Cannot remove primary medium"):
@@ -3446,19 +3446,19 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         # 1. Set.
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_primary_medium", "nonexistent")
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1, authenticated_user="u")
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
@@ -3474,22 +3474,22 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         # 2. Modify.
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_primary_medium", "nonexistent")
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2, authenticated_user="u")
 
-        with raises_yt_error("Medium \"default\" stores no parity parts and cannot be made primary"):
+        with raises_yt_error("Medium .* stores no parity parts and cannot be made primary"):
             set("//tmp/q/@hunk_primary_medium", "default")
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
@@ -3507,7 +3507,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
         # 3. Remove.
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             remove("//tmp/q/@hunk_primary_medium")
 
         sync_unmount_table("//tmp/q")
@@ -3545,27 +3545,27 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         invalid_media2 = media.copy()
         invalid_media2[self.NON_DEFAULT_MEDIUM_1] = {"replication_factor": 5, "data_parts_only": True}
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_media", media)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set, consider setting it first"):
+        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set"):
             set("//tmp/q/@hunk_media", media)
 
         set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_media", invalid_media)
 
-        with raises_yt_error("At least one medium should store replicas (including parity parts)"):
+        with raises_yt_error("At least one medium should store replicas"):
             set("//tmp/q/@hunk_media", invalid_media2)
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_media", media, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_media", media, authenticated_user="u")
 
         set("//tmp/q/@hunk_media", media)
@@ -3583,28 +3583,28 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         invalid_media2[self.NON_DEFAULT_MEDIUM_2] = {"replication_factor": 5, "data_parts_only": True}
         del media[self.NON_DEFAULT_MEDIUM_1]
 
-        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+        with raises_yt_error("Cannot change storage parameters since"):
             set("//tmp/q/@hunk_media", media)
 
         sync_unmount_table("//tmp/q")
 
-        with raises_yt_error("No such medium"):
+        with raises_yt_error("No such medium .*"):
             set("//tmp/q/@hunk_media", invalid_media)
 
-        with raises_yt_error("At least one medium should store replicas (including parity parts)"):
+        with raises_yt_error("At least one medium should store replicas"):
             set("//tmp/q/@hunk_media", invalid_media2)
 
         with raises_yt_error("Operation cannot be performed in transaction"):
             tx = start_transaction()
             set("//tmp/q/@hunk_media", media, tx=tx)
 
-        with raises_yt_error("Access denied for user \"u\""):
+        with raises_yt_error("Access denied"):
             set("//tmp/q/@hunk_media", media, authenticated_user="u")
 
         with raises_yt_error("Cannot remove primary medium"):
             set("//tmp/q/@hunk_media", media)
 
-        with raises_yt_error("Attribute \"hunk_media\" cannot be removed"):
+        with raises_yt_error("Attribute .* cannot be removed"):
             remove("//tmp/q/@hunk_media")
 
         media[self.NON_DEFAULT_MEDIUM_1] = media[self.NON_DEFAULT_MEDIUM_2]
@@ -5523,7 +5523,7 @@ class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
             hunk_storage_attrs=in_table_attributes)
         create("table", "//tmp/t_out", attributes=out_table_attributes)
 
-        with raises_yt_error("cannot be exported because it has hunk refs"):
+        with raises_yt_error("Chunk .* cannot be exported because it has hunk refs"):
             concatenate(["//tmp/t"], "//tmp/t_out")
 
 
@@ -5575,7 +5575,7 @@ class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
             table_attrs={"external": False},
             hunk_storage_attrs={"external": False})
 
-        with raises_yt_error("//tmp/t must be external"):
+        with raises_yt_error("Node .* must be external to support cross-cell copying"):
             move("//tmp/t", "//p/t")
 
         remove("//p")
@@ -5622,22 +5622,22 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
 
         rows0 = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
         rows1 = [{"key": 1, "value": "1" * 100, "$tablet_index": 1}]
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
 
         sync_mount_table("//tmp/t_unique_1", first_tablet_index=0, last_tablet_index=0)
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
         # Cache was invalidated and now we shall write correctly.
         self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
-        with raises_yt_error("expected: \"mounted\""):
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
         sync_unmount_table("//tmp/t_unique_1", first_tablet_index=0, last_tablet_index=0)
 
-        with raises_yt_error("No such tablet"):
+        with raises_yt_error("No such tablet .*"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
         # Cache was invalidated and now it generates more precise error.
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
 
         hunk_storage_id = create("hunk_storage", "//tmp/h_unique_1", attributes={
@@ -5647,18 +5647,18 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
         set("//tmp/t_unique_1/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/t_unique_1", first_tablet_index=1, last_tablet_index=1)
 
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
         # This time this error is about hunk storage.
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
 
         sync_mount_table("//tmp/h_unique_1")
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
         self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows1)
 
-        with raises_yt_error("expected: \"mounted\""):
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_1", rows0)
 
     @authors("akozhikhov")
@@ -5675,14 +5675,14 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
 
         rows = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
 
-        with raises_yt_error("has no mounted tablets"):
+        with raises_yt_error(".* .* has no mounted tablets"):
             self._insert_rows_with_hunk_storage("//tmp/t_unique_2", rows)
 
-        with raises_yt_error("while it is in \"unmounted\" state"):
+        with raises_yt_error("Cannot read from tablet .*"):
             assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
 
         sync_mount_table("//tmp/t_unique_2")
-        with raises_yt_error("while it is in \"unmounted\" state"):
+        with raises_yt_error("Cannot read from tablet .*"):
             assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
         assert [] == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
 
@@ -5693,7 +5693,7 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
 
         assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
         sync_unmount_table("//tmp/t_unique_2")
-        with raises_yt_error("while it is in \"unmounted\" state"):
+        with raises_yt_error("Cannot read from tablet .*"):
             assert rows == pull_queue("//tmp/t_unique_2", offset=0, partition_index=0)
 
     @authors("akozhikhov")
@@ -5702,10 +5702,10 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
 
         self._create_simple_table("//tmp/t_unique_3", schema=self.SCHEMA)
 
-        with raises_yt_error("while it is in \"unmounted\" state"):
+        with raises_yt_error("Cannot read from tablet .*"):
             get_tablet_infos("//tmp/t_unique_3", [0])
 
         sync_mount_table("//tmp/t_unique_3")
-        with raises_yt_error("while it is in \"unmounted\" state"):
+        with raises_yt_error("Cannot read from tablet .*"):
             get_tablet_infos("//tmp/t_unique_3", [0])
         get_tablet_infos("//tmp/t_unique_3", [0])

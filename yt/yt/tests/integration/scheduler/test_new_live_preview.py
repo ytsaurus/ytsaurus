@@ -3,13 +3,11 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, exists, concatenate, create_user, create_test_tables, ls, make_ace, add_member,
     read_table, write_table, map, map_reduce, reduce, sort,
-    sync_create_cells, sync_mount_table)
+    sync_create_cells, sync_mount_table, raises_yt_error)
 
 from yt_type_helpers import make_schema
 
 import yt.yson as yson
-
-from yt.common import YtError
 
 import pytest
 
@@ -105,7 +103,7 @@ class TestNewLivePreview(YTEnvSetup):
             authenticated_user="u1",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation access denied"):
             read_table(
                 op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0",
                 authenticated_user="u2",

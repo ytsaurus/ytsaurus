@@ -372,27 +372,27 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("babenko", "ignat")
     def test_account_create2(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             create_account("sys")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             create_account("tmp")
 
     @authors("babenko", "ignat")
     def test_account_remove_builtin(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove a built-in account"):
             remove_account("sys")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove a built-in account"):
             remove_account("tmp")
 
     @authors("babenko", "ignat")
     def test_account_create3(self):
         create_account("max")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             create_account("max")
 
     @authors("babenko", "ignat")
     def test_empty_name_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Name cannot be empty"):
             create_account("")
 
     @authors("kiselyovp")
@@ -410,7 +410,7 @@ class TestAccounts(AccountsTestSuiteBase):
             "na$me",
             "a" * 101,
         ]:
-            with pytest.raises(YtError):
+            with raises_yt_error("Name (must match regular expression|is too long|cannot be empty)"):
                 create_account(name)
         create_account("1337-th15-15_F1N3")
         assert exists("//sys/accounts/1337-th15-15_F1N3")
@@ -469,7 +469,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create_account("max")
         set("//tmp/a", {})
         tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/a/@account", "max", tx=tx)
 
     @authors("babenko", "ignat")
@@ -737,7 +737,7 @@ class TestAccounts(AccountsTestSuiteBase):
         self._set_account_node_count_limit("max", 2000)
         self._set_account_node_count_limit("max", 0)
         assert not self._is_account_node_count_limit_violated("max")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* cannot be negative"):
             self._set_account_node_count_limit("max", -1)
 
     @authors("babenko", "ignat", "kiselyovp")
@@ -757,7 +757,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         self._set_account_node_count_limit("max", 0)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             set("//tmp/t/@account", "max")
 
     @authors("babenko")
@@ -767,7 +767,7 @@ class TestAccounts(AccountsTestSuiteBase):
         write_table("//tmp/t", {"a": "b"})
 
         self._set_account_node_count_limit("max", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             set("//tmp/t/@account", "max")
 
     @authors("shakurov")
@@ -786,14 +786,14 @@ class TestAccounts(AccountsTestSuiteBase):
         multicell_sleep()
 
         # Shouldn't work 'cause node count usage is checked synchronously.
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             copy("//tmp/a/t1", "//tmp/a/t2")
 
     @authors("kiselyovp")
     def test_node_count_limits6(self):
         create_account("max", attributes={"resource_limits": {"node_count": 1}})
         create("map_node", "//tmp/node", attributes={"account": "max"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/fail", attributes={"account": "max"})
         remove("//tmp/node")
         wait(lambda: self._get_account_node_count("max") == 0)
@@ -807,7 +807,7 @@ class TestAccounts(AccountsTestSuiteBase):
         self._set_account_chunk_count_limit("max", 2000)
         self._set_account_chunk_count_limit("max", 0)
         assert not self._is_account_chunk_count_limit_violated("max")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* cannot be negative"):
             wait(lambda: self._set_account_chunk_count_limit("max", -1))
 
     @authors("babenko", "ignat", "kiselyovp")
@@ -845,7 +845,7 @@ class TestAccounts(AccountsTestSuiteBase):
         # After a requisition update, max's chunk count usage should've increased.
         wait(lambda: self._get_account_chunk_count("max") == 2)
         create("table", "//tmp/a/t4")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over chunk count limit"):
             write_table("//tmp/a/t4", {"a": "b"})
 
     @authors("ignat")
@@ -856,7 +856,7 @@ class TestAccounts(AccountsTestSuiteBase):
         set_account_disk_space_limit("max", 2000)
         set_account_disk_space_limit("max", 0)
         assert not self._is_account_disk_space_limit_violated("max")
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid disk space size"):
             wait(lambda: set_account_disk_space_limit("max", -1))
 
     @authors("ignat", "kiselyovp")
@@ -875,7 +875,7 @@ class TestAccounts(AccountsTestSuiteBase):
         set_account_disk_space_limit("max", 0)
 
         assert self._is_account_disk_space_limit_violated("max")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             write_table("//tmp/t", {"a": "b"})
         # Wait for upload tx to abort
         wait(lambda: get("//tmp/t/@locks") == [])
@@ -904,7 +904,7 @@ class TestAccounts(AccountsTestSuiteBase):
         assert self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f2", attributes={"account": "max"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             write_file("//tmp/f2", b"some_data")
 
         set_account_disk_space_limit("max", get_account_disk_space("max") + 1)
@@ -946,7 +946,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             wait(write_multiple_chunks_to_file)
 
         # Wait for upload tx to abort
@@ -989,7 +989,7 @@ class TestAccounts(AccountsTestSuiteBase):
         # After a requisition update, max's disk space usage should've increased.
         wait(lambda: get_account_disk_space("max") == 2 * disk_space)
         create("table", "//tmp/a/t4")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             write_table("//tmp/a/t4", {"a": "b"})
 
     @authors("danilalexeev")
@@ -1012,7 +1012,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         assert not self._is_account_disk_space_limit_violated("max")
 
-        with raises_yt_error("Account \"max\" is over disk space limit in medium \"ssd\""):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             set("//tmp/t/@primary_medium", "ssd")
 
     @authors("babenko", "kiselyovp")
@@ -1144,7 +1144,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create("map_node", "//tmp/a")
         set("//tmp/a/@account", "a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             copy("//tmp/t1", "//tmp/a/t1")
         set_account_disk_space_limit("a", 100000, "hdd2")
         copy("//tmp/t1", "//tmp/a/t1")
@@ -1326,7 +1326,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         # 1) Sharing chunks.
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over disk space limit in medium .*"):
             copy("//tmp/t1", "//tmp/a/t1")
         set_account_disk_space_limit("a", 100000, "hdd4")
         copy("//tmp/t1", "//tmp/a/t1")
@@ -1429,7 +1429,7 @@ class TestAccounts(AccountsTestSuiteBase):
         self._set_account_zero_limits("a")
 
         # move must fail
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             move("//tmp/x", "//tmp/for_y/y", preserve_account=False)
 
     @authors("babenko")
@@ -1443,7 +1443,7 @@ class TestAccounts(AccountsTestSuiteBase):
         self._set_account_zero_limits("a")
 
         # copy must fail
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             copy("//tmp/x", "//tmp/y", preserve_account=True)
 
     @authors("babenko")
@@ -1459,7 +1459,7 @@ class TestAccounts(AccountsTestSuiteBase):
         self._set_account_zero_limits("a")
 
         # copy must fail
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             copy("//tmp/x", "//tmp/for_y/y", preserve_account=False)
 
     @authors("babenko", "ignat")
@@ -1472,7 +1472,7 @@ class TestAccounts(AccountsTestSuiteBase):
     def test_rename_fail(self):
         create_account("a1")
         create_account("a2")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             set("//sys/accounts/a1/@name", "a2")
 
     @authors("babenko", "kiselyovp")
@@ -1494,7 +1494,7 @@ class TestAccounts(AccountsTestSuiteBase):
         )
 
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//tmp/t/@account", "a", authenticated_user="u")
 
         assert_true_for_all_cells(
@@ -1760,7 +1760,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create_account("a")
         create("table", "//tmp/t", attributes={"account": "a"})
         set("//sys/accounts/a/@resource_limits/master_memory/total", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over master memory limit"):
             set("//tmp/t/@sdflkf", "sdlzkfj")
         set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
         set("//sys/accounts/a/@resource_limits/master_memory/chunk_host", 1000000)
@@ -1956,11 +1956,11 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("babenko")
     def test_create_with_invalid_attrs_yt_7093(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             create_account("x", attributes={"resource_limits": 123})
         assert not exists("//sys/accounts/x")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid disk space size"):
             create_account(
                 "y",
                 attributes={"resource_limits": self._build_resource_limits(disk_space=-1)},
@@ -2048,7 +2048,7 @@ class TestAccounts(AccountsTestSuiteBase):
         set("//sys/accounts/a1/@acl", [make_ace("allow", "u1", "use")])
         set("//sys/accounts/a2/@acl", [make_ace("allow", "u2", "use")])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/dir1",
@@ -2063,7 +2063,7 @@ class TestAccounts(AccountsTestSuiteBase):
             authenticated_user="u1",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create("map_node", "//tmp/dir1/dir2", authenticated_user="u2")
 
         create(
@@ -2149,7 +2149,7 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count)
 
         self._set_account_node_count_limit("tmp", committed_node_count)
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             copy("//tmp/t", "//tmp/t3", tx=tx1)
 
         self._set_account_node_count_limit("tmp", committed_node_count + 1)
@@ -2449,14 +2449,14 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp", "kvk1920")
     def test_root_account(self):
         assert exists("//sys/accounts/{0}".format(self._root_account_name))
-        with pytest.raises(YtError):
+        with raises_yt_error("Root account cannot be used"):
             create(
                 "map_node",
                 "//tmp/test",
                 attributes={"account": self._root_account_name},
             )
         create("table", "//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Root account cannot be used"):
             set("//tmp/t/@account", self._root_account_name)
 
         root_attributes = get("//sys/accounts/{0}/@".format(self._root_account_name))
@@ -2477,9 +2477,9 @@ class TestAccountTree(AccountsTestSuiteBase):
         ]:
             assert attribute in root_attributes
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             self._set_account_zero_limits(self._root_account_name)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change parent for a nameless"):
             set("//sys/accounts/{0}/@parent_name".format(self._root_account_name), "sys")
 
         assert exists("//sys/accounts/@root_account_resource_limits")
@@ -2490,7 +2490,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("kiselyovp")
     def test_create1(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account(self._root_account_name)
         create_account("max", empty=True)
         assert ls("//sys/account_tree/max") == []
@@ -2501,33 +2501,33 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert sorted(ls("//sys/accounts")) == sorted(self._builtin_accounts + ["max", "a1", "a2"])
         assert sorted(ls("//sys/account_tree/max")) == ["a1", "a2"]
         assert ls("//sys/account_tree/max/a1") == []
-        with pytest.raises(YtError):
+        with raises_yt_error("Unexpected end-of-string in YPath"):
             ls("//sys/account_tree/max/")
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             ls("//sys/account_tree/max/3")
 
     @authors("kiselyovp")
     def test_create2(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot create an object of type"):
             create("map_node", "//sys/accounts/tmp/node")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot create an object of type"):
             create("file", "//sys/account_tree/file")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             create("account", "//tmp/account")
 
     @authors("kiselyovp")
     def test_create3(self):
         create_account("max", empty=True)
         create_account("nested", "max", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             create_account("max", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("max", "max", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("nested", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already has a child"):
             create_account("nested", "max", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("No such account .*"):
             create_account("child", "fake", empty=True)
 
     @authors("kiselyovp")
@@ -2536,13 +2536,13 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("a1", empty=True)
         create_account("a2", "a0", empty=True)
         create_account("a3", "a0", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("a0", "a1", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("a1", "a1", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("a2", "a1", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("a3", empty=True)
 
     @authors("kiselyovp")
@@ -2550,7 +2550,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         parent_id = create_account("yt", empty=True)
         assert create_account("yt", empty=True, ignore_existing=True) == parent_id
         child_id = create_account("never_mind", "yt", empty=True, ignore_existing=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_account("never_mind", empty=True, ignore_existing=True)
         assert create_account("never_mind", "yt", empty=True, ignore_existing=True) == child_id
 
@@ -2560,7 +2560,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         for i in range(1, depth_limit + 1):
             create_account(str(i), None if i == 1 else str(i - 1), empty=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* tree height limit exceeded"):
             create_account(str(depth_limit + 1), str(depth_limit), empty=True)
 
     @authors("kiselyovp")
@@ -2573,10 +2573,10 @@ class TestAccountTree(AccountsTestSuiteBase):
             create_account("L" + str(i), None if i == 1 else "L" + str(i - 1), empty=True)
         for i in range(1, right_depth + 1):
             create_account("R" + str(i), None if i == 1 else "R" + str(i - 1), empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* tree height limit exceeded"):
             set("//sys/account_tree/R1/@parent_name", "L" + str(left_depth))
         set("//sys/account_tree/R1/@parent_name", "L" + str(left_depth - 1))
-        with pytest.raises(YtError):
+        with raises_yt_error(".* tree height limit exceeded"):
             create_account("2deep4u", "R" + str(right_depth), empty=True)
 
     @authors("kiselyovp")
@@ -2635,12 +2635,12 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("kiselyovp")
     def test_set(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             set("//sys/accounts/" + self._root_account_name, {"key": "value"})
         assert exists("//sys/account_tree/tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             set("//sys/accounts/tmp", {"key": "value"}, force=True)
-        with pytest.raises(YtError):
+        with raises_yt_error(".* method is not supported"):
             set("//sys/accounts/tmp", {"key1": {"key2": {}}}, recursive=True)
 
     @authors("kiselyovp")
@@ -2650,7 +2650,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         remove_account("nested", sync=False)
         assert exists("//sys/account_tree/max")
         wait(lambda: not exists("//sys/account_tree/max/nested"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remove("//sys/account_tree/max/nested")
         remove("//sys/account_tree/max/nested", force=True)
 
@@ -2659,7 +2659,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("max", empty=True)
         create_account("max42", "max", empty=True)
         create_account("max69", "max", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove non-empty composite node"):
             remove_account("max", recursive=False)
         remove_account("max")
         assert not exists("//sys/account_tree/max/max42")
@@ -2669,7 +2669,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     def test_remove3(self):
         create_account("sparrow")
         create("map_node", "//tmp/sparrow", attributes={"account": "sparrow"})
-        with raises_yt_error("Cannot remove an account \"sparrow\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
             remove_account("sparrow", recursive=True, force=True, sync=False)
 
         remove("//tmp/sparrow")
@@ -2691,7 +2691,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         create("map_node", "//tmp/max42", attributes={"account": "max42"})
 
-        with raises_yt_error("Cannot remove an account \"max\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
             remove_account("max", recursive=True, force=True, sync=False)
         assert exists("//sys/account_tree/max/max69")
         assert exists("//sys/account_tree/max/max42")
@@ -2737,7 +2737,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create("table", "//tmp/t", attributes={"account": "a1"})
         wait(lambda: self._get_detailed_master_memory_usage("a1", "nodes") > 0)
 
-        with raises_yt_error("Cannot remove an account \"a1\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
             remove("//sys/account_tree/max/*")
         assert exists("//sys/account_tree/max/a1")
         assert exists("//sys/account_tree/max/a2")
@@ -2766,13 +2766,13 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         with raises_yt_error("Name cannot be empty"):
             set("//sys/accounts/42/@name", "")
-        with raises_yt_error("Account \"root\" already exists"):
+        with raises_yt_error("Account .* already exists"):
             set("//sys/accounts/42/@name", self._root_account_name)
-        with raises_yt_error("Name must match regular expression \"[A-Za-z0-9-_]+\""):
+        with raises_yt_error("Name must match regular expression"):
             set("//sys/accounts/42/@name", "max/420")
-        with raises_yt_error("Account \"max\" already has a child \"69\""):
+        with raises_yt_error("Account .* already has a child .*"):
             set("//sys/accounts/42/@name", "69")
-        with raises_yt_error("Name must match regular expression \"[A-Za-z0-9-_]+\""):
+        with raises_yt_error("Name must match regular expression"):
             set("//sys/accounts/42/@name", "slash/42")
         with raises_yt_error("Name is too long for an object of type \"Account\""):
             set("//sys/accounts/42/@name", "a" * 101)
@@ -2802,9 +2802,9 @@ class TestAccountTree(AccountsTestSuiteBase):
             move("//tmp/metrika", "//sys/account_tree/metrika/node")
         with raises_yt_error("Cannot copy or move an object of type \"MapNode\", expected type \"Account\""):
             move("//tmp/metrika", "//sys/account_tree/node")
-        with raises_yt_error("//sys/account_tree/metrika has unexpected suffix /metrika"):
+        with raises_yt_error(".* has unexpected suffix .*"):
             move("//sys/account_tree/metrika", "//tmp/metrika/account")
-        with raises_yt_error("points to a nonversioned \"account\" object instead of a node"):
+        with raises_yt_error("Path .* points to a nonversioned .* object instead of a node"):
             move("//sys/account_tree", "//tmp/metrika/account")
         with raises_yt_error("Cannot copy or move an object to its descendant"):
             move("//sys/account_tree", "//sys/account_tree/tmp/tree")
@@ -2812,7 +2812,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_move2(self):
         create_account("metrika")
-        with raises_yt_error("Node //sys/account_tree/metrika already exists"):
+        with raises_yt_error("Node .* already exists"):
             move("//sys/account_tree/metrika", "//sys/account_tree/metrika")
         create_account("prod", "metrika")
         with raises_yt_error("\"force\" option is not supported for nonversioned map objects"):
@@ -2839,13 +2839,13 @@ class TestAccountTree(AccountsTestSuiteBase):
             move("//sys/account_tree/metrika", "//sys/account_tree/metrika/surprise")
         with raises_yt_error("Cannot copy or move an object to its descendant"):
             move("//sys/account_tree/metrika", "//sys/account_tree/metrika/prod/surprise")
-        with raises_yt_error("Node //sys/account_tree/metrika has no child with key \"fake\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             move("//sys/account_tree/metrika/fake", "//sys/account_tree/fake")
 
-        with raises_yt_error("Node //sys/account_tree has no child with key \"market\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/prod")
         create_account("market")
-        with raises_yt_error("Node //sys/account_tree/market already exists"):
+        with raises_yt_error("Node .* already exists"):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market")
         assert (
             copy(
@@ -2856,15 +2856,15 @@ class TestAccountTree(AccountsTestSuiteBase):
             == get("//sys/account_tree/market/@id")
         )
 
-        with raises_yt_error("Failed to attach child \"market\" to account \"market\""):
+        with raises_yt_error("Failed to attach child .* to account .*"):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/market")
-        with raises_yt_error("Failed to attach child \"tmp\" to account \"market\""):
+        with raises_yt_error("Failed to attach child .* to account .*"):
             move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/tmp")
-        with raises_yt_error("Failed to attach child \"sys\" to account \"prod\""):
+        with raises_yt_error("Failed to attach child .* to account .*"):
             move("//sys/account_tree/market", "//sys/account_tree/metrika/prod/sys")
-        with raises_yt_error("Failed to attach child \"sys\" to account \"metrika\""):
+        with raises_yt_error("Failed to attach child .* to account .*"):
             move("//sys/account_tree/market", "//sys/account_tree/metrika/sys")
-        with raises_yt_error("Failed to attach child \"prod\" to account \"tmp\""):
+        with raises_yt_error("Failed to attach child .* to account .*"):
             move("//sys/account_tree/market", "//sys/account_tree/tmp/prod")
 
     @authors("kiselyovp")
@@ -2876,7 +2876,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("market-dev", "market")
         create_account("market-prod", "market", empty=True)
 
-        with raises_yt_error("child resource limit cannot be above that of its parent"):
+        with raises_yt_error("Failed to change account .* parent to .*: child resource limit cannot be above that of its parent"):
             move(
                 "//sys/account_tree/metrika/metrika-dev",
                 "//sys/account_tree/metrika/metrika-prod/0",
@@ -2926,24 +2926,24 @@ class TestAccountTree(AccountsTestSuiteBase):
         self._set_account_node_count_limit("min", 1)
 
         create("map_node", "//tmp/dir1", attributes={"account": "min"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/dir2", attributes={"account": "min"})
         create("map_node", "//tmp/dir2", attributes={"account": "max"})
         create("map_node", "//tmp/dir3", attributes={"account": "max"})
         create("map_node", "//tmp/dir4", attributes={"account": "max"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/dir5", attributes={"account": "max"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/dir5", attributes={"account": "yt"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("max", 4)
         set("//sys/account_tree/yt/@allow_children_limit_overcommit", True)
         self._set_account_node_count_limit("max", 4)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("max", 5)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Parent account .* is over Cypress node count limit"):
             create("map_node", "//tmp/dir5", attributes={"account": "max"})
         remove("//tmp/dir1")
         wait(lambda: get("//sys/accounts/min/@resource_usage/node_count") == 0)
@@ -2958,7 +2958,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     def test_nested_limits2(self):
         create_account("yt", empty=True)
         self._set_account_node_count_limit("yt", 4)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits for account"):
             create_account("max", "yt", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/yt", attributes={"account": "yt"})
@@ -2969,7 +2969,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("max", "yt", attributes={"resource_limits": {"node_count": 3}})
         create("map_node", "//tmp/yt/d2", attributes={"account": "max"})
         create("map_node", "//tmp/yt/d3", attributes={"account": "max"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Parent account .* is over Cypress node count limit (while validating account .*)"):
             create("map_node", "//tmp/yt/d4", attributes={"account": "max"})
 
     @authors("shakurov")
@@ -2979,13 +2979,13 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         create_account("min", "yt", attributes={"resource_limits": {"node_count": 1}})
         create("map_node", "//tmp/d1", attributes={"account": "min"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/d2", attributes={"account": "min"})
         move("//sys/account_tree/yt/min", "//sys/account_tree/yt/minimal")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/d3", attributes={"account": "minimal"})
         set("//sys/accounts/minimal/@name", "min")
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/d4", attributes={"account": "min"})
 
     @authors("shakurov")
@@ -3128,7 +3128,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         )
 
         remove_account("yt-dev-spof-1")
-        with raises_yt_error("Cannot remove an account \"yt-dev-spof\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
             remove_account("yt-dev-spof", sync=False)
 
         wait(
@@ -3165,7 +3165,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         self._set_account_node_count_limit("metrika", 1)
 
         create_account("empty", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change account"):
             set("//sys/accounts/metrika-dev/@parent_name", "empty")
         assert not exists("//sys/account_tree/empty/metrika-dev")
         assert exists("//sys/account_tree/metrika/metrika-dev")
@@ -3177,19 +3177,19 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("parent", empty=True)
         get("//sys/accounts/parent", authenticated_user="u")
         set("//sys/accounts/parent/@acl/end", make_ace("deny", "u", "read"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//sys/accounts/parent", authenticated_user="u")
         create_account("child", "parent", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//sys/accounts/child", authenticated_user="u")
 
     @authors("kiselyovp")
     def test_write_acl(self):
         create_user("u")
         create_account("parent", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account("child", "parent", empty=True, authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/accounts/parent/@resource_limits/node_count",
                 1,
@@ -3209,14 +3209,14 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="u",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/u",
                 attributes={"account": "parent"},
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/u",
@@ -3232,7 +3232,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             empty=True,
             attributes={"acl": [make_ace("allow", "u", "modify_children")]},
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/accounts/parent/@resource_limits/node_count",
                 1,
@@ -3247,20 +3247,20 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="u",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/accounts/child/@resource_limits/node_count",
                 0,
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/u",
                 attributes={"account": "parent"},
                 authenticated_user="u",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/u",
@@ -3279,15 +3279,15 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "resource_limits": {"node_count": 1000},
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/accounts/parent/@acl/end",
                 make_ace("allow", "u2", "use"),
                 authenticated_user="u2",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account("child", "parent", authenticated_user="u1")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/u1",
@@ -3307,7 +3307,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="u1",
         )
         # administer permission for parent is needed to create a child with acl
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account(
                 "child",
                 "parent",
@@ -3335,7 +3335,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("parent", attributes={"acl": [make_ace("allow", "u", "remove")]})
         create_account("child", "parent", empty=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/u",
@@ -3343,16 +3343,16 @@ class TestAccountTree(AccountsTestSuiteBase):
                 authenticated_user="u",
             )
         # write or modify_children permission for parent of the account being removed
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("parent", authenticated_user="u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("child", authenticated_user="u")
         set("//sys/accounts/parent/@acl/end", make_ace("allow", "u", "modify_children"))
         remove_account("child", authenticated_user="u")
 
         set("//sys/accounts/parent/@acl", [make_ace("allow", "u", ["write"])])
         create_account("child", "parent", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("child", authenticated_user="u")
         set("//sys/accounts/child/@acl/end", make_ace("allow", "u", ["remove"]))
         remove_account("child", authenticated_user="u")
@@ -3360,7 +3360,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_nested_acls1(self):
         create_user("user")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account("account", "tmp", empty=True, authenticated_user="user")
 
     # XXX(kiselyovp) these tests are too large
@@ -3371,12 +3371,12 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_user("max42")
         create_user("kiselyovp")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account("logozhuj", empty=True, authenticated_user="babenko")
         create_account("yt", empty=True, attributes={"acl": self._create_account_acl("babenko")})
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//sys/accounts/yt/@name", "logozhuj", authenticated_user="babenko")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("yt", authenticated_user="babenko")
         create_account("max42", "yt", empty=True, authenticated_user="babenko")
         set(
@@ -3391,27 +3391,27 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="babenko",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/account_tree/yt/max42/@parent_name",
                 "kiselyovp",
                 authenticated_user="kiselyovp",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("max42", authenticated_user="kiselyovp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("kiselyovp", authenticated_user="kiselyovp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("yt", authenticated_user="kiselyovp")
         assert sorted(ls("//sys/account_tree/yt", authenticated_user="kiselyovp")) == [
             "kiselyovp",
             "max42",
         ]
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account("surprise", "max42", empty=True, authenticated_user="kiselyovp")
 
         create_account("tesuto", "kiselyovp", empty=True, authenticated_user="kiselyovp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//sys/account_tree/yt/kiselyovp/@acl/end",
                 make_ace("allow", "max42", "use"),
@@ -3423,9 +3423,9 @@ class TestAccountTree(AccountsTestSuiteBase):
             make_ace("deny", "max42", "read"),
             authenticated_user="kiselyovp",
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//sys/accounts/tesuto", authenticated_user="max42")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get(
                 "//sys/account_tree/yt/kiselyovp/tesuto/empty",
                 authenticated_user="max42",
@@ -3450,7 +3450,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             attributes={"acl": [make_ace("deny", "kiselyovp", "read")]},
             authenticated_user="babenko",
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             get("//sys/account_tree/yt/yt-dev/yt-tests", authenticated_user="kiselyovp")
 
     @authors("kiselyovp", "theevilbird")
@@ -3463,7 +3463,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         self._set_account_node_count_limit("yt", 15)
 
         set("//sys/account_tree/yt/@acl", self._create_account_acl("babenko"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             self._set_account_node_count_limit("yt", 100500, authenticated_user="babenko")
 
         create_account(
@@ -3521,13 +3521,13 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="renadeen",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set(
                 "//tmp/yt/renadeen/never_mind/@account",
                 "yt",
                 authenticated_user="renadeen",
             )
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create(
                 "map_node",
                 "//tmp/yt/renadeen/work",
@@ -3548,11 +3548,11 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="renadeen",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             set("//sys/accounts/kurwa/@name", "work", authenticated_user="andozer")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create_account("work", "yt-dev", empty=True, authenticated_user="andozer")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove_account("huj", authenticated_user="andozer")
 
         set("//sys/accounts/kurwa/@name", "work", authenticated_user="babenko")
@@ -3563,7 +3563,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         wait(lambda: get("//sys/accounts/huj/@resource_usage/master_memory/total") == 0)
         remove_account("huj", authenticated_user="babenko", sync=False)
         wait(lambda: not exists("//sys/accounts/huj"))
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/yt/babenko",
@@ -3578,11 +3578,11 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="babenko",
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             self._set_account_node_count_limit("yt-prod", 10, authenticated_user="andozer")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             self._set_account_node_count_limit("yt", 100500, authenticated_user="andozer")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move(
                 "//sys/account_tree/yt/yt-dev/work",
                 "//sys/account_tree/yt/yt-prod/work",
@@ -3607,7 +3607,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             authenticated_user="renadeen",
         )
         remove("//tmp/yt/andozer/interface")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             create(
                 "map_node",
                 "//tmp/yt/andozer/interface",
@@ -3621,7 +3621,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             attributes={"account": "interface"},
             authenticated_user="renadeen",
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             move(
                 "//sys/account_tree/yt/yt-dev/interface",
                 "//sys/account_tree/yt/yt-prod/interface",
@@ -3639,7 +3639,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-dev", "yt", empty=True)
         create_account("yt-tesuto", "yt-dev", empty=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute .* is not found"):
             get("//sys/accounts/{0}/@parent_name".format(self._root_account_name))
         assert get("//sys/accounts/{0}/@path".format(self._root_account_name)) == "//sys/account_tree"
         assert get("//sys/accounts/yt/@parent_name") == self._root_account_name
@@ -3664,15 +3664,15 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt", attributes={"resource_limits": {"disk_space_per_medium": {"default": 1}}})
         create_account("yt2", attributes={"resource_limits": {"disk_space_per_medium": {"default": 2, "nvme1": 1}}})
 
-        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1, 'nvme1': 1}}"):
+        with raises_yt_error("Failed to change account .* parent to .*: child resource limit cannot be above that of its parent"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2})
-        with raises_yt_error("violated_resources {'disk_space_per_medium': {'nvme1': 1}}"):
+        with raises_yt_error("Failed to change account .* parent to .*: child resource limit cannot be above that of its parent"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 1, "nvme1": 1})
-        with raises_yt_error("violated_resources {'disk_space_per_medium': {'default': 1}}"):
+        with raises_yt_error("Failed to change account .* parent to .*: child resource limit cannot be above that of its parent"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2, "nvme1": 1})
@@ -3840,13 +3840,13 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "allow_children_limit_overcommit": allow_overcommit,
             },
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits for account"):
             create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 2}})
         create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 1}})
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt-dev", 2)
         set("//sys/accounts/yt/@allow_children_limit_overcommit", not allow_overcommit)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt-dev", 2)
 
     @authors("shakurov")
@@ -3861,7 +3861,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         )
         create_account("yt-dev", "yt", attributes={"resource_limits": limits})
         create_account("yt-front", "yt", attributes={"resource_limits": limits})
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to disable children limit overcommit"):
             set("//sys/accounts/yt/@allow_children_limit_overcommit", False)
 
         self._set_account_node_count_limit("yt-front", 0)
@@ -3879,7 +3879,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         )
         create_account("yt2", attributes={"resource_limits": {"node_count": 2}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change account"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         self._set_account_node_count_limit("yt2", 1)
@@ -3892,10 +3892,10 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 1}})
         create_account("yt2", attributes={"resource_limits": {"node_count": 3}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             move("//sys/account_tree/yt2", "//sys/account_tree/yt")
         set("//sys/accounts/yt/@allow_children_limit_overcommit", True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change account"):
             set("//sys/account_tree/yt2/@parent_name", "yt")
 
         self._set_account_node_count_limit("yt2", 2)
@@ -3915,7 +3915,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-front", "yt", attributes={"resource_limits": limits})
         create("map_node", "//tmp/d1", attributes={"account": "yt-front"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Parent account .* is over Cypress node count limit (while validating account .*)"):
             create("map_node", "//tmp/d2", attributes={"account": "yt-dev"})
 
     @authors("shakurov")
@@ -3933,7 +3933,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-front", "yt", attributes={"resource_limits": limits})
         create("map_node", "//tmp/d1", attributes={"account": "yt-front"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Ancestor account .* is over Cypress node count limit (while validating account .*)"):
             create("map_node", "//tmp/d2", attributes={"account": "yt-dt"})
 
     @authors("shakurov")
@@ -3942,26 +3942,26 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 2}})
         create_account("yt-front", "yt", attributes={"resource_limits": {"node_count": 2}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt-dev", 5)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt-dev", 3)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt", 1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt", 2)
 
         set("//sys/accounts/yt/@allow_children_limit_overcommit", True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt-dev", 5)
 
         self._set_account_node_count_limit("yt-dev", 3)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_node_count_limit("yt", 1)
 
         self._set_account_node_count_limit("yt", 3)
@@ -3977,7 +3977,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("b", "a", attributes={"resource_limits": {"master_memory": {"total": 5000}}})
         create_account("c", "a", attributes={"resource_limits": {"master_memory": {"total": 6000}}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_master_memory("a", 1000)
 
         self._set_account_master_memory("b", 10000)
@@ -3990,12 +3990,12 @@ class TestAccountTree(AccountsTestSuiteBase):
             True,
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             self._set_account_master_memory("b", 10000)
 
     @authors("shakurov")
     def test_negative_limits(self):
-        with pytest.raises(YtError):
+        with raises_yt_error(".* cannot be negative"):
             create_account(
                 "yt",
                 attributes={"resource_limits": self._build_resource_limits(node_count=-1)},
@@ -4003,7 +4003,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         create_account("yt", attributes={"resource_limits": {"node_count": 1}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* cannot be negative"):
             self._set_account_node_count_limit("yt", -1)
 
     @authors("kiselyovp")
@@ -4012,15 +4012,15 @@ class TestAccountTree(AccountsTestSuiteBase):
         limits = {"disk_space_per_medium": {"hdd8": 1024}}
         create_account("yt", attributes={"resource_limits": {"disk_space": 1000}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits for account"):
             create_account("yt-dev", "yt", attributes={"resource_limits": limits})
 
         create_account("yt-dev", attributes={"resource_limits": limits})
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change account"):
             set("//sys/accounts/yt-dev/@parent_name", "yt")
 
         create_account("yt-prod", "yt", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             set_account_disk_space_limit("yt-prod", 1024, "hdd8")
 
     @authors("kiselyovp")
@@ -4069,7 +4069,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-dev", attributes={"resource_limits": limits})
         create_account("yt-prod", empty=True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(".* has invalid type: expected .*, actual .*"):
             transfer_account_resources("yt-dev", "yt-prod", "entire_hahn")
         for resource in (
             "node_count",
@@ -4078,10 +4078,13 @@ class TestAccountTree(AccountsTestSuiteBase):
             "tablet_static_memory",
             "disk_space",
         ):
-            with pytest.raises(YtError):
+            negative_value_pattern = (
+                "Invalid disk space size" if resource == "disk_space" else "cannot be negative"
+            )
+            with raises_yt_error(negative_value_pattern):
                 transfer_account_resources("yt-dev", "yt-prod", self._build_resource_limits(**{resource: -1}))
             limit = get("//sys/accounts/yt-dev/@resource_limits/{0}".format(resource))
-            with pytest.raises(YtError):
+            with raises_yt_error("Failed to transfer resources"):
                 transfer_account_resources(
                     "yt-dev",
                     "yt-prod",
@@ -4089,7 +4092,7 @@ class TestAccountTree(AccountsTestSuiteBase):
                 )
             transfer_account_resources("yt-dev", "yt-prod", self._build_resource_limits(**{resource: limit}))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over Cypress node count limit"):
             create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
         assert cluster_resources_equal(
             get("//sys/accounts/yt-dev/@resource_limits"),
@@ -4103,11 +4106,11 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("parent")
         create_account("child", "parent")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such account .*"):
             transfer_account_resources("fake", "parent", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             transfer_account_resources("child", "fake", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("No such account .*"):
             transfer_account_resources("parent/child", "yt", {})
 
     @authors("kiselyovp")
@@ -4127,13 +4130,13 @@ class TestAccountTree(AccountsTestSuiteBase):
                     self._build_resource_limits(node_count=node_count, include_disk_space=True),
                 )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("grandchild", "parent", {"node_count": 6})
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("child", "parent", {"node_count": 6})
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("parent", "child", {"node_count": 6})
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("parent", "grandchild", {"node_count": 6})
         validate_node_counts(15, 10, 5)
 
@@ -4152,7 +4155,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-prod", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
-        with raises_yt_error("Cannot remove an account \"yt-dev\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
             remove_account("yt-dev", sync=False)
 
         transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})
@@ -4203,23 +4206,23 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-front", "yt", attributes={"resource_limits": {"node_count": 10}})
         create_account("yt-morda", "yt-front", attributes={"resource_limits": {"node_count": 8}})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("yt-master", "yt-morda", {"node_count": 3})
 
         self._set_account_node_count_limit("yt-cypress-server", 4)
         self._set_account_node_count_limit("yt-security-server", 4)
         set("//sys/accounts/yt-master/@allow_children_limit_overcommit", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("yt-master", "yt-morda", {"node_count": 1})
 
         limits_backup = get("//sys/account_tree", attributes=["name", "resource_limits"])
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("yt-security-server", "yt-front", {"node_count": 3})
         assert get("//sys/account_tree", attributes=["name", "resource_limits"]) == limits_backup
 
         self._set_account_node_count_limit("yt-front", 15)
         limits_backup = get("//sys/account_tree", attributes=["name", "resource_limits"])
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to transfer resources"):
             transfer_account_resources("yt-security-server", "yt-morda", {"node_count": 2})
         assert get("//sys/account_tree", attributes=["name", "resource_limits"]) == limits_backup
 
@@ -4312,13 +4315,13 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         transfer_account_resources("yt-morda", "yt-master", limits_delta, authenticated_user="babenko")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="tsufiev")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="kiselyovp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="andozer")
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="shakurov")
 
         assert get("//sys/accounts/yt-morda/@resource_limits") == subtract_recursive(limits, limits_delta)
@@ -4389,9 +4392,9 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("a", empty=True)
         create_account("aa", "a", empty=True)
         create_account("ab", "a", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Subtree size limit exceeded"):
             create_account("ac", "a", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Subtree size limit exceeded"):
             create_account("aba", "ab", empty=True)
         create_account("b", empty=True)
         create_account("c", empty=True)
@@ -4399,7 +4402,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("da", "d", empty=True)
         create_account("db", "d", empty=True)
         create_account("ca", "c", empty=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Subtree size limit exceeded"):
             move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
         set("//sys/@config/security_manager/max_account_subtree_size", 5)
         move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
@@ -4450,7 +4453,7 @@ class TestAccountsMulticell(TestAccounts):
         master_memory_sleep()
 
         create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 11})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over cell .* master memory limit"):
             write_table("//tmp/t1", {"a": "b"})
 
         create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 12})
@@ -4524,10 +4527,10 @@ class TestAccountsMulticell(TestAccounts):
         set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"11": 0})
         set("//sys/accounts/b/@resource_limits/master_memory/per_cell", {"12": 1})
 
-        with raises_yt_error("infinity-related"):
+        with raises_yt_error("Failed to change resource limits for account .*: either invalid infinity-related operation or just an integer overflow occurred"):
             transfer_account_resources("a", "b", self._build_resource_limits(master_memory_per_cell={"12": 1}))
 
-        with raises_yt_error("infinity-related"):
+        with raises_yt_error("Failed to change resource limits for account .*: either invalid infinity-related operation or just an integer overflow occurred"):
             transfer_account_resources("b", "a", self._build_resource_limits(master_memory_per_cell={"12": 1}))
 
         transfer_account_resources("b", "a", self._build_resource_limits(master_memory_per_cell={"11": 0}))
@@ -4551,7 +4554,7 @@ class TestAccountsMulticell(TestAccounts):
         create_account("a")
         create_account("b", "a")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to change resource limits"):
             set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"11": 0})
 
         set("//sys/accounts/b/@resource_limits/master_memory/per_cell", {"11": 0})
@@ -4572,7 +4575,7 @@ class TestAccountsMulticell(TestAccounts):
         master_memory_sleep()
 
         create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 11})
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over chunk host master memory limit"):
             write_table("//tmp/t1", {"a": "b"})
 
     @authors("aleksandra-zh")
@@ -4604,17 +4607,17 @@ class TestAccountsMulticell(TestAccounts):
         wait(quota_is_over)
 
         master_memory_sleep()
-        with pytest.raises(YtError):
+        with raises_yt_error("Account .* is over chunk host master memory limit"):
             write_table("<append=true>//tmp/t2", {"a": "b"})
 
     @authors("aleksandra-zh")
     def test_master_cell_names(self):
         set("//sys/@config/multicell_manager/cell_descriptors/10/name", "Julia")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate cell name .* for cell tags .*"):
             set("//sys/@config/multicell_manager/cell_descriptors/12/name", "Julia")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid cell name"):
             set("//sys/@config/multicell_manager/cell_descriptors/11/name", "12")
 
         create_account("a")

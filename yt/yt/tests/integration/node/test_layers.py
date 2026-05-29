@@ -147,7 +147,7 @@ class TestLayers(TestPortoLayersBase):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Layer unpacking failed"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -419,7 +419,7 @@ class TestLayers(TestPortoLayersBase):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1908,7 +1908,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             op.track()
 
         # YT-14186: Corrupted user layer should not disable jobs on node.
@@ -1933,7 +1933,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2270,7 +2270,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             op.track()
 
         # YT-14186: Corrupted user layer should not disable jobs on node.
@@ -2299,7 +2299,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Porto API error"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2469,7 +2469,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"fail_on_job_restart\" option is set in operation spec or user job spec"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2518,7 +2518,7 @@ class TestInvalidAttributeValues(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2540,7 +2540,7 @@ class TestInvalidAttributeValues(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2635,7 +2635,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation failed due to excessive successive job aborts"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -2670,7 +2670,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("(Nbd|NBD) server is not present"):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",

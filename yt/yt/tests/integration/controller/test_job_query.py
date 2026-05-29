@@ -12,7 +12,6 @@ from yt_type_helpers import (
 import yt_error_codes
 
 import yt.yson as yson
-from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 
 import pytest
@@ -74,7 +73,7 @@ class TestJobQuery(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
-        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
+        with raises_yt_error(code=yt_error_codes.OperationFailedToPrepare):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -82,7 +81,7 @@ class TestJobQuery(YTEnvSetup):
                 spec={"input_query": "a,a"},
             )
 
-        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
+        with raises_yt_error(code=yt_error_codes.OperationFailedToPrepare):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "b"})
 
     @authors("lukyan")
@@ -949,7 +948,7 @@ class TestJobQuery(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1132,7 +1131,7 @@ class TestJobQuery(YTEnvSetup):
             [{"b": "foo_{}".format(i)} for i in range(30) if i % 2 == 1],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Undefined reference .*"):
             _test(
                 'a where b_renamed in ("foo_9", "foo_12", "foo_23")',
                 [{"a": 9}, {"a": 12}, {"a": 23}],
@@ -1150,7 +1149,7 @@ class TestJobQuery(YTEnvSetup):
             [{"b_renamed": "foo_{}".format(i)} for i in range(30) if i % 2 == 1],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Undefined reference .*"):
             _test(
                 'a where b in ("foo_9", "foo_12", "foo_23")',
                 [{"a": 9}, {"a": 12}, {"a": 23}],

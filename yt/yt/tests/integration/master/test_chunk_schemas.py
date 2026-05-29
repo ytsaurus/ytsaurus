@@ -67,7 +67,7 @@ class TestChunkSchemas(YTEnvSetup):
         write_file("//tmp/file", content)
         chunk_ids = get("//tmp/file/@chunk_ids")
         for chunk_id in chunk_ids:
-            with raises_yt_error("Attribute \"schema_id\" is not found"):
+            with raises_yt_error("Attribute .* is not found"):
                 get("#{}/@schema_id".format(chunk_id))
 
     @authors("h0pless")

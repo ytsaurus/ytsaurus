@@ -102,7 +102,7 @@ class TestShuffleService(YTEnvSetup):
 
         wait(lambda: active_shuffle_count_sensor.get() == 0, iter=300, sleep_backoff=0.1)
 
-        with raises_yt_error("does not exist"):
+        with raises_yt_error("Shuffle with id .* does not exist"):
             read_shuffle_data(shuffle_handle, 1)
 
     @authors("apollo1321")
@@ -112,7 +112,7 @@ class TestShuffleService(YTEnvSetup):
         shuffle_handle = start_shuffle("intermediate", partition_count=11, parent_transaction_id=parent_transaction)
 
         # Check that a negative partition index is not accepted.
-        with raises_yt_error("Received negative partition index -1"):
+        with raises_yt_error("Received negative partition index .*"):
             write_shuffle_data(shuffle_handle, "key1", [{"key1": -1}])
 
         rows = [{"key1": 0, "key2": -1}, {"key1": -1, "key2": 0}]
@@ -240,16 +240,16 @@ class TestShuffleService(YTEnvSetup):
 
         shuffle_handle = start_shuffle("intermediate", partition_count=4, parent_transaction_id=parent_transaction)
 
-        with raises_yt_error("Lower limit of mappers range 10 cannot be greater than upper limit 5"):
+        with raises_yt_error("Lower limit of mappers range .* cannot be greater than upper limit .*"):
             read_shuffle_data(shuffle_handle, 0, writer_index_begin=10, writer_index_end=5)
 
-        with raises_yt_error("Expected >= 0, found -5"):
+        with raises_yt_error("Expected >= .*, found .*"):
             read_shuffle_data(shuffle_handle, 0, writer_index_begin=-5, writer_index_end=5)
 
         with raises_yt_error("Request has only one writer range limit"):
             read_shuffle_data(shuffle_handle, 0, writer_index_begin=0)
 
-        with raises_yt_error("Expected >= 0, found -42"):
+        with raises_yt_error("Expected >= .*, found .*"):
             write_shuffle_data(shuffle_handle, "id", {"id": 0}, writer_index=-42)
 
     @authors("apollo1321")
@@ -336,7 +336,7 @@ class TestShuffleService(YTEnvSetup):
 
     @authors("apollo1321")
     def test_job_proxy_shuffle_service_without_api_service(self):
-        with raises_yt_error("cannot be enabled when"):
+        with raises_yt_error("Option .* cannot be enabled when .* is disabled"):
             run_test_vanilla(
                 "exit 0",
                 task_patch={

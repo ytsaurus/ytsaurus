@@ -16,7 +16,6 @@ from yt_commands import (
     create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows, gc_collect)
 from yt_helpers import master_exit_read_only_sync
 
-from yt.common import YtError
 from yt_type_helpers import make_schema, normalize_schema
 
 from yt.environment.helpers import assert_items_equal
@@ -196,7 +195,7 @@ def check_hierarchical_accounts():
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_count") > 0
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_host_cell_master_memory") > 0
     )
-    with raises_yt_error("Cannot remove an account \"b2\" because its usage is not zero"):
+    with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
         remove_account("b2", sync=False)
 
     # XXX(kiselyovp) this might be flaky
@@ -482,15 +481,15 @@ def check_account_subtree_size_recalculation():
     yield
 
     set("//sys/@config/security_manager/max_account_subtree_size", 3)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         move("//sys/account_tree/b", "//sys/account_tree/d/dc")
     move("//sys/account_tree/d/db", "//sys/account_tree/c/cb")
     move("//sys/account_tree/b", "//sys/account_tree/d/db")
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         move("//sys/account_tree/c/ca", "//sys/account_tree/d/dc")
     set("//sys/@config/security_manager/max_account_subtree_size", 4)
     move("//sys/account_tree/c/ca", "//sys/account_tree/d/dc")
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         move("//sys/account_tree/c", "//sys/account_tree/d/da/daa")
     set("//sys/@config/security_manager/max_account_subtree_size", 6)
     move("//sys/account_tree/c", "//sys/account_tree/d/da/daa")
@@ -513,17 +512,17 @@ def check_scheduler_pool_subtree_size_recalculation():
     yield
 
     set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 3)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("aab", pool_tree="tree1", parent_name="aa", wait_for_orchid=False)
     create_pool("bb", pool_tree="tree1", parent_name="b", wait_for_orchid=False)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("bba", pool_tree="tree1", parent_name="bb", wait_for_orchid=False)
     create_pool("ca", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
     create_pool("cb", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("cd", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
     create_pool("aaa", pool_tree="tree2", parent_name="aa", wait_for_orchid=False)
-    with pytest.raises(YtError):
+    with raises_yt_error("Subtree size limit exceeded"):
         create_pool("aaaa", pool_tree="tree2", parent_name="aaa", wait_for_orchid=False)
     create_pool("a", pool_tree="tree3", wait_for_orchid=False)
 

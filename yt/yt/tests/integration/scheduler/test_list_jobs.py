@@ -787,7 +787,7 @@ class TestListJobs(TestListJobsCommon):
         }
 
         op = vanilla(spec=spec, track=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
 
         clean_operations()
@@ -873,7 +873,7 @@ class TestListJobs(TestListJobsCommon):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        with raises_yt_error(yt_error_codes.UncertainOperationControllerState):
+        with raises_yt_error(code=yt_error_codes.UncertainOperationControllerState):
             checked_list_jobs(op.id)
 
         res = retry(lambda: checked_list_jobs(op.id))

@@ -158,7 +158,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             attributes={"schema": [{"name": "b", "type": "string"}]},
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot make remote copy into table with \"strong\" schema"):
             # To do remote copy into table with "strong" schema mode schemas must be identical.
             remote_copy(
                 in_="//tmp/t1",
@@ -166,7 +166,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot make remote copy into table with \"strong\" schema"):
             # To do remote copy into table with "strong" schema mode schemas must be identical.
             # Even if we force scheduler to infer schema from output.
             remote_copy(
@@ -216,7 +216,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         # We check that yson representation of types are compatible with each other
         write_table("//tmp/output", read_table("//tmp/input", driver=self.remote_driver))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot make remote copy into table with \"strong\" schema since input table schema differs from output table schema"):
             remote_copy(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -373,7 +373,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Erasure codec .* is forbidden"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -541,10 +541,10 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find cluster with name"):
             remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "unexisting"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find any of .* addresses"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -554,7 +554,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/unexisting",
@@ -562,7 +562,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             )
 
         write_table("//tmp/t1", [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remote_copy(
                 in_="//tmp/t1[:#1]",
                 out="//tmp/unexisting",
@@ -592,7 +592,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             make_ace("deny", "u", "read"),
             driver=self.remote_driver,
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -606,7 +606,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             make_ace("deny", "u", "create"),
             driver=self.remote_driver,
         )
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -702,7 +702,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert get("//tmp/t3/@custom_attr2") == "attr_value2"
         assert get("//tmp/t3/@custom_attr3\\/1") == "attr_value3"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Multiple tables in remote copy are not supported"):
             remote_copy(
                 in_=["//tmp/t1", "//tmp/t1"],
                 out="//tmp/t2",
@@ -854,7 +854,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/output")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Multiple tables in remote copy are not supported"):
             remote_copy(
                 in_=["//tmp/t1", "//tmp/t2"],
                 out="//tmp/output",
@@ -866,7 +866,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -887,7 +887,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert not get("//tmp/t2/@sorted")
 
         create("map_node", "//tmp/t3")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists and has type"):
             remote_copy(
                 in_="//tmp/t1",
                 out="<create=true>//tmp/t3",
@@ -1164,7 +1164,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         ]
 
         for path in strange_paths:
-            with raises_yt_error("Input file path must not contain"):
+            with raises_yt_error("Input file path must not contain .* selectors"):
                 remote_copy(
                     in_=path,
                     out="//tmp/out.txt",
@@ -1505,7 +1505,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find any of .* addresses"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1515,7 +1515,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Options .* cannot be specified simultaneously"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1564,7 +1564,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
         create("table", "//tmp/t2")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot find any of .* addresses"):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1792,7 +1792,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 
         # Chunk crosses tablet boundaries and is under nontrivial chunk view.
         sync_reshard_table("//tmp/t1", [[], [1]], driver=self.remote_driver)
-        with raises_yt_error(yt_error_codes.InvalidInputChunk):
+        with raises_yt_error(code=yt_error_codes.InvalidInputChunk):
             remote_copy(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1806,7 +1806,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
         sync_freeze_table("//tmp/t3")
         merge(in_="//tmp/t3", out="//tmp/t3", mode="ordered")
         sync_unmount_table("//tmp/t3")
-        with raises_yt_error(yt_error_codes.InvalidInputChunk):
+        with raises_yt_error(code=yt_error_codes.InvalidInputChunk):
             remote_copy(
                 in_="//tmp/t3",
                 out="//tmp/t2",

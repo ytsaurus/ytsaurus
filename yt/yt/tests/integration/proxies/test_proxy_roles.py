@@ -3,9 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, ls, exists,
     create_proxy_role, remove_proxy_role, create_user, create_group,
-    make_ace, add_member, check_permission)
-
-from yt.common import YtError
+    make_ace, add_member, check_permission, raises_yt_error)
 
 import pytest
 
@@ -32,25 +30,25 @@ class TestProxyRoles(YTEnvSetup):
         assert get("//sys/{}_proxy_roles/r/@name".format(proxy_kind)) == "r"
         assert get("//sys/{}_proxy_roles/r/@proxy_kind".format(proxy_kind)) == proxy_kind
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Proxy role .* already exists"):
             create_proxy_role("r", proxy_kind)
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//sys/{}_proxy_roles/r/@name".format(proxy_kind), "foo")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//sys/{}_proxy_roles/r/@proxy_kind".format(proxy_kind), opposite_kind)
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             get("//sys/{}_proxy_roles/foo/@acl".format(proxy_kind))
 
         remove_proxy_role("r", proxy_kind)
         assert ls("//sys/{}_proxy_roles".format(proxy_kind)) == []
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             remove_proxy_role("r", proxy_kind)
 
     @authors("gritukan")
     def test_invalid(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Proxy role name cannot be empty"):
             create_proxy_role("", "http")
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing .* value"):
             create_proxy_role("r", "foo")
 
     @authors("gritukan")

@@ -5,11 +5,9 @@ from yt_commands import (
     create, create_dynamic_table, alter_table, read_table,
     start_transaction, commit_transaction,
     lookup_rows, select_rows, insert_rows, delete_rows,
-    sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table, sync_unmount_table)
+    sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table, sync_unmount_table, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 import pytest
 
 import yt.yson as yson
@@ -362,7 +360,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("aggregate", ["avg", "cardinality"])
     def test_invalid_aggregate(self, aggregate):
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
 
     @authors("leasid")

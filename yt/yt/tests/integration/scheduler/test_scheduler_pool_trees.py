@@ -527,7 +527,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             remove_pool_tree("other", wait_for_orchid=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation .* aborted"):
             op.track()
 
     @authors("renadeen")
@@ -730,14 +730,14 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             task_patch={"file_paths": ["//tmp/job_file"]},
             track=True)
 
-        with raises_yt_error("exceeds size limit"):
+        with raises_yt_error("User file .* exceeds size limit"):
             run_test_vanilla(
                 "sleep 1",
                 spec={"pool_trees": ["custom"]},
                 task_patch={"file_paths": ["//tmp/job_file"]},
                 track=True)
 
-        with raises_yt_error("exceeds size limit"):
+        with raises_yt_error("User file .* exceeds size limit"):
             run_test_vanilla(
                 "sleep 1",
                 spec={"pool_trees": ["default", "custom"]},
@@ -745,7 +745,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 track=True)
 
         update_controller_agent_config("user_file_limits_per_tree/default", {"max_size": 600000})
-        with raises_yt_error("exceeds size limit"):
+        with raises_yt_error("User file .* exceeds size limit"):
             run_test_vanilla(
                 "sleep 1",
                 spec={"pool_trees": ["custom"]},
@@ -1070,7 +1070,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         spec["tentative_pool_trees"] = ["missing"]
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool tree \"missing\" not found"):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec=spec)
 
         spec["tentative_tree_eligibility"]["ignore_missing_pool_trees"] = True
@@ -1354,7 +1354,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             "schedule_in_single_tree": True,
             "consider_guarantees_for_single_tree": True,
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no best single non-empty tree for operation"):
             run_test_vanilla("sleep 0.6", spec=spec, track=True)
 
     @authors("omgronny")
@@ -1365,7 +1365,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             "schedule_in_single_tree": True,
             "consider_guarantees_for_single_tree": True,
         }
-        with pytest.raises(YtError):
+        with raises_yt_error("Found no best single non-empty tree for operation"):
             run_test_vanilla("sleep 0.6", spec=spec, track=True)
 
     @authors("eshcherbin")
@@ -1804,7 +1804,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
                 )
 
             if should_raise:
-                with pytest.raises(YtError):
+                with raises_yt_error("Limit for the number of concurrent operations .* for pool"):
                     execute(track=True)
             else:
                 op = execute(track=False)
@@ -1838,7 +1838,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         create_pool_tree("other", config={"node_tag_filter": "other"})
         create_pool("pool", pool_tree="other", attributes={"max_running_operation_count": 0, "max_operation_count": 0})
 
-        with raises_yt_error(yt_error_codes.TooManyOperations):
+        with raises_yt_error(code=yt_error_codes.TooManyOperations):
             run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["default", "other"]})
 
         op = run_sleeping_vanilla(spec={
@@ -1849,7 +1849,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees", default=None) == ["other"])
         wait(lambda: ls(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree") == ["default"])
 
-        with raises_yt_error(yt_error_codes.TooManyOperations) as errors:
+        with raises_yt_error(code=yt_error_codes.TooManyOperations) as errors:
             run_sleeping_vanilla(spec={
                 "pool": "pool",
                 "pool_trees": ["other"],
@@ -1909,7 +1909,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
         run_test_vanilla("echo OK >&2", track=True)
 
         def check_op(task_patch):
-            with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+            with raises_yt_error(code=yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
                 run_test_vanilla("echo FAIL >&2", task_patch=task_patch, track=True)
 
             op = run_sleeping_vanilla(spec={"pool_trees": ["default", "other"]}, task_patch=task_patch)
@@ -1951,7 +1951,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 
         wait(lambda: not get(op2.get_path() + "/@runtime_parameters/erased_trees", []))
 
-        with raises_yt_error(yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
+        with raises_yt_error(code=yt_error_codes.Scheduler.JobResourceLimitsRestrictionsViolated):
             run_test_vanilla("echo FAIL >&2", track=True)
 
 

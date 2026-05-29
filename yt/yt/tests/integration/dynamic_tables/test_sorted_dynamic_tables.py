@@ -264,7 +264,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         rows = [{"key": 0, "value": "A" * 100}]
         insert_rows("//tmp/t", rows)
-        with pytest.raises(YtError):
+        with raises_yt_error("Maximum row data weight limit reached"):
             insert_rows("//tmp/t", rows)
 
     @authors("lukyan")
@@ -307,7 +307,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx3)
 
         assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
@@ -320,7 +320,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         commit_transaction(tx2)
 
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx1)
 
         tx1 = start_transaction(type="tablet")
@@ -331,7 +331,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         commit_transaction(tx1)
 
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
 
     @authors("ponasenko-rs")
@@ -359,7 +359,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx_to_conflict)
         if check_conflict_horizon:
-            with raises_yt_error(yt_error_codes.CannotCheckConflictsAgainstChunkStore):
+            with raises_yt_error(code=yt_error_codes.CannotCheckConflictsAgainstChunkStore):
                 commit_transaction(tx_to_conflict)
         else:
             commit_transaction(tx_to_conflict)
@@ -386,7 +386,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(lock_tx)
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0xb}], tx=tx_to_conflict_before_recovery)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx_to_conflict_before_recovery)
 
         build_snapshot(cell_id=cell_id)
@@ -397,7 +397,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             pass
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0xa}], tx=tx_to_conflict_after_recovery)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx_to_conflict_after_recovery)
 
     @authors("kvk1920")
@@ -460,7 +460,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -476,7 +476,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 3, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+        with raises_yt_error(code=yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -554,9 +554,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        with raises_yt_error(yt_error_codes.InvalidTabletState):
+        with raises_yt_error(code=yt_error_codes.InvalidTabletState):
             set("//tmp/t/@serialization_type", "per_row")
-        with raises_yt_error(yt_error_codes.InvalidTabletState):
+        with raises_yt_error(code=yt_error_codes.InvalidTabletState):
             set("//tmp/t/@serialization_type", "coarse")
 
         sync_unmount_table("//tmp/t")
@@ -618,7 +618,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert_items_equal(read_table("//tmp/t"), [value2, value1])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, {}], "value": "wrong"}
             insert_rows("//tmp/t", [wrong_value])
 
@@ -659,11 +659,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(read_table("//tmp/t1"), [value2, value1])
         assert_items_equal(read_table("//tmp/t2"), [value4, value3])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, []], "value": "wrong"}
             insert_rows("//tmp/t1", [wrong_value])
 
-        with raises_yt_error(yt_error_codes.SchemaViolation):
+        with raises_yt_error(code=yt_error_codes.SchemaViolation):
             wrong_value = {"key": [3, "a"], "value": "wrong"}
             insert_rows("//tmp/t2", [wrong_value])
 
@@ -712,7 +712,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             max_dynamic_store_row_count=10)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot change table memory mode since not all tablets are unmounted"):
             set("//tmp/t/@in_memory_mode", "none")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -912,21 +912,21 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//tmp/t/@key_columns", ["key", "key2"])
 
     @authors("babenko")
     def test_update_key_columns_fail2(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//tmp/t/@key_columns", ["key2", "key3"])
 
     @authors("babenko")
     def test_update_key_columns_fail3(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Builtin attribute .* cannot be set"):
             set("//tmp/t/@key_columns", [])
 
     @authors("babenko")
@@ -962,7 +962,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             self._create_simple_table("//tmp/t", atomicity=a1)
             sync_mount_table("//tmp/t")
             rows = [{"key": i, "value": str(i)} for i in range(100)]
-            with pytest.raises(YtError):
+            with raises_yt_error("Invalid atomicity mode"):
                 insert_rows("//tmp/t", rows, atomicity=a2)
             remove("//tmp/t")
 
@@ -1161,7 +1161,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         keys = [{"key": 1}]
-        with pytest.raises(YtError):
+        with raises_yt_error("Not an active leader"):
             lookup_rows("//tmp/t", keys, read_from="follower")
 
     @authors("babenko")
@@ -1360,7 +1360,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         assert not exists("//tmp/t/@commit_ordering")
 
-        with raises_yt_error("commit ordering, cannot set it"):
+        with raises_yt_error("Sorted tables only support \"weak\" commit ordering, cannot set it to \"strong\""):
             self._create_simple_table("//tmp/ts", commit_ordering="strong")
 
     @authors("max42")
@@ -1394,15 +1394,15 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         yson_with_type_conversion = yson.loads(b"<enable_type_conversion=%true>yson")
         yson_without_type_conversion = yson.loads(b"<enable_integral_type_conversion=%false>yson")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             insert_rows("//tmp/t", [row1], input_format=yson_without_type_conversion)
         insert_rows("//tmp/t", [row1], input_format=yson_with_type_conversion)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             lookup_rows("//tmp/t", [row2], input_format=yson_without_type_conversion)
         assert len(lookup_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)) == 1
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             delete_rows("//tmp/t", [row2], input_format=yson_without_type_conversion)
         delete_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)
 
@@ -1478,7 +1478,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
         sync_compact_table("//tmp/t")
-        with pytest.raises(YtError):
+        with raises_yt_error("Timestamp .* is less than tablet .* retained timestamp .*"):
             lookup_rows("//tmp/t", [{"key": 0}], timestamp=ts)
 
     @authors("savrus")
@@ -1759,11 +1759,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         ts1 = generate_timestamp()
         ts2 = generate_timestamp()
-        with pytest.raises(YtError):
+        with raises_yt_error("Retention timestamp .* greater than read timestamp"):
             read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts1, ts2))
-        with pytest.raises(YtError):
+        with raises_yt_error("Retention timestamp .* greater than read timestamp"):
             lookup_rows("//tmp/t", [{"key": 1}], timestamp=ts1, retention_timestamp=ts2)
-        with pytest.raises(YtError):
+        with raises_yt_error("Retention timestamp .* greater than read timestamp"):
             select_rows("* from [//tmp/t]", timestamp=ts1, retention_timestamp=ts2)
 
         read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts1, ts1))
@@ -2303,7 +2303,7 @@ class TestFirstBatchWriteRetries(TestSortedDynamicTablesBase):
         assert action == ls("//sys/tablet_actions")[0]
         wait(lambda: get(f"#{action}/@state") == "completed")
 
-        with raises_yt_error("mount_revision_changed"):
+        with raises_yt_error("No such tablet .*"):
             commit_transaction(tx1)
 
     @authors("alexelexa")
@@ -2448,16 +2448,16 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict()])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key_req=1, value_opt="data")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key_opt=1, value_req="data", value_opt="data")])
 
         insert_rows("//tmp/t", [dict(key_req=1, value_req="data")])
         insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")])
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required column"):
             insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_opt="other_data")], update=True)
 
         assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
@@ -2468,7 +2468,7 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
             [dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             delete_rows("//tmp/t", [dict(key_opt=1)])
         delete_rows("//tmp/t", [dict(key_req=1234)])
         delete_rows("//tmp/t", [dict(key_req=1, key_opt=1)])
@@ -2488,7 +2488,7 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
             {"name": "value", "type": "string"}]
 
         sync_create_cells(1)
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_simple_table("//tmp/t", schema=schema)
 
     @authors("ifsmirnov")
@@ -2501,10 +2501,10 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key=1)])
         insert_rows("//tmp/t", [dict(key=1, value=2)])
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             insert_rows("//tmp/t", [dict(key=1)])
 
     @authors("ifsmirnov")
@@ -2559,11 +2559,11 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No column .* in table schema"):
             insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("No column .* in table schema"):
             lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
-        with pytest.raises(YtError):
+        with raises_yt_error("No column .* in table schema"):
             delete_rows("//tmp/t", [{"key1": 2, "key2": 203}])
 
         expected = []
@@ -2910,7 +2910,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                     break
 
         insert_rows("//tmp/t2", [next(_get_row)])
-        with raises_yt_error(yt_error_codes.AllWritesDisabled):
+        with raises_yt_error(code=yt_error_codes.AllWritesDisabled):
             insert_rows("//tmp/t1", [next(_get_row)])
 
         remove("//tmp/t2")
@@ -3058,11 +3058,11 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             return 'a' * 66000
         return 'value'
 
-    def _expect_error_without_slicing_by_default(self, func):
+    def _expect_error_without_slicing_by_default(self, func, error):
         if self.ENABLE_SLICING_BY_DEFAULT:
             func(None)
         else:
-            with pytest.raises(YtError):
+            with raises_yt_error(error):
                 func(True)
 
     @authors("alexelexa")
@@ -3076,13 +3076,15 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
             "//tmp/t",
             tablet_count,
-            enable_slicing=enable_slicing))
+            enable_slicing=enable_slicing),
+            "Empty table .* cannot be resharded to more than one tablet")
         self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
             "//tmp/t",
             tablet_count,
             enable_slicing=enable_slicing,
             first_tablet_index=0,
-            last_tablet_index=0))
+            last_tablet_index=0),
+            "Empty table .* cannot be resharded to more than one tablet")
 
     @authors("alexelexa")
     @pytest.mark.parametrize(
@@ -3163,7 +3165,8 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         self._expect_error_without_slicing_by_default(
-            lambda _: reshard_and_check(2 * len(rows), 1, first_tablet_index=None, last_tablet_index=None))
+            lambda _: reshard_and_check(2 * len(rows), 1, first_tablet_index=None, last_tablet_index=None),
+            "Could not reshard table .* to desired tablet count")
 
         reshard_and_check(3, 3, first_tablet_index=0, last_tablet_index=0)
         reshard_and_check(5, 5, first_tablet_index=None, last_tablet_index=None)
@@ -3351,7 +3354,8 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             4,
             enable_slicing=enable_slicing,
             first_tablet_index=0,
-            last_tablet_index=1))
+            last_tablet_index=1),
+            "Could not reshard table .* to desired tablet count")
 
     @authors("alexelexa")
     def test_replicated_table_reshard(self):
@@ -3365,7 +3369,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             "schema": schema,
             "replication_factor": 1})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys must be provided to reshard a replicated table"):
             sync_reshard_table("//tmp/t", 4, enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None)
 
     @authors("alexelexa")
@@ -3426,7 +3430,7 @@ class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@optimize_for") == "lookup"
 
         set("//tmp/t/@chunk_format", "table_unversioned_schemaful")
-        with raises_yt_error("is not a valid versioned chunk format"):
+        with raises_yt_error(".* is not a valid versioned chunk format"):
             mount_table("//tmp/t")
 
         set("//tmp/t/@chunk_format", "table_versioned_columnar")
@@ -3787,7 +3791,7 @@ class TestDynamicNestedColumns(DynamicTablesBase):
         sync_compact_table("//tmp/t")
         _check()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Item count mismatch in nested key column"):
             insert_rows(
                 "//tmp/t",
                 [
@@ -3796,7 +3800,7 @@ class TestDynamicNestedColumns(DynamicTablesBase):
                 aggregate=True
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Item count mismatch in nested value column"):
             insert_rows(
                 "//tmp/t",
                 [
@@ -3805,7 +3809,7 @@ class TestDynamicNestedColumns(DynamicTablesBase):
                 aggregate=True
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_table(
                 "//tmp/t1",
                 [
@@ -3816,7 +3820,7 @@ class TestDynamicNestedColumns(DynamicTablesBase):
                 ]
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("New table schema is not valid"):
             self._create_table(
                 "//tmp/t2",
                 [

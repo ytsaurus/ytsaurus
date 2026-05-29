@@ -15,7 +15,6 @@ from yt_type_helpers import (
 from yt_helpers import skip_if_component_old
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
 import yt.yson as yson
 
 import pytest
@@ -575,7 +574,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(chunk_count):
             write_table("<append=true>//tmp/t_in", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"batch_row_count\" cannot be used with input sampling"):
             merge(
                 combine_chunks=False,
                 mode="ordered",
@@ -694,7 +693,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"key": 1}])
         write_table("//tmp/t2", [{"key": "1"}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/out")
 
     @authors("gritukan")
@@ -716,7 +715,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"key": 1}])
         write_table("//tmp/t2", [{"key": 1}])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns do not match: input table .* is sorted by columns .* while input table .* is sorted by columns .*"):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/out")
 
     @authors("psushin")
@@ -729,7 +728,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
 
         create("table", "//tmp/t_out")
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort column .* is discarded by input column selectors"):
             merge(mode="sorted", in_=["<columns=[b]>//tmp/t"], out="//tmp/t_out")
 
     @authors("klyachin")
@@ -1169,7 +1168,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         # error when sorted_by of input tables are different and merge_by is not set
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns do not match: input table .* is sorted by columns .* while input table .* is sorted by columns .*"):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out")
 
         # now merge_by is set
@@ -1229,7 +1228,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"name": "b", "sort_order": sort_order}
         ])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate key"):
             merge(
                 mode="sorted",
                 in_="//tmp/t3",
@@ -1336,7 +1335,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             ],
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Merge sort columns do not match output table schema"):
             merge(
                 mode="sorted",
                 in_="//tmp/t1",
@@ -1617,7 +1616,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"input_query\" is not supported in a sorted merge operation; consider using ordered merge instead"):
             merge(
                 mode="sorted",
                 in_="//tmp/t1",
@@ -1731,7 +1730,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/output_loose/@schema_mode") == "strong"
         assert not get("//tmp/output_loose/@schema/@strict")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             # changing from strict schema to nonstrict is not allowed
             merge(in_="//tmp/input_loose", out="//tmp/output_strict")
 
@@ -1754,11 +1753,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot perform unordered merge into a sorted table"):
             # cannot do unordered merge to sorted output
             merge(in_="//tmp/input_loose", out="//tmp/output_sorted")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot perform unordered merge into a sorted table"):
             # even in user insists
             merge(
                 in_="//tmp/input_loose",
@@ -1780,10 +1779,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_strong")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             merge(in_=["//tmp/input_weak", "//tmp/input_bad"], out="//tmp/output_strong")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_weak")
 
     @authors("babenko")
@@ -1819,7 +1818,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             merge(
                 in_="//tmp/input",
                 out="//tmp/output",
@@ -1860,7 +1859,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             merge(
                 mode="ordered",
                 in_="//tmp/input",
@@ -1905,7 +1904,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             merge(
                 mode="sorted",
                 in_="//tmp/input",
@@ -1954,7 +1953,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         if mode == "sorted":
             merge_by_args["merge_by"] = "index"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Table schemas are incompatible"):
             merge(
                 mode=mode,
                 in_="//tmp/input",
@@ -2051,7 +2050,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(10):
             write_table("<append=true;>//tmp/input", {"key": i % 3, "value": "foo"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot perform unordered merge into a sorted table"):
             merge(
                 mode="unordered",
                 in_="//tmp/input",
@@ -2059,7 +2058,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 spec={"schema_inference_mode": "from_output"},
             )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort order violation"):
             merge(
                 mode="ordered",
                 in_="//tmp/input",
@@ -2364,7 +2363,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             attributes={"schema": [{"name": "key", "type": "int64"}]},
         )
         write_table("//tmp/t1", [{"key": None}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Node .* has no child with key .*"):
             merge(
                 in_="//tmp/t1",
                 out="<schema=[{name=key;type=int64;required=true}]>//tmp/t2",
@@ -2391,7 +2390,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table(schemaless_table, [{"x": str(i)} for i in range(100, 200)])
 
         # merging non-strict table with strict table
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             merge(
                 mode=mode,
                 in_=[schemaless_table, schemaful_table],
@@ -2434,7 +2433,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table(table1, [{"x": i, "y": i} for i in range(100)])
         write_table(table2, [{"y": i} for i in range(100, 200)])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Required column .* cannot have .* value"):
             merge(
                 mode=mode,
                 in_=[table2, table1],
@@ -2963,7 +2962,7 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
         rows = [{"a": 2, "b" : 2, "d" : 2}, {"a": 3, "b" : 3}]
         write_table("//tmp/t2", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 mode=merge_mode,
                 in_=["//tmp/t1", "//tmp/t2"],
@@ -3051,7 +3050,7 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
             "//tmp/output2"
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 mode=merge_mode,
                 in_=["//tmp/t2", "//tmp/t3"],
@@ -3091,7 +3090,7 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
         rows = [{"a": yson.YsonEntity()}]
         write_table("//tmp/t2", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot infer output schema from input"):
             merge(
                 mode=merge_mode,
                 in_=["//tmp/t1", "//tmp/t2"],

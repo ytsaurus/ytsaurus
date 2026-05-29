@@ -4,11 +4,11 @@ from yt_commands import (
     authors, create, ls, get, set, exists, remove, create_data_center, create_rack,
     remove_data_center, write_file, wait, sync_control_chunk_replicator,
     read_journal, write_journal, write_table, wait_until_sealed,
-    get_nodes, set_nodes_banned, get_racks, get_data_centers, get_singular_chunk_id)
+    get_nodes, set_nodes_banned, get_racks, get_data_centers, get_singular_chunk_id, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
 
-from yt.common import YtError, WaitFailed
+from yt.common import WaitFailed
 
 import pytest
 
@@ -196,13 +196,13 @@ class TestDataCenters(TestDataCentersBase):
 
     @authors("shakurov")
     def test_empty_name_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center name cannot be empty"):
             create_data_center("")
 
     @authors("shakurov")
     def test_duplicate_name_fail(self):
         create_data_center("d")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             create_data_center("d")
 
     @authors("shakurov")
@@ -228,7 +228,7 @@ class TestDataCenters(TestDataCentersBase):
     def test_rename_fail(self):
         create_data_center("d1")
         create_data_center("d2")
-        with pytest.raises(YtError):
+        with raises_yt_error(".* already exists"):
             set("//sys/data_centers/d1/@name", "d2")
 
     @authors("shakurov")
@@ -301,7 +301,7 @@ class TestDataCenters(TestDataCentersBase):
         create_rack("r")
         n = get_nodes()[0]
         self._set_rack(n, "r")
-        with pytest.raises(YtError):
+        with raises_yt_error("No such data center .*"):
             self._set_data_center("r", "d")
 
     @authors("shakurov")
@@ -340,7 +340,7 @@ class TestDataCenters(TestDataCentersBase):
     def test_data_center_count_limit(self):
         for i in range(16):
             create_data_center("d" + str(i))
-        with pytest.raises(YtError):
+        with raises_yt_error("Data center count limit .* is reached"):
             create_data_center("too_many")
 
     @authors("gritukan")
@@ -413,7 +413,7 @@ class TestDataCenters(TestDataCentersBase):
         self._init_data_center_aware_replicator()
 
         self._ban_data_centers(["d0", "d1", "d2"])
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
 
     @authors("gritukan")
@@ -527,7 +527,7 @@ class TestFaultyDataCenters(TestDataCentersBase):
         with pytest.raises(WaitFailed):
             wait(lambda: len(get("//sys/@faulty_storage_data_centers")) > 0, timeout=10)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(replication_factor=3)
 
     @authors("koloshmet")
@@ -553,7 +553,7 @@ class TestFaultyDataCenters(TestDataCentersBase):
         wait(lambda: has_alert("Storage data center \"d0\" considered faulty"))
         wait(lambda: sorted(get("//sys/@faulty_storage_data_centers")) == ["d0", "d1", "d2"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(replication_factor=3)
 
         set_nodes_banned(nodes, False)
@@ -570,7 +570,7 @@ class TestFaultyDataCenters(TestDataCentersBase):
         wait(lambda: has_alert("Storage data center \"d2\" considered faulty"))
         wait(lambda: sorted(get("//sys/@faulty_storage_data_centers")) == ["d0", "d1", "d2"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Not enough data nodes available to write chunk"):
             self._create_chunk(replication_factor=3)
 
     @authors("koloshmet")

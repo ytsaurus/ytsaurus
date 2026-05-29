@@ -158,10 +158,10 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$key": "link&", "key": "link", "type": "link"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select key from ytNodeAttributes()')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select key from ytNodeAttributes('//this_table_does_not_exist')")
 
     @authors("dakovalkov")
@@ -248,10 +248,10 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$path": "//tmp/dir2/30min/2021-01-03T02:00:00"},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//this_dir_does_not_exist')")
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query("select $path from ytListLogTables('//tmp/dir3')")
 
     @authors("dakovalkov", "buyval01")
@@ -305,10 +305,10 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"a": 2},
             ]
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * form ytTables()')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 # dir1 contains subdir.
                 clique.make_query("select * from ytTables(ytListNodes('//tmp/dir1'))")
 
@@ -320,7 +320,7 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$path": "//tmp/dir1/t0"},
             ]
             # The new CH analyzer does not work with subqueries not wrapped in a table view function as function arguments.
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query(f"select * from ytTables({subquery})")
             assert clique.make_query(f"select * from ytTables(view({subquery})) order by a") == [
                 {"a": 0},

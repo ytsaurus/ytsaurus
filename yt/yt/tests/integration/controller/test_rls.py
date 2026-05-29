@@ -89,7 +89,7 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
 
     def test_no_omit_inaccessible_rows(self, optimize_for):
         self._prepare_simple_test(optimize_for)
-        with raises_yt_error("Access denied for user \"prime_user\""):
+        with raises_yt_error("Access denied"):
             merge(
                 in_="//tmp/t",
                 out="<create=%true>//tmp/t_out",

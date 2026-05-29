@@ -12,8 +12,6 @@ from yt_sequoia_helpers import (
 
 from yt.sequoia_tools import DESCRIPTORS
 
-from yt.common import YtError
-
 import pytest
 
 
@@ -84,15 +82,15 @@ class TestGrafting(YTEnvSetup):
     @authors("kvk1920", "gritukan")
     def test_cannot_create_rootstock_in_transaction(self):
         tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Rootstocks cannot be created in transaction"):
             create("rootstock", "//tmp/p", tx=tx)
 
     @authors("kvk1920", "gritukan")
     def test_cannot_copy_move_rootstock(self):
         create("rootstock", "//tmp/r")
-        with raises_yt_error("Cannot clone a rootstock"):
+        with raises_yt_error("Cannot clone a (portal|rootstock)"):
             copy("//tmp/r&", "//tmp/r2")
-        with raises_yt_error("Cannot clone a rootstock"):
+        with raises_yt_error("Cannot clone a (portal|rootstock)"):
             move("//tmp/r&", "//tmp/r2")
 
     @authors("kvk1920")
@@ -114,12 +112,12 @@ class TestGrafting(YTEnvSetup):
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
         create("rootstock", "//tmp/sequoia")
-        with raises_yt_error("is internal type and should not be used directly"):
+        with raises_yt_error(".* is internal type and should not be used directly; use .* instead"):
             create("sequoia_map_node", "//tmp/sequoia/m")
 
     @authors("kvk1920")
     def test_create_rootstock_in_unexisting_map_node(self):
-        with raises_yt_error("Node //tmp has no child with key \"unexisting\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             create("rootstock", "//tmp/unexisting/r")
 
     @authors("kvk1920")

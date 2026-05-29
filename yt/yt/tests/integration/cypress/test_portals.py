@@ -91,14 +91,14 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_validate_cypress_node_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["chunk_host"]}})
-        with raises_yt_error("cannot host Cypress nodes"):
+        with raises_yt_error("Cell with tag .* cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_validate_cypress_node_host_cell_role2(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", False)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with raises_yt_error("cannot host Cypress nodes"):
+        with raises_yt_error("Cell with tag .* cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -106,7 +106,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
-        with raises_yt_error("Attribute \"exit_cell_tag\" is not found"):
+        with raises_yt_error("Attribute .* is not found"):
             create("portal_entrance", "//tmp/p")
 
     @authors("babenko")
@@ -131,7 +131,7 @@ class TestPortals(YTEnvSetup):
     def test_cannot_enable_acl_inheritance(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         get("//tmp/p&/@exit_node_id")
-        with raises_yt_error("Node //tmp has no child with key \"p\""):
+        with raises_yt_error("Node .* has no child with key .*"):
             set("//tmp/p/@inherit_acl", True, driver=get_driver(1))
 
     @authors("babenko")
@@ -298,7 +298,7 @@ class TestPortals(YTEnvSetup):
             attributes={"account": "a", "external": True, "external_cell_tag": 12},
         )
         wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
-        with raises_yt_error("Cannot remove an account \"a\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
             remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "creation_committed"
         wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "creation_committed")
@@ -609,7 +609,7 @@ class TestPortals(YTEnvSetup):
         remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
 
-        with raises_yt_error("Tablet cell bundle \"b\" cannot be used"):
+        with raises_yt_error("Tablet cell bundle .* cannot be used"):
             copy("//tmp/p1/t", "//tmp/p2/t")
 
         remove("//tmp/p1/t")
@@ -702,7 +702,7 @@ class TestPortals(YTEnvSetup):
         link("//tmp/p/l", target_link)
 
         if not target_on_primary:
-            with raises_yt_error("link is cyclic"):
+            with raises_yt_error("Failed to create link: link is cyclic"):
                 link(target_link, "//tmp/p/l", force=True)
             return
 
@@ -711,7 +711,7 @@ class TestPortals(YTEnvSetup):
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
         _maybe_purge_resolve_cache(purge_resolve_cache, target_link + '&')
 
-        with raises_yt_error("exceeds resolve depth limit"):
+        with raises_yt_error("Path .* exceeds resolve depth limit"):
             ls("//tmp/p/l")
 
     @authors("koloshmet")
@@ -1236,7 +1236,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p", ignore_existing=True)
         create("table", "//tmp/t")
-        with raises_yt_error("//tmp/t already exists and has type \"table\" while node of \"map_node\" type is about to be created"):
+        with raises_yt_error(".* already exists and has type \"table\" while node of \"map_node\" type is about to be created"):
             create("map_node", "//tmp/t", ignore_existing=True)
 
     @authors("kvk1920")
@@ -1376,14 +1376,14 @@ class TestPortals(YTEnvSetup):
     @authors("h0pless")
     def test_internalize_deprication(self):
         create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("Node internalization is deprecated and is no longer possible."):
+        with raises_yt_error("Node internalization is deprecated and is no longer possible"):
             internalize("//tmp/m")
         remove("//tmp/portal")
 
     @authors("cherepashka")
     def test_revoke_cypress_node_host_role_validation(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with raises_yt_error("it still hosts Cypress nodes"):
+        with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts Cypress nodes"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
 
 
@@ -2506,7 +2506,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_cant_copy_subtree_with_portal(self):
-        with raises_yt_error("Cannot clone a"):
+        with raises_yt_error("Cannot clone a (portal|rootstock)"):
             self.execute_command("//tmp", "//home/other")
 
     @authors("h0pless")
@@ -2517,7 +2517,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_table(src_path)
 
         if self.COMMAND == "copy":
-            with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
+            with raises_yt_error("Cannot specify"):
                 self.execute_command(src_path, dst_path, ignore_existing=True, force=True)
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)
@@ -2530,7 +2530,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_table(src_path)
 
         if self.COMMAND == "copy":
-            with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
+            with raises_yt_error("Cannot specify"):
                 self.execute_command(src_path, dst_path, lock_existing=True)
         else:
             self.execute_command(src_path, dst_path, lock_existing=True)

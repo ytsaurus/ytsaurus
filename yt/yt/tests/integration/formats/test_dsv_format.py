@@ -41,7 +41,7 @@ class TestDsvFormat(YTEnvSetup):
             ],
         )
 
-        with raises_yt_error("are not supported by the chosen format"):
+        with raises_yt_error("Values of type .* are not supported by the chosen format"):
             read_table("//tmp/t_in", output_format="dsv")
 
         format = yson.YsonString(b"dsv")
@@ -86,7 +86,7 @@ class TestYamredDsvFormat(YTEnvSetup):
 
         format = yson.YsonString(b"yamred_dsv")
         format.attributes["key_column_names"] = ["int"]
-        with raises_yt_error("are not supported by the chosen format"):
+        with raises_yt_error("Values of type .* are not supported by the chosen format"):
             read_table("//tmp/t_in", output_format=format)
 
         format.attributes["skip_unsupported_types_in_value"] = True

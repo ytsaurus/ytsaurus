@@ -127,7 +127,7 @@ class TestBackups(DynamicTablesBase):
             }
         })
 
-        with raises_yt_error(yt_error_codes.BackupCheckpointRejected):
+        with raises_yt_error(code=yt_error_codes.BackupCheckpointRejected):
             create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=0)
 
     def _insert_into_multiple_tables(self, tables, rows):
@@ -1313,7 +1313,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         assert replica_info["current_replication_row_index"] < tablet_info["total_row_count"]
 
         # Replica 1 of sync mode is not in sync and cannot be backed up.
-        with raises_yt_error(yt_error_codes.BackupCheckpointRejected):
+        with raises_yt_error(code=yt_error_codes.BackupCheckpointRejected):
             create_table_backup(self._make_backup_manifest([1]))
 
         # create_table_backup() doesn't wait for locks release on failure so

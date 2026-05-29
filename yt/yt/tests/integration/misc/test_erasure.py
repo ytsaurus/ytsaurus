@@ -493,7 +493,7 @@ class TestErasure(TestErasureBase):
         write_table("<erasure_codec={}>//tmp/table".format(erasure_codec), [{"key": 0}])
         assert erasure_codec == get("//tmp/table/@erasure_codec")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"append\" and \"erasure_codec\" are not compatible"):
             write_table("<append=true;erasure_codec={}>//tmp/table".format(erasure_codec), [{"key": 0}])
 
     @authors("prime")
@@ -507,7 +507,7 @@ class TestErasure(TestErasureBase):
         write_file("<erasure_codec=none>//tmp/f", b"a")
         assert get("//tmp/f/@erasure_codec") == "none"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("\"append\" and \"compression_codec\" are not compatible"):
             write_file("<append=true;compression_codec=none>//tmp/f", b"a")
 
     @authors("shakurov")

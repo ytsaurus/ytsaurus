@@ -946,7 +946,7 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 18, "c_new": 2.71})
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18')
 
     @authors("levysotsky")
@@ -1013,10 +1013,10 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/table_explicitly_not_banned", data)
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('select * from "//tmp/table_banned"')
 
-            with raises_yt_error(QueryFailedError):
+            with raises_yt_error(code=QueryFailedError):
                 clique.make_query('exists "//tmp/table_banned"')
 
             assert clique.make_query('select * from "//tmp/table_implicitly_not_banned"') == data

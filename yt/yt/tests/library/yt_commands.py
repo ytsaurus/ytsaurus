@@ -24,6 +24,7 @@ import copy as pycopy
 import os
 import pytest
 import random
+import re
 import hashlib
 import stat
 import sys
@@ -66,18 +67,35 @@ def authors(*the_authors):
 
 
 @contextlib.contextmanager
-def raises_yt_error(code=None, required=True):
+def raises_yt_error(message_pattern=None, code=None, required=True):
     """
     Context manager that helps to check that code raises YTError.
-    When description is int we check that raised error contains this error code.
-    When description is string we check that raised error contains description as substring.
+
+    ``message_pattern`` (the first positional argument) is a string matched
+    against the raised error: ``.*``, ``.+`` and ``|`` inside it are treated as
+    regex wildcards/alternation, all other characters match literally.
+    Alternation is useful when different cluster versions report the same failure
+    with slightly different wording.
+
+    ``code`` is an integer error code; if set, the raised error must contain it.
+
+    Both checks may be combined. With neither set, any YTError is accepted.
     Value of context manager is a single-element list containing caught error.
 
     Examples:
-        with raises_yt_error(yt_error_codes.SortOrderViolation):
+        with raises_yt_error(code=yt_error_codes.SortOrderViolation):
             ...
 
         with raises_yt_error("Name of struct field #0 is empty"):
+            ...
+
+        with raises_yt_error("is over .* limit"):
+            ...
+
+        with raises_yt_error("cannot be greater than|should not be greater than"):
+            ...
+
+        with raises_yt_error("Quota exceeded", code=yt_error_codes.AccountLimitExceeded):
             ...
 
         with raises_yt_error() as err:
@@ -86,14 +104,16 @@ def raises_yt_error(code=None, required=True):
     """
 
     result_list = []
-    if not isinstance(code, (str, int, type(None))):
-        raise TypeError("code must be str, int or None, actual type: {}".format(code.__class__))
+    if not isinstance(message_pattern, (str, type(None))):
+        raise TypeError("message_pattern must be str or None, actual type: {}".format(message_pattern.__class__))
+    if not isinstance(code, (int, type(None))):
+        raise TypeError("code must be int or None, actual type: {}".format(code.__class__))
     try:
         yield result_list
         if required:
             raise AssertionError("Expected exception to be raised")
     except YtError as e:
-        if isinstance(code, int):
+        if code is not None:
             if not e.contains_code(code):
                 raise AssertionError(
                     "Raised error doesn't contain error code {}:\n{}".format(
@@ -101,16 +121,23 @@ def raises_yt_error(code=None, required=True):
                         e,
                     )
                 )
-        elif isinstance(code, str):
-            if code not in str(e):
+        if message_pattern is not None:
+            pattern = (
+                re.escape(message_pattern)
+                .replace(r"\.\*", ".*")
+                .replace(r"\.\+", ".+")
+                .replace(r"\|", "|")
+            )
+            # Treat \(...\) as a regex group only when it encloses alternation
+            # (i.e. contains an unescaped |); otherwise keep parens literal.
+            pattern = re.sub(r"\\\(([^()]*\|[^()]*)\\\)", r"(\1)", pattern)
+            if not re.search(pattern, str(e), re.DOTALL):
                 raise AssertionError(
-                    "Raised error doesn't contain \"{}\":\n{}".format(
-                        code,
+                    "Raised error doesn't match \"{}\":\n{}".format(
+                        message_pattern,
                         e,
                     )
                 )
-        else:
-            assert code is None
         result_list.append(e)
 
 

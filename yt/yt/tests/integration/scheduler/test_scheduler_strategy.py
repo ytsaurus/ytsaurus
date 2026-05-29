@@ -880,7 +880,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         set_node_banned(node, True)
 
         print_debug("Fail strategy")
-        with pytest.raises(YtError):
+        with raises_yt_error("Materialization failed"):
             map(
                 in_="//tmp/t_in{key2}",
                 out="//tmp/t_out",
@@ -953,7 +953,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         set_all_nodes_banned(True)
 
         print_debug("Fail strategy")
-        with pytest.raises(YtError):
+        with raises_yt_error("Materialization failed"):
             sort(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
@@ -1006,7 +1006,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         set_all_nodes_banned(True)
 
         print_debug("Fail strategy")
-        with pytest.raises(YtError):
+        with raises_yt_error("Materialization failed"):
             merge(
                 mode="sorted",
                 in_=["//tmp/t1", "//tmp/t2"],
@@ -1265,7 +1265,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 )
 
             if should_raise:
-                with pytest.raises(YtError):
+                with raises_yt_error("Limit for the number of concurrent operations .* for pool"):
                     execute(track=True)
             else:
                 op = execute(track=False)
@@ -1371,7 +1371,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         _run_op()
         set("//sys/pools{0}/@acl/0/action".format(acl_path), "deny")
         check_permission("u", "use", "//sys/pools" + acl_path)
-        with pytest.raises(YtError):
+        with raises_yt_error("User .* has been denied access to pool .* in pool tree .*"):
             _run_op()
 
     @authors("ignat")
@@ -1401,7 +1401,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create_pool("p2", parent_name="p1")
         create_pool("default_pool", attributes={"forbid_immediate_operations": True})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Starting operations immediately in pool"):
             map(
                 command="cat",
                 in_="//tmp/t_in",
@@ -1543,7 +1543,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         for op in ops:
             self._wait_for_operation(op)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Limit for the number of concurrent operations .* for pool"):
             run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
 
         self._check_operation_counts(1, 1, 0, 4, 0, 4)
@@ -1572,7 +1572,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
         self._check_operation_counts(2, 2, 0, 1, 0, 1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Max running operation count in pool"):
             update_op_parameters(ops[2].id, parameters={"pool": "pool"})
 
         for op in ops:
@@ -2393,7 +2393,7 @@ class TestEphemeralPools(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Limit for the number of concurrent operations .* for pool"):
             run_test_vanilla(command="", spec={"pool": "custom_pool"}, track=True)
 
     @authors("renadeen")
@@ -2526,7 +2526,7 @@ class TestEphemeralPools(YTEnvSetup):
             get(scheduling_info_per_pool_tree + "/default/user_to_ephemeral_pools/root")
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot create new ephemeral pool .* as limit for number of ephemeral pools .* for user .* in tree .* has been reached"):
             map(
                 track=False,
                 command="cat",
@@ -2583,11 +2583,11 @@ class TestEphemeralPools(YTEnvSetup):
     @authors("renadeen")
     def test_fifo_pool_cannot_create_ephemeral_subpools(self):
         create_pool("fifo_pool", attributes={"mode": "fifo"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Fifo pool cannot create ephemeral subpools"):
             set("//sys/pools/fifo_pool/@create_ephemeral_subpools", True)
 
         create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
-        with pytest.raises(YtError):
+        with raises_yt_error("Fifo pool cannot create ephemeral subpools"):
             set("//sys/pools/ephemeral_hub/@mode", "fifo")
 
     @authors("renadeen")
@@ -2653,7 +2653,7 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_require_specified_pools_existence_flag(self):
-        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+        with raises_yt_error(code=yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
             run_sleeping_vanilla(spec={"pool": "ephemeral", "require_specified_pools_existence": True})
 
         # It's OK to launch operation in unspecified ephemeral pool.
@@ -2666,7 +2666,7 @@ class TestEphemeralPools(YTEnvSetup):
     @authors("renadeen")
     def test_require_specified_pools_existence_global_flag(self):
         update_scheduler_config("require_specified_operation_pools_existence", True)
-        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+        with raises_yt_error(code=yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
             run_sleeping_vanilla(spec={"pool": "ephemeral"})
 
         # It's OK to launch operation in unspecified ephemeral pool.
@@ -2678,7 +2678,7 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_name_regex(self):
-        with raises_yt_error("must match regular expression"):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             run_test_vanilla(":", track=True, spec={"pool": "a+b"})
         run_test_vanilla(":", track=True, spec={"pool": "a-_.b"})
 
@@ -2855,11 +2855,11 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_name_validation(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             run_sleeping_vanilla(spec={"pool": "invalid$name"})
 
         op = run_sleeping_vanilla(spec={"pool": "valid_name"})
-        with pytest.raises(YtError):
+        with raises_yt_error("Pool name .* must match regular expression .*"):
             update_op_parameters(op.id, parameters={"pool": "invalid|name"})
 
 
@@ -4813,7 +4813,7 @@ class TestFifoPools(YTEnvSetup):
 
         run_sleeping_vanilla(spec={"is_gang": True, "pool": "fifo"})
 
-        with raises_yt_error(yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
+        with raises_yt_error(code=yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
             run_sleeping_vanilla(spec={"is_gang": True, "pool": "fair_share"})
 
         set("//sys/pools/fair_share/@always_allow_gang_operations", True)
@@ -4829,7 +4829,7 @@ class TestFifoPools(YTEnvSetup):
 
         wait(lambda: not get(scheduler_orchid_pool_path("ephemeral_root") + "/gang_operations_allowed"))
 
-        with raises_yt_error(yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
+        with raises_yt_error(code=yt_error_codes.Scheduler.GangOperationsAllowedOnlyInFifoPools):
             run_sleeping_vanilla(spec={"is_gang": True, "pool": "ephemeral_root"})
 
         set("//sys/pools/ephemeral_root/@ephemeral_subpool_config", {"mode": "fifo"})

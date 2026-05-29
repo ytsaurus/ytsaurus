@@ -1,8 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, wait, events_on_fs, create, get, vanilla, create_tmpdir, read_table
-
-from yt.common import YtError
+from yt_commands import authors, wait, events_on_fs, create, get, vanilla, create_tmpdir, read_table, raises_yt_error
 
 import pytest
 
@@ -162,7 +160,7 @@ class SidecarVanillaBase(YTEnvSetup):
             ]
         )
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Missing required parameter"):
             vanilla(
                 track=False,
                 spec={

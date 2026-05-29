@@ -138,7 +138,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
 
     @authors("ermolovd")
     def test_issue_token_to_missing_user(self):
-        with raises_yt_error(yt_error_codes.NoSuchUser):
+        with raises_yt_error(code=yt_error_codes.NoSuchUser):
             issue_token("missing_user")
 
     @authors("nadya73")

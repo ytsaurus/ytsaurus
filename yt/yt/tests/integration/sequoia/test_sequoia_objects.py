@@ -1465,7 +1465,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
         tx2 = start_transaction()
 
-        with raises_yt_error("No such transaction"):
+        with raises_yt_error("No such transaction .*"):
             commit_transaction(tx2, prerequisite_transaction_ids=[tx])
 
         with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
@@ -1510,7 +1510,7 @@ class TestSequoiaObjects(YTEnvSetup):
         new_revision = get("//tmp/t1/@revision")
         assert new_revision > revision
 
-        with raises_yt_error("revision mismatch"):
+        with raises_yt_error("Prerequisite check failed: node .* revision mismatch"):
             copy(
                 "//tmp/t1",
                 "//tmp/t2",

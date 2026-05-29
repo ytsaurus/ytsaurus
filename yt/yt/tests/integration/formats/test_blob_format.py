@@ -151,7 +151,7 @@ class TestBlobFormat(YTEnvSetup):
         blob_dump = read_table("//tmp/t_in3", output_format=yson.to_yson_type("blob", attributes={"enable_part_index": False}))
         assert b"firstsecond" == blob_dump
 
-        with raises_yt_error("must be consecutive"):
+        with raises_yt_error("Values of column .* must be consecutive but values .* and .* violate this property"):
             read_table("//tmp/t_in3", output_format=yson.YsonString(b"blob"))
 
     @authors("nadya73")
@@ -178,5 +178,5 @@ class TestBlobFormat(YTEnvSetup):
         blob_dump = read_table("//tmp/t_in5[#0:#1]", output_format=yson.to_yson_type("blob", attributes=config))
         assert b"hello" == blob_dump
 
-        with raises_yt_error("must be of type"):
+        with raises_yt_error("Column .* must be of type .* but has type .*"):
             read_table("//tmp/t_in5[#1:#3]", output_format=yson.to_yson_type("blob", attributes=config))

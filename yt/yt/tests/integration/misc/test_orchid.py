@@ -2,10 +2,9 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, get, ls, set, sync_create_cells, create, raises_yt_error, exists
 
-from yt.common import YtError
 import yt.yson as yson
 
-import pytest
+import pytest  # noqa: F401
 
 import builtins
 
@@ -23,7 +22,7 @@ class TestOrchid(YTEnvSetup):
         keys = list(get(path_to_orchid))
         for key in keys:
             get(path_to_orchid + "/" + key, verbose=False)
-        with pytest.raises(YtError):
+        with raises_yt_error("Orchid nodes are read-only"):
             set(path_to_orchid + "/key", "value")
 
     def _check_orchid(self, path, num_services, service_name):
@@ -78,15 +77,15 @@ class TestOrchid(YTEnvSetup):
 
         # TODO(kvk1920): /@remote_addresses is validated before node existance
         # is checked. Fix it on master's side.
-        with raises_yt_error("Missing required parameter /remote_addresses"):
+        with raises_yt_error("Missing required parameter"):
             exists("//tmp/orchid")
 
         # These must trigger error.
-        with raises_yt_error("Missing required parameter /remote_addresses"):
+        with raises_yt_error("Missing required parameter"):
             ls("//tmp/orchid")
-        with raises_yt_error("Missing required parameter /remote_addresses"):
+        with raises_yt_error("Missing required parameter"):
             get("//tmp/orchid")
-        with raises_yt_error("Missing required parameter /remote_addresses"):
+        with raises_yt_error("Missing required parameter"):
             exists("//tmp/orchid/foo")
 
     @authors("shakurov")

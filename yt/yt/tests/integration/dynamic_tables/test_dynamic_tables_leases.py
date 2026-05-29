@@ -13,8 +13,6 @@ from yt.test_helpers import (
     assert_items_equal,
 )
 
-from yt.common import YtError
-
 import pytest
 
 import time
@@ -167,9 +165,9 @@ class TestDynamicTablesLeases(YTEnvSetup):
         revoke_lease(cell_id, self.LEASE_ID)
         self._check_lease(cell_id, "revoking", prc, trc)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Non-active lease cannot be referenced"):
             reference_lease(cell_id, self.LEASE_ID, persistent=True)
-        with pytest.raises(YtError):
+        with raises_yt_error("Non-active lease cannot be referenced"):
             reference_lease(cell_id, self.LEASE_ID, persistent=False)
         self._check_lease(cell_id, "revoking", prc, trc)
 

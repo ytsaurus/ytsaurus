@@ -193,7 +193,7 @@ class TestHunkStorage(DynamicTablesBase):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
         set("//tmp/h/@erasure_codec", "reed_solomon_6_3")
-        with raises_yt_error("bytewise"):
+        with raises_yt_error("Only bytewise erasure codecs can be used"):
             sync_mount_table("//tmp/h")
 
     @authors("akozhikhov")
@@ -203,12 +203,12 @@ class TestHunkStorage(DynamicTablesBase):
 
         set("//tmp/h/@erasure_codec", "none")
         set("//tmp/h/@replication_factor", 2)
-        with raises_yt_error("read_quorum"):
+        with raises_yt_error("\"read_quorum\" cannot be greater than \"replication_factor\""):
             sync_mount_table("//tmp/h")
 
         set("//tmp/h/@erasure_codec", "reed_solomon_3_3")
         set("//tmp/h/@replication_factor", 2)
-        with raises_yt_error("replication_factor"):
+        with raises_yt_error("\"replication_factor\" must be 1 for erasure journals"):
             sync_mount_table("//tmp/h")
 
         set("//tmp/h/@erasure_codec", "reed_solomon_3_3")
@@ -306,13 +306,13 @@ class TestHunkStorage(DynamicTablesBase):
         self._create_hunk_storage("//tmp/h")
         sync_mount_table("//tmp/h")
 
-        with raises_yt_error("No such store"):
+        with raises_yt_error("No such store .*"):
             lock_hunk_store("//tmp/h", 0, "1-1-1-1")
-        with raises_yt_error("No such store"):
+        with raises_yt_error("No such store .*"):
             unlock_hunk_store("//tmp/h", 0, "1-1-1-1")
 
         store_id = self._get_active_store_id("//tmp/h")
-        with raises_yt_error("is not locked"):
+        with raises_yt_error("Store .* of tablet .* is not locked by tablet .*"):
             unlock_hunk_store("//tmp/h", 0, store_id)
 
         sync_unmount_table("//tmp/h")
@@ -355,7 +355,7 @@ class TestHunkStorage(DynamicTablesBase):
     def test_create_table_with_hunk_storage_node(self):
         hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Hunk storage can only be assigned to a dynamic table"):
             create("table", "//tmp/t", attributes={"hunk_storage_id": hunk_storage_id})
 
         self._create_ordered_table("//tmp/t", hunk_storage_id=hunk_storage_id)
@@ -504,7 +504,7 @@ class TestHunkStorage(DynamicTablesBase):
         self._create_hunk_storage("//tmp/h")
         self._create_ordered_table("//tmp/t")
 
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(code=ResolveErrorCode):
             set("//tmp/t/@hunk_storage_id", "1-2-3-4")
 
         file_id = create("file", "//tmp/f")
@@ -512,7 +512,7 @@ class TestHunkStorage(DynamicTablesBase):
             set("//tmp/t/@hunk_storage_id", file_id)
 
         table_id = create("table", "//tmp/s")
-        with raises_yt_error("dynamic table"):
+        with raises_yt_error("Hunk storage can only be assigned to a dynamic table"):
             set("//tmp/s/@hunk_storage_id", table_id)
 
     @authors("akozhikhov")
@@ -731,16 +731,16 @@ class TestHunkStorage(DynamicTablesBase):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
 
-        with raises_yt_error("expected: \"mounted\""):
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
             self._write_hunks_with_retries("//tmp/h", ["a" * 100])
 
         sync_mount_table("//tmp/h")
         hunks = self._write_hunks_with_retries("//tmp/h", ["a"])[0]
         sync_unmount_table("//tmp/h")
 
-        with raises_yt_error("expected: \"mounted\""):
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
             lock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
-        with raises_yt_error("expected: \"mounted\""):
+        with raises_yt_error("Tablet .* of table .* is in \"unmounted\" state"):
             unlock_hunk_store("//tmp/h", 0, hunks["chunk_id"])
 
 
@@ -760,10 +760,10 @@ class TestHunkStorageMulticell(TestHunkStorage):
         self._create_ordered_table("//tmp/t2")
         hunk_storage_id2 = self._create_hunk_storage("//tmp/h2", external=False)
 
-        with raises_yt_error("same external cell"):
+        with raises_yt_error("Table and its hunk storage must reside on the same external cell"):
             set("//tmp/t1/@hunk_storage_id", hunk_storage_id1)
 
-        with raises_yt_error("same external cell"):
+        with raises_yt_error("Table and its hunk storage must reside on the same external cell"):
             set("//tmp/t2/@hunk_storage_id", hunk_storage_id2)
 
         set("//tmp/t1/@hunk_storage_id", hunk_storage_id2)
@@ -825,7 +825,7 @@ class TestHunkStoragePortal(DynamicTablesBase):
         hunk_storage_id1 = self._create_hunk_storage("//portals/h1")
         assert get("//portals/h1/@native_cell_tag") != get("//tmp/t1/@native_cell_tag")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such object .*"):
             set("//tmp/t1/@hunk_storage_id", hunk_storage_id1)
 
         self._create_ordered_table("//portals/t2")
@@ -833,7 +833,7 @@ class TestHunkStoragePortal(DynamicTablesBase):
         hunk_storage_id2 = self._create_hunk_storage("//tmp/h2")
         assert get("//tmp/h2/@native_cell_tag") != get("//portals/t2/@native_cell_tag")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("No such object .*"):
             set("//portals/t2/@hunk_storage_id", hunk_storage_id2)
 
     @authors("akozhikhov")
