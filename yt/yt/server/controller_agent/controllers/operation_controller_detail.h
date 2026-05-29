@@ -1442,7 +1442,8 @@ private:
 
     NEventLog::TFluentLogEvent LogFinishedJobFluently(
         NScheduler::ELogEventType eventType,
-        const TJobletPtr& joblet);
+        const TJobletPtr& joblet,
+        const TJobSummary& jobSummary);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;
     const NLogging::TLogger* GetEventLogger() override;
