@@ -1710,10 +1710,16 @@ private:
 
         // In practice, this should rarely happen, since there is almost always at least one active store.
         if (orderedStores.empty()) {
+            YT_LOG_DEBUG("Ordered stores are empty (TabletId: %v, Timestamp: %v, SafeToTrimRowCount: %v)",
+                tabletId,
+                timestamp,
+                tabletSnapshot->TotalRowCount);
+
             return tabletSnapshot->TotalRowCount;
         }
 
         // Should match TabletManaget::ValidateTrimmedRowCountPrecedeReplication
+        auto requestedTimestamp = timestamp;
         if (auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             replicationCard && !replicationCard->Replicas.empty())
         {
@@ -1778,9 +1784,17 @@ private:
         // The list of ordered stores is produced from a mapping of the form [startingRowIndex -> store],
         // so only the last store can potentially be empty. This is perfectly fine for us.
 
-        return desiredStoreIt != storeSnapshots.end()
+        auto rowCount = desiredStoreIt != storeSnapshots.end()
             ? desiredStoreIt->StartRowIndex
             : lastStore.FinishRowIndex;
+
+        YT_LOG_DEBUG("No stores (TabletId: %v, Timestamp: %v, RequestedTimestamp: %v, SafeToTrimRowCount: %v)",
+            tabletId,
+            timestamp,
+            requestedTimestamp,
+            rowCount);
+
+        return rowCount;
     }
 
     void OnDynamicConfigChanged(
