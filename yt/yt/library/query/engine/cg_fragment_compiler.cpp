@@ -2,11 +2,12 @@
 
 #include "folding_profiler.h"
 #include "cg_ir_builder.h"
-#include "cg_routines.h"
 #include "cg_helpers.h"
 #include "llvm_folding_set.h"
 #include "position_independent_value_caller.h"
 #include "web_assembly_caller.h"
+
+#include <yt/yt/library/query/engine/cg_routines/registry.h>
 
 #include <yt/yt/library/codegen/module.h>
 

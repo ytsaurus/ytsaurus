@@ -534,7 +534,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         EValueType::Any,
         EValueType::Any,
         /*repeatedArgType*/ EValueType::Null,
-        "stored_replica_set");
+        "yt_stored_replica_set");
 
     builder->RegisterAggregate(
         "_inferrum_kv_cache_replica_set",
@@ -552,7 +552,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         EValueType::Any,
         EValueType::Any,
         /*repeatedArgType*/ EValueType::Null,
-        "last_seen_replica_set");
+        "yt_last_seen_replica_set");
 
     const TTypeParameter typeParameterGreatest = 0;
     auto anyConstraintsGreatest = std::unordered_map<TTypeParameter, TUnionType>();

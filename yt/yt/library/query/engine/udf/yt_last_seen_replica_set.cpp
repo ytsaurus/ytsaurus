@@ -7,6 +7,10 @@ extern "C" void LastSeenReplicaSetMerge(
     TUnversionedValue* result,
     TUnversionedValue* state1,
     TUnversionedValue* state2);
+extern "C" void LastSeenReplicaSetFinalize(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state);
 
 extern "C" void _yt_last_seen_replica_set_init(
     TExpressionContext* /*context*/,
@@ -35,12 +39,10 @@ extern "C" void _yt_last_seen_replica_set_merge(
 }
 
 extern "C" void _yt_last_seen_replica_set_finalize(
-    TExpressionContext* /*context*/,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
-    result->Type = state->Type;
-    result->Data = state->Data;
-    result->Length = state->Length;
+    LastSeenReplicaSetFinalize(context, result, state);
 }
 

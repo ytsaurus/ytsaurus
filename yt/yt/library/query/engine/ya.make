@@ -10,8 +10,9 @@ SRCS(
     cg_fragment_compiler.cpp
     cg_helpers.cpp
     cg_ir_builder.cpp
-    cg_routines.cpp
+    cg_routines/registry.cpp
     cg_routines/inferrum.cpp
+    cg_routines/yt.cpp
     GLOBAL column_evaluator.cpp
     GLOBAL expression_evaluator.cpp
     GLOBAL coordinator.cpp
@@ -318,8 +319,8 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/replica_set.cpp
-    NAME stored_replica_set
+    udf/yt_stored_replica_set.cpp
+    NAME yt_stored_replica_set
     SYMBOLS
         _yt_stored_replica_set_init
         _yt_stored_replica_set_update
@@ -338,8 +339,8 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/last_seen_replica_set.cpp
-    NAME last_seen_replica_set
+    udf/yt_last_seen_replica_set.cpp
+    NAME yt_last_seen_replica_set
     SYMBOLS
         _yt_last_seen_replica_set_init
         _yt_last_seen_replica_set_update
@@ -539,7 +540,7 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/xdelta3.c
+    udf/xdelta.c
     NAME xdelta
     SYMBOLS
         xdelta_init

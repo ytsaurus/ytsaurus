@@ -1,6 +1,7 @@
-#include "cg_routines.h"
-#include "cg_types.h"
-#include "web_assembly_data_transfer.h"
+#include "registry.h"
+
+#include <yt/yt/library/query/engine/cg_types.h>
+#include <yt/yt/library/query/engine/web_assembly_data_transfer.h>
 
 #include <yt/yt/library/web_assembly/api/compartment.h>
 #include <yt/yt/library/web_assembly/api/function.h>
@@ -14,6 +15,7 @@
 #include <yt/yt/library/query/base/join_profiler.h>
 
 #include <yt/yt/library/query/engine/cg_routines/inferrum.h>
+#include <yt/yt/library/query/engine/cg_routines/yt.h>
 
 #include <yt/yt/library/query/engine/time/dates.h>
 
@@ -60,6 +62,8 @@
 #include <contrib/libs/xxhash/xxhash.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool_output.h>
+
+#include <library/cpp/yt/misc/static_initializer.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
@@ -3407,319 +3411,6 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReplica
-{
-    TChunkLocationIndex::TUnderlying LocationIndex;
-    int ReplicaIndex;
-    TNodeId::TUnderlying NodeId;
-    EChunkReplicaState ReplicaState = EChunkReplicaState::Generic;
-
-    auto operator<=>(const TChunkReplica& other) const = default;
-};
-
-auto CompareReplicasWithoutState(const TChunkReplica& lhs, const TChunkReplica& rhs)
-{
-    return std::tie(lhs.LocationIndex, lhs.ReplicaIndex) <=> std::tie(rhs.LocationIndex, rhs.ReplicaIndex);
-}
-
-using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
-
-TChunkReplicaList UniteSortedReplicas(const TChunkReplicaList& storedReplicas, const TChunkReplicaList& addedReplicas)
-{
-    TChunkReplicaList result;
-    auto it = storedReplicas.begin();
-    auto jt = addedReplicas.begin();
-    while (it < storedReplicas.end() || jt < addedReplicas.end()) {
-        auto replicasCompareResult = std::strong_ordering::equal;
-        if (it == storedReplicas.end()) {
-            replicasCompareResult = std::strong_ordering::greater;
-        } else if (jt == addedReplicas.end()) {
-            replicasCompareResult = std::strong_ordering::less;
-        } else {
-            replicasCompareResult = CompareReplicasWithoutState(*it, *jt);
-        }
-
-        if (replicasCompareResult < 0) {
-            result.push_back(*it);
-            ++it;
-        } else if (replicasCompareResult > 0) {
-            result.push_back(*jt);
-            ++jt;
-        } else {
-            // We should always choose added replicas because ReplicaState may change.
-            result.push_back(*jt);
-            ++it;
-            ++jt;
-        }
-    }
-
-    return result;
-}
-
-TChunkReplicaList FilterSortedReplicas(const TChunkReplicaList& storedReplicas, const TChunkReplicaList& removedReplicas)
-{
-    TChunkReplicaList result;
-    auto it = storedReplicas.begin();
-    auto jt = removedReplicas.begin();
-    while (it < storedReplicas.end()) {
-        auto replicasCompareResult = (jt == removedReplicas.end())
-            ? std::strong_ordering::less
-            : CompareReplicasWithoutState(*it, *jt);
-
-        if (replicasCompareResult < 0) {
-            result.push_back(*it);
-            ++it;
-        } else if (replicasCompareResult > 0) {
-            ++jt;
-        } else {
-            ++it;
-            ++jt;
-        }
-    }
-    return result;
-}
-
-TYsonItem Consume(TYsonPullParserCursor* cursor, EYsonItemType type)
-{
-    auto current = cursor->GetCurrent();
-    if (current.GetType() != type) {
-        THROW_ERROR_EXCEPTION("Unexpected YSON item type: expected %Qlv, got %Qlv",
-            type,
-            current.GetType());
-    }
-    cursor->Next();
-    return current;
-}
-
-TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
-{
-    TChunkReplica replica;
-
-    Consume(cursor, EYsonItemType::BeginList);
-
-    replica.LocationIndex = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
-    replica.ReplicaIndex = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
-    replica.NodeId = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
-
-    auto current = cursor->GetCurrent();
-    if (current.GetType() == EYsonItemType::Uint64Value) {
-        replica.ReplicaState = NChunkClient::EChunkReplicaState(current.UncheckedAsUint64());
-        cursor->Next();
-    }
-
-    Consume(cursor, EYsonItemType::EndList);
-
-    return replica;
-}
-
-void ParseReplicasDelta(
-    TUnversionedValue* delta,
-    TChunkReplicaList* replicasToAdd,
-    TChunkReplicaList* replicasToRemove)
-{
-    if (delta->Type == EValueType::Null) {
-        return;
-    }
-
-    TMemoryInput input(delta->Data.String, delta->Length);
-    TYsonPullParser parser(&input, EYsonType::ListFragment);
-    TYsonPullParserCursor cursor(&parser);
-
-    if (!cursor.TryConsumeFragmentStart()) {
-        THROW_ERROR_EXCEPTION("Error parsing YSON as list fragment");
-    }
-
-    Consume(&cursor, EYsonItemType::BeginList);
-    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-        replicasToAdd->push_back(ParseReplica(cursor));
-    });
-    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-        replicasToRemove->push_back(ParseReplica(cursor));
-    });
-    Consume(&cursor, EYsonItemType::EndList);
-}
-
-void ParseReplicas(TUnversionedValue* value, TChunkReplicaList* replicas)
-{
-    if (value->Type == EValueType::Null) {
-        return;
-    }
-
-    TMemoryInput input(value->Data.String, value->Length);
-    TYsonPullParser parser(&input, EYsonType::ListFragment);
-    TYsonPullParserCursor cursor(&parser);
-
-    if (!cursor.TryConsumeFragmentStart()) {
-        THROW_ERROR_EXCEPTION("Error parsing yson as list fragment");
-    }
-
-    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-        replicas->push_back(ParseReplica(cursor));
-    });
-}
-
-void DumpReplicas(IYsonConsumer* consumer, const TChunkReplicaList& replicas)
-{
-    BuildYsonFluently(consumer)
-        .DoListFor(replicas, [] (TFluentList fluent, const TChunkReplica& replica) {
-            auto replicaFluent = fluent
-                .Item()
-                .BeginList()
-                    .Item().Value(replica.LocationIndex)
-                    .Item().Value(replica.ReplicaIndex)
-                    .Item().Value(replica.NodeId);
-
-            if (replica.ReplicaState != EChunkReplicaState::Generic) {
-                replicaFluent.Item().Value(static_cast<ui8>(replica.ReplicaState));
-            }
-            replicaFluent.EndList();
-        });
-}
-
-size_t EstimateReplicasYsonLength(const TChunkReplicaList& replicas)
-{
-    return (MaxGuidStringSize + 3 * MaxVarInt64Size + 10) * replicas.size() + 10;
-}
-
-void StoredReplicaSetMerge(
-    TExpressionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* state1,
-    TUnversionedValue* state2)
-{
-    if (state1->Type == EValueType::Null) {
-        *result = *state2;
-        return;
-    }
-
-    TChunkReplicaList replicasToAdd1;
-    TChunkReplicaList replicasToRemove1;
-    ParseReplicasDelta(state1, &replicasToAdd1, &replicasToRemove1);
-
-    TChunkReplicaList replicasToAdd2;
-    TChunkReplicaList replicasToRemove2;
-    ParseReplicasDelta(state2, &replicasToAdd2, &replicasToRemove2);
-
-    std::ranges::sort(replicasToAdd1);
-    std::ranges::sort(replicasToAdd2);
-    std::ranges::sort(replicasToRemove2);
-    auto replicasToAdd = FilterSortedReplicas(UniteSortedReplicas(replicasToAdd1, replicasToAdd2), replicasToRemove2);
-
-    auto bufferSize = EstimateReplicasYsonLength(replicasToAdd);
-    char* outputBuffer = AllocateBytes(context, bufferSize);
-
-    TMemoryOutput output(outputBuffer, bufferSize);
-    TYsonWriter writer(&output, EYsonFormat::Binary);
-
-    BuildYsonFluently(&writer)
-        .BeginList()
-            .Item().Do([&] (auto fluent) {
-                DumpReplicas(fluent.GetConsumer(), replicasToAdd);
-            })
-            .Item().Do([] (auto fluent) {
-                // Replicas to remove is empty list.
-                DumpReplicas(fluent.GetConsumer(), {});
-            })
-        .EndList();
-
-    writer.Flush();
-
-    *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
-}
-
-void StoredReplicaSetFinalize(
-    TExpressionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* state)
-{
-    TChunkReplicaList replicasToAdd;
-    TChunkReplicaList replicasToRemove;
-
-    ParseReplicasDelta(state, &replicasToAdd, &replicasToRemove);
-
-    auto outputBufferSize = EstimateReplicasYsonLength(replicasToAdd);
-    char* outputBuffer = AllocateBytes(context, outputBufferSize);
-
-    TMemoryOutput output(outputBuffer, outputBufferSize);
-    TYsonWriter writer(&output, EYsonFormat::Binary);
-
-    DumpReplicas(&writer, replicasToAdd);
-
-    writer.Flush();
-
-    *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
-}
-
-void LastSeenReplicaSetMerge(
-    TExpressionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* state1,
-    TUnversionedValue* state2)
-{
-    constexpr int MaxLastSeenReplicas = 3;
-
-    if (state1->Type == EValueType::Null) {
-        *result = *state2;
-        return;
-    }
-
-    TChunkReplicaList lastSeenReplicas;
-    ParseReplicas(state1, &lastSeenReplicas);
-
-    TChunkReplicaList newReplicas;
-    ParseReplicas(state2, &newReplicas);
-    for (const auto& replica : newReplicas) {
-        // Linear complexity should be fine.
-        auto it = std::find(lastSeenReplicas.begin(), lastSeenReplicas.end(), replica);
-        if (it != lastSeenReplicas.end()) {
-            lastSeenReplicas.erase(it);
-        }
-        lastSeenReplicas.push_back(replica);
-    }
-
-    std::optional<bool> isErasure;
-    for (const auto& replica : lastSeenReplicas) {
-        auto isReplicaErasure = replica.ReplicaIndex < GenericChunkReplicaIndex;
-        if (!isErasure.has_value()) {
-            isErasure = isReplicaErasure;
-        }
-        if (isErasure != isReplicaErasure) {
-            THROW_ERROR_EXCEPTION("Erasure replicas are mixed with non-erasure");
-        }
-    }
-
-    if (isErasure && *isErasure) {
-        TCompactVector<std::optional<TChunkReplica>, GenericChunkReplicaIndex> erasureLastSeenReplicas;
-        erasureLastSeenReplicas.resize(GenericChunkReplicaIndex);
-        for (const auto& replica : lastSeenReplicas) {
-            YT_VERIFY(replica.ReplicaIndex < std::ssize(erasureLastSeenReplicas));
-            erasureLastSeenReplicas[replica.ReplicaIndex] = replica;
-        }
-
-        lastSeenReplicas.clear();
-        for (const auto& replica : erasureLastSeenReplicas) {
-            if (replica.has_value()) {
-                lastSeenReplicas.push_back(*replica);
-            }
-        }
-    } else if (std::ssize(lastSeenReplicas) > MaxLastSeenReplicas) {
-        auto excessReplicaCount = std::ssize(lastSeenReplicas) - MaxLastSeenReplicas;
-        lastSeenReplicas.erase(lastSeenReplicas.begin(), lastSeenReplicas.begin() + excessReplicaCount);
-    }
-
-    auto bufferSize = EstimateReplicasYsonLength(lastSeenReplicas);
-    char* outputBuffer = AllocateBytes(context, bufferSize);
-
-    TMemoryOutput output(outputBuffer, bufferSize);
-    TYsonWriter writer(&output, EYsonFormat::Binary);
-    DumpReplicas(&writer, lastSeenReplicas);
-    writer.Flush();
-
-    *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void NodeToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& unversionedValue, const INodePtr& value)
 {
     if (!value) {
@@ -4667,33 +4358,30 @@ struct TMakeWebAssemblyIntrinsic<TResult(TArgs...)>
     }
 };
 
-#define REGISTER_WEB_ASSEMBLY_INTRINSIC(intrinsic) \
-    constexpr auto Intrinsic##intrinsic = &TMakeWebAssemblyIntrinsic<decltype(NRoutines::intrinsic)>::Wrapper<&NRoutines::intrinsic>; \
-    static WAVM::Intrinsics::Function IntrinsicFunction##intrinsic( \
-        NWebAssembly::getIntrinsicModule_standard(), \
-        #intrinsic, \
-        reinterpret_cast<void*>(Intrinsic##intrinsic), \
-        WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
-            std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
-        }));
+template <class TResult, class... TArgs>
+void RegisterLlvmRoutine(const char* symbol, bool onlyWebAssembly, TResult(*functionPointer)(TArgs...))
+{
+    if (!onlyWebAssembly) {
+        NativeRegistry.RegisterRoutine(symbol, functionPointer);
+    }
+
+    WebAssemblyRegistry.RegisterRoutine(symbol, functionPointer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TResult, class... TArgs>
-struct RegisterLLVMRoutine
-{
-    RegisterLLVMRoutine(const char *symbol, bool onlyWebAssembly, TResult(*functionPointer)(TArgs...))
-    {
-        if (!onlyWebAssembly) {
-            NativeRegistry.RegisterRoutine(symbol, functionPointer);
-        }
-
-        WebAssemblyRegistry.RegisterRoutine(symbol, functionPointer);
-    }
-};
+#define REGISTER_WEB_ASSEMBLY_INTRINSIC(intrinsic) \
+    YT_STATIC_INITIALIZER( \
+        [[maybe_unused]] static WAVM::Intrinsics::Function intrinsicFunction( \
+            NWebAssembly::getIntrinsicModule_standard(), \
+            #intrinsic, \
+            reinterpret_cast<void*>(&TMakeWebAssemblyIntrinsic<decltype(NRoutines::intrinsic)>::Wrapper<&NRoutines::intrinsic>), \
+            WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
+                std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
+            })));
 
 #define REGISTER_LLVM_ROUTINE(routine, onlyWebAssembly) \
-    static auto RegisteredLLVM##routine = RegisterLLVMRoutine(#routine, onlyWebAssembly, NRoutines::routine);
+    YT_STATIC_INITIALIZER(RegisterLlvmRoutine(#routine, onlyWebAssembly, NRoutines::routine));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4742,8 +4430,6 @@ REGISTER_ROUTINE(AllocateBytes);
 REGISTER_ROUTINE(IsRowInRowset);
 REGISTER_ROUTINE(IsRowInRanges);
 REGISTER_ROUTINE(TransformTuple);
-// REGISTER_ROUTINE(SimpleHash);
-// REGISTER_ROUTINE(FarmHashUint64);
 REGISTER_ROUTINE(AddRowToCollector);
 REGISTER_ROUTINE(OrderOpHelper);
 REGISTER_ROUTINE(ThrowException);
@@ -4810,9 +4496,10 @@ REGISTER_HLL_ROUTINE(13);
 REGISTER_HLL_ROUTINE(14);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
+REGISTER_ROUTINE(LastSeenReplicaSetMerge);
+REGISTER_ROUTINE(LastSeenReplicaSetFinalize);
 REGISTER_ROUTINE(InferrumKVCacheReplicaSetMerge);
 REGISTER_ROUTINE(InferrumKVCacheReplicaSetFinalize);
-REGISTER_ROUTINE(LastSeenReplicaSetMerge);
 REGISTER_ROUTINE(HasPermissions);
 REGISTER_ROUTINE(YsonLength);
 REGISTER_ROUTINE(LikeOpHelper);
