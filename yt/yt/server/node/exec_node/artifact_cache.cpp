@@ -127,6 +127,56 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TThrottlingOutput
+    : public IOutputStream
+{
+public:
+    TThrottlingOutput(
+        IOutputStream* underlying,
+        IThroughputThrottlerPtr throttler)
+        : Underlying_(underlying)
+        , Throttler_(std::move(throttler))
+    { }
+
+private:
+    IOutputStream* const Underlying_;
+    const IThroughputThrottlerPtr Throttler_;
+
+    void Throttle(i64 amount)
+    {
+        WaitFor(Throttler_->Throttle(amount))
+            .ThrowOnError();
+    }
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        Throttle(len);
+        Underlying_->Write(buf, len);
+    }
+
+    void DoWriteV(const TPart* parts, size_t count) override
+    {
+        i64 totalSize = 0;
+        for (size_t index = 0; index < count; ++index) {
+            totalSize += parts[index].len;
+        }
+        Throttle(totalSize);
+        Underlying_->Write(parts, count);
+    }
+
+    void DoFlush() override
+    {
+        Underlying_->Flush();
+    }
+
+    void DoFinish() override
+    {
+        Underlying_->Finish();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TErrorInterceptingOutput
     : public IOutputStream
 {
@@ -1243,6 +1293,7 @@ private:
             FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
         return [reader = std::move(reader), key, throttler] (IOutputStream* output) {
+            TThrottlingOutput throttlingOutput(output, throttler);
             TBlock block;
             while (reader->ReadBlock(&block)) {
                 if (block.Data.Empty()) {
@@ -1256,9 +1307,7 @@ private:
                             << std::move(error);
                     }
                 } else {
-                    output->Write(block.Data.Begin(), block.Size());
-                    WaitFor(throttler->Throttle(block.Size()))
-                        .ThrowOnError();
+                    throttlingOutput.Write(block.Data.Begin(), block.Size());
                 }
             }
         };
@@ -1403,18 +1452,18 @@ private:
             key,
             throttler
         ] (IOutputStream* output) {
+            TThrottlingOutput throttlingOutput(output, throttler);
             auto writer = CreateStaticTableWriterForFormat(
                 format,
                 nameTable,
                 {schema ? schema : New<TTableSchema>()},
                 {columns},
-                CreateAsyncAdapter(output),
+                CreateAsyncAdapter(&throttlingOutput),
                 false, /*enableContextSaving*/
                 New<TControlAttributesConfig>(),
                 0);
             TPipeReaderToWriterOptions options;
             options.BufferRowCount = TableArtifactBufferRowCount;
-            options.Throttler = throttler;
             options.ReaderErrorWrapper = [key] (TError readerError) {
                 return TError(
                     NExecNode::EErrorCode::ArtifactFetchFailed,
