@@ -57,6 +57,9 @@ SchedulerOperations = ProjectSensor("scheduler_operations", "yt-scheduler")  # n
 SchedulerInternal =   ProjectSensor("scheduler_internal",   "yt-scheduler")  # noqa: E222
 SchedulerRpc =        ProjectSensor("scheduler_rpc",        "yt-scheduler", base=RpcBase)  # noqa: E222
 
+# GPU scheduler monitor (cron-emitted sensors from yt_gpu_scheduler_monitor).
+GpuSchedulerMonitor = ProjectSensor("gpu_scheduler_monitor", "yt-gpu-scheduler-monitor")  # noqa: E222
+
 # Controller agents.
 CA =         ProjectSensor("controller_agent",          "yt-controller-agent")  # noqa: E222
 CAMemory =   ProjectSensor("controller_agent_memory",   "yt-controller-agent")  # noqa: E222
