@@ -11,6 +11,7 @@
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/fs.h>
 
@@ -19,6 +20,7 @@ namespace NYT::NDataNode {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NIO;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,6 +191,12 @@ public:
     //! Read size bytes from NBD chunk at offset.
     TFuture<TBlock> Read(i64 offset, i64 length, ui64 cookie) override
     {
+        YT_LOG_DEBUG("Started reading from NBD chunk (ChunkId: %v, Offset: %v, Length: %v, Cookie: %v)",
+            ChunkId_,
+            offset,
+            length,
+            cookie);
+
         // Acquire a reader guard.
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .AsUnique()
@@ -226,18 +234,32 @@ public:
                     }
 
                     // Throttle disk read.
+                    TWallTimer throttleTimer;
                     auto throttleFuture = ReadThrottler_->Throttle(length);
 
                     // Perform read and return result.
                     return throttleFuture.Apply(
-                        BIND([=, guard = std::move(guard), this, this_ = MakeStrong(this)] {
+                        BIND([=, guard = std::move(guard), throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] {
+                            auto throttleDuration = throttleTimer.GetElapsedTime();
+
+                            TWallTimer ioTimer;
                             auto readFuture = IOEngine_->Read(
                                 {{.Handle = IOEngineHandle_, .Offset = offset, .Size = length}},
                                 WorkloadDescriptor_.Category,
                                 GetRefCountedTypeCookie<TNbdChunkReaderBufferTag>());
 
                             return readFuture.Apply(
-                                BIND([guard = std::move(guard)] (const TReadResponse& response) {
+                                BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const TReadResponse& response) {
+                                    auto ioDuration = ioTimer.GetElapsedTime();
+
+                                    YT_LOG_DEBUG("Finished reading from NBD chunk (ChunkId: %v, Offset: %v, Length: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %v)",
+                                        ChunkId_,
+                                        offset,
+                                        length,
+                                        throttleDuration,
+                                        ioDuration,
+                                        cookie);
+
                                     YT_VERIFY(response.OutputBuffers.size() == 1);
                                     return TBlock(response.OutputBuffers[0]);
                                 })
@@ -251,6 +273,12 @@ public:
     //! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const TBlock& block, ui64 cookie) override
     {
+        YT_LOG_DEBUG("Started writing to NBD chunk (ChunkId: %v, Offset: %v, Length: %v, Cookie: %v)",
+            ChunkId_,
+            offset,
+            block.Size(),
+            cookie);
+
         // Acquire a reader guard.
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .AsUnique()
@@ -288,17 +316,31 @@ public:
                     }
 
                     // Throttle disk write.
+                    TWallTimer throttleTimer;
                     auto throttleFuture = WriteThrottler_->Throttle(block.Data.Size());
 
                     // Perform write and return result.
                     return throttleFuture.Apply(
-                        BIND([=, guard = std::move(guard), this, this_ = MakeStrong(this)] {
+                        BIND([=, guard = std::move(guard), throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] {
+                            auto throttleDuration = throttleTimer.GetElapsedTime();
+
+                            TWallTimer ioTimer;
                             auto writeFuture = IOEngine_->Write(
                                 {.Handle = IOEngineHandle_, .Offset = offset, .Buffers = {block.Data}},
                                 WorkloadDescriptor_.Category);
 
                             return writeFuture.Apply(
-                                BIND([guard = std::move(guard)] (const TWriteResponse& response) {
+                                BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const TWriteResponse& response) {
+                                    auto ioDuration = ioTimer.GetElapsedTime();
+
+                                    YT_LOG_DEBUG("Finished writing to NBD chunk (ChunkId: %v, Offset: %v, Length: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %v)",
+                                        ChunkId_,
+                                        offset,
+                                        block.Size(),
+                                        throttleDuration,
+                                        ioDuration,
+                                        cookie);
+
                                     return NIO::TIOCounters {
                                         .Bytes = response.WrittenBytes,
                                         .IORequests = response.IOWriteRequests};

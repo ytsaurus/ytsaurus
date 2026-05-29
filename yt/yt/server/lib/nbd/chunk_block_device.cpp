@@ -6,12 +6,14 @@
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NNbd {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NProfiling;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,54 +88,58 @@ public:
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
-        // NB. For now causal dependency (i.e. read after write, write after write)
-        // is resolved by making reads and writes serialized.
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
-            .ValueOrThrow();
-
         YT_LOG_DEBUG("Started reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             length,
             options.Cookie);
 
+        // NB. For now causal dependency (i.e. read after write, write after write)
+        // is resolved by making reads and writes serialized.
+        TWallTimer lockTimer;
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+        auto lockDuration = lockTimer.GetElapsedTime();
+
         if (length == 0) {
-            YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
+            YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, Length: %v, LockDuration: %v, Cookie: %x)",
                 offset,
                 length,
+                lockDuration,
                 options.Cookie);
 
             return MakeFuture<TReadResponse>({});
         }
 
-        YT_LOG_DEBUG("Started throttling read from chunk (Offset: %v, Length: %v, Cookie: %x)",
-            offset,
-            length,
-            options.Cookie);
-
+        TWallTimer throttleTimer;
         auto throttleRspOrError = WaitFor(ReadThrottler_->Throttle(length));
+        auto throttleDuration = throttleTimer.GetElapsedTime();
+
         if (!throttleRspOrError.IsOK()) {
-            YT_LOG_WARNING(throttleRspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, Cookie: %x)",
+            YT_LOG_WARNING(throttleRspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, LockDuration: %v, ThrottleDuration: %v, Cookie: %x)",
                 offset,
                 length,
+                lockDuration,
+                throttleDuration,
                 options.Cookie);
 
             return MakeFuture<TReadResponse>(throttleRspOrError);
         }
 
-        YT_LOG_DEBUG("Finished throttling read from chunk (Offset: %v, Length: %v, Cookie: %x)",
-            offset,
-            length,
-            options.Cookie);
-
         auto future = BIND(&IChunkHandler::Read, ChunkHandler_, offset, length, options)
             .AsyncVia(Invoker_)
             .Run();
 
+        TWallTimer rpcTimer;
         auto rspOrError = WaitFor(future);
+        auto rpcDuration = rpcTimer.GetElapsedTime();
+
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, Cookie: %x)",
+            YT_LOG_WARNING(rspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, LockDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
                 offset,
                 length,
+                lockDuration,
+                throttleDuration,
+                rpcDuration,
                 options.Cookie);
 
             return MakeFuture<TReadResponse>(rspOrError);
@@ -141,11 +147,14 @@ public:
 
         auto& response = rspOrError.Value();
 
-        YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, ShouldStopUsingDevice: %v, Cookie: %x)",
+        YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, ShouldStopUsingDevice: %v, LockDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
             offset,
             length,
             response.Data.Size(),
             response.ShouldStopUsingDevice,
+            lockDuration,
+            throttleDuration,
+            rpcDuration,
             options.Cookie);
 
         return MakeFuture<TReadResponse>(std::move(response));
@@ -153,54 +162,58 @@ public:
 
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
-        // NB. For now causal dependency (i.e. read after write, write after write)
-        // is resolved by making reads and writes serialized.
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
-            .ValueOrThrow();
-
         YT_LOG_DEBUG("Started writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
             options.Cookie);
 
+        // NB. For now causal dependency (i.e. read after write, write after write)
+        // is resolved by making reads and writes serialized.
+        TWallTimer lockTimer;
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+        auto lockDuration = lockTimer.GetElapsedTime();
+
         if (data.size() == 0) {
-            YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
+            YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, LockDuration: %v, Cookie: %x)",
                 offset,
                 data.size(),
+                lockDuration,
                 options.Cookie);
 
             return MakeFuture<TWriteResponse>({});
         }
 
-        YT_LOG_DEBUG("Started throttling write to chunk (Offset: %v, Length: %v, Cookie: %x)",
-            offset,
-            data.size(),
-            options.Cookie);
-
+        TWallTimer throttleTimer;
         auto throttleRspOrError = WaitFor(WriteThrottler_->Throttle(data.size()));
+        auto throttleDuration = throttleTimer.GetElapsedTime();
+
         if (!throttleRspOrError.IsOK()) {
-            YT_LOG_WARNING(throttleRspOrError, "Failed to write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+            YT_LOG_WARNING(throttleRspOrError, "Failed to write to chunk (Offset: %v, Length: %v, LockDuration: %v, ThrottleDuration: %v, Cookie: %x)",
                 offset,
                 data.size(),
+                lockDuration,
+                throttleDuration,
                 options.Cookie);
 
             return MakeFuture<TWriteResponse>(throttleRspOrError);
         }
 
-        YT_LOG_DEBUG("Finished throttling write to chunk (Offset: %v, Length: %v, Cookie: %x)",
-            offset,
-            data.size(),
-            options.Cookie);
-
         auto future = BIND(&IChunkHandler::Write, ChunkHandler_, offset, data, options)
             .AsyncVia(Invoker_)
             .Run();
 
+        TWallTimer rpcTimer;
         auto rspOrError = WaitFor(future);
+        auto rpcDuration = rpcTimer.GetElapsedTime();
+
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+            YT_LOG_WARNING(rspOrError, "Failed to write to chunk (Offset: %v, Length: %v, LockDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
                 offset,
                 data.size(),
+                lockDuration,
+                throttleDuration,
+                rpcDuration,
                 options.Cookie);
 
             return MakeFuture<TWriteResponse>(rspOrError);
@@ -208,10 +221,13 @@ public:
 
         auto& response = rspOrError.Value();
 
-        YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, ShouldStopUsingDevice: %v, Cookie: %x)",
+        YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, ShouldStopUsingDevice: %v, LockDuration: %v, ThrottleDuration: %v, RpcDuration: %v, Cookie: %x)",
             offset,
             data.size(),
             response.ShouldStopUsingDevice,
+            lockDuration,
+            throttleDuration,
+            rpcDuration,
             options.Cookie);
 
         return MakeFuture<TWriteResponse>(std::move(response));
