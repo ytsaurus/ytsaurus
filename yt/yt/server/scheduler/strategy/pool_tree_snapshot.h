@@ -85,7 +85,6 @@ struct TResourceUsageSnapshot final
     // NB: these usages used in scheduler tree strategy at schedule allocation initialization stage;
     // it can be dropped from snapshot by the cost of less accurate values (without precommitted part).
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsageWithPrecommit;
-    THashMap<TString, TJobResources> PoolToResourceUsageWithPrecommit;
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceUsageSnapshot)
