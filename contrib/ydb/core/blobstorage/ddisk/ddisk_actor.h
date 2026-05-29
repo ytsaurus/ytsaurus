@@ -15,6 +15,7 @@
 #include <contrib/ydb/core/util/hp_timer_helpers.h>
 #include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk.h>
 
+#include <contrib/ydb/library/actors/core/mon.h>
 #include <contrib/ydb/library/actors/wilson/wilson_span.h>
 #include <contrib/ydb/library/wilson_ids/wilson.h>
 
@@ -78,6 +79,7 @@ namespace NKikimr::NDDisk {
         TVDiskConfig::TBaseInfo BaseInfo;
         TDDiskConfig Config;
         TIntrusivePtr<TBlobStorageGroupInfo> Info;
+        TIntrusivePtr<NMonitoring::TDynamicCounters> CountersParent;
         TIntrusivePtr<NMonitoring::TDynamicCounters> CountersBase;
         std::vector<std::pair<TString, TString>> CountersChain;
         ui64 DDiskInstanceGuid = RandomNumber<ui64>();
@@ -325,13 +327,23 @@ namespace NKikimr::NDDisk {
         TDDiskActor(TVDiskConfig::TBaseInfo&& baseInfo, TIntrusivePtr<TBlobStorageGroupInfo> info,
             TPersistentBufferFormat&& pbFormat, TDDiskConfig&& ddiskConfig,
             TIntrusivePtr<NMonitoring::TDynamicCounters> counters, const std::vector<ui32>& initPersistentBufferChunks,
-            TIntrusivePtr<TPDiskParams> pDiskParams, NPDisk::TDiskFormatPtr diskFormat, TFileHandle&& diskFd);
+            ui64 persistentBufferUniqueId, TIntrusivePtr<TPDiskParams> pDiskParams, NPDisk::TDiskFormatPtr diskFormat,
+            TFileHandle&& diskFd);
 
         ~TDDiskActor();
         void Bootstrap();
         STFUNC(StateFuncDDisk);
         STFUNC(StateFuncPersistentBuffer);
+        STFUNC(StateFuncTerminate);
         void PassAway() override;
+
+        // Mirrors TVDiskContext::CheckPDiskResponse: returns true on OK, returns false and
+        // switches to StateFuncTerminate on session-loss statuses (ERROR / INVALID_OWNER /
+        // INVALID_ROUND) and device-error statuses (CORRUPTED / OUT_OF_SPACE), Y_ABORTs on
+        // anything else. Caller must `return` immediately on false because the actor's
+        // state has changed.
+        bool CheckPDiskReply(NKikimrProto::EReplyStatus status,
+            const TString& errorReason, TStringBuf source);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Boot sequence and PDisk management
@@ -633,7 +645,7 @@ namespace NKikimr::NDDisk {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         std::map<std::tuple<ui64, ui32>, TPersistentBuffer> PersistentBuffers;
-        std::map<TInstant, std::set<std::tuple<ui64, ui32, ui64>>> PersistentBuffersInMemoryCacheUptime;
+        std::map<TInstant, std::unordered_set<TPersistentBufferRecordId>> PersistentBuffersInMemoryCacheUptime;
         ui64 PersistentBufferInMemoryCacheSize = 0;
         TInstant StartedAt;
 
@@ -657,12 +669,13 @@ namespace NKikimr::NDDisk {
             TActorId Sender;
             ui64 Cookie;
             TActorId Session;
+
             NWilson::TSpan Span;
             std::set<ui64> OperationCookies;
 
             ui64 TabletId;
             ui32 Generation;
-            ui64 VChunkIdx;
+            ui64 VChunkIndex;
             ui64 Lsn;
             ui32 OffsetInBytes;
             ui32 Size;
@@ -679,9 +692,11 @@ namespace NKikimr::NDDisk {
         };
 
         std::unordered_map<ui64, TPersistentBufferDiskOperationInFlight> PersistentBufferDiskOperationInflight;
+        std::unordered_map<TPersistentBufferRecordId, std::vector<ui64>> PersistentBufferWriteInflightsByRecord;
 
         ui32 PersistentBufferRestoreChunksInflight = 0;
         std::vector<ui32> PersistentBufferChunks;
+        ui64 PersistentBufferUniqueId = 0;
 
         TPersistentBufferSpaceAllocator PersistentBufferSpaceAllocator;
         TPersistentBufferBarriersManager PersistentBufferBarriersManager;
@@ -697,11 +712,13 @@ namespace NKikimr::NDDisk {
         TActorId WritePersistentBuffersActor;
         TActorId PersistentBufferActorId;
 
+        ui64 CalculateChecksum(const TRope::TIterator begin);
+
         void CreatePersistentBuffer();
         void InitPersistentBuffer();
         void IssuePersistentBufferChunkAllocation();
         void ProcessPersistentBufferQueue();
-        std::vector<std::tuple<ui32, ui32, TRope>> SlicePersistentBuffer(ui64 tabletId, ui32 generation, ui64 vchunkIndex, ui64 lsn, ui32 offsetInBytes, ui32 size, TRope&& data, const std::vector<TPersistentBufferSectorInfo>& sectors);
+        std::vector<std::tuple<ui32, ui32, TRope>> SlicePersistentBuffer(ui64 tabletId, ui32 generation, ui64 vchunkIndex, ui64 lsn, ui32 offsetInBytes, ui32 size, TRope&& data, std::vector<TPersistentBufferSectorInfo>& sectors);
         void StartRestorePersistentBuffer();
         void RestorePersistentBufferChunk(TEvPrivate::TEvReadPersistentBufferPart::TPtr ev);
         void ReplyReadPersistentBuffer(ui64 operationCookie);
@@ -732,6 +749,13 @@ namespace NKikimr::NDDisk {
         void HandleWakeup(TEvents::TEvWakeup::TPtr &ev);
         void Handle(NPDisk::TEvCheckSpaceResult::TPtr ev);
         void UpdateFreeSpaceInfo();
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Monitoring page (DDisk mode only)
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        void RegisterMonPage();
+        void Handle(NMon::TEvHttpInfo::TPtr ev);
     };
 
 } // NKikimr::NDDisk

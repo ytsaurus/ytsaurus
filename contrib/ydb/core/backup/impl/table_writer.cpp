@@ -3,6 +3,7 @@
 
 #include <contrib/ydb/core/change_exchange/resolve_partition.h>
 #include <contrib/ydb/core/tx/replication/service/base_table_writer.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 
 Y_DECLARE_OUT_SPEC(inline, NKikimr::NBackup::NImpl::TChangeRecord, out, value) {
     return value.Out(out);

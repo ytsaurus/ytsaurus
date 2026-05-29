@@ -6,7 +6,9 @@
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 
+#include <contrib/ydb/library/yql/dq/actors/protos/dq_events.pb.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io.h>
+
 #include <contrib/ydb/library/yql/dq/proto/dq_transport.pb.h>
 
 #include <yql/essentials/minikql/computation/mkql_computation_node_pack.h>
@@ -64,6 +66,24 @@ public:
         Timestamp = TInstant::Now();
     }
 
+    TDataChunk(
+        NDqProto::TCheckpoint&& checkpoint,
+        bool leading)
+        : Bytes(1)
+        , Leading(leading)
+        , Timestamp(TInstant::Now())
+        , Checkpoint(std::move(checkpoint))
+    {}
+
+    TDataChunk(
+        NDqProto::TWatermark&& watermark,
+        bool leading)
+        : Bytes (1)
+        , Leading(leading)
+        , Timestamp(TInstant::Now())
+        , Watermark(std::move(watermark))
+    {}
+
     TChunkedBuffer Buffer;
 
     ui64 Rows = 0;
@@ -73,6 +93,8 @@ public:
     bool Leading = false;
     bool Finished = false;
     TInstant Timestamp;
+    TMaybe<NDqProto::TCheckpoint> Checkpoint;
+    TMaybe<NDqProto::TWatermark> Watermark;
 };
 
 class IChannelBuffer {
@@ -123,6 +145,7 @@ struct TDqChannelLimits {
     ui64 LocalChannelInflightBytes  =  8_MB;    // max bytes per local channel
     ui64 RemoteChannelInflightBytes = 16_MB;    // max bytes per remote channel == output.push - input.pop
     ui64 NodeSessionIcInflightBytes = 64_MB;    // max bytes in network/IC per node-to-node session
+    ui64 ReconciliationCount = 3;    // number of retries before node session is completely destroyed
 };
 
 NActors::IActor* CreateLocalChannelServiceActor(NActors::TActorSystem* actorSystem, ui32 nodeId,

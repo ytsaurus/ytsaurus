@@ -1,9 +1,9 @@
 #include "alter_topic_operation.h"
 #include "schema_operation.h"
 
+#include <contrib/ydb/core/grpc_services/rpc_calls.h>
 #include <contrib/ydb/core/persqueue/common/actor.h>
 #include <contrib/ydb/core/protos/schemeshard/operations.pb.h>
-#include <contrib/ydb/core/grpc_services/rpc_calls.h>
 #include <contrib/ydb/core/ydb_convert/tx_proxy_status.h>
 
 namespace NKikimr::NPQ::NSchema {
@@ -31,8 +31,7 @@ public:
     }
 
     void OnException(const std::exception& exc) override {
-        ModifyScheme.Clear();
-        Send(ParentId, new TEvCreateTopicResponse(Ydb::StatusIds::INTERNAL_ERROR, exc.what(), std::move(ModifyScheme)), 0, Settings.Cookie);
+        Send(ParentId, new TEvCreateTopicResponse(Ydb::StatusIds::INTERNAL_ERROR, exc.what(), NKikimrSchemeOp::TModifyScheme()), 0, Settings.Cookie);
     }
 
 private:

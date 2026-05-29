@@ -1,9 +1,10 @@
 #pragma once
 
 #include <contrib/ydb/core/protos/table_stats.pb.h>
+#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
+
 #include <util/datetime/base.h>
 #include <util/generic/hash.h>
-#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
 
 namespace NKikimr::NColumnShard {
 
@@ -33,4 +34,4 @@ private:
     }
 };
 
-} // namespace NKikimr::NColumnShard
+}   // namespace NKikimr::NColumnShard

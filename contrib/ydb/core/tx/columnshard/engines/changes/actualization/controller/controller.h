@@ -1,5 +1,6 @@
 #pragma once
 #include <contrib/ydb/core/tx/columnshard/engines/changes/abstract/abstract.h>
+
 #include <contrib/ydb/library/accessor/accessor.h>
 
 namespace NKikimr::NOlap::NActualizer {
@@ -32,4 +33,4 @@ public:
     }
 };
 
-}
+}   // namespace NKikimr::NOlap::NActualizer

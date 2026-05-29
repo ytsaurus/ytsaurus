@@ -8,6 +8,7 @@
 #include <contrib/ydb/core/protos/msgbus_pq.pb.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 #include <contrib/ydb/core/scheme/scheme_type_info.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 #include <contrib/ydb/library/yverify_stream/yverify_stream.h>
 #include <contrib/ydb/public/api/protos/ydb_topic.pb.h>
 #include <yql/essentials/types/binary_json/read.h>

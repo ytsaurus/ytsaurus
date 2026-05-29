@@ -3,13 +3,13 @@
 #include "blob_constructor.h"
 #include "write_controller.h"
 
+#include <contrib/ydb/core/tx/columnshard/blobs_action/abstract/action.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard_private_events.h>
-#include <contrib/ydb/core/tx/columnshard/blobs_action/abstract/action.h>
 
 namespace NKikimr::NOlap {
 
-class TCompactedWriteController : public NColumnShard::IWriteController {
+class TCompactedWriteController: public NColumnShard::IWriteController {
 private:
     TAutoPtr<NColumnShard::TEvPrivate::TEvWriteIndex> WriteIndexEv;
     TActorId DstActor;
@@ -21,6 +21,7 @@ protected:
 
 public:
     const TBlobsAction& GetBlobsAction();
+
     ui64 GetWriteVolume() const {
         return WriteVolume;
     }
@@ -29,4 +30,4 @@ public:
     ~TCompactedWriteController();
 };
 
-}
+}   // namespace NKikimr::NOlap

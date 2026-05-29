@@ -1,9 +1,10 @@
 #pragma once
-#include <contrib/ydb/library/accessor/accessor.h>
-#include <contrib/ydb/library/conclusion/status.h>
-#include <contrib/ydb/library/conclusion/result.h>
 #include <contrib/ydb/core/protos/tx_columnshard.pb.h>
 #include <contrib/ydb/core/tx/columnshard/common/path_id.h>
+
+#include <contrib/ydb/library/accessor/accessor.h>
+#include <contrib/ydb/library/conclusion/result.h>
+#include <contrib/ydb/library/conclusion/status.h>
 
 namespace NKikimrColumnShardExportProto {
 class TIdentifier;
@@ -21,11 +22,11 @@ private:
 
     TIdentifier() = default;
     TConclusionStatus DeserializeFromProto(const NKikimrColumnShardExportProto::TIdentifier& proto);
+
 public:
     TIdentifier(const TInternalPathId pathId)
         : PathId(pathId)
     {
-
     }
 
     static TConclusion<TIdentifier> BuildFromProto(const NKikimrTxColumnShard::TBackupTxBody& proto);
@@ -42,4 +43,4 @@ public:
     TString DebugString() const;
 };
 
-}
+}   // namespace NKikimr::NOlap::NExport

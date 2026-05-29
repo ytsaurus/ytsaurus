@@ -1,5 +1,6 @@
 #pragma once
 
+#include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/model/vchunk_config.h>
 #include <contrib/ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/protos/partition_direct.pb.h>
 
 #include <contrib/ydb/core/protos/blockstore_config.pb.h>
@@ -35,11 +36,15 @@ public:
     bool ReadDirectBlockGroupsConnections(
         TMaybe<TDirectBlockGroupsConnections>& directBlockGroupsConnections);
 
+    bool ReadAllVChunkConfigs(TVector<TVChunkConfig>& out);
+
     void StoreVolumeConfig(
         const NKikimrBlockStore::TVolumeConfig& volumeConfig);
 
     void StoreDirectBlockGroupsConnections(
         const TDirectBlockGroupsConnections& directBlockGroupsConnections);
+
+    void StoreVChunkConfig(const TVChunkConfig& cfg);
 };
 
 }   // namespace NYdb::NBS::NBlockStore::NStorage::NPartitionDirect

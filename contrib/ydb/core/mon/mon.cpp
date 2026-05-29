@@ -74,20 +74,6 @@ TString GetDatabase(NHttp::THttpIncomingRequest* request) {
     return {};
 }
 
-IEventHandle* GetRequestAuthAndCheckHandle(const NActors::TActorId& owner, const TString& database, const TString& ticket, TString peerName) {
-    return new NActors::IEventHandle(
-        NGRpcService::CreateGRpcRequestProxyId(),
-        owner,
-        new NKikimr::NGRpcService::TEvRequestAuthAndCheck(
-            database,
-            ticket ? TMaybe<TString>(ticket) : Nothing(),
-            owner,
-            NGRpcService::TAuditMode::Modifying(NGRpcService::TAuditMode::TLogClassConfig::ClusterAdmin),
-            std::move(peerName)),
-        IEventHandle::FlagTrackDelivery
-    );
-}
-
 const Ydb::Issue::IssueMessage* FindDeepestIssue(const google::protobuf::RepeatedPtrField<Ydb::Issue::IssueMessage>& issues) {
     std::queue<TIssueInfo> issuesQueue;
     ui32 minimalSeverity = std::numeric_limits<ui32>::max();
@@ -123,6 +109,20 @@ const Ydb::Issue::IssueMessage* FindDeepestIssue(const google::protobuf::Repeate
 
 } // namespace
 
+IEventHandle* GetRequestAuthAndCheckHandle(const NActors::TActorId& owner, const TString& database, const TString& ticket, TString peerName) {
+    return new NActors::IEventHandle(
+        NGRpcService::CreateGRpcRequestProxyId(),
+        owner,
+        new NKikimr::NGRpcService::TEvRequestAuthAndCheck(
+            database,
+            ticket ? TMaybe<TString>(ticket) : Nothing(),
+            owner,
+            NGRpcService::TAuditMode::Modifying(NGRpcService::TAuditMode::TLogClassConfig::ClusterAdmin),
+            std::move(peerName)),
+        IEventHandle::FlagTrackDelivery
+    );
+}
+
 NActors::IEventHandle* SelectAuthorizationScheme(const NActors::TActorId& owner, NHttp::THttpIncomingRequest* request) {
     NHttp::THeaders headers(request->Headers);
     NHttp::TCookies cookies(headers["Cookie"]);
@@ -134,33 +134,6 @@ NActors::IEventHandle* SelectAuthorizationScheme(const NActors::TActorId& owner,
         return GetRequestAuthAndCheckHandle(owner, GetDatabase(request), TString("Login ") + TString(ydbSessionId), NMonitoring::NAudit::ExtractRemoteAddress(request));
     } else if (!request->MTlsClientCertificate.empty()) {
         return GetRequestAuthAndCheckHandle(owner, GetDatabase(request), request->MTlsClientCertificate, NMonitoring::NAudit::ExtractRemoteAddress(request));
-    } else {
-        return nullptr;
-    }
-}
-
-NActors::IEventHandle* GetAuthorizeTicketResult(const NActors::TActorId& owner) {
-    if (NKikimr::AppData()->EnforceUserTokenRequirement && NKikimr::AppData()->DefaultUserSIDs.empty()) {
-        return new NActors::IEventHandle(
-            owner,
-            owner,
-            new NKikimr::NGRpcService::TEvRequestAuthAndCheckResult(
-                Ydb::StatusIds::UNAUTHORIZED,
-                "No security credentials were provided",
-                {})
-        );
-    } else if (!NKikimr::AppData()->DefaultUserSIDs.empty()) {
-        TIntrusivePtr<NACLib::TUserToken> token = new NACLib::TUserToken(NKikimr::AppData()->DefaultUserSIDs);
-        return new NActors::IEventHandle(
-            owner,
-            owner,
-            new NKikimr::NGRpcService::TEvRequestAuthAndCheckResult(
-                {},
-                {},
-                token,
-                {}
-            )
-        );
     } else {
         return nullptr;
     }
@@ -234,7 +207,8 @@ NActors::IEventHandle* TMon::DefaultAuthorizer(const NActors::TActorId& owner, N
     if (eventHandle != nullptr) {
         return eventHandle;
     }
-    return GetAuthorizeTicketResult(owner);
+
+    return GetRequestAuthAndCheckHandle(owner, GetDatabase(request), "", NMonitoring::NAudit::ExtractRemoteAddress(request));
 }
 
 // compatibility layer

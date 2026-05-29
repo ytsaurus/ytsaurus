@@ -7,6 +7,7 @@
 #include "datashard_integrity_trails.h"
 
 #include <contrib/ydb/core/engine/mkql_engine_flat_host.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 
 namespace NKikimr {
 namespace NDataShard {

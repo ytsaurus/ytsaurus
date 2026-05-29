@@ -3,6 +3,7 @@
 #include <contrib/ydb/core/persqueue/events/events.h>
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
+#include <contrib/ydb/library/actors/core/event_local.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/string.h>

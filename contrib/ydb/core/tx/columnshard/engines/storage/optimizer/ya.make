@@ -5,6 +5,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/engines/storage/optimizer/lbuckets
     contrib/ydb/core/tx/columnshard/engines/storage/optimizer/lcbuckets
     contrib/ydb/core/tx/columnshard/engines/storage/optimizer/tiling
+    contrib/ydb/core/tx/columnshard/engines/storage/optimizer/tiling/tiling_pp
 )
 
 END()

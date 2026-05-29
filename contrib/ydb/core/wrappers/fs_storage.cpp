@@ -93,10 +93,10 @@ private:
     }
 
     template<typename TEvResponse>
-    auto CreateOutcome(Aws::S3::S3Errors errorType, const TString& errorMessage, bool retryable) {
+    auto CreateOutcome(Aws::S3::S3Errors errorType, const TString& exceptionName, const TString& errorMessage, bool retryable) {
         Aws::Client::AWSError<Aws::S3::S3Errors> awsError(
             errorType,
-            "FsStorageError",
+            exceptionName,
             errorMessage,
             retryable
         );
@@ -110,10 +110,11 @@ private:
             const NActors::TActorId& sender,
             const TString& errorMessage,
             Aws::S3::S3Errors errorType = Aws::S3::S3Errors::INTERNAL_FAILURE,
-            bool retryable = false)
+            bool retryable = false,
+            const TString& exceptionName = "FsStorageError")
     {
         std::unique_ptr<TEvResponse> response;
-        response = std::make_unique<TEvResponse>(CreateOutcome<TEvResponse>(errorType, errorMessage, retryable));
+        response = std::make_unique<TEvResponse>(CreateOutcome<TEvResponse>(errorType, exceptionName, errorMessage, retryable));
         this->Send(sender, response.release());
     }
 
@@ -123,10 +124,11 @@ private:
             const TString& key,
             const TString& errorMessage,
             Aws::S3::S3Errors errorType = Aws::S3::S3Errors::INTERNAL_FAILURE,
-            bool retryable = false)
+            bool retryable = false,
+            const TString& exceptionName = "FsStorageError")
     {
         std::unique_ptr<TEvResponse> response;
-        response = std::make_unique<TEvResponse>(key, CreateOutcome<TEvResponse>(errorType, errorMessage, retryable));
+        response = std::make_unique<TEvResponse>(key, CreateOutcome<TEvResponse>(errorType, exceptionName, errorMessage, retryable));
         this->Send(sender, response.release());
     }
 
@@ -137,10 +139,11 @@ private:
             const std::pair<ui64, ui64>& range,
             const TString& errorMessage,
             Aws::S3::S3Errors errorType = Aws::S3::S3Errors::INTERNAL_FAILURE,
-            bool retryable = false)
+            bool retryable = false,
+            const TString& exceptionName = "FsStorageError")
     {
         std::unique_ptr<TEvResponse> response;
-        response = std::make_unique<TEvResponse>(key, range, CreateOutcome<TEvResponse>(errorType, errorMessage, retryable));
+        response = std::make_unique<TEvResponse>(key, range, CreateOutcome<TEvResponse>(errorType, exceptionName, errorMessage, retryable));
         this->Send(sender, response.release());
     }
 
@@ -162,7 +165,7 @@ private:
     }
 
 public:
-    TFsOperationActor(const TString& basePath)
+    explicit TFsOperationActor(const TString& basePath)
         : BasePath(basePath)
     {
     }
@@ -249,6 +252,7 @@ public:
             session.File.Write(body.data(), body.size());
             session.File.Flush();
             session.File.Close();
+
             ReplySuccess<TEvPutObjectResponse>(ev->Sender, key);
         } catch (const TSystemError& ex) {
             if (!HandleFileLockError<TEvPutObjectResponse>(ex, ev->Sender, key, "PutObject")) {
@@ -395,9 +399,26 @@ public:
     {
         TVector<TString> children;
         dir.ListNames(children);
-        Sort(children);
+
+        THashSet<TString> directories;
         for (const auto& name : children) {
             TFsPath child = dir / name;
+            if (child.IsDirectory()) {
+                directories.insert(name);
+            }
+        }
+
+        Sort(children.begin(), children.end(), [&directories](const TString& a, const TString& b) {
+            TString keyA = directories.contains(a) ? (a + "/") : a;
+            TString keyB = directories.contains(b) ? (b + "/") : b;
+            return keyA < keyB;
+        });
+
+        for (const auto& name : children) {
+            TFsPath child = dir / name;
+            if (child.IsSymlink()) {
+                continue;
+            }
             if (child.IsFile()) {
                 const TString& path = child.GetPath();
                 if (!marker.empty() && path <= marker) {
@@ -409,7 +430,7 @@ public:
                 Aws::S3::Model::Object obj;
                 obj.SetKey(Aws::String(path.data(), path.size()));
                 result.AddContents(std::move(obj));
-            } else if (child.IsDirectory()) {
+            } else if (directories.contains(name)) {
                 if (ListFilesRecursive(child, marker, maxKeys, result)) {
                     return true;
                 }
@@ -434,17 +455,31 @@ public:
 
         try {
             TFsPath dirPath(prefix);
-
-            if (!dirPath.IsNonStrictSubpathOf(BasePath)) {
-                ReplyError<TEvListObjectsResponse>(ev->Sender, "Prefix is outside of base path");
-                return;
-            }
+            TFsPath basePath(BasePath);
 
             Aws::S3::Model::ListObjectsResult awsResult;
             bool truncated = false;
 
-            if (dirPath.Exists() && dirPath.IsDirectory()) {
-                truncated = ListFilesRecursive(dirPath, marker, maxKeys, awsResult);
+            if (dirPath.Exists()) {
+                TFsPath realDirPath = dirPath.RealPath();
+                TFsPath realBasePath = basePath.RealPath();
+                if (!realDirPath.IsNonStrictSubpathOf(realBasePath)) {
+                    auto errorMsg = TStringBuilder() << "Prefix outside of base path"
+                        << ": prefix# " << dirPath.GetPath()
+                        << ", basePath# " << basePath.GetPath();
+                    if (realDirPath.GetPath() != dirPath.GetPath()) {
+                        errorMsg << ", resolvedPrefix# " << realDirPath.GetPath();
+                    }
+                    if (basePath.GetPath() != realBasePath.GetPath()) {
+                        errorMsg << ", resolvedBasePath# " << realBasePath.GetPath();
+                    }
+                    ReplyError<TEvListObjectsResponse>(ev->Sender, errorMsg);
+                    return;
+                }
+
+                if (dirPath.IsDirectory()) {
+                    truncated = ListFilesRecursive(dirPath, marker, maxKeys, awsResult);
+                }
             }
 
             awsResult.SetIsTruncated(truncated);
@@ -590,18 +625,12 @@ public:
             const TString incompleteKey = GetIncompletePath(key.c_str());
             auto it = ActiveUploads.find(uploadId);
             if (it == ActiveUploads.end()) {
-                // Upload session not found - likely due to actor restart
-                // Return retryable error to force datashard to retry with cleared uploadId
-                Aws::Client::AWSError<Aws::S3::S3Errors> awsError(
-                    Aws::S3::S3Errors::INTERNAL_FAILURE,
-                    "FsUploadSessionLost",
+                ReplyError<TEvCompleteMultipartUploadResponse>(ev->Sender, key,
                     TStringBuilder() << "Upload session not found: uploadId# " << uploadId,
-                    true // retryable
+                    Aws::S3::S3Errors::INTERNAL_FAILURE, 
+                    true /* retryable */, 
+                    "FsCompleteMultipartUploadFailed"
                 );
-                Aws::S3::S3Error error(std::move(awsError));
-                Aws::Utils::Outcome<Aws::S3::Model::CompleteMultipartUploadResult, Aws::S3::S3Error> outcome(std::move(error));
-                auto response = std::make_unique<TEvCompleteMultipartUploadResponse>(key, std::move(outcome));
-                this->Send(ev->Sender, response.release());
                 return;
             }
 
@@ -618,9 +647,11 @@ public:
                 NFs::Remove(incompleteKey);
                 ActiveUploads.erase(it);
 
-                ReplyError<TEvCompleteMultipartUploadResponse>(
-                    ev->Sender, key, errorMsg,
-                    Aws::S3::S3Errors::INTERNAL_FAILURE, true /* retryable */);
+                ReplyError<TEvCompleteMultipartUploadResponse>(ev->Sender, key, errorMsg, 
+                    Aws::S3::S3Errors::INTERNAL_FAILURE, 
+                    true /* retryable */, 
+                    "FsCompleteMultipartUploadFailed"
+                );
                 return;
             }
             FsyncParentDir(key);

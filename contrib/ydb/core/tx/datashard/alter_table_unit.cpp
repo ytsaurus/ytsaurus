@@ -3,7 +3,7 @@
 #include "datashard_pipeline.h"
 #include "execution_unit_ctors.h"
 
-#include <contrib/ydb/library/aclib/aclib.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 
 namespace NKikimr {
 namespace NDataShard {

@@ -1,8 +1,8 @@
 #pragma once
+#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
 #include <contrib/ydb/core/tx/columnshard/engines/column_engine.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/actualizer/abstract/abstract.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/actualizer/counters/counters.h>
-#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
 
 namespace NKikimr::NOlap {
 class TVersionedIndex;
@@ -33,7 +33,8 @@ public:
     }
 
     void Start();
-    TGranuleActualizationIndex(const TInternalPathId pathId, const TVersionedIndex& versionedIndex, const std::shared_ptr<IStoragesManager>& storagesManager);
+    TGranuleActualizationIndex(
+        const TInternalPathId pathId, const TVersionedIndex& versionedIndex, const std::shared_ptr<IStoragesManager>& storagesManager);
 
     void ExtractActualizationTasks(TTieringProcessContext& tasksContext, const NActualizer::TExternalTasksContext& externalContext) const;
 

@@ -12,6 +12,7 @@
 #include <contrib/ydb/core/tx/data_events/payload_helper.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
 
+#include <contrib/ydb/library/aclib/user_context.h>
 #include <contrib/ydb/library/actors/util/memory_track.h>
 
 #if defined LOG_T || \

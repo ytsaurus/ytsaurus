@@ -18,6 +18,7 @@ PEERDIR(
     contrib/ydb/core/persqueue/public/cloud_events/proto
     contrib/ydb/core/protos/schemeshard
     contrib/ydb/core/base
+    contrib/ydb/core/security/util
 )
 
 YQL_LAST_ABI_VERSION()

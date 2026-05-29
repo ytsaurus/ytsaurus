@@ -2,13 +2,13 @@
 
 #include "replication.h"
 
-#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
-
 #include <contrib/ydb/core/base/defs.h>
 #include <contrib/ydb/core/base/events.h>
 #include <contrib/ydb/core/scheme/scheme_pathid.h>
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
 #include <contrib/ydb/core/tx/replication/common/worker_id.h>
+
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
 
 #include <util/generic/hash.h>
 

@@ -1,8 +1,8 @@
 #pragma once
 #include "container.h"
 
-#include <contrib/ydb/core/tx/columnshard/engines/scheme/index_info.h>
 #include <contrib/ydb/core/tx/columnshard/engines/portions/portion_info.h>
+#include <contrib/ydb/core/tx/columnshard/engines/scheme/index_info.h>
 
 namespace NKikimr::NOlap {
 

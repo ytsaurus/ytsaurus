@@ -1,10 +1,11 @@
 #include "create_topic_operation.h"
 #include "schema_operation.h"
+#include "schema_propose.h"
 
+#include <contrib/ydb/core/grpc_services/rpc_calls.h>
 #include <contrib/ydb/core/persqueue/common/actor.h>
 #include <contrib/ydb/core/persqueue/public/cluster_tracker/cluster_tracker.h>
 #include <contrib/ydb/core/protos/schemeshard/operations.pb.h>
-#include <contrib/ydb/core/grpc_services/rpc_calls.h>
 #include <contrib/ydb/core/ydb_convert/tx_proxy_status.h>
 
 namespace NKikimr::NPQ::NSchema {
@@ -12,7 +13,7 @@ namespace NKikimr::NPQ::NSchema {
 namespace {
 
 class TCreateTopicOperationActor: public TBaseActor<TCreateTopicOperationActor>
-                                , public TConstantLogPrefix {
+                               , public TConstantLogPrefix {
 public:
     TCreateTopicOperationActor(TActorId parentId, TCreateTopicOperationSettings&& settings)
         : TBaseActor<TCreateTopicOperationActor>(NKikimrServices::EServiceKikimr::PQ_SCHEMA)
@@ -36,8 +37,7 @@ public:
     }
 
     void OnException(const std::exception& exc) override {
-        ModifyScheme.Clear();
-        Send(ParentId, new TEvCreateTopicResponse(Ydb::StatusIds::INTERNAL_ERROR, exc.what(), std::move(ModifyScheme)), 0, Settings.Cookie);
+        Send(ParentId, new TEvCreateTopicResponse(Ydb::StatusIds::INTERNAL_ERROR, exc.what(), NKikimrSchemeOp::TModifyScheme()), 0, Settings.Cookie);
     }
 
 private:
@@ -55,7 +55,7 @@ private:
             ClustersList = std::move(response.ClustersList);
         }
 
-        DoCreate();
+        return DoCreate();
     }
 
     STFUNC(GetClustersListState) {
@@ -79,33 +79,21 @@ private:
         }
 
         auto path = NormalizePath(Settings.Database, Settings.Strategy->GetTopicName());
-
-        NKikimrSchemeOp::TModifyScheme& modifyScheme = *proposal->Record.MutableTransaction()->MutableModifyScheme();
-
         auto [workingDir, name] = GetWorkingDirAndName(path);
         if (workingDir.empty()) {
             return ReplyAndDie(Ydb::StatusIds::SCHEME_ERROR, "Wrong topic name");
         }
 
-        modifyScheme.SetOperationType(NKikimrSchemeOp::EOperationType::ESchemeOpCreatePersQueueGroup);
-        modifyScheme.SetWorkingDir(workingDir);
-        modifyScheme.SetFailedOnAlreadyExists(!Settings.IfNotExists);
+        NKikimrSchemeOp::TModifyScheme& modifyScheme = *proposal->Record.MutableTransaction()->MutableModifyScheme();
 
-        auto* config = modifyScheme.MutableCreatePersQueueGroup();
-        config->SetName(name);
-
-        auto result = Settings.Strategy->ApplyChanges(
-            GetLocalClusterName(ClustersList),
-            Settings.Database,
-            modifyScheme,
-            *config
-        );
-        if (result) {
-            result = ValidateConfig(config->GetPQTabletConfig(), EOperation::Create);
-        }
-        if (result) {
-            result = ValidateLocalCluster(ClustersList, config->GetPQTabletConfig());
-        }
+        auto result = ProposeCreateTopic(modifyScheme, TProposeCreateTopicSettings{
+            .Database = Settings.Database,
+            .WorkingDir = workingDir,
+            .Name = name,
+            .ClustersList = ClustersList,
+            .Strategy = Settings.Strategy.get(),
+            .IfNotExists = Settings.IfNotExists,
+        });
 
         if (!result) {
             return ReplyAndDie(result.GetStatus(), std::move(result.GetErrorMessage()));
@@ -160,6 +148,29 @@ private:
     NPQ::NClusterTracker::TClustersList::TConstPtr ClustersList;
 };
 
+}
+
+TResult ProposeCreateTopic(NKikimrSchemeOp::TModifyScheme& modifyScheme, TProposeCreateTopicSettings&& settings) {
+    modifyScheme.SetOperationType(NKikimrSchemeOp::EOperationType::ESchemeOpCreatePersQueueGroup);
+    modifyScheme.SetWorkingDir(settings.WorkingDir);
+    modifyScheme.SetFailedOnAlreadyExists(!settings.IfNotExists);
+
+    auto* config = modifyScheme.MutableCreatePersQueueGroup();
+    config->SetName(settings.Name);
+
+    auto result = settings.Strategy->ApplyChanges(
+        GetLocalClusterName(settings.ClustersList),
+        settings.Database,
+        modifyScheme,
+        *config
+    );
+    if (result) {
+        result = ValidateConfig(config->GetPQTabletConfig(), EOperation::Create);
+    }
+    if (result) {
+        result = ValidateLocalCluster(settings.ClustersList, config->GetPQTabletConfig());
+    }
+    return result;
 }
 
 IActor* CreateCreateTopicOperationActor(TActorId parentId, TCreateTopicOperationSettings&& settings) {

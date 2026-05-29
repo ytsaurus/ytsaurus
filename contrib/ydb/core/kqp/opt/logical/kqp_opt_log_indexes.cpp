@@ -786,6 +786,11 @@ void VectorTopMain(TExprContext& ctx, const TCoTopBase& top, TExprNodePtr& read)
     .Done().Ptr();
 }
 
+ui32 GetKMeansTreeSearchTopSize(const TKqpOptimizeContext& kqpCtx, const bool withOverlap) {
+    const ui32 defaultLevelTop = withOverlap ? 4 : 10;
+    return kqpCtx.Config->KMeansTreeSearchTopSize.Get().GetOrElse(defaultLevelTop);
+}
+
 // FIXME Most of this rewriting should probably be handled in kqp/opt/physical
 // Logical optimizer should only rewrite it to something like TKqlReadTableVectorIndex
 // This would remove the need for skipping KqpApplyExtractMembersToReadTable based on settings.VectorTopDistinct
@@ -852,10 +857,9 @@ TExprBase DoRewriteTopSortOverKMeansTree(
         .Build()
     .Done();
 
-    const auto levelTop = kqpCtx.Config->KMeansTreeSearchTopSize.Get().GetOrElse(1);
-
     const auto& kmeansDesc = std::get<NKikimrKqp::TVectorIndexKmeansTreeDescription>(indexDesc.SpecializedIndexDescription);
     const bool withOverlap = kmeansDesc.settings().overlap_clusters() > 1;
+    const auto levelTop = GetKMeansTreeSearchTopSize(kqpCtx, withOverlap);
 
     TKqpStreamLookupSettings settings;
     settings.Strategy = EStreamLookupStrategyType::LookupRows;
@@ -1051,7 +1055,7 @@ TExprBase DoRewriteTopSortOverPrefixedKMeansTree(
     const auto& kmeansDesc = std::get<NKikimrKqp::TVectorIndexKmeansTreeDescription>(indexDesc.SpecializedIndexDescription);
     const bool withOverlap = kmeansDesc.settings().overlap_clusters() > 1;
 
-    const auto levelTop = kqpCtx.Config->KMeansTreeSearchTopSize.Get().GetOrElse(1);
+    const auto levelTop = GetKMeansTreeSearchTopSize(kqpCtx, withOverlap);
     const auto levelTopTotal = levelTop * numPrefixGroups;
 
     TKqpStreamLookupSettings firstLevelSettings;
@@ -1477,7 +1481,28 @@ struct TFulltextQuery {
         return Node != nullptr;
     }
 
-    static TFulltextQuery Match(TExprNode::TPtr node, TExprContext& ctx) {
+    static bool ColumnIsIndexed(const TExprNode::TPtr& column, const THashSet<TString>& indexedColumns) {
+        if (indexedColumns.empty()) {
+            return true;
+        }
+
+        TExprNode::TPtr unwrapped = column;
+        if (auto flatMap = TExprBase(unwrapped).Maybe<TCoFlatMap>()) {
+            auto body = flatMap.Cast().Lambda().Body();
+            if (body.Maybe<TCoJust>() && body.Cast<TCoJust>().Ptr()->Head().Content() == "ToString") {
+                unwrapped = flatMap.Cast().Input().Ptr();
+            }
+        }
+        auto member = TExprBase(unwrapped).Maybe<TCoMember>();
+        if (!member) {
+            return false;
+        }
+        return indexedColumns.contains(TString(member.Cast().Name().Value()));
+    }
+
+    static TFulltextQuery Match(TExprNode::TPtr node, TExprContext& ctx,
+        const THashSet<TString>& indexedColumns = {})
+    {
 
         if (node->Content() == "FulltextMatch" || node->Content() == "FulltextScore") {
             if (!EnsureArgsCount(*node, 2, ctx)) {
@@ -1489,6 +1514,10 @@ struct TFulltextQuery {
             if (node->Head().GetTypeAnn()->GetKind() == ETypeAnnotationKind::Tuple) {
                 posArgs = node->Child(0);
                 namedArg = node->Child(1);
+            }
+
+            if (!ColumnIsIndexed(posArgs->Child(0), indexedColumns)){
+                return {};
             }
 
             return TFulltextQuery{.Node=node, .Column=posArgs->Child(0), .Query=posArgs->Child(1), .NamedOptions=namedArg};
@@ -1517,21 +1546,36 @@ struct TFulltextQuery {
                 return {};
             }
 
+            if (!ColumnIsIndexed(column, indexedColumns)) {
+                return {};
+            }
             return TFulltextQuery{.Node=node, .Column=column, .Query=query};
         } else if (node->Content() == "StartsWith") {
+            if (!ColumnIsIndexed(node->HeadPtr(), indexedColumns)) {
+                return {};
+            }
             auto query = TFulltextQuery{.Node=node, .Column=node->HeadPtr(), .Query=node->TailPtr()};
             query.EndsWithAny = true;
             return query;
         } else if (node->Content() == "EndsWith") {
+            if (!ColumnIsIndexed(node->HeadPtr(), indexedColumns)) {
+                return {};
+            }
             auto query = TFulltextQuery{.Node=node, .Column=node->HeadPtr(), .Query=node->TailPtr()};
             query.StartsWithAny = true;
             return query;
         } else if (node->Content() == "StringContains") {
+            if (!ColumnIsIndexed(node->HeadPtr(), indexedColumns)) {
+                return {};
+            }
             auto query = TFulltextQuery{.Node=node, .Column=node->HeadPtr(), .Query=node->TailPtr()};
             query.StartsWithAny = true;
             query.EndsWithAny = true;
             return query;
         } else if (node->Content() == "==") {
+            if (!ColumnIsIndexed(node->HeadPtr(), indexedColumns)) {
+                return {};
+            }
             auto query = TFulltextQuery{.Node=node, .Column=node->HeadPtr(), .Query=node->TailPtr()};
             query.StartsWithAny = false;
             query.EndsWithAny = false;
@@ -1649,8 +1693,9 @@ void VisitExprSkipOptionalIfValue(const TExprNode::TPtr& node, const TExprVisitP
 }
 
 
-TFullTextApplyParseResult FindMatchingApply(const TExprBase& node, TExprContext& ctx, std::string_view indexName, bool isNgram) {
-
+TFullTextApplyParseResult FindMatchingApply(const TExprBase& node, TExprContext& ctx, std::string_view indexName, bool isNgram,
+    const THashSet<TString>& indexedColumns = {})
+{
     TFullTextApplyParseResult result;
     static const THashSet<TString> AllowedFulltextExprs = {
         "And",
@@ -1675,7 +1720,7 @@ TFullTextApplyParseResult FindMatchingApply(const TExprBase& node, TExprContext&
             isGreenNode = false;
         }
 
-        if (auto match = TFulltextQuery::Match(expr, ctx) ; match.IsValid()) {
+        if (auto match = TFulltextQuery::Match(expr, ctx, indexedColumns) ; match.IsValid()) {
             if (match.IsScoreQuery()) {
                 auto newMember = Build<TCoMember>(ctx, match.Query->Pos())
                     .Name().Build(NTableIndex::NFulltext::FullTextRelevanceColumn)
@@ -1710,7 +1755,7 @@ TFullTextApplyParseResult FindMatchingApply(const TExprBase& node, TExprContext&
     }, visitedNodes, result.ScoreRestriction);
 
     VisitExpr(node.Ptr(), [&] (const TExprNode::TPtr& expr) {
-        if (auto match = TFulltextQuery::Match(expr, ctx) ; match.IsValid()) {
+        if (auto match = TFulltextQuery::Match(expr, ctx, indexedColumns) ; match.IsValid()) {
             if (match.IsScoreQuery()) {
                 result.FulltextScore++;
             } else {
@@ -1845,13 +1890,15 @@ TMaybeNode<TExprBase> KqpRewriteFlatMapOverFullTextMatch(const NYql::NNodes::TEx
     const auto& fulltextMetadataInfo = std::get<NKikimrSchemeOp::TFulltextIndexDescription>(indexDesc->SpecializedIndexDescription);
 
     bool isNgram = false;
+    THashSet<TString> indexedColumns;
     for(const auto& analyzer : fulltextMetadataInfo.GetSettings().columns()) {
         if (analyzer.analyzers().use_filter_ngram() || analyzer.analyzers().use_filter_edge_ngram()) {
             isNgram = true;
         }
+        indexedColumns.insert(analyzer.column());
     }
 
-    auto result = FindMatchingApply(flatMap.Lambda().Body(), ctx, read.Index().Value(), isNgram);
+    auto result = FindMatchingApply(flatMap.Lambda().Body(), ctx, read.Index().Value(), isNgram, indexedColumns);
     if (result.HasErrors) {
         return {};
     }

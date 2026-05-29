@@ -260,6 +260,7 @@
 #include <contrib/ydb/library/actors/interconnect/poller/poller_tcp.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/cq_actor/cq_actor.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/mem_pool.h>
+#include <contrib/ydb/core/retro_tracing_impl/distributed_collector/distributed_retro_collector.h>
 #include <contrib/ydb/library/actors/retro_tracing/retro_collector.h>
 #include <contrib/ydb/library/actors/util/affinity.h>
 #include <contrib/ydb/library/actors/wilson/wilson_uploader.h>
@@ -687,7 +688,8 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
             }
 
             // create poller actor (whether platform supports it)
-            setup->LocalServices.emplace_back(MakePollerActorId(), TActorSetupCmd(CreatePollerActor(), TMailboxType::ReadAsFilled, systemPoolId));
+            setup->LocalServices.emplace_back(MakePollerActorId(), TActorSetupCmd(
+                CreatePollerActor(schedulerConfig.MonCounters), TMailboxType::ReadAsFilled, systemPoolId));
 
             auto destructorQueueSize = std::make_shared<std::atomic<TAtomicBase>>(0);
 
@@ -1060,7 +1062,7 @@ void TBasicServicesInitializer::InitializeServices(NActors::TActorSystemSetup* s
     { // create retro collector
         setup->LocalServices.emplace_back(
                 NRetroTracing::MakeRetroCollectorId(),
-                TActorSetupCmd(NRetroTracing::CreateRetroCollector(), TMailboxType::ReadAsFilled,
+                TActorSetupCmd(CreateDistributedRetroCollector(), TMailboxType::ReadAsFilled,
                         appData->BatchPoolId));
     }
 
@@ -2362,7 +2364,7 @@ void TKqpServiceInitializer::InitializeServices(NActors::TActorSystemSetup* setu
         auto kqpProxySharedResources = std::make_shared<NKqp::TKqpProxySharedResources>();
 
         TDuration warmupDeadline;
-        if (Config.GetTableServiceConfig().HasCompileCacheWarmupConfig() && !appData->TenantName.empty()) {
+        if (Config.GetTableServiceConfig().GetEnableCompileCacheWarmup() && !appData->TenantName.empty()) {
             auto warmupProto = Config.GetTableServiceConfig().GetCompileCacheWarmupConfig();
             warmupDeadline = TDuration::Seconds(std::max(
                 warmupProto.GetHardDeadlineSeconds(), warmupProto.GetSoftDeadlineSeconds()));
@@ -2403,7 +2405,7 @@ void TKqpServiceInitializer::InitializeServices(NActors::TActorSystemSetup* setu
             NKqp::MakeKqpDescribeSchemaSecretServiceId(NodeId),
             TActorSetupCmd(describeSchemaSecretsService, TMailboxType::HTSwap, appData->UserPoolId)));
 
-        if (Config.GetTableServiceConfig().HasCompileCacheWarmupConfig() && !appData->TenantName.empty()) {
+        if (Config.GetTableServiceConfig().GetEnableCompileCacheWarmup() && !appData->TenantName.empty()) {
             auto warmupConfig = NKqp::ImportWarmupConfigFromProto(Config.GetTableServiceConfig().GetCompileCacheWarmupConfig());
 
             TString database = appData->TenantName;

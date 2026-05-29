@@ -96,6 +96,7 @@ PEERDIR(
     contrib/ydb/library/security
     contrib/ydb/public/lib/scheme_types
     contrib/ydb/public/lib/value
+    contrib/ydb/public/sdk/cpp/src/client/types/core_facility
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     yql/essentials/minikql
     contrib/ydb/public/lib/deprecated/client

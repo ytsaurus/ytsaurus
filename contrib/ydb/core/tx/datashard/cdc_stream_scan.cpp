@@ -7,7 +7,7 @@
 #include <contrib/ydb/core/protos/datashard_config.pb.h>
 #include <contrib/ydb/core/protos/tx_datashard.pb.h>
 
-#include <contrib/ydb/library/aclib/aclib.h>
+#include <contrib/ydb/library/aclib/user_context.h>
 
 #include <util/generic/maybe.h>
 #include <util/string/builder.h>

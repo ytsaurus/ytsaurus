@@ -39,6 +39,7 @@
 #include <contrib/ydb/core/fq/libs/row_dispatcher/events/data_plane.h>
 #include <contrib/ydb/core/fq/libs/row_dispatcher/row_dispatcher_service.h>
 
+#include <contrib/ydb/library/aclib/user_context.h>
 #include <contrib/ydb/library/yql/dq/runtime/dq_channel_service.h>
 #include <contrib/ydb/library/yql/utils/actor_log/log.h>
 #include <yql/essentials/core/services/mounts/yql_mounts.h>
@@ -320,7 +321,8 @@ public:
         NYql::NDq::TDqChannelLimits limits = {
             .LocalChannelInflightBytes  = TableServiceConfig.GetLocalChannelInflightBytes(),
             .RemoteChannelInflightBytes = TableServiceConfig.GetRemoteChannelInflightBytes(),
-            .NodeSessionIcInflightBytes = TableServiceConfig.GetNodeSessionIcInflightBytes()
+            .NodeSessionIcInflightBytes = TableServiceConfig.GetNodeSessionIcInflightBytes(),
+            .ReconciliationCount = TableServiceConfig.GetDqChannelReconciliationCount(),
         };
 
         ui32 channelPoolId = AppData()->UserPoolId;
@@ -1009,7 +1011,7 @@ public:
     void Handle(TEvPrivate::TEvCollectPeerProxyData::TPtr&) {
         if (!ShutdownRequested) {
             TDuration d;
-            if (!WarmupStarted && TableServiceConfig.HasCompileCacheWarmupConfig()) {
+            if (!WarmupStarted && TableServiceConfig.GetEnableCompileCacheWarmup()) {
                 // Short polling interval until warmup starts
                 d = TDuration::Seconds(2);
             } else {
@@ -1068,7 +1070,7 @@ public:
             return;
         }
 
-        if (!TableServiceConfig.HasCompileCacheWarmupConfig()) {
+        if (!TableServiceConfig.GetEnableCompileCacheWarmup()) {
             return;
         }
 

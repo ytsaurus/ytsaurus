@@ -1,20 +1,21 @@
 #pragma once
 
+#include <contrib/ydb/core/formats/arrow/serializer/abstract.h>
 #include <contrib/ydb/core/tx/columnshard/bg_tasks/abstract/control.h>
 #include <contrib/ydb/core/tx/columnshard/bg_tasks/abstract/task.h>
-#include <contrib/ydb/core/tx/columnshard/export/common/identifier.h>
 #include <contrib/ydb/core/tx/columnshard/common/path_id.h>
-#include <contrib/ydb/core/formats/arrow/serializer/abstract.h>
+#include <contrib/ydb/core/tx/columnshard/export/common/identifier.h>
 #include <contrib/ydb/core/tx/columnshard/export/protos/task.pb.h>
 
-#include <contrib/ydb/library/conclusion/status.h>
 #include <contrib/ydb/library/conclusion/result.h>
+#include <contrib/ydb/library/conclusion/status.h>
 
 namespace NKikimr::NOlap::NExport {
 
 class TExportTask: public NBackgroundTasks::TInterfaceProtoAdapter<NKikimrColumnShardExportProto::TExportTask, NBackground::ITaskDescription> {
 public:
     static TString GetClassNameStatic();
+
 private:
     using TNameTypeInfo = std::pair<TString, NScheme::TTypeInfo>;
     TIdentifier Identifier = TIdentifier(TInternalPathId{});
@@ -39,8 +40,9 @@ public:
 
     TExportTask() = default;
 
-    TExportTask(const TIdentifier& id, const std::vector<TNameTypeInfo>& columns, const NKikimrSchemeOp::TBackupTask& backupTask, const std::optional<ui64> txId = {});
+    TExportTask(const TIdentifier& id, const std::vector<TNameTypeInfo>& columns, const NKikimrSchemeOp::TBackupTask& backupTask,
+        const std::optional<ui64> txId = {});
 
     TString DebugString() const;
 };
-}
+}   // namespace NKikimr::NOlap::NExport

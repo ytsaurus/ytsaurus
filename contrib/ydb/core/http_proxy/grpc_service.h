@@ -1,14 +1,11 @@
 #pragma once
 
-#include <contrib/ydb/core/http_proxy/events.h>
-
-#include <contrib/ydb/library/actors/core/actorsystem.h>
-
-#include <contrib/ydb/library/grpc/server/grpc_server.h>
-#include <contrib/ydb/library/actors/core/actor.h>
+#include "events.h"
 
 #include <contrib/ydb/core/protos/serverless_proxy_config.pb.h>
-
+#include <contrib/ydb/library/actors/core/actor.h>
+#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/grpc/server/grpc_server.h>
 
 namespace NKikimr::NHttpProxy {
 
@@ -31,4 +28,4 @@ private:
     TIntrusivePtr<::NMonitoring::TDynamicCounters> Counters_;
 };
 
-} // namespace NKikimr
+} // namespace NKikimr::NHttpProxy

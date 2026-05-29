@@ -2,13 +2,15 @@
 
 #include <contrib/ydb/core/persqueue/events/events.h>
 #include <contrib/ydb/core/persqueue/public/describer/describer.h>
+#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>
 #include <contrib/ydb/public/api/protos/ydb_topic.pb.h>
-#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 
 namespace NACLib {
+
 class TUserToken;
-}
+
+} // namespace NACLib
 
 namespace NKikimr::NPQ::NMLP {
 
@@ -210,4 +212,4 @@ struct TDescribeSettings {
 // Return TEvDescribeResponse
 IActor* CreateDescriber(const NActors::TActorId& parentId, TDescribeSettings&& settings);
 
-} // NKikimr::NPQ::NMLP
+} // namespace NKikimr::NPQ::NMLP
