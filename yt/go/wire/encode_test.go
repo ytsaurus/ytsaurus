@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"bytes"
 	"sort"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type innterStruct struct {
@@ -396,4 +398,181 @@ func compareNameTables(t *testing.T, expected, actual NameTable) {
 	})
 
 	require.Equal(t, expected, actual)
+}
+
+type customRow struct {
+	A string
+	B uint64
+}
+
+func (s *customRow) MarshalRow(b NameTableBuilder) (Row, error) {
+	return Row{
+		NewBytes(b.LookupOrAdd("a"), []byte(s.A)),
+		NewUint64(b.LookupOrAdd("b"), s.B),
+	}, nil
+}
+
+var _ RowMarshaler = (*customRow)(nil)
+
+func TestEncodeRowMarshaler(t *testing.T) {
+	nt, rows, err := Encode([]any{
+		&customRow{A: "x", B: 7},
+		&customRow{A: "y", B: 8},
+	})
+	require.NoError(t, err)
+	require.Equal(t, NameTable{{Name: "a"}, {Name: "b"}}, nt)
+	require.Equal(t, []Row{
+		{NewBytes(0, []byte("x")), NewUint64(1, 7)},
+		{NewBytes(0, []byte("y")), NewUint64(1, 8)},
+	}, rows)
+}
+
+// rowMarshalerOverReflect implements RowMarshaler in addition to having
+// reflectable yson-tagged fields. Encode must call MarshalRow and never
+// fall through to the reflection path.
+type rowMarshalerOverReflect struct {
+	Reflected string `yson:"reflected"`
+}
+
+func (s *rowMarshalerOverReflect) MarshalRow(b NameTableBuilder) (Row, error) {
+	return Row{NewBytes(b.LookupOrAdd("from_marshaler"), []byte(s.Reflected))}, nil
+}
+
+func TestEncodeRowMarshalerTakesPrecedenceOverReflect(t *testing.T) {
+	nt, _, err := Encode([]any{
+		&rowMarshalerOverReflect{Reflected: "value"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, NameTable{{Name: "from_marshaler"}}, nt)
+}
+
+// reflectBenchStub is a generic row shape with a few primitive scalars
+// plus one map field that gets serialised as Any. It's wide enough to
+// exercise the hot parts of wire.Encode.
+type reflectBenchStub struct {
+	S1   string            `yson:"s1"`
+	S2   string            `yson:"s2"`
+	S3   string            `yson:"s3"`
+	U1   uint64            `yson:"u1"`
+	U2   uint64            `yson:"u2"`
+	N    uint32            `yson:"n"`
+	Tags map[string]string `yson:"tags"`
+}
+
+// handrolledBenchStub has the same logical shape as reflectBenchStub
+// but supplies MarshalRow so Encode bypasses reflection.
+type handrolledBenchStub struct {
+	S1   string
+	S2   string
+	S3   string
+	U1   uint64
+	U2   uint64
+	N    uint32
+	Tags map[string]string
+}
+
+func (s *handrolledBenchStub) MarshalRow(b NameTableBuilder) (Row, error) {
+	idS1 := b.LookupOrAdd("s1")
+	idS2 := b.LookupOrAdd("s2")
+	idS3 := b.LookupOrAdd("s3")
+	idU1 := b.LookupOrAdd("u1")
+	idU2 := b.LookupOrAdd("u2")
+	idN := b.LookupOrAdd("n")
+	idTags := b.LookupOrAdd("tags")
+
+	// Emit the tags map as binary YSON without reflection.
+	var buf bytes.Buffer
+	w := yson.NewWriterConfig(&buf, yson.WriterConfig{Format: yson.FormatBinary})
+	w.BeginMap()
+	for k, v := range s.Tags {
+		w.MapKeyString(k)
+		w.String(v)
+	}
+	w.EndMap()
+	if err := w.Finish(); err != nil {
+		return nil, err
+	}
+
+	return Row{
+		NewBytes(idS1, []byte(s.S1)),
+		NewBytes(idS2, []byte(s.S2)),
+		NewBytes(idS3, []byte(s.S3)),
+		NewUint64(idU1, s.U1),
+		NewUint64(idU2, s.U2),
+		NewUint64(idN, uint64(s.N)),
+		NewAny(idTags, append([]byte(nil), buf.Bytes()...)),
+	}, nil
+}
+
+func benchTags() map[string]string {
+	return map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+		"k3": "v3",
+		"k4": "v4",
+		"k5": "v5",
+		"k6": "v6",
+		"k7": "v7",
+		"k8": "v8",
+	}
+}
+
+func makeReflectBatch(n int) []any {
+	out := make([]any, n)
+	tags := benchTags()
+	for i := 0; i < n; i++ {
+		out[i] = &reflectBenchStub{
+			S1:   "abc",
+			S2:   "def",
+			S3:   "the quick brown fox jumps over the lazy dog",
+			U1:   uint64(i),
+			U2:   uint64(i * 2),
+			N:    uint32(i),
+			Tags: tags,
+		}
+	}
+	return out
+}
+
+func makeHandrolledBatch(n int) []any {
+	out := make([]any, n)
+	tags := benchTags()
+	for i := 0; i < n; i++ {
+		out[i] = &handrolledBenchStub{
+			S1:   "abc",
+			S2:   "def",
+			S3:   "the quick brown fox jumps over the lazy dog",
+			U1:   uint64(i),
+			U2:   uint64(i * 2),
+			N:    uint32(i),
+			Tags: tags,
+		}
+	}
+	return out
+}
+
+func BenchmarkEncode(b *testing.B) {
+	const batch = 1000
+	b.Run("reflect", func(b *testing.B) {
+		items := makeReflectBatch(batch)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, err := Encode(items)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("row_marshaler", func(b *testing.B) {
+		items := makeHandrolledBatch(batch)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, err := Encode(items)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
