@@ -625,6 +625,7 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
         wait(lambda: trivial(counter), ignore_exceptions=True)
 
     @authors("koloshmet")
+    @pytest.mark.timeout(120)
     def test_dynamic_limits(self):
         set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
         set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)
@@ -637,8 +638,16 @@ class TestMaxWriteSessionLimit(YTEnvSetup):
             return None
 
         def write_tables(table_prefix, expect_exceptions):
+            # The per-location write-session limit is observed only when many
+            # write-target allocations reach the master simultaneously, before
+            # the in-flight sessions are reconciled. Spreading the writers out
+            # (or using too few) lets them all slip in under the limit, which is
+            # exactly what made write_tables_until_failure retry for a long time
+            # and time out. When we expect the limit to be hit, fire a larger
+            # simultaneous burst so it is tripped within the first attempt or two.
+            table_count = 30 if expect_exceptions else 10
             tables = []
-            for i in range(10):
+            for i in range(table_count):
                 table_name = table_prefix.format(i)
                 create("table", table_name)
                 tables.append(table_name)
