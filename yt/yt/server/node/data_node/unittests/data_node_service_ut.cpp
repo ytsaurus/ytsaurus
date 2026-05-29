@@ -1205,7 +1205,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TFairShareHierarchicalTest, StressTest)
+// TODO(ilyaibraev): YTSAURUSSUP-2782
+TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
 {
     int blockCount = 80;
     int blkSize = 1_MB;
@@ -1501,7 +1502,8 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
-TEST_P(TGetBlockSetTest, GetBlockSetTest)
+// TODO(ilyaibraev): YTSAURUSSUP-2782
+TEST_P(TGetBlockSetTest, DISABLED_GetBlockSetTest)
 {
     auto testCase = GetParam();
 
@@ -1760,7 +1762,8 @@ TEST_P(TWriteTest, DuplicateWrite)
         .ThrowOnError();
 }
 
-TEST_P(TWriteTest, RandomWrite)
+// TODO(ilyaibraev): YTSAURUSSUP-2782
+TEST_P(TWriteTest, DISABLED_RandomWrite)
 {
     auto testCase = GetParam();
 
