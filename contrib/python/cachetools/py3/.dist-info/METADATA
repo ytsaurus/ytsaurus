@@ -1,24 +1,28 @@
 Metadata-Version: 2.4
 Name: cachetools
-Version: 6.2.6
+Version: 7.0.6
 Summary: Extensible memoizing collections and decorators
 Author-email: Thomas Kemmer <tkemmer@computer.org>
 Maintainer-email: Thomas Kemmer <tkemmer@computer.org>
 License-Expression: MIT
 Project-URL: Homepage, https://github.com/tkem/cachetools/
+Project-URL: Documentation, https://cachetools.readthedocs.io/en/stable/
+Project-URL: Source, https://github.com/tkem/cachetools/
+Project-URL: Repository, https://github.com/tkem/cachetools/
+Project-URL: Issues, https://github.com/tkem/cachetools/issues
+Project-URL: Changelog, https://github.com/tkem/cachetools/blob/master/CHANGELOG.rst
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: 3.14
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Requires-Python: >=3.9
+Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
 License-File: LICENSE
 Dynamic: license-file
