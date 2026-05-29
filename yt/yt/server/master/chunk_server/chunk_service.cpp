@@ -121,6 +121,8 @@ public:
             .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(CreateChunkRequestQueueProvider_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunk)
+            // We use Rpc heavy invoker to process request and build response as it may take a big part in execution time.
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SealChunk)
             .SetHeavy(true));
@@ -972,6 +974,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         context->SetRequestInfo(
             "ChunkId: %v",
@@ -980,76 +984,92 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& configManager = Bootstrap_->GetConfigManager();
-
-        const auto& sequoiaChunkReplicasConfig = configManager->GetConfig()->ChunkManager->SequoiaChunkReplicas;
-
-        // COMPAT(kvk1920)
-        if (!request->location_uuids_supported()) {
-            THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
-        }
-
         ValidateChunkMetaOnConfirmation(request->chunk_meta());
 
-        // Fastpath.
-        auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-        if (chunk->IsConfirmed()) {
-            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
-                chunkId);
-
-            if (context->Request().request_statistics()) {
-                // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
-                // to the confirming writer. All hunk statistics are known within the same writing session.
-                auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
-                    ? chunk->GetHunkStatistics().ToDataStatistics()
-                    : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
-                ToProto(
-                    context->Response().mutable_statistics(),
-                    dataStatistics);
-            }
-            context->Reply();
-            return;
-        }
-
-        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, sequoiaChunkReplicasConfig);
-        if (chunkSequoiaConfig.StoreInSequoia) {
-            auto requestStatistics = context->Request().request_statistics();
-            if (sequoiaChunkReplicasConfig->BatchChunkConfirmation) {
-                // Be carefull with raw request.
-                WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request())))
-                    .ThrowOnError();
-            } else {
-                WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
-                    .ThrowOnError();
-            }
+        auto doConfirmChunks = [
+            this,
+            this_ = MakeStrong(this),
+            context,
+            chunkId
+        ] () -> std::optional<TError> {
             ValidatePeer(EPeerKind::Leader);
 
-            if (requestStatistics) {
-                auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-                if (!chunk->IsConfirmed()) {
-                    YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Chunk %v is not confirmed after confirm",
-                        chunkId);
-                }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& configManager = Bootstrap_->GetConfigManager();
 
-                // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
-                // to the confirming writer. All hunk statistics are known within the same writing session.
-                auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
-                    ? chunk->GetHunkStatistics().ToDataStatistics()
-                    : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
-                ToProto(
-                    context->Response().mutable_statistics(),
-                    dataStatistics);
-                // Do not set revision as ally replicas do not work for Sequoia anyway.
+            const auto& sequoiaChunkReplicasConfig = configManager->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+
+            // Fastpath.
+            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+            if (chunk->IsConfirmed()) {
+                YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
+                    chunkId);
+
+                if (context->Request().request_statistics()) {
+                    // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
+                    // to the confirming writer. All hunk statistics are known within the same writing session.
+                    auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
+                        ? chunk->GetHunkStatistics().ToDataStatistics()
+                        : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
+                    ToProto(
+                        context->Response().mutable_statistics(),
+                        dataStatistics);
+                }
+                context->Reply();
+                return std::nullopt;
             }
-            context->Reply();
-        } else {
-            auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
-            mutation->SetCurrentTraceContext();
-            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+
+            auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, sequoiaChunkReplicasConfig);
+            if (chunkSequoiaConfig.StoreInSequoia) {
+                auto requestStatistics = context->Request().request_statistics();
+                if (sequoiaChunkReplicasConfig->BatchChunkConfirmation) {
+                    auto result = WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request())));
+                    if (!result.IsOK()) {
+                        return result;
+                    }
+                } else {
+                    auto result = WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()));
+                    if (!result.IsOK()) {
+                        return result;
+                    }
+                }
+                ValidatePeer(EPeerKind::Leader);
+
+                if (requestStatistics) {
+                    auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+                    if (!chunk->IsConfirmed()) {
+                        YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
+                        return TError(NRpc::EErrorCode::TransientFailure,
+                            "Chunk %v is not confirmed after confirm",
+                            chunkId);
+                    }
+
+                    // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
+                    // to the confirming writer. All hunk statistics are known within the same writing session.
+                    auto dataStatistics = IsHunkChunkFormat(chunk->GetChunkFormat())
+                        ? chunk->GetHunkStatistics().ToDataStatistics()
+                        : chunk->GetStatistics(/*includeReferencedHunkData*/ false).ToDataStatistics();
+                    ToProto(
+                        context->Response().mutable_statistics(),
+                        dataStatistics);
+                    // Do not set revision as ally replicas do not work for Sequoia anyway.
+                }
+                context->Reply();
+            } else {
+                auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
+                mutation->SetCurrentTraceContext();
+                YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+            }
+            return std::nullopt;
+        };
+
+        auto confirmError = WaitFor(BIND(doConfirmChunks)
+            .AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService))
+            .Run())
+            .ValueOrThrow();
+
+        if (confirmError) {
+            confirmError->ThrowOnError();
         }
     }
 
