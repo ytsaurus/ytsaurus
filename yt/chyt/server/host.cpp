@@ -138,6 +138,8 @@ public:
         , FetcherThreadPool_(CreateThreadPool(Config_->FetcherThreadCount, "Fetcher"))
         , FetcherInvoker_(FetcherThreadPool_->GetInvoker())
         , ClickHouseFetcherInvoker_(CreateClickHouseInvoker(FetcherInvoker_))
+        , TaskPullerThreadPool_(CreateThreadPool(Config_->TaskPullerThreadCount, "TaskPuller"))
+        , ClickHouseTaskPullerInvoker_(CreateClickHouseInvoker(TaskPullerThreadPool_->GetInvoker()))
         , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
@@ -576,6 +578,11 @@ public:
         return ClickHouseFetcherInvoker_;
     }
 
+    const IInvokerPtr& GetClickHouseTaskPullerInvoker() const
+    {
+        return ClickHouseTaskPullerInvoker_;
+    }
+
     const IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const
     {
         return ParallelReaderMemoryManager_;
@@ -845,6 +852,8 @@ private:
     IThreadPoolPtr FetcherThreadPool_;
     IInvokerPtr FetcherInvoker_;
     IInvokerPtr ClickHouseFetcherInvoker_;
+    IThreadPoolPtr TaskPullerThreadPool_;
+    IInvokerPtr ClickHouseTaskPullerInvoker_;
     TActionQueuePtr SystemLogTableExporterActionQueue_;
 
     NApi::NNative::IClientPtr RootClient_;
@@ -1242,6 +1251,11 @@ const IInvokerPtr& THost::GetFetcherInvoker() const
 const IInvokerPtr& THost::GetClickHouseFetcherInvoker() const
 {
     return Impl_->GetClickHouseFetcherInvoker();
+}
+
+const IInvokerPtr& THost::GetClickHouseTaskPullerInvoker() const
+{
+    return Impl_->GetClickHouseTaskPullerInvoker();
 }
 
 TClusterNodes THost::GetNodes(bool alwaysIncludeLocal) const
