@@ -304,7 +304,7 @@ public:
     {
         auto reportedLocationUuids = GetLocationsReportedInStatistics(context->Request().statistics());
 
-        std::vector<TFuture<TRspModifyReplicas>> sequoiaReplaceLocationReplicasFutures;
+        std::vector<TFuture<void>> sequoiaReplaceLocationReplicasFutures;
 
         for (const auto& location : node->ChunkLocations()) {
             if (!std::ranges::binary_search(reportedLocationUuids, location->GetUuid())) {
@@ -350,7 +350,7 @@ public:
         }
 
         WaitFor(AllSet(std::move(sequoiaReplaceLocationReplicasFutures))
-            .Apply(BIND([](const std::vector<TErrorOr<TRspModifyReplicas>> responses) {
+            .Apply(BIND([](const std::vector<TError> responses) {
                 for (const auto& response : responses) {
                     response.ThrowOnError();
                 }
